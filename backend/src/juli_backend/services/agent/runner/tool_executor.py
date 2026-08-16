@@ -51,6 +51,32 @@ machinery). Until that lands, any `in_flight`/`failed` row this
 (`ToolExecutionUnrecoverableError`) rather than guessing — the safe default
 `ledger.py` already implements for `verify_applied=None`, not a gap this
 module papers over.
+
+**Basis-hash concurrency routing (ADR-073 decision 4, issue #1122 /
+AGT-W3A).** `ProductToolExecutor` optionally takes a `concurrency_guard`
+(`concurrency.py`'s `ConcurrencyGuard`). When supplied and the target tool
+is one `FIELD_SCOPE_BY_OPERATION` names, `execute` re-reads the product via
+`write_resources.products.get_details` and runs
+`ConcurrencyGuard.check_before_write` **before** the ledger-gated/direct
+dispatch below ever runs — a `ConcurrencyConflict` short-circuits `execute`
+entirely, returning the sanitized `{"conflict": True, "current_values":
+...}` payload directly, so neither the handler nor the ledger nor any
+vendor write call is ever reached (zero vendor calls on a mismatch,
+ADR-073 decision 4: "rejected before signing"). A `ConcurrencyMatch` falls
+through to dispatch unchanged; a second same-operation mismatch raises
+`ConcurrencyExhaustedError` straight out of `execute` (uncaught, mirroring
+`ToolExecutionUnrecoverableError`'s propagation). `get_product_information`
+READ dispatch additionally re-reads the product once more to call
+`ConcurrencyGuard.record_basis` — the "captured when the agent reads the
+product" half of decision 4 — and a successful WRITE dispatch refreshes the
+basis again afterward (`concurrency.py`'s module docstring, "Post-write
+basis refresh", explains why). `concurrency_guard` defaults to `None`, so
+every pre-existing call site and test keeps behaving byte-for-byte as
+before — additive and opt-in, exactly like the ledger routing above.
+Neither this guard nor the ledger is reachable from a live run yet:
+`core.py` never constructs a `ConcurrencyGuard` or threads `tool_call_id`
+into `execute` — see `concurrency.py`'s module docstring, "What this
+module does NOT wire up".
 """
 
 from __future__ import annotations
@@ -62,6 +88,12 @@ from typing import Any, Protocol, runtime_checkable
 from pydantic import BaseModel
 
 from juli_backend.integrations.tiktok import ProductionReadResources, SandboxWriteResources
+from juli_backend.services.agent.runner.concurrency import (
+    FIELD_SCOPE_BY_OPERATION,
+    ConcurrencyConflict,
+    ConcurrencyGuard,
+    extract_mutable_fields,
+)
 from juli_backend.services.agent.runner.ledger import ToolExecutionLedger
 from juli_backend.services.agent.tools import ToolClassification, ToolRegistry
 from juli_backend.services.agent.tools.product import (
@@ -128,6 +160,7 @@ class ProductToolExecutor:
         pending_image_bytes: bytes | None = None,
         ledger: ToolExecutionLedger | None = None,
         workflow_run_id: uuid.UUID | None = None,
+        concurrency_guard: ConcurrencyGuard | None = None,
     ) -> None:
         self._registry = registry
         self._read_resources = read_resources
@@ -138,11 +171,16 @@ class ProductToolExecutor:
         self._pending_image_bytes = pending_image_bytes
         self._ledger = ledger
         self._workflow_run_id = workflow_run_id
+        self._concurrency_guard = concurrency_guard
 
     def execute(
         self, *, tool_name: str, params: BaseModel, tool_call_id: str | None = None
     ) -> Mapping[str, Any]:
         spec = self._registry.get(tool_name)
+        is_scoped_write = (
+            spec.classification is ToolClassification.WRITE
+            and tool_name in FIELD_SCOPE_BY_OPERATION
+        )
 
         def _dispatch() -> Mapping[str, Any]:
             context = ProductToolContext(
@@ -165,6 +203,14 @@ class ProductToolExecutor:
                         "ProductToolExecutor was constructed without them."
                     )
                 result = read_handler(self._read_resources, context, params)
+                if tool_name == "get_product_information" and self._concurrency_guard is not None:
+                    # ADR-073 decision 4: "captured when the agent reads the
+                    # product" — a dedicated re-read, independent of the
+                    # handler's own sanitized output (see concurrency.py's
+                    # module docstring for why this module never reuses
+                    # tools/product.py's sanitize-shaped result for hashing).
+                    raw = self._read_resources.products.get_details(self._product_id)
+                    self._concurrency_guard.record_basis(extract_mutable_fields(raw))
             else:
                 write_handler = PRODUCT_WRITE_TOOL_HANDLERS.get(tool_name)
                 if write_handler is None:
@@ -181,6 +227,26 @@ class ProductToolExecutor:
 
             return result.model_dump(mode="json")
 
+        # ADR-073 decision 4 (#1122): a scoped WRITE with a configured
+        # concurrency_guard is checked *before* the ledger-gated/direct
+        # dispatch below ever runs. A conflict short-circuits execute()
+        # entirely — _dispatch (and therefore the ledger and any vendor
+        # write call) is never reached, which is the whole of how "rejected
+        # before signing, zero vendor calls" holds. A second same-operation
+        # mismatch raises ConcurrencyExhaustedError out of this method,
+        # uncaught, mirroring ToolExecutionUnrecoverableError's propagation.
+        if (
+            is_scoped_write
+            and self._concurrency_guard is not None
+            and self._write_resources is not None
+        ):
+            raw = self._write_resources.products.get_details(self._product_id)
+            check = self._concurrency_guard.check_before_write(
+                operation=tool_name, current_fields=extract_mutable_fields(raw)
+            )
+            if isinstance(check, ConcurrencyConflict):
+                return dict(check.payload)
+
         # ADR-073 decision 3 (#1121): WRITE calls route through the ledger
         # only when the caller opted in with all three of ledger,
         # workflow_run_id, and tool_call_id — see module docstring. READ
@@ -192,6 +258,7 @@ class ProductToolExecutor:
             and self._workflow_run_id is not None
             and tool_call_id is not None
         ):
+            result = self._ledger.execute_write(
             return self._ledger.execute_write(
                 workflow_run_id=self._workflow_run_id,
                 tool_call_id=tool_call_id,
@@ -199,6 +266,21 @@ class ProductToolExecutor:
                 perform=_dispatch,
                 verify_applied=None,
             )
+        else:
+            result = _dispatch()
+
+        if (
+            is_scoped_write
+            and self._concurrency_guard is not None
+            and self._write_resources is not None
+        ):
+            # Post-write basis refresh (concurrency.py's module docstring):
+            # this run's own successful write must not be mistaken for a
+            # competing edit on a later same-operation call.
+            raw = self._write_resources.products.get_details(self._product_id)
+            self._concurrency_guard.record_basis(extract_mutable_fields(raw))
+
+        return result
 
         return _dispatch()
 

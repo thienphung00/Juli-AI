@@ -1,0 +1,27 @@
+{
+  "gateVersion": 1,
+  "issue": 1122,
+  "metrics": {
+    "acceptanceMapped": 8,
+    "acceptanceTotal": 8,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/agent/runner/concurrency.py",
+      "backend/src/juli_backend/services/agent/runner/tool_executor.py",
+      "backend/src/juli_backend/services/agent/runner/__init__.py",
+      "tests/unit/test_agent_runner_concurrency.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1122.json",
+    "sha256": "14734ad06d9cb2a217dd05ee436c323efcd328155e35148a9cf07a6eafea9d92",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-15T11:36:29Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1122.json",
+    "sha256": "d519896a41da45f1942f5b82cc7a9c28dc0cd676f3073b6e0d100079005e9596",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w3"
+}
