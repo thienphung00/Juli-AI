@@ -24,16 +24,45 @@ product identity already resolved (by whatever constructs the runner for a
 given `workflow_runs` row — a later slice's job), so every `execute` call
 this run makes reflects that identity, never a value an agent could spoof
 through `ToolCallBlock.arguments`.
+
+**Idempotency-ledger routing (ADR-073 decision 3, issue #1121 / AGT-W3A).**
+`ProductToolExecutor` optionally takes a `ledger` (`ledger.py`'s
+`ToolExecutionLedger`) and the run's `workflow_run_id`. When both are
+supplied *and* a caller passes `tool_call_id` to `execute` *and* the target
+tool is `WRITE`-classified, dispatch routes through
+`ToolExecutionLedger.execute_write` instead of calling the handler
+directly — `READ` calls never take this branch regardless of whether a
+ledger is configured, which is the whole of how "reads skip the ledger
+entirely" holds. `ledger`/`workflow_run_id` default to `None` and
+`tool_call_id` defaults to `None` so every pre-existing call site
+(`core.py`'s `self._tool_executor.execute(tool_name=..., params=...)`,
+and every test in `test_agent_runner_tool_executor.py` predating this
+slice) keeps calling the handler directly, byte-for-byte as before —
+this is an additive, opt-in extension, not a signature break.
+
+`verify_applied` is passed as `None` from this wiring: a real per-operation
+read-back check (re-read the product/price and compare against the
+intended mutation) needs marketplace read access this module already has
+in principle, but authoring that comparison logic per tool is `tools/`
+domain logic this issue's boundary explicitly reserves for a later slice
+(`#1122`, basis-hash compare-before-write, builds the same read-and-compare
+machinery). Until that lands, any `in_flight`/`failed` row this
+`ProductToolExecutor` encounters on a real retry fails closed
+(`ToolExecutionUnrecoverableError`) rather than guessing — the safe default
+`ledger.py` already implements for `verify_applied=None`, not a gap this
+module papers over.
 """
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Mapping
 from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
 from juli_backend.integrations.tiktok import ProductionReadResources, SandboxWriteResources
+from juli_backend.services.agent.runner.ledger import ToolExecutionLedger
 from juli_backend.services.agent.tools import ToolClassification, ToolRegistry
 from juli_backend.services.agent.tools.product import (
     PRODUCT_READ_TOOL_HANDLERS,
@@ -68,7 +97,9 @@ class ToolExecutor(Protocol):
     `guard_inbound_tool_result`; that is the caller's job.
     """
 
-    def execute(self, *, tool_name: str, params: BaseModel) -> Mapping[str, Any]: ...
+    def execute(
+        self, *, tool_name: str, params: BaseModel, tool_call_id: str | None = None
+    ) -> Mapping[str, Any]: ...
 
 
 class ProductToolExecutor:
@@ -95,6 +126,8 @@ class ProductToolExecutor:
         sku_refs: Mapping[str, str] | None = None,
         staged_image_uri: str | None = None,
         pending_image_bytes: bytes | None = None,
+        ledger: ToolExecutionLedger | None = None,
+        workflow_run_id: uuid.UUID | None = None,
     ) -> None:
         self._registry = registry
         self._read_resources = read_resources
@@ -103,44 +136,71 @@ class ProductToolExecutor:
         self._sku_refs = dict(sku_refs or {})
         self._staged_image_uri = staged_image_uri
         self._pending_image_bytes = pending_image_bytes
+        self._ledger = ledger
+        self._workflow_run_id = workflow_run_id
 
-    def execute(self, *, tool_name: str, params: BaseModel) -> Mapping[str, Any]:
+    def execute(
+        self, *, tool_name: str, params: BaseModel, tool_call_id: str | None = None
+    ) -> Mapping[str, Any]:
         spec = self._registry.get(tool_name)
-        context = ProductToolContext(
-            product_id=self._product_id,
-            sku_refs=self._sku_refs,
-            staged_image_uri=self._staged_image_uri,
-            pending_image_bytes=self._pending_image_bytes,
-        )
 
-        if spec.classification is ToolClassification.READ:
-            read_handler = PRODUCT_READ_TOOL_HANDLERS.get(tool_name)
-            if read_handler is None:
-                raise ToolExecutionError(
-                    f"Tool {tool_name!r} is registered READ but has no handler in "
-                    "PRODUCT_READ_TOOL_HANDLERS."
-                )
-            if self._read_resources is None:
-                raise ToolExecutionError(
-                    f"Tool {tool_name!r} requires read_resources, but this "
-                    "ProductToolExecutor was constructed without them."
-                )
-            result = read_handler(self._read_resources, context, params)
-        else:
-            write_handler = PRODUCT_WRITE_TOOL_HANDLERS.get(tool_name)
-            if write_handler is None:
-                raise ToolExecutionError(
-                    f"Tool {tool_name!r} is registered WRITE but has no handler in "
-                    "PRODUCT_WRITE_TOOL_HANDLERS."
-                )
-            if self._write_resources is None:
-                raise ToolExecutionError(
-                    f"Tool {tool_name!r} requires write_resources, but this "
-                    "ProductToolExecutor was constructed without them."
-                )
-            result = write_handler(self._write_resources, context, params)
+        def _dispatch() -> Mapping[str, Any]:
+            context = ProductToolContext(
+                product_id=self._product_id,
+                sku_refs=self._sku_refs,
+                staged_image_uri=self._staged_image_uri,
+                pending_image_bytes=self._pending_image_bytes,
+            )
 
-        return result.model_dump(mode="json")
+            if spec.classification is ToolClassification.READ:
+                read_handler = PRODUCT_READ_TOOL_HANDLERS.get(tool_name)
+                if read_handler is None:
+                    raise ToolExecutionError(
+                        f"Tool {tool_name!r} is registered READ but has no handler in "
+                        "PRODUCT_READ_TOOL_HANDLERS."
+                    )
+                if self._read_resources is None:
+                    raise ToolExecutionError(
+                        f"Tool {tool_name!r} requires read_resources, but this "
+                        "ProductToolExecutor was constructed without them."
+                    )
+                result = read_handler(self._read_resources, context, params)
+            else:
+                write_handler = PRODUCT_WRITE_TOOL_HANDLERS.get(tool_name)
+                if write_handler is None:
+                    raise ToolExecutionError(
+                        f"Tool {tool_name!r} is registered WRITE but has no handler in "
+                        "PRODUCT_WRITE_TOOL_HANDLERS."
+                    )
+                if self._write_resources is None:
+                    raise ToolExecutionError(
+                        f"Tool {tool_name!r} requires write_resources, but this "
+                        "ProductToolExecutor was constructed without them."
+                    )
+                result = write_handler(self._write_resources, context, params)
+
+            return result.model_dump(mode="json")
+
+        # ADR-073 decision 3 (#1121): WRITE calls route through the ledger
+        # only when the caller opted in with all three of ledger,
+        # workflow_run_id, and tool_call_id — see module docstring. READ
+        # calls never take this branch, satisfying "reads skip the ledger
+        # entirely" unconditionally.
+        if (
+            spec.classification is ToolClassification.WRITE
+            and self._ledger is not None
+            and self._workflow_run_id is not None
+            and tool_call_id is not None
+        ):
+            return self._ledger.execute_write(
+                workflow_run_id=self._workflow_run_id,
+                tool_call_id=tool_call_id,
+                operation=tool_name,
+                perform=_dispatch,
+                verify_applied=None,
+            )
+
+        return _dispatch()
 
 
 __all__ = [
