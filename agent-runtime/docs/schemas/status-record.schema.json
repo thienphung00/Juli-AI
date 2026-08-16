@@ -32,6 +32,18 @@
         "sha256": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"
+        },
+        "signoffRequired": {
+          "type": "boolean",
+          "description": "#1141: true when the review is PASS_WITH_WARNINGS and therefore needs the dual signoff. Optional for backward compatibility with records written before #1141; absent reads as false."
+        },
+        "warningsAcknowledged": {
+          "type": "boolean",
+          "description": "#1141: every gating WARNING finding carries reviewer acceptance plus owner ack. Derived by generate_status_records.py from the same common helper check_findings_acknowledged.py uses; absent reads as false, keeping the retention guard fail-closed."
+        },
+        "ownerSignoffPresent": {
+          "type": "boolean",
+          "description": "#1141: a timestamped owner signoff with acknowledged=true is present on the review body. Derived from the same common helper check_owner_signoff.py uses; absent reads as false."
         }
       }
     },
