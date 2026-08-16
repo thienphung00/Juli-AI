@@ -259,6 +259,7 @@ class ProductToolExecutor:
             and tool_call_id is not None
         ):
             result = self._ledger.execute_write(
+            return self._ledger.execute_write(
                 workflow_run_id=self._workflow_run_id,
                 tool_call_id=tool_call_id,
                 operation=tool_name,
@@ -280,6 +281,8 @@ class ProductToolExecutor:
             self._concurrency_guard.record_basis(extract_mutable_fields(raw))
 
         return result
+
+        return _dispatch()
 
 
 __all__ = [

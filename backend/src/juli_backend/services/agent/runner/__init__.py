@@ -17,6 +17,10 @@ below — unlike `core`/`tool_executor`, it has no import-cycle hazard with
 also imported eagerly below — it only imports `status.py`, the same
 no-cycle-hazard reasoning as `ledger`. This completes ADR-073's runner
 slices.
+`events/` (it only imports `models/models.py`). Basis-hash
+compare-before-write is a later slice in this phase — do not add it here.
+inside `core` — no new module. The idempotency ledger and basis-hash
+compare-before-write are later slices in this phase — do not add them here.
 
 **Why `core`/`tool_executor` are exported lazily (`__getattr__`, PEP 562)
 instead of imported at module scope like the rest of this file.**
