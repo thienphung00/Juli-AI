@@ -39,19 +39,35 @@ rather than requesting a third attempt — any other block (text, a
 successfully-dispatched tool call, or a playbook/registry refusal, which is
 a distinct failure class from a malformed-params one) resets the streak.
 
-**What this slice deliberately does not do (see issue #1119's "Boundaries").**
-No iteration cap, no wall-clock timeout, no extension grants, no checkpoint
-cancellation (#1120); no idempotency ledger / claim-then-execute (#1121); no
-basis-hash compare-before-write (#1122); no pause/resume round-trip for a
-CONFIRM-policy tool (#1123) — a `ToolCallBlock` naming a CONFIRM tool is
-dispatched exactly like an AUTO one in this slice, once it clears the
-allowlist and validation checks; a later slice is what actually pauses the
-run before invoking the handler. `state.running_seconds_elapsed` (the float
-`RunState` field #1118 shipped) is never read or written here either: it
-exists to back the wall-clock timeout ADR-073 decision 2 assigns to #1120,
-and the lossy float->int mirror onto `workflow_runs.running_seconds_elapsed`
-that write implies is that same slice's decision to make and test, not
-this one's to guess at.
+**Termination (ADR-073 decision 2, issue #1120 / `runner/termination.py`).**
+Every numeric termination value is read off `self._playbook.termination_policy`
+— never a literal in this module. `evaluate_checkpoint` (cancellation +
+paused wall clock, one shared function) runs at the top of every iteration
+and immediately before every `ToolCallBlock` dispatch; a call already in
+flight always completes, since a checkpoint only ever gates the *next* unit
+of work. `evaluate_iteration_gate` runs at the top of every iteration, after
+the checkpoint, to grant a soft-cap extension (emitting one visible
+`workflow.status` event per grant) or stop with `iteration_cap_exceeded`.
+`state.running_seconds_elapsed` (the float `RunState` field #1118 shipped)
+is accumulated once per completed iteration via
+`termination.accumulate_running_seconds`, using this module's own injected
+`clock` to measure the iteration's running-time delta — see
+`termination.py`'s module docstring for the rounding decision governing the
+`workflow_runs.running_seconds_elapsed` integer mirror, which this module
+does not itself write (no direct database access here, same as
+`prompt_version`/`prompt_sha256`/`status`).
+
+**What this slice still deliberately does not do (see issue #1119's
+"Boundaries", now narrowed by #1120's own boundaries).** No idempotency
+ledger / claim-then-execute (#1121); no basis-hash compare-before-write
+(#1122); no pause/resume round-trip for a CONFIRM-policy tool (#1123) — a
+`ToolCallBlock` naming a CONFIRM tool is still dispatched exactly like an
+AUTO one in this slice, once it clears the allowlist and validation checks;
+a later slice is what actually pauses the run before invoking the handler,
+so `paused_for_confirmation`/`confirmation_declined`/`confirmation_expired`/
+`concurrency_conflict` are not produced by any code in this module — see
+`tests/unit/test_agent_runner_termination.py` for the explicit reachability
+assertion.
 
 **`compose()`/prompt stamping (ADR-072 decision 4).** `compose()`,
 `prompt_version()`, and `prompt_sha256()` are called exactly once, at the
@@ -66,7 +82,9 @@ job, exactly like `status`/`stop_reason`/`running_seconds_elapsed`.
 
 from __future__ import annotations
 
+import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum, auto
@@ -88,6 +106,8 @@ from juli_backend.services.agent.events import (
     WorkflowFailedPayload,
     WorkflowStartedEvent,
     WorkflowStartedPayload,
+    WorkflowStatusEvent,
+    WorkflowStatusPayload,
 )
 from juli_backend.services.agent.llm import (
     FinalResponse,
@@ -102,6 +122,13 @@ from juli_backend.services.agent.prompts.composer import compose, prompt_sha256,
 from juli_backend.services.agent.runner.conversation_store import ConversationStore
 from juli_backend.services.agent.runner.state import ConversationMessage, RunState
 from juli_backend.services.agent.runner.status import StopReason, WorkflowRunStatus, status_for
+from juli_backend.services.agent.runner.termination import (
+    IterationGateAction,
+    accumulate_running_seconds,
+    evaluate_checkpoint,
+    evaluate_iteration_gate,
+    extension_grant_narration,
+)
 from juli_backend.services.agent.runner.tool_executor import ToolExecutor
 from juli_backend.services.agent.sanitize import (
     TranslatedError,
@@ -162,6 +189,17 @@ class WorkflowRunner:
     instances (even against the same registry/playbook) never share
     mutable state; each `run()` call loads its own `RunState` fresh from
     the injected `ConversationStore`.
+
+    `clock` and `cancel_check` are the two termination-policy injection
+    seams (issue #1120): `clock` (default `time.monotonic`) measures each
+    iteration's running-time delta for the wall-clock accumulator; a test
+    passes a controllable fake so no scenario ever sleeps in wall-clock
+    time. `cancel_check` (default: always `False`) is polled at every
+    checkpoint (`termination.evaluate_checkpoint`) to learn whether
+    cancellation has been requested — the actual `cancel_requested` storage
+    (a `workflow_runs` column) is out of this module's reach; this seam is
+    how a later slice's caller wires that column's value in without this
+    module gaining direct database access.
     """
 
     def __init__(
@@ -174,6 +212,8 @@ class WorkflowRunner:
         registry: ToolRegistry,
         playbook: Playbook,
         llm_config: LLMConfig | None = None,
+        clock: Callable[[], float] | None = None,
+        cancel_check: Callable[[], bool] | None = None,
     ) -> None:
         self._llm_service = llm_service
         self._tool_executor = tool_executor
@@ -182,6 +222,10 @@ class WorkflowRunner:
         self._registry = registry
         self._playbook = playbook
         self._llm_config = llm_config if llm_config is not None else LLMConfig()
+        self._clock: Callable[[], float] = clock if clock is not None else time.monotonic
+        self._cancel_check: Callable[[], bool] = (
+            cancel_check if cancel_check is not None else (lambda: False)
+        )
         self._allowed_tool_names: frozenset[str] = frozenset(
             tool_name for step in playbook.steps for tool_name in step.tools
         )
@@ -222,8 +266,58 @@ class WorkflowRunner:
         )
 
         consecutive_malformed = 0
+        policy = self._playbook.termination_policy
 
         while True:
+            # --- checkpoint: top of iteration (ADR-073 decision 2) ---------
+            checkpoint_reason = evaluate_checkpoint(
+                cancel_requested=self._cancel_check(),
+                running_seconds_elapsed=state.running_seconds_elapsed,
+                policy=policy,
+            )
+            stop: RunResult | None
+            if checkpoint_reason is not None:
+                stop = await self._terminate(
+                    workflow_run_id, state, checkpoint_reason, version_str, sha256
+                )
+                await self._conversation_store.persist(workflow_run_id, state)
+                return stop
+
+            # --- iteration cap / extension gate -----------------------------
+            gate = evaluate_iteration_gate(
+                iteration_count=state.iteration_count,
+                extensions_granted=state.extensions_granted,
+                policy=policy,
+            )
+            if gate.action is IterationGateAction.STOP:
+                # `evaluate_iteration_gate` always sets `stop_reason` on a STOP
+                # action (its only reason: ITERATION_CAP_EXCEEDED); the `or`
+                # fallback exists purely so this call stays statically typed
+                # without a defensive `assert`.
+                stop = await self._terminate(
+                    workflow_run_id,
+                    state,
+                    gate.stop_reason or StopReason.ITERATION_CAP_EXCEEDED,
+                    version_str,
+                    sha256,
+                )
+                await self._conversation_store.persist(workflow_run_id, state)
+                return stop
+            if gate.action is IterationGateAction.EXTEND:
+                state.extensions_granted += 1
+                await self._emit(
+                    workflow_run_id,
+                    state,
+                    WorkflowStatusEvent,
+                    WorkflowStatusPayload(
+                        phase_narration=extension_grant_narration(
+                            extensions_granted_after_grant=state.extensions_granted,
+                            policy=policy,
+                        )
+                    ),
+                )
+
+            iteration_started_at = self._clock()
             turn = await self._llm_service.complete(
                 messages=state.conversation_window_for_llm(),
                 system=system_prompt,
@@ -232,7 +326,7 @@ class WorkflowRunner:
             )
             state.iteration_count += 1
 
-            stop: RunResult | None = None
+            stop = None
             for block in turn.blocks:
                 if isinstance(block, TextBlock):
                     consecutive_malformed = 0
@@ -242,6 +336,17 @@ class WorkflowRunner:
                     stop = await self._finalize(workflow_run_id, state, block, version_str, sha256)
                     break
                 elif isinstance(block, ToolCallBlock):
+                    # --- checkpoint: immediately before tool execution ------
+                    pre_tool_reason = evaluate_checkpoint(
+                        cancel_requested=self._cancel_check(),
+                        running_seconds_elapsed=state.running_seconds_elapsed,
+                        policy=policy,
+                    )
+                    if pre_tool_reason is not None:
+                        stop = await self._terminate(
+                            workflow_run_id, state, pre_tool_reason, version_str, sha256
+                        )
+                        break
                     outcome = await self._dispatch_tool_call(workflow_run_id, state, block)
                     if outcome is _ToolCallOutcome.MALFORMED:
                         consecutive_malformed += 1
@@ -252,6 +357,11 @@ class WorkflowRunner:
                         consecutive_malformed = 0
                 else:  # pragma: no cover - Block is a closed union, this is defensive
                     raise TypeError(f"WorkflowRunner cannot dispatch block type {type(block)!r}")
+
+            elapsed = self._clock() - iteration_started_at
+            state.running_seconds_elapsed = accumulate_running_seconds(
+                state.running_seconds_elapsed, delta_seconds=elapsed
+            )
 
             await self._conversation_store.persist(workflow_run_id, state)
 
@@ -427,6 +537,37 @@ class WorkflowRunner:
         self, workflow_run_id: uuid.UUID, state: RunState, version_str: str, sha256: str
     ) -> RunResult:
         stop_reason = StopReason.TOOL_ERROR_UNRECOVERABLE
+        status = status_for(stop_reason)
+        await self._emit(
+            workflow_run_id,
+            state,
+            WorkflowFailedEvent,
+            WorkflowFailedPayload(status=status, stop_reason=stop_reason),
+        )
+        return RunResult(
+            stop_reason=stop_reason,
+            status=status,
+            final_response=None,
+            prompt_version=version_str,
+            prompt_sha256=sha256,
+            iteration_count=state.iteration_count,
+        )
+
+    async def _terminate(
+        self,
+        workflow_run_id: uuid.UUID,
+        state: RunState,
+        stop_reason: StopReason,
+        version_str: str,
+        sha256: str,
+    ) -> RunResult:
+        """End the run for a termination-policy reason (issue #1120):
+        checkpoint cancellation (`cancelled_by_seller`), the paused wall
+        clock (`wall_clock_timeout`), or the exhausted iteration cap
+        (`iteration_cap_exceeded`). All three map to a failure-class status
+        (`status.py`'s total mapping), so — like `_give_up` — this emits
+        `workflow.failed`, never `workflow.completed`.
+        """
         status = status_for(stop_reason)
         await self._emit(
             workflow_run_id,
