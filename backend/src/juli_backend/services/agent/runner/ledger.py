@@ -94,7 +94,7 @@ import json
 import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
@@ -352,10 +352,15 @@ class ToolExecutionLedger:
 
         # UNVERIFIABLE — fail closed, never a maybe-duplicate write.
         self._mark_failed(row, error_message="in_flight/failed read-back unverifiable")
+        # `ToolExecution` types these three as nullable for pre-agent legacy
+        # rows (models.py), but `row` reached here only via the lookup on the
+        # unique constraint over exactly those three columns, so none of them
+        # is None on this path. Narrowed rather than widening the error's
+        # own non-Optional contract.
         raise ToolExecutionUnrecoverableError(
-            workflow_run_id=row.workflow_run_id,
-            tool_call_id=row.tool_call_id,
-            operation=row.operation,
+            workflow_run_id=cast(uuid.UUID, row.workflow_run_id),
+            tool_call_id=cast(str, row.tool_call_id),
+            operation=cast(str, row.operation),
         )
 
     def _claim_and_execute(
