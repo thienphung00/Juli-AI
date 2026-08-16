@@ -268,19 +268,18 @@ celeryTasks:
     wrapper: backend/src/juli_backend/workers/tasks/agent_workflow.py
     delegatesTo: services.agent.runner.WorkflowRunner.run
     notes: >
-      ADR-074 decision 4 (#1129). Dedicated agent_runs queue, acks_late=True,
-      max_retries=1. Thin shell only (load workflow_runs.state, construct
-      WorkflowRunner, run). WorkflowRunner itself is #1119/W3-A and is not yet
-      merged on this stack; delegatesTo names the pinned seam the task's lazy
-      import resolves once it lands.
+      ADR-073/ADR-074 decision 4 (#1129, reconciled against the real WorkflowRunner
+      by #1145). Thin shell only -- no loop/state-machine logic in the wrapper.
+      Nothing calls .delay() on this task anywhere in this codebase yet (P9/W4-A's
+      job); it is not reachable from live traffic.
   juli_backend.resume_agent_workflow:
     owner: Workers & Async
     wrapper: backend/src/juli_backend/workers/tasks/agent_workflow.py
     delegatesTo: services.agent.runner.WorkflowRunner.resume
     notes: >
-      ADR-074 decision 4 (#1129). Enqueued by the confirmation-authorization
-      endpoint (P9/#W4-A); carries the already-made decision through to the
-      runner without validating or authorizing it.
+      ADR-073 decisions 1/5 (#1129, reconciled against the real WorkflowRunner.resume
+      by #1145). Carries an already-authorized `approved` decision through to the
+      runner; does not itself validate or authorize it (W4-A's job).
 
 redisNamespaces:
   - pattern: "ratelimit:*"

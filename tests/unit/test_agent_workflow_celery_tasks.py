@@ -18,9 +18,11 @@ AC -> test map:
 from __future__ import annotations
 
 import ast
+import contextlib
 import inspect
 import textwrap
 import uuid
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -62,7 +64,13 @@ def test_agent_runs_queue_is_distinct_from_beat_and_analytics_routing():
 
 
 def test_existing_beat_schedule_entries_survive_the_agent_queue_change():
-    """Adding the queue/tasks must not touch the four pre-existing beat entries."""
+    """Adding the queue/tasks must not touch the four pre-existing beat entries.
+
+    A fifth entry (the #1130 reaper, `reap-abandoned-workflow-runs`) is
+    expected on top of these four -- see
+    `test_workflow_run_reaper.py::test_beat_schedule_has_exactly_the_five_expected_entries`
+    for the entry that pins the total.
+    """
     schedule = celery_app.conf.beat_schedule
     assert schedule["mock-analytics-hourly-reconcile"]["task"] == (
         "juli_backend.mock_analytics_hourly_reconcile"
@@ -72,7 +80,6 @@ def test_existing_beat_schedule_entries_survive_the_agent_queue_change():
     )
     assert schedule["analytics-backfill-topup"]["task"] == "juli_backend.analytics_backfill_topup"
     assert schedule["daily-impact-reader"]["task"] == "juli_backend.daily_impact_reader"
-    assert len(schedule) == 4, "no new beat entries should have been added by this change"
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +104,31 @@ def test_tasks_configured_acks_late_and_max_retries_one():
 # ---------------------------------------------------------------------------
 # Thin shell — structural (AST) + behavioral (call order)
 # ---------------------------------------------------------------------------
+
+
+def _patch_session_scopes(monkeypatch, order):
+    """Bind both session scopes the reconciled shell opens (#1145).
+
+    `_ensure_session_factory` yields an `AsyncSession` stand-in whose
+    `commit()` is recorded, and `_sync_ledger_session` yields a sentinel for
+    the ledger's sync `Session`. Neither touches a database.
+    """
+
+    class _AsyncSessionStub:
+        async def commit(self):
+            order.append(("commit", None))
+
+    @contextlib.asynccontextmanager
+    async def _factory_cm():
+        yield _AsyncSessionStub()
+
+    monkeypatch.setattr(agent_workflow, "_ensure_session_factory", lambda: _factory_cm)
+
+    @contextlib.contextmanager
+    def _fake_sync_session():
+        yield "sync-session-sentinel"
+
+    monkeypatch.setattr(agent_workflow, "_sync_ledger_session", _fake_sync_session)
 
 
 def _function_node(func) -> ast.AsyncFunctionDef:
@@ -130,11 +162,31 @@ def test_task_body_has_no_loop_or_branch_logic(func):
     "func",
     [agent_workflow._run_agent_workflow_async, agent_workflow._resume_agent_workflow_async],
 )
-def test_task_body_is_exactly_three_statements(func):
-    """load-context, construct-runner, run/resume — nothing else."""
+def test_task_body_is_a_session_scoped_thin_shell(func):
+    """load-context, construct-runner, run/resume, commit -- nothing else.
+
+    #1129 asserted exactly three top-level statements, which was the right
+    shape while `_load_context` owned its own session and the runner was a
+    placeholder needing no resources. The real `WorkflowRunner` (#1119/#1123)
+    shares one `AsyncSession` with `JsonbConversationStore` and needs a
+    separate sync `Session` for `ToolExecutionLedger` (#1121), so the shell
+    now binds both scopes and commits. Reconciled by #1145: the invariant
+    that matters -- no loop or state-machine logic in the task body -- is
+    unchanged and still enforced by
+    `test_task_body_has_no_loop_or_branch_logic` above.
+    """
     node = _function_node(func)
-    assert len(node.body) == 3, (
-        f"{func.__name__} has {len(node.body)} statements; a thin shell has exactly 3"
+    assert len(node.body) == 2, (
+        f"{func.__name__} has {len(node.body)} top-level statements; expected "
+        "the session factory binding plus one `async with` scope"
+    )
+    async_with = node.body[1]
+    assert isinstance(async_with, ast.AsyncWith), "the second statement opens the async session"
+    sync_with = async_with.body[0]
+    assert isinstance(sync_with, ast.With), "the ledger's sync session is bound inside it"
+    assert len(sync_with.body) == 4, (
+        f"{func.__name__}'s inner block has {len(sync_with.body)} statements; a thin shell "
+        "is exactly load-context, construct-runner, run/resume, commit"
     )
 
 
@@ -142,30 +194,35 @@ async def test_run_agent_workflow_async_calls_load_context_then_construct_runner
     monkeypatch,
 ):
     order: list[tuple[str, object]] = []
+    run_id = uuid.uuid4()
+    run_obj = SimpleNamespace(id=run_id)
+    product_obj = SimpleNamespace(tiktok_product_id="tt-123")
 
-    async def fake_load_context(run_id):
-        order.append(("load_context", run_id))
-        return "context-sentinel"
+    async def fake_load_context(session, rid):
+        order.append(("load_context", rid))
+        return run_obj, product_obj
 
-    def fake_construct_runner(context):
-        order.append(("construct_runner", context))
+    def fake_construct_runner(session, sync_session, run, product):
+        order.append(("construct_runner", (run, product)))
         runner = AsyncMock()
 
-        async def _run():
-            order.append(("run", None))
+        async def _run(wid, *, product_ref):
+            order.append(("run", (wid, product_ref)))
 
         runner.run = _run
         return runner
 
+    _patch_session_scopes(monkeypatch, order)
     monkeypatch.setattr(agent_workflow, "_load_context", fake_load_context)
     monkeypatch.setattr(agent_workflow, "_construct_runner", fake_construct_runner)
 
-    await agent_workflow._run_agent_workflow_async("run-1")
+    await agent_workflow._run_agent_workflow_async(str(run_id))
 
     assert order == [
-        ("load_context", "run-1"),
-        ("construct_runner", "context-sentinel"),
-        ("run", None),
+        ("load_context", run_id),
+        ("construct_runner", (run_obj, product_obj)),
+        ("run", (run_id, "tt-123")),
+        ("commit", None),
     ]
 
 
@@ -173,30 +230,35 @@ async def test_resume_agent_workflow_async_calls_load_context_then_construct_run
     monkeypatch,
 ):
     order: list[tuple[str, object]] = []
+    run_id = uuid.uuid4()
+    run_obj = SimpleNamespace(id=run_id)
+    product_obj = SimpleNamespace(tiktok_product_id="tt-123")
 
-    async def fake_load_context(run_id):
-        order.append(("load_context", run_id))
-        return "context-sentinel"
+    async def fake_load_context(session, rid):
+        order.append(("load_context", rid))
+        return run_obj, product_obj
 
-    def fake_construct_runner(context):
-        order.append(("construct_runner", context))
+    def fake_construct_runner(session, sync_session, run, product):
+        order.append(("construct_runner", (run, product)))
         runner = AsyncMock()
 
-        async def _resume(tool_call_id, decision):
-            order.append(("resume", (tool_call_id, decision)))
+        async def _resume(wid, *, approved):
+            order.append(("resume", (wid, approved)))
 
         runner.resume = _resume
         return runner
 
+    _patch_session_scopes(monkeypatch, order)
     monkeypatch.setattr(agent_workflow, "_load_context", fake_load_context)
     monkeypatch.setattr(agent_workflow, "_construct_runner", fake_construct_runner)
 
-    await agent_workflow._resume_agent_workflow_async("run-1", "call-1", "approve")
+    await agent_workflow._resume_agent_workflow_async(str(run_id), approved=True)
 
     assert order == [
-        ("load_context", "run-1"),
-        ("construct_runner", "context-sentinel"),
-        ("resume", ("call-1", "approve")),
+        ("load_context", run_id),
+        ("construct_runner", (run_obj, product_obj)),
+        ("resume", (run_id, True)),
+        ("commit", None),
     ]
 
 
@@ -206,51 +268,53 @@ async def test_resume_agent_workflow_async_calls_load_context_then_construct_run
 
 
 class _FakeContext:
-    """Stands in for the `workflow_runs` row `_load_context` would return."""
+    """Stands in for the `workflow_runs` row `_load_context` returns."""
 
-    def __init__(self, run_id: str, state: dict):
+    def __init__(self, run_id, state: dict):
+        self.id = run_id
         self.run_id = run_id
         self.state = state
 
 
 class _StubRunner:
-    """The narrow `_RunnerProtocol` stub the issue calls sufficient (#1119 unmerged)."""
+    """Stands in for the real `WorkflowRunner` at the task-shell seam."""
 
     def __init__(self, context: _FakeContext, store: dict):
         self._context = context
         self._store = store
 
-    async def run(self) -> None:
+    async def run(self, workflow_run_id, *, product_ref) -> None:
         # A real WorkflowRunner would append an iteration and persist the
         # blob back to `workflow_runs.state`. Advancing from whatever is
         # CURRENTLY in the blob (not a fresh 0) is the entire point being
         # tested: a redelivered task must continue, not restart.
         current = self._context.state.get("iterations", 0)
         self._context.state["iterations"] = current + 1
-        self._store[self._context.run_id] = dict(self._context.state)
+        self._store[self._context.id] = dict(self._context.state)
 
 
 def test_simulated_retry_reconstructs_from_run_state_blob_not_from_scratch(monkeypatch):
-    run_id = str(uuid.uuid4())
-    store: dict[str, dict] = {run_id: {"iterations": 0}}
+    run_id = uuid.uuid4()
+    store: dict[uuid.UUID, dict] = {run_id: {"iterations": 0}}
     constructed_runners: list[_StubRunner] = []
 
-    async def fake_load_context(rid: str) -> _FakeContext:
+    async def fake_load_context(session, rid):
         # Fresh read of the current blob every call -- no task-local caching.
-        return _FakeContext(rid, dict(store[rid]))
+        return _FakeContext(rid, dict(store[rid])), SimpleNamespace(tiktok_product_id="tt-123")
 
-    def fake_construct_runner(context: _FakeContext) -> _StubRunner:
-        runner = _StubRunner(context, store)
+    def fake_construct_runner(session, sync_session, run, product) -> _StubRunner:
+        runner = _StubRunner(run, store)
         constructed_runners.append(runner)
         return runner
 
+    _patch_session_scopes(monkeypatch, [])
     monkeypatch.setattr(agent_workflow, "_load_context", fake_load_context)
     monkeypatch.setattr(agent_workflow, "_construct_runner", fake_construct_runner)
 
     # First delivery.
-    agent_workflow.run_agent_workflow_sync(run_id)
+    agent_workflow.run_agent_workflow_sync(str(run_id))
     # Simulated worker crash + acks_late redelivery: same run_id, invoked again.
-    agent_workflow.run_agent_workflow_sync(run_id)
+    agent_workflow.run_agent_workflow_sync(str(run_id))
 
     assert len(constructed_runners) == 2, "each invocation constructs its own runner"
     assert store[run_id]["iterations"] == 2, (
@@ -297,11 +361,6 @@ async def product(session, shop):
 async def test_load_context_reads_the_current_workflow_run_row(
     session, engine, shop, product, monkeypatch
 ):
-    from sqlalchemy.ext.asyncio import async_sessionmaker
-
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    monkeypatch.setattr(agent_workflow, "_ensure_session_factory", lambda: factory)
-
     run = WorkflowRun(
         id=uuid.uuid4(),
         shop_id=shop.id,
@@ -315,16 +374,12 @@ async def test_load_context_reads_the_current_workflow_run_row(
     await session.flush()
     await session.commit()
 
-    loaded = await agent_workflow._load_context(str(run.id))
-    assert loaded.id == run.id
-    assert loaded.state == {"iterations": 3}
+    loaded_run, loaded_product = await agent_workflow._load_context(session, run.id)
+    assert loaded_run.id == run.id
+    assert loaded_run.state == {"iterations": 3}
+    assert loaded_product.id == product.id
 
 
 async def test_load_context_raises_lookup_error_for_missing_run(session, engine, monkeypatch):
-    from sqlalchemy.ext.asyncio import async_sessionmaker
-
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    monkeypatch.setattr(agent_workflow, "_ensure_session_factory", lambda: factory)
-
     with pytest.raises(LookupError):
-        await agent_workflow._load_context(str(uuid.uuid4()))
+        await agent_workflow._load_context(session, uuid.uuid4())
