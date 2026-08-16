@@ -47,6 +47,7 @@ from typing import Any
 import pytest
 import pytest_asyncio
 from sqlalchemy import create_engine, select, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -366,14 +367,68 @@ _PG_TABLES: list[Any] = [
 ]
 
 
+@pytest.fixture(scope="session")
+def _disposable_postgres_url():
+    """A throwaway Postgres database, created from `DATABASE_URL`'s own
+    connection parameters (same host/port/credentials, its own name) and
+    dropped at session teardown.
+
+    This module used to run `create_all`/`drop_all` straight against
+    `DATABASE_URL`'s own database. That worked only while nothing else in
+    that database referenced `workflow_runs`. Once #1117's `tool_executions`
+    FK columns and the rest of the wave's schema landed and other suites
+    (`test_migrations.py` / `test_schema_parity.py`) began materialising them
+    in the same database, teardown started failing with
+    `DependentObjectsStillExistError: cannot drop table workflow_runs because
+    other objects depend on it` -- and because the drop runs in the fixture's
+    `finally`, every test in this module errored.
+
+    Fixed the way #1121's `test_agent_runner_ledger.py` and #1131's
+    `test_agent_events_streaming_matrix.py` already solve the identical
+    collision: one throwaway database per session, all DDL against THAT,
+    dropped afterwards through an admin connection to the `postgres`
+    maintenance database. Setup DDL stays a plain sync psycopg2 engine --
+    a session-scoped asyncpg connection would be reused across
+    pytest-asyncio's per-function event loops.
+    """
+    base_url = _database_url()
+    admin_url = make_url(sync_database_url(base_url)).set(database="postgres")
+    db_name = f"juli_sink_1127_{uuid.uuid4().hex[:12]}"
+
+    admin_engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
+    with admin_engine.connect() as conn:
+        conn.execute(text(f'CREATE DATABASE "{db_name}"'))
+    admin_engine.dispose()
+
+    disposable = make_url(sync_database_url(base_url)).set(database=db_name)
+    try:
+        # `render_as_string(hide_password=False)`, never `str(URL)`: the latter
+        # masks the password as `***`, which then reaches `create_engine` and
+        # authenticates with a literal `***` (the defect #1121/#1122/#1131 all
+        # carried).
+        yield disposable.render_as_string(hide_password=False)
+    finally:
+        admin_engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
+        with admin_engine.connect() as conn:
+            conn.execute(
+                text(
+                    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                    "WHERE datname = :name AND pid <> pg_backend_pid()"
+                ),
+                {"name": db_name},
+            )
+            conn.execute(text(f'DROP DATABASE IF EXISTS "{db_name}"'))
+        admin_engine.dispose()
+
+
 @pytest_asyncio.fixture
-async def postgres_session_factory():
+async def postgres_session_factory(_disposable_postgres_url):
     """A minimal, self-contained schema (just the 5 tables this sink's FK
-    chain needs) created fresh against the real `DATABASE_URL` Postgres and
+    chain needs) created fresh in the session's throwaway database and
     dropped again on teardown -- deliberately independent of the Alembic
     migration chain (that belongs to `test_workflow_run_events_schema.py`;
     this is a unit test of sink *behavior*, not of the migration)."""
-    eng = create_async_engine(async_database_url(_database_url()))
+    eng = create_async_engine(async_database_url(_disposable_postgres_url))
 
     def _create(sync_conn):
         Base.metadata.create_all(sync_conn, tables=_PG_TABLES)
