@@ -3,5 +3,8 @@
   "artifactType": "wave_manifest",
   "waveId": "wave-agent-w3",
   "branch": "feature/agent-w3-wave",
-  "issues": [1117]
+  "issues": [
+    1117,
+    1125
+  ]
 }
