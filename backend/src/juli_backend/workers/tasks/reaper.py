@@ -79,6 +79,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Protocol
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -181,7 +182,8 @@ def _default_has_live_task(run_id: uuid.UUID) -> bool:
                 for task in tasks or ():
                     if not isinstance(task, dict):
                         continue
-                    request = task.get("request") if isinstance(task.get("request"), dict) else task
+                    raw_request = task.get("request")
+                    request = raw_request if isinstance(raw_request, dict) else task
                     name = request.get("name") or task.get("name")
                     if name not in _AGENT_WORKFLOW_TASK_NAMES:
                         continue
@@ -201,6 +203,21 @@ def _default_has_live_task(run_id: uuid.UUID) -> bool:
             exc_info=True,
         )
         return True
+
+
+class _TerminalEventSink(Protocol):
+    """The reaper's slice of the `EventSink` seam.
+
+    `_ReaperEventSink` below only ever handles `workflow.failed`-shaped events
+    -- it reads `event.payload.status` and `event.payload.stop_reason`, which
+    the wider `WorkflowRunEvent` union does not carry on every member -- so it
+    is deliberately *not* an `events.EventSink`. Declaring the narrower
+    protocol here keeps the injection seam typed without overstating what this
+    module can consume; a real `EventSink` (P8-3's `PersistingEventSink`)
+    accepts the whole union and so satisfies this narrower shape too.
+    """
+
+    async def emit(self, event: WorkflowFailedEvent) -> None: ...
 
 
 class _ReaperEventSink:
@@ -271,7 +288,7 @@ async def _last_activity_at(session: AsyncSession, run: WorkflowRun) -> datetime
 
 async def _emit_terminal_event(
     session: AsyncSession,
-    sink: object,
+    sink: _TerminalEventSink,
     run: WorkflowRun,
     *,
     stop_reason: StopReason,
@@ -292,7 +309,7 @@ async def _emit_terminal_event(
 
 async def _reap_stale_running_and_queued(
     session: AsyncSession,
-    sink: object,
+    sink: _TerminalEventSink,
     now: datetime,
     has_live_task: TaskLivenessCheck,
     policy: TerminationPolicy,
@@ -325,7 +342,7 @@ async def _reap_stale_running_and_queued(
 
 async def _reap_expired_waiting_approval(
     session: AsyncSession,
-    sink: object,
+    sink: _TerminalEventSink,
     now: datetime,
     policy: TerminationPolicy,
 ) -> tuple[uuid.UUID, ...]:
@@ -359,7 +376,7 @@ async def reap_workflow_runs(
     *,
     now: datetime | None = None,
     has_live_task: TaskLivenessCheck | None = None,
-    sink: object | None = None,
+    sink: _TerminalEventSink | None = None,
     policy: TerminationPolicy | None = None,
 ) -> ReapResult:
     """The reaper's core logic -- the seam every test in
@@ -375,11 +392,11 @@ async def reap_workflow_runs(
     """
     now = now if now is not None else _utcnow()
     has_live_task = has_live_task if has_live_task is not None else _default_has_live_task
-    sink = sink if sink is not None else _ReaperEventSink(session)
+    resolved_sink: _TerminalEventSink = sink if sink is not None else _ReaperEventSink(session)
     policy = policy if policy is not None else _DEFAULT_TERMINATION_POLICY
 
-    stale = await _reap_stale_running_and_queued(session, sink, now, has_live_task, policy)
-    expired = await _reap_expired_waiting_approval(session, sink, now, policy)
+    stale = await _reap_stale_running_and_queued(session, resolved_sink, now, has_live_task, policy)
+    expired = await _reap_expired_waiting_approval(session, resolved_sink, now, policy)
     return ReapResult(stale_runs_reaped=stale, expired_approvals_reaped=expired)
 
 
