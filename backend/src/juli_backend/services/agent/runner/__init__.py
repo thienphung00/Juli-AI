@@ -1,15 +1,36 @@
 """Agent execution-loop runner package (ADR-073, AGT-W3A).
 
 #1117 shipped the `status` module (`WorkflowRunStatus`/`StopReason` and the
-total mapping between them). #1118 adds `state` (`RunState`) and
+total mapping between them). #1118 added `state` (`RunState`) and
 `conversation_store` (`ConversationStore` protocol + its JSONB-blob
-implementation) — state and storage only, no runner. `WorkflowRunner`
-itself, the tool executor, termination-policy evaluation, and the
-idempotency ledger are later slices in this phase (P1-3 and on) — do not
-add them here.
+implementation) — state and storage only, no runner. #1119 adds `core`
+(`WorkflowRunner`, the block-dispatch loop) and `tool_executor`
+(`ToolExecutor` protocol + `ProductToolExecutor`). Termination-policy
+evaluation, the idempotency ledger, basis-hash compare-before-write, and
+pause/resume are later slices in this phase — do not add them here.
+
+**Why `core`/`tool_executor` are exported lazily (`__getattr__`, PEP 562)
+instead of imported at module scope like the rest of this file.**
+`services/agent/events/payloads.py` (#1125) imports
+`juli_backend.services.agent.runner.status` — a genuine, correct dependency
+(event payloads carry `StopReason`/`WorkflowRunStatus`). Importing *any*
+submodule of this package forces Python to run this `__init__.py` first. If
+`core.py` (which imports `juli_backend.services.agent.events` right back)
+were imported eagerly here too, that would be a real import cycle:
+`events -> runner.status -> runner/__init__ -> runner.core -> events`
+(caught mid-load, so it fails with an `ImportError` naming a "partially
+initialized module"). Deferring the `core`/`tool_executor` imports until
+`getattr(runner_package, name)` actually runs — i.e. after this
+`__init__.py` has already finished executing — breaks the cycle without
+touching `events/` or `status.py`, neither of which this slice may modify.
+Importing the submodules directly (`from ...runner.core import
+WorkflowRunner`, `from ...runner.tool_executor import ProductToolExecutor`)
+works identically and is what this package's own tests do.
 """
 
 from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from juli_backend.services.agent.runner.conversation_store import (
     ConversationStore,
@@ -28,15 +49,46 @@ from juli_backend.services.agent.runner.status import (
     status_for,
 )
 
+if TYPE_CHECKING:  # pragma: no cover - type checkers import eagerly, safely
+    from juli_backend.services.agent.runner.core import RunResult, WorkflowRunner
+    from juli_backend.services.agent.runner.tool_executor import (
+        ProductToolExecutor,
+        ToolExecutionError,
+        ToolExecutor,
+    )
+
+_LAZY_CORE_EXPORTS = frozenset({"RunResult", "WorkflowRunner"})
+_LAZY_TOOL_EXECUTOR_EXPORTS = frozenset(
+    {"ProductToolExecutor", "ToolExecutionError", "ToolExecutor"}
+)
+
+
+def __getattr__(name: str) -> object:
+    if name in _LAZY_CORE_EXPORTS:
+        from juli_backend.services.agent.runner import core
+
+        return getattr(core, name)
+    if name in _LAZY_TOOL_EXECUTOR_EXPORTS:
+        from juli_backend.services.agent.runner import tool_executor
+
+        return getattr(tool_executor, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 __all__ = [
     "NON_TERMINAL_STATUSES",
     "STOP_REASON_TO_STATUS",
     "ConversationMessage",
     "ConversationStore",
     "JsonbConversationStore",
+    "ProductToolExecutor",
+    "RunResult",
     "RunState",
     "RunStateFieldMissingError",
     "StopReason",
+    "ToolExecutionError",
+    "ToolExecutor",
     "WorkflowRunStatus",
+    "WorkflowRunner",
     "status_for",
 ]
