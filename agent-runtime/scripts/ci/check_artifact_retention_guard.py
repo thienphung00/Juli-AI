@@ -135,11 +135,38 @@ def evaluate(issue: int, *, status_dir: Path = STATUS_DIR) -> tuple[bool, str]:
         )
 
     review_status = review.get("status")
-    if review_status != "PASS":
+    if review_status not in {"PASS", "PASS_WITH_WARNINGS"}:
         return (
             False,
-            f"{record_path}: review gate is {review_status!r}, required exactly PASS",
+            f"{record_path}: review gate is {review_status!r}, "
+            "required PASS or a fully signed-off PASS_WITH_WARNINGS",
         )
+
+    # #1141: PASS_WITH_WARNINGS is what `validate` emits for a slice whose
+    # warnings were reviewed, acknowledged per finding, and signed off by the
+    # owner -- ADR-003 treats that as shippable. Requiring literal "PASS" here
+    # made it unlandable, so the two states a reviewer can legitimately reach
+    # were "clean" and "permanently blocked", with no way to ship an accepted
+    # warning. This does not soften the gate: PASS_WITH_WARNINGS is admitted
+    # ONLY with both signoff booleans true. They are written by
+    # generate_status_records.py straight from the same `common` helpers
+    # check_findings_acknowledged.py and check_owner_signoff.py use, so a record
+    # cannot claim signoff the review body does not carry, and a record written
+    # by an older generator has neither key -- absent reads as False, so the
+    # guard stays fail-closed against anything it cannot positively verify.
+    if review_status == "PASS_WITH_WARNINGS":
+        if review.get("warningsAcknowledged") is not True:
+            return False, (
+                f"{record_path}: review is PASS_WITH_WARNINGS but "
+                "warningsAcknowledged is not true — every gating WARNING needs "
+                "reviewer acceptance and owner ack"
+            )
+        if review.get("ownerSignoffPresent") is not True:
+            return False, (
+                f"{record_path}: review is PASS_WITH_WARNINGS but "
+                "ownerSignoffPresent is not true — a timestamped owner signoff "
+                "is required to ship accepted warnings"
+            )
 
     validation_status = validation.get("status")
     if validation_status != "PASS":
@@ -147,7 +174,7 @@ def evaluate(issue: int, *, status_dir: Path = STATUS_DIR) -> tuple[bool, str]:
             f"{record_path}: validation gate is {validation_status!r}, required exactly PASS"
         )
 
-    return True, f"{record_path}: review PASS, validation PASS"
+    return True, f"{record_path}: review {review_status}, validation PASS"
 
 
 def main() -> int:

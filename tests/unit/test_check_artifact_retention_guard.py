@@ -38,6 +38,8 @@ def _write_record(
     review_status: str = "PASS",
     validation_status: str = "PASS",
     record_issue: int | None = None,
+    warnings_acknowledged: bool | None = None,
+    owner_signoff_present: bool | None = None,
 ) -> Path:
     status_dir.mkdir(parents=True, exist_ok=True)
     path = status_dir / f"issue-{issue}.json"
@@ -64,6 +66,10 @@ def _write_record(
             },
             "gateVersion": 1,
         }
+        if warnings_acknowledged is not None:
+            payload["review"]["warningsAcknowledged"] = warnings_acknowledged
+        if owner_signoff_present is not None:
+            payload["review"]["ownerSignoffPresent"] = owner_signoff_present
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
 
@@ -119,8 +125,102 @@ def test_fails_and_names_the_gate_when_validation_not_pass(tmp_path: Path) -> No
     assert "FAIL" in detail
 
 
-def test_fails_when_review_is_pass_with_warnings_not_exact_pass(tmp_path: Path) -> None:
+# --- #1141: PASS_WITH_WARNINGS is landable, but only fully signed off ---
+
+
+def test_pass_with_warnings_passes_when_both_signoffs_are_recorded(tmp_path: Path) -> None:
+    """ADR-003's shippable warning state must be reachable, or `validate` can
+    emit a status no PR can ever land (#1141)."""
+    _write_record(
+        tmp_path,
+        1064,
+        review_status="PASS_WITH_WARNINGS",
+        validation_status="PASS",
+        warnings_acknowledged=True,
+        owner_signoff_present=True,
+    )
+    passed, detail = evaluate(1064, status_dir=tmp_path)
+    assert passed is True
+    assert "PASS_WITH_WARNINGS" in detail
+
+
+def test_pass_with_warnings_fails_without_owner_signoff(tmp_path: Path) -> None:
+    _write_record(
+        tmp_path,
+        1064,
+        review_status="PASS_WITH_WARNINGS",
+        validation_status="PASS",
+        warnings_acknowledged=True,
+        owner_signoff_present=False,
+    )
+    passed, detail = evaluate(1064, status_dir=tmp_path)
+    assert passed is False
+    assert "ownerSignoffPresent" in detail
+
+
+def test_pass_with_warnings_fails_without_per_finding_acknowledgement(tmp_path: Path) -> None:
+    _write_record(
+        tmp_path,
+        1064,
+        review_status="PASS_WITH_WARNINGS",
+        validation_status="PASS",
+        warnings_acknowledged=False,
+        owner_signoff_present=True,
+    )
+    passed, detail = evaluate(1064, status_dir=tmp_path)
+    assert passed is False
+    assert "warningsAcknowledged" in detail
+
+
+def test_pass_with_warnings_fails_on_a_pre_1141_record_with_neither_key(tmp_path: Path) -> None:
+    """A record written before #1141 carries no signoff booleans at all. Absent
+    must read as False — the guard never infers signoff it cannot see."""
     _write_record(tmp_path, 1064, review_status="PASS_WITH_WARNINGS", validation_status="PASS")
+    passed, detail = evaluate(1064, status_dir=tmp_path)
+    assert passed is False
+    assert "warningsAcknowledged" in detail
+
+
+@pytest.mark.parametrize("truthy", ["true", 1, "yes", [1], {"a": 1}])
+def test_pass_with_warnings_requires_literal_true_not_merely_truthy(tmp_path: Path, truthy) -> None:
+    """`is not True` rather than a falsy check: a string or a non-empty list must
+    not buy a signoff."""
+    _write_record(
+        tmp_path,
+        1064,
+        payload={
+            "issue": 1064,
+            "wave": None,
+            "review": {
+                "status": "PASS_WITH_WARNINGS",
+                "artifactRef": "git-history:x",
+                "sha256": "a" * 64,
+                "warningsAcknowledged": truthy,
+                "ownerSignoffPresent": truthy,
+            },
+            "validation": {
+                "status": "PASS",
+                "artifactRef": "git-history:y",
+                "sha256": "b" * 64,
+            },
+            "gateVersion": 1,
+        },
+    )
+    passed, _ = evaluate(1064, status_dir=tmp_path)
+    assert passed is False
+
+
+def test_a_genuinely_failing_review_is_still_rejected_outright(tmp_path: Path) -> None:
+    """The #1141 widening admits exactly one new status, not any status that
+    happens to carry the booleans."""
+    _write_record(
+        tmp_path,
+        1064,
+        review_status="FAIL",
+        validation_status="PASS",
+        warnings_acknowledged=True,
+        owner_signoff_present=True,
+    )
     passed, detail = evaluate(1064, status_dir=tmp_path)
     assert passed is False
     assert "review" in detail.lower()

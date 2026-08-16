@@ -31,7 +31,11 @@ from common import (  # noqa: E402
     REVIEWS_DIR,
     STATUS_DIR,
     VALIDATION_DIR,
+    normalize_review_findings,
+    owner_signoff_valid,
+    unacknowledged_findings,
     utc_now_iso,
+    warnings_require_signoff,
 )
 
 WAVES_DIR = STATUS_DIR.parent / "waves"
@@ -109,6 +113,20 @@ def build_status_record(issue: int) -> dict[str, Any] | None:
         "wave": _wave_for_issue(issue),
         "review": {
             "status": review_status,
+            # #1141: PASS_WITH_WARNINGS is a legitimate ship state for `validate`
+            # once both dual-signoff gates pass, but the retention guard reads
+            # only this committed record -- the review body it would need to
+            # re-check those gates lives in a gitignored directory and never
+            # reaches CI. Carrying the two gate outcomes forward is what lets the
+            # guard tell "warnings, acknowledged and signed off" apart from
+            # "warnings, unaddressed" without widening what it trusts. Both are
+            # derived here from the same `common` helpers the validate gates use,
+            # never hand-written.
+            "signoffRequired": warnings_require_signoff(review),
+            "warningsAcknowledged": not unacknowledged_findings(
+                normalize_review_findings(review)
+            ),
+            "ownerSignoffPresent": owner_signoff_valid(review)[0],
             "artifactRef": (
                 f"git-history:agent-runtime/artifacts/reviews/review-issue-{issue}.json"
             ),
