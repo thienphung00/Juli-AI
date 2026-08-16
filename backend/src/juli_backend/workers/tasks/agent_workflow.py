@@ -1,61 +1,107 @@
-"""Celery task shells for agent workflow execution (#1129, ADR-074 decision 4).
+"""Celery task shells for agent workflow execution (ADR-074 decision 4,
+issue #1129 -- reconciled against the real `WorkflowRunner` by issue #1145).
 
 Thin shells only (ADR-073 decision 1's rejected alternative is exactly "loop
 inline in the Celery task"): **load context -> construct runner -> run**. No
-loop or state-machine logic lives in this module — that lives in
-``WorkflowRunner`` (`services/agent/runner/`, #1119 / W3-A).
+loop or state-machine logic lives in this module -- that lives in
+`WorkflowRunner` (`services/agent/runner/core.py`, #1119 / W3-A).
 
-At authoring time this worktree is stacked on #1117 -> #1125 only; #1119 has
-not landed and ``services/agent/runner`` exports only the
-``WorkflowRunStatus``/``StopReason`` vocabulary (`status.py`), not
-``WorkflowRunner`` itself. ``_construct_runner`` below imports it lazily from
-the exact module path it is pinned to land at
-(``juli_backend.services.agent.runner``, interface I5/I6 per
-``docs/handoffs/2026-08-12-agent-execution-implementation-handoff.md``) — once
-#1119 merges and exports a ``WorkflowRunner`` matching ``_RunnerProtocol``
-below, this file needs no other change; the import resolves and production
-traffic starts flowing. Until then, ``_load_context``/``_construct_runner``
-are the two seams tests monkeypatch with a fake runner shaped like
-``_RunnerProtocol`` (I6's run-state-blob shape: everything the runner needs
-comes back out of the reloaded ``workflow_runs`` row, nothing is cached
-task-side between invocations).
+**What #1145 changed.** #1129 authored this module against `_RunnerProtocol`,
+a placeholder shaped like `run(self)` / `resume(self, tool_call_id,
+decision)`, because `WorkflowRunner` did not exist yet on the stack this
+module was authored on. It has since landed (#1119, #1123) with a different,
+real signature -- constructor-injected with keyword-only collaborators,
+`run(workflow_run_id, *, product_ref)`, `resume(workflow_run_id, *, approved:
+bool)`. `_construct_runner` below now builds the real thing and both task
+bodies call the real methods; `_RunnerProtocol` is deleted (its own
+docstring said it should be, once W3-A landed -- not graduated).
 
-Both tasks are ``acks_late=True, max_retries=1`` (ADR-074 decision 4): a
+**`tool_call_id` threading + ledger/guard reachability (also #1145).**
+`_construct_runner` is also where `ToolExecutionLedger` (`runner/ledger.py`,
+#1121) and `ConcurrencyGuard` (`runner/concurrency.py`, #1122) get
+constructed and handed to a `ProductToolExecutor` -- both were implemented,
+reviewed and fully unit-tested, but structurally unreachable from any real
+run before this, because nothing outside a test ever constructed a
+`ProductToolExecutor` at all. `core.py`'s own #1145 change (threading
+`block.call_id`/the pending call's `call_id` into
+`execute(..., tool_call_id=...)`) is what makes the ledger's routing branch
+reachable now that a caller here supplies `ledger`/`workflow_run_id` too.
+
+**What this module still cannot build for real -- a pre-existing, structural
+gap, not introduced by #1145.** `.importlinter.toml`'s cross-package depth
+cap (`max_cross_package_depth = 2`) limits every import this module makes
+into `services.agent` to that package's own public depth-2 facade
+(`juli_backend.services.agent.<child>`, e.g. `services.agent.runner`) -- and
+`workers`' `[allowed_edges]` row does not list `integrations` at all, so
+this module can never import `juli_backend.integrations.tiktok` at any
+depth. Three collaborators a real Optimize Product run needs are, today,
+reachable only from *inside* `services/agent` itself, never from `workers/`:
+
+- the production LLM adapter (`services.agent.llm.openai_adapter
+  .OpenAIResponsesAdapter`) -- deliberately *not* re-exported at
+  `services.agent.llm`'s public facade (that package's `MODULE.md`: "so
+  nothing depends on a concrete adapter by accident");
+- the populated Optimize Product `ToolRegistry`
+  (`services.agent.tools.product.register_product_read_tools` /
+  `...product_write.register_product_write_tools`) -- one level below
+  `services.agent.tools`'s public facade, which re-exports only the empty
+  `ToolRegistry` class itself;
+- the concrete `OPTIMIZE_PRODUCT_PLAYBOOK`
+  (`services.agent.playbooks.optimize_product`) -- one level below
+  `services.agent.playbooks`'s public facade, which re-exports only the
+  generic `Playbook`/`PlaybookStep` shapes.
+
+`_default_llm_service`/`_default_tool_registry`/`_default_playbook` below
+are the three named seams standing in for this: each raises
+`RunnerCompositionUnavailableError` naming exactly which import boundary
+blocks it, rather than faking a registry/playbook that would look real and
+silently do nothing. Closing this gap needs a small composition-root
+addition *inside* `services/agent` (its own `__init__.py`, or a new module
+there) -- outside #1145's write-path allowlist, so not attempted here;
+flagged as follow-up work in that issue's report. `read_resources`/
+`write_resources` are left `None` on the constructed `ProductToolExecutor`
+for the same reason -- a configuration that module's own docstring already
+treats as supported ("Either may be left `None` when a run only ever needs
+the other side").
+
+None of this blocks what #1145 actually proves: with the three seams
+overridden (as `tests/unit/test_agent_workflow_task_wiring.py` does), this
+module constructs a real `WorkflowRunner` with its real keyword-only
+signature; separately (`tests/unit/test_agent_workflow_ledger_guard_reachability.py`),
+a WRITE call dispatched through a real `WorkflowRunner` genuinely reaches
+both `ToolExecutionLedger` and `ConcurrencyGuard`.
+
+Both tasks stay `acks_late=True, max_retries=1` (ADR-074 decision 4): a
 worker crash redelivers the task once, and the retried worker reconstructs
-entirely from ``workflow_runs.state`` — at-least-once delivery is safe
-because the idempotent event emit (ADR-074 decision 1) and the
-``ToolExecution`` ledger (ADR-073 decision 1/I7) absorb the replay. Nothing in
-this module deduplicates a retry itself; ``_load_context`` simply re-reads
-the row fresh on every invocation, so a redelivered task naturally resumes
-from wherever the row currently is instead of restarting from scratch.
+entirely from `workflow_runs.state` -- `_load_context` always re-reads the
+row fresh, so a redelivered task naturally resumes from wherever the row
+currently is rather than restarting. Nothing calls `.delay()` on either task
+anywhere in this codebase yet (P9/W4-A's job, out of #1145's scope), so none
+of this is reachable from live traffic either.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import uuid
-from typing import Protocol
+from collections.abc import Iterator
 
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy import create_engine as create_sync_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
-from juli_backend.models.models import WorkflowRun
+from juli_backend.models.models import Product, WorkflowRun
 from juli_backend.workers.celery_app import celery_app
 from juli_backend.workers.tasks.database import get_async_database_url
 
 
-class _RunnerProtocol(Protocol):
-    """The narrow shape this module needs from a constructed runner.
-
-    Placeholder for ``WorkflowRunner`` (#1119 / W3-A) — matches I6's
-    run-state-blob contract closely enough to build against without
-    inlining any loop logic here. P8-9's live gate (real ``WorkflowRunner``
-    behind ``_construct_runner``) replaces this once W3-A merges; this
-    Protocol itself is deleted at that point, not "graduated".
-    """
-
-    async def run(self) -> None: ...
-
-    async def resume(self, tool_call_id: str, decision: str) -> None: ...
+class RunnerCompositionUnavailableError(RuntimeError):
+    """Raised by one of the `_default_*` seams below when the real
+    collaborator it stands in for is not reachable from `workers/` under
+    today's import boundary -- see the module docstring's "What this module
+    still cannot build for real" section. Never silently swapped for a
+    fake that would look real."""
 
 
 def _database_url() -> str:
@@ -68,56 +114,144 @@ def _ensure_session_factory() -> async_sessionmaker:
     return ensure_worker_session_factory(_database_url())
 
 
-async def _load_context(run_id: str) -> WorkflowRun:
-    """Load the current ``workflow_runs`` row — the run-state blob (I6).
+@contextlib.contextmanager
+def _sync_ledger_session() -> Iterator[Session]:
+    """A throwaway sync `Session` for `ToolExecutionLedger`
+    (`ledger.py`'s own docstring: "cheap and stateless beyond the injected
+    Session" -- a fresh engine per task invocation is deliberate, matching
+    that module's own scoping, not an oversight).
 
-    Reads fresh on every call, including on a redelivered retry: there is no
-    task-local cache of run state anywhere in this module, which is exactly
-    what makes the retry-reconstructs-from-the-blob guarantee true rather
-    than aspirational.
+    Routes through `workers.tasks.database.get_sync_database_url` rather
+    than reading `DATABASE_URL` here directly -- `test_worker_database_url
+    .py`'s AC5 keeps `os.getenv("DATABASE_URL", ...)` to that one file as
+    the sole choke point across `workers/tasks/`.
+
+    A context manager (#1145 reconciliation) so the task shells can bind it
+    in their `async with` header instead of a `try/finally` body: #1129's
+    `test_task_body_has_no_loop_or_branch_logic` forbids `ast.Try` in a task
+    body, and that guard is worth keeping intact. Disposing the engine on
+    exit also closes the per-invocation connection pool, which the previous
+    bare-`Session` form leaked once per task run.
     """
-    factory = _ensure_session_factory()
-    async with factory() as session:
-        run = await session.get(WorkflowRun, uuid.UUID(run_id))
-        if run is None:
-            raise LookupError(f"workflow_runs row not found for run_id={run_id}")
-        return run
+    from juli_backend.workers.tasks.database import get_sync_database_url
+
+    engine = create_sync_engine(get_sync_database_url())
+    session = sessionmaker(bind=engine)()
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
 
 
-def _construct_runner(context: WorkflowRun) -> _RunnerProtocol:
-    """Construct the runner for ``context`` — the one-line wiring point.
+async def _load_context(session: AsyncSession, run_id: uuid.UUID) -> tuple[WorkflowRun, Product]:
+    """Load the current `workflow_runs` row plus its bound `products` row --
+    the run-state blob (I6) and the product identity `ProductToolExecutor`
+    binds at construction. Reads fresh on every call, including a
+    redelivered retry: no task-local cache anywhere in this module."""
+    run = await session.get(WorkflowRun, run_id)
+    if run is None:
+        raise LookupError(f"workflow_runs row not found for run_id={run_id}")
+    product = await session.get(Product, run.product_id)
+    if product is None:
+        raise LookupError(f"products row not found for product_id={run.product_id}")
+    return run, product
 
-    ``WorkflowRunner`` does not exist on this stack yet (#1119 / W3-A
-    unmerged at authoring time). This import is intentionally the real,
-    pinned package (``juli_backend.services.agent.runner``, imported via its
-    public ``services.agent`` root per ``.importlinter.toml``'s
-    cross-package deep-import cap) rather than a permanent local fallback:
-    once #1119 lands and exports ``WorkflowRunner``, this line resolves and
-    no other change is needed here.
+
+def _default_llm_service():
+    raise RunnerCompositionUnavailableError(
+        "services.agent.llm.openai_adapter.OpenAIResponsesAdapter is not reachable "
+        "from workers/ under .importlinter.toml's depth-2 cross-package cap, and is "
+        "deliberately not re-exported at services.agent.llm's public facade -- see "
+        "this module's docstring."
+    )
+
+
+def _default_tool_registry():
+    raise RunnerCompositionUnavailableError(
+        "register_product_read_tools/register_product_write_tools "
+        "(services.agent.tools.product / .product_write) are not reachable from "
+        "workers/ under .importlinter.toml's depth-2 cross-package cap -- see this "
+        "module's docstring."
+    )
+
+
+def _default_playbook():
+    raise RunnerCompositionUnavailableError(
+        "OPTIMIZE_PRODUCT_PLAYBOOK (services.agent.playbooks.optimize_product) is "
+        "not reachable from workers/ under .importlinter.toml's depth-2 "
+        "cross-package cap -- see this module's docstring."
+    )
+
+
+def _construct_runner(
+    session: AsyncSession,
+    sync_session: Session,
+    run: WorkflowRun,
+    product: Product,
+):
+    """Construct the real `WorkflowRunner` for `run` -- the one-line wiring
+    point issue #1145 restores (ADR-073 decision 1). Builds a
+    `ToolExecutionLedger` and a `ConcurrencyGuard` and hands both to a
+    `ProductToolExecutor`, so a WRITE this run dispatches genuinely reaches
+    both (see module docstring). `read_resources`/`write_resources` stay
+    `None` -- a `ProductToolExecutor`-supported configuration for a run that
+    cannot yet reach real marketplace credentials from this package.
     """
+    from juli_backend.services.agent import events as events_module
     from juli_backend.services.agent import runner as runner_module
 
-    return runner_module.WorkflowRunner(context)  # type: ignore[attr-defined]
+    registry = _default_tool_registry()
+    ledger = runner_module.ToolExecutionLedger(sync_session, shop_id=run.shop_id)
+    concurrency_guard = runner_module.ConcurrencyGuard(
+        basis_snapshot=run.state.get("basis_snapshots", {})
+    )
+    tool_executor = runner_module.ProductToolExecutor(
+        registry=registry,
+        product_id=product.tiktok_product_id,
+        ledger=ledger,
+        workflow_run_id=run.id,
+        concurrency_guard=concurrency_guard,
+    )
+    conversation_store = runner_module.JsonbConversationStore(session)
+    event_sink = events_module.InMemoryEventSink()
+
+    return runner_module.WorkflowRunner(
+        llm_service=_default_llm_service(),
+        tool_executor=tool_executor,
+        event_sink=event_sink,
+        conversation_store=conversation_store,
+        registry=registry,
+        playbook=_default_playbook(),
+    )
 
 
 async def _run_agent_workflow_async(run_id: str) -> None:
-    context = await _load_context(run_id)
-    runner = _construct_runner(context)
-    await runner.run()
+    factory = _ensure_session_factory()
+    async with factory() as session:
+        with _sync_ledger_session() as sync_session:
+            run, product = await _load_context(session, uuid.UUID(run_id))
+            runner = _construct_runner(session, sync_session, run, product)
+            await runner.run(run.id, product_ref=product.tiktok_product_id)
+            await session.commit()
 
 
-async def _resume_agent_workflow_async(run_id: str, tool_call_id: str, decision: str) -> None:
-    context = await _load_context(run_id)
-    runner = _construct_runner(context)
-    await runner.resume(tool_call_id, decision)
+async def _resume_agent_workflow_async(run_id: str, *, approved: bool) -> None:
+    factory = _ensure_session_factory()
+    async with factory() as session:
+        with _sync_ledger_session() as sync_session:
+            run, product = await _load_context(session, uuid.UUID(run_id))
+            runner = _construct_runner(session, sync_session, run, product)
+            await runner.resume(run.id, approved=approved)
+            await session.commit()
 
 
 def run_agent_workflow_sync(run_id: str) -> None:
     asyncio.run(_run_agent_workflow_async(run_id))
 
 
-def resume_agent_workflow_sync(run_id: str, tool_call_id: str, decision: str) -> None:
-    asyncio.run(_resume_agent_workflow_async(run_id, tool_call_id, decision))
+def resume_agent_workflow_sync(run_id: str, approved: bool) -> None:
+    asyncio.run(_resume_agent_workflow_async(run_id, approved=approved))
 
 
 @celery_app.task(name="juli_backend.run_agent_workflow", acks_late=True, max_retries=1)
@@ -127,11 +261,12 @@ def run_agent_workflow(run_id: str) -> None:
 
 
 @celery_app.task(name="juli_backend.resume_agent_workflow", acks_late=True, max_retries=1)
-def resume_agent_workflow(run_id: str, tool_call_id: str, decision: str) -> None:
-    """Resume a ``waiting_approval`` run with an approval decision.
+def resume_agent_workflow(run_id: str, approved: bool) -> None:
+    """Resume a `waiting_approval` run with an approval decision (ADR-073
+    decisions 1 and 5; issue #1123's `WorkflowRunner.resume`).
 
-    Enqueued by the confirmation-authorization endpoint (P9 / #W4-A) — this
-    task only carries the already-made ``decision`` through to the runner;
-    it does not itself validate or authorize it.
+    Enqueued by the confirmation-authorization endpoint (P9 / #W4-A) -- this
+    task only carries the already-made `approved` decision through to the
+    runner; it does not itself validate or authorize it.
     """
-    resume_agent_workflow_sync(run_id, tool_call_id, decision)
+    resume_agent_workflow_sync(run_id, approved=approved)
