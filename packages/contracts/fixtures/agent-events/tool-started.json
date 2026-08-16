@@ -1,0 +1,11 @@
+{
+  "workflow_run_id": "17c048f5-53e3-4ec7-9c3f-7a39a272d07a",
+  "sequence_number": 3,
+  "event_type": "tool.started",
+  "timestamp": "2026-08-14T12:00:03Z",
+  "payload": {
+    "tool_call_id": "call_1",
+    "tool_name": "update_price"
+  },
+  "v": 1
+}

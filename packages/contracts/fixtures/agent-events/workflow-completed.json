@@ -1,0 +1,10 @@
+{
+  "workflow_run_id": "17c048f5-53e3-4ec7-9c3f-7a39a272d07a",
+  "sequence_number": 6,
+  "event_type": "workflow.completed",
+  "timestamp": "2026-08-14T12:00:06Z",
+  "payload": {
+    "stop_reason": "final_response"
+  },
+  "v": 1
+}
