@@ -114,8 +114,8 @@ class ProductToolExecutor:
         )
 
         if spec.classification is ToolClassification.READ:
-            handler = PRODUCT_READ_TOOL_HANDLERS.get(tool_name)
-            if handler is None:
+            read_handler = PRODUCT_READ_TOOL_HANDLERS.get(tool_name)
+            if read_handler is None:
                 raise ToolExecutionError(
                     f"Tool {tool_name!r} is registered READ but has no handler in "
                     "PRODUCT_READ_TOOL_HANDLERS."
@@ -125,10 +125,10 @@ class ProductToolExecutor:
                     f"Tool {tool_name!r} requires read_resources, but this "
                     "ProductToolExecutor was constructed without them."
                 )
-            result = handler(self._read_resources, context, params)
+            result = read_handler(self._read_resources, context, params)
         else:
-            handler = PRODUCT_WRITE_TOOL_HANDLERS.get(tool_name)
-            if handler is None:
+            write_handler = PRODUCT_WRITE_TOOL_HANDLERS.get(tool_name)
+            if write_handler is None:
                 raise ToolExecutionError(
                     f"Tool {tool_name!r} is registered WRITE but has no handler in "
                     "PRODUCT_WRITE_TOOL_HANDLERS."
@@ -138,7 +138,7 @@ class ProductToolExecutor:
                     f"Tool {tool_name!r} requires write_resources, but this "
                     "ProductToolExecutor was constructed without them."
                 )
-            result = handler(self._write_resources, context, params)
+            result = write_handler(self._write_resources, context, params)
 
         return result.model_dump(mode="json")
 
