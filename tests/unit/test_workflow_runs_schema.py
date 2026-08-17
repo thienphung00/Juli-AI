@@ -190,6 +190,7 @@ def test_workflow_runs_table_shape_at_head(postgres_at_head: Engine):
         "completed_at",
         "waiting_approval_since",
         "running_seconds_elapsed",
+        "cancel_requested",
         "created_at",
         "updated_at",
     }
@@ -206,12 +207,112 @@ def test_workflow_runs_table_shape_at_head(postgres_at_head: Engine):
     assert "CHAR" in str(columns["stop_reason"]["type"]).upper()
     assert columns["stop_reason"]["nullable"] is True, "stop_reason must be nullable until terminal"
 
+    # #1160: cancel_requested is the storage behind WorkflowRunner's
+    # cancel_check seam. nullable=False + a real server default is the whole
+    # point -- it is what lets migration 036 backfill existing rows in place
+    # with no manual UPDATE (see
+    # test_cancel_requested_backfills_false_for_row_seeded_before_036 below).
+    # test_schema_parity.py only diffs column *names*, so it cannot catch a
+    # wrong type, a wrong nullability, or a missing default here -- this is
+    # the assertion that can.
+    assert "BOOL" in str(columns["cancel_requested"]["type"]).upper(), (
+        f"cancel_requested expected a boolean type, got {columns['cancel_requested']['type']}"
+    )
+    assert columns["cancel_requested"]["nullable"] is False, (
+        "cancel_requested must be NOT NULL -- a nullable seam column could read None, "
+        "which is neither True nor False for evaluate_checkpoint(cancel_requested=...)"
+    )
+    assert columns["cancel_requested"].get("default") is not None, (
+        "cancel_requested has no server default -- existing rows would need a manual "
+        "backfill UPDATE instead of the additive in-place default"
+    )
+    assert "false" in str(columns["cancel_requested"]["default"]).lower()
+
     fks = {
         fk["constrained_columns"][0]: fk["referred_table"]
         for fk in inspector.get_foreign_keys("workflow_runs")
     }
     assert fks.get("shop_id") == "shops"
     assert fks.get("product_id") == "products"
+
+
+@requires_postgres
+def test_cancel_requested_backfills_false_for_row_seeded_before_036():
+    """A workflow_runs row inserted at revision 035 -- before
+    cancel_requested existed at all -- must read cancel_requested = False
+    after upgrading straight to 036, with no manual UPDATE in between. This
+    is the acceptance criterion in #1160: 'nullable=False, defaulting to
+    false, so existing rows backfill without a null sweep.' Proves the
+    server_default actually does that work at the database level, which
+    test_schema_parity.py (column-name diff only) cannot."""
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    from sqlalchemy import text
+
+    cfg = _alembic_config()
+    engine = _sync_engine()
+    try:
+        _reset_to_revision(cfg, "035_workflow_run_events_table")
+
+        user_id, shop_id, product_id, run_id = uuid4(), uuid4(), uuid4(), uuid4()
+        with engine.begin() as conn:
+            conn.execute(
+                text("INSERT INTO users (id, phone) VALUES (:id, :phone)"),
+                {"id": user_id, "phone": "+15550001160"},
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO shops (id, user_id, shop_name) VALUES (:id, :user_id, :shop_name)"
+                ),
+                {"id": shop_id, "user_id": user_id, "shop_name": "AGT-W3A-DP Test Shop"},
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO products "
+                    "(id, shop_id, tiktok_product_id, name, status, update_time) "
+                    "VALUES (:id, :shop_id, :tiktok_product_id, :name, :status, :update_time)"
+                ),
+                {
+                    "id": product_id,
+                    "shop_id": shop_id,
+                    "tiktok_product_id": "issue-1160-backfill-product",
+                    "name": "Backfill Widget",
+                    "status": "active",
+                    "update_time": datetime.now(UTC),
+                },
+            )
+            # No cancel_requested column exists yet at revision 035 -- this
+            # INSERT is only possible because the column doesn't exist.
+            conn.execute(
+                text(
+                    "INSERT INTO workflow_runs "
+                    "(id, shop_id, product_id, state, status, prompt_version, prompt_sha256) "
+                    "VALUES (:id, :shop_id, :product_id, '{}', :status, "
+                    ":prompt_version, :prompt_sha256)"
+                ),
+                {
+                    "id": run_id,
+                    "shop_id": shop_id,
+                    "product_id": product_id,
+                    "status": "completed",
+                    "prompt_version": "optimize_product.v1",
+                    "prompt_sha256": "c" * 64,
+                },
+            )
+
+        command.upgrade(cfg, "036_cancel_requested_column")
+
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT cancel_requested FROM workflow_runs WHERE id = :id"),
+                {"id": run_id},
+            ).one()
+        assert row.cancel_requested is False, (
+            "pre-existing row did not backfill cancel_requested=false on upgrade to 036"
+        )
+    finally:
+        engine.dispose()
 
 
 @requires_postgres
