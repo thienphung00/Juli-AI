@@ -84,6 +84,16 @@ claim-then-execute (#1121), basis-hash compare-before-write (#1122), and
 the reaper's 4h `confirmation_expired` sweep (#1130) — so
 `concurrency_conflict` is still not produced by any code in this module.
 
+**`tool_call_id` threading (issue #1145).** Both `_dispatch_tool_call` and
+`resume` pass the block's own `call_id` through to
+`ToolExecutor.execute(..., tool_call_id=...)` — previously omitted, which
+left `tool_executor.py`'s ledger-routing branch structurally unreachable
+(`ledger`/`workflow_run_id`/`tool_call_id` must *all* be present). This
+module still never constructs a `ToolExecutionLedger` or `ConcurrencyGuard`
+itself — that stays the caller's job (whatever constructs this run's
+`ToolExecutor`, per `tool_executor.py`'s own docstring) — this module only
+ever forwards the id it already had.
+
 **`compose()`/prompt stamping (ADR-072 decision 4).** `compose()`,
 `prompt_version()`, and `prompt_sha256()` are called exactly once, at the
 top of `run()`, from the injected `Playbook`'s own `workflow_key`/`version`
@@ -413,7 +423,9 @@ class WorkflowRunner:
             ToolStartedEvent,
             ToolStartedPayload(tool_call_id=call_id, tool_name=tool_name),
         )
-        raw_result = self._tool_executor.execute(tool_name=tool_name, params=params)
+        raw_result = self._tool_executor.execute(
+            tool_name=tool_name, params=params, tool_call_id=call_id
+        )
         sanitized = guard_inbound_tool_result(raw_result, tool_name=tool_name)
         ok = sanitized is raw_result
         await self._emit(
@@ -644,7 +656,9 @@ class WorkflowRunner:
             ToolStartedPayload(tool_call_id=block.call_id, tool_name=block.tool_name),
         )
 
-        raw_result = self._tool_executor.execute(tool_name=block.tool_name, params=params)
+        raw_result = self._tool_executor.execute(
+            tool_name=block.tool_name, params=params, tool_call_id=block.call_id
+        )
         sanitized = guard_inbound_tool_result(raw_result, tool_name=block.tool_name)
         ok = sanitized is raw_result
 

@@ -1,0 +1,39 @@
+{
+  "gateVersion": 1,
+  "issue": 1145,
+  "metrics": {
+    "acceptanceMapped": 16,
+    "acceptanceTotal": 16,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "backend/src/juli_backend/api/routes/agent_runs.py",
+      "backend/src/juli_backend/workers/tasks/agent_workflow.py",
+      "backend/src/juli_backend/services/agent/runner/core.py",
+      "backend/src/juli_backend/services/agent/runner/tool_executor.py",
+      "agent-runtime/artifacts/release-evidence-plan-issue-1145.json",
+      "agent-runtime/artifacts/waves/wave-agent-w3.json",
+      "tests/unit/test_agent_run_create_route.py",
+      "tests/unit/test_agent_run_events_api.py",
+      "tests/unit/test_agent_runner_core.py",
+      "tests/unit/test_agent_runner_pause_resume.py",
+      "tests/unit/test_agent_runner_termination.py",
+      "tests/unit/test_agent_workflow_ledger_guard_reachability.py",
+      "tests/unit/test_agent_workflow_task_wiring.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1145.json",
+    "ownerSignoffPresent": true,
+    "sha256": "0f106c7820fc2f56fa52dc2023bf73ccc5757303628714dd2d6c5fd99b546601",
+    "signoffRequired": true,
+    "status": "PASS_WITH_WARNINGS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-17T08:00:11Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1145.json",
+    "sha256": "b68a977b9bc4158535f87807438554f52a0f0cff634af84e36f8b07f54a8066d",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w3"
+}
