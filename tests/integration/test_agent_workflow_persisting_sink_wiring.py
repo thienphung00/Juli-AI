@@ -12,18 +12,19 @@ test injects.
 
 **What this module can and cannot drive.** `_construct_runner`'s three
 composition seams (`_default_llm_service`/`_default_tool_registry`/
-`_default_playbook`) still fail closed from `workers/` under
-`.importlinter.toml`'s depth-2 cross-package cap (see `agent_workflow.py`'s
-own module docstring) -- no real OpenAI adapter, populated tool registry or
-Optimize Product playbook is reachable from this package today, so a
-genuinely live LLM-driven run is not reachable here either, exactly as
-`test_agent_workflow_task_wiring.py`'s own `TestTaskBodiesCallRealRunnerMethods`
-already established against sqlite. This module reuses that same seam
-(overriding the three `_default_*` composition points and monkeypatching
-`services.agent.runner.WorkflowRunner`) but swaps sqlite for a real,
-disposable Postgres database and asserts against `workflow_run_events`
-directly -- the strongest honest assertion reachable without W3-A's live
-LLM/tool-registry/playbook pieces. The monkeypatched runner still emits
+`_default_playbook`) no longer fail closed from `workers/` by default as of
+issue #1173 -- `services/agent/composition.py` closes the depth-2
+cross-package gap that used to block them (see `agent_workflow.py`'s own
+module docstring). This module still overrides all three anyway: exercising
+a real OpenAI completion (which `_default_llm_service` would now attempt
+with a real `OPENAI_API_KEY`) is out of scope for a Postgres-plumbing test,
+and this module's whole point is the `event_sink` hand-off, not the LLM/
+tool-registry/playbook pieces -- so it keeps monkeypatching the three
+`_default_*` composition points and `services.agent.runner.WorkflowRunner`,
+exactly as `test_agent_workflow_task_wiring.py`'s own
+`TestTaskBodiesCallRealRunnerMethods` does against sqlite, and swaps sqlite
+for a real, disposable Postgres database to assert against
+`workflow_run_events` directly. The monkeypatched runner still emits
 through the REAL `event_sink` `_construct_runner` builds internally (never
 one this test constructs and hands in) -- that hand-off is the one thing
 this issue's scope is actually about.

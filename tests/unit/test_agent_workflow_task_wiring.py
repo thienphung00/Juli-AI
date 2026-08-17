@@ -29,8 +29,10 @@ AC -> test map:
 - `_construct_runner` builds the real `WorkflowRunner` with its real
   keyword-only collaborators (llm_service, tool_executor, event_sink,
   conversation_store, registry, playbook) -> TestConstructRunner
-- the three `_default_*` composition seams fail closed rather than fake a
-  collaborator that would look real -> TestDefaultSeamsFailClosed
+- the three `_default_*` composition seams build the real collaborators
+  (issue #1173), with `_default_llm_service` failing closed on a missing
+  `OPENAI_API_KEY` rather than faking a collaborator that would look real ->
+  TestDefaultSeamsComposeRealCollaborators
 - `run_agent_workflow`/`resume_agent_workflow` call the real
   `run(workflow_run_id, product_ref=...)` /
   `resume(workflow_run_id, approved=...)` signatures, end to end through
@@ -142,25 +144,84 @@ class TestTaskRegistration:
         assert agent_workflow.resume_agent_workflow.max_retries == 1
 
 
-class TestDefaultSeamsFailClosed:
-    """The three composition seams `_construct_runner` cannot resolve for
-    real from `workers/` (module docstring: the depth-2 import boundary
-    blocks `llm.openai_adapter`, `tools.product`/`.product_write`, and
-    `playbooks.optimize_product`) fail loudly by default -- they never
-    silently return a registry/playbook/llm_service that looks real but
-    does nothing."""
+class TestDefaultSeamsComposeRealCollaborators:
+    """Issue #1173: `services/agent/composition.py` closes the import-
+    boundary gap the three `_construct_runner` seams previously could not
+    cross from `workers/` -- `RunnerCompositionUnavailableError` (retired,
+    kept only for backward compatibility -- see its docstring) is no longer
+    raised by any of them. `_default_tool_registry` and `_default_playbook`
+    need no credentials at all and always succeed; `_default_llm_service`
+    fails closed on a missing `OPENAI_API_KEY` with a precise, ordinary
+    `RuntimeError` (`require_env`'s own message), never the retired
+    composition-unavailable error and never a silent fake."""
 
-    def test_default_llm_service_raises(self):
-        with pytest.raises(agent_workflow.RunnerCompositionUnavailableError):
+    def test_default_tool_registry_builds_the_real_populated_registry(self):
+        from juli_backend.services.agent.tools import ToolRegistry
+
+        registry = agent_workflow._default_tool_registry()
+
+        assert isinstance(registry, ToolRegistry)
+        names = {spec.name for spec in registry.list_all()}
+        assert names == {
+            "get_product_information",
+            "get_seo_keywords",
+            "check_product_status",
+            "upload_product_image",
+            "update_product_listing",
+            "update_product_price",
+        }
+
+    def test_default_playbook_returns_the_real_optimize_product_playbook(self):
+        from juli_backend.services.agent.playbooks import OPTIMIZE_PRODUCT_PLAYBOOK
+        from juli_backend.services.agent.playbooks.base import Playbook
+
+        playbook = agent_workflow._default_playbook()
+
+        assert isinstance(playbook, Playbook)
+        assert playbook is OPTIMIZE_PRODUCT_PLAYBOOK
+
+    def test_default_llm_service_builds_the_real_openai_adapter_when_key_present(self, monkeypatch):
+        from juli_backend.services.agent.llm import LLMService
+        from juli_backend.services.agent.llm.openai_adapter import OpenAIResponsesAdapter
+
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test-fake-key-not-real")
+
+        llm_service = agent_workflow._default_llm_service()
+
+        assert isinstance(llm_service, OpenAIResponsesAdapter)
+        assert isinstance(llm_service, LLMService)
+
+    def test_default_llm_service_fails_closed_with_precise_error_when_key_absent(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+        with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
             agent_workflow._default_llm_service()
 
-    def test_default_tool_registry_raises(self):
-        with pytest.raises(agent_workflow.RunnerCompositionUnavailableError):
-            agent_workflow._default_tool_registry()
+    def test_default_llm_service_fails_closed_when_key_is_blank(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "   ")
 
-    def test_default_playbook_raises(self):
-        with pytest.raises(agent_workflow.RunnerCompositionUnavailableError):
-            agent_workflow._default_playbook()
+        with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
+            agent_workflow._default_llm_service()
+
+    def test_default_llm_service_never_raises_the_retired_composition_error(self, monkeypatch):
+        """The retired `RunnerCompositionUnavailableError` must never appear
+        again on this path -- a missing credential is a different failure
+        mode than "unreachable from workers/" (see the class's own
+        docstring)."""
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+        with pytest.raises(RuntimeError) as exc_info:
+            agent_workflow._default_llm_service()
+
+        assert not isinstance(exc_info.value, agent_workflow.RunnerCompositionUnavailableError)
+
+    def test_default_tool_registry_and_default_playbook_never_need_openai_key(self, monkeypatch):
+        """Neither of these seams touches marketplace or LLM credentials --
+        both must succeed even with no relevant environment configured."""
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+        agent_workflow._default_tool_registry()
+        agent_workflow._default_playbook()
 
 
 class _SpyWorkflowRunner:
