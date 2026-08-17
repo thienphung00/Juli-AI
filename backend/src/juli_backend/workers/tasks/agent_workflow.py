@@ -27,49 +27,101 @@ run before this, because nothing outside a test ever constructed a
 `execute(..., tool_call_id=...)`) is what makes the ledger's routing branch
 reachable now that a caller here supplies `ledger`/`workflow_run_id` too.
 
-**What this module still cannot build for real -- a pre-existing, structural
-gap, not introduced by #1145.** `.importlinter.toml`'s cross-package depth
-cap (`max_cross_package_depth = 2`) limits every import this module makes
-into `services.agent` to that package's own public depth-2 facade
-(`juli_backend.services.agent.<child>`, e.g. `services.agent.runner`) -- and
-`workers`' `[allowed_edges]` row does not list `integrations` at all, so
-this module can never import `juli_backend.integrations.tiktok` at any
-depth. Three collaborators a real Optimize Product run needs are, today,
-reachable only from *inside* `services/agent` itself, never from `workers/`:
+**What this module can now build for real (issue #1173, closing the gap
+#1145 flagged above as follow-up work).** `.importlinter.toml`'s
+cross-package depth cap (`max_cross_package_depth = 2`) limits every import
+this module makes into `services.agent` to that package's own public
+depth-2 facade (`juli_backend.services.agent.<child>`) -- and `workers`'
+`[allowed_edges]` row does not list `integrations` at all, so this module
+can never import `juli_backend.integrations.tiktok` at any depth. That edge
+is structural and permanent; it is also not actually needed here, since
+`services` -> `integrations` (and `services` -> `core`) *are* allowed edges
+-- `services/agent/composition.py` builds `read_resources`/`write_resources`
+from inside `services/agent` for exactly this reason (below), the same way
+it reaches the LLM adapter and tool registry.
 
-- the production LLM adapter (`services.agent.llm.openai_adapter
-  .OpenAIResponsesAdapter`) -- deliberately *not* re-exported at
-  `services.agent.llm`'s public facade (that package's `MODULE.md`: "so
-  nothing depends on a concrete adapter by accident");
-- the populated Optimize Product `ToolRegistry`
-  (`services.agent.tools.product.register_product_read_tools` /
-  `...product_write.register_product_write_tools`) -- one level below
-  `services.agent.tools`'s public facade, which re-exports only the empty
-  `ToolRegistry` class itself;
-- the concrete `OPTIMIZE_PRODUCT_PLAYBOOK`
-  (`services.agent.playbooks.optimize_product`) -- one level below
-  `services.agent.playbooks`'s public facade, which re-exports only the
-  generic `Playbook`/`PlaybookStep` shapes.
+The five named seams below are not blocked by a missing `integrations` edge
+at all -- `workers` -> `services` is an allowed edge; only the depth-2 cap
+on that edge stood in the way for two of them, and depth-2 caps apply only
+*across* a top-level package boundary (`check_import_boundaries.py
+::check_import`'s own `importer_package == target_package: return None`
+short-circuit). `services/agent/composition.py` (new, #1173) is a
+same-top-level-package (`services`) module that reaches every genuinely
+deep collaborator directly, unrestricted, and exposes plain functions:
 
-`_default_llm_service`/`_default_tool_registry`/`_default_playbook` below
-are the three named seams standing in for this: each raises
-`RunnerCompositionUnavailableError` naming exactly which import boundary
-blocks it, rather than faking a registry/playbook that would look real and
-silently do nothing. Closing this gap needs a small composition-root
-addition *inside* `services/agent` (its own `__init__.py`, or a new module
-there) -- outside #1145's write-path allowlist, so not attempted here;
-flagged as follow-up work in that issue's report. `read_resources`/
-`write_resources` are left `None` on the constructed `ProductToolExecutor`
-for the same reason -- a configuration that module's own docstring already
-treats as supported ("Either may be left `None` when a run only ever needs
-the other side").
+- `build_llm_service()` -- the real production LLM adapter
+  (`services.agent.llm.openai_adapter.OpenAIResponsesAdapter`), still
+  deliberately *not* re-exported at `services.agent.llm`'s own public facade
+  (that package's `MODULE.md`: "so nothing depends on a concrete adapter by
+  accident") -- `composition.py` is the one sanctioned place that concrete
+  dependency is allowed to exist, reached the same depth-2-facade way
+  `_default_playbook` below reaches `services.agent.playbooks`. Fails closed
+  via `resolve_llm_config()`'s `require_env("OPENAI_API_KEY")` before the
+  adapter is ever constructed.
+- `build_product_tool_registry()` -- the real, populated Optimize Product
+  `ToolRegistry` (`services.agent.tools.product.register_product_read_tools`
+  / `...product_write.register_product_write_tools`), one level below
+  `services.agent.tools`'s own public facade (which re-exports only the
+  empty `ToolRegistry` class itself). No credentials needed to build this --
+  it only registers `ToolSpec`s, never resolves marketplace access.
+- `build_read_resources(session)` / `build_write_resources(session)`
+  (review round 1 rework) -- the real ADR-069 guarded `ProductionReadResources`
+  / `SandboxWriteResources` bundles a run's tool calls actually need, built
+  the same way `workers/services/polling/orchestrate.py` (production-read)
+  and `services/execution/sandbox_guard.py` (sandbox-write, reused outright)
+  already do -- see `composition.py`'s own "Marketplace resources" docstring
+  section for the full rationale and the exact compliant import path used to
+  reach `core.security`'s credential resolvers without adding a new
+  deep-import baseline entry.
 
-None of this blocks what #1145 actually proves: with the three seams
-overridden (as `tests/unit/test_agent_workflow_task_wiring.py` does), this
-module constructs a real `WorkflowRunner` with its real keyword-only
-signature; separately (`tests/unit/test_agent_workflow_ledger_guard_reachability.py`),
-a WRITE call dispatched through a real `WorkflowRunner` genuinely reaches
-both `ToolExecutionLedger` and `ConcurrencyGuard`.
+The third and fourth seams, `_default_playbook` and (implicitly, via
+`composition.py`) nothing else, needed no new composition helper for the
+playbook: `OPTIMIZE_PRODUCT_PLAYBOOK` (`services.agent.playbooks
+.optimize_product`) is *already* re-exported at `services.agent.playbooks`'s
+own depth-2 public facade (that package's own docstring) -- exactly the same
+`from juli_backend.services.agent import <child> as <alias>` idiom
+`api/routes/agent_runs.py::_resolve_optimize_product_prompt_pin` already
+uses for the same package. `_default_llm_service`/`_default_tool_registry`/
+`_default_read_resources`/`_default_write_resources` below all reach
+`composition.py` the identical way.
+
+**`_construct_runner` is now `async def` (review round 1 rework).**
+Resolving real TikTok credentials is inherently a database read
+(`resolve_production_read_credential`/`resolve_sandbox_write_credential`,
+both `async`) -- `_construct_runner` already receives the open `session`
+(`AsyncSession`) `_run_agent_workflow_async`/`_resume_agent_workflow_async`
+hold, so awaiting `_default_read_resources(session)`/
+`_default_write_resources(session)` inside it, and `await`-ing the call at
+both call sites below, is the natural seam; no second session or sync
+credential-resolution path was invented for this. This adds no branch/loop
+logic to either task body (`test_agent_workflow_task_wiring.py`'s
+`TestThinShellBodies` AST check is unaffected by an added `await`).
+
+**Prompt-version/sha256 stamping (ADR-072).** Supplying the real playbook
+here is also what makes stamping actually correct: `WorkflowRunner.run`
+(`services/agent/runner/core.py`) already calls `compose(self._playbook
+.workflow_key, self._playbook.version)` / `prompt_version(...)` /
+`prompt_sha256(...)` itself and includes `prompt_version` on the
+`WorkflowStartedEvent` payload it emits -- that seam already existed and
+needed no change here, it was simply unreachable while `_default_playbook`
+raised. The separate `workflow_runs.prompt_version`/`.prompt_sha256`
+*columns* are stamped at run-creation time by `api/routes/agent_runs.py`'s
+`_resolve_optimize_product_prompt_pin` (issue #1145 territory, unchanged) --
+`WorkflowRunner` itself never writes those columns back, by design (that
+module's own docstring: "no direct database access here").
+
+None of this changes what #1145 already proved: with the three seams
+overridden for isolation (as `tests/unit/test_agent_workflow_task_wiring.py`
+still does for its non-composition-focused tests), this module constructs a
+real `WorkflowRunner` with its real keyword-only signature; separately
+(`tests/unit/test_agent_workflow_ledger_guard_reachability.py`), a WRITE
+call dispatched through a real `WorkflowRunner` genuinely reaches both
+`ToolExecutionLedger` and `ConcurrencyGuard`. What #1173 adds is that the
+*default*, non-overridden path -- a real enqueued run -- now constructs a
+real `LLMService`, `ToolRegistry`, `Playbook`, and (review round 1 rework)
+real guarded `ProductionReadResources`/`SandboxWriteResources` too, not just
+a real `WorkflowRunner` shell around seams that always raised or left the
+tool executor's marketplace access unset.
 
 Both tasks stay `acks_late=True, max_retries=1` (ADR-074 decision 4): a
 worker crash redelivers the task once, and the retried worker reconstructs
@@ -85,11 +137,14 @@ nothing in production code ever enqueued either task. `_construct_runner`
 also now wires a `cancel_check` (`_make_cancel_check` below) that reads
 `workflow_runs.cancel_requested` fresh from the database on every
 `WorkflowRunner` checkpoint poll -- Gap 3, fed by `POST /v1/demo/runs/{id}/
-cancel` writing that column from a different process. Neither closes the
-three `RunnerCompositionUnavailableError` seams above: a live enqueued run
-still cannot construct a real LLM service, tool registry or playbook from
-`workers/` today, so an end-to-end live run remains unreachable regardless
-of the enqueue path now existing.
+cancel` writing that column from a different process. As of #1173 (plus its
+review-round-1 rework above), the enqueue path and the five composition
+seams together mean a real enqueued run genuinely constructs every
+collaborator `WorkflowRunner`/`ProductToolExecutor` need -- the one thing
+still not exercised anywhere in this repo's test suite is an actual live
+OpenAI completion and a live TikTok API round trip, which stay #1124's HITL
+live smokes by design (no live call is ever made from a unit or integration
+test in this module's own suite).
 """
 
 from __future__ import annotations
@@ -111,11 +166,24 @@ from juli_backend.workers.tasks.database import get_async_database_url
 
 
 class RunnerCompositionUnavailableError(RuntimeError):
-    """Raised by one of the `_default_*` seams below when the real
-    collaborator it stands in for is not reachable from `workers/` under
-    today's import boundary -- see the module docstring's "What this module
-    still cannot build for real" section. Never silently swapped for a
-    fake that would look real."""
+    """Retired as of issue #1173 -- previously raised by one of the
+    `_default_*` seams below when the real collaborator it stood in for was
+    not reachable from `workers/` under the import boundary (see git history
+    on this module for the pre-#1173 docstring). That failure mode no longer
+    occurs: `services/agent/composition.py` (new, #1173) closes the actual
+    reachability gap, so none of the seams below can fail for "unreachable"
+    reasons anymore. The class is kept, unused, rather than deleted, only
+    because deleting a public exception type is itself a breaking change
+    worth its own deliberate commit -- nothing in this module raises it.
+    The seams that can still fail closed (`_default_llm_service` on a
+    missing `OPENAI_API_KEY`; `_default_read_resources`/
+    `_default_write_resources`, added in review-round-1 rework, on a
+    missing `TIKTOK_APP_KEY`/`TIKTOK_APP_SECRET` or an unprovisioned
+    credential row) now raise the plain `RuntimeError`/`NotFound` the
+    underlying `require_env`/repository call itself produces, naming the
+    missing prerequisite precisely -- wrapping that in this class would
+    misrepresent a present, working collaborator with an absent credential
+    as a structural reachability problem, which it is not."""
 
 
 def _database_url() -> str:
@@ -173,29 +241,60 @@ async def _load_context(session: AsyncSession, run_id: uuid.UUID) -> tuple[Workf
 
 
 def _default_llm_service():
-    raise RunnerCompositionUnavailableError(
-        "services.agent.llm.openai_adapter.OpenAIResponsesAdapter is not reachable "
-        "from workers/ under .importlinter.toml's depth-2 cross-package cap, and is "
-        "deliberately not re-exported at services.agent.llm's public facade -- see "
-        "this module's docstring."
-    )
+    """The real ADR-071 `LLMService` (issue #1173) -- `composition.py`'s
+    `build_llm_service()`, reached via the depth-2 facade
+    `juli_backend.services.agent` (see module docstring). Fails closed with
+    a precise `RuntimeError` naming `OPENAI_API_KEY` when that variable is
+    absent or blank, before any adapter is constructed -- never a silent
+    fake."""
+    from juli_backend.services.agent import composition as composition_module
+
+    return composition_module.build_llm_service()
 
 
 def _default_tool_registry():
-    raise RunnerCompositionUnavailableError(
-        "register_product_read_tools/register_product_write_tools "
-        "(services.agent.tools.product / .product_write) are not reachable from "
-        "workers/ under .importlinter.toml's depth-2 cross-package cap -- see this "
-        "module's docstring."
-    )
+    """The real, populated ADR-069 `ToolRegistry` (issue #1173) --
+    `composition.py`'s `build_product_tool_registry()`, reached the same
+    depth-2-facade way as `_default_llm_service` above."""
+    from juli_backend.services.agent import composition as composition_module
+
+    return composition_module.build_product_tool_registry()
 
 
 def _default_playbook():
-    raise RunnerCompositionUnavailableError(
-        "OPTIMIZE_PRODUCT_PLAYBOOK (services.agent.playbooks.optimize_product) is "
-        "not reachable from workers/ under .importlinter.toml's depth-2 "
-        "cross-package cap -- see this module's docstring."
-    )
+    """The real, concrete `OPTIMIZE_PRODUCT_PLAYBOOK` (issue #1173) --
+    already re-exported at `services.agent.playbooks`'s own depth-2 public
+    facade, so no `composition.py` helper is needed for this one (see module
+    docstring)."""
+    from juli_backend.services.agent import playbooks as playbooks_module
+
+    return playbooks_module.OPTIMIZE_PRODUCT_PLAYBOOK
+
+
+async def _default_read_resources(session: AsyncSession):
+    """The real ADR-069 guarded `ProductionReadResources` (issue #1173
+    review-round-1 rework) -- `composition.py`'s `build_read_resources`,
+    reached the same depth-2-facade way as `_default_llm_service` above.
+    `async` because credential resolution is a database read; awaited by
+    `_construct_runner` below. Fails closed with a precise `RuntimeError`
+    naming `TIKTOK_APP_KEY`/`TIKTOK_APP_SECRET` when either is absent, or
+    `NotFound` when no Fujiwa production-read credential row is provisioned
+    yet -- never a silent fake, and never `None` (unlike the pre-rework
+    `ProductToolExecutor` this replaced, which left `read_resources` unset
+    and crashed uncaught on the first tool call instead)."""
+    from juli_backend.services.agent import composition as composition_module
+
+    return await composition_module.build_read_resources(session)
+
+
+async def _default_write_resources(session: AsyncSession):
+    """The real ADR-069 guarded `SandboxWriteResources` (issue #1173
+    review-round-1 rework) -- `composition.py`'s `build_write_resources`,
+    reached the same depth-2-facade way as `_default_read_resources` above.
+    Fails closed the same two ways."""
+    from juli_backend.services.agent import composition as composition_module
+
+    return await composition_module.build_write_resources(session)
 
 
 def _make_cancel_check(sync_session: Session, run_id: uuid.UUID) -> Callable[[], bool]:
@@ -272,7 +371,7 @@ def _resolve_event_publisher():
     return redis.from_url(url, decode_responses=True)
 
 
-def _construct_runner(
+async def _construct_runner(
     session: AsyncSession,
     sync_session: Session,
     run: WorkflowRun,
@@ -282,9 +381,14 @@ def _construct_runner(
     point issue #1145 restores (ADR-073 decision 1). Builds a
     `ToolExecutionLedger` and a `ConcurrencyGuard` and hands both to a
     `ProductToolExecutor`, so a WRITE this run dispatches genuinely reaches
-    both (see module docstring). `read_resources`/`write_resources` stay
-    `None` -- a `ProductToolExecutor`-supported configuration for a run that
-    cannot yet reach real marketplace credentials from this package.
+    both (see module docstring). `read_resources`/`write_resources` are now
+    the real guarded `ProductionReadResources`/`SandboxWriteResources`
+    (issue #1173 review-round-1 rework) -- `_default_read_resources`/
+    `_default_write_resources` above, `await`-ed here because credential
+    resolution is a database read against the same `session` this function
+    already receives. This function is `async def` for exactly that reason
+    (it was plain `def` before this rework); both call sites below now
+    `await` it.
 
     `event_sink` is the real `PersistingEventSink` (ADR-074 decision 3,
     issue #1171) -- INSERT + commit to `workflow_run_events` first, then
@@ -299,9 +403,11 @@ def _construct_runner(
     the `session` this function also threads into `JsonbConversationStore`.
     Unit/test paths keep injecting fakes the same way they always have: by
     monkeypatching `services.agent.runner.WorkflowRunner` itself (this
-    module's own `test_agent_workflow_task_wiring.py`), not by adding an
-    `event_sink` parameter here -- `_construct_runner`'s signature is
-    unchanged, only what it builds by default is.
+    module's own `test_agent_workflow_task_wiring.py`), and now also the
+    two new `_default_read_resources`/`_default_write_resources` seams the
+    same way the other three are already monkeypatched, not by adding
+    parameters here -- `_construct_runner`'s signature is unchanged, only
+    what it builds by default (and its `async`-ness) is.
     """
     from juli_backend.services.agent import events as events_module
     from juli_backend.services.agent import runner as runner_module
@@ -311,9 +417,13 @@ def _construct_runner(
     concurrency_guard = runner_module.ConcurrencyGuard(
         basis_snapshot=run.state.get("basis_snapshots", {})
     )
+    read_resources = await _default_read_resources(session)
+    write_resources = await _default_write_resources(session)
     tool_executor = runner_module.ProductToolExecutor(
         registry=registry,
         product_id=product.tiktok_product_id,
+        read_resources=read_resources,
+        write_resources=write_resources,
         ledger=ledger,
         workflow_run_id=run.id,
         concurrency_guard=concurrency_guard,
@@ -339,7 +449,7 @@ async def _run_agent_workflow_async(run_id: str) -> None:
     async with factory() as session:
         with _sync_ledger_session() as sync_session:
             run, product = await _load_context(session, uuid.UUID(run_id))
-            runner = _construct_runner(session, sync_session, run, product)
+            runner = await _construct_runner(session, sync_session, run, product)
             await runner.run(run.id, product_ref=product.tiktok_product_id)
             await session.commit()
 
@@ -349,7 +459,7 @@ async def _resume_agent_workflow_async(run_id: str, *, approved: bool) -> None:
     async with factory() as session:
         with _sync_ledger_session() as sync_session:
             run, product = await _load_context(session, uuid.UUID(run_id))
-            runner = _construct_runner(session, sync_session, run, product)
+            runner = await _construct_runner(session, sync_session, run, product)
             await runner.resume(run.id, approved=approved)
             await session.commit()
 
