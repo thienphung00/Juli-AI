@@ -35,10 +35,10 @@ proven against a real client/real Postgres until now):
   -- reconnect driven by the client's own cursor, end to end.
 - ``test_last_event_id_header_takes_priority_over_after_query_param_via_real_stack``
 - ``test_last_event_id_header_absent_falls_back_to_after_then_to_zero``
-- ``test_last_event_id_header_non_numeric_should_degrade_not_500`` -- a
-  **known production defect** (see its docstring): `int(last_event_id)` is
-  unguarded in `api/routes/agent_runs.py`, so this is `xfail(strict=True)`,
-  not a workaround. This test slice does not patch production code.
+- ``test_last_event_id_header_non_numeric_should_degrade_not_500`` -- was
+  `xfail(strict=True)` for a production defect (`int(last_event_id)`
+  unguarded in `api/routes/agent_runs.py`, see #1142); fixed and asserted
+  green now that the route degrades instead of 500ing.
 """
 
 from __future__ import annotations
@@ -988,18 +988,6 @@ async def test_last_event_id_header_non_numeric_should_degrade_not_500(pg_sessio
         "malformed Last-Event-ID with no ?after= must degrade all the way to "
         f"0, replaying the full history -- got ids {_record_ids(via_default.text)}"
     )
-
-
-test_last_event_id_header_non_numeric_should_degrade_not_500 = pytest.mark.xfail(
-    reason=(
-        "PRODUCTION DEFECT (#1131 finding, not fixed by this test slice): "
-        "api/routes/agent_runs.py stream_run_events does "
-        "`after_seq = int(last_event_id)` unguarded. A non-numeric "
-        "Last-Event-ID 500s via install_error_boundary's catch-all instead "
-        "of degrading to ?after=/0 as the issue thread specifies."
-    ),
-    strict=True,
-)(test_last_event_id_header_non_numeric_should_degrade_not_500)
 
 
 # ---------------------------------------------------------------------------

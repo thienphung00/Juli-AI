@@ -412,12 +412,21 @@ async def stream_run_events(
     run = await _resolve_owned_run(run_id, shop, session)
 
     last_event_id = request.headers.get("last-event-id")
+    after_seq: int | None = None
     if last_event_id is not None:
-        after_seq = int(last_event_id)
-    elif after is not None:
-        after_seq = after
-    else:
-        after_seq = 0
+        try:
+            after_seq = int(last_event_id)
+        except ValueError:
+            # A malformed Last-Event-ID is a client-supplied header on the
+            # reconnect path (proxy rewrite/truncation, empty string after a
+            # failed connect, a foreign SSE client echoing a non-numeric id).
+            # Raising here would 500, and #1132's retry helper retries 500s
+            # by design -- turning a bad cursor into an unrecoverable retry
+            # loop. Degrade instead: fall through to ?after=, then to 0,
+            # matching the precedence used when the header is absent.
+            after_seq = None
+    if after_seq is None:
+        after_seq = after if after is not None else 0
 
     generator = event_stream(
         run_id=run_id,
