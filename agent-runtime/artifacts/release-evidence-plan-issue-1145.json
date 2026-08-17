@@ -1,0 +1,70 @@
+{
+  "planId": "agent-runner-celery-wiring-2026-08-15",
+  "affectedPublicSurfaces": [
+    "None. This slice edits backend/src/juli_backend/workers/tasks/agent_workflow.py and backend/src/juli_backend/services/agent/runner/{core,tool_executor}.py only. No route, asset, schema, migration or deployed frontend artifact changes. The public-release classification is a false positive: the classifier matched the word 'smoke' in the issue body (publicReleaseReasons: ['body:smoke']), which appears there only because the issue explains what #1124's live smoke test can and cannot prove. The plan is written honestly rather than rewording the issue to dodge the classifier."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Local tests on feature/issue-1145-wiring. No VPS is contacted and no deployment occurs.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "runner-celery-interface-reconciliation",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/actions",
+        "assertions": [
+          "run_agent_workflow constructs the real WorkflowRunner with its seven keyword arguments, not the removed _RunnerProtocol placeholder",
+          "resume_agent_workflow calls WorkflowRunner.resume(workflow_run_id, approved=...) matching the real signature",
+          "the _RunnerProtocol placeholder is deleted, as its own docstring instructed once W3-A landed",
+          "core.py threads block.call_id into ToolExecutor.execute as tool_call_id",
+          "a WRITE tool dispatched through WorkflowRunner reaches the ToolExecutionLedger claim-then-execute path, which was previously unreachable",
+          "a WRITE tool dispatched through WorkflowRunner reaches ConcurrencyGuard.check_before_write, which was previously never constructed",
+          "READ tools still skip the ledger entirely, per ADR-073 d.3",
+          "the existing reviewed suites for #1119, #1120, #1121, #1122 and #1123 pass unchanged"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": ["No HTML route or asset changes in this slice."],
+    "discoverFromHtml": false,
+    "assetTypes": ["pytest-report"],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration. #1117 already shipped every column involved, including the tool_executions ledger key. This slice only changes which arguments are passed at existing call sites."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. The ledger and concurrency guard remain implemented but structurally inert, which is the state Wave 3 is in today — safe, because a write that cannot reach the ledger simply takes the ordinary path, and no idempotency claim is being relied on in production.",
+    "postCutoverFailureBehavior": "Revert the commit. That returns the ledger and guard to inert, restoring exactly the pre-merge behaviour. The revert is confined to argument passing at three call sites plus the task shells; no schema or data is affected, so nothing needs repair.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": false,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -q",
+    "python agent-runtime/scripts/ci/check_import_boundaries.py"
+  ],
+  "notes": "Wiring slice unblocking #1124 and #1133. Wave 3 decomposed into 17 slices and none owned reconciling the Celery task shells with the real WorkflowRunner, or threading tool_call_id so the ledger and guard become reachable. Recorded as a Meta decomposition gap in #1145.",
+  "doNotInfer": [
+    "Do not infer that this slice makes the live gates pass. It removes the interface mismatch and makes the ledger and guard reachable; #1124 and #1133 still need credentials, and #1133 still needs an enqueue path that W4-A owns.",
+    "Do not infer that a run can be triggered end to end after this. Nothing calls .delay() on either task; that is P9/W4-A's scope.",
+    "Do not infer that cancel works. POST /v1/demo/runs/{id}/cancel remains a transport stub that writes no state and sends no signal.",
+    "Do not infer that idempotency has been exercised against a real vendor. Reachability is proven by tests; the verify-then-decide branch has still never met a real TikTok response."
+  ]
+}
