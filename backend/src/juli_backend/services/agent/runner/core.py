@@ -137,9 +137,31 @@ top of `run()`, from the injected `Playbook`'s own `workflow_key`/`version`
 — never recomputed per iteration. The `RunResult` this returns carries both
 values so a caller can stamp them on the `workflow_runs` row; this module
 has no direct database access of its own (only `ConversationStore.load`/
-`persist`, which touch `state` and nothing else), so writing them to the
-row's actual `prompt_version`/`prompt_sha256` columns is a later slice's
-job, exactly like `status`/`stop_reason`/`running_seconds_elapsed`.
+`persist`), so writing them to the row's actual `prompt_version`/
+`prompt_sha256` columns stays a later slice's job. `status`/`stop_reason`/
+`completed_at` are no longer in that "later slice" bucket as of issue #1178
+(next paragraph) — `running_seconds_elapsed`'s own denormalized integer
+mirror still is.
+
+**Terminal `status`/`stop_reason`/`completed_at` persistence (issue #1178).**
+Every `_conversation_store.persist(...)` call this module makes at a
+terminal exit — the two early-return sites in `_drive_loop` (the top-of-
+iteration checkpoint terminate, the iteration-cap STOP), the LLM-error
+`except` branch, the one common end-of-iteration persist that also covers
+`_finalize`/`_pause_for_confirmation`/`_give_up`/the pre-tool-checkpoint and
+mid-tool-dispatch terminates, and both of `resume`'s own terminate/decline
+branches — now passes `status=stop.status, stop_reason=stop.stop_reason`
+(the exact `RunResult` fields `status_for` already computed) through to
+`ConversationStore.persist`'s new keyword-only parameters
+(`conversation_store.py`). Every persist call that is *not* at a terminal
+exit (the ordinary per-iteration persist, and `resume`'s own persist right
+after a successfully-dispatched approved tool call, before `_drive_loop`
+re-enters) omits them, which defaults to `None`/`None` — a true no-op that
+leaves the row's status columns exactly as they were. This module still
+never touches `workflow_runs` directly; `JsonbConversationStore` is what
+actually flips the column and stamps `completed_at`/`waiting_approval_since`
+— see that module's own docstring for the full seam rationale, including
+why this is not the same authority as the reaper's `_ReaperEventSink`.
 """
 
 from __future__ import annotations
@@ -451,7 +473,9 @@ class WorkflowRunner:
                 WorkflowCompletedEvent,
                 WorkflowCompletedPayload(stop_reason=stop_reason),
             )
-            await self._conversation_store.persist(workflow_run_id, state)
+            await self._conversation_store.persist(
+                workflow_run_id, state, status=status, stop_reason=stop_reason
+            )
             return RunResult(
                 stop_reason=stop_reason,
                 status=status,
@@ -480,13 +504,17 @@ class WorkflowRunner:
             stop = await self._terminate(
                 workflow_run_id, state, StopReason.CONCURRENCY_CONFLICT, version_str, sha256
             )
-            await self._conversation_store.persist(workflow_run_id, state)
+            await self._conversation_store.persist(
+                workflow_run_id, state, status=stop.status, stop_reason=stop.stop_reason
+            )
             return stop
         except ToolExecutionUnrecoverableError:
             stop = await self._terminate(
                 workflow_run_id, state, StopReason.TOOL_ERROR_UNRECOVERABLE, version_str, sha256
             )
-            await self._conversation_store.persist(workflow_run_id, state)
+            await self._conversation_store.persist(
+                workflow_run_id, state, status=stop.status, stop_reason=stop.stop_reason
+            )
             return stop
         sanitized = guard_inbound_tool_result(raw_result, tool_name=tool_name)
         ok = sanitized is raw_result
@@ -551,7 +579,9 @@ class WorkflowRunner:
                 stop = await self._terminate(
                     workflow_run_id, state, checkpoint_reason, version_str, sha256
                 )
-                await self._conversation_store.persist(workflow_run_id, state)
+                await self._conversation_store.persist(
+                    workflow_run_id, state, status=stop.status, stop_reason=stop.stop_reason
+                )
                 return stop
 
             # --- iteration cap / extension gate -----------------------------
@@ -572,7 +602,9 @@ class WorkflowRunner:
                     version_str,
                     sha256,
                 )
-                await self._conversation_store.persist(workflow_run_id, state)
+                await self._conversation_store.persist(
+                    workflow_run_id, state, status=stop.status, stop_reason=stop.stop_reason
+                )
                 return stop
             if gate.action is IterationGateAction.EXTEND:
                 state.extensions_granted += 1
@@ -608,7 +640,9 @@ class WorkflowRunner:
                 stop = await self._terminate(
                     workflow_run_id, state, StopReason.LLM_ERROR, version_str, sha256
                 )
-                await self._conversation_store.persist(workflow_run_id, state)
+                await self._conversation_store.persist(
+                    workflow_run_id, state, status=stop.status, stop_reason=stop.stop_reason
+                )
                 return stop
             state.iteration_count += 1
 
@@ -672,7 +706,12 @@ class WorkflowRunner:
                 state.running_seconds_elapsed, delta_seconds=elapsed
             )
 
-            await self._conversation_store.persist(workflow_run_id, state)
+            await self._conversation_store.persist(
+                workflow_run_id,
+                state,
+                status=stop.status if stop is not None else None,
+                stop_reason=stop.stop_reason if stop is not None else None,
+            )
 
             if stop is not None:
                 return stop
