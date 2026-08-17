@@ -32,16 +32,36 @@
       }
     ]
   },
-  "staticAssetChecks": [
-    "Not applicable — no static assets are touched; the diff is two test files plus wave-manifest registration."
-  ],
-  "migrationCompatibility": "No migrations. The tests consume existing tables (workflow_runs, workflow_run_events, tool_executions) read/write through the application's own code paths.",
-  "rollbackAssertion": "Reverting the slice removes only test files; no production surface changes to roll back. Sandbox-shop mutations are confined to the sandbox tenant and carry no production data risk.",
-  "requiredArtifacts": [
-    "implementation-issue-1124.json with the two live-run transcripts summarized (run ids, stop_reasons, event counts, ledger row ids) — no secrets in artifacts",
-    "review-issue-1124.json re-running both smokes independently",
-    "status/issue-1124.json committed on the branch"
-  ],
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route or asset changes in this slice — two test files plus wave-manifest registration."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration. The smokes consume existing tables (workflow_runs, workflow_run_events, tool_executions) through the application's own code paths only."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing depends on the smoke files; the wave's state is unchanged without them.",
+    "postCutoverFailureBehavior": "Revert the commit — removes only test files. Sandbox-shop mutations are confined to the sandbox tenant; no production surface exists to roll back."
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": false,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
   "acceptanceCommands": [
     "PYTHONPATH=$PWD/backend/src python -m pytest tests/integration/test_agent_live_smoke_read_only.py -m live -q",
     "PYTHONPATH=$PWD/backend/src python -m pytest tests/integration/test_agent_live_smoke_sandbox_write.py -m live -q"
