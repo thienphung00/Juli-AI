@@ -356,6 +356,7 @@ Secrets are stored as **JSON blobs** — one secret per application, not one sec
 | `TIKTOK_BUSINESS_ACCOUNT_HOLDER_REDIRECT_URI` | Yes (Business OAuth) | Exact account-holder redirect: `https://api.app-juli.com/v1/auth/tiktok/business/account-holder/callback` |
 | `TIKTOK_TOKEN_ENCRYPTION_KEY` | Yes | Master key for encrypted OAuth tokens — see [Token encryption key](#tiktok_token_encryption_key) |
 | `CORS_ALLOW_ORIGINS` | Yes | e.g. `https://app-juli.com` |
+| `AGENT_WORKFLOWS_ENABLED` | No (default `false`) | Fail-closed agent-workflow gate (`agent_broker_guard.py`, ADR-074 decision 4, #1129). `false`/unset keeps agent workflow paths off. Set to `true` **only** once `CELERY_BROKER_URL` resolves to a real broker (e.g. `redis://...`) — with a truthy value and `CELERY_BROKER_URL` still `memory://`, the API/worker refuse to start agent workflow paths (`RuntimeError` at Celery import time). Enabling is an operator action: `aws secretsmanager put-secret-value --secret-id juli/api/production ...` (or the console) to add/flip the key, then run the [secret update flow](#quick-reference--secret-update-flow) (`refresh-secrets.sh` / `fetch-secrets.sh`) and restart `juli-api`, `juli-celery-worker`, `juli-celery-beat`. |
 
 > **High-risk — do not rename registered portal URIs.** The Advertiser and
 > account-holder redirect URLs above are registered in the TikTok for Business
