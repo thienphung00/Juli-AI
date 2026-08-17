@@ -90,6 +90,21 @@ owner-acknowledged ship-as-is (pending batch-3).
 9. Final exit-gate verdict + PLAN.md truth-up + worktree GC sweep (1160/1164/1172
    worktrees are dirty with stray regenerated status records — confirm-then-delete).
 
+## 4b. Session-close delta (post-pause)
+
+- **Wave→main PR #1183 OPENED** (long-lived integration PR; updates as slice PRs land).
+- **Its CI settled: every lane green EXCEPT `cross-module-contracts` (24 failures).**
+  Root cause diagnosed from the job log: that job runs
+  `tests/unit/test_agent_events_contract.py` (Node shell-out via `require("typescript")`)
+  but its job definition LACKS the `pnpm install --filter ./packages/contracts...`
+  step the `test` job has (pr.yml ~436) — the job predates #1126's node-dependent
+  tests. NOT a product defect: the same tests pass in the `test` lane and locally
+  after install. **Fix = new first work item, step 0 of the queue:** one-step pr.yml
+  addition to the cross-module-contracts job, through the AGT-EVID (harness) lane on
+  main, then re-run #1183 CI.
+- Owner paused (goal cleared); batch-3 attestation, row-copy, and the four merges
+  remain exactly as staged in §4.
+
 ## 5. Open questions (owner)
 
 - #1133 scheduling: run the VPS circuit this coming session?
