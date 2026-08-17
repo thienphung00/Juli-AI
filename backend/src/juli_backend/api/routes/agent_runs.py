@@ -552,6 +552,35 @@ async def _resolve_owned_run(
     return run
 
 
+# `sequence_number` is Postgres `int4` (models.py). A cursor value outside
+# that domain would either overflow when asyncpg binds it (a huge value --
+# uncaught, and StreamingResponse has already committed HTTP 200 by the
+# time the generator raises, so the client would see a silently truncated
+# empty 200 body: undetectable, unretryable, #1142 rework) or is simply not
+# a real cursor (negative -- sequence numbers start at 1).
+_INT4_MAX = 2_147_483_647
+
+
+def _clamp_sequence_cursor(value: int) -> int | None:
+    """Bring a client-supplied replay cursor into `int4`'s domain, or signal
+    that it cannot be used at all.
+
+    - Negative clamps down to `0` (the lowest real cursor) -- the value is
+      still usable, just too low, so the caller keeps it rather than
+      falling through to the next cursor source.
+    - Greater than `int4`'s max returns `None`: no real `sequence_number`
+      is ever that large, and clamping it *to* the max would silently
+      replay nothing (`sequence_number > _INT4_MAX` never matches) --
+      exactly the wrong "recovered but empty" failure this issue exists to
+      avoid. The honest degrade for an impossible-high value is the same
+      as a malformed one: the caller falls through to the next cursor
+      source, same as `int()` raising `ValueError`.
+    """
+    if value > _INT4_MAX:
+        return None
+    return max(value, 0)
+
+
 @router.get("/{run_id}/events")
 async def stream_run_events(
     run_id: uuid.UUID,
@@ -567,12 +596,34 @@ async def stream_run_events(
     run = await _resolve_owned_run(run_id, shop, session)
 
     last_event_id = request.headers.get("last-event-id")
+    after_seq: int | None = None
     if last_event_id is not None:
-        after_seq = int(last_event_id)
-    elif after is not None:
-        after_seq = after
-    else:
-        after_seq = 0
+        try:
+            parsed = int(last_event_id)
+        except ValueError:
+            # A malformed Last-Event-ID is a client-supplied header on the
+            # reconnect path (proxy rewrite/truncation, empty string after a
+            # failed connect, a foreign SSE client echoing a non-numeric id).
+            # Raising here would 500, and #1132's retry helper retries 500s
+            # by design -- turning a bad cursor into an unrecoverable retry
+            # loop. Degrade instead: fall through to ?after=, then to 0,
+            # matching the precedence used when the header is absent.
+            after_seq = None
+        else:
+            # int() has arbitrary precision -- a syntactically valid but
+            # out-of-domain value (negative, or bigger than int4) needs the
+            # same degrade care as a non-numeric one; see
+            # `_clamp_sequence_cursor`.
+            after_seq = _clamp_sequence_cursor(parsed)
+    if after_seq is None:
+        # `?after=` has the identical hole: `Query(..., ge=0)` bounds the
+        # low end but not the high end, so a huge `?after=` value hits the
+        # same int4 overflow at bind time. Give it the same treatment --
+        # it is the last explicit cursor source, so "fall through" lands on
+        # the same `0` default an unusable value would reach anyway.
+        after_seq = _clamp_sequence_cursor(after) if after is not None else 0
+        if after_seq is None:
+            after_seq = 0
 
     generator = event_stream(
         run_id=run_id,
