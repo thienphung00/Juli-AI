@@ -29,10 +29,17 @@ AC -> test map:
 - `_construct_runner` builds the real `WorkflowRunner` with its real
   keyword-only collaborators (llm_service, tool_executor, event_sink,
   conversation_store, registry, playbook) -> TestConstructRunner
-- the three `_default_*` composition seams build the real collaborators
-  (issue #1173), with `_default_llm_service` failing closed on a missing
-  `OPENAI_API_KEY` rather than faking a collaborator that would look real ->
+- the `_default_llm_service`/`_default_tool_registry`/`_default_playbook`
+  composition seams build the real collaborators (issue #1173), with
+  `_default_llm_service` failing closed on a missing `OPENAI_API_KEY`
+  rather than faking a collaborator that would look real ->
   TestDefaultSeamsComposeRealCollaborators
+- `_default_read_resources`/`_default_write_resources` build the real
+  guarded `ProductionReadResources`/`SandboxWriteResources` (issue #1173
+  review-round-1 rework, closing the uncaught-crash-on-first-tool-call gap
+  Review found), failing closed on missing `TIKTOK_APP_KEY`/
+  `TIKTOK_APP_SECRET` or an unprovisioned credential row ->
+  TestDefaultResourceSeamsComposeRealMarketplaceResources
 - `run_agent_workflow`/`resume_agent_workflow` call the real
   `run(workflow_run_id, product_ref=...)` /
   `resume(workflow_run_id, approved=...)` signatures, end to end through
@@ -44,7 +51,7 @@ from __future__ import annotations
 import ast
 import inspect
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -224,6 +231,133 @@ class TestDefaultSeamsComposeRealCollaborators:
         agent_workflow._default_playbook()
 
 
+class TestDefaultResourceSeamsComposeRealMarketplaceResources:
+    """Issue #1173 review-round-1 rework. Review's finding: `_construct_runner`
+    passed `read_resources=write_resources=None` into `ProductToolExecutor`,
+    so a real composed run crashed uncaught on its first tool call
+    (`ToolExecutionError`, `runner/tool_executor.py`). `_default_read_resources`/
+    `_default_write_resources` close that gap. Credential-seeding mirrors
+    `test_fujiwa_polling_orchestration.py`'s own `fujiwa_credential` fixture
+    -- `TikTokCredentialRepo(session).create(...)` against a real (in-memory)
+    async session, the same DB-fake idiom that suite uses to exercise
+    `resolve_production_read_credential`, not a mock."""
+
+    async def test_default_read_resources_builds_real_production_read_resources(
+        self, session, monkeypatch
+    ):
+        from juli_backend.integrations.tiktok import (
+            PRODUCTION_AUTH_ID,
+            ProductionReadResources,
+            TikTokCapability,
+        )
+        from juli_backend.repositories.repos import TikTokCredentialRepo
+
+        monkeypatch.setenv("TIKTOK_APP_KEY", "test-app-key")
+        monkeypatch.setenv("TIKTOK_APP_SECRET", "test-app-secret")
+
+        shop_id = uuid.uuid4()
+        session.add_all(_shop_rows(shop_id))
+        await session.flush()
+        await TikTokCredentialRepo(session).create(
+            shop_id=shop_id,
+            access_token="fujiwa-access",
+            refresh_token="fujiwa-refresh",
+            token_expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(days=7),
+            merchant_authorization_id=PRODUCTION_AUTH_ID,
+            capability=TikTokCapability.PRODUCTION_READ.value,
+            shop_cipher="ROW_test_cipher",
+        )
+
+        resources = await agent_workflow._default_read_resources(session)
+
+        assert isinstance(resources, ProductionReadResources)
+
+    async def test_default_write_resources_builds_real_sandbox_write_resources(
+        self, session, monkeypatch
+    ):
+        from juli_backend.integrations.tiktok import (
+            SANDBOX_AUTH_ID,
+            SandboxWriteResources,
+            TikTokCapability,
+        )
+        from juli_backend.repositories.repos import TikTokCredentialRepo
+
+        monkeypatch.setenv("TIKTOK_APP_KEY", "test-app-key")
+        monkeypatch.setenv("TIKTOK_APP_SECRET", "test-app-secret")
+
+        shop_id = uuid.uuid4()
+        session.add_all(_shop_rows(shop_id))
+        await session.flush()
+        await TikTokCredentialRepo(session).create(
+            shop_id=shop_id,
+            access_token="sandbox-access",
+            refresh_token="sandbox-refresh",
+            token_expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(days=7),
+            merchant_authorization_id=SANDBOX_AUTH_ID,
+            capability=TikTokCapability.SANDBOX_WRITE.value,
+            shop_cipher="ROW_sandbox_cipher",
+        )
+
+        resources = await agent_workflow._default_write_resources(session)
+
+        assert isinstance(resources, SandboxWriteResources)
+
+    async def test_default_read_resources_fails_closed_when_app_key_absent(
+        self, session, monkeypatch
+    ):
+        monkeypatch.delenv("TIKTOK_APP_KEY", raising=False)
+        monkeypatch.setenv("TIKTOK_APP_SECRET", "test-app-secret")
+
+        with pytest.raises(RuntimeError, match="TIKTOK_APP_KEY"):
+            await agent_workflow._default_read_resources(session)
+
+    async def test_default_write_resources_fails_closed_when_app_secret_absent(
+        self, session, monkeypatch
+    ):
+        monkeypatch.setenv("TIKTOK_APP_KEY", "test-app-key")
+        monkeypatch.delenv("TIKTOK_APP_SECRET", raising=False)
+
+        with pytest.raises(RuntimeError, match="TIKTOK_APP_SECRET"):
+            await agent_workflow._default_write_resources(session)
+
+    async def test_default_read_resources_fails_closed_when_credential_row_missing(
+        self, session, monkeypatch
+    ):
+        from juli_backend.database.exceptions import NotFound
+
+        monkeypatch.setenv("TIKTOK_APP_KEY", "test-app-key")
+        monkeypatch.setenv("TIKTOK_APP_SECRET", "test-app-secret")
+
+        with pytest.raises(NotFound):
+            await agent_workflow._default_read_resources(session)
+
+    async def test_default_write_resources_fails_closed_when_credential_row_missing(
+        self, session, monkeypatch
+    ):
+        from juli_backend.database.exceptions import NotFound
+
+        monkeypatch.setenv("TIKTOK_APP_KEY", "test-app-key")
+        monkeypatch.setenv("TIKTOK_APP_SECRET", "test-app-secret")
+
+        with pytest.raises(NotFound):
+            await agent_workflow._default_write_resources(session)
+
+
+async def _fake_read_resources(session):
+    """Injection double for `_default_read_resources` -- every
+    `_construct_runner` test below is a wiring test, not a marketplace-
+    credential test (that is `TestDefaultResourceSeamsComposeRealMarketplaceResources`
+    above), so it monkeypatches this the same way the pre-existing three
+    seams are already monkeypatched, keeping `session=object()` valid."""
+    return "FAKE_READ_RESOURCES"
+
+
+async def _fake_write_resources(session):
+    """Injection double for `_default_write_resources` -- see
+    `_fake_read_resources` above."""
+    return "FAKE_WRITE_RESOURCES"
+
+
 class _SpyWorkflowRunner:
     """Structural spy standing in for the real `WorkflowRunner` -- records
     constructor kwargs and `run`/`resume` call args; touches no LLM, DB, or
@@ -275,17 +409,21 @@ class TestConstructRunner:
     construct the real `WorkflowRunner` with its real keyword-only
     signature, not the removed `_RunnerProtocol` placeholder."""
 
-    def test_construct_runner_builds_real_workflow_runner_with_correct_kwargs(self, monkeypatch):
+    async def test_construct_runner_builds_real_workflow_runner_with_correct_kwargs(
+        self, monkeypatch
+    ):
         import juli_backend.services.agent.runner as runner_pkg
 
         monkeypatch.setattr(runner_pkg, "WorkflowRunner", _SpyWorkflowRunner)
         monkeypatch.setattr(agent_workflow, "_default_llm_service", lambda: "FAKE_LLM_SERVICE")
         monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
         monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
+        monkeypatch.setattr(agent_workflow, "_default_read_resources", _fake_read_resources)
+        monkeypatch.setattr(agent_workflow, "_default_write_resources", _fake_write_resources)
 
         run, product = _seeded_run_and_product()
 
-        runner = agent_workflow._construct_runner(
+        runner = await agent_workflow._construct_runner(
             session=object(), sync_session=object(), run=run, product=product
         )
 
@@ -315,8 +453,13 @@ class TestConstructRunner:
         # the model-facing tool list and the dispatch allowlist must never
         # be able to disagree).
         assert kwargs["tool_executor"]._registry is kwargs["registry"]
+        # read_resources/write_resources are wired (issue #1173
+        # review-round-1 rework) -- no longer left None, the gap that made
+        # a real composed run's first tool call crash uncaught.
+        assert kwargs["tool_executor"]._read_resources == "FAKE_READ_RESOURCES"
+        assert kwargs["tool_executor"]._write_resources == "FAKE_WRITE_RESOURCES"
 
-    def test_construct_runner_seeds_the_concurrency_guard_from_state_basis_snapshots(
+    async def test_construct_runner_seeds_the_concurrency_guard_from_state_basis_snapshots(
         self, monkeypatch
     ):
         import juli_backend.services.agent.runner as runner_pkg
@@ -325,11 +468,13 @@ class TestConstructRunner:
         monkeypatch.setattr(agent_workflow, "_default_llm_service", lambda: "FAKE_LLM_SERVICE")
         monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
         monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
+        monkeypatch.setattr(agent_workflow, "_default_read_resources", _fake_read_resources)
+        monkeypatch.setattr(agent_workflow, "_default_write_resources", _fake_write_resources)
 
         run, product = _seeded_run_and_product()
         run.state = {"basis_snapshots": {"price": "deadbeef"}}
 
-        runner = agent_workflow._construct_runner(
+        runner = await agent_workflow._construct_runner(
             session=object(), sync_session=object(), run=run, product=product
         )
 
@@ -347,7 +492,7 @@ class TestConstructRunnerUsesRealPersistingEventSink:
     and produced zero `workflow_run_events` rows and nothing for the SSE
     endpoint to serve."""
 
-    def test_construct_runner_builds_a_persisting_event_sink_not_in_memory(self, monkeypatch):
+    async def test_construct_runner_builds_a_persisting_event_sink_not_in_memory(self, monkeypatch):
         import juli_backend.services.agent.runner as runner_pkg
         from juli_backend.services.agent.events import InMemoryEventSink, PersistingEventSink
 
@@ -355,10 +500,12 @@ class TestConstructRunnerUsesRealPersistingEventSink:
         monkeypatch.setattr(agent_workflow, "_default_llm_service", lambda: "FAKE_LLM_SERVICE")
         monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
         monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
+        monkeypatch.setattr(agent_workflow, "_default_read_resources", _fake_read_resources)
+        monkeypatch.setattr(agent_workflow, "_default_write_resources", _fake_write_resources)
 
         run, product = _seeded_run_and_product()
 
-        agent_workflow._construct_runner(
+        await agent_workflow._construct_runner(
             session=object(), sync_session=object(), run=run, product=product
         )
 
@@ -384,6 +531,8 @@ class TestTaskBodiesCallRealRunnerMethods:
         monkeypatch.setattr(agent_workflow, "_default_llm_service", lambda: "FAKE_LLM_SERVICE")
         monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
         monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
+        monkeypatch.setattr(agent_workflow, "_default_read_resources", _fake_read_resources)
+        monkeypatch.setattr(agent_workflow, "_default_write_resources", _fake_write_resources)
 
         run, product = _seeded_run_and_product()
         factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -422,6 +571,8 @@ class TestTaskBodiesCallRealRunnerMethods:
         monkeypatch.setattr(agent_workflow, "_default_llm_service", lambda: "FAKE_LLM_SERVICE")
         monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
         monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
+        monkeypatch.setattr(agent_workflow, "_default_read_resources", _fake_read_resources)
+        monkeypatch.setattr(agent_workflow, "_default_write_resources", _fake_write_resources)
 
         run, product = _seeded_run_and_product()
         factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -511,7 +662,9 @@ class TestCancelCheckReadsFreshFromDatabase:
             setup_session.commit()
             return run.id
 
-    def test_construct_runner_wires_a_cancel_check_that_reads_the_column_fresh(self, monkeypatch):
+    async def test_construct_runner_wires_a_cancel_check_that_reads_the_column_fresh(
+        self, monkeypatch
+    ):
         """End-to-end through `_construct_runner` itself, not just the
         standalone helper -- proves the real seam `WorkflowRunner` receives
         observes a write made through a second, independent session after
@@ -537,6 +690,8 @@ class TestCancelCheckReadsFreshFromDatabase:
         monkeypatch.setattr(agent_workflow, "_default_llm_service", lambda: "FAKE_LLM_SERVICE")
         monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
         monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
+        monkeypatch.setattr(agent_workflow, "_default_read_resources", _fake_read_resources)
+        monkeypatch.setattr(agent_workflow, "_default_write_resources", _fake_write_resources)
 
         session_factory, engine = _sqlite_sync_session_factory()
         try:
@@ -549,7 +704,7 @@ class TestCancelCheckReadsFreshFromDatabase:
                 run.id = run_id
                 run.state = {"basis_snapshots": {}}
 
-                runner = agent_workflow._construct_runner(
+                runner = await agent_workflow._construct_runner(
                     session=object(), sync_session=sync_session, run=run, product=product
                 )
                 cancel_check = runner.last_kwargs["cancel_check"]
