@@ -323,6 +323,16 @@ workflow_prompt_cache:
   # Known epics — ensure_workflow_cache uses these when Parent/#slice missing from CLI.
   # parentScopeBlock uses \n escapes (simple YAML loader; no literal | blocks).
   epicRegistry:
+    # 175 — Operations-System Orchestration PRD; registered 2026-08-17 for #1138
+    # (repository-layer production fix lane, OPS-REPO-FIX routing).
+    175:
+      defaultSliceId: OPS-REPO-FIX
+      handoffPath: docs/adr/013-operations-pipeline-spine.md
+      parentScopeBlock: "# Parent #175 - Operations pipeline, repository-layer fixes\n## Product boundary\n- Production defect fixes in the repository/model layer of the operations pipeline (orders, returns, fulfillment)\n- No new features, no API shape changes, no UI\n## Locks\n- Datetime column semantics: match the column's declared tz-awareness exactly; regression tests must run against real Postgres/asyncpg where the defect manifests (SQLite masks tz mismatches)\n- One issue, one defect - do not sweep sibling columns without their own issue\n"
+      doNotLoad:
+        - apps/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
     977:
       defaultSliceId: AGT-W1A
       handoffPath: docs/adr/069-agent-tool-registry-and-write-path.md
