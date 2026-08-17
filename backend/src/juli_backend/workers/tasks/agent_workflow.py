@@ -96,6 +96,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import os
 import uuid
 from collections.abc import Callable, Iterator
 
@@ -224,6 +225,53 @@ def _make_cancel_check(sync_session: Session, run_id: uuid.UUID) -> Callable[[],
     return _cancel_check
 
 
+class _NullEventPublisher:
+    """A structural `EventPublisher` (`services.agent.events.EventPublisher`
+    -- `async def publish(self, channel, message)`) that no-ops. Bound to
+    `PersistingEventSink` when `REDIS_URL` is unset (`_resolve_event_
+    publisher` below).
+
+    `PersistingEventSink`'s constructor requires a non-`None` `publisher` --
+    unlike `api/routes/agent_runs.py`'s subscriber side, where `None` is
+    itself a valid "no live tier configured" answer the route branches on,
+    there is no such branch inside the sink: it always calls `self.
+    _publisher.publish(...)` after its INSERT commits. `PersistingEventSink
+    .emit`'s own contract already treats a publish failure as logged and
+    swallowed -- correctness never depends on it (ADR-074 decision 3) -- so
+    a real `redis.asyncio.Redis` pointed at an unreachable URL would degrade
+    exactly the same way this does. This class only avoids deliberately
+    dialling out to nothing when no `REDIS_URL` was ever configured at all.
+    """
+
+    async def publish(self, channel: str, message: str) -> None:
+        return None
+
+
+def _resolve_event_publisher():
+    """The `EventPublisher` `_construct_runner` hands to `PersistingEventSink`
+    (ADR-074 decision 3). Mirrors `api/routes/agent_runs.py::
+    _resolve_redis_event_subscriber`'s `REDIS_URL` resolution and `redis
+    .from_url(url, decode_responses=True)` construction -- the codebase's
+    one existing Redis pub/sub wiring idiom for this event-streaming
+    feature, reused here rather than invented fresh. Diverges from that
+    sibling only where the two protocols diverge: the subscriber side
+    returns `None` for "no live tier" and the caller (the SSE route)
+    branches on that explicitly; `PersistingEventSink` has no such branch,
+    so an unset `REDIS_URL` here returns `_NullEventPublisher` instead --
+    Redis absence must not threaten correctness (ADR-074 decision 3), and
+    the `agent_broker_guard` fail-closed check that gates the Celery broker
+    itself is a separate, orthogonal concern (`AGENT_WORKFLOWS_ENABLED`
+    governs the *queue*, never whether the event-relay tier exists).
+    """
+    url = (os.getenv("REDIS_URL", "") or "").strip()
+    if not url:
+        return _NullEventPublisher()
+
+    import redis.asyncio as redis
+
+    return redis.from_url(url, decode_responses=True)
+
+
 def _construct_runner(
     session: AsyncSession,
     sync_session: Session,
@@ -237,6 +285,23 @@ def _construct_runner(
     both (see module docstring). `read_resources`/`write_resources` stay
     `None` -- a `ProductToolExecutor`-supported configuration for a run that
     cannot yet reach real marketplace credentials from this package.
+
+    `event_sink` is the real `PersistingEventSink` (ADR-074 decision 3,
+    issue #1171) -- INSERT + commit to `workflow_run_events` first, then
+    best-effort Redis publish (`_resolve_event_publisher` above). Built from
+    `_ensure_session_factory()`, the same memoized-per-URL session factory
+    `_run_agent_workflow_async`/`_resume_agent_workflow_async` already call
+    for their own `session` (`database/database.py::
+    ensure_worker_session_factory` caches by URL, so this is not a second
+    engine/connection pool) -- `PersistingEventSink` opens its own fresh
+    session per `emit` regardless of the caller's own transaction, matching
+    its own module docstring's "a fresh session per emit" contract, never
+    the `session` this function also threads into `JsonbConversationStore`.
+    Unit/test paths keep injecting fakes the same way they always have: by
+    monkeypatching `services.agent.runner.WorkflowRunner` itself (this
+    module's own `test_agent_workflow_task_wiring.py`), not by adding an
+    `event_sink` parameter here -- `_construct_runner`'s signature is
+    unchanged, only what it builds by default is.
     """
     from juli_backend.services.agent import events as events_module
     from juli_backend.services.agent import runner as runner_module
@@ -254,7 +319,9 @@ def _construct_runner(
         concurrency_guard=concurrency_guard,
     )
     conversation_store = runner_module.JsonbConversationStore(session)
-    event_sink = events_module.InMemoryEventSink()
+    event_sink = events_module.PersistingEventSink(
+        _ensure_session_factory(), _resolve_event_publisher()
+    )
 
     return runner_module.WorkflowRunner(
         llm_service=_default_llm_service(),
