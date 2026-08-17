@@ -12,6 +12,9 @@ AC -> test map (issue #1145, scope-update comment "Remaining scope / Gap 2"):
 - respects #1122's partial unique index (one active run per (shop_id,
   product_id)); a second concurrent start fails cleanly, never a 500 ->
   test_second_concurrent_start_same_product_returns_409_not_500
+- state-mutating outcomes are logged (#1145 Review finding: neither route
+  logged anything) -> test_create_run_success_is_logged,
+  test_create_run_conflict_is_logged
 """
 
 from __future__ import annotations
@@ -187,6 +190,61 @@ async def test_create_run_for_nonexistent_product_returns_404(app, user, shop):
 
     assert resp.status_code == 404
     mock_task.delay.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# AC (#1145 Review) -- the two state-mutating outcomes here are observable
+# ---------------------------------------------------------------------------
+
+
+async def test_create_run_success_is_logged(app, session, user, shop, product, caplog):
+    mock_task = _mock_run_agent_workflow_task()
+
+    with (
+        caplog.at_level("INFO", logger="juli_backend.api.routes.agent_runs"),
+        patch("juli_backend.workers.tasks.agent_workflow.run_agent_workflow", mock_task),
+    ):
+        async with _client_for(app, user, shop) as client:
+            resp = await client.post("/v1/demo/runs", json={"product_id": str(product.id)})
+
+    assert resp.status_code == 202
+    run_id = resp.json()["id"]
+
+    records = [r for r in caplog.records if r.message == "agent_run_created"]
+    assert len(records) == 1
+    record = records[0]
+    assert getattr(record, "shop_id", None) == str(shop.id)
+    assert getattr(record, "product_id", None) == str(product.id)
+    assert getattr(record, "run_id", None) == run_id
+    assert getattr(record, "celery_task_id", None) == "celery-task-id-1145"
+
+
+async def test_create_run_conflict_is_logged(app, session, user, shop, product, caplog):
+    # Captured up front -- see test_second_concurrent_start_same_product_
+    # returns_409_not_500's own comment: the route's first request commits,
+    # which expires every attribute (shop included -- get_active_shop is
+    # overridden to hand back this exact fixture object) on every ORM
+    # object this test still holds.
+    shop_id = shop.id
+    product_id = product.id
+    mock_task = _mock_run_agent_workflow_task()
+
+    with (
+        caplog.at_level("WARNING", logger="juli_backend.api.routes.agent_runs"),
+        patch("juli_backend.workers.tasks.agent_workflow.run_agent_workflow", mock_task),
+    ):
+        async with _client_for(app, user, shop) as client:
+            first = await client.post("/v1/demo/runs", json={"product_id": str(product_id)})
+            second = await client.post("/v1/demo/runs", json={"product_id": str(product_id)})
+
+    assert first.status_code == 202
+    assert second.status_code == 409
+
+    records = [r for r in caplog.records if r.message == "agent_run_create_conflict"]
+    assert len(records) == 1
+    record = records[0]
+    assert getattr(record, "shop_id", None) == str(shop_id)
+    assert getattr(record, "product_id", None) == str(product_id)
 
 
 # ---------------------------------------------------------------------------

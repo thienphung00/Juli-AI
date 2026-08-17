@@ -312,6 +312,22 @@ async def test_cancel_sets_cancel_requested_flag(app, session, user, shop):
     assert run.cancel_requested is True
 
 
+async def test_cancel_success_is_logged(app, session, user, shop, caplog):
+    run = await _make_run(session, shop, status="running")
+    run_id = run.id
+
+    with caplog.at_level("INFO", logger="juli_backend.api.routes.agent_runs"):
+        async with _client_for(app, user, shop) as client:
+            resp = await client.post(f"/v1/demo/runs/{run_id}/cancel")
+
+    assert resp.status_code == 202
+    records = [r for r in caplog.records if r.message == "agent_run_cancel_requested"]
+    assert len(records) == 1
+    record = records[0]
+    assert getattr(record, "shop_id", None) == str(shop.id)
+    assert getattr(record, "run_id", None) == str(run_id)
+
+
 async def test_cancel_twice_stays_202_and_flag_stays_true(app, session, user, shop):
     run = await _make_run(session, shop, status="running")
 

@@ -478,11 +478,19 @@ async def create_run(
     if product is None or product.shop_id != shop.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
+    # Captured before commit/rollback: both expire every attribute on every
+    # object the session still holds (shop included -- `shop` is a
+    # `Depends(get_active_shop)`-resolved ORM instance, not a plain value),
+    # and the log calls below (one on each branch) need values that survive
+    # that without an extra async refresh.
+    shop_id = shop.id
+    product_id = product.id
+
     prompt_version_value, prompt_sha256_value = _resolve_optimize_product_prompt_pin()
 
     run = WorkflowRunRow(
-        shop_id=shop.id,
-        product_id=product.id,
+        shop_id=shop_id,
+        product_id=product_id,
         state={},
         status="queued",
         prompt_version=prompt_version_value,
@@ -493,12 +501,36 @@ async def create_run(
         await session.commit()
     except IntegrityError:
         await session.rollback()
+        # #1145 Review: the one state-mutating branch here that previously
+        # left no trace -- a rejected duplicate start is exactly the event
+        # an operator would go looking for. No token/credential/PII fields;
+        # shop_id and product_id are both server-resolved identifiers, never
+        # request-body free text.
+        logger.warning(
+            "agent_run_create_conflict",
+            extra={"shop_id": str(shop_id), "product_id": str(product_id)},
+        )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="An active run already exists for this product",
         ) from None
 
     celery_task_id = _enqueue_run_agent_workflow(run.id)
+
+    # #1145 Review: create_run mutates state (a new workflow_runs row plus
+    # an enqueued Celery task) and previously logged nothing on success --
+    # the run_id/shop_id/product_id/celery_task_id fields are the useful
+    # facts for an operator tracing a run back to its trigger; never the
+    # raw request body.
+    logger.info(
+        "agent_run_created",
+        extra={
+            "shop_id": str(shop_id),
+            "product_id": str(product_id),
+            "run_id": str(run.id),
+            "celery_task_id": celery_task_id,
+        },
+    )
 
     return CreateRunResponse(id=run.id, status=run.status, celery_task_id=celery_task_id)
 
@@ -576,6 +608,14 @@ async def cancel_run(
     run = await _resolve_owned_run(run_id, shop, session)
     run.cancel_requested = True
     await session.commit()
+    # #1145 Review: the one state-mutating route in this module that
+    # previously logged nothing -- run_id/shop_id are both server-resolved
+    # identifiers (run_id is a path parameter, shop comes from
+    # get_active_shop), never request-body content.
+    logger.info(
+        "agent_run_cancel_requested",
+        extra={"shop_id": str(shop.id), "run_id": str(run_id)},
+    )
     return None
 
 
