@@ -44,7 +44,9 @@
   },
   "rollbackAssertion": {
     "preCutoverFailureBehavior": "Do not merge. Without the fix, multi-turn live runs remain broken exactly as before — no new exposure.",
-    "postCutoverFailureBehavior": "Revert the commit; the adapter returns to the prior (broken-for-multi-turn) key read with no other surface affected."
+    "postCutoverFailureBehavior": "Revert the commit; the adapter returns to the prior (broken-for-multi-turn) key read with no other surface affected.",
+    "retainedStableRequired": false,
+    "automatic": false
   },
   "requiredArtifacts": {
     "implementation": true,
