@@ -3004,6 +3004,41 @@ AGT-W3B:
     - docs/adr/077-incremental-impact-measurement.md
     - Sibling issue context caches
 
+# AGT-W3A-DP — #1115 workflow_runs schema durability, issue #1160
+# Split out of AGT-W3A for the same reason AGT-W3B-UI was split out of AGT-W3B:
+# a different executor domain. #1160 is a models.py column plus an Alembic
+# migration, and `executor-backend` is explicitly instructed that "Alembic and
+# repository durability belong to data-platform" and to halt rather than widen.
+# Inheriting AGT-W3A's backend routing briefs the Executor with the wrong domain
+# skill and hands it required-modules (llm/service.py, tools/registry.py) that
+# #1160's own constraints forbid touching.
+#
+# Registered after Review on #1160 caught the mismatch through
+# executor_domain_matches_cache — the same way #1002 caught it for AGT-W3B-UI.
+# The gate was right; the routing was missing.
+AGT-W3A-DP:
+  executorDomain: data-platform
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/073-agent-execution-loop-and-write-path-hardening.md
+  requiredModules:
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/database/migrations/versions/034_workflow_runs_table.py
+  loadWhenNeeded:
+    - docs/product/agent-workflow-execution/PLAN.md
+    - tests/integration/test_schema_parity.py
+    - dictionary.md
+  doNotLoad:
+    - apps/
+    - ios/
+    - packages/
+    - backend/src/juli_backend/services/agent/
+    - backend/src/juli_backend/api/routes/
+    - backend/src/juli_backend/workers/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
 # AGT-W3B-UI — #1116 fetch-streaming client helper (ADR-074 d.5), issue #1132
 # Split out of AGT-W3B because the helper lives in apps/demo: a different executor
 # domain (ui-ux) AND a genuine public-release classification, which the backend
