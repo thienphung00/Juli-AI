@@ -1,0 +1,28 @@
+{
+  "gateVersion": 1,
+  "issue": 1132,
+  "metrics": {
+    "acceptanceMapped": 8,
+    "acceptanceTotal": 8,
+    "criticalFindings": 2,
+    "modulesTouched": [
+      "apps/demo/src/lib/agent-event-stream.ts",
+      "apps/demo/src/lib/__tests__/agent-event-stream.test.ts"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1132.json",
+    "ownerSignoffPresent": true,
+    "sha256": "65e55ad1e68a92681f5999d97666010213f9dbc9f7cccc11807c02c5e56bf6f5",
+    "signoffRequired": true,
+    "status": "PASS_WITH_WARNINGS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-17T02:28:12Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1132.json",
+    "sha256": "9c7e6409497e59e3055872adeacf19d9b59828c5d9214617b2d17ce065dc681f",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w3"
+}
