@@ -73,10 +73,20 @@ basis again afterward (`concurrency.py`'s module docstring, "Post-write
 basis refresh", explains why). `concurrency_guard` defaults to `None`, so
 every pre-existing call site and test keeps behaving byte-for-byte as
 before — additive and opt-in, exactly like the ledger routing above.
-Neither this guard nor the ledger is reachable from a live run yet:
-`core.py` never constructs a `ConcurrencyGuard` or threads `tool_call_id`
-into `execute` — see `concurrency.py`'s module docstring, "What this
-module does NOT wire up".
+
+**Reachability (issue #1145).** `core.py` now threads `block.call_id` /
+the pending call's `call_id` into every `execute` call as `tool_call_id`
+(both `_dispatch_tool_call` and `resume`), so a WRITE call dispatched
+through a `ProductToolExecutor` constructed with `ledger` +
+`workflow_run_id` genuinely reaches `ToolExecutionLedger.execute_write`,
+and one constructed with `concurrency_guard` genuinely reaches
+`ConcurrencyGuard.check_before_write` — both were structurally
+unreachable before this. `core.py` still never constructs either
+collaborator itself; that construction is the Celery task shell's job
+(`workers/tasks/agent_workflow.py`'s `_construct_runner`), which #1145
+also wires up. Whether that task shell can reach *real* marketplace
+credentials to populate `read_resources`/`write_resources` is a separate,
+still-open question — see that module's own docstring.
 """
 
 from __future__ import annotations
