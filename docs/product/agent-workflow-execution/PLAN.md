@@ -27,6 +27,7 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 10 | P9+P14 — Approval, safety & security prerequisites | 🟨 design grilled 2026-08-12 — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) drafted; implementation pending | ⬜ |
 | 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 design grilled 2026-08-12 — [ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md) drafted; implementation pending | ⬜ |
 | 11b | P-IM — Incremental impact measurement (NEW) | ✅ implemented — [ADR-077](../../adr/077-incremental-impact-measurement.md); re-run wave merged to `main` (#1113, 2026-08-14), #1040–#1045 + #1068 all with status records, after the [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B refusal of the first attempt | ✅ 2026-08-14 (code gates; the one real end-to-end reading waits for W3-A's runner — W3 checkpoint) |
+| 11c | P-CRED — TikTok credential lifecycle (NEW) | 🟨 design grilled 2026-08-17 — [ADR-080](../../adr/080-tiktok-credential-lifecycle.md): layered refresh (30-min beat + lazy fallback), `CREDENTIALS_DATABASE_URL` single source of truth, retry-then-mark `needs_reauth`, advisory-lock single-flight, columns+logs audit; implementation = one slice after wave→main; gate = full matrix + one real sandbox-token refresh | ⬜ |
 | 12 | P10 — Observability baseline | ⬜ | ⬜ |
 | 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ | ⬜ |
 | 14 | P13 — Edge cases + rollout to remaining 10 workflows | ⬜ | ⬜ |

@@ -83,3 +83,4 @@
 | [075](075-agent-approval-gate-and-security-prerequisites.md) | Agent approval gate — approve-is-run-creation, multi-option decision requests with params-hash consent binding, authenticated demo, boot assertions, inbound limits, injection posture | Proposed |
 | [076](076-agent-demo-execution-experience.md) | Demo execution experience — dual-entry auth (anonymous demo / Google→TikTok OAuth), recorded-replay demo + live flag, staged run view, consent-grade option picker | Proposed |
 | [077](077-incremental-impact-measurement.md) | Incremental impact measurement — ratio-form DiD vs correlated-sibling controls, funnel-first metric mapping, confidence tiers + suppression, impact_readings + reader beat task | Proposed |
+| [080](080-tiktok-credential-lifecycle.md) | TikTok credential lifecycle — layered refresh (beat + lazy), CREDENTIALS_DATABASE_URL single source of truth, needs_reauth fail-closed, advisory-lock single-flight | Proposed |
