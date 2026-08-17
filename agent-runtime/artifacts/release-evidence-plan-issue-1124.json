@@ -1,0 +1,53 @@
+{
+  "planId": "agent-live-smokes-2026-08-17",
+  "affectedPublicSurfaces": [
+    "None. This slice adds two live-marked smoke tests (tests/integration/, ADR-040 live lane — excluded from PR CI) exercising the already-merged agent runner path against the OpenAI API and the TikTok sandbox shop. No route, asset, schema, migration or deployed frontend artifact changes. The public-release classification is a false positive of the same shape #1145 documented: the classifier matches 'smoke' in the issue body because the issue IS the smoke-test issue. The plan is written honestly rather than rewording the issue to dodge the classifier."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Local live-marked pytest runs on feature/issue-1124-live-smokes with operator-supplied credentials. No VPS deployment occurs; no public traffic is affected. Writes go exclusively to the TikTok SANDBOX shop per ADR-068.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "read-only-live-smoke",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1124",
+        "assertions": [
+          "a real GPT-5.4 nano run over the composed prompt + real tool registry reaches stop_reason=final_response using read-only tools against the production-read credential",
+          "every emitted event persists as workflow_run_events rows with continuous sequence numbers",
+          "prompt_version/prompt_sha256 stamped on the run"
+        ]
+      },
+      {
+        "name": "write-path-live-smoke",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1124",
+        "assertions": [
+          "a CONFIRM-class write pauses the run (paused_for_confirmation), resumes on approval, executes exactly once through the ToolExecution ledger (claim-then-execute row asserted)",
+          "compare-before-write basis check runs before signing; the write lands on the SANDBOX shop only",
+          "a simulated redelivery of the same tool_call_id returns the stored sanitized result with zero additional vendor calls"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": [
+    "Not applicable — no static assets are touched; the diff is two test files plus wave-manifest registration."
+  ],
+  "migrationCompatibility": "No migrations. The tests consume existing tables (workflow_runs, workflow_run_events, tool_executions) read/write through the application's own code paths.",
+  "rollbackAssertion": "Reverting the slice removes only test files; no production surface changes to roll back. Sandbox-shop mutations are confined to the sandbox tenant and carry no production data risk.",
+  "requiredArtifacts": [
+    "implementation-issue-1124.json with the two live-run transcripts summarized (run ids, stop_reasons, event counts, ledger row ids) — no secrets in artifacts",
+    "review-issue-1124.json re-running both smokes independently",
+    "status/issue-1124.json committed on the branch"
+  ],
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/integration/test_agent_live_smoke_read_only.py -m live -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/integration/test_agent_live_smoke_sandbox_write.py -m live -q"
+  ],
+  "doNotInfer": [
+    "These smokes prove the composed loop executes end-to-end; they do NOT prove production-write readiness (ADR-068 unlock list unaffected), browser/SSE behavior (#1133 owns that), or impact-reading correctness (P-IM's backdated reading is a separate checkpoint item.)",
+    "The OpenAI key and sandbox-write TikTok credential are operator-supplied at run time and never committed; a missing credential is a SKIP with reason, never a fake green."
+  ]
+}
