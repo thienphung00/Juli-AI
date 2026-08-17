@@ -162,8 +162,33 @@ def _validate_issue_artifacts(issue: int, *, verify_integrity: bool = False) -> 
         errors.append(f"issue {issue}: status record issue field is {record.get('issue')!r}")
 
     review = record.get("review") if isinstance(record.get("review"), dict) else {}
-    if review.get("status") != "PASS":
-        errors.append(f"issue {issue}: review status must be PASS (got {review.get('status')!r})")
+    review_status = review.get("status")
+    if review_status not in {"PASS", "PASS_WITH_WARNINGS"}:
+        errors.append(
+            f"issue {issue}: review status must be PASS or a fully signed-off "
+            f"PASS_WITH_WARNINGS (got {review_status!r})"
+        )
+    elif review_status == "PASS_WITH_WARNINGS":
+        # #1141/#1170: PASS_WITH_WARNINGS is what `validate` emits for a slice
+        # whose warnings were reviewed, acknowledged per finding, and signed off
+        # by the owner -- ADR-003 treats that as shippable. Admitted ONLY with
+        # both signoff booleans literally True (`is not True`, not a falsy
+        # check, so a truthy string or non-empty list cannot buy a signoff). A
+        # record written before #1141 has neither key -- absent reads as False,
+        # so the wave gate stays fail-closed against anything it cannot
+        # positively verify, mirroring check_artifact_retention_guard.py exactly.
+        if review.get("warningsAcknowledged") is not True:
+            errors.append(
+                f"issue {issue}: review is PASS_WITH_WARNINGS but "
+                "warningsAcknowledged is not true — every gating WARNING needs "
+                "reviewer acceptance and owner ack"
+            )
+        if review.get("ownerSignoffPresent") is not True:
+            errors.append(
+                f"issue {issue}: review is PASS_WITH_WARNINGS but "
+                "ownerSignoffPresent is not true — a timestamped owner signoff "
+                "is required to ship accepted warnings"
+            )
 
     validation = record.get("validation") if isinstance(record.get("validation"), dict) else {}
     if validation.get("status") != "PASS":
