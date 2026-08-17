@@ -3190,3 +3190,25 @@ AGT-W1Z:
     - docs/product/design/
     - docs/integrations/tiktok_corpora/
     - Sibling issue context caches
+
+# OPS-REPO-FIX — #175 operations pipeline, repository-layer production fixes.
+# Registered 2026-08-17 for #1138 (confirm_shipment writes an aware datetime into
+# a naive column — asyncpg DataError). Data-platform domain: repository durability
+# and column semantics belong to data-platform, and the regression test must run
+# against real Postgres/asyncpg (SQLite masks the defect).
+OPS-REPO-FIX:
+  executorDomain: data-platform
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+  requiredModules:
+    - backend/src/juli_backend/repositories/repos.py
+    - backend/src/juli_backend/models/models.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/api/routes/orders.py
+    - tests/integration/
+  doNotLoad:
+    - apps/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
