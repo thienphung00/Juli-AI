@@ -276,6 +276,37 @@ class TestConstructRunner:
         assert guard.basis_snapshot == {"price": "deadbeef"}
 
 
+class TestConstructRunnerUsesRealPersistingEventSink:
+    """Issue #1171: the real task path (no injection) must construct the
+    runner with `PersistingEventSink` (ADR-074 decision 3), not
+    `InMemoryEventSink` -- every ADR-074 persistence/relay guarantee is
+    proven at unit/integration level elsewhere (`test_agent_events_
+    streaming_matrix.py`) but was never wired end to end into
+    `_construct_runner` before this. A live run built `InMemoryEventSink`
+    and produced zero `workflow_run_events` rows and nothing for the SSE
+    endpoint to serve."""
+
+    def test_construct_runner_builds_a_persisting_event_sink_not_in_memory(self, monkeypatch):
+        import juli_backend.services.agent.runner as runner_pkg
+        from juli_backend.services.agent.events import InMemoryEventSink, PersistingEventSink
+
+        monkeypatch.setattr(runner_pkg, "WorkflowRunner", _SpyWorkflowRunner)
+        monkeypatch.setattr(agent_workflow, "_default_llm_service", lambda: "FAKE_LLM_SERVICE")
+        monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
+        monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
+
+        run, product = _seeded_run_and_product()
+
+        agent_workflow._construct_runner(
+            session=object(), sync_session=object(), run=run, product=product
+        )
+
+        kwargs = _SpyWorkflowRunner.last_kwargs
+        assert kwargs is not None
+        assert isinstance(kwargs["event_sink"], PersistingEventSink)
+        assert not isinstance(kwargs["event_sink"], InMemoryEventSink)
+
+
 class TestTaskBodiesCallRealRunnerMethods:
     """End to end through the task's own async body (`_run_agent_workflow_async`
     / `_resume_agent_workflow_async`), against a real DB-backed
