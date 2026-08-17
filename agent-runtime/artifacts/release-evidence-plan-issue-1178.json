@@ -1,0 +1,64 @@
+{
+  "planId": "runner-terminal-persistence-2026-08-17",
+  "affectedPublicSurfaces": [
+    "None. This slice adds terminal status/stop_reason/completed_at persistence inside services/agent/runner/ plus tests. No route, asset, schema, migration or frontend changes (columns already exist via #1117/#1160). publicRelease classification is the known \\bsmoke\\b body-keyword false positive (the issue body says it blocks #1124's live smokes); documented per the #1145/#1124/#1177 precedent."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Local unit tests on feature/issue-1177-tool-call-id. No VPS contact, no deployment, no live API calls.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "terminal-row-persistence",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1178",
+        "assertions": [
+          "a run reaching any terminal stop_reason persists status (via STOP_REASON_TO_STATUS), stop_reason and completed_at on the workflow_runs row in the same transactional flow as the terminal event",
+          "the pause path persists waiting_approval consistently with what resume expects",
+          "scenario tests assert the ROW, not just RunResult, for final_response, one failure reason, and pause/resume"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route or asset changes in this slice — two test files plus wave-manifest registration."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration; a single expression change inside the LLM adapter."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without the fix, multi-turn live runs remain broken exactly as before — no new exposure.",
+    "postCutoverFailureBehavior": "Revert the commit; the adapter returns to the prior (broken-for-multi-turn) key read with no other surface affected.",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": false,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_agent_runner_core.py tests/unit/test_agent_runner_pause_resume.py tests/unit/test_agent_workflow_task_wiring.py -q"
+  ],
+  "doNotInfer": [
+    "This closes the row-persistence gap; it does not execute the live smokes (#1124) nor the browser exercise (#1133)."
+  ]
+}
