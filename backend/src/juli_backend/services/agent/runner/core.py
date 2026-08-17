@@ -81,8 +81,45 @@ already-authorized `approved: bool`; validating *who* may approve and
 recording consent is W4-A's approval endpoint, entirely outside this
 module. What remains out of scope here: the idempotency ledger /
 claim-then-execute (#1121), basis-hash compare-before-write (#1122), and
-the reaper's 4h `confirmation_expired` sweep (#1130) — so
-`concurrency_conflict` is still not produced by any code in this module.
+the reaper's 4h `confirmation_expired` sweep (#1130).
+
+**Exception translation (ADR-073 decisions 3 and 4, issue #1172).**
+`ConcurrencyExhaustedError` (`concurrency.py`) and
+`ToolExecutionUnrecoverableError` (`ledger.py`) are collaborator-defined,
+typed signals for "this run cannot continue" — a second same-operation
+basis-hash mismatch, and a ledger row this run's `verify_applied` read-back
+could not resolve, respectively. Neither collaborator this module talks to
+is this module's job to wire up (`ProductToolExecutor` is constructed
+elsewhere, per the paragraph above), but *catching* the exception they
+raise out of `ToolExecutor.execute` is: both `_dispatch_tool_call` (the
+`run()` path) and `resume()`'s own direct `execute` call wrap that call in
+a `try`/`except` and finalize the run through `_terminate` — the exact
+same terminal machinery `evaluate_checkpoint`'s cancellation/wall-clock
+timeouts and the iteration-cap gate already use (`workflow.failed` through
+the sink, `status_for`, `RunState` persisted) — landing on
+`stop_reason=concurrency_conflict` / `tool_error_unrecoverable`
+respectively. No in-flight-write semantics change: both exceptions are
+raised either *before* a write is attempted (a concurrency conflict) or
+*after* `ledger.py`'s own fail-closed verify-then-decide has already given
+up (never guessed) — this module only ever translates an already-decided
+outcome into a graceful terminal `RunResult`, never second-guesses it.
+
+**LLM-call exception translation (issue #1172).** `LLMService` (the
+protocol this module depends on) declares no exception surface of its own
+-- by design, per its own docstring, so no vendor-shaped exception type
+ever appears in the protocol signature. The one concrete implementation
+that exists today, `OpenAIResponsesAdapter`, defines the seam itself:
+`LLMProviderError`, "raised in place of any raw `httpx` exception or
+malformed-payload exception -- callers never see a provider/SDK-shaped
+exception type" (`openai_adapter.py`'s own docstring). This module catches
+exactly that type around its one `self._llm_service.complete(...)` call
+site (inside `_drive_loop`, shared by `run()` and `resume()`) and
+finalizes through `_terminate` with `stop_reason=llm_error` -- the same
+translation shape as the two collaborator exceptions above. Deliberately
+never a blanket `except Exception`: that would also swallow
+`asyncio.CancelledError` semantics and mask the two collaborator
+exceptions this module handles separately, neither of which this slice is
+willing to risk.
 
 **`tool_call_id` threading (issue #1145).** Both `_dispatch_tool_call` and
 `resume` pass the block's own `call_id` through to
@@ -144,9 +181,12 @@ from juli_backend.services.agent.llm import (
     ToolCallBlock,
     ToolDefinition,
 )
+from juli_backend.services.agent.llm.openai_adapter import LLMProviderError
 from juli_backend.services.agent.playbooks.base import Playbook
 from juli_backend.services.agent.prompts.composer import compose, prompt_sha256, prompt_version
+from juli_backend.services.agent.runner.concurrency import ConcurrencyExhaustedError
 from juli_backend.services.agent.runner.conversation_store import ConversationStore
+from juli_backend.services.agent.runner.ledger import ToolExecutionUnrecoverableError
 from juli_backend.services.agent.runner.state import ConversationMessage, RunState
 from juli_backend.services.agent.runner.status import StopReason, WorkflowRunStatus, status_for
 from juli_backend.services.agent.runner.termination import (
@@ -201,6 +241,12 @@ class _ToolCallOutcome(Enum):
     # Resets the self-correction streak exactly like SUCCESS/REFUSED: it is
     # not a malformed-params outcome.
     PAUSED = auto()
+    # `ToolExecutor.execute` raised `ConcurrencyExhaustedError` /
+    # `ToolExecutionUnrecoverableError` (issue #1172) — the run ends via
+    # `_terminate`, never a self-correction retry, so these never touch the
+    # malformed-attempt streak either.
+    CONCURRENCY_EXHAUSTED = auto()
+    UNRECOVERABLE_TOOL_ERROR = auto()
 
 
 class NoPendingConfirmationError(RuntimeError):
@@ -423,9 +469,25 @@ class WorkflowRunner:
             ToolStartedEvent,
             ToolStartedPayload(tool_call_id=call_id, tool_name=tool_name),
         )
-        raw_result = self._tool_executor.execute(
-            tool_name=tool_name, params=params, tool_call_id=call_id
-        )
+        try:
+            raw_result = self._tool_executor.execute(
+                tool_name=tool_name, params=params, tool_call_id=call_id
+            )
+        except ConcurrencyExhaustedError:
+            # Mirrors `_dispatch_tool_call`'s handling (issue #1172) — this
+            # is the second of the two dispatch sites `ToolExecutor.execute`
+            # is called from, and must translate the same way.
+            stop = await self._terminate(
+                workflow_run_id, state, StopReason.CONCURRENCY_CONFLICT, version_str, sha256
+            )
+            await self._conversation_store.persist(workflow_run_id, state)
+            return stop
+        except ToolExecutionUnrecoverableError:
+            stop = await self._terminate(
+                workflow_run_id, state, StopReason.TOOL_ERROR_UNRECOVERABLE, version_str, sha256
+            )
+            await self._conversation_store.persist(workflow_run_id, state)
+            return stop
         sanitized = guard_inbound_tool_result(raw_result, tool_name=tool_name)
         ok = sanitized is raw_result
         await self._emit(
@@ -527,12 +589,27 @@ class WorkflowRunner:
                 )
 
             iteration_started_at = self._clock()
-            turn = await self._llm_service.complete(
-                messages=state.conversation_window_for_llm(),
-                system=system_prompt,
-                tools=tool_definitions,
-                config=self._llm_config,
-            )
+            try:
+                turn = await self._llm_service.complete(
+                    messages=state.conversation_window_for_llm(),
+                    system=system_prompt,
+                    tools=tool_definitions,
+                    config=self._llm_config,
+                )
+            except LLMProviderError:
+                # The one concrete LLMService's own typed exception surface
+                # (issue #1172) — never a blanket `except Exception`, which
+                # would also risk swallowing asyncio.CancelledError or the
+                # two collaborator exceptions `_dispatch_tool_call` handles
+                # separately. No iteration was completed, so neither
+                # `iteration_count` nor `running_seconds_elapsed` advances
+                # for this attempt — mirroring the checkpoint-terminate
+                # branch above.
+                stop = await self._terminate(
+                    workflow_run_id, state, StopReason.LLM_ERROR, version_str, sha256
+                )
+                await self._conversation_store.persist(workflow_run_id, state)
+                return stop
             state.iteration_count += 1
 
             stop = None
@@ -560,6 +637,24 @@ class WorkflowRunner:
                     if outcome is _ToolCallOutcome.PAUSED:
                         stop = await self._pause_for_confirmation(
                             workflow_run_id, state, version_str, sha256
+                        )
+                        break
+                    if outcome is _ToolCallOutcome.CONCURRENCY_EXHAUSTED:
+                        stop = await self._terminate(
+                            workflow_run_id,
+                            state,
+                            StopReason.CONCURRENCY_CONFLICT,
+                            version_str,
+                            sha256,
+                        )
+                        break
+                    if outcome is _ToolCallOutcome.UNRECOVERABLE_TOOL_ERROR:
+                        stop = await self._terminate(
+                            workflow_run_id,
+                            state,
+                            StopReason.TOOL_ERROR_UNRECOVERABLE,
+                            version_str,
+                            sha256,
                         )
                         break
                     if outcome is _ToolCallOutcome.MALFORMED:
@@ -656,9 +751,20 @@ class WorkflowRunner:
             ToolStartedPayload(tool_call_id=block.call_id, tool_name=block.tool_name),
         )
 
-        raw_result = self._tool_executor.execute(
-            tool_name=block.tool_name, params=params, tool_call_id=block.call_id
-        )
+        try:
+            raw_result = self._tool_executor.execute(
+                tool_name=block.tool_name, params=params, tool_call_id=block.call_id
+            )
+        except ConcurrencyExhaustedError:
+            # A second same-operation basis-hash mismatch (ADR-073 decision
+            # 4) — the run ends here, translated by `_drive_loop` via
+            # `_terminate`; never a self-correction retry (issue #1172).
+            return _ToolCallOutcome.CONCURRENCY_EXHAUSTED
+        except ToolExecutionUnrecoverableError:
+            # A ledger row this run's fail-closed verify-then-decide could
+            # not resolve (ADR-073 decision 3) — same terminal treatment as
+            # above, distinct stop_reason (issue #1172).
+            return _ToolCallOutcome.UNRECOVERABLE_TOOL_ERROR
         sanitized = guard_inbound_tool_result(raw_result, tool_name=block.tool_name)
         ok = sanitized is raw_result
 
