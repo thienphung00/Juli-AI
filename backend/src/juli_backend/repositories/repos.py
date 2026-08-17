@@ -489,7 +489,10 @@ class OrdersRepo(ShopScopedRepo[Order]):
         if order.status != "AWAITING_SHIPMENT":
             raise ValueError(f"Cannot ship order in status '{order.status}'")
         order.status = "SHIPPED"
-        order.update_time = datetime.now(UTC)
+        # Order.update_time is a naive column (no timezone=True). asyncpg
+        # rejects an aware datetime here with DataError at flush time on
+        # real Postgres — SQLite/psycopg2 silently tolerate it (#1138).
+        order.update_time = datetime.now(UTC).replace(tzinfo=None)
         await self._session.flush()
         return order
 
