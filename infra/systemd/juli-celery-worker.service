@@ -24,6 +24,11 @@ WorkingDirectory=/root/releases/current
 # Re-fetch secrets on every start/restart so the env file is never stale.
 ExecStartPre=/root/Juli-AI-v2/infra/scripts/fetch-secrets.sh
 # Env file lives on the VPS only, outside any release dir.
+# AGENT_WORKFLOWS_ENABLED (see infra/scripts/env/api.env.example) rides in via this
+# EnvironmentFile like every other flag. It gates agent_broker_guard.py's fail-closed
+# boot assertion (#1129, ADR-074 decision 4): a truthy value requires CELERY_BROKER_URL
+# to resolve to a real broker, never memory://, or the worker refuses to start agent
+# workflow paths. Leaving it unset/false here is what keeps that path off by default.
 EnvironmentFile=/etc/juli/api.env
 # Single worker is sufficient for review; no HA/multi-worker tuning in Phase 2.5.
 ExecStart=/root/releases/current/.venv/bin/celery -A juli_backend.workers.celery_app worker \
