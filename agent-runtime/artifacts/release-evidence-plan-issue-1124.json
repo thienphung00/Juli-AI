@@ -53,7 +53,9 @@
   },
   "rollbackAssertion": {
     "preCutoverFailureBehavior": "Do not merge. Nothing depends on the smoke files; the wave's state is unchanged without them.",
-    "postCutoverFailureBehavior": "Revert the commit — removes only test files. Sandbox-shop mutations are confined to the sandbox tenant; no production surface exists to roll back."
+    "postCutoverFailureBehavior": "Revert the commit — removes only test files. Sandbox-shop mutations are confined to the sandbox tenant; no production surface exists to roll back.",
+    "retainedStableRequired": false,
+    "automatic": false
   },
   "requiredArtifacts": {
     "implementation": true,
