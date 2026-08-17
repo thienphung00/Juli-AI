@@ -62,9 +62,9 @@
   ],
   "notes": "Wiring slice unblocking #1124 and #1133. Wave 3 decomposed into 17 slices and none owned reconciling the Celery task shells with the real WorkflowRunner, or threading tool_call_id so the ledger and guard become reachable. Recorded as a Meta decomposition gap in #1145.",
   "doNotInfer": [
-    "Do not infer that this slice makes the live gates pass. It removes the interface mismatch and makes the ledger and guard reachable; #1124 and #1133 still need credentials, and #1133 still needs an enqueue path that W4-A owns.",
-    "Do not infer that a run can be triggered end to end after this. Nothing calls .delay() on either task; that is P9/W4-A's scope.",
-    "Do not infer that cancel works. POST /v1/demo/runs/{id}/cancel remains a transport stub that writes no state and sends no signal.",
+    "Do not infer that this slice makes the live gates pass. #1124's two smokes do not exist, #1133's observed browser run has not happened, and AGENT_WORKFLOWS_ENABLED is wired into no systemd unit and no api.env.example -- a real deployment still cannot exercise any of this even though the enqueue and cancel-signal mechanics now exist.",
+    "Do not infer that a run started via POST /v1/demo/runs actually completes end to end. The enqueue path is real -- the route creates the workflow_runs row and calls run_agent_workflow.delay(str(run_id)) -- but _construct_runner's three composition seams (_default_llm_service, _default_tool_registry, _default_playbook) still raise RunnerCompositionUnavailableError under workers/'s real import boundary, so a live worker still cannot construct an LLM service, tool registry or playbook. This gap is pre-existing, not introduced or closed by this change.",
+    "Do not infer that cancel has been observed against a real running loop. workflow_runs.cancel_requested is genuinely written by POST /v1/demo/runs/{id}/cancel and read fresh (never a cached snapshot) by _construct_runner's cancel_check on every WorkflowRunner checkpoint poll -- proven by tests, including a mutation-tested proof that a Session.get()-based (cached) implementation is wrong. But no live run has ever actually been cancelled mid-execution: #1133's browser-observed run has not happened, and the composition-seam gap above means a live run cannot even start yet.",
     "Do not infer that idempotency has been exercised against a real vendor. Reachability is proven by tests; the verify-then-decide branch has still never met a real TikTok response."
   ]
 }

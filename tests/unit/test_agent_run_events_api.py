@@ -296,6 +296,60 @@ async def test_cancel_returns_202_twice_and_after_terminal(app, session, user, s
 
 
 # ---------------------------------------------------------------------------
+# AC (issue #1145 Gap 3) -- cancel writes workflow_runs.cancel_requested
+# ---------------------------------------------------------------------------
+
+
+async def test_cancel_sets_cancel_requested_flag(app, session, user, shop):
+    run = await _make_run(session, shop, status="running")
+    assert run.cancel_requested is False
+
+    async with _client_for(app, user, shop) as client:
+        resp = await client.post(f"/v1/demo/runs/{run.id}/cancel")
+
+    assert resp.status_code == 202
+    await session.refresh(run)
+    assert run.cancel_requested is True
+
+
+async def test_cancel_twice_stays_202_and_flag_stays_true(app, session, user, shop):
+    run = await _make_run(session, shop, status="running")
+
+    async with _client_for(app, user, shop) as client:
+        first = await client.post(f"/v1/demo/runs/{run.id}/cancel")
+        second = await client.post(f"/v1/demo/runs/{run.id}/cancel")
+
+    assert first.status_code == 202
+    assert second.status_code == 202
+    await session.refresh(run)
+    assert run.cancel_requested is True
+
+
+async def test_cancel_on_terminal_run_still_sets_flag_without_error(app, session, user, shop):
+    run = await _make_run(session, shop, status="completed")
+
+    async with _client_for(app, user, shop) as client:
+        resp = await client.post(f"/v1/demo/runs/{run.id}/cancel")
+
+    assert resp.status_code == 202
+    await session.refresh(run)
+    assert run.cancel_requested is True
+
+
+async def test_cross_tenant_cancel_never_sets_flag_on_other_shops_run(
+    app, session, user, other_shop, shop
+):
+    other_run = await _make_run(session, other_shop, status="running")
+
+    async with _client_for(app, user, shop) as client:
+        resp = await client.post(f"/v1/demo/runs/{other_run.id}/cancel")
+
+    assert resp.status_code == 404
+    await session.refresh(other_run)
+    assert other_run.cancel_requested is False
+
+
+# ---------------------------------------------------------------------------
 # AC (ADR-074 d.5) -- reserved confirmations shape
 # ---------------------------------------------------------------------------
 

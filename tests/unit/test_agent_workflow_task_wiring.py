@@ -238,7 +238,9 @@ class TestConstructRunner:
             "conversation_store",
             "registry",
             "playbook",
+            "cancel_check",
         }
+        assert callable(kwargs["cancel_check"])
         assert kwargs["llm_service"] == "FAKE_LLM_SERVICE"
         assert isinstance(kwargs["registry"], ToolRegistry)
         assert isinstance(kwargs["playbook"], Playbook)
@@ -353,3 +355,172 @@ def _shop_rows(shop_id):
     user = User(id=uuid.uuid4(), phone=f"+8490{uuid.uuid4().int % 10_000_000:07d}")
     shop = Shop(id=shop_id, user_id=user.id, shop_name="Task Wiring Test Shop")
     return user, shop
+
+
+# ---------------------------------------------------------------------------
+# `cancel_check` (issue #1145 Gap 3): reads workflow_runs.cancel_requested
+# fresh from the database on every poll -- the API process writes the flag,
+# a *different* worker process reads it via `_construct_runner`'s
+# `cancel_check`, so a cached/snapshotted read defeats the entire mechanism.
+# ---------------------------------------------------------------------------
+
+
+def _sqlite_sync_session_factory():
+    """A same-thread `sqlite:///:memory:` engine -- SQLAlchemy defaults
+    `:memory:` SQLite to `SingletonThreadPool`, so every `Session` this
+    factory produces shares the one underlying in-memory database (same
+    thread), which is what lets one session write and a second session
+    observe it without a real Postgres instance."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from juli_backend.orm_base import Base
+
+    # `models/models.py` schema-qualifies some tables (bronze/silver/gold/
+    # ops); SQLite has no such schemas, so fold them onto the default
+    # database -- mirrors tests/unit/conftest.py's async `engine` fixture
+    # and test_agent_runner_ledger.py's own sync `sync_engine` fixture.
+    engine = create_engine(
+        "sqlite:///:memory:",
+        execution_options={
+            "schema_translate_map": {"ops": None, "bronze": None, "gold": None, "silver": None}
+        },
+    )
+    Base.metadata.create_all(engine)
+    return sessionmaker(bind=engine), engine
+
+
+class TestCancelCheckReadsFreshFromDatabase:
+    def _seed_run(self, session_factory):
+        from juli_backend.models.models import Product, Shop, User, WorkflowRun
+
+        with session_factory() as setup_session:
+            user = User(id=uuid.uuid4(), phone=f"+8490{uuid.uuid4().int % 10_000_000:07d}")
+            shop = Shop(id=uuid.uuid4(), user_id=user.id, shop_name="Cancel Check Shop")
+            product = Product(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                tiktok_product_id="tt-cancel-check-1",
+                name="Cancel Check Product",
+                status="active",
+                update_time=datetime.now(UTC),
+            )
+            run = WorkflowRun(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                product_id=product.id,
+                state={},
+                status="running",
+                prompt_version="v1",
+                prompt_sha256="0" * 64,
+                cancel_requested=False,
+            )
+            setup_session.add_all([user, shop, product, run])
+            setup_session.commit()
+            return run.id
+
+    def test_construct_runner_wires_a_cancel_check_that_reads_the_column_fresh(self, monkeypatch):
+        """End-to-end through `_construct_runner` itself, not just the
+        standalone helper -- proves the real seam `WorkflowRunner` receives
+        observes a write made through a second, independent session after
+        `_construct_runner` already ran.
+
+        Holds `kept_alive` as an explicit strong reference to the same
+        identity-mapped row `cancel_check` would load. SQLAlchemy's
+        identity map is weak-referenced: a `cancel_check` closure that
+        loads a row into a purely local variable lets CPython garbage
+        -collect it the instant the closure returns, so a naive
+        `Session.get()`-based implementation would (by GC-timing accident,
+        not by design) still happen to re-query and pass this test even
+        though it is the wrong implementation -- exactly the false-negative
+        `test_session_get_would_have_returned_a_stale_cached_value` below
+        demonstrates in isolation. Keeping one more reference alive here
+        removes that accident and makes the assertion deterministic,
+        mirroring a real worker process where nothing guarantees the row
+        was already garbage-collected between two checkpoint polls.
+        """
+        import juli_backend.services.agent.runner as runner_pkg
+
+        monkeypatch.setattr(runner_pkg, "WorkflowRunner", _SpyWorkflowRunner)
+        monkeypatch.setattr(agent_workflow, "_default_llm_service", lambda: "FAKE_LLM_SERVICE")
+        monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
+        monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
+
+        session_factory, engine = _sqlite_sync_session_factory()
+        try:
+            run_id = self._seed_run(session_factory)
+            sync_session = session_factory()
+            try:
+                from juli_backend.models.models import WorkflowRun
+
+                run, product = _seeded_run_and_product()
+                run.id = run_id
+                run.state = {"basis_snapshots": {}}
+
+                runner = agent_workflow._construct_runner(
+                    session=object(), sync_session=sync_session, run=run, product=product
+                )
+                cancel_check = runner.last_kwargs["cancel_check"]
+
+                kept_alive = sync_session.get(WorkflowRun, run_id)
+                assert kept_alive.cancel_requested is False
+                assert cancel_check() is False
+
+                # A different session -- standing in for the API process,
+                # which never shares a session (or a process) with the
+                # worker that reads this flag.
+                with session_factory() as writer_session:
+                    from sqlalchemy import update
+
+                    writer_session.execute(
+                        update(WorkflowRun)
+                        .where(WorkflowRun.id == run_id)
+                        .values(cancel_requested=True)
+                    )
+                    writer_session.commit()
+
+                # Same cancel_check callable, same sync_session, no
+                # re-construction -- must observe the write made through
+                # the other session, not a snapshot taken at construction.
+                # `kept_alive` (still referenced above) guarantees the
+                # identity map still holds the pre-write row at this point.
+                assert cancel_check() is True
+                assert kept_alive.cancel_requested is False
+            finally:
+                sync_session.close()
+        finally:
+            engine.dispose()
+
+    def test_session_get_would_have_returned_a_stale_cached_value(self, monkeypatch):
+        """Negative control: demonstrates *why* `cancel_check` must not be
+        built on `Session.get()` -- a `Session.get()`-backed check would
+        return the identity-map-cached (stale) value here, the exact trap
+        `_construct_runner`'s real `cancel_check` avoids."""
+        from juli_backend.models.models import WorkflowRun
+
+        session_factory, engine = _sqlite_sync_session_factory()
+        try:
+            run_id = self._seed_run(session_factory)
+            sync_session = session_factory()
+            try:
+                loaded = sync_session.get(WorkflowRun, run_id)
+                assert loaded.cancel_requested is False
+
+                with session_factory() as writer_session:
+                    from sqlalchemy import update
+
+                    writer_session.execute(
+                        update(WorkflowRun)
+                        .where(WorkflowRun.id == run_id)
+                        .values(cancel_requested=True)
+                    )
+                    writer_session.commit()
+
+                # Session.get() on an already-loaded identity returns the
+                # cached Python object without hitting the database again.
+                stale = sync_session.get(WorkflowRun, run_id)
+                assert stale.cancel_requested is False
+            finally:
+                sync_session.close()
+        finally:
+            engine.dispose()
