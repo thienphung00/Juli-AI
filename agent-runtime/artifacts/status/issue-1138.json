@@ -1,0 +1,27 @@
+{
+  "gateVersion": 1,
+  "issue": 1138,
+  "metrics": {
+    "acceptanceMapped": 1,
+    "acceptanceTotal": 1,
+    "criticalFindings": 2,
+    "modulesTouched": [
+      "backend/src/juli_backend/repositories/repos.py",
+      "tests/unit/test_repos.py",
+      "agent-runtime/config/agent-runtime.config.yml",
+      "agent-runtime/config/slice-routing.yml"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1138.json",
+    "sha256": "7fe4d4a39094132390ece2a5db8dfeb66cf83eaf0e87fa4d86558c33d312a117",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-17T05:44:16Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1138.json",
+    "sha256": "b2d2675b0464ce946563b1a8ef935aadbecfe4ebb9b258676abbe82777ad6e50",
+    "status": "PASS"
+  },
+  "wave": null
+}
