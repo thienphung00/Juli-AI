@@ -35,10 +35,18 @@ proven against a real client/real Postgres until now):
   -- reconnect driven by the client's own cursor, end to end.
 - ``test_last_event_id_header_takes_priority_over_after_query_param_via_real_stack``
 - ``test_last_event_id_header_absent_falls_back_to_after_then_to_zero``
-- ``test_last_event_id_header_non_numeric_should_degrade_not_500`` -- a
-  **known production defect** (see its docstring): `int(last_event_id)` is
-  unguarded in `api/routes/agent_runs.py`, so this is `xfail(strict=True)`,
-  not a workaround. This test slice does not patch production code.
+- ``test_last_event_id_header_non_numeric_should_degrade_not_500`` -- was
+  `xfail(strict=True)` for a production defect (`int(last_event_id)`
+  unguarded in `api/routes/agent_runs.py`, see #1142); fixed and asserted
+  green now that the route degrades instead of 500ing.
+- ``test_last_event_id_header_huge_value_should_degrade_not_overflow``,
+  ``test_last_event_id_header_negative_value_should_clamp_to_zero``,
+  ``test_after_query_param_huge_value_should_degrade_not_overflow`` --
+  #1142 rework (Review CRITICAL/WARNING): `int()` has arbitrary precision,
+  so a value outside Postgres `int4`'s domain (the real type of
+  `sequence_number`) sailed past the non-numeric guard and overflowed at
+  asyncpg bind time -- a silently truncated HTTP 200, not a 500, since
+  `StreamingResponse` commits the status before the generator runs.
 """
 
 from __future__ import annotations
@@ -990,16 +998,152 @@ async def test_last_event_id_header_non_numeric_should_degrade_not_500(pg_sessio
     )
 
 
-test_last_event_id_header_non_numeric_should_degrade_not_500 = pytest.mark.xfail(
-    reason=(
-        "PRODUCTION DEFECT (#1131 finding, not fixed by this test slice): "
-        "api/routes/agent_runs.py stream_run_events does "
-        "`after_seq = int(last_event_id)` unguarded. A non-numeric "
-        "Last-Event-ID 500s via install_error_boundary's catch-all instead "
-        "of degrading to ?after=/0 as the issue thread specifies."
-    ),
-    strict=True,
-)(test_last_event_id_header_non_numeric_should_degrade_not_500)
+async def test_last_event_id_header_huge_value_should_degrade_not_overflow(pg_session_factory):
+    """#1142 rework (Review CRITICAL): `int()` has arbitrary precision, so a
+    syntactically valid but impossibly large `Last-Event-ID` (bigger than
+    Postgres `int4`, the real type of `sequence_number`) sailed past the
+    `ValueError` guard this issue originally added, then overflowed at
+    asyncpg bind time inside `_replay_events`. Because `StreamingResponse`
+    commits HTTP 200 before the generator is ever consumed, the failure
+    mode is not a 500: it is a **silently truncated 200 with an empty
+    body** -- undetectable, unretryable, worse than the original defect.
+
+    A value this large can never correspond to any real `sequence_number`,
+    so clamping it *to* int4's max would be equally wrong: `sequence_number
+    > int4_max` never matches, silently replaying nothing while claiming
+    success. The honest degrade is the same as a malformed value -- fall
+    through to `?after=`, then to `0` -- pinned here exactly like the
+    non-numeric case above, by replayed sequence ids, not just status code.
+    """
+    user, shop = await _seed_shop(pg_session_factory)
+    run = await _seed_run(pg_session_factory, shop, status="completed")
+    bus = FakeRedisBus()
+    sink = PersistingEventSink(pg_session_factory, bus)
+    runner = ScriptedFakeRunner(
+        session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
+    )
+    await runner.run(
+        [
+            ScriptedEvent("workflow.status", {"phase_narration": "a"}),
+            ScriptedEvent("workflow.completed", {"stop_reason": "final_response"}),
+        ],
+        final_status="completed",
+    )
+
+    huge = str(2**200)  # far beyond int4's 2_147_483_647, well within Python int()
+
+    app = _build_app(pg_session_factory, subscriber=None)
+    async with _authenticated_client(app, user, shop) as client:
+        # Impossibly-huge header, ?after=1 also present: degrade falls
+        # through to ?after=, same as the malformed-header case.
+        via_after = await client.get(
+            f"/v1/demo/runs/{run.id}/events",
+            params={"after": 1},
+            headers={"Last-Event-ID": huge},
+        )
+        # Impossibly-huge header, no ?after= at all: falls all the way
+        # through to 0.
+        via_default = await client.get(
+            f"/v1/demo/runs/{run.id}/events",
+            headers={"Last-Event-ID": huge},
+        )
+
+    assert via_after.status_code == 200, (
+        "huge Last-Event-ID with ?after= present must not error -- got "
+        f"{via_after.status_code}: {via_after.text!r}"
+    )
+    assert _record_ids(via_after.text) == [2], (
+        "huge Last-Event-ID must degrade to ?after=, replaying exactly the "
+        f"events after it, not silently replay nothing -- got ids {_record_ids(via_after.text)}"
+    )
+    assert via_default.status_code == 200, (
+        "huge Last-Event-ID with no ?after= must not error -- got "
+        f"{via_default.status_code}: {via_default.text!r}"
+    )
+    assert _record_ids(via_default.text) == [1, 2], (
+        "huge Last-Event-ID with no ?after= must degrade all the way to 0, "
+        f"replaying the full history -- got ids {_record_ids(via_default.text)}"
+    )
+
+
+async def test_last_event_id_header_negative_value_should_clamp_to_zero(pg_session_factory):
+    """#1142 rework (Review WARNING): a negative `Last-Event-ID` (e.g.
+    `"-5"`) also parses cleanly under a bare `int()` and is functionally
+    harmless today since `sequence_number` starts at 1 -- but it is not a
+    real cursor either. Unlike the huge case, a negative value clamps down
+    to `0` rather than falling through to `?after=`: it is still a usable
+    (if too-low) cursor, and the header keeps its documented priority over
+    `?after=` even after clamping.
+    """
+    user, shop = await _seed_shop(pg_session_factory)
+    run = await _seed_run(pg_session_factory, shop, status="completed")
+    bus = FakeRedisBus()
+    sink = PersistingEventSink(pg_session_factory, bus)
+    runner = ScriptedFakeRunner(
+        session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
+    )
+    await runner.run(
+        [
+            ScriptedEvent("workflow.status", {"phase_narration": "a"}),
+            ScriptedEvent("workflow.completed", {"stop_reason": "final_response"}),
+        ],
+        final_status="completed",
+    )
+
+    app = _build_app(pg_session_factory, subscriber=None)
+    async with _authenticated_client(app, user, shop) as client:
+        # Negative header still outranks ?after=: clamps to 0, replaying
+        # everything, not falling through to ?after=1.
+        resp = await client.get(
+            f"/v1/demo/runs/{run.id}/events",
+            params={"after": 1},
+            headers={"Last-Event-ID": "-5"},
+        )
+
+    assert resp.status_code == 200, (
+        f"negative Last-Event-ID must not error -- got {resp.status_code}: {resp.text!r}"
+    )
+    assert _record_ids(resp.text) == [1, 2], (
+        "negative Last-Event-ID must clamp to 0 (full replay), keeping "
+        f"priority over ?after= rather than falling through to it -- got {_record_ids(resp.text)}"
+    )
+
+
+async def test_after_query_param_huge_value_should_degrade_not_overflow(pg_session_factory):
+    """#1142 rework (Review CRITICAL, `?after=` half): `after: int | None =
+    Query(default=None, ge=0)` bounds the low end but not the high end --
+    an impossibly large `?after=` hits the identical `int4` overflow at
+    `_replay_events` bind time, with the identical silently-truncated-200
+    failure mode. No header is sent, so `?after=` is the last explicit
+    cursor source; degrading it lands on the same `0` a missing/malformed
+    value would reach anyway.
+    """
+    user, shop = await _seed_shop(pg_session_factory)
+    run = await _seed_run(pg_session_factory, shop, status="completed")
+    bus = FakeRedisBus()
+    sink = PersistingEventSink(pg_session_factory, bus)
+    runner = ScriptedFakeRunner(
+        session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
+    )
+    await runner.run(
+        [
+            ScriptedEvent("workflow.status", {"phase_narration": "a"}),
+            ScriptedEvent("workflow.completed", {"stop_reason": "final_response"}),
+        ],
+        final_status="completed",
+    )
+
+    app = _build_app(pg_session_factory, subscriber=None)
+    async with _authenticated_client(app, user, shop) as client:
+        resp = await client.get(f"/v1/demo/runs/{run.id}/events", params={"after": 2**200})
+
+    assert resp.status_code == 200, (
+        f"huge ?after= must not error -- got {resp.status_code}: {resp.text!r}"
+    )
+    assert _record_ids(resp.text) == [1, 2], (
+        "huge ?after= must degrade to 0 (full replay), not silently replay "
+        f"nothing -- got ids {_record_ids(resp.text)}"
+    )
 
 
 # ---------------------------------------------------------------------------

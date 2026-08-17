@@ -75,9 +75,21 @@ Both tasks stay `acks_late=True, max_retries=1` (ADR-074 decision 4): a
 worker crash redelivers the task once, and the retried worker reconstructs
 entirely from `workflow_runs.state` -- `_load_context` always re-reads the
 row fresh, so a redelivered task naturally resumes from wherever the row
-currently is rather than restarting. Nothing calls `.delay()` on either task
-anywhere in this codebase yet (P9/W4-A's job, out of #1145's scope), so none
-of this is reachable from live traffic either.
+currently is rather than restarting.
+
+**Enqueue + cancel signal (issue #1145's remaining scope, closed in the same
+change as the docstring above).** `POST /v1/demo/runs` (`api/routes/
+agent_runs.py`) now creates the `workflow_runs` row and calls
+`run_agent_workflow.delay(str(run_id))` -- Gap 2 of #1145, previously
+nothing in production code ever enqueued either task. `_construct_runner`
+also now wires a `cancel_check` (`_make_cancel_check` below) that reads
+`workflow_runs.cancel_requested` fresh from the database on every
+`WorkflowRunner` checkpoint poll -- Gap 3, fed by `POST /v1/demo/runs/{id}/
+cancel` writing that column from a different process. Neither closes the
+three `RunnerCompositionUnavailableError` seams above: a live enqueued run
+still cannot construct a real LLM service, tool registry or playbook from
+`workers/` today, so an end-to-end live run remains unreachable regardless
+of the enqueue path now existing.
 """
 
 from __future__ import annotations
@@ -85,9 +97,10 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 from sqlalchemy import create_engine as create_sync_engine
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -184,6 +197,33 @@ def _default_playbook():
     )
 
 
+def _make_cancel_check(sync_session: Session, run_id: uuid.UUID) -> Callable[[], bool]:
+    """Build the `cancel_check` `WorkflowRunner` polls at every checkpoint
+    (issue #1145 Gap 3) -- reads `workflow_runs.cancel_requested` fresh from
+    the database on every call, never a cached snapshot.
+
+    `POST /v1/demo/runs/{id}/cancel` (`api/routes/agent_runs.py`) writes
+    this column from the API process; this callable is read from a worker
+    process, on the same `sync_session` this task shell binds for the
+    ledger, across however many checkpoint polls one `run()`/`resume()`
+    call makes. A `Session.get(WorkflowRun, run_id)`-backed check would
+    return the identity-map-cached row after its first load and never see
+    the API's write again for the rest of this session's lifetime --
+    exactly the trap this avoids. Selecting a single column (never the full
+    mapped entity) is what keeps this a real query on every call instead of
+    an identity-map hit: SQLAlchemy's identity map only caches whole-entity
+    loads by primary key, not column-only `select()`s.
+    """
+
+    def _cancel_check() -> bool:
+        value = sync_session.execute(
+            select(WorkflowRun.cancel_requested).where(WorkflowRun.id == run_id)
+        ).scalar_one()
+        return bool(value)
+
+    return _cancel_check
+
+
 def _construct_runner(
     session: AsyncSession,
     sync_session: Session,
@@ -223,6 +263,7 @@ def _construct_runner(
         conversation_store=conversation_store,
         registry=registry,
         playbook=_default_playbook(),
+        cancel_check=_make_cancel_check(sync_session, run.id),
     )
 
 

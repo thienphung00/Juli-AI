@@ -81,7 +81,12 @@ class _SpyToolExecutor:
         self.calls: list[tuple[str, Any]] = []
         self._result = result if result is not None else {"ok": True}
 
-    def execute(self, *, tool_name: str, params: Any) -> dict[str, Any]:
+    def execute(
+        self, *, tool_name: str, params: Any, tool_call_id: str | None = None
+    ) -> dict[str, Any]:
+        # tool_call_id accepted-but-ignored (#1145): core.py now always
+        # passes it; this spy's `.calls` assertions stay tool_name/params
+        # shaped, unchanged from before #1145.
         self.calls.append((tool_name, params))
         return dict(self._result)
 
