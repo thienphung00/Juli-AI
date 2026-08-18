@@ -161,6 +161,20 @@ from juli_backend.workers.tasks.database import get_async_database_url, get_sync
 
 pytestmark = pytest.mark.live
 
+
+@pytest.fixture(autouse=True)
+def token_encryption_key():
+    """Shadow `tests/integration/conftest.py`'s autouse fixture of the same name.
+
+    Same reason as the read-only smoke's copy: that fixture pins
+    `TIKTOK_TOKEN_ENCRYPTION_KEY` to a dummy value, which makes decrypting the
+    REAL sandbox-write credential row impossible -- `decrypt_token` raises
+    `cryptography.fernet.InvalidToken` inside `resolve_sandbox_write_credential`
+    before the first vendor call. Module-level override applies here only.
+    """
+    yield
+
+
 _FIXTURE_PATH = (
     Path(__file__).resolve().parents[1] / "fixtures" / "agent_live_write_smoke_event_log.json"
 )

@@ -114,7 +114,6 @@ documents, so the model has a first turn to respond to at all.
 from __future__ import annotations
 
 import dataclasses
-import json
 import os
 import uuid
 
@@ -132,6 +131,7 @@ from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 from juli_backend.services.agent import composition as composition_module
 from juli_backend.services.agent import playbooks as playbooks_module
 from juli_backend.services.agent import prompts as prompts_module
+from juli_backend.services.agent import run_context as run_context_module
 from juli_backend.services.agent.events.persisting_sink import PersistingEventSink
 from juli_backend.services.agent.runner import (
     JsonbConversationStore,
@@ -143,6 +143,29 @@ from juli_backend.services.agent.runner import (
 from juli_backend.workers.tasks.database import get_async_database_url
 
 pytestmark = pytest.mark.live
+
+
+@pytest.fixture(autouse=True)
+def token_encryption_key():
+    """Shadow `tests/integration/conftest.py`'s autouse fixture of the same name.
+
+    That fixture pins `TIKTOK_TOKEN_ENCRYPTION_KEY` to a dummy value so the
+    ordinary integration tests can round-trip tokens they encrypted themselves
+    inside the test. A live smoke does the opposite: it reads a REAL
+    `tiktok_credentials` row encrypted with the deployment's real key, so the
+    dummy override makes the run structurally impossible -- `decrypt_token`
+    (`database/token_crypto.py`) raises `cryptography.fernet.InvalidToken` from
+    inside `resolve_production_read_credential` before any vendor or model call
+    is reached. Overriding by name here (pytest resolves module fixtures ahead
+    of conftest ones) leaves the real environment value in place for this module
+    only; every other integration test keeps the dummy key.
+
+    Found by running this smoke against a real credential row for the first
+    time; the skip paths return before decryption, which is why authoring never
+    surfaced it.
+    """
+    yield
+
 
 # ---------------------------------------------------------------------------
 # Skip conditions -- module-collection-time (env-only) plus runtime (DB-only,
@@ -250,19 +273,14 @@ def _opening_context_message() -> dict:
     docstring's "The opening context message" section for why this test
     seeds it directly rather than relying on production wiring that does
     not exist yet."""
-    return {
-        "source": "juli",
-        "signals": [],
-        "action_card": {
-            "workflow_key": playbooks_module.OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key,
-            "rationale": (
-                "Routine listing health check for this product -- read its current "
-                "listing, SEO signal data, and status, then summarize what you find."
-            ),
-            "expected_impact": {"metric": "ctr", "confidence": "low"},
-        },
-        "product_binding": {"note": "confirms product binding; no raw vendor identifier"},
-    }
+    return run_context_module.build_opening_context_message(
+        workflow_key=playbooks_module.OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key,
+        rationale=(
+            "Routine listing health check for this product -- read its current "
+            "listing, SEO signal data, and status, then summarize what you find."
+        ),
+        expected_impact={"metric": "ctr", "confidence": "low"},
+    )
 
 
 @requires_postgres
@@ -312,11 +330,14 @@ async def test_live_readonly_run_reaches_final_response():
                 id=uuid.uuid4(),
                 shop_id=credential.shop_id,
                 product_id=product.id,
-                state={
-                    "conversation_window": [
-                        {"role": "user", "content": json.dumps(_opening_context_message())}
-                    ]
-                },
+                # #1188: consume the PRODUCTION wiring rather than hand-seeding
+                # state. Hand-seeding is what hid the defect this smoke found --
+                # the route created rows with `state={}`, which `RunState.
+                # from_dict` rejects, so every real run died at `run()`'s first
+                # statement while this test sailed past on its own blob. Building
+                # the state the way `create_run` does means the smoke now
+                # verifies that path instead of substituting for it.
+                state=run_context_module.initial_run_state(_opening_context_message()),
                 status="running",
                 prompt_version=prompt_version_value,
                 prompt_sha256=prompt_sha256_value,
