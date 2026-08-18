@@ -557,6 +557,62 @@ class TestRequestTranslation:
         assert tool_result_item["call_id"] == "call_abc123"
         assert tool_result_item["output"] == '{"sku": "SKU-42", "quantity": 214}'
 
+    async def test_a_runner_appended_tool_message_translates_with_the_correct_call_id(
+        self, _with_api_key
+    ):
+        """Issue #1177 -- pins the REAL key contract the runner writes.
+
+        `WorkflowRunner` in `services/agent/runner/core.py` never appends a
+        tool message shaped like this test file's other fixtures (which
+        predate this issue and use ``"call_id"``). It appends the literal
+        dict shape below at three call sites -- `resume()` (lines 383-390 and
+        442-449) and `_execute_tool_call` (lines 676-683) -- keyed
+        ``"tool_call_id"``, not ``"call_id"``:
+
+            {
+                "role": "tool",
+                "tool_call_id": call_id,
+                "tool_name": tool_name,
+                "content": dict(sanitized),
+            }
+
+        Before this issue's fix, `_translate_message` read
+        ``message.get("call_id", "")`` for role:tool messages, so every
+        second round-trip (any real run that calls a tool) reached OpenAI
+        with an empty ``call_id`` on the `function_call_output` item. This
+        test builds the message exactly as the runner does (no shortcuts)
+        and asserts the translated wire payload carries the real id through.
+        """
+        captured: list[dict[str, Any]] = []
+        adapter = OpenAIResponsesAdapter(
+            transport=_stub_transport(
+                response_body=RECORDED_RESPONSE_TEXT_ONLY, captured_requests=captured
+            )
+        )
+
+        # Exact literal shape of `state.conversation_window.append({...})`
+        # in `services/agent/runner/core.py` (e.g. lines 676-683).
+        runner_appended_tool_message = {
+            "role": "tool",
+            "tool_call_id": "call_abc123",
+            "tool_name": "get_inventory",
+            "content": {"sku": "SKU-42", "quantity": 214},
+        }
+
+        await adapter.complete(
+            messages=[
+                {"role": "user", "content": "Check stock for SKU-42."},
+                runner_appended_tool_message,
+            ],
+            system="system",
+            tools=[],
+            config=_config(),
+        )
+
+        tool_result_item = captured[0]["input"][1]
+        assert tool_result_item["type"] == "function_call_output"
+        assert tool_result_item["call_id"] == "call_abc123"
+
     async def test_authorization_header_carries_the_api_key(self, _with_api_key):
         captured_headers: list[httpx.Headers] = []
 

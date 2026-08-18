@@ -30,9 +30,16 @@ build (`service.py`). This adapter interprets the minimal shape needed to
 drive the Responses API:
 
 - ``{"role": "user" | "assistant", "content": str}`` -> a plain input message.
-- ``{"role": "tool", "call_id": str, "content": str}`` -> a
+- ``{"role": "tool", "tool_call_id": str, "content": str}`` -> a
   ``function_call_output`` item feeding a prior tool result back to the
   model (the stateless replay mechanism for tool round-trips).
+  ``"tool_call_id"`` is the canonical key -- it matches the literal dict
+  shape `services/agent/runner/core.py`'s `WorkflowRunner` appends to
+  `state.conversation_window` on every tool round-trip. A legacy
+  ``"call_id"`` key is also accepted as a fallback for any other caller of
+  this adapter's `Message` shape (issue #1177: the adapter previously read
+  only ``"call_id"``, so every runner-driven round-trip reached OpenAI with
+  an empty ``call_id``).
 - A tool definition -> ``{"name": str, "description": str, "parameters":
   dict}``, matching a Pydantic ``model_json_schema()`` render (ADR-069
   decision 3, W1-A's registry shape) translated into a Responses API
@@ -184,9 +191,13 @@ def _build_request_body(
 def _translate_message(message: Message) -> dict[str, Any]:
     role = message.get("role")
     if role == "tool":
+        # "tool_call_id" is canonical (matches the runner's literal append
+        # shape in `services/agent/runner/core.py`); "call_id" is a fallback
+        # for any other caller of this adapter's `Message` shape (#1177).
+        call_id = message.get("tool_call_id") or message.get("call_id", "")
         return {
             "type": "function_call_output",
-            "call_id": message.get("call_id", ""),
+            "call_id": call_id,
             "output": str(message.get("content", "")),
         }
     content_type = "input_text" if role == "user" else "output_text"

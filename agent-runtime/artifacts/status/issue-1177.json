@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 1177,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 3,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/agent/llm/openai_adapter.py",
+      "tests/unit/test_agent_llm_openai_adapter.py",
+      "agent-runtime/artifacts/waves/wave-agent-w3.json"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1177.json",
+    "ownerSignoffPresent": true,
+    "sha256": "d39d43d5e0acbe6b84100a2556e59f31a114d424d900d3fb9d3348474d067dad",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-17T11:38:09Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1177.json",
+    "sha256": "da02642130bc7a052a65516e0810c270edf1759e8df9d3150a20beb2d1cedde4",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w3"
+}

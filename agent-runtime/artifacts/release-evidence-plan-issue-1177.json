@@ -1,0 +1,64 @@
+{
+  "planId": "adapter-tool-call-id-key-2026-08-17",
+  "affectedPublicSurfaces": [
+    "None. This slice changes one key-read expression in backend/src/juli_backend/services/agent/llm/openai_adapter.py plus its unit test. No route, asset, schema, migration or deployed frontend artifact changes. publicRelease classification is the known \\bsmoke\\b body-keyword false positive (the issue body cites '#1124's smoke authoring' as the discovery source); documented honestly per the #1145/#1124 precedent rather than rewording the issue."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Local unit tests on feature/issue-1177-tool-call-id. No VPS contact, no deployment, no live API calls.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "adapter-key-contract",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1177",
+        "assertions": [
+          "a tool message appended in the runner's exact literal shape translates with the correct call_id (was empty string)",
+          "tool_call_id is canonical; call_id remains a documented fallback for legacy fixtures",
+          "full llm suite green (86 passed) with zero network egress"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route or asset changes in this slice — two test files plus wave-manifest registration."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration; a single expression change inside the LLM adapter."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without the fix, multi-turn live runs remain broken exactly as before — no new exposure.",
+    "postCutoverFailureBehavior": "Revert the commit; the adapter returns to the prior (broken-for-multi-turn) key read with no other surface affected.",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": false,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_agent_llm_openai_adapter.py -q"
+  ],
+  "doNotInfer": [
+    "This fix makes the second LLM round-trip translatable; it does not prove a live multi-turn run end-to-end (that is #1124's smoke)."
+  ]
+}
