@@ -1,0 +1,18 @@
+{
+  "workflow_run_id": "17c048f5-53e3-4ec7-9c3f-7a39a272d07a",
+  "sequence_number": 5,
+  "event_type": "workflow.approval_required",
+  "timestamp": "2026-08-14T12:00:05Z",
+  "payload": {
+    "tool_call_id": "call_2",
+    "tool_name": "update_price",
+    "proposed_change": {
+      "price": {
+        "from": "199000",
+        "to": "179000"
+      }
+    },
+    "expires_at": "2026-08-14T16:00:05Z"
+  },
+  "v": 1
+}

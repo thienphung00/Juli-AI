@@ -519,8 +519,140 @@ class WebhookRawEvent(Base):
     )
 
 
+class WorkflowRun(Base):
+    """Agent execution-loop run record — WorkflowRunner's persisted run, P1
+    (ADR-073 decisions 1, 2 and 4; #1117 / AGT-W3A).
+
+    ``state`` is the JSONB blob that stands in for the deferred P-CS chat
+    store (conversation window, iteration count, pending confirmation, basis
+    snapshots — ADR-073 decision 1/5); the runner that reads/writes it lands
+    in a later slice, not this one.
+
+    ``status``/``stop_reason`` mirror the vocabulary in
+    ``services/agent/runner/status.py`` (``WorkflowRunStatus``/``StopReason``)
+    but are stored as plain check-constrained strings rather than a native DB
+    enum — the same choice ``impact_readings.kind``/``confidence`` made
+    (migration 033) so a future vocabulary addition is an additive migration,
+    not an ``ALTER TYPE``. The check constraints are the DB-level backstop;
+    the Python vocabulary module is the source of truth other code imports.
+
+    ``started_at``/``completed_at``/``waiting_approval_since``/
+    ``running_seconds_elapsed`` exist so later slices can implement the
+    wall-clock timeout (300s of *running* time only, per ADR-073 decision 2 —
+    the clock pauses while ``waiting_approval``) and the 4h
+    ``confirmation_expired`` reaper check (ADR-074 amendment) without a
+    further migration. This slice does not write the accounting logic itself.
+
+    Only one active run per ``(shop_id, product_id)`` is allowed structurally
+    via the partial unique index below, scoped to
+    ``status IN ('queued', 'running', 'waiting_approval')`` — ADR-073
+    decision 4, the guard against a second Juli-initiated run racing the
+    same product.
+    """
+
+    __tablename__ = "workflow_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
+    product_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("products.id"), nullable=False)
+    state: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    stop_reason: Mapped[str | None] = mapped_column(String(32))
+    prompt_version: Mapped[str] = mapped_column(String(255), nullable=False)
+    prompt_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    waiting_approval_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    running_seconds_elapsed: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    cancel_requested: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("ix_workflow_runs_shop", "shop_id"),
+        Index(
+            "uq_workflow_runs_active_shop_product",
+            "shop_id",
+            "product_id",
+            unique=True,
+            postgresql_where="status IN ('queued', 'running', 'waiting_approval')",
+        ),
+        CheckConstraint(
+            "status IN ('queued', 'running', 'waiting_approval', 'completed', "
+            "'cancelled', 'timed_out', 'failed')",
+            name="ck_workflow_runs_status",
+        ),
+        CheckConstraint(
+            "stop_reason IS NULL OR stop_reason IN ("
+            "'final_response', 'confirmation_declined', 'paused_for_confirmation', "
+            "'cancelled_by_seller', 'confirmation_expired', 'iteration_cap_exceeded', "
+            "'wall_clock_timeout', 'tool_error_unrecoverable', 'llm_error', "
+            "'concurrency_conflict', 'output_validation_failed', 'worker_lost')",
+            name="ck_workflow_runs_stop_reason",
+        ),
+    )
+
+
+class WorkflowRunEvent(Base):
+    """Append-only event-log row for a `workflow_runs` row — the Postgres
+    replay authority ADR-074 decision 1 establishes (#1125 / AGT-W3B):
+    anything a client sees on the SSE stream must exist as a row here
+    first, Redis (a later slice) only makes it fast.
+
+    Mirrors the Pydantic envelope in ``services/agent/events/envelope.py``
+    field-for-field (``workflow_run_id``, ``sequence_number``,
+    ``event_type``, ``timestamp``, ``payload``, ``v``) plus the ORM-only
+    surrogate primary key ``id``. ``sequence_number`` is minted by the
+    ``WorkflowRunner`` (a later slice) from its run-state blob, never by
+    this table or any code in this slice.
+
+    The unique ``(workflow_run_id, sequence_number)`` index is the
+    mechanism, not decoration: exactly one writer per run exists (a
+    partial-unique active-run index plus one Celery task per
+    ``workflow_run_id``), so a crash-replayed emit racing the same
+    sequence number hits this constraint and becomes a no-op instead of a
+    duplicate row.
+    """
+
+    __tablename__ = "workflow_run_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    workflow_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_runs.id"), nullable=False
+    )
+    sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    v: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+
+    __table_args__ = (
+        Index(
+            "uq_workflow_run_events_run_sequence",
+            "workflow_run_id",
+            "sequence_number",
+            unique=True,
+        ),
+        Index("ix_workflow_run_events_run_id", "workflow_run_id"),
+    )
+
+
 class ToolExecution(Base):
-    """Approved tool call dispatched to Celery — P2-B4 (#305)."""
+    """Approved tool call dispatched to Celery — P2-B4 (#305).
+
+    Promoted from an audit-only row to an idempotency ledger by ADR-073
+    decision 3 (#1117 / AGT-W3A): ``workflow_run_id``/``tool_call_id``/
+    ``operation`` plus the unique constraint over the three let
+    ``WorkflowRunner`` (a later slice) SELECT-before-write on retry and
+    replay a stored sanitized result byte-identically instead of re-calling
+    TikTok. All three are nullable — pre-agent legacy rows (and the
+    Celery-approval write path this class already served) have none of
+    them, and that must keep inserting unchanged.
+    """
 
     __tablename__ = "tool_executions"
 
@@ -537,10 +669,20 @@ class ToolExecution(Base):
     error_category: Mapped[str | None] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+    # --- Idempotency-ledger columns, ADR-073 decision 3 (#1117 / AGT-W3A) ---
+    workflow_run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("workflow_runs.id"))
+    tool_call_id: Mapped[str | None] = mapped_column(String(255))
+    operation: Mapped[str | None] = mapped_column(String(100))
 
     __table_args__ = (
         Index("ix_tool_executions_shop", "shop_id"),
         Index("ix_tool_executions_status", "shop_id", "status"),
+        UniqueConstraint(
+            "workflow_run_id",
+            "tool_call_id",
+            "operation",
+            name="uq_tool_executions_run_call_operation",
+        ),
     )
 
 
@@ -582,12 +724,15 @@ class ImpactReading(Base):
     need cross-run *queries* over this table, not JSON parsing of the legacy
     outcome envelope.
 
-    ``run_id`` is a deliberate deferred constraint, not an oversight: ADR-077 d.5
-    names ``run_id`` alongside ``tool_execution_id``, but the ``workflow_runs``
-    table (W3-A, ADR-073) does not exist yet — P-IM "depends on nothing in the
-    agent stack" per the wave handoff, so this column is a plain nullable UUID
-    with no foreign key until W3-A lands ``workflow_runs``. W3-A should add the
-    FK once that table exists; do not backfill it here.
+    ``run_id`` was a deliberate deferred constraint, not an oversight: ADR-077
+    d.5 names ``run_id`` alongside ``tool_execution_id``, but the
+    ``workflow_runs`` table (W3-A, ADR-073) did not exist when migration 033
+    landed — P-IM "depends on nothing in the agent stack" per the wave
+    handoff, so the column shipped as a plain nullable UUID with no foreign
+    key. Migration 034 (#1117 / AGT-W3A) adds
+    ``ForeignKeyConstraint(["run_id"], ["workflow_runs.id"])`` now that
+    ``workflow_runs`` exists; no data is backfilled by that migration, and
+    ``run_id`` stays nullable — legacy readings predate ``workflow_runs``.
 
     Numeric precision deliberately reuses the two scales
     ``AnalyticsPerformanceInterval`` already established rather than inventing a
@@ -601,9 +746,8 @@ class ImpactReading(Base):
     __tablename__ = "impact_readings"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    # Deliberately NOT a ForeignKey — see class docstring. W3-A adds the FK once
-    # `workflow_runs` exists.
-    run_id: Mapped[uuid.UUID | None] = mapped_column()
+    # FK added by migration 034 (#1117 / AGT-W3A) — see class docstring.
+    run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("workflow_runs.id"))
     tool_execution_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("tool_executions.id"), nullable=False
     )

@@ -1,0 +1,27 @@
+{
+  "gateVersion": 1,
+  "issue": 1120,
+  "metrics": {
+    "acceptanceMapped": 10,
+    "acceptanceTotal": 10,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/agent/runner/termination.py",
+      "backend/src/juli_backend/services/agent/runner/core.py",
+      "backend/src/juli_backend/services/agent/runner/__init__.py",
+      "tests/unit/test_agent_runner_termination.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1120.json",
+    "sha256": "51b4dc39717c0fefff4a4bac09abfc42334a4b46c4d8af13439a707f017963a7",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-14T16:08:59Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1120.json",
+    "sha256": "c1ad6b6b743fadf25e59e56d6ea6bea16c178e917eb3c96d2313783a09649096",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w3"
+}

@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 1160,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "backend/src/juli_backend/models/models.py",
+      "backend/src/juli_backend/database/migrations/versions/036_cancel_requested_column.py",
+      "tests/unit/test_workflow_run_events_schema.py",
+      "tests/unit/test_workflow_runs_schema.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1160.json",
+    "ownerSignoffPresent": true,
+    "sha256": "69f29236409ce1eea8e37550cc5aee650eb5f41ba2a48b9711b5192b87ec4605",
+    "signoffRequired": true,
+    "status": "PASS_WITH_WARNINGS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-17T08:05:24Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1160.json",
+    "sha256": "a49f1381d3b02558fb6dc85f22a16a9fbaa789eead027b7cf2e07e049d96d1ab",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w3"
+}

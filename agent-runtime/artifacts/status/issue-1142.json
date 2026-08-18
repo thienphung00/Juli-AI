@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 1142,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 3,
+    "modulesTouched": [
+      "backend/src/juli_backend/api/routes/agent_runs.py",
+      "tests/integration/test_agent_events_streaming_matrix.py",
+      "agent-runtime/artifacts/waves/wave-agent-w3.json"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1142.json",
+    "ownerSignoffPresent": true,
+    "sha256": "50b6e2a994f492e23c747028f93272a4e4e3f3cceb70c92b78711b06ced46f69",
+    "signoffRequired": true,
+    "status": "PASS_WITH_WARNINGS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-17T08:01:35Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1142.json",
+    "sha256": "d648fa41acb479522f010ca4329f4e787470447d3252b2a8fe0a2a6db8bd4927",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w3"
+}

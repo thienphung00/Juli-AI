@@ -1,0 +1,27 @@
+{
+  "gateVersion": 1,
+  "issue": 1121,
+  "metrics": {
+    "acceptanceMapped": 9,
+    "acceptanceTotal": 9,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/agent/runner/ledger.py",
+      "backend/src/juli_backend/services/agent/runner/tool_executor.py",
+      "backend/src/juli_backend/services/agent/runner/__init__.py",
+      "tests/unit/test_agent_runner_ledger.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1121.json",
+    "sha256": "ad46b35d98ece756cc54dd1c77101a3298e18c8c36c459b5209a3d28976356f3",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-14T17:24:06Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1121.json",
+    "sha256": "83d4b81369191c37efc92b1e29608ac4d1c25342aa083d6122f65537bab8c492",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w3"
+}

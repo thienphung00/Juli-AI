@@ -181,6 +181,18 @@ databaseTables:
       Deliberately standalone — not tool_executions/Workers & Async — because
       these rows must never be reachable by the Celery/Partner-write path;
       no worker or Celery task ever writes this table.
+  workflow_runs:
+    owner: Workers & Async
+    access: write
+    notes: WorkflowRunner (services/agent/runner) persists; Celery task (P8) drives the run.
+  workflow_run_events:
+    owner: Workers & Async
+    access: write
+    notes: >
+      Postgres-authoritative event log for a workflow_runs row (ADR-074 decision 1,
+      #1125 / AGT-W3B) — same owner as workflow_runs per MODULES.md §8 (Workers &
+      Async owns the Celery-driven run records); P8-3's PersistingEventSink (a later
+      slice) is the write path, invoked from the WorkflowRunner's Celery task.
   tool_executions:
     owner: Workers & Async
     access: write
@@ -192,8 +204,10 @@ databaseTables:
       Incremental impact measurement (P-IM, ADR-077 decision 5, #1040). Source of
       truth for every impact reading; will be written by the daily impact-reader
       beat task landing later in this wave (#1044). `tool_execution_id` FKs to
-      tool_executions; `run_id` is a deliberate nullable-no-FK column until W3-A
-      lands `workflow_runs` (ADR-073) — see migration 033 for the full rationale.
+      tool_executions; `run_id` now FKs to `workflow_runs` as of migration 034
+      (#1117, W3-A/ADR-073) — migration 033 shipped it as a plain nullable UUID
+      with no FK because `workflow_runs` did not exist yet, see that migration's
+      docstring for the original deferral rationale.
   workflow_outcome_records:
     owner: Workers & Async
     access: write
@@ -249,6 +263,32 @@ celeryTasks:
       ADR-077 decision 5 (#1044). Scheduled strictly after analytics-backfill-topup.
       Scans terminal listing.optimize_product executions whose T+7/T+14 has elapsed
       and writes impact_readings rows; matches that table's own owner (Intelligence).
+  juli_backend.run_agent_workflow:
+    owner: Workers & Async
+    wrapper: backend/src/juli_backend/workers/tasks/agent_workflow.py
+    delegatesTo: services.agent.runner.WorkflowRunner.run
+    notes: >
+      ADR-073/ADR-074 decision 4 (#1129, reconciled against the real WorkflowRunner
+      by #1145). Thin shell only -- no loop/state-machine logic in the wrapper.
+      Nothing calls .delay() on this task anywhere in this codebase yet (P9/W4-A's
+      job); it is not reachable from live traffic.
+  juli_backend.resume_agent_workflow:
+    owner: Workers & Async
+    wrapper: backend/src/juli_backend/workers/tasks/agent_workflow.py
+    delegatesTo: services.agent.runner.WorkflowRunner.resume
+    notes: >
+      ADR-073 decisions 1/5 (#1129, reconciled against the real WorkflowRunner.resume
+      by #1145). Carries an already-authorized `approved` decision through to the
+      runner; does not itself validate or authorize it (W4-A's job).
+  juli_backend.reap_abandoned_workflow_runs:
+    owner: Workers & Async
+    wrapper: backend/src/juli_backend/workers/tasks/reaper.py
+    delegatesTo: workers.tasks.reaper.reap_workflow_runs
+    notes: >
+      ADR-074 decision 4 (#1130). Beat task every 5 minutes; closes stale
+      running/queued runs (no event + no live task -> worker_lost -> failed)
+      and expired waiting_approval runs (past approval_timeout_h ->
+      confirmation_expired -> cancelled) through the normal EventSink path.
 
 redisNamespaces:
   - pattern: "ratelimit:*"
