@@ -37,43 +37,54 @@ class MerchantCapability(str, Enum):
 
 
 # Layer 1 production-read POST search endpoints (verified in contract-collection.md).
-PRODUCTION_READ_POST_PATHS: frozenset[str] = frozenset({
-    ORDER_SEARCH_PATH,
-    PRODUCT_SEARCH_PATH,
-    RETURN_SEARCH_PATH,
-    CANCELLATION_SEARCH_PATH,
-    INVENTORY_SEARCH_PATH,
-    MARKETPLACE_CREATORS_SEARCH_PATH,
-})
+PRODUCTION_READ_POST_PATHS: frozenset[str] = frozenset(
+    {
+        ORDER_SEARCH_PATH,
+        PRODUCT_SEARCH_PATH,
+        RETURN_SEARCH_PATH,
+        CANCELLATION_SEARCH_PATH,
+        INVENTORY_SEARCH_PATH,
+        MARKETPLACE_CREATORS_SEARCH_PATH,
+    }
+)
 
 # Layer 1 production-read GET endpoints (exact paths).
-PRODUCTION_READ_GET_EXACT: frozenset[str] = frozenset({
-    AUTHORIZED_SHOPS_PATH,
-    ORDER_DETAIL_PATH,
-    CREATOR_CONTENT_DETAILS_PATH,
-    FINANCE_STATEMENTS_PATH,
-    # Analytics wire set (#424/#425/#468) — GET only; A-26/A-27 / A-30 / A-35 excluded.
-    ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
-    ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
-    ANALYTICS_SHOP_PERFORMANCE_PATH,
-    ANALYTICS_BESTSELLING_PRODUCTS_PATH,
-    ANALYTICS_BESTSELLING_VIDEOS_PATH,
-    ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,  # A-28 live grain for ETL (#425)
-    ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH,  # A-29 overview for backfill (#468)
-})
+PRODUCTION_READ_GET_EXACT: frozenset[str] = frozenset(
+    {
+        AUTHORIZED_SHOPS_PATH,
+        ORDER_DETAIL_PATH,
+        CREATOR_CONTENT_DETAILS_PATH,
+        FINANCE_STATEMENTS_PATH,
+        # Analytics wire set (#424/#425/#468) — GET only; A-26/A-27 / A-30 / A-35 excluded.
+        ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
+        ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
+        ANALYTICS_SHOP_PERFORMANCE_PATH,
+        ANALYTICS_BESTSELLING_PRODUCTS_PATH,
+        ANALYTICS_BESTSELLING_VIDEOS_PATH,
+        ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,  # A-28 live grain for ETL (#425)
+        ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH,  # A-29 overview for backfill (#468)
+    }
+)
 
 # Layer 1 production-read GET path patterns (dynamic segments).
 PRODUCTION_READ_GET_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"^/product/\d+/products/\d+$"),
+    # A-23/A-24 SEO reads (issue #1189, ADR-068 amendment). Both are pure
+    # reads that mutate nothing, both were already trusted for the sandbox
+    # merchant, and `docs/integrations/tiktok_api/endpoints.md` lists them as
+    # Optimize Product workflow steps. Their absence here meant the playbook
+    # offered the model `get_seo_keywords` while this guard rejected the call
+    # before signing -- a real agent run died on `TransportGuardError`, found
+    # by the #1124 live smoke once #1188 let runs execute at all.
+    re.compile(r"^/product/\d+/products/seo_words$"),
+    re.compile(r"^/product/\d+/products/suggestions$"),
     re.compile(r"^/affiliate_seller/\d+/marketplace_creators/[^/]+$"),
     # A-31 SKU performance detail
     re.compile(r"^/analytics/\d+/shop_skus/[^/]+/performance$"),
     # A-33 product performance detail
     re.compile(r"^/analytics/\d+/shop_products/[^/]+/performance$"),
     # A-37 shop performance per hour
-    re.compile(
-        r"^/analytics/\d+/shop/performance/\d{4}-\d{2}-\d{2}/performance_per_hour$"
-    ),
+    re.compile(r"^/analytics/\d+/shop/performance/\d{4}-\d{2}-\d{2}/performance_per_hour$"),
     # A-25 Get Promotion Activity (production-read)
     re.compile(r"^/promotion/\d+/activities/[^/]+$"),
 )
