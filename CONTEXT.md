@@ -525,8 +525,12 @@ _Avoid_: marketplace plugin skills as domain executors
 Executor domain for vendor HTTP clients, inbound webhooks, polling/sync, and analytics backfill. Does **not** own Juli product API routes, scoring/copy, or JWT session auth (**backend**); does **not** own schema/migrations/ETL durability (**data-platform**).
 _Avoid_: TikTok domain, overlapping ownership with backend for `/v1/*` routes
 
-**Credential lifecycle**: The automatic care of a TikTok OAuth credential row from provisioning to re-authorization: refresh-ahead beat scanning, lazy refresh at resolution, single-flight locking, and the `needs_reauth` terminal state (ADR-080). _Avoid_: "token management", "token rotation" (rotation implies key material we do not control).
+**Credential lifecycle**: The automatic care of a TikTok OAuth credential row from provisioning to re-authorization: refresh-ahead beat scanning, lazy refresh at resolution, reactive refresh on a vendor auth error, single-flight locking, and the `needs_reauth` terminal state (ADR-080, amended by ADR-081). _Avoid_: "token management".
 
-**Refresh-ahead window**: The period before access-token expiry (24h) inside which the credential refresh beat proactively renews the token so hot paths never pay refresh latency (ADR-080).
+**Refresh-ahead window**: The period before access-token expiry (24h) inside which a credential is eligible for renewal, so hot paths never pay refresh latency. One constant (`REFRESH_BUFFER`) serves both the beat's scan predicate and the guard inside the refresh function — two different values there is the defect ADR-081 gap 6 records (ADR-080, corrected by ADR-081).
 
 **needs_reauth**: Terminal credential status set when the refresh chain is unrecoverable (invalid grant / refresh token expired); resolvers fail closed naming the re-OAuth runbook step. Only a human completing OAuth clears it (ADR-080). _Avoid_: "expired credential" (expiry is recoverable; needs_reauth is not).
+
+**Refresh-token rotation**: TikTok returns a *new* refresh token on every refresh and invalidates the old one, so a refresh is a replacement of credential material, not a top-up. Two concurrent refreshes of one row can persist a dead refresh token — an unrecoverable shop — which is why every refresh goes through one guarded door holding a session-level advisory lock and re-reading the row after acquiring it (ADR-081). Distinct from **Credential lifecycle**, which is the surrounding automation.
+
+**`token_expires_at`**: The **access** token's expiry, despite the unqualified name; `refresh_token_expires_at` is the separate, nullable column. It is a *cache of the vendor's opinion* and can be wrong — it may only ever be written from a vendor token response, never synthesized, because a wrong expiry suppresses the refresh that would correct it (ADR-081). _Avoid_: reading it as "the credential expires at".
