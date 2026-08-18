@@ -53,11 +53,13 @@ from juli_backend.services.agent.llm import (
     Usage,
 )
 from juli_backend.services.agent.llm.fake import FakeLLMService
+from juli_backend.services.agent.llm.openai_adapter import LLMProviderError
 from juli_backend.services.agent.playbooks.base import Playbook, PlaybookStep, TerminationPolicy
 from juli_backend.services.agent.playbooks.optimize_product import (
     OPTIMIZE_PRODUCT_PLAYBOOK,
     OPTIMIZE_PRODUCT_TERMINATION_POLICY,
 )
+from juli_backend.services.agent.runner.concurrency import ConcurrencyExhaustedError
 from juli_backend.services.agent.runner.core import RunResult, WorkflowRunner
 from juli_backend.services.agent.runner.state import RunState
 from juli_backend.services.agent.runner.status import StopReason, WorkflowRunStatus, status_for
@@ -86,10 +88,20 @@ TERMINATION_MODULE_PATH = (
 
 class _InMemoryConversationStore:
     """A minimal `ConversationStore` double — no database, matching the
-    protocol shape `test_agent_runner_core.py`'s own stub uses."""
+    protocol shape `test_agent_runner_core.py`'s own stub uses.
+
+    `persist`'s `status`/`stop_reason` keyword-only parameters (issue #1178)
+    are accepted and recorded — this double is exercised by real
+    `WorkflowRunner.run()`/`resume()` calls, which pass them at every
+    terminal exit, so a signature that only takes `(workflow_run_id, state)`
+    would raise `TypeError` the first time this module's own tests reach a
+    terminal `stop_reason` (nearly all of them, being #1120's own
+    termination-policy suite)."""
 
     def __init__(self) -> None:
         self._store: dict[uuid.UUID, RunState] = {}
+        self._status: dict[uuid.UUID, WorkflowRunStatus] = {}
+        self._stop_reason: dict[uuid.UUID, StopReason] = {}
 
     def seed(self, workflow_run_id: uuid.UUID, state: RunState | None = None) -> None:
         self._store[workflow_run_id] = state if state is not None else RunState()
@@ -97,8 +109,18 @@ class _InMemoryConversationStore:
     async def load(self, workflow_run_id: uuid.UUID) -> RunState:
         return self._store[workflow_run_id]
 
-    async def persist(self, workflow_run_id: uuid.UUID, state: RunState) -> None:
+    async def persist(
+        self,
+        workflow_run_id: uuid.UUID,
+        state: RunState,
+        *,
+        status: WorkflowRunStatus | None = None,
+        stop_reason: StopReason | None = None,
+    ) -> None:
         self._store[workflow_run_id] = state
+        if status is not None:
+            self._status[workflow_run_id] = status
+            self._stop_reason[workflow_run_id] = stop_reason
 
     def state_for(self, workflow_run_id: uuid.UUID) -> RunState:
         return self._store[workflow_run_id]
@@ -119,6 +141,34 @@ class _SpyToolExecutor:
         # shaped, unchanged from before #1145.
         self.calls.append((tool_name, params))
         return dict(self._result)
+
+
+class _RaisingLLMService:
+    """`LLMService` double that raises a caller-supplied exception from
+    `complete()` — issue #1172's reachability fake for `llm_error`'s own
+    dedicated scenario in this suite's stop_reason enumeration."""
+
+    def __init__(self, exc: BaseException) -> None:
+        self._exc = exc
+
+    async def complete(self, *, messages: Any, system: str, tools: Any, config: Any) -> Any:
+        raise self._exc
+
+
+class _RaisingToolExecutor:
+    """`ToolExecutor` double that raises a caller-supplied exception from
+    `execute()` — issue #1172's reachability fake for `concurrency_conflict`'s
+    own dedicated scenario in this suite's stop_reason enumeration."""
+
+    def __init__(self, exc: BaseException) -> None:
+        self._exc = exc
+        self.calls: list[str] = []
+
+    def execute(
+        self, *, tool_name: str, params: Any, tool_call_id: str | None = None
+    ) -> dict[str, Any]:
+        self.calls.append(tool_name)
+        raise self._exc
 
 
 class _CancelFlippingToolExecutor:
@@ -971,13 +1021,58 @@ async def _wall_clock_timeout_scenario() -> RunResult:
     return await runner.run(run_id, product_ref="prod-1")
 
 
+async def _llm_error_scenario() -> RunResult:
+    """Issue #1172: `LLMProviderError` out of `LLMService.complete()`
+    translated into a terminal `stop_reason=llm_error` run."""
+    run_id = uuid.uuid4()
+    store = _InMemoryConversationStore()
+    store.seed(run_id)
+    playbook = _minimal_playbook((_step("get_product_information"),))
+    runner = _runner(
+        llm_service=_RaisingLLMService(LLMProviderError("OpenAI Responses API returned HTTP 500")),
+        tool_executor=_SpyToolExecutor(),
+        event_sink=InMemoryEventSink(),
+        conversation_store=store,
+        playbook=playbook,
+        registry=_full_registry(),
+    )
+    return await runner.run(run_id, product_ref="prod-1")
+
+
+async def _concurrency_conflict_scenario() -> RunResult:
+    """Issue #1172: `ConcurrencyExhaustedError` out of `ToolExecutor.execute`
+    translated into a terminal `stop_reason=concurrency_conflict` run."""
+    run_id = uuid.uuid4()
+    store = _InMemoryConversationStore()
+    store.seed(run_id)
+    playbook = _minimal_playbook((_step("get_product_information"),))
+    llm = _llm(
+        _turn(ToolCallBlock(call_id="c1", tool_name="get_product_information", arguments={}))
+    )
+    runner = _runner(
+        llm_service=llm,
+        tool_executor=_RaisingToolExecutor(
+            ConcurrencyExhaustedError(operation="get_product_information")
+        ),
+        event_sink=InMemoryEventSink(),
+        conversation_store=store,
+        playbook=playbook,
+        registry=_full_registry(),
+    )
+    return await runner.run(run_id, product_ref="prod-1")
+
+
 # The stop_reasons this slice's code (core.py + termination.py) can actually
-# produce, given today's worktree — #1121 (ledger), #1122 (concurrency), and
-# #1123 (pause/resume) are all later slices this issue explicitly does not
-# implement, so their stop reasons are not yet reachable by any code this
-# module ships. `llm_error` likewise has no producer in this slice (no
-# LLMService.complete() error-translation exists yet). See core.py's module
-# docstring, "What this slice still deliberately does not do".
+# produce, given today's worktree. `concurrency_conflict` and `llm_error`
+# joined this set via issue #1172 (`ConcurrencyExhaustedError` /
+# `LLMProviderError` exception translation in core.py); `tool_error_unrecoverable`
+# now has two independent producers here (self-correction give-up, and
+# #1172's `ToolExecutionUnrecoverableError` translation) but stays a single
+# entry — this set names reachable *stop_reasons*, not producers. #1121's
+# ledger and #1122's concurrency guard are still not *constructed* by any
+# code in this module (that stays the Celery task shell's job, per
+# `tool_executor.py`'s own docstring) — only the exception types they can
+# raise are now translated if a caller's collaborators produce them.
 _REACHABLE_BY_THIS_SLICE: frozenset[StopReason] = frozenset(
     {
         StopReason.FINAL_RESPONSE,
@@ -985,6 +1080,8 @@ _REACHABLE_BY_THIS_SLICE: frozenset[StopReason] = frozenset(
         StopReason.CANCELLED_BY_SELLER,
         StopReason.ITERATION_CAP_EXCEEDED,
         StopReason.WALL_CLOCK_TIMEOUT,
+        StopReason.CONCURRENCY_CONFLICT,
+        StopReason.LLM_ERROR,
     }
 )
 
@@ -993,8 +1090,6 @@ _DEFERRED_TO_LATER_SLICES: frozenset[StopReason] = frozenset(
         StopReason.CONFIRMATION_DECLINED,
         StopReason.PAUSED_FOR_CONFIRMATION,
         StopReason.CONFIRMATION_EXPIRED,
-        StopReason.CONCURRENCY_CONFLICT,
-        StopReason.LLM_ERROR,
     }
 )
 
@@ -1031,6 +1126,8 @@ class TestStopReasonReachability:
             StopReason.CANCELLED_BY_SELLER: await _cancelled_by_seller_scenario(),
             StopReason.ITERATION_CAP_EXCEEDED: await _iteration_cap_exceeded_scenario(),
             StopReason.WALL_CLOCK_TIMEOUT: await _wall_clock_timeout_scenario(),
+            StopReason.CONCURRENCY_CONFLICT: await _concurrency_conflict_scenario(),
+            StopReason.LLM_ERROR: await _llm_error_scenario(),
         }
 
         # Every scenario actually produced the stop_reason it was scripted for.

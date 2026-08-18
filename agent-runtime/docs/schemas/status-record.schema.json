@@ -39,7 +39,7 @@
         },
         "warningsAcknowledged": {
           "type": "boolean",
-          "description": "#1141: every gating WARNING finding carries reviewer acceptance plus owner ack. Derived by generate_status_records.py from the same common helper check_findings_acknowledged.py uses; absent reads as false, keeping the retention guard fail-closed."
+          "description": "#1141: every gating WARNING finding carries reviewer acceptance plus owner ack. Derived by generate_status_records.py from the same common helper check_findings_acknowledged.py uses; absent reads as false, keeping the retention guard (and the wave-tier gate, #1170) fail-closed."
         },
         "ownerSignoffPresent": {
           "type": "boolean",

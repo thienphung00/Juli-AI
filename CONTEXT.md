@@ -524,3 +524,9 @@ _Avoid_: marketplace plugin skills as domain executors
 **Integrations domain**:
 Executor domain for vendor HTTP clients, inbound webhooks, polling/sync, and analytics backfill. Does **not** own Juli product API routes, scoring/copy, or JWT session auth (**backend**); does **not** own schema/migrations/ETL durability (**data-platform**).
 _Avoid_: TikTok domain, overlapping ownership with backend for `/v1/*` routes
+
+**Credential lifecycle**: The automatic care of a TikTok OAuth credential row from provisioning to re-authorization: refresh-ahead beat scanning, lazy refresh at resolution, single-flight locking, and the `needs_reauth` terminal state (ADR-080). _Avoid_: "token management", "token rotation" (rotation implies key material we do not control).
+
+**Refresh-ahead window**: The period before access-token expiry (24h) inside which the credential refresh beat proactively renews the token so hot paths never pay refresh latency (ADR-080).
+
+**needs_reauth**: Terminal credential status set when the refresh chain is unrecoverable (invalid grant / refresh token expired); resolvers fail closed naming the re-OAuth runbook step. Only a human completing OAuth clears it (ADR-080). _Avoid_: "expired credential" (expiry is recoverable; needs_reauth is not).

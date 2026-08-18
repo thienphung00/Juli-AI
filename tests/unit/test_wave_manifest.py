@@ -48,17 +48,24 @@ def _write_status_record(
     wrong_issue: int | None = None,
     review_sha256: str | None = None,
     validation_sha256: str | None = None,
+    warnings_acknowledged: bool | None = None,
+    owner_signoff_present: bool | None = None,
 ) -> None:
     status_dir = repo / "agent-runtime" / "artifacts" / "status"
     status_dir.mkdir(parents=True, exist_ok=True)
+    review: dict[str, Any] = {
+        "status": review_status,
+        "artifactRef": f"git-history:agent-runtime/artifacts/reviews/review-issue-{issue}.json",
+        "sha256": review_sha256 or hashlib.sha256(b"review").hexdigest(),
+    }
+    if warnings_acknowledged is not None:
+        review["warningsAcknowledged"] = warnings_acknowledged
+    if owner_signoff_present is not None:
+        review["ownerSignoffPresent"] = owner_signoff_present
     payload = {
         "issue": wrong_issue if wrong_issue is not None else issue,
         "wave": None,
-        "review": {
-            "status": review_status,
-            "artifactRef": f"git-history:agent-runtime/artifacts/reviews/review-issue-{issue}.json",
-            "sha256": review_sha256 or hashlib.sha256(b"review").hexdigest(),
-        },
+        "review": review,
         "validation": {
             "status": validation_status,
             "artifactRef": (
@@ -184,6 +191,88 @@ def test_wave_artifacts_fail_when_validation_not_pass(tmp_path: Path, monkeypatc
     result = validate_wave_artifacts(_valid_manifest(issues=[659]))
     assert result["valid"] is False
     assert any("validation status" in error for error in result["errors"])
+
+
+# --- #1170: PASS_WITH_WARNINGS, fully signed off, is landable (#1141 twin) ---
+
+
+def test_wave_artifacts_pass_for_signed_off_pass_with_warnings(tmp_path: Path, monkeypatch) -> None:
+    _patch_status_dir(monkeypatch, tmp_path)
+
+    _write_status_record(
+        tmp_path,
+        659,
+        review_status="PASS_WITH_WARNINGS",
+        warnings_acknowledged=True,
+        owner_signoff_present=True,
+    )
+
+    result = validate_wave_artifacts(_valid_manifest(issues=[659]))
+    assert result["valid"] is True
+    assert result["errors"] == []
+
+
+def test_wave_artifacts_fail_when_pass_with_warnings_missing_warnings_acknowledged(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _patch_status_dir(monkeypatch, tmp_path)
+
+    _write_status_record(
+        tmp_path,
+        659,
+        review_status="PASS_WITH_WARNINGS",
+        warnings_acknowledged=False,
+        owner_signoff_present=True,
+    )
+
+    result = validate_wave_artifacts(_valid_manifest(issues=[659]))
+    assert result["valid"] is False
+    assert any(
+        "review is PASS_WITH_WARNINGS but warningsAcknowledged is not true" in error
+        for error in result["errors"]
+    )
+
+
+def test_wave_artifacts_fail_when_pass_with_warnings_missing_owner_signoff(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _patch_status_dir(monkeypatch, tmp_path)
+
+    _write_status_record(
+        tmp_path,
+        659,
+        review_status="PASS_WITH_WARNINGS",
+        warnings_acknowledged=True,
+        owner_signoff_present=False,
+    )
+
+    result = validate_wave_artifacts(_valid_manifest(issues=[659]))
+    assert result["valid"] is False
+    assert any(
+        "review is PASS_WITH_WARNINGS but ownerSignoffPresent is not true" in error
+        for error in result["errors"]
+    )
+
+
+def test_wave_artifacts_fail_when_pass_with_warnings_has_neither_signoff_boolean(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A record written before #1141/#1170 carries no signoff booleans at all.
+    Absent must read as False — the gate never infers a signoff it cannot see."""
+    _patch_status_dir(monkeypatch, tmp_path)
+
+    _write_status_record(tmp_path, 659, review_status="PASS_WITH_WARNINGS")
+
+    result = validate_wave_artifacts(_valid_manifest(issues=[659]))
+    assert result["valid"] is False
+    assert any(
+        "review is PASS_WITH_WARNINGS but warningsAcknowledged is not true" in error
+        for error in result["errors"]
+    )
+    assert any(
+        "review is PASS_WITH_WARNINGS but ownerSignoffPresent is not true" in error
+        for error in result["errors"]
+    )
 
 
 def test_do_not_modify_github_workflows_pr_yml_in_slice() -> None:

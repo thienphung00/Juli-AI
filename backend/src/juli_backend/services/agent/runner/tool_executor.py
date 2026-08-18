@@ -64,8 +64,14 @@ entirely, returning the sanitized `{"conflict": True, "current_values":
 vendor write call is ever reached (zero vendor calls on a mismatch,
 ADR-073 decision 4: "rejected before signing"). A `ConcurrencyMatch` falls
 through to dispatch unchanged; a second same-operation mismatch raises
-`ConcurrencyExhaustedError` straight out of `execute` (uncaught, mirroring
-`ToolExecutionUnrecoverableError`'s propagation). `get_product_information`
+`ConcurrencyExhaustedError` straight out of `execute` — this module never
+catches it itself, mirroring `ToolExecutionUnrecoverableError`'s
+propagation. Both are caught by the caller: `WorkflowRunner` (`core.py`,
+issue #1172) wraps both of its `ToolExecutor.execute` call sites
+(`_dispatch_tool_call` and `resume`) and translates whichever of the two
+propagates into a graceful terminal run — `stop_reason=concurrency_conflict`
+/ `tool_error_unrecoverable` respectively, via the same `workflow.failed`
+machinery every other terminal reason uses. `get_product_information`
 READ dispatch additionally re-reads the product once more to call
 `ConcurrencyGuard.record_basis` — the "captured when the agent reads the
 product" half of decision 4 — and a successful WRITE dispatch refreshes the
@@ -244,7 +250,10 @@ class ProductToolExecutor:
         # write call) is never reached, which is the whole of how "rejected
         # before signing, zero vendor calls" holds. A second same-operation
         # mismatch raises ConcurrencyExhaustedError out of this method,
-        # uncaught, mirroring ToolExecutionUnrecoverableError's propagation.
+        # uncaught here (mirroring ToolExecutionUnrecoverableError's
+        # propagation) — WorkflowRunner (core.py) is what catches it and
+        # translates it into a terminal stop_reason=concurrency_conflict
+        # run (issue #1172).
         if (
             is_scoped_write
             and self._concurrency_guard is not None

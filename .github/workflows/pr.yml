@@ -892,6 +892,22 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+      # Dual-language contract tests (#1126's tests/unit/test_agent_events_contract.py)
+      # shell out to `node -e` and `require("typescript")` with cwd
+      # packages/contracts, so this job needs the same contracts dependency
+      # graph the `test` job installs. Without it every such test fails with a
+      # bare CalledProcessError — a job-config gap, not a product defect
+      # (observed on the W3 wave push tier, 24 failures).
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install contracts dependency graph
+        run: pnpm install --frozen-lockfile --filter "./packages/contracts..."
       - name: Install backend dependencies
         run: pip install -e "./backend[dev]" -c backend/constraints.txt
       - name: Log resolved backend dependency versions
@@ -941,6 +957,19 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+      # Same reason as cross-module-contracts above: this job runs the whole
+      # of tests/unit, which includes the node-shelling dual-language contract
+      # tests. The `test` job already installs this graph; these two did not.
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install contracts dependency graph
+        run: pnpm install --frozen-lockfile --filter "./packages/contracts..."
       - name: Install backend dependencies
         run: pip install -e "./backend[dev]" -c backend/constraints.txt
       - name: Log resolved backend dependency versions

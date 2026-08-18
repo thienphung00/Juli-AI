@@ -18,6 +18,7 @@ via a stubbed `ProductionReadResources` (mirrors
 from __future__ import annotations
 
 import ast
+import asyncio
 import uuid
 from pathlib import Path
 from typing import Any
@@ -35,13 +36,16 @@ from juli_backend.services.agent.llm import (
     Usage,
 )
 from juli_backend.services.agent.llm.fake import FakeLLMService
+from juli_backend.services.agent.llm.openai_adapter import LLMProviderError
 from juli_backend.services.agent.playbooks.base import Playbook, PlaybookStep
 from juli_backend.services.agent.playbooks.optimize_product import (
     OPTIMIZE_PRODUCT_PLAYBOOK,
     OPTIMIZE_PRODUCT_TERMINATION_POLICY,
 )
 from juli_backend.services.agent.prompts.composer import prompt_sha256, prompt_version
+from juli_backend.services.agent.runner.concurrency import ConcurrencyExhaustedError
 from juli_backend.services.agent.runner.core import RunResult, WorkflowRunner
+from juli_backend.services.agent.runner.ledger import ToolExecutionUnrecoverableError
 from juli_backend.services.agent.runner.state import RunState
 from juli_backend.services.agent.runner.status import StopReason, WorkflowRunStatus
 from juli_backend.services.agent.runner.tool_executor import ProductToolExecutor
@@ -59,10 +63,19 @@ CORE_MODULE_PATH = REPO_ROOT / "backend/src/juli_backend/services/agent/runner/c
 
 class _InMemoryConversationStore:
     """A minimal `ConversationStore` double — no database, matching the
-    protocol shape `test_conversation_store.py`'s own stub uses."""
+    protocol shape `test_conversation_store.py`'s own stub uses.
+
+    `persist`'s `status`/`stop_reason` keyword-only parameters (issue #1178)
+    are accepted and recorded on `self._status`/`self._stop_reason` — this
+    double is exercised by real `WorkflowRunner.run()`/`resume()` calls,
+    which pass them at every terminal exit, so a signature that only takes
+    `(workflow_run_id, state)` would raise `TypeError` the first time this
+    module's own tests reach a terminal `stop_reason`."""
 
     def __init__(self) -> None:
         self._store: dict[uuid.UUID, RunState] = {}
+        self._status: dict[uuid.UUID, WorkflowRunStatus] = {}
+        self._stop_reason: dict[uuid.UUID, StopReason] = {}
 
     def seed(self, workflow_run_id: uuid.UUID, state: RunState | None = None) -> None:
         self._store[workflow_run_id] = state if state is not None else RunState()
@@ -70,8 +83,18 @@ class _InMemoryConversationStore:
     async def load(self, workflow_run_id: uuid.UUID) -> RunState:
         return self._store[workflow_run_id]
 
-    async def persist(self, workflow_run_id: uuid.UUID, state: RunState) -> None:
+    async def persist(
+        self,
+        workflow_run_id: uuid.UUID,
+        state: RunState,
+        *,
+        status: WorkflowRunStatus | None = None,
+        stop_reason: StopReason | None = None,
+    ) -> None:
         self._store[workflow_run_id] = state
+        if status is not None:
+            self._status[workflow_run_id] = status
+            self._stop_reason[workflow_run_id] = stop_reason
 
 
 class _SpyToolExecutor:
@@ -89,6 +112,42 @@ class _SpyToolExecutor:
         # shaped, unchanged from before #1145.
         self.calls.append((tool_name, params))
         return dict(self._result)
+
+
+class _RaisingLLMService:
+    """`LLMService` double that raises a caller-supplied exception from
+    `complete()` instead of returning a scripted turn — issue #1172's fake
+    for proving `WorkflowRunner` translates the provider's own typed
+    exception surface (or lets an unrelated exception, e.g.
+    `asyncio.CancelledError`, propagate untouched) rather than crashing raw
+    or swallowing something it must not."""
+
+    def __init__(self, exc: BaseException) -> None:
+        self._exc = exc
+        self.call_count = 0
+
+    async def complete(self, *, messages: Any, system: str, tools: Any, config: Any) -> Any:
+        self.call_count += 1
+        raise self._exc
+
+
+class _RaisingToolExecutor:
+    """`ToolExecutor` double that raises a caller-supplied exception from
+    `execute()` instead of returning a result — issue #1172's fake for
+    proving `WorkflowRunner` translates `ConcurrencyExhaustedError` /
+    `ToolExecutionUnrecoverableError` at both dispatch sites
+    (`_dispatch_tool_call` and `resume`), and does not swallow an unrelated
+    exception such as `asyncio.CancelledError`."""
+
+    def __init__(self, exc: BaseException) -> None:
+        self._exc = exc
+        self.calls: list[tuple[str, Any]] = []
+
+    def execute(
+        self, *, tool_name: str, params: Any, tool_call_id: str | None = None
+    ) -> dict[str, Any]:
+        self.calls.append((tool_name, params))
+        raise self._exc
 
 
 class _FakeProductsResource:
@@ -708,6 +767,247 @@ class TestHappyPath:
         completed = [e for e in sink.events if e.event_type == "workflow.completed"]
         assert len(completed) == 1
         assert completed[0].payload.stop_reason == StopReason.FINAL_RESPONSE
+
+
+# --- AC: exception translation for llm_error / concurrency_conflict /
+# tool_error_unrecoverable (issue #1172) ------------------------------------
+
+
+class TestLLMErrorTranslation:
+    async def test_llm_provider_error_ends_the_run_with_llm_error_stop_reason(self):
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(run_id)
+        sink = InMemoryEventSink()
+        playbook = _minimal_playbook((_step("get_product_information"),))
+        llm = _RaisingLLMService(LLMProviderError("OpenAI Responses API returned HTTP 500"))
+
+        runner = WorkflowRunner(
+            llm_service=llm,
+            tool_executor=_SpyToolExecutor(),
+            event_sink=sink,
+            conversation_store=store,
+            registry=_full_registry(),
+            playbook=playbook,
+        )
+
+        result = await runner.run(run_id, product_ref="prod-1")
+
+        assert llm.call_count == 1
+        assert result.stop_reason == StopReason.LLM_ERROR
+        assert result.status == WorkflowRunStatus.FAILED
+        assert result.final_response is None
+
+        failed = [e for e in sink.events if e.event_type == "workflow.failed"]
+        assert len(failed) == 1
+        assert failed[0].payload.stop_reason == StopReason.LLM_ERROR
+        assert failed[0].payload.status == WorkflowRunStatus.FAILED
+
+        # No iteration was completed -- the failed attempt never advances
+        # iteration_count, mirroring the checkpoint-terminate branches.
+        assert store._store[run_id].iteration_count == 0
+
+
+class TestConcurrencyConflictTranslation:
+    async def test_concurrency_exhausted_error_ends_the_run_via_dispatch_tool_call(self):
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(run_id)
+        sink = InMemoryEventSink()
+        playbook = _minimal_playbook((_step("get_product_information"),))
+        executor = _RaisingToolExecutor(
+            ConcurrencyExhaustedError(operation="get_product_information")
+        )
+
+        runner = _runner(
+            script=[
+                _turn(
+                    ToolCallBlock(call_id="c1", tool_name="get_product_information", arguments={})
+                )
+            ],
+            tool_executor=executor,
+            event_sink=sink,
+            conversation_store=store,
+            playbook=playbook,
+            registry=_full_registry(),
+        )
+
+        result = await runner.run(run_id, product_ref="prod-1")
+
+        assert len(executor.calls) == 1  # execute() was genuinely reached, then raised
+        assert result.stop_reason == StopReason.CONCURRENCY_CONFLICT
+        assert result.status == WorkflowRunStatus.FAILED
+
+        failed = [e for e in sink.events if e.event_type == "workflow.failed"]
+        assert len(failed) == 1
+        assert failed[0].payload.stop_reason == StopReason.CONCURRENCY_CONFLICT
+        assert failed[0].payload.status == WorkflowRunStatus.FAILED
+
+    async def test_concurrency_exhausted_error_ends_the_run_via_resume(self):
+        """The second of the two dispatch sites (issue #1172's `resume`
+        call site) — a paused CONFIRM tool call resumed straight into a
+        `ConcurrencyExhaustedError` from `execute()`."""
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(
+            run_id,
+            RunState(
+                pending_confirmation={
+                    "call_id": "c1",
+                    "tool_name": "update_product_price",
+                    "arguments": {"skus": [{"sku_ref": "S1", "amount": "1000"}]},
+                }
+            ),
+        )
+        sink = InMemoryEventSink()
+        playbook = _minimal_playbook((_step("update_product_price", policy=ToolPolicy.CONFIRM),))
+        executor = _RaisingToolExecutor(ConcurrencyExhaustedError(operation="update_product_price"))
+
+        runner = _runner(
+            script=[],
+            tool_executor=executor,
+            event_sink=sink,
+            conversation_store=store,
+            playbook=playbook,
+            registry=_full_registry(),
+        )
+
+        result = await runner.resume(run_id, approved=True)
+
+        assert len(executor.calls) == 1
+        assert result.stop_reason == StopReason.CONCURRENCY_CONFLICT
+        assert result.status == WorkflowRunStatus.FAILED
+        failed = [e for e in sink.events if e.event_type == "workflow.failed"]
+        assert len(failed) == 1
+        assert failed[0].payload.stop_reason == StopReason.CONCURRENCY_CONFLICT
+
+
+class TestToolErrorUnrecoverableViaLedgerTranslation:
+    """`tool_error_unrecoverable` already had one producer before this issue
+    (self-correction give-up, `TestSelfCorrection`) — this class proves the
+    *second*, newly-reachable producer: `ledger.py`'s fail-closed
+    `ToolExecutionUnrecoverableError`, caught at both `ToolExecutor.execute`
+    call sites and translated exactly like `ConcurrencyExhaustedError`."""
+
+    async def test_ledger_unrecoverable_error_ends_the_run_via_dispatch_tool_call(self):
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(run_id)
+        sink = InMemoryEventSink()
+        playbook = _minimal_playbook((_step("get_product_information"),))
+        executor = _RaisingToolExecutor(
+            ToolExecutionUnrecoverableError(
+                workflow_run_id=run_id,
+                tool_call_id="c1",
+                operation="get_product_information",
+            )
+        )
+
+        runner = _runner(
+            script=[
+                _turn(
+                    ToolCallBlock(call_id="c1", tool_name="get_product_information", arguments={})
+                )
+            ],
+            tool_executor=executor,
+            event_sink=sink,
+            conversation_store=store,
+            playbook=playbook,
+            registry=_full_registry(),
+        )
+
+        result = await runner.run(run_id, product_ref="prod-1")
+
+        assert len(executor.calls) == 1
+        assert result.stop_reason == StopReason.TOOL_ERROR_UNRECOVERABLE
+        assert result.status == WorkflowRunStatus.FAILED
+        failed = [e for e in sink.events if e.event_type == "workflow.failed"]
+        assert len(failed) == 1
+        assert failed[0].payload.stop_reason == StopReason.TOOL_ERROR_UNRECOVERABLE
+
+    async def test_ledger_unrecoverable_error_ends_the_run_via_resume(self):
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(
+            run_id,
+            RunState(
+                pending_confirmation={
+                    "call_id": "c1",
+                    "tool_name": "update_product_price",
+                    "arguments": {"skus": [{"sku_ref": "S1", "amount": "1000"}]},
+                }
+            ),
+        )
+        sink = InMemoryEventSink()
+        playbook = _minimal_playbook((_step("update_product_price", policy=ToolPolicy.CONFIRM),))
+        executor = _RaisingToolExecutor(
+            ToolExecutionUnrecoverableError(
+                workflow_run_id=run_id,
+                tool_call_id="c1",
+                operation="update_product_price",
+            )
+        )
+
+        runner = _runner(
+            script=[],
+            tool_executor=executor,
+            event_sink=sink,
+            conversation_store=store,
+            playbook=playbook,
+            registry=_full_registry(),
+        )
+
+        result = await runner.resume(run_id, approved=True)
+
+        assert len(executor.calls) == 1
+        assert result.stop_reason == StopReason.TOOL_ERROR_UNRECOVERABLE
+        assert result.status == WorkflowRunStatus.FAILED
+
+
+class TestNewHandlersDoNotSwallowCancellation:
+    """Issue #1172's explicit non-goal: the new `except ConcurrencyExhaustedError
+    | ToolExecutionUnrecoverableError | LLMProviderError` handlers must stay
+    exactly that specific — `asyncio.CancelledError` (checkpoint/task
+    cancellation semantics) must keep propagating straight out of `run()`,
+    never converted into a graceful terminal `RunResult`."""
+
+    async def test_cancelled_error_from_the_llm_call_propagates_out_of_run(self):
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(run_id)
+        playbook = _minimal_playbook((_step("get_product_information"),))
+        runner = WorkflowRunner(
+            llm_service=_RaisingLLMService(asyncio.CancelledError()),
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            registry=_full_registry(),
+            playbook=playbook,
+        )
+
+        with pytest.raises(asyncio.CancelledError):
+            await runner.run(run_id, product_ref="prod-1")
+
+    async def test_cancelled_error_from_the_tool_executor_propagates_out_of_run(self):
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(run_id)
+        playbook = _minimal_playbook((_step("get_product_information"),))
+        runner = _runner(
+            script=[
+                _turn(
+                    ToolCallBlock(call_id="c1", tool_name="get_product_information", arguments={})
+                )
+            ],
+            tool_executor=_RaisingToolExecutor(asyncio.CancelledError()),
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            playbook=playbook,
+            registry=_full_registry(),
+        )
+
+        with pytest.raises(asyncio.CancelledError):
+            await runner.run(run_id, product_ref="prod-1")
 
 
 # --- AC: EventSink imported, not redefined --------------------------------------
