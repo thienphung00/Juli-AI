@@ -161,6 +161,106 @@ async def test_create_run_creates_row_and_enqueues_run_agent_workflow(
 
 
 # ---------------------------------------------------------------------------
+# AC (#1188) -- the row this route creates must actually be runnable.
+#
+# These cross the route -> `RunState.from_dict` seam. Every other test in the
+# suite constructs `RunState` directly, which is why `state={}` shipped and
+# crashed every real run at `WorkflowRunner.run()`'s first statement. Found by
+# the #1124 live smoke against real credentials, not by 3,886 unit tests.
+# ---------------------------------------------------------------------------
+
+
+async def test_created_run_state_loads_through_the_runners_own_reader(
+    app, session, user, shop, product
+):
+    """The regression. `run()` opens with `conversation_store.load()`, which is
+    `RunState.from_dict(run.state)` -- a reader that rejects a partial blob by
+    design. Assert with the real deserializer, not a shape check, so this test
+    fails for the same reason production would."""
+    from juli_backend.services.agent.runner import RunState
+
+    mock_task = _mock_run_agent_workflow_task()
+    with patch("juli_backend.workers.tasks.agent_workflow.run_agent_workflow", mock_task):
+        async with _client_for(app, user, shop) as client:
+            resp = await client.post("/v1/demo/runs", json={"product_id": str(product.id)})
+
+    run_id = uuid.UUID(resp.json()["id"])
+    run = (
+        await session.execute(select(WorkflowRunRow).where(WorkflowRunRow.id == run_id))
+    ).scalar_one()
+
+    state = RunState.from_dict(run.state)  # would raise RunStateFieldMissingError before #1188
+    assert state.iteration_count == 0
+    assert state.pending_confirmation is None
+
+
+async def test_created_run_carries_the_opening_juli_context_message(
+    app, session, user, shop, product
+):
+    """Prompt contract (`prompts/optimize_product/v1.md` Sec.3-4): the model is
+    told signals and the ActionCard rationale "arrive in the opening context
+    message". Without it the run executes while grounded in context it never
+    received -- a silent correctness failure."""
+    import json
+
+    mock_task = _mock_run_agent_workflow_task()
+    with patch("juli_backend.workers.tasks.agent_workflow.run_agent_workflow", mock_task):
+        async with _client_for(app, user, shop) as client:
+            resp = await client.post("/v1/demo/runs", json={"product_id": str(product.id)})
+
+    run_id = uuid.UUID(resp.json()["id"])
+    run = (
+        await session.execute(select(WorkflowRunRow).where(WorkflowRunRow.id == run_id))
+    ).scalar_one()
+
+    first = run.state["conversation_window"][0]
+    assert first["role"] == "user"
+    opening = json.loads(first["content"])
+    assert opening["source"] == "juli"
+    assert opening["action_card"]["workflow_key"]
+    assert opening["action_card"]["rationale"]
+
+
+async def test_rationale_comes_from_the_action_card_when_one_raised_the_work(
+    app, session, user, shop, product
+):
+    """When a real ActionCard exists for the shop's workflow, its own
+    description is the rationale -- the model gets the reason the seller
+    actually saw, not a generic stand-in."""
+    import json
+
+    from juli_backend.models.models import ActionCard
+    from juli_backend.services.agent import playbooks as playbooks_module
+
+    card = ActionCard(
+        shop_id=shop.id,
+        workflow_key=playbooks_module.OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key,
+        priority=1,
+        severity="medium",
+        title="Listing health",
+        description="CTR fell 18% week over week on this listing.",
+        recommendation_payload=json.dumps({}),
+        status="active",
+        computed_at=datetime.now(UTC).replace(tzinfo=None),
+    )
+    session.add(card)
+    await session.commit()
+
+    mock_task = _mock_run_agent_workflow_task()
+    with patch("juli_backend.workers.tasks.agent_workflow.run_agent_workflow", mock_task):
+        async with _client_for(app, user, shop) as client:
+            resp = await client.post("/v1/demo/runs", json={"product_id": str(product.id)})
+
+    run_id = uuid.UUID(resp.json()["id"])
+    run = (
+        await session.execute(select(WorkflowRunRow).where(WorkflowRunRow.id == run_id))
+    ).scalar_one()
+
+    opening = json.loads(run.state["conversation_window"][0]["content"])
+    assert opening["action_card"]["rationale"] == "CTR fell 18% week over week on this listing."
+
+
+# ---------------------------------------------------------------------------
 # AC -- tenant scoping, no existence oracle
 # ---------------------------------------------------------------------------
 
