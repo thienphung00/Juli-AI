@@ -557,6 +557,94 @@ class TestRequestTranslation:
         assert tool_result_item["call_id"] == "call_abc123"
         assert tool_result_item["output"] == '{"sku": "SKU-42", "quantity": 214}'
 
+    async def test_a_full_tool_turn_round_trips_as_function_call_plus_output(self, _with_api_key):
+        """Issue #1191 -- the regression the per-message tests could not catch.
+
+        The Responses API is stateless: a `function_call_output` is only valid
+        when the same request replays the `function_call` it answers. Before
+        this fix the runner's assistant tool-call message fell through to the
+        generic text branch and became an empty `output_text`, so the output
+        item referenced a `call_id` absent from the request and OpenAI answered
+        400 -- every tool-using run died on its second turn.
+
+        Every other test here translates ONE message and asserts its shape.
+        Only a whole conversation exposes the mismatch, which is why this
+        shipped: the suite asserted our belief about the API, and the belief was
+        wrong. Asserts order and id agreement across the pair, not just the
+        presence of each item.
+        """
+        captured: list[dict[str, Any]] = []
+        adapter = OpenAIResponsesAdapter(
+            transport=_stub_transport(
+                response_body=RECORDED_RESPONSE_TEXT_ONLY, captured_requests=captured
+            )
+        )
+
+        await adapter.complete(
+            messages=[
+                {"role": "user", "content": "Optimize this listing."},
+                # Exactly the shape `runner/core.py::_tool_call_message` appends.
+                {
+                    "role": "assistant",
+                    "tool_call": {
+                        "call_id": "call_seo_1",
+                        "tool_name": "get_seo_keywords",
+                        "arguments": {"product_id": "123"},
+                    },
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_seo_1",
+                    "content": '{"keywords": ["hydrogen water"]}',
+                },
+            ],
+            system="system",
+            tools=[],
+            config=_config(),
+        )
+
+        items = captured[0]["input"]
+        assert len(items) == 3, "the assistant proposal must not be dropped or merged"
+
+        proposal, output = items[1], items[2]
+        assert proposal["type"] == "function_call"
+        assert proposal["name"] == "get_seo_keywords"
+        assert output["type"] == "function_call_output"
+        assert proposal["call_id"] == output["call_id"] == "call_seo_1", (
+            "a function_call_output whose call_id has no matching function_call "
+            "in the same request is exactly what OpenAI rejects with 400"
+        )
+
+    async def test_tool_call_arguments_are_serialized_as_a_json_string(self, _with_api_key):
+        """`arguments` is a JSON string in the Responses API; the runner holds a
+        dict. Sending the dict raw is a 400."""
+        captured: list[dict[str, Any]] = []
+        adapter = OpenAIResponsesAdapter(
+            transport=_stub_transport(
+                response_body=RECORDED_RESPONSE_TEXT_ONLY, captured_requests=captured
+            )
+        )
+
+        await adapter.complete(
+            messages=[
+                {
+                    "role": "assistant",
+                    "tool_call": {
+                        "call_id": "c1",
+                        "tool_name": "t",
+                        "arguments": {"a": 1, "b": "two"},
+                    },
+                }
+            ],
+            system="system",
+            tools=[],
+            config=_config(),
+        )
+
+        arguments = captured[0]["input"][0]["arguments"]
+        assert isinstance(arguments, str)
+        assert json.loads(arguments) == {"a": 1, "b": "two"}
+
     async def test_a_runner_appended_tool_message_translates_with_the_correct_call_id(
         self, _with_api_key
     ):
