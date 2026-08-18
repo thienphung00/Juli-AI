@@ -10,20 +10,23 @@ calls, never the sink directly -- leaves `workflow_run_events` rows behind,
 written by the sink `_construct_runner` builds for itself, not one this
 test injects.
 
-**What this module can and cannot drive.** `_construct_runner`'s three
+**What this module can and cannot drive.** `_construct_runner`'s five
 composition seams (`_default_llm_service`/`_default_tool_registry`/
-`_default_playbook`) still fail closed from `workers/` under
-`.importlinter.toml`'s depth-2 cross-package cap (see `agent_workflow.py`'s
-own module docstring) -- no real OpenAI adapter, populated tool registry or
-Optimize Product playbook is reachable from this package today, so a
-genuinely live LLM-driven run is not reachable here either, exactly as
-`test_agent_workflow_task_wiring.py`'s own `TestTaskBodiesCallRealRunnerMethods`
-already established against sqlite. This module reuses that same seam
-(overriding the three `_default_*` composition points and monkeypatching
-`services.agent.runner.WorkflowRunner`) but swaps sqlite for a real,
-disposable Postgres database and asserts against `workflow_run_events`
-directly -- the strongest honest assertion reachable without W3-A's live
-LLM/tool-registry/playbook pieces. The monkeypatched runner still emits
+`_default_playbook`/`_default_read_resources`/`_default_write_resources`)
+no longer fail closed from `workers/` by default as of issue #1173 --
+`services/agent/composition.py` closes the depth-2 cross-package gap that
+used to block the first three, and (review-round-1 rework) builds real
+guarded marketplace resources for the last two. This module still overrides
+all five anyway: exercising a real OpenAI completion or a real TikTok
+credential lookup is out of scope for a Postgres-plumbing test, and this
+module's whole point is the `event_sink` hand-off, not the LLM/
+tool-registry/playbook/marketplace-resource pieces -- so it keeps
+monkeypatching all five `_default_*` composition points and
+`services.agent.runner.WorkflowRunner`, exactly as
+`test_agent_workflow_task_wiring.py`'s own
+`TestTaskBodiesCallRealRunnerMethods` does against sqlite, and swaps sqlite
+for a real, disposable Postgres database to assert against
+`workflow_run_events` directly. The monkeypatched runner still emits
 through the REAL `event_sink` `_construct_runner` builds internally (never
 one this test constructs and hands in) -- that hand-off is the one thing
 this issue's scope is actually about.
@@ -286,6 +289,15 @@ async def test_run_agent_workflow_async_persists_events_via_the_constructed_pers
     monkeypatch.setattr(agent_workflow, "_default_llm_service", lambda: "FAKE_LLM_SERVICE")
     monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
     monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
+
+    async def _fake_read_resources(session):
+        return "FAKE_READ_RESOURCES"
+
+    async def _fake_write_resources(session):
+        return "FAKE_WRITE_RESOURCES"
+
+    monkeypatch.setattr(agent_workflow, "_default_read_resources", _fake_read_resources)
+    monkeypatch.setattr(agent_workflow, "_default_write_resources", _fake_write_resources)
 
     shop = await _seed_shop(pg_session_factory)
     run, product = await _seed_run(pg_session_factory, shop)
