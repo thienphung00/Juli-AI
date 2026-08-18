@@ -1,0 +1,33 @@
+{
+  "gateVersion": 1,
+  "issue": 1178,
+  "metrics": {
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 5,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/agent/runner/conversation_store.py",
+      "backend/src/juli_backend/services/agent/runner/core.py",
+      "tests/unit/test_agent_runner_core.py",
+      "tests/unit/test_agent_runner_terminal_persistence.py",
+      "tests/unit/test_agent_runner_termination.py",
+      "agent-runtime/artifacts/waves/wave-agent-w3.json",
+      "agent-runtime/artifacts/release-evidence-plan-issue-1178.json"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1178.json",
+    "ownerSignoffPresent": true,
+    "sha256": "7972398212a98fa02289a8bd4348f4ba0c5cdaf197ca6ed935db8200da135f3c",
+    "signoffRequired": true,
+    "status": "PASS_WITH_WARNINGS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-18T03:07:40Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1178.json",
+    "sha256": "88e6a441d9bd033bca3fbad7a2393516eee4984fc1b58f0d2ade0a1d7dfc1360",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w3"
+}

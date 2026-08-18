@@ -63,10 +63,19 @@ CORE_MODULE_PATH = REPO_ROOT / "backend/src/juli_backend/services/agent/runner/c
 
 class _InMemoryConversationStore:
     """A minimal `ConversationStore` double — no database, matching the
-    protocol shape `test_conversation_store.py`'s own stub uses."""
+    protocol shape `test_conversation_store.py`'s own stub uses.
+
+    `persist`'s `status`/`stop_reason` keyword-only parameters (issue #1178)
+    are accepted and recorded on `self._status`/`self._stop_reason` — this
+    double is exercised by real `WorkflowRunner.run()`/`resume()` calls,
+    which pass them at every terminal exit, so a signature that only takes
+    `(workflow_run_id, state)` would raise `TypeError` the first time this
+    module's own tests reach a terminal `stop_reason`."""
 
     def __init__(self) -> None:
         self._store: dict[uuid.UUID, RunState] = {}
+        self._status: dict[uuid.UUID, WorkflowRunStatus] = {}
+        self._stop_reason: dict[uuid.UUID, StopReason] = {}
 
     def seed(self, workflow_run_id: uuid.UUID, state: RunState | None = None) -> None:
         self._store[workflow_run_id] = state if state is not None else RunState()
@@ -74,8 +83,18 @@ class _InMemoryConversationStore:
     async def load(self, workflow_run_id: uuid.UUID) -> RunState:
         return self._store[workflow_run_id]
 
-    async def persist(self, workflow_run_id: uuid.UUID, state: RunState) -> None:
+    async def persist(
+        self,
+        workflow_run_id: uuid.UUID,
+        state: RunState,
+        *,
+        status: WorkflowRunStatus | None = None,
+        stop_reason: StopReason | None = None,
+    ) -> None:
         self._store[workflow_run_id] = state
+        if status is not None:
+            self._status[workflow_run_id] = status
+            self._stop_reason[workflow_run_id] = stop_reason
 
 
 class _SpyToolExecutor:
