@@ -660,3 +660,46 @@ class TestNoDirectClientConstruction:
                 assert node.module == "juli_backend.integrations.tiktok", (
                     f"deep cross-package import forbidden: {node.module}"
                 )
+
+
+class TestEmptyPriceMutationCannotReachConfirmation:
+    """#1198: an empty `skus` list must be rejected at the tool boundary.
+
+    Before this, `skus: []` passed validation, and because `update_product_price`
+    is CONFIRM-policy the run PAUSED FOR SELLER APPROVAL showing an empty field
+    diff -- approving nothing -- then failed at the vendor with `36009004 Skus
+    is a required field`. The wasted round-trip is minor; a confirmation gate
+    that can pause on an empty mutation is not, because it trains sellers to
+    approve without reading.
+    """
+
+    def test_empty_skus_is_rejected_by_the_input_schema(self):
+        import pytest
+        from pydantic import ValidationError
+
+        from juli_backend.services.agent.tools.product_write import UpdateProductPriceInput
+
+        with pytest.raises(ValidationError):
+            UpdateProductPriceInput(skus=[])
+
+    def test_skus_is_required_not_silently_defaulted(self):
+        import pytest
+        from pydantic import ValidationError
+
+        from juli_backend.services.agent.tools.product_write import UpdateProductPriceInput
+
+        # A missing field must fail too -- defaulting to [] would reintroduce
+        # exactly the invalid value this issue is about.
+        with pytest.raises(ValidationError):
+            UpdateProductPriceInput()
+
+    def test_a_single_sku_proposal_is_still_accepted(self):
+        from juli_backend.services.agent.tools.product_write import (
+            ProductSkuPrice,
+            UpdateProductPriceInput,
+        )
+
+        parsed = UpdateProductPriceInput(
+            skus=[ProductSkuPrice(sku_ref="S1", currency="VND", amount="179000")]
+        )
+        assert len(parsed.skus) == 1
