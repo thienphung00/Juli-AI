@@ -85,7 +85,15 @@ class RunState:
     conversation_window: list[ConversationMessage] = field(default_factory=list)
     iteration_count: int = 0
     extensions_granted: int = 0
-    next_sequence: int = 0
+    #: First event of a run is sequence 1, never 0 (issue #1195). The SSE
+    #: endpoint replays `sequence_number > after_seq` and resolves `after_seq`
+    #: to `0` when a subscriber supplies no `Last-Event-ID` and no `?after=`
+    #: (`api/routes/agent_runs.py`). Minting from 0 therefore made `0` both a
+    #: real event id and the "nothing seen yet" sentinel, so a fresh subscriber
+    #: silently never received event 0 -- always `workflow.started`, on every
+    #: run. `Last-Event-ID` means "the last id I actually received", so its
+    #: no-cursor sentinel has to sit outside the range of real ids.
+    next_sequence: int = 1
     pending_confirmation: dict[str, Any] | None = None
     basis_snapshots: dict[str, str] = field(default_factory=dict)
     running_seconds_elapsed: float = 0.0

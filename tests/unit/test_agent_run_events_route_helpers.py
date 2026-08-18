@@ -112,3 +112,39 @@ def test_terminal_event_types_match_envelope_definitions():
     }
 
     assert TERMINAL_EVENT_TYPES == canonical_terminal_event_types
+
+
+class TestSequenceBaseAgreesWithTheReplayCursor:
+    """#1195: the minting base and the default replay cursor must agree.
+
+    `RunState.allocate_sequence()` mints ids; the SSE endpoint replays
+    `sequence_number > after_seq` and resolves `after_seq` to 0 when a
+    subscriber supplies neither `Last-Event-ID` nor `?after=`. When minting
+    started at 0, `0` was simultaneously a real event id and the "nothing seen
+    yet" sentinel, so a fresh subscriber never received event 0 -- always
+    `workflow.started`, on every run.
+
+    Each half was self-consistent and tested: allocation increments, and the
+    replay filter honours an explicit cursor. Nothing asserted them *against
+    each other*, which is why this reached production and was found by a live
+    smoke. This test is that missing assertion.
+    """
+
+    def test_first_minted_sequence_is_visible_to_a_fresh_subscriber(self):
+        from juli_backend.services.agent.runner import RunState
+
+        first = RunState().allocate_sequence()
+        default_cursor = 0  # `_clamp_sequence_cursor` fallback, #1142
+        assert first > default_cursor, (
+            f"first event id {first} is not > the default replay cursor "
+            f"{default_cursor}, so a subscriber with no Last-Event-ID would "
+            "never receive it"
+        )
+
+    def test_no_minted_sequence_collides_with_the_no_cursor_sentinel(self):
+        from juli_backend.services.agent.runner import RunState
+
+        state = RunState()
+        minted = [state.allocate_sequence() for _ in range(5)]
+        assert 0 not in minted, "0 is the no-cursor sentinel; it must never also be a real event id"
+        assert minted == sorted(set(minted)), "ids must be unique and increasing"

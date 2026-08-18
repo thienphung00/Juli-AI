@@ -125,9 +125,10 @@ class TestJsonbConversationStoreRoundTrip:
         run_id = await _seed_workflow_run(session)
         first_worker_store = JsonbConversationStore(session)
         state = RunState()
-        state.allocate_sequence()  # 0
-        state.allocate_sequence()  # 1
-        state.allocate_sequence()  # 2 -> next_sequence now 3
+        minted = [state.allocate_sequence() for _ in range(3)]
+        # #1195: a run's first event is sequence 1, never 0 -- 0 is the
+        # "nothing seen yet" sentinel the SSE replay cursor uses.
+        assert minted == [1, 2, 3]
         await first_worker_store.persist(run_id, state)
 
         # Simulate a CONFIRM pause resuming in a different worker process:
@@ -135,9 +136,10 @@ class TestJsonbConversationStoreRoundTrip:
         second_worker_store = JsonbConversationStore(session)
         resumed_state = await second_worker_store.load(run_id)
 
-        assert resumed_state.next_sequence == 3
+        assert resumed_state.next_sequence == minted[-1] + 1
         next_minted = resumed_state.allocate_sequence()
-        assert next_minted == 3  # not a reused 0/1/2
+        assert next_minted not in minted  # no reuse across the resume
+        assert next_minted == minted[-1] + 1
 
     async def test_load_raises_not_found_for_unknown_run(self, session: AsyncSession):
         store = JsonbConversationStore(session)
