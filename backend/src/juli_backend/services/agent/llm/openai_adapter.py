@@ -190,6 +190,25 @@ def _build_request_body(
 
 def _translate_message(message: Message) -> dict[str, Any]:
     role = message.get("role")
+
+    # The model's own tool-call proposal from a previous turn (issue #1191).
+    # The Responses API is stateless: a `function_call_output` is only valid
+    # when the request also replays the `function_call` it answers, with a
+    # matching `call_id`. Without this branch the proposal fell through to the
+    # generic text branch below and became an empty `output_text` item, so the
+    # very next message referenced a `call_id` that did not exist in the
+    # request and OpenAI returned 400 -- every tool-using run died on its
+    # second turn. `arguments` is a JSON *string* in this API; the runner holds
+    # it as a dict (`core.py::_tool_call_message`).
+    tool_call = message.get("tool_call")
+    if role == "assistant" and tool_call:
+        return {
+            "type": "function_call",
+            "call_id": tool_call.get("call_id", ""),
+            "name": tool_call.get("tool_name", ""),
+            "arguments": json.dumps(tool_call.get("arguments") or {}),
+        }
+
     if role == "tool":
         # "tool_call_id" is canonical (matches the runner's literal append
         # shape in `services/agent/runner/core.py`); "call_id" is a fallback

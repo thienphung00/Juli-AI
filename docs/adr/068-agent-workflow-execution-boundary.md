@@ -55,6 +55,29 @@ lifecycle is, and what happens to the no-LLM tests.
    target the sandbox counterpart product; production writes unlock at 3.5-C as a
    guard-configuration change, not an architecture change.
 
+   **Amendment (2026-08-18, issue #1189).** The production-read allowlist is
+   widened by exactly two entries: `GET /product/{v}/products/seo_words` and
+   `GET /product/{v}/products/suggestions`
+   (`integrations/tiktok/capabilities.py::PRODUCTION_READ_GET_PATTERNS`). Both
+   are pure reads that mutate nothing, both were already trusted for the
+   sandbox merchant, and `docs/integrations/tiktok_api/endpoints.md` already
+   lists them as Optimize Product workflow steps. Their absence was not a
+   deliberate narrowing — it was an omission, and it meant the playbook offered
+   the model `get_seo_keywords` while this decision's own guard rejected the
+   call before signing. A real agent run died on `TransportGuardError`; the
+   #1124 live smoke found it once #1188 let runs execute at all.
+
+   Two things this amendment does **not** change: production writes stay
+   prohibited (unchanged until 3.5-C), and the guard remains fail-closed. What
+   it adds is a structural check — `tests/unit/test_playbook_capability_allowlist_contract.py`
+   drives the real `ProductsResource` methods each READ tool calls over a
+   recording client and asserts the real guard admits every resulting path. The
+   lesson worth carrying: a playbook step and a capability allowlist are two
+   independent statements of what an agent may do, and nothing reconciled them.
+   Executor tests use fake resources (no guard is consulted) and the guard's own
+   tests assert the allowlist matches itself, so only a live run could catch the
+   disagreement. That cross-check now fails in CI instead.
+
 4. **Tool execution policy — AUTO / CONFIRM / NEVER** on every `ToolSpec`:
    - AUTO: READ + internal tools.
    - CONFIRM: every WRITE tool in this phase. The run pauses
