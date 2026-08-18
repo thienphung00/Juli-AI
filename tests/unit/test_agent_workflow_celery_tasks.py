@@ -202,7 +202,7 @@ async def test_run_agent_workflow_async_calls_load_context_then_construct_runner
         order.append(("load_context", rid))
         return run_obj, product_obj
 
-    def fake_construct_runner(session, sync_session, run, product):
+    async def fake_construct_runner(session, sync_session, run, product):
         order.append(("construct_runner", (run, product)))
         runner = AsyncMock()
 
@@ -238,7 +238,7 @@ async def test_resume_agent_workflow_async_calls_load_context_then_construct_run
         order.append(("load_context", rid))
         return run_obj, product_obj
 
-    def fake_construct_runner(session, sync_session, run, product):
+    async def fake_construct_runner(session, sync_session, run, product):
         order.append(("construct_runner", (run, product)))
         runner = AsyncMock()
 
@@ -302,7 +302,7 @@ def test_simulated_retry_reconstructs_from_run_state_blob_not_from_scratch(monke
         # Fresh read of the current blob every call -- no task-local caching.
         return _FakeContext(rid, dict(store[rid])), SimpleNamespace(tiktok_product_id="tt-123")
 
-    def fake_construct_runner(session, sync_session, run, product) -> _StubRunner:
+    async def fake_construct_runner(session, sync_session, run, product) -> _StubRunner:
         runner = _StubRunner(run, store)
         constructed_runners.append(runner)
         return runner
