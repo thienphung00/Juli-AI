@@ -10,8 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database import NotFound, Shop, ShopsRepo, User, UsersRepo
-from juli_backend.models.models import OrderItem, Product
-from juli_backend.repositories.repos import ProductsRepo
+from juli_backend.models.models import Order, OrderItem, Product
+from juli_backend.repositories.repos import OrdersRepo, ProductsRepo
 
 pytestmark = pytest.mark.asyncio
 
@@ -231,3 +231,53 @@ class TestProductsRepoRecomputeRevenueFromOrderItems:
         repo = ProductsRepo(session)
         # Must not raise even though no product row matches yet.
         await repo.recompute_revenue_from_order_items(shop.id, "prod-unsynced")
+
+
+class TestOrdersRepoConfirmShipmentTimezone:
+    """#1138 — OrdersRepo.confirm_shipment must write a naive UTC datetime into
+    Order.update_time (declared ``Mapped[datetime]`` with no ``timezone=True``,
+    i.e. TIMESTAMP WITHOUT TIME ZONE).
+
+    SQLite (this fixture's engine) and psycopg2 both silently tolerate an
+    aware datetime landing in a naive column, so a green suite here proves
+    nothing about the production path. asyncpg does not: it raises
+    ``asyncpg.exceptions.DataError`` ("can't subtract offset-naive and
+    offset-aware datetimes") at flush time against real Postgres, which is
+    the only driver actually exercised in production. This test asserts the
+    in-memory contract directly against the repo function's output — the
+    aware-vs-naive distinction it must get right for the asyncpg path to
+    ever succeed — since a live asyncpg lane is not reachable in this
+    environment (no Docker/Postgres available locally).
+    """
+
+    async def _seed_awaiting_shipment_order(
+        self, session: AsyncSession, *, shop_id: uuid.UUID
+    ) -> Order:
+        order = Order(
+            id=uuid.uuid4(),
+            shop_id=shop_id,
+            tiktok_order_id="tt_order_shipment_tz",
+            status="AWAITING_SHIPMENT",
+            total_amount=Decimal("100.00"),
+            currency="VND",
+            update_time=datetime.now(UTC).replace(tzinfo=None),
+        )
+        session.add(order)
+        await session.flush()
+        return order
+
+    async def test_confirm_shipment_writes_naive_update_time(self, session: AsyncSession, user_id):
+        user = User(id=user_id, phone="+84909999999")
+        shop = Shop(id=uuid.uuid4(), user_id=user_id, shop_name="Shipment Shop")
+        session.add_all([user, shop])
+        await session.flush()
+
+        order = await self._seed_awaiting_shipment_order(session, shop_id=shop.id)
+
+        repo = OrdersRepo(session)
+        result = await repo.confirm_shipment(shop.id, order.id)
+
+        assert result.status == "SHIPPED"
+        # This is the load-bearing assertion: an aware datetime here is
+        # exactly what asyncpg's DataError rejects against a naive column.
+        assert result.update_time.tzinfo is None

@@ -1,0 +1,26 @@
+{
+  "gateVersion": 1,
+  "issue": 1170,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 2,
+    "modulesTouched": [
+      "agent-runtime/docs/schemas/status-record.schema.json",
+      "agent-runtime/scripts/ci/wave_manifest.py",
+      "tests/unit/test_wave_manifest.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1170.json",
+    "sha256": "e51ec5121ca8f4cf48f4ca65671d22979f8a2eedbb5d7249e458c139a4828eb8",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-17T09:00:21Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1170.json",
+    "sha256": "ddcb2bf00b72722dcb06da3513c7268b9c456b1349f4534d851f4f14e009e8e0",
+    "status": "PASS"
+  },
+  "wave": null
+}
