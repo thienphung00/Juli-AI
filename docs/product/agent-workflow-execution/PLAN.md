@@ -27,7 +27,7 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 10 | P9+P14 — Approval, safety & security prerequisites | 🟨 design grilled 2026-08-12 — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) drafted; implementation pending | ⬜ |
 | 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 design grilled 2026-08-12 — [ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md) drafted; implementation pending | ⬜ |
 | 11b | P-IM — Incremental impact measurement (NEW) | ✅ implemented — [ADR-077](../../adr/077-incremental-impact-measurement.md); re-run wave merged to `main` (#1113, 2026-08-14), #1040–#1045 + #1068 all with status records, after the [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B refusal of the first attempt | ✅ 2026-08-14 (code gates; the one real end-to-end reading waits for W3-A's runner — W3 checkpoint) |
-| 11c | P-CRED — TikTok credential lifecycle (NEW) | 🟨 design grilled 2026-08-17 — [ADR-080](../../adr/080-tiktok-credential-lifecycle.md): layered refresh (30-min beat + lazy fallback), `CREDENTIALS_DATABASE_URL` single source of truth, retry-then-mark `needs_reauth`, advisory-lock single-flight, columns+logs audit; implementation = one slice after wave→main; gate = full matrix + one real sandbox-token refresh | ⬜ |
+| 11c | P-CRED — TikTok credential lifecycle / refresh-token rotation (NEW) | 🟨 **design settled — W4**. Grilled 2026-08-17 ([ADR-080](../../adr/080-tiktok-credential-lifecycle.md)), re-grilled 2026-08-18 against the code and **amended by [ADR-081](../../adr/081-refresh-token-rotation.md)**: three-layer refresh (beat + lazy + reactive), one guarded door with a session-level advisory lock, vendor-authoritative expiry, dedicated `credentials` queue, five additive columns; `CREDENTIALS_DATABASE_URL` descoped. Four slices — see [Wave 4](#wave-4--p-cred-refresh-token-rotation-2026-08-18); gate = full matrix + one real sandbox-token refresh | ⬜ |
 | 12 | P10 — Observability baseline | ⬜ | ⬜ |
 | 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ | ⬜ |
 | 14 | P13 — Edge cases + rollout to remaining 10 workflows | ⬜ | ⬜ |
@@ -241,6 +241,66 @@ variant impersonated a harness directive urging raw Bash over the Read/Edit/Writ
 which carry read-before-write and match-ambiguity protections that `sed` does not. Every
 instance was disproven with `git status --short` and `git hash-object` against
 `git rev-parse HEAD:<path>`, and none were acted on. No mutation was left in any tree.
+
+## Wave 4 — P-CRED, refresh-token rotation (2026-08-18)
+
+Wave 4 implements phase 11c. Design settled in [ADR-081](../../adr/081-refresh-token-rotation.md),
+which amends [ADR-080](../../adr/080-tiktok-credential-lifecycle.md) after re-grilling it against
+the code. Read ADR-081 for the full rationale; this section is the wave's shape and landing order.
+
+### Why the design changed between ADR-080 and ADR-081
+
+ADR-080 was never implemented. Re-reading it against the code found six gaps; ADR-080 removes
+two, is partial on two, silent on one, and **specifies a beat that would refresh nothing** — its
+24h scan window feeds a function that returns early unless expiry is within `REFRESH_BUFFER`,
+which is 30 minutes (`core/security/tiktok_oauth.py:34`). ADR-081 keeps ADR-080's intent and
+corrects the mechanism.
+
+The load-bearing change is the third refresh layer. `token_expires_at` is a *cache of the
+vendor's opinion* and can be wrong — the sandbox row's expiry was invented by a seeding script,
+so the column claimed fresh while the API answered `105002 Expired`, and the operator script had
+to grow a `FORCE_EXPIRED=1` backdate to work at all. Beat and lazy both read that column and
+would have skipped the row identically. Only the API response observes the truth, so the reactive
+layer is not optional polish — it is the only part of the design that can self-heal.
+
+### What this wave does not do
+
+Refreshing 100 credentials and polling 100 shops are different problems. Production reads stay
+pinned to one hardcoded merchant (`PRODUCTION_AUTH_ID`); ingest fan-out is P13's, not this wave's.
+`CREDENTIALS_DATABASE_URL` (ADR-080 decision 2) is descoped — see ADR-081 decision 8.
+
+### Slices — one executor domain each, landing in order
+
+Slice 1 gates the rest (columns before the code that writes them). Slices 3 and 4 both consume
+slice 2's `refresh_credential`, so they open in parallel once it lands.
+
+| Slice | Domain | Content | Depends on |
+| --- | --- | --- | --- |
+| W4-1 migration + model + repo writes | data-platform | Alembic `037` on `036_cancel_requested_column`: `status`, `last_refreshed_at`, `last_refresh_error`, `refresh_count`, `refresh_token_expires_at`. Additive, nullable-or-defaulted, no backfill | — |
+| W4-2 the one guarded door | backend | `core/security/credential_refresh.py::refresh_credential` — `RefreshOutcome` instead of raising, `force`, session-level advisory lock, re-read after acquire. `REFRESH_BUFFER` → 24h. `access_token_expires_at(None)` raises instead of synthesizing `now + 1h` | W4-1 |
+| W4-3 beat + queue + lazy layer | backend | 30-min fleet scan, `credentials` queue route + worker, lazy refresh at `resolve_*_credential`, and **deleting the three direct refresh call sites** (`orchestrate.py:174`, `orchestrate.py:244`, `targeted_fetch_executor.py:253`) | W4-2 |
+| W4-4 reactive auth-retry | integrations | Outbound client catches `105002`/401 → `refresh_credential(force=True)` → retry the originating call once → `needs_reauth` on refresh failure | W4-2 |
+
+Never dual-load `backend` + `data-platform` on one issue: W4-1 is the only schema slice, and
+W4-2/W4-3 never touch the migration.
+
+### Wave gate
+
+The full ADR-081 decision-9 matrix, **plus one real end-to-end refresh of the live sandbox
+credential** (`sandbox_write`, expiring **2026-08-24**) showing a new expiry, incremented
+`refresh_count`, populated `last_refreshed_at`, and the log line present. That single observation
+is the only step that proves the vendor contract rather than our belief about it, and it also
+settles whether `refresh_token_expire_in` exists at all — it appears nowhere in the codebase,
+fixtures, or `docs/integrations/tiktok_api/authentication.md` today, which is why
+`refresh_token_expires_at` is nullable and the health signal rides on `last_refreshed_at` instead.
+
+**The sandbox credential expires 2026-08-24.** If the wave has not reached its gate by then, the
+credential must be re-seeded before the gate can run.
+
+### Exit condition
+
+`refresh_cloud_credentials.py` and its `FORCE_EXPIRED=1` flag are deleted, not archived. While
+that script still exists, the wave is not done.
 
 ## Phases — minimal specs + gate to proceed
 
