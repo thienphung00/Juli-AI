@@ -258,7 +258,15 @@ class UpdateProductPriceInput(BaseModel):
     """New prices to apply to one or more SKUs of the product already
     selected for this run."""
 
-    skus: list[ProductSkuPrice] = Field(default_factory=list)
+    # `min_length=1`, and required rather than defaulting (issue #1198). An
+    # empty list passed local validation, and because this is a CONFIRM-policy
+    # step the run then PAUSED FOR SELLER APPROVAL on an empty field diff --
+    # approving nothing -- before failing at the vendor with `36009004 Skus is
+    # a required field`. A confirmation gate that can pause on an empty
+    # mutation trains sellers to approve without reading, which is worse than
+    # the wasted round-trip. Rejecting here fails fast at the tool boundary,
+    # the same shape `UnresolvedSkuRefError` already gives an unknown sku_ref.
+    skus: list[ProductSkuPrice] = Field(min_length=1)
 
 
 class UpdateProductPriceOutput(BaseModel):
