@@ -279,7 +279,10 @@ class TestPauseResumeRoundTrip:
             "tool_name": "update_product_listing",
             "arguments": {"title": "New improved title"},
         }
-        assert state_at_pause["next_sequence"] == event_count_a == 4
+        # #1195: sequences are minted from 1, so after N events the next id is
+        # N+1 (it was N when minting started at 0). The invariant under test is
+        # "one id per emitted event, none skipped", not the literal number.
+        assert state_at_pause["next_sequence"] == event_count_a + 1 == 5
         assert state_at_pause["running_seconds_elapsed"] == 4.0  # two 2.0s iterations
         pre_pause_conversation = list(state_at_pause["conversation_window"])
         # get_product_information (AUTO): proposal + result = 2 messages.
@@ -326,10 +329,14 @@ class TestPauseResumeRoundTrip:
             assert spy_b.calls[0][0] == "update_product_listing"
 
             # --- AC: next_sequence survives with no reset, no reuse ---
-            assert sink_b.events[0].sequence_number == event_count_a  # == 3 + 1, never 0/1
+            # Runner B's first event continues from where A stopped: A emitted
+            # `event_count_a` events numbered 1..event_count_a (#1195's 1-based
+            # minting), so B starts at event_count_a + 1 -- never restarting at 1.
+            first_resumed_sequence = event_count_a + 1
+            assert sink_b.events[0].sequence_number == first_resumed_sequence
             all_sequences = [e.sequence_number for e in sink_b.events]
             assert all_sequences == sorted(all_sequences)  # strictly increasing, no reuse
-            assert min(all_sequences) == event_count_a
+            assert min(all_sequences) == first_resumed_sequence
 
             # --- AC: conversation continuity, verbatim, before any post-resume append ---
             resumed_state = await store_b.load(run_id)
@@ -385,7 +392,8 @@ class TestResumeDeclined:
             assert resumed_state.pending_confirmation is None
             # decline emits exactly two events (tool.completed, workflow.completed),
             # continuing from runner A's next_sequence -- no reset, no reuse.
-            assert resumed_state.next_sequence == event_count_a + 2
+            # The +1 is #1195's 1-based minting base (see the pause assertion above).
+            assert resumed_state.next_sequence == event_count_a + 2 + 1
 
 
 class TestResumeWithNoPendingConfirmationRaises:

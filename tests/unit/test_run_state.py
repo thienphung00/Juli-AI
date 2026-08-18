@@ -75,7 +75,8 @@ class TestRunStateShape:
         assert state.conversation_window == []
         assert state.iteration_count == 0
         assert state.extensions_granted == 0
-        assert state.next_sequence == 0
+        # #1195: not 0 -- see TestNextSequenceOwnership for why the base is 1.
+        assert state.next_sequence == 1
         assert state.pending_confirmation is None
         assert state.basis_snapshots == {}
         assert state.running_seconds_elapsed == 0.0
@@ -94,7 +95,11 @@ class TestNextSequenceOwnership:
         second = state.allocate_sequence()
         third = state.allocate_sequence()
 
-        assert (first, second, third) == (0, 1, 2)
+        # #1195: a run's first event is sequence 1. 0 is reserved as the
+        # "nothing seen yet" cursor the SSE replay filter defaults to, so a
+        # minted 0 would be an event no fresh subscriber could ever receive.
+        assert (first, second, third) == (1, 2, 3)
+        assert 0 not in {first, second, third}
         assert len({first, second, third}) == 3  # no reuse
 
     def test_allocate_sequence_advances_the_owned_counter(self):
