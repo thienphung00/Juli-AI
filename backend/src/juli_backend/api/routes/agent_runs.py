@@ -81,7 +81,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from juli_backend.api.dependencies import get_active_shop
 from juli_backend.database import Shop, get_session
-from juli_backend.models.models import Product
+from juli_backend.models.models import ActionCard, Product
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 
@@ -460,6 +460,57 @@ class CreateRunResponse(BaseModel):
     celery_task_id: str
 
 
+async def _build_initial_run_state(session: AsyncSession, *, shop_id: uuid.UUID) -> dict[str, Any]:
+    """The complete `workflow_runs.state` blob a new run must be created with
+    (issue #1188).
+
+    `WorkflowRunner.run()` opens by calling `ConversationStore.load()`, which
+    deserializes this blob through `RunState.from_dict` -- a reader that
+    rejects any missing field because ADR-073 decision 5 requires a truncated
+    blob to fail loudly rather than be mistaken for a fresh run. Creating the
+    row with `{}` therefore crashed every run at its first statement; a fresh
+    run has to be written complete. See `services/agent/run_context.py` for
+    why the fix belongs here rather than in a more permissive `from_dict`.
+
+    The blob carries the opening `source: "juli"` context message the prompt
+    contract (`prompts/optimize_product/v1.md` Sec.3-4) tells the model to
+    ground itself in. When an ActionCard raised this workflow for the shop,
+    its own `description` is the rationale; otherwise the message says
+    plainly that the run was started directly, rather than inventing a
+    business trigger the seller never saw.
+
+    Reached via the depth-2 facade import this module already uses for
+    `services.agent.playbooks` -- see `_resolve_optimize_product_prompt_pin`.
+    """
+    from juli_backend.services.agent import playbooks as playbooks_module
+    from juli_backend.services.agent import run_context as run_context_module
+
+    workflow_key = playbooks_module.OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key
+
+    card = (
+        (
+            await session.execute(
+                select(ActionCard)
+                .where(ActionCard.shop_id == shop_id, ActionCard.workflow_key == workflow_key)
+                .order_by(ActionCard.computed_at.desc())
+                .limit(1)
+            )
+        )
+        .scalars()
+        .first()
+    )
+
+    rationale = (
+        card.description
+        if card is not None and card.description
+        else run_context_module.DIRECT_RUN_RATIONALE
+    )
+    opening = run_context_module.build_opening_context_message(
+        workflow_key=workflow_key, rationale=rationale
+    )
+    return run_context_module.initial_run_state(opening)
+
+
 @router.post("", status_code=status.HTTP_202_ACCEPTED, response_model=CreateRunResponse)
 async def create_run(
     body: CreateRunRequest,
@@ -487,11 +538,12 @@ async def create_run(
     product_id = product.id
 
     prompt_version_value, prompt_sha256_value = _resolve_optimize_product_prompt_pin()
+    initial_state = await _build_initial_run_state(session, shop_id=shop_id)
 
     run = WorkflowRunRow(
         shop_id=shop_id,
         product_id=product_id,
-        state={},
+        state=initial_state,
         status="queued",
         prompt_version=prompt_version_value,
         prompt_sha256=prompt_sha256_value,
