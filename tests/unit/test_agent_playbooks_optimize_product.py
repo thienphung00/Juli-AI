@@ -32,7 +32,7 @@ from juli_backend.services.execution.tool_routing import WORKFLOW_TOOL_CATALOG
 EXPECTED_STEP_ORDER: tuple[tuple[str, str, ToolPolicy], ...] = (
     ("1", "get_product_information", ToolPolicy.AUTO),
     ("2+3", "get_seo_keywords", ToolPolicy.AUTO),
-    ("4, 4.5", "upload_product_image", ToolPolicy.AUTO),
+    ("4, 4.5", "inspect_product_image", ToolPolicy.AUTO),
     ("5", "update_product_listing", ToolPolicy.CONFIRM),
     ("6", "update_product_price", ToolPolicy.CONFIRM),
     ("6.5", "check_product_status", ToolPolicy.AUTO),
@@ -92,7 +92,7 @@ class TestPlaybookShape:
                 "get_product_information",
                 "get_seo_keywords",
                 "check_product_status",
-                "upload_product_image",
+                "inspect_product_image",
                 "update_product_listing",
                 "update_product_price",
             ]

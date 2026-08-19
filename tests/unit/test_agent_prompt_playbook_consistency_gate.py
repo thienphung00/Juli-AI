@@ -113,7 +113,18 @@ _TOOL_NAME_SHAPED_TOKEN_PATTERN = re.compile(r"`([a-z][a-z0-9_]*)`")
 #: shared/not-workflow-scoped is added here explicitly, by name, in the
 #: same reviewed commit that adds it to the registry -- never silently
 #: inferred.
-_SHARED_TOOL_NAMES: frozenset[str] = frozenset()
+_SHARED_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        # #1208: Optimize Product's image step became `inspect_product_image`
+        # (READ). `upload_product_image` stays REGISTERED but is granted by no
+        # playbook: it uploads bytes staged in the run context, and nothing in any
+        # current flow stages any -- which is exactly why the model could call it
+        # and always fail. It is kept for the image-generation capability that will
+        # stage bytes, and marked shared here rather than deleted so removing it is
+        # a deliberate decision rather than a side effect of this fix.
+        "upload_product_image",
+    }
+)
 
 
 def _real_full_tool_registry() -> ToolRegistry:
@@ -262,17 +273,22 @@ def test_the_real_registry_is_non_empty_so_this_check_is_not_vacuous():
 
 
 def test_the_real_registry_and_the_one_real_playbook_agree_on_six_tools():
-    """Confirms today's real state is what the module docstring claims:
-    every registered tool traces to the one real playbook, with nothing
-    resting on the (empty) shared marker. This is a fact check on the real
-    pair, not the drift-detection proof itself -- that is
-    `TestReverseDirectionDrift` below, run against synthetic input.
+    """Confirms today's real state: every registered tool either traces to the
+    one real playbook or is explicitly marked shared.
+
+    #1208 changed this from "nothing rests on the shared marker" to one entry
+    that does. `upload_product_image` stays registered for the future
+    image-generation capability but is granted by no playbook, because nothing
+    stages the bytes it needs. Asserting the shared set's exact contents keeps
+    that a deliberate, reviewed exception rather than a growing dumping ground.
     """
     registry = _real_full_tool_registry()
     registered_tool_names = frozenset(spec.name for spec in registry.list_all())
     playbook_tool_names = _playbook_tool_names(OPTIMIZE_PRODUCT_PLAYBOOK)
-    assert registered_tool_names == playbook_tool_names
-    assert len(registered_tool_names) == 6
+    assert registered_tool_names - playbook_tool_names == _SHARED_TOOL_NAMES
+    assert playbook_tool_names - registered_tool_names == frozenset()
+    assert _SHARED_TOOL_NAMES == frozenset({"upload_product_image"})
+    assert len(registered_tool_names) == 7
 
 
 class TestReverseDirectionDrift:

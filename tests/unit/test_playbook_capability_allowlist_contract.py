@@ -54,6 +54,9 @@ _READ_TOOL_VENDOR_CALLS = {
     "get_product_information": lambda r: r.get_details("123"),
     "get_seo_keywords": lambda r: r.get_seo_words(product_ids=["123"]),
     "check_product_status": lambda r: r.get_details("123"),
+    # #1208: inspect_product_image re-reads the product to resolve the hero
+    # image URL server-side, so its vendor path is the same product detail GET.
+    "inspect_product_image": lambda r: r.get_details("123"),
 }
 
 

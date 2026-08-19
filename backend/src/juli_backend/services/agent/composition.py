@@ -185,3 +185,36 @@ async def build_write_resources(session: AsyncSession) -> SandboxWriteResources:
     """
     app_key, app_secret = _tiktok_app_credentials()
     return await load_sandbox_write_resources(session, app_key=app_key, app_secret=app_secret)
+
+
+def build_image_inspector():
+    """The vision collaborator `inspect_product_image` uses (issue #1208).
+
+    Model is `LLM_VISION_MODEL`, defaulting to the orchestrator's own model:
+    `gpt-5.4-nano` has vision, verified against a real product image, so a
+    second model is a cost/quality choice rather than a capability requirement.
+    Configurable so that choice can be A/B'd by environment rather than by code
+    change -- measured on three real products, nano and mini each surfaced a
+    finding the other missed, which is too close to hardcode.
+
+    Returns `None` when no API key is configured, which the handler reports as
+    `inspected=False`. A missing inspection is a missing finding, never a
+    failed run.
+    """
+    import os
+
+    from juli_backend.services.agent.vision import InspectionConfig
+    from juli_backend.services.agent.vision import build_image_inspector as _build
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return None
+    from juli_backend.services.agent.llm.config import DEFAULT_MODEL
+
+    return _build(
+        api_key=api_key,
+        config=InspectionConfig(
+            model=os.environ.get("LLM_VISION_MODEL", DEFAULT_MODEL),
+            language=os.environ.get("LLM_VISION_LANGUAGE", "Vietnamese"),
+        ),
+    )

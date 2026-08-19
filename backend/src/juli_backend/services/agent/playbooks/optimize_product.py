@@ -15,7 +15,7 @@ exactly:
 |--------|---------------------------|--------------------------------|
 | 1      | get_product_information   | READ / AUTO                    |
 | 2+3    | get_seo_keywords          | READ / AUTO (bundled)          |
-| 4, 4.5 | upload_product_image      | WRITE / AUTO (staging only)    |
+| 4, 4.5 | inspect_product_image     | READ / AUTO (#1208)            |
 | 5      | update_product_listing    | WRITE / CONFIRM                |
 | 6      | update_product_price      | WRITE / CONFIRM (independent)  |
 | 6.5    | check_product_status      | READ / AUTO                    |
@@ -95,11 +95,11 @@ OPTIMIZE_PRODUCT_PLAYBOOK = Playbook(
         PlaybookStep(
             step_id="4, 4.5",
             intent=(
-                "Stage a new product photo so it is ready to attach to the listing "
-                "once the seller reviews the change -- staging only, nothing goes "
-                "live yet."
+                "Check whether the product's main photo actually matches its title "
+                "and description, and note any image changes worth making -- looking "
+                "only, nothing is changed."
             ),
-            tools=("upload_product_image",),
+            tools=("inspect_product_image",),
             policy=ToolPolicy.AUTO,
         ),
         PlaybookStep(

@@ -123,6 +123,12 @@ class ProductToolContext:
     sku_refs: Mapping[str, str] = field(default_factory=dict)
     staged_image_uri: str | None = None
     pending_image_bytes: bytes | None = None
+    # `image_inspector` -- the vision collaborator `inspect_product_image` uses
+    # (#1208). Injected, not imported, so this READ handler carries no LLM
+    # dependency and tests supply a deterministic double. `None` means "no
+    # inspector configured", which the handler reports as `inspected=False`
+    # rather than raising.
+    image_inspector: Any | None = None
 
 
 # --- sanitize helpers, shared by the READ handlers below (ADR-070) -----------
@@ -386,6 +392,111 @@ CHECK_PRODUCT_STATUS_SPEC = ToolSpec(
 )
 
 
+# --- inspect_product_image ----------------------------------------------------
+
+
+class InspectProductImageInput(BaseModel):
+    # Rationale: see module docstring, "Context-bound identity" section. No
+    # image field exists because the model must never receive or emit an image
+    # reference (ADR-070 decision 2) -- the photo is resolved server-side from
+    # the bound product.
+    """No parameters -- inspects the main photo of the product already
+    selected for this run."""
+
+
+class InspectProductImageFinding(BaseModel):
+    aspect: str = ""
+    observed: str = ""
+    conflicts_with: str | None = None
+    severity: str = "low"
+
+
+class InspectProductImageEdit(BaseModel):
+    intent: str = ""
+    subject: str = ""
+    instruction: str = ""
+    priority: str = "low"
+
+
+class InspectProductImageOutput(BaseModel):
+    """Whether the product photo matches the listing copy.
+
+    Deliberately an *edit intent* rather than prose (issue #1208): when image
+    generation lands, `recommended_edits` becomes its instruction payload
+    unchanged, and `verdict` becomes the inspect -> edit -> re-inspect loop's
+    termination condition. No vendor asset URI appears here -- the image URL is
+    held server-side and never surfaces to the model.
+    """
+
+    verdict: str = "partial"
+    confidence: str = "low"
+    inspected: bool = True
+    findings: list[InspectProductImageFinding] = Field(default_factory=list)
+    recommended_edits: list[InspectProductImageEdit] = Field(default_factory=list)
+
+
+def handle_inspect_product_image(
+    resources: ProductionReadResources,
+    context: ProductToolContext,
+    params: InspectProductImageInput,
+) -> InspectProductImageOutput:
+    """Fetch the bound product, hand its hero photo + copy to the inspector.
+
+    Re-reads the product rather than reusing an earlier tool result: the CDN
+    URL is pre-signed and short-lived, so it must never be cached or threaded
+    forward. `inspected=False` (rather than an exception) when there is no
+    image or no inspector configured -- a missing inspection is a missing
+    finding, not a reason to end a healthy run. That distinction is what #1208
+    was about: `upload_product_image` raised into the task and the run was
+    mislabelled `worker_lost`.
+    """
+    del params  # No fields: nothing to consume.
+    if context.image_inspector is None:
+        return InspectProductImageOutput(inspected=False)
+
+    raw = resources.products.get_details(context.product_id)
+    images = raw.get("main_images") or []
+    urls = (images[0].get("urls") if images else None) or []
+    if not urls:
+        return InspectProductImageOutput(inspected=False)
+
+    result = context.image_inspector(
+        image_url=urls[0],
+        title=str(raw.get("title") or ""),
+        description=str(raw.get("description") or ""),
+    )
+    return InspectProductImageOutput(
+        verdict=result.get("verdict", "partial"),
+        confidence=result.get("confidence", "low"),
+        inspected=True,
+        findings=[InspectProductImageFinding(**f) for f in result.get("findings", [])],
+        recommended_edits=[
+            InspectProductImageEdit(**e) for e in result.get("recommended_edits", [])
+        ],
+    )
+
+
+INSPECT_PRODUCT_IMAGE_SPEC = ToolSpec(
+    name="inspect_product_image",
+    description=(
+        "Check whether the product's main photo matches its title and description. "
+        "Returns findings and recommended image edits -- it does not change the photo. "
+        "A photo dominated by promotional banners or price overlays is a finding even "
+        "when the product shown is correct."
+    ),
+    input_model=InspectProductImageInput,
+    output_model=InspectProductImageOutput,
+    classification=ToolClassification.READ,
+    policy=ToolPolicy.AUTO,
+    # 30s, deliberately the same as the WRITE step it replaces, so the
+    # documented worst-case wall-clock bound (test_agent_runner_termination.py's
+    # TestWallClockOvershootBound) is unchanged. Measured vision calls returned
+    # in ~5-10s against real product images, so this is ample headroom without
+    # widening a safety bound as a side effect of a tool swap.
+    timeout_seconds=30,
+)
+
+
 # --- registration + handler lookup --------------------------------------------
 
 PRODUCT_READ_TOOL_HANDLERS: dict[
@@ -394,6 +505,7 @@ PRODUCT_READ_TOOL_HANDLERS: dict[
     GET_PRODUCT_INFORMATION_SPEC.name: handle_get_product_information,
     GET_SEO_KEYWORDS_SPEC.name: handle_get_seo_keywords,
     CHECK_PRODUCT_STATUS_SPEC.name: handle_check_product_status,
+    INSPECT_PRODUCT_IMAGE_SPEC.name: handle_inspect_product_image,
 }
 
 
@@ -402,3 +514,4 @@ def register_product_read_tools(registry: ToolRegistry) -> None:
     registry.register(GET_PRODUCT_INFORMATION_SPEC)
     registry.register(GET_SEO_KEYWORDS_SPEC)
     registry.register(CHECK_PRODUCT_STATUS_SPEC)
+    registry.register(INSPECT_PRODUCT_IMAGE_SPEC)
