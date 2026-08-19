@@ -31,7 +31,19 @@ ExecStartPre=/root/Juli-AI-v2/infra/scripts/fetch-secrets.sh
 # workflow paths. Leaving it unset/false here is what keeps that path off by default.
 EnvironmentFile=/etc/juli/api.env
 # Single worker is sufficient for review; no HA/multi-worker tuning in Phase 2.5.
+#
+# `-Q celery,agent_runs` (issue #1205). `workers/celery_app.py`'s task_routes send
+# run_agent_workflow / resume_agent_workflow to a DEDICATED `agent_runs` queue per
+# ADR-074 decision 4. With no -Q flag celery consumes only the default `celery`
+# queue, so those tasks enqueued into a queue nobody read: every agent run returned
+# a celery_task_id, then sat at status=queued with zero events forever (observed on
+# the VPS 2026-08-19). Both queues must be listed -- dropping `celery` here would
+# strand every non-agent task instead.
+#
+# If a queue is ever added to task_routes, it must be added here too; nothing else
+# reconciles the two.
 ExecStart=/root/releases/current/.venv/bin/celery -A juli_backend.workers.celery_app worker \
+    -Q celery,agent_runs \
     --loglevel=info
 Restart=on-failure
 RestartSec=5
