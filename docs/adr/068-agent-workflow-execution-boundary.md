@@ -55,6 +55,42 @@ lifecycle is, and what happens to the no-LLM tests.
    target the sandbox counterpart product; production writes unlock at 3.5-C as a
    guard-configuration change, not an architecture change.
 
+   **Amendment (2026-08-19, issue #1200) — the write guarantee rests on
+   vendor-verified identity, not a column.** `SandboxWriteClientFactory`
+   asserts `merchant_auth_id == SANDBOX_AUTH_ID`, a value read from the
+   `tiktok_credentials` row. Nothing asked TikTok which shop the token actually
+   reaches, so decision 3's "writes target the sandbox" held only as far as the
+   row's label was honest. On 2026-08-18 it was not: a row with the correct
+   label and auth id held a token authorized for the production shop, sharing a
+   `shop_cipher` with `production_read`. Every guard permitted it; only an
+   unrelated NULL `shop_cipher` prevented an agent write from reaching the live
+   store.
+
+   Credential writes now verify the binding against `GET /authorization/{v}/shops`
+   (`core/security/credential_binding.py`) before persisting, using two
+   invariants that require **nothing hardcoded** — deliberately, because a
+   pinned shop id encodes operator facts into the repo and goes stale when a
+   shop changes:
+
+   - **Distinctness** — no two capabilities may resolve to the same shop. This
+     alone catches the 2026-08-18 case, and notably does not require knowing
+     which shop is "correct": two capabilities reaching one shop is wrong
+     whichever shop it is.
+   - **Stability (trust-on-first-use)** — a capability keeps the shop its first
+     verified credential resolved to; a later move is rejected for a human to
+     decide.
+
+   That identity read is now allowlisted for sandbox-write as well as
+   production-read, since the sandbox side is exactly where a mislabelled token
+   causes an unintended production write.
+
+   **Enforced on write only** (owner's decision, 2026-08-19). A row mutated
+   after it was written — hand fix, database restore, bad migration — is not
+   re-checked; the guarantee holds at the door, not over time. Resolve-time
+   enforcement is the recorded upgrade path if that residual risk ever matters.
+   No schema change: both invariants are expressible with the existing
+   `shop_cipher` column.
+
    **Amendment (2026-08-18, issue #1189).** The production-read allowlist is
    widened by exactly two entries: `GET /product/{v}/products/seo_words` and
    `GET /product/{v}/products/suggestions`

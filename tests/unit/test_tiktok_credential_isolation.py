@@ -8,7 +8,7 @@ Acceptance criteria:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
@@ -29,6 +29,7 @@ from juli_backend.integrations.tiktok.merchant import (
 )
 from juli_backend.models.models import User
 from juli_backend.repositories.repos import ShopsRepo, TikTokCredentialRepo
+from juli_backend.services.tiktok.credential_binding import make_binding_verifier
 
 APP_KEY = "test_app_key"
 APP_SECRET = "test_app_secret"
@@ -37,7 +38,7 @@ REDIRECT_URI = "https://myapp.com/callback"
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _far_expiry() -> datetime:
@@ -50,9 +51,7 @@ def _near_expiry() -> datetime:
 
 @pytest.fixture
 def tiktok_auth():
-    return TikTokAuth(
-        app_key=APP_KEY, app_secret=APP_SECRET, base_url=BASE_URL
-    )
+    return TikTokAuth(app_key=APP_KEY, app_secret=APP_SECRET, base_url=BASE_URL)
 
 
 @pytest.fixture
@@ -62,6 +61,7 @@ def oauth_service(tiktok_auth, session):
         session=session,
         redirect_uri=REDIRECT_URI,
         app_secret=APP_SECRET,
+        binding_verifier=make_binding_verifier(app_key=APP_KEY, app_secret=APP_SECRET),
     )
 
 
@@ -113,27 +113,17 @@ class TestMerchantContext:
         assert capability == TikTokCapability.SELLER_CONNECT
 
     def test_is_cross_merchant_lookup_rejects_capability_mismatch(self):
-        assert is_cross_merchant_lookup(
-            PRODUCTION_AUTH_ID, TikTokCapability.SANDBOX_WRITE
-        )
-        assert is_cross_merchant_lookup(
-            SANDBOX_AUTH_ID, TikTokCapability.PRODUCTION_READ
-        )
+        assert is_cross_merchant_lookup(PRODUCTION_AUTH_ID, TikTokCapability.SANDBOX_WRITE)
+        assert is_cross_merchant_lookup(SANDBOX_AUTH_ID, TikTokCapability.PRODUCTION_READ)
 
     def test_is_cross_merchant_lookup_allows_matching_pair(self):
-        assert not is_cross_merchant_lookup(
-            PRODUCTION_AUTH_ID, TikTokCapability.PRODUCTION_READ
-        )
-        assert not is_cross_merchant_lookup(
-            SANDBOX_AUTH_ID, TikTokCapability.SANDBOX_WRITE
-        )
+        assert not is_cross_merchant_lookup(PRODUCTION_AUTH_ID, TikTokCapability.PRODUCTION_READ)
+        assert not is_cross_merchant_lookup(SANDBOX_AUTH_ID, TikTokCapability.SANDBOX_WRITE)
 
 
 class TestCredentialRepoIsolation:
     @pytest.mark.asyncio
-    async def test_get_by_merchant_returns_matching_credential(
-        self, session, user_id
-    ):
+    async def test_get_by_merchant_returns_matching_credential(self, session, user_id):
         await _seed_user(session, user_id)
         created = await _create_merchant_credential(
             session,
@@ -189,9 +179,7 @@ class TestCredentialRepoIsolation:
     @pytest.mark.asyncio
     async def test_create_rejects_cross_merchant_capability(self, session, user_id):
         await _seed_user(session, user_id)
-        shop = await ShopsRepo(session).create(
-            user_id, "Bad Shop", PRODUCTION_AUTH_ID
-        )
+        shop = await ShopsRepo(session).create(user_id, "Bad Shop", PRODUCTION_AUTH_ID)
 
         with pytest.raises(ValueError, match="do not match"):
             await TikTokCredentialRepo(session).create(
@@ -206,9 +194,7 @@ class TestCredentialRepoIsolation:
 
 class TestCredentialResolver:
     @pytest.mark.asyncio
-    async def test_resolve_production_read_credential_returns_fujiwa_only(
-        self, session, user_id
-    ):
+    async def test_resolve_production_read_credential_returns_fujiwa_only(self, session, user_id):
         await _seed_user(session, user_id)
         await _create_merchant_credential(
             session,
@@ -232,9 +218,7 @@ class TestCredentialResolver:
         assert credential.capability == TikTokCapability.PRODUCTION_READ.value
 
     @pytest.mark.asyncio
-    async def test_resolve_production_read_never_falls_back_to_sandbox_only(
-        self, session, user_id
-    ):
+    async def test_resolve_production_read_never_falls_back_to_sandbox_only(self, session, user_id):
         await _seed_user(session, user_id)
         await _create_merchant_credential(
             session,
@@ -248,9 +232,7 @@ class TestCredentialResolver:
             await resolve_production_read_credential(session)
 
     @pytest.mark.asyncio
-    async def test_resolve_sandbox_write_credential_returns_sandbox_only(
-        self, session, user_id
-    ):
+    async def test_resolve_sandbox_write_credential_returns_sandbox_only(self, session, user_id):
         await _seed_user(session, user_id)
         await _create_merchant_credential(
             session,
@@ -274,9 +256,7 @@ class TestCredentialResolver:
         assert credential.capability == TikTokCapability.SANDBOX_WRITE.value
 
     @pytest.mark.asyncio
-    async def test_resolve_sandbox_write_never_falls_back_to_fujiwa_only(
-        self, session, user_id
-    ):
+    async def test_resolve_sandbox_write_never_falls_back_to_fujiwa_only(self, session, user_id):
         await _seed_user(session, user_id)
         await _create_merchant_credential(
             session,

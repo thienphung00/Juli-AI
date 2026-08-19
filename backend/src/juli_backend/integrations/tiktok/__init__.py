@@ -55,6 +55,7 @@ from juli_backend.integrations.tiktok.factories import (
     SandboxWriteClientFactory,
     SandboxWriteResources,
 )
+from juli_backend.integrations.tiktok.guards import redact_shop_identifier
 from juli_backend.integrations.tiktok.mapping import (
     analytics_snapshot_key,
     expand_analytics_live_session,
@@ -108,6 +109,8 @@ __all__ = [
     "DEFAULT_OPEN_API_BASE_URL",
     # HTTP client
     "TikTokClient",
+    # Safe identifier rendering (never log a full shop cipher)
+    "redact_shop_identifier",
     # Request signing
     "sign_request",
     # Rate limiting

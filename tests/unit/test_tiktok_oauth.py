@@ -21,6 +21,7 @@ from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
 from juli_backend.integrations.tiktok.auth import TikTokAuth
 from juli_backend.models.models import TikTokCredential, User
 from juli_backend.repositories.repos import ShopsRepo, TikTokCredentialRepo
+from juli_backend.services.tiktok.credential_binding import make_binding_verifier
 
 APP_KEY = "test_app_key"
 APP_SECRET = "test_app_secret"
@@ -48,6 +49,7 @@ def service(tiktok_auth, session):
         session=session,
         redirect_uri=REDIRECT_URI,
         app_secret=APP_SECRET,
+        binding_verifier=make_binding_verifier(app_key=APP_KEY, app_secret=APP_SECRET),
     )
 
 
@@ -172,6 +174,7 @@ class TestOAuthCallback:
             session=session,
             redirect_uri=REDIRECT_URI,
             app_secret=APP_SECRET,
+            binding_verifier=make_binding_verifier(app_key=APP_KEY, app_secret=APP_SECRET),
         )
         _mock_exchange(tiktok_auth, open_id="contested_shop")
 
@@ -187,6 +190,7 @@ class TestOAuthCallback:
             session=session,
             redirect_uri=REDIRECT_URI,
             app_secret=APP_SECRET,
+            binding_verifier=make_binding_verifier(app_key=APP_KEY, app_secret=APP_SECRET),
         )
         url2 = await service.initiate_oauth(user_id)
 
@@ -274,6 +278,7 @@ class TestTokenRefresh:
                 session=session,
                 redirect_uri=REDIRECT_URI,
                 app_secret=APP_SECRET,
+                binding_verifier=make_binding_verifier(app_key=APP_KEY, app_secret=APP_SECRET),
             )
             tiktok_auth.refresh_access_token = MagicMock(
                 return_value={
@@ -319,6 +324,7 @@ class TestTokenRefresh:
                 session=session,
                 redirect_uri=REDIRECT_URI,
                 app_secret=APP_SECRET,
+                binding_verifier=make_binding_verifier(app_key=APP_KEY, app_secret=APP_SECRET),
             )
             tiktok_auth.refresh_access_token = MagicMock(
                 return_value={
@@ -369,6 +375,7 @@ class TestTokenRefresh:
                 session=session,
                 redirect_uri=REDIRECT_URI,
                 app_secret=APP_SECRET,
+                binding_verifier=make_binding_verifier(app_key=APP_KEY, app_secret=APP_SECRET),
             )
             tiktok_auth.refresh_access_token = MagicMock(
                 return_value={
@@ -437,6 +444,7 @@ class TestTokenRefresh:
                 session=session,
                 redirect_uri=REDIRECT_URI,
                 app_secret=APP_SECRET,
+                binding_verifier=make_binding_verifier(app_key=APP_KEY, app_secret=APP_SECRET),
             )
             tiktok_auth.refresh_access_token = MagicMock(
                 return_value={

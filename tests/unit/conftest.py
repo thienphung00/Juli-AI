@@ -115,3 +115,36 @@ def user_id():
 @pytest.fixture
 def other_user_id():
     return uuid.uuid4()
+
+
+@pytest.fixture(autouse=True)
+def _no_live_vendor_identity_lookup(monkeypatch):
+    """A unit test must never call TikTok's authorization endpoint (#1200).
+
+    Provisioning verifies a credential's real merchant against
+    `GET /authorization/{v}/shops` before storing it. Left unstubbed, every test
+    that exercises the OAuth callback issues a REAL HTTPS request to the live
+    Partner API -- observed returning `36009004 Invalid app_key` for
+    `app_key=test_app_key`. That makes the suite depend on an external service
+    being reachable, and would leak test traffic to the vendor.
+
+    Autouse so the guarantee cannot be forgotten by a new test. A test that
+    genuinely wants to exercise the lookup overrides `resolve_authorized_shop`
+    itself (see `test_credential_binding.py`), which takes precedence.
+
+    Distinct cipher per call: a fixed value would make two capabilities collide
+    and trip the distinctness invariant in tests that provision more than one.
+    """
+    import itertools
+
+    counter = itertools.count()
+
+    def _fake_resolve(*, app_key: str, app_secret: str, access_token: str) -> dict:
+        n = next(counter)
+        return {"id": f"stub-shop-{n}", "cipher": f"ROW_stub_cipher_{n}", "name": "Stub Shop"}
+
+    monkeypatch.setattr(
+        "juli_backend.services.tiktok.credential_binding.resolve_authorized_shop",
+        _fake_resolve,
+        raising=False,
+    )

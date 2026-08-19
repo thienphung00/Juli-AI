@@ -37,6 +37,18 @@ class TikTokAuth:
         self._base_url = (base_url or DEFAULT_OPEN_API_BASE_URL).rstrip("/")
         self._auth_base_url = (auth_base_url or DEFAULT_AUTH_BASE_URL).rstrip("/")
 
+    @property
+    def app_key(self) -> str:
+        """The OAuth *client id*, not a secret (the `client_id` analogue).
+
+        Read-only accessor so callers that must build a signed client of their
+        own -- `core/security/credential_binding.py`'s vendor identity check
+        (#1200) -- do not reach into `_app_key`. Deliberately no `app_secret`
+        counterpart: that one IS a secret, and callers already receive it
+        explicitly where they legitimately need it.
+        """
+        return self._app_key
+
     def generate_auth_url(self, redirect_uri: str, state: str) -> str:
         """Build the URL a seller is redirected to for OAuth consent."""
         params = urlencode(

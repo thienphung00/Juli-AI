@@ -15,6 +15,7 @@ import logging
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,6 +35,28 @@ logger = logging.getLogger(__name__)
 REFRESH_BUFFER = timedelta(minutes=30)
 
 
+class BindingVerifier(Protocol):
+    """Verifies which merchant a credential's token really reaches (issue #1200).
+
+    Defined here, in `core`, rather than imported from `services`: a
+    `core -> services` import is a forbidden edge, and even a `TYPE_CHECKING`
+    guard does not help — the boundary checker reads the AST, not the runtime
+    graph. Structural typing means the `services`-side implementation satisfies
+    this without either package importing the other's concrete module.
+
+    Returns the verified `shop_cipher`; raises when the token's real merchant
+    disagrees with the capability it is being filed under.
+    """
+
+    async def __call__(
+        self,
+        session: AsyncSession,
+        *,
+        capability: TikTokCapability | str,
+        access_token: str,
+    ) -> str: ...
+
+
 def _utc_now() -> datetime:
     """Naive UTC timestamp (compatible with SQLite and PostgreSQL)."""
     return datetime.now(UTC).replace(tzinfo=None)
@@ -48,11 +71,17 @@ class TikTokOAuthService:
         session: AsyncSession,
         redirect_uri: str,
         app_secret: str,
+        binding_verifier: BindingVerifier,
     ) -> None:
         self._tiktok_auth = tiktok_auth
         self._session = session
         self._redirect_uri = redirect_uri
         self._app_secret = app_secret
+        # Issue #1200. Required, never defaulted: a default would let a caller
+        # provision a credential without verifying which merchant its token
+        # actually reaches, which is the hole this closes. Injected rather than
+        # imported because `core -> integrations` is a forbidden edge.
+        self._binding_verifier = binding_verifier
 
     async def initiate_oauth(self, user_id: uuid.UUID) -> str:
         """Generate TikTok authorization URL with signed state parameter."""
@@ -118,6 +147,16 @@ class TikTokOAuthService:
             else:
                 scopes = str(granted)
 
+        # Issue #1200: ask the vendor which shop this token actually reaches,
+        # and refuse the write if that disagrees with the capability it is being
+        # filed under. Before this, the capability was asserted by a column and
+        # verified by nothing -- a production token filed as `sandbox_write`
+        # passed every guard (observed 2026-08-18). Runs BEFORE any write, so a
+        # mislabelled credential is never persisted even briefly.
+        verified_cipher = await self._binding_verifier(
+            self._session, capability=capability, access_token=access_token
+        )
+
         try:
             existing_cred = await cred_repo.get_by_merchant(
                 merchant_authorization_id,
@@ -129,6 +168,9 @@ class TikTokOAuthService:
                 refresh_token=refresh_token,
                 token_expires_at=expires_at,
             )
+            # The verified cipher is the binding; record it on the row so the
+            # next write's distinctness/TOFU check has something to compare to.
+            existing_cred.shop_cipher = verified_cipher
         except NotFound:
             await cred_repo.create(
                 shop_id=shop.id,
@@ -138,6 +180,7 @@ class TikTokOAuthService:
                 scopes=scopes,
                 merchant_authorization_id=merchant_authorization_id,
                 capability=capability.value,
+                shop_cipher=verified_cipher,
             )
 
         logger.info(
