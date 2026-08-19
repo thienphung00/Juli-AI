@@ -102,3 +102,40 @@ def test_the_two_agent_tasks_route_to_a_consumed_queue(task_name):
     assert queue in _unit_consumed_queues(), (
         f"{task_name} routes to {queue!r}, which the worker unit does not consume"
     )
+
+
+class TestRoutedTasksAreRegistered:
+    """Every task in `task_routes` must actually be registered (issue #1207).
+
+    `workers/tasks/__init__.py` imports task modules explicitly, because
+    `autodiscover_tasks` imports the *package*, not each module in it. A module
+    left out of that list registers nowhere.
+
+    `test_beat_schedule_tasks_are_registered` already pins this for
+    beat-scheduled tasks. It does not cover API-dispatched ones — which is
+    exactly how `agent_workflow` was omitted, leaving the worker to answer
+    `Received unregistered task ... KeyError: 'juli_backend.run_agent_workflow'`
+    the moment #1205 gave it the queue to receive on.
+    """
+
+    def test_every_routed_task_is_registered(self):
+        from juli_backend.workers import tasks as _tasks  # noqa: F401 -- triggers registration
+        from juli_backend.workers.celery_app import celery_app
+
+        routed = set(celery_app.conf.task_routes or {})
+        missing = sorted(name for name in routed if name not in celery_app.tasks)
+        assert not missing, (
+            f"{missing} are routed to a queue but not registered with the worker. Import "
+            "their module in workers/tasks/__init__.py -- autodiscover_tasks imports the "
+            "package, not each module, so an unimported task file registers nowhere."
+        )
+
+    def test_both_agent_tasks_are_registered(self):
+        from juli_backend.workers import tasks as _tasks  # noqa: F401
+        from juli_backend.workers.celery_app import celery_app
+
+        for name in (
+            "juli_backend.run_agent_workflow",
+            "juli_backend.resume_agent_workflow",
+        ):
+            assert name in celery_app.tasks, f"{name} is not registered"
