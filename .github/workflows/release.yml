@@ -18,6 +18,25 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+      # `pytest tests/` below includes the dual-language contract tests (#1126),
+      # which shell out to node and `require("typescript")` with cwd
+      # packages/contracts. Without this graph every such test dies with a bare
+      # CalledProcessError, which failed THIS job on every push to main since
+      # #1126 landed -- and because `app-release-artifact` needs `build`, no
+      # release artifact was produced, so `deploy.sh`'s demo lane had nothing to
+      # download ("artifact juli-demo-<sha> is not attached to run ..."). #1185
+      # fixed the same gap in pr.yml's cross-module-contracts and full-regression
+      # jobs; this is the third job that runs those tests.
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install contracts dependency graph
+        run: pnpm install --frozen-lockfile --filter "./packages/contracts..."
       - name: Install and verify
         run: |
           pip install -e "./backend[dev]" -c backend/constraints.txt
