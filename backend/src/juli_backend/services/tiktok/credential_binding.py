@@ -96,7 +96,13 @@ GOVERNED_CAPABILITIES: frozenset[str] = frozenset(
 )
 
 
-def _capability_value(capability: TikTokCapability | str) -> str:
+def _capability_value(capability: TikTokCapability | str | None) -> str:
+    """`TikTokCredential.capability` is a nullable column, so rows really can
+    carry `None`. Mapping that to `""` -- which is not in
+    `GOVERNED_CAPABILITIES` -- makes a capability-less row *ungoverned*, which
+    is the correct reading: there is no capability claim to verify against."""
+    if capability is None:
+        return ""
     return capability.value if isinstance(capability, TikTokCapability) else capability
 
 
