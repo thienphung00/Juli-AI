@@ -100,7 +100,7 @@ class TestRecordedToolCallRoundTrip:
         assert turn.usage.output_tokens > 0
 
     @pytest.mark.asyncio
-    async def test_request_carries_the_six_registry_tools(self):
+    async def test_request_carries_every_registry_tool(self):
         """The request half of the contract — a response-only fixture would miss this."""
         captured: dict = {}
         await _complete_through_replay(captured)
@@ -109,6 +109,9 @@ class TestRecordedToolCallRoundTrip:
             "check_product_status",
             "get_product_information",
             "get_seo_keywords",
+            # #1208: the image step became a READ inspection. upload stays
+            # registered for the future generation capability.
+            "inspect_product_image",
             "update_product_listing",
             "update_product_price",
             "upload_product_image",

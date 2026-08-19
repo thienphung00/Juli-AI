@@ -126,7 +126,7 @@ def _leaked(sanitized, *values: str) -> list[str]:
     return [value for value in values if value in serialized]
 
 
-class TestAllThreeReadCapabilitiesSanitizeFromTheRealRegistry:
+class TestAllReadCapabilitiesSanitizeFromTheRealRegistry:
     """Each of the three READ capabilities, dispatched against the real registry
     and real handler, with the real sanitize package applied at the boundary."""
 
@@ -189,9 +189,15 @@ class TestAllThreeReadCapabilitiesSanitizeFromTheRealRegistry:
         assert sanitized == {"status": "ACTIVATE"}
         assert _leaked(sanitized, BOUND_PRODUCT_ID) == []
 
-    def test_all_three_tools_are_resolved_from_the_real_registry_not_a_private_map(self, registry):
+    def test_all_read_tools_are_resolved_from_the_real_registry_not_a_private_map(self, registry):
         """Proves the dispatch went through `ToolRegistry.get`, not just the
         handler lookup dict — a spec absent from the registry would 404 here
         even if `PRODUCT_READ_TOOL_HANDLERS` still had an entry for it."""
         names = {spec.name for spec in registry.list_all()}
-        assert names == {"get_product_information", "get_seo_keywords", "check_product_status"}
+        assert names == {
+            "get_product_information",
+            "get_seo_keywords",
+            "check_product_status",
+            # #1208: the image step is a READ inspection now.
+            "inspect_product_image",
+        }
