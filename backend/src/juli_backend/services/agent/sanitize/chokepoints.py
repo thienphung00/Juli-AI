@@ -45,6 +45,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from juli_backend.services.agent.sanitize.banned_patterns import (
+    AGENT_OUTPUT_SCOPE,
     compile_python_patterns,
     load_banned_pattern_entries,
 )
@@ -117,7 +118,9 @@ def _iter_strings(value: Any, *, path: str) -> list[tuple[str, str]]:
     return found
 
 
-def find_banned_pattern_hits(value: Any) -> tuple[BannedPatternHit, ...]:
+def find_banned_pattern_hits(
+    value: Any, *, scope: str | None = None
+) -> tuple[BannedPatternHit, ...]:
     """Recursively scan ``value`` for banned-pattern hits.
 
     Uses the shared #990 pattern source directly
@@ -126,13 +129,20 @@ def find_banned_pattern_hits(value: Any) -> tuple[BannedPatternHit, ...]:
     there is exactly one code path from "shared JSON source" to "matched
     against agent content".
 
+    `scope` (#1210) selects which surface's patterns apply; `None` keeps every
+    pattern, so any caller that does not opt in is unchanged. Both guards below
+    pass `AGENT_OUTPUT_SCOPE`, because several patterns were authored against
+    the deterministic copy layer and are ordinary language on the agent
+    surface -- a real run reached `final_response` and was killed by its own
+    guard on `Độ tin cậy:` / `an toàn`-class matches.
+
     Raises `BannedPatternScanError` if the shared source itself fails to
     load or compile. This is a deliberate raise, not a caught-and-ignored
     condition: callers (the two guard functions below) MUST treat it as a
     hit for fail-closed purposes.
     """
     try:
-        entries = load_banned_pattern_entries()
+        entries = load_banned_pattern_entries(scope=scope)
         patterns = compile_python_patterns(entries)
     except Exception as exc:  # noqa: BLE001 - deliberately fail-closed, see above
         raise BannedPatternScanError(
@@ -200,7 +210,7 @@ def guard_inbound_tool_result(result: Mapping[str, Any], *, tool_name: str) -> M
     derivable from, the returned error envelope.
     """
     try:
-        hits = find_banned_pattern_hits(result)
+        hits = find_banned_pattern_hits(result, scope=AGENT_OUTPUT_SCOPE)
     except BannedPatternScanError as exc:
         logger.warning(
             "agent_inbound_banned_pattern_guard_failed",
@@ -243,7 +253,7 @@ def guard_outbound_agent_output(output: Any) -> None:
     one builds it on top of this function's `BannedPatternGuardFailure`.
     """
     try:
-        hits = find_banned_pattern_hits(output)
+        hits = find_banned_pattern_hits(output, scope=AGENT_OUTPUT_SCOPE)
     except BannedPatternScanError as exc:
         logger.warning("agent_outbound_banned_pattern_guard_failed", extra={"reason": str(exc)})
         raise BannedPatternGuardFailure(_OUTBOUND_GUARD_MESSAGE) from exc
@@ -251,8 +261,15 @@ def guard_outbound_agent_output(output: Any) -> None:
     if not hits:
         return None
 
+    # The pattern ids are also in the MESSAGE, not only in `extra` (#1210):
+    # the celery worker's log format drops `extra`, so production showed just
+    # "agent_outbound_banned_pattern_hit" with no reason, and the cause had to
+    # be reconstructed from the pattern file. `matched_text` stays out of the
+    # message -- it is agent-authored content, and the ids alone identify the
+    # rule.
     logger.warning(
-        "agent_outbound_banned_pattern_hit",
+        "agent_outbound_banned_pattern_hit: %s",
+        ",".join(sorted({hit.pattern_id for hit in hits})),
         extra={
             "hit_count": len(hits),
             "pattern_ids": [hit.pattern_id for hit in hits],

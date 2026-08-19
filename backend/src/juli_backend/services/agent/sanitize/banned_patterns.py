@@ -54,10 +54,32 @@ def _translate_flags(entry_id: str, flags: str) -> int:
     return python_flags
 
 
+#: The two surfaces these patterns guard (#1210). `copy_layer` is the
+#: deterministic seller-copy output they were authored for; `agent_output` is
+#: the LLM-authored surface `chokepoints.py` brackets the run with.
+COPY_LAYER_SCOPE = "copy_layer"
+AGENT_OUTPUT_SCOPE = "agent_output"
+
+
 def load_banned_pattern_entries(
     path: Path | None = None,
+    *,
+    scope: str | None = None,
 ) -> tuple[BannedPatternEntry, ...]:
-    """Read the shared JSON source and return the raw pattern entries, in file order."""
+    """Read the shared JSON source and return the raw pattern entries, in file order.
+
+    `scope` filters to the patterns enforced on one surface (#1210). A pattern
+    with no `scopes` key counts as BOTH -- so a newly added pattern is never
+    silently narrower than its author intended, and omitting the field keeps
+    the old, stricter behaviour.
+
+    Why the filter exists: several patterns were written against the
+    deterministic copy layer, where `Độ tin cậy:` or `Công cụ:` is a debug label
+    escaping into seller copy. Enforced verbatim on agent prose, the same
+    strings are ordinary Vietnamese, and `\bconfirm\b` / `\bship\b` /
+    `\ban toàn\b` are unavoidable words. A real run reached `final_response`
+    and was killed by its own guard on exactly this.
+    """
     json_path = path if path is not None else BANNED_PATTERNS_JSON_PATH
     raw = json.loads(json_path.read_text(encoding="utf-8"))
     return tuple(
@@ -67,6 +89,7 @@ def load_banned_pattern_entries(
             flags=entry.get("flags", ""),
         )
         for entry in raw["patterns"]
+        if scope is None or scope in entry.get("scopes", [COPY_LAYER_SCOPE, AGENT_OUTPUT_SCOPE])
     )
 
 
@@ -94,7 +117,11 @@ def compile_python_patterns(
     return tuple(compiled)
 
 
-@lru_cache(maxsize=1)
-def load_banned_patterns() -> tuple[re.Pattern[str], ...]:
-    """Load the shared source and compile every entry under Python's `re` engine."""
-    return compile_python_patterns(load_banned_pattern_entries())
+@lru_cache(maxsize=4)
+def load_banned_patterns(scope: str | None = None) -> tuple[re.Pattern[str], ...]:
+    """Load the shared source and compile every entry under Python's `re` engine.
+
+    Default (`scope=None`) keeps every pattern, so existing callers -- the copy
+    layer and its governance tests -- are unchanged by #1210.
+    """
+    return compile_python_patterns(load_banned_pattern_entries(scope=scope))

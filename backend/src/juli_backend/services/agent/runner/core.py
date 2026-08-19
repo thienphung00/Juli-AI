@@ -220,6 +220,7 @@ from juli_backend.services.agent.runner.termination import (
 )
 from juli_backend.services.agent.runner.tool_executor import ToolExecutor
 from juli_backend.services.agent.sanitize import (
+    BannedPatternGuardFailure,
     TranslatedError,
     guard_inbound_tool_result,
     guard_outbound_agent_output,
@@ -936,11 +937,32 @@ class WorkflowRunner:
         version_str: str,
         sha256: str,
     ) -> RunResult:
-        # Raises BannedPatternGuardFailure straight out of run() on a hit —
-        # deliberately before anything below is recorded (module docstring).
-        guard_outbound_agent_output(
-            {"content": block.content, "structured_output": block.structured_output}
-        )
+        # A guard hit is a KNOWN outcome, not a crash (issue #1210). Letting it
+        # propagate out of run() meant the row was never written terminal -- the
+        # reaper then stamped `worker_lost`, which is a lie (no worker was lost)
+        # and sends an operator after infrastructure. It also skipped the state
+        # persist, discarding the conversation and with it the offending text,
+        # so the hit could not be diagnosed after the fact.
+        #
+        # Terminating through `_terminate` instead gives it the accurate
+        # `output_validation_failed` stop_reason (already in the vocabulary) via
+        # the same path #1172 used for the other five collaborator exceptions.
+        # The blocked content is still never recorded: `_terminate` runs before
+        # the append below, so the response body does not reach the conversation
+        # or the event stream. Recovery (repair retry, rules-template fallback,
+        # ADR-070 d.6(b)) stays out of scope -- #994's deferral is unchanged.
+        try:
+            guard_outbound_agent_output(
+                {"content": block.content, "structured_output": block.structured_output}
+            )
+        except BannedPatternGuardFailure:
+            return await self._terminate(
+                workflow_run_id,
+                state,
+                StopReason.OUTPUT_VALIDATION_FAILED,
+                version_str,
+                sha256,
+            )
         state.conversation_window.append({"role": "assistant", "content": block.content})
         stop_reason = StopReason.FINAL_RESPONSE
         await self._emit(
