@@ -302,7 +302,7 @@ def test_scanning_defers_entirely_to_the_shared_loader_no_baked_in_copy(monkeypa
     loader alone knows about IS detected — proving detection is driven
     solely by whatever `load_banned_pattern_entries` returns.
     """
-    monkeypatch.setattr(chokepoints_module, "load_banned_pattern_entries", lambda: ())
+    monkeypatch.setattr(chokepoints_module, "load_banned_pattern_entries", lambda scope=None: ())
 
     hits = find_banned_pattern_hits({"text": _BANNED_SENTENCE})
     assert hits == ()
@@ -310,7 +310,9 @@ def test_scanning_defers_entirely_to_the_shared_loader_no_baked_in_copy(monkeypa
     sentinel_entries = (
         BannedPatternEntry(id="sentinel_only", source="zzz-sentinel-zzz", flags=""),
     )
-    monkeypatch.setattr(chokepoints_module, "load_banned_pattern_entries", lambda: sentinel_entries)
+    monkeypatch.setattr(
+        chokepoints_module, "load_banned_pattern_entries", lambda scope=None: sentinel_entries
+    )
 
     hits = find_banned_pattern_hits({"text": "contains zzz-sentinel-zzz here"})
     assert len(hits) == 1

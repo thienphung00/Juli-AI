@@ -1109,15 +1109,28 @@ class TestStopReasonReachability:
         assert not (_REACHABLE_BY_THIS_SLICE & _RESERVED_UNREACHABLE)
         assert not (_DEFERRED_TO_LATER_SLICES & _RESERVED_UNREACHABLE)
 
-    def test_worker_lost_and_output_validation_failed_are_never_referenced_in_production_code(
+    def test_worker_lost_is_never_referenced_and_output_validation_has_one_producer(
         self,
     ):
+        """`worker_lost` stays reaper-only: the runner must never claim a worker
+        was lost, which is exactly the false label #1210 removed.
+
+        `output_validation_failed` gained its first legitimate producer in
+        #1210 -- the outbound banned-pattern guard, in `core.py::_finalize`.
+        Asserted as a count so a second producer cannot appear unnoticed, and
+        `termination.py` stays free of it entirely.
+        """
         for path in (CORE_MODULE_PATH, TERMINATION_MODULE_PATH):
             source = path.read_text(encoding="utf-8")
             assert "WORKER_LOST" not in source, f"{path} references the reaper-only stop_reason"
-            assert "OUTPUT_VALIDATION_FAILED" not in source, (
-                f"{path} references the P7-reserved stop_reason"
-            )
+
+        assert (
+            TERMINATION_MODULE_PATH.read_text(encoding="utf-8").count("OUTPUT_VALIDATION_FAILED")
+            == 0
+        )
+        assert (
+            CORE_MODULE_PATH.read_text(encoding="utf-8").count("OUTPUT_VALIDATION_FAILED") == 1
+        ), "exactly one producer (the outbound guard translation) is sanctioned"
 
     async def test_every_reachable_stop_reason_has_a_dedicated_scenario_reaching_it(self):
         reached: dict[StopReason, RunResult] = {

@@ -1,38 +1,320 @@
 {
-  "$comment": "Banned patterns in seller-facing copy (ADR-070 decision 6, issue #990). Single language-neutral source consumed by the TypeScript guard (src/seller-copy.ts) and the Python agent guard (backend/src/juli_backend/services/agent/sanitize). `source`/`flags` are the exact RegExp `.source`/`.flags` pair from the original TypeScript literal — extraction only, no pattern added/removed/altered. New patterns must compile under both Python `re` and JavaScript `RegExp` (see tests/unit/test_agent_banned_patterns_contract.py).",
+  "$comment": "Banned patterns in seller-facing copy (ADR-070 decision 6, issue #990). Single language-neutral source consumed by the TypeScript guard (src/seller-copy.ts) and the Python agent guard (backend/src/juli_backend/services/agent/sanitize). `source`/`flags` are the exact RegExp `.source`/`.flags` pair from the original TypeScript literal — extraction only, no pattern added/removed/altered. New patterns must compile under both Python `re` and JavaScript `RegExp` (see tests/unit/test_agent_banned_patterns_contract.py). Each entry carries `scopes` (#1210): `copy_layer` is the deterministic seller-copy surface these patterns were authored for; `agent_output` is the LLM-authored surface guarded by chokepoints.py. A missing `scopes` means BOTH, so a new pattern is never silently narrower than intended. Entries scoped to copy_layer only are ordinary language on the agent surface -- enforcing them there made legitimate final responses fatal (issue #1210).",
   "patterns": [
-    { "id": "tool_name", "source": "tool_name", "flags": "i", "note": "internal implementation detail" },
-    { "id": "workflow_key", "source": "workflow_key", "flags": "i", "note": "internal implementation detail" },
-    { "id": "feature_id", "source": "feature_id", "flags": "i", "note": "internal implementation detail" },
-    { "id": "webhook", "source": "\\bwebhook\\b", "flags": "i", "note": "internal implementation detail" },
-    { "id": "endpoint", "source": "\\bendpoint\\b", "flags": "i", "note": "internal implementation detail" },
-    { "id": "fbs", "source": "\\bFBS\\b", "flags": "", "note": "internal implementation detail" },
-    { "id": "fbt", "source": "\\bFBT\\b", "flags": "", "note": "internal implementation detail" },
-    { "id": "do_tin_cay", "source": "Độ tin cậy:", "flags": "", "note": "internal implementation detail" },
-    { "id": "cong_cu", "source": "Công cụ:", "flags": "", "note": "internal implementation detail" },
-    { "id": "kha_nang", "source": "Khả năng:", "flags": "", "note": "internal implementation detail" },
-    { "id": "get_product", "source": "Get Product", "flags": "i", "note": "internal implementation detail" },
-    { "id": "unresolved_unfilled", "source": "Unresolved\\/Unfilled", "flags": "i", "note": "internal implementation detail" },
-    { "id": "listing_dot", "source": "listing\\.", "flags": "", "note": "internal implementation detail" },
-    { "id": "inventory_dot", "source": "inventory\\.", "flags": "", "note": "internal implementation detail" },
-    { "id": "fulfillment_dot", "source": "fulfillment\\.", "flags": "", "note": "internal implementation detail" },
-    { "id": "returns_dot", "source": "returns\\.", "flags": "", "note": "internal implementation detail" },
-    { "id": "promotion_dot", "source": "promotion\\.", "flags": "", "note": "internal implementation detail" },
-    { "id": "executor", "source": "\\bexecutor\\b", "flags": "i", "note": "internal implementation detail" },
-    { "id": "create_packages", "source": "\\bCreate Packages\\b", "flags": "i", "note": "internal implementation detail" },
-    { "id": "ship", "source": "\\bship\\b", "flags": "i", "note": "internal implementation detail" },
-    { "id": "split", "source": "\\bsplit\\b", "flags": "i", "note": "internal implementation detail" },
-    { "id": "confirm", "source": "\\bconfirm\\b", "flags": "i", "note": "internal implementation detail" },
-    { "id": "deactivate", "source": "\\bDeactivate\\b", "flags": "i", "note": "internal implementation detail" },
-    { "id": "parity", "source": "\\bparity\\b", "flags": "i", "note": "internal implementation detail" },
-    { "id": "activity", "source": "\\bActivity\\b", "flags": "", "note": "internal implementation detail" },
-    { "id": "get_activity", "source": "Get Activity", "flags": "i", "note": "internal implementation detail" },
-    { "id": "virus", "source": "\\bvirus\\b", "flags": "i", "note": "false security claim — file validation is MIME type and truncation only" },
-    { "id": "viruses", "source": "\\bviruses\\b", "flags": "i", "note": "false security claim — file validation is MIME type and truncation only" },
-    { "id": "antivirus", "source": "antivirus", "flags": "i", "note": "false security claim — file validation is MIME type and truncation only" },
-    { "id": "malware", "source": "malware", "flags": "i", "note": "false security claim — file validation is MIME type and truncation only" },
-    { "id": "an_toan", "source": "\\ban toàn\\b", "flags": "i", "note": "Vietnamese: \"safe/safety\" — forbid affirmative safety claims" },
-    { "id": "kiem_tra_an_toan", "source": "kiểm tra an toàn", "flags": "i", "note": "false security claim — file validation is MIME type and truncation only" },
-    { "id": "tep_an_toan", "source": "tệp an toàn", "flags": "i", "note": "false security claim — file validation is MIME type and truncation only" }
+    {
+      "id": "tool_name",
+      "source": "tool_name",
+      "flags": "i",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer",
+        "agent_output"
+      ]
+    },
+    {
+      "id": "workflow_key",
+      "source": "workflow_key",
+      "flags": "i",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer",
+        "agent_output"
+      ]
+    },
+    {
+      "id": "feature_id",
+      "source": "feature_id",
+      "flags": "i",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer",
+        "agent_output"
+      ]
+    },
+    {
+      "id": "webhook",
+      "source": "\\bwebhook\\b",
+      "flags": "i",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer",
+        "agent_output"
+      ]
+    },
+    {
+      "id": "endpoint",
+      "source": "\\bendpoint\\b",
+      "flags": "i",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer",
+        "agent_output"
+      ]
+    },
+    {
+      "id": "fbs",
+      "source": "\\bFBS\\b",
+      "flags": "",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer",
+        "agent_output"
+      ]
+    },
+    {
+      "id": "fbt",
+      "source": "\\bFBT\\b",
+      "flags": "",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer",
+        "agent_output"
+      ]
+    },
+    {
+      "id": "do_tin_cay",
+      "source": "Độ tin cậy:",
+      "flags": "",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer"
+      ]
+    },
+    {
+      "id": "cong_cu",
+      "source": "Công cụ:",
+      "flags": "",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer"
+      ]
+    },
+    {
+      "id": "kha_nang",
+      "source": "Khả năng:",
+      "flags": "",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer"
+      ]
+    },
+    {
+      "id": "get_product",
+      "source": "Get Product",
+      "flags": "i",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer"
+      ]
+    },
+    {
+      "id": "unresolved_unfilled",
+      "source": "Unresolved\\/Unfilled",
+      "flags": "i",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer",
+        "agent_output"
+      ]
+    },
+    {
+      "id": "listing_dot",
+      "source": "listing\\.",
+      "flags": "",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer",
+        "agent_output"
+      ]
+    },
+    {
+      "id": "inventory_dot",
+      "source": "inventory\\.",
+      "flags": "",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer",
+        "agent_output"
+      ]
+    },
+    {
+      "id": "fulfillment_dot",
+      "source": "fulfillment\\.",
+      "flags": "",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer",
+        "agent_output"
+      ]
+    },
+    {
+      "id": "returns_dot",
+      "source": "returns\\.",
+      "flags": "",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer",
+        "agent_output"
+      ]
+    },
+    {
+      "id": "promotion_dot",
+      "source": "promotion\\.",
+      "flags": "",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer",
+        "agent_output"
+      ]
+    },
+    {
+      "id": "executor",
+      "source": "\\bexecutor\\b",
+      "flags": "i",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer",
+        "agent_output"
+      ]
+    },
+    {
+      "id": "create_packages",
+      "source": "\\bCreate Packages\\b",
+      "flags": "i",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer"
+      ]
+    },
+    {
+      "id": "ship",
+      "source": "\\bship\\b",
+      "flags": "i",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer"
+      ]
+    },
+    {
+      "id": "split",
+      "source": "\\bsplit\\b",
+      "flags": "i",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer"
+      ]
+    },
+    {
+      "id": "confirm",
+      "source": "\\bconfirm\\b",
+      "flags": "i",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer"
+      ]
+    },
+    {
+      "id": "deactivate",
+      "source": "\\bDeactivate\\b",
+      "flags": "i",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer"
+      ]
+    },
+    {
+      "id": "parity",
+      "source": "\\bparity\\b",
+      "flags": "i",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer"
+      ]
+    },
+    {
+      "id": "activity",
+      "source": "\\bActivity\\b",
+      "flags": "",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer"
+      ]
+    },
+    {
+      "id": "get_activity",
+      "source": "Get Activity",
+      "flags": "i",
+      "note": "internal implementation detail",
+      "scopes": [
+        "copy_layer"
+      ]
+    },
+    {
+      "id": "virus",
+      "source": "\\bvirus\\b",
+      "flags": "i",
+      "note": "false security claim — file validation is MIME type and truncation only",
+      "scopes": [
+        "copy_layer",
+        "agent_output"
+      ]
+    },
+    {
+      "id": "viruses",
+      "source": "\\bviruses\\b",
+      "flags": "i",
+      "note": "false security claim — file validation is MIME type and truncation only",
+      "scopes": [
+        "copy_layer",
+        "agent_output"
+      ]
+    },
+    {
+      "id": "antivirus",
+      "source": "antivirus",
+      "flags": "i",
+      "note": "false security claim — file validation is MIME type and truncation only",
+      "scopes": [
+        "copy_layer",
+        "agent_output"
+      ]
+    },
+    {
+      "id": "malware",
+      "source": "malware",
+      "flags": "i",
+      "note": "false security claim — file validation is MIME type and truncation only",
+      "scopes": [
+        "copy_layer",
+        "agent_output"
+      ]
+    },
+    {
+      "id": "an_toan",
+      "source": "\\ban toàn\\b",
+      "flags": "i",
+      "note": "Vietnamese: \"safe/safety\" — forbid affirmative safety claims",
+      "scopes": [
+        "copy_layer"
+      ]
+    },
+    {
+      "id": "kiem_tra_an_toan",
+      "source": "kiểm tra an toàn",
+      "flags": "i",
+      "note": "false security claim — file validation is MIME type and truncation only",
+      "scopes": [
+        "copy_layer"
+      ]
+    },
+    {
+      "id": "tep_an_toan",
+      "source": "tệp an toàn",
+      "flags": "i",
+      "note": "false security claim — file validation is MIME type and truncation only",
+      "scopes": [
+        "copy_layer"
+      ]
+    }
   ]
 }

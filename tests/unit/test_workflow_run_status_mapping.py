@@ -144,20 +144,37 @@ def test_output_validation_failed_is_present_and_mapped_to_failed():
     assert STOP_REASON_TO_STATUS[StopReason.OUTPUT_VALIDATION_FAILED] == WorkflowRunStatus.FAILED
 
 
-def test_output_validation_failed_has_no_producer_in_the_runner_package():
-    """P7 deferral discipline: no code in this slice (or any slice landed so
-    far) may construct `StopReason.OUTPUT_VALIDATION_FAILED` / the string
-    `"output_validation_failed"` outside of `status.py`'s enum definition and
-    mapping table. This walks every `.py` file under
-    `services/agent/runner/` at test-run time (not a hardcoded file list), so
-    it keeps guarding the P7 deferral as later slices add modules to that
-    package.
+def test_output_validation_failed_is_produced_only_by_the_outbound_guard():
+    """#1210 gave this stop_reason its first legitimate producer.
+
+    It was reserved for P7 and deliberately unreachable. The outbound
+    banned-pattern guard now terminates with it, because a guard hit is a known
+    outcome: letting it escape left the row non-terminal and the reaper stamped
+    `worker_lost`, which was false.
+
+    The discipline is unchanged in substance -- exactly ONE producer, named
+    here. A second one appearing without a decision is still a failure.
+
+    This walks every `.py` file under `services/agent/runner/` at test-run time
+    (not a hardcoded file list), so it keeps guarding as later slices add
+    modules to that package.
     """
     assert RUNNER_PACKAGE_DIR.is_dir(), f"runner package not found at {RUNNER_PACKAGE_DIR}"
 
     offending: list[str] = []
     for path in sorted(RUNNER_PACKAGE_DIR.rglob("*.py")):
         if path.name == "status.py":
+            continue
+        # #1210: core.py's `_finalize` is the ONE sanctioned producer. Counted
+        # rather than skipped -- a blanket exemption would let a second
+        # producer appear in the same file unnoticed, which is the discipline
+        # this test exists to keep.
+        if path.name == "core.py":
+            occurrences = path.read_text(encoding="utf-8").count("OUTPUT_VALIDATION_FAILED")
+            assert occurrences == 1, (
+                f"core.py references OUTPUT_VALIDATION_FAILED {occurrences} times; "
+                "exactly one producer (the outbound guard translation) is sanctioned"
+            )
             continue
         text = path.read_text(encoding="utf-8")
         if "output_validation_failed" in text.lower():

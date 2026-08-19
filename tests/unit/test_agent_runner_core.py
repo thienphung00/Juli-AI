@@ -49,7 +49,6 @@ from juli_backend.services.agent.runner.ledger import ToolExecutionUnrecoverable
 from juli_backend.services.agent.runner.state import RunState
 from juli_backend.services.agent.runner.status import StopReason, WorkflowRunStatus
 from juli_backend.services.agent.runner.tool_executor import ProductToolExecutor
-from juli_backend.services.agent.sanitize import BannedPatternGuardFailure
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
@@ -481,7 +480,18 @@ class TestInboundGuard:
 
 
 class TestOutboundGuard:
-    async def test_final_response_with_banned_pattern_raises_and_never_completes(self):
+    """#1210 changed this contract deliberately.
+
+    A guard hit used to propagate out of `run()`. In production that left the
+    row non-terminal, so the reaper stamped `worker_lost` -- false, and it sends
+    an operator after infrastructure -- and skipped the state persist, throwing
+    away the conversation and with it the text that tripped the guard.
+
+    It now terminates as `output_validation_failed`. What must NOT change: the
+    blocked content still never reaches the conversation or a completion event.
+    """
+
+    async def test_final_response_with_banned_pattern_terminates_and_never_completes(self):
         run_id = uuid.uuid4()
         store = _InMemoryConversationStore()
         store.seed(run_id)
@@ -497,8 +507,12 @@ class TestOutboundGuard:
             registry=_full_registry(),
         )
 
-        with pytest.raises(BannedPatternGuardFailure):
-            await runner.run(run_id, product_ref="prod-1")
+        result = await runner.run(run_id, product_ref="prod-1")
+
+        # Terminal, accurate, and written by the runner -- not left for the
+        # reaper to mislabel.
+        assert result.stop_reason is StopReason.OUTPUT_VALIDATION_FAILED
+        assert result.status is WorkflowRunStatus.FAILED
 
         completed = [e for e in sink.events if e.event_type == "workflow.completed"]
         assert completed == []
