@@ -38,6 +38,7 @@ from juli_backend.services.cdp_speed.targeted_fetch_sync import (
     sync_returns,
 )
 from juli_backend.services.ingestion.handoff import HandoffFn
+from juli_backend.services.tiktok.credential_binding import make_binding_verifier
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +250,9 @@ async def execute_targeted_fetch_to_bronze(
         session=session,
         redirect_uri=resolved_env.redirect_uri,
         app_secret=resolved_env.app_secret,
+        binding_verifier=make_binding_verifier(
+            app_key=tiktok_auth.app_key, app_secret=resolved_env.app_secret
+        ),
     )
     refreshed = await oauth_service.refresh_merchant_tokens(
         PRODUCTION_AUTH_ID,

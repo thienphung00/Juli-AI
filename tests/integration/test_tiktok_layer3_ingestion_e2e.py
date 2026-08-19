@@ -58,6 +58,12 @@ EXPECTED_PRODUCT_CURSOR = PRODUCTS_FIXTURE["response"]["data"]["products"][0]["u
 EXPECTED_RETURN_CURSOR = RETURNS_FIXTURE["response"]["data"]["return_orders"][0]["update_time"]
 
 
+async def _stub_binding_verifier(session, *, capability, access_token) -> str:
+    """#1200: these tests exercise polling, not credential binding. A stub keeps
+    them off the network and off the vendor identity path entirely."""
+    return "ROW_stub_cipher"
+
+
 def _sign_webhook(app_key: str, app_secret: str, body: bytes) -> str:
     """Compute HMAC-SHA256 signature for webhook: HMAC-SHA256(app_secret, app_key + body).
 
@@ -122,6 +128,7 @@ def oauth_service(tiktok_auth, session):
         session=session,
         redirect_uri="https://example.com/callback",
         app_secret=APP_SECRET,
+        binding_verifier=_stub_binding_verifier,
     )
 
 

@@ -130,6 +130,12 @@ SANDBOX_ALLOWED_REQUESTS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("PUT", re.compile(r"^/promotion/\d+/activities/\d+$")),
     ("PUT", re.compile(r"^/promotion/\d+/activities/\d+/products$")),
     ("POST", re.compile(r"^/promotion/\d+/activities/\d+/deactivate$")),
+    # Identity read (issue #1200). A sandbox credential must be able to ask the
+    # vendor which shop it actually reaches, otherwise capability binding can
+    # only be verified for production-read -- and the sandbox side is precisely
+    # where a mislabelled token causes an unintended production write. Pure
+    # read, mutates nothing, and already allowlisted for production-read.
+    ("GET", re.compile(r"^/authorization/\d+/shops$")),
     # Supporting reads used during sandbox write-validation flows.
     ("GET", re.compile(r"^/product/\d+/categories$")),
     ("GET", re.compile(r"^/product/\d+/categories/\d+/attributes$")),

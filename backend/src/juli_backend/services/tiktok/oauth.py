@@ -25,6 +25,7 @@ from juli_backend.integrations.tiktok import (
     TikTokAuth,
 )
 from juli_backend.repositories.repos import UsersRepo
+from juli_backend.services.tiktok.credential_binding import make_binding_verifier
 from juli_backend.services.tiktok.schemas import TikTokOAuthCallbackResult
 
 APP_REVIEW_USER_PHONE = "+849000000001"
@@ -90,6 +91,9 @@ def build_partner_oauth_facade(
         session=session,
         redirect_uri=redirect_uri,
         app_secret=infra.app_secret,
+        binding_verifier=make_binding_verifier(
+            app_key=infra.tiktok_auth.app_key, app_secret=infra.app_secret
+        ),
     )
 
 
