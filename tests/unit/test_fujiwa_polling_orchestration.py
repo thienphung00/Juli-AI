@@ -10,7 +10,7 @@ Behaviors:
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -37,6 +37,12 @@ APP_SECRET = "test_app_secret"
 SHOP_CIPHER = "ROW_test_cipher"
 
 
+async def _stub_binding_verifier(session, *, capability, access_token) -> str:
+    """#1200: these tests exercise polling, not credential binding. A stub keeps
+    them off the network and off the vendor identity path entirely."""
+    return "ROW_stub_cipher"
+
+
 @pytest_asyncio.fixture
 async def user(session, user_id):
     u = User(id=user_id, phone="+84901234567")
@@ -60,7 +66,7 @@ async def fujiwa_shop(session, user):
 
 @pytest_asyncio.fixture
 async def fujiwa_credential(session, fujiwa_shop):
-    expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
+    expires_at = datetime.now(UTC).replace(tzinfo=None) + timedelta(days=7)
     return await TikTokCredentialRepo(session).create(
         shop_id=fujiwa_shop.id,
         access_token="fujiwa_access",
@@ -88,6 +94,7 @@ def oauth_service(tiktok_auth, session):
         session=session,
         redirect_uri="https://example.com/callback",
         app_secret=APP_SECRET,
+        binding_verifier=_stub_binding_verifier,
     )
 
 
@@ -208,13 +215,17 @@ class TestTikTokSyncStateRepo:
         await repo.save(fujiwa_shop.id, {"orders_last_update_time": 200})
 
         rows = (
-            await session.execute(
-                select(TikTokSyncState).where(
-                    TikTokSyncState.shop_id == fujiwa_shop.id,
-                    TikTokSyncState.endpoint == "orders",
+            (
+                await session.execute(
+                    select(TikTokSyncState).where(
+                        TikTokSyncState.shop_id == fujiwa_shop.id,
+                        TikTokSyncState.endpoint == "orders",
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         assert len(rows) == 1
         assert rows[0].last_update_time == 200
 

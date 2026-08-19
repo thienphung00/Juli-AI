@@ -9,7 +9,7 @@ live refresh is skipped when Partner Center secrets are absent.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -27,7 +27,6 @@ from juli_backend.workers.services.polling.orchestrate import (
     FujiwaPollConfig,
     run_fujiwa_poll_cycle,
 )
-
 from tests.integration.tiktok_recorded_replay import load_sample, recorded_tiktok_replay
 
 APP_KEY = "replay_app_key"
@@ -41,6 +40,12 @@ RETURNS_FIXTURE = load_sample("returns-search-response.json")
 EXPECTED_ORDER_CURSOR = ORDERS_FIXTURE["response"]["data"]["orders"][0]["update_time"]
 EXPECTED_PRODUCT_CURSOR = PRODUCTS_FIXTURE["response"]["data"]["products"][0]["update_time"]
 EXPECTED_RETURN_CURSOR = RETURNS_FIXTURE["response"]["data"]["return_orders"][0]["update_time"]
+
+
+async def _stub_binding_verifier(session, *, capability, access_token) -> str:
+    """#1200: these tests exercise polling, not credential binding. A stub keeps
+    them off the network and off the vendor identity path entirely."""
+    return "ROW_stub_cipher"
 
 
 @pytest_asyncio.fixture
@@ -66,7 +71,7 @@ async def fujiwa_shop(session, user):
 
 @pytest_asyncio.fixture
 async def fujiwa_credential(session, fujiwa_shop):
-    expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
+    expires_at = datetime.now(UTC).replace(tzinfo=None) + timedelta(days=7)
     return await TikTokCredentialRepo(session).create(
         shop_id=fujiwa_shop.id,
         access_token="replay_access",
@@ -94,6 +99,7 @@ def oauth_service(tiktok_auth, session):
         session=session,
         redirect_uri="https://example.com/callback",
         app_secret=APP_SECRET,
+        binding_verifier=_stub_binding_verifier,
     )
 
 

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.models.models import ActionCard
 from juli_backend.services.action_cards.persist import persist_scoring_result
 from juli_backend.services.scoring.pipeline import run_daily_scoring_for_shop
+from juli_backend.services.tiktok.credential_binding import make_binding_verifier
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,9 @@ async def maybe_poll_tiktok_data(session: AsyncSession, shop_id: uuid.UUID) -> N
         session=session,
         redirect_uri=env["redirect_uri"],
         app_secret=env["app_secret"],
+        binding_verifier=make_binding_verifier(
+            app_key=env["app_key"], app_secret=env["app_secret"]
+        ),
     )
     rate_limiter = RateLimiter(redis.from_url(env["redis_url"]))
 

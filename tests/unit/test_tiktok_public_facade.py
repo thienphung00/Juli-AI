@@ -22,6 +22,9 @@ EXPECTED_PUBLIC_EXPORTS = frozenset(
         "DEFAULT_OPEN_API_BASE_URL",
         # HTTP client
         "TikTokClient",
+        # #1200: safe identifier rendering, needed by services/tiktok/
+        # credential_binding.py, which may only reach the package root (depth-2 cap).
+        "redact_shop_identifier",
         # Request signing
         "sign_request",
         # Rate limiting

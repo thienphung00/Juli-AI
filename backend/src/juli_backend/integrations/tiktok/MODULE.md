@@ -22,6 +22,9 @@ Matches ``__all__`` — re-exports only:
 - **Authentication** — ``TikTokAuth``, ``TikTokBusinessAdvertiserAuth``,
   ``TikTokBusinessAccountHolderAuth``, ``DEFAULT_OPEN_API_BASE_URL``
 - **HTTP client** — ``TikTokClient``
+- **Safe identifier rendering** — ``redact_shop_identifier`` (never log a full
+  ``shop_cipher``; re-exported for ``services/tiktok/credential_binding.py``,
+  which may only reach this package root under the depth-2 import cap)
 - **Request signing** — ``sign_request``
 - **Rate limiting** — ``RateLimiter``
 - **API path constants** — ``ANALYTICS_BESTSELLING_PRODUCTS_PATH``,

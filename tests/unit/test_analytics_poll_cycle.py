@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -40,6 +40,12 @@ APP_SECRET = "test_app_secret"
 SHOP_CIPHER = "ROW_test_cipher"
 
 
+async def _stub_binding_verifier(session, *, capability, access_token) -> str:
+    """#1200: these tests exercise polling, not credential binding. A stub keeps
+    them off the network and off the vendor identity path entirely."""
+    return "ROW_stub_cipher"
+
+
 @pytest_asyncio.fixture
 async def user(session, user_id):
     u = User(id=user_id, phone="+84901234567")
@@ -63,7 +69,7 @@ async def fujiwa_shop(session, user):
 
 @pytest_asyncio.fixture
 async def fujiwa_credential(session, fujiwa_shop):
-    expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
+    expires_at = datetime.now(UTC).replace(tzinfo=None) + timedelta(days=7)
     return await TikTokCredentialRepo(session).create(
         shop_id=fujiwa_shop.id,
         access_token="fujiwa_access",
@@ -86,6 +92,7 @@ def oauth_service(session):
         session=session,
         redirect_uri="https://example.com/callback",
         app_secret=APP_SECRET,
+        binding_verifier=_stub_binding_verifier,
     )
 
 
@@ -124,9 +131,7 @@ def mock_resources():
     analytics.list_product_performance_all.return_value = [{"id": "prod-1"}]
     analytics.get_product_performance.return_value = {"performance": {"intervals": []}}
     analytics.get_shop_performance.return_value = {"performance": {"intervals": []}}
-    analytics.get_shop_performance_per_hour.return_value = {
-        "performance": {"overall": {}}
-    }
+    analytics.get_shop_performance_per_hour.return_value = {"performance": {"overall": {}}}
     analytics.get_bestselling_products.return_value = {"products": []}
     analytics.get_bestselling_videos.return_value = {"videos": []}
     analytics.list_live_performance_all.return_value = []
@@ -167,7 +172,7 @@ class TestSyncAnalytics:
             app_id=APP_KEY,
             shop_id=PRODUCTION_AUTH_ID,
             sync_state=sync_state,
-            now=datetime(2026, 7, 14, 12, 0, tzinfo=timezone.utc),
+            now=datetime(2026, 7, 14, 12, 0, tzinfo=UTC),
         )
 
         resource.list_sku_performance_all.assert_called_once_with(
@@ -215,9 +220,7 @@ class TestSyncAnalytics:
         assert "bestselling_videos_last_sync_at" in sync_state
         assert "promotion_activity_last_sync_at" in sync_state
 
-        acquired_endpoints = {
-            call.args[2] for call in mock_rate_limiter.acquire.call_args_list
-        }
+        acquired_endpoints = {call.args[2] for call in mock_rate_limiter.acquire.call_args_list}
         assert ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH in acquired_endpoints
         assert analytics_shop_sku_performance_path("sku-1") in acquired_endpoints
         assert ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH in acquired_endpoints
@@ -243,7 +246,7 @@ class TestSyncAnalytics:
             app_id=APP_KEY,
             shop_id=PRODUCTION_AUTH_ID,
             sync_state=sync_state,
-            now=datetime(2026, 7, 14, 12, 0, tzinfo=timezone.utc),
+            now=datetime(2026, 7, 14, 12, 0, tzinfo=UTC),
         )
 
         resource.list_sku_performance_all.assert_not_called()
@@ -284,7 +287,7 @@ class TestSyncAnalytics:
             app_id=APP_KEY,
             shop_id=PRODUCTION_AUTH_ID,
             sync_state=sync_state,
-            now=datetime(2026, 7, 14, 12, 0, tzinfo=timezone.utc),
+            now=datetime(2026, 7, 14, 12, 0, tzinfo=UTC),
         )
 
         live_handoffs = [h for h in handoffs if h[0] == "tiktok.analytics.live.raw"]

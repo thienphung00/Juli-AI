@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
 from juli_backend.integrations.tiktok import TikTokAuth
 from juli_backend.repositories.repos import UsersRepo
+from juli_backend.services.tiktok.credential_binding import make_binding_verifier
 
 APP_REVIEW_USER_PHONE = "+849000000001"
 DEFAULT_TIKTOK_BASE_URL = "https://open-api.tiktokglobalshop.com"
@@ -45,6 +46,7 @@ def _build_oauth_service(session: AsyncSession) -> TikTokOAuthService:
         session=session,
         redirect_uri=redirect_uri,
         app_secret=app_secret,
+        binding_verifier=make_binding_verifier(app_key=app_key, app_secret=app_secret),
     )
 
 
