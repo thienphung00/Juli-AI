@@ -114,7 +114,7 @@ step is not part of this run.
 |------|--------|-------|--------|
 | 1 | Read the product's current listing -- title, description, price, and images -- so every recommendation is grounded in what the seller already has, not invented. | `get_product_information` | AUTO |
 | 2+3 | Gather SEO keyword ideas and suggested title/description phrasing to inform the improved listing copy. | `get_seo_keywords` | AUTO |
-| 4, 4.5 | Stage a new product photo so it is ready to attach to the listing once the seller reviews the change -- staging only, nothing goes live yet. | `upload_product_image` | AUTO |
+| 4, 4.5 | Check whether the product's main photo actually matches its title and description, and note any image changes worth making -- looking only, nothing is changed. | `inspect_product_image` | AUTO |
 | 5 | Publish the improved title, description, and staged photo to the live listing, once the seller approves the change. | `update_product_listing` | CONFIRM |
 | 6 | Update the product's price to the recommended value, once the seller approves it -- a separate decision from the listing content change, and rejectable on its own. | `update_product_price` | CONFIRM |
 | 6.5 | Check the product's listing status right after the update, so the seller knows whether it's live or still under review. | `check_product_status` | AUTO |

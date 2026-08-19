@@ -21,7 +21,7 @@ accurate one, and it is the number this gate asserts against.
 `compose("optimize_product_2", 1)` measures **2,967** proxy tokens against
 this module's 3,000-token ceiling -- raw `v1.md` measures 2,687, so the
 `{playbook}` slot's rendered content costs 280 tokens once joined with the
-real `OPTIMIZE_PRODUCT_PLAYBOOK`. That leaves **33 tokens of headroom**:
+real `OPTIMIZE_PRODUCT_PLAYBOOK`. That leaves **28 tokens of headroom**:
 tight, but `v1.md` is immutable post-release (ADR-072 d.4) and this
 `Playbook` is a frozen, reviewed artifact (#1036), so no further margin is
 expected to be needed. This number is independently confirmed by two prior
@@ -90,12 +90,19 @@ from juli_backend.services.agent.sanitize.caps import estimate_tokens
 #: module or elsewhere in the test suite for this gate.
 PROMPT_TOKEN_BUDGET_CEILING = 3000
 
+#: Updated 2026-08-19 (#1208): 2967 -> 2972 when Optimize Product's step 4/4.5
+#: changed from `upload_product_image` to `inspect_product_image`, whose intent
+#: line is longer. Headroom is now **28 tokens** against a 3000 ceiling -- the
+#: next prose change to v1.md or the Playbook is very likely to breach it, so
+#: raising the ceiling (or shortening a step intent) is the next decision, not
+#: an emergency today.
+#:
 #: Recorded measurement (see module docstring "Measured headroom") -- the
 #: real composed prompt's proxy token count against the real, released
 #: v1.md + OPTIMIZE_PRODUCT_PLAYBOOK pair, independently confirmed twice
 #: per the #1039 issue thread. Asserted directly below so a silent drift
 #: in either input is caught even if it happens to stay under the ceiling.
-RECORDED_COMPOSED_TOKEN_MEASUREMENT = 2967
+RECORDED_COMPOSED_TOKEN_MEASUREMENT = 2972
 RECORDED_HEADROOM = PROMPT_TOKEN_BUDGET_CEILING - RECORDED_COMPOSED_TOKEN_MEASUREMENT
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -150,7 +157,7 @@ def test_composed_prompt_token_estimate_matches_the_recorded_measurement():
         "changed intentionally, update this recorded value and the "
         "headroom note in the module docstring together"
     )
-    assert RECORDED_HEADROOM == 33
+    assert RECORDED_HEADROOM == 28
 
 
 # ---------------------------------------------------------------------------

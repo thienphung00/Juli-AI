@@ -409,6 +409,7 @@ async def _construct_runner(
     parameters here -- `_construct_runner`'s signature is unchanged, only
     what it builds by default (and its `async`-ness) is.
     """
+    from juli_backend.services.agent import composition as composition_module
     from juli_backend.services.agent import events as events_module
     from juli_backend.services.agent import runner as runner_module
 
@@ -427,6 +428,9 @@ async def _construct_runner(
         ledger=ledger,
         workflow_run_id=run.id,
         concurrency_guard=concurrency_guard,
+        # #1208: without this the inspect step reports inspected=False and the
+        # run still completes -- degraded, never broken.
+        image_inspector=composition_module.build_image_inspector(),
     )
     conversation_store = runner_module.JsonbConversationStore(session)
     event_sink = events_module.PersistingEventSink(

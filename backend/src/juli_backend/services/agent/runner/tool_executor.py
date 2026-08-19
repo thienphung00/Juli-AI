@@ -174,6 +174,7 @@ class ProductToolExecutor:
         sku_refs: Mapping[str, str] | None = None,
         staged_image_uri: str | None = None,
         pending_image_bytes: bytes | None = None,
+        image_inspector: Any | None = None,
         ledger: ToolExecutionLedger | None = None,
         workflow_run_id: uuid.UUID | None = None,
         concurrency_guard: ConcurrencyGuard | None = None,
@@ -185,6 +186,10 @@ class ProductToolExecutor:
         self._sku_refs = dict(sku_refs or {})
         self._staged_image_uri = staged_image_uri
         self._pending_image_bytes = pending_image_bytes
+        # #1208: the vision collaborator `inspect_product_image` uses. Optional
+        # so every existing construction site keeps working; the handler reports
+        # `inspected=False` when absent rather than failing the run.
+        self._image_inspector = image_inspector
         self._ledger = ledger
         self._workflow_run_id = workflow_run_id
         self._concurrency_guard = concurrency_guard
@@ -204,6 +209,7 @@ class ProductToolExecutor:
                 sku_refs=self._sku_refs,
                 staged_image_uri=self._staged_image_uri,
                 pending_image_bytes=self._pending_image_bytes,
+                image_inspector=self._image_inspector,
             )
 
             if spec.classification is ToolClassification.READ:

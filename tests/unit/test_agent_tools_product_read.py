@@ -151,7 +151,7 @@ class TestReadAutoClassification:
 class TestRegistration:
     """The three specs register cleanly under their business-semantic names."""
 
-    def test_register_product_read_tools_registers_all_three_by_name(self):
+    def test_register_product_read_tools_registers_all_read_tools_by_name(self):
         registry = ToolRegistry()
 
         register_product_read_tools(registry)
@@ -161,6 +161,8 @@ class TestRegistration:
             "get_product_information",
             "get_seo_keywords",
             "check_product_status",
+            # #1208: the image step became a READ inspection.
+            "inspect_product_image",
         }
 
     def test_registered_specs_are_the_module_level_spec_objects(self):
@@ -457,11 +459,12 @@ class TestCheckProductStatus:
 class TestHandlerRegistry:
     """Handlers are addressable by the same business-semantic tool name."""
 
-    def test_all_three_names_map_to_their_handlers(self):
+    def test_all_read_tool_names_map_to_their_handlers(self):
         assert set(PRODUCT_READ_TOOL_HANDLERS) == {
             "get_product_information",
             "get_seo_keywords",
             "check_product_status",
+            "inspect_product_image",
         }
         assert (
             PRODUCT_READ_TOOL_HANDLERS["get_product_information"] is handle_get_product_information

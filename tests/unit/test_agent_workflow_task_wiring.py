@@ -173,6 +173,9 @@ class TestDefaultSeamsComposeRealCollaborators:
             "get_product_information",
             "get_seo_keywords",
             "check_product_status",
+            # #1208: the image step is a READ inspection now; upload stays
+            # registered for the future generation capability.
+            "inspect_product_image",
             "upload_product_image",
             "update_product_listing",
             "update_product_price",
