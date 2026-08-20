@@ -1,0 +1,27 @@
+{
+  "gateVersion": 1,
+  "issue": 1246,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 2,
+    "modulesTouched": [
+      "backend/src/juli_backend/integrations/tiktok"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1246.json",
+    "ownerSignoffPresent": false,
+    "sha256": "e01c94d5fd4f5d66be74f4689a74ded6c8c26c4a33cfb4fd035c30aaffee6b3d",
+    "signoffRequired": true,
+    "status": "PASS_WITH_WARNINGS",
+    "warningsAcknowledged": false
+  },
+  "timestamp": "2026-08-20T13:33:35Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1246.json",
+    "sha256": "7958ae9a4363e2f14bcd95d72046bcdb830d81983d903337be5d1ee17c2faec1",
+    "status": "FAIL"
+  },
+  "wave": "wave-agent-w4"
+}
