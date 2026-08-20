@@ -162,6 +162,20 @@ never touches `workflow_runs` directly; `JsonbConversationStore` is what
 actually flips the column and stamps `completed_at`/`waiting_approval_since`
 — see that module's own docstring for the full seam rationale, including
 why this is not the same authority as the reaper's `_ReaperEventSink`.
+
+**`required_steps_completed` persistence (issue #1220).** Every one of the
+same terminal `persist(...)` call sites above also now passes
+`required_steps_completed=self._required_steps_completed(state)` — a third
+fact, computed fresh each time by scanning `state.conversation_window`
+against `self._playbook.termination_policy.required_steps`
+(`termination.py::required_steps_completed`), never derived from or
+folded into `stop_reason`. This is deliberately NOT a termination rule:
+`stop_reason`/`status` are computed exactly as they were before this
+change, on every path, including a `final_response` with zero required
+writes completed — that run still ends `stop_reason=final_response`,
+`status=completed`; `required_steps_completed=False` is recorded
+alongside it as an honest, separate outcome fact (ADR-073 decision 2),
+not a reason to invent a new failure branch here.
 """
 
 from __future__ import annotations
@@ -217,6 +231,7 @@ from juli_backend.services.agent.runner.termination import (
     evaluate_checkpoint,
     evaluate_iteration_gate,
     extension_grant_narration,
+    required_steps_completed,
 )
 from juli_backend.services.agent.runner.tool_executor import ToolExecutor
 from juli_backend.services.agent.sanitize import (
@@ -475,7 +490,11 @@ class WorkflowRunner:
                 WorkflowCompletedPayload(stop_reason=stop_reason),
             )
             await self._conversation_store.persist(
-                workflow_run_id, state, status=status, stop_reason=stop_reason
+                workflow_run_id,
+                state,
+                status=status,
+                stop_reason=stop_reason,
+                required_steps_completed=self._required_steps_completed(state),
             )
             return RunResult(
                 stop_reason=stop_reason,
@@ -506,7 +525,11 @@ class WorkflowRunner:
                 workflow_run_id, state, StopReason.CONCURRENCY_CONFLICT, version_str, sha256
             )
             await self._conversation_store.persist(
-                workflow_run_id, state, status=stop.status, stop_reason=stop.stop_reason
+                workflow_run_id,
+                state,
+                status=stop.status,
+                stop_reason=stop.stop_reason,
+                required_steps_completed=self._required_steps_completed(state),
             )
             return stop
         except ToolExecutionUnrecoverableError:
@@ -514,7 +537,11 @@ class WorkflowRunner:
                 workflow_run_id, state, StopReason.TOOL_ERROR_UNRECOVERABLE, version_str, sha256
             )
             await self._conversation_store.persist(
-                workflow_run_id, state, status=stop.status, stop_reason=stop.stop_reason
+                workflow_run_id,
+                state,
+                status=stop.status,
+                stop_reason=stop.stop_reason,
+                required_steps_completed=self._required_steps_completed(state),
             )
             return stop
         sanitized = guard_inbound_tool_result(raw_result, tool_name=tool_name)
@@ -581,7 +608,11 @@ class WorkflowRunner:
                     workflow_run_id, state, checkpoint_reason, version_str, sha256
                 )
                 await self._conversation_store.persist(
-                    workflow_run_id, state, status=stop.status, stop_reason=stop.stop_reason
+                    workflow_run_id,
+                    state,
+                    status=stop.status,
+                    stop_reason=stop.stop_reason,
+                    required_steps_completed=self._required_steps_completed(state),
                 )
                 return stop
 
@@ -604,7 +635,11 @@ class WorkflowRunner:
                     sha256,
                 )
                 await self._conversation_store.persist(
-                    workflow_run_id, state, status=stop.status, stop_reason=stop.stop_reason
+                    workflow_run_id,
+                    state,
+                    status=stop.status,
+                    stop_reason=stop.stop_reason,
+                    required_steps_completed=self._required_steps_completed(state),
                 )
                 return stop
             if gate.action is IterationGateAction.EXTEND:
@@ -642,7 +677,11 @@ class WorkflowRunner:
                     workflow_run_id, state, StopReason.LLM_ERROR, version_str, sha256
                 )
                 await self._conversation_store.persist(
-                    workflow_run_id, state, status=stop.status, stop_reason=stop.stop_reason
+                    workflow_run_id,
+                    state,
+                    status=stop.status,
+                    stop_reason=stop.stop_reason,
+                    required_steps_completed=self._required_steps_completed(state),
                 )
                 return stop
             state.iteration_count += 1
@@ -712,6 +751,9 @@ class WorkflowRunner:
                 state,
                 status=stop.status if stop is not None else None,
                 stop_reason=stop.stop_reason if stop is not None else None,
+                required_steps_completed=(
+                    self._required_steps_completed(state) if stop is not None else None
+                ),
             )
 
             if stop is not None:
@@ -1066,6 +1108,24 @@ class WorkflowRunner:
         )
 
     # --- helpers -------------------------------------------------------------
+
+    def _required_steps_completed(self, state: RunState) -> bool:
+        """The `required_steps_completed` outcome fact (issue #1220,
+        ADR-073 decision 2) for `state` right now.
+
+        Always recomputed fresh from `state.conversation_window` — the one
+        durable record `resume()` also inherits unchanged across a CONFIRM
+        pause — against the active `Playbook`'s own
+        `termination_policy.required_steps`, never a second bookkeeping
+        structure this class would have to keep in sync itself. Called at
+        every terminal `persist(..., status=..., stop_reason=...)` call
+        site, alongside those two fields, never in place of either of
+        them — see `termination.required_steps_completed`'s own docstring
+        for what counts as "completed".
+        """
+        return required_steps_completed(
+            state.conversation_window, self._playbook.termination_policy.required_steps
+        )
 
     @staticmethod
     def _tool_call_message(block: ToolCallBlock) -> ConversationMessage:

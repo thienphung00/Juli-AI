@@ -85,6 +85,7 @@ from juli_backend.services.agent.runner.termination import (
     evaluate_checkpoint,
     evaluate_iteration_gate,
     extension_grant_narration,
+    required_steps_completed,
     running_seconds_column_value,
 )
 
@@ -157,6 +158,7 @@ __all__ = [
     "extension_grant_narration",
     "extract_mutable_fields",
     "field_scope_for",
+    "required_steps_completed",
     "running_seconds_column_value",
     "status_for",
 ]

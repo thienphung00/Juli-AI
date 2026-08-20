@@ -70,6 +70,7 @@ from juli_backend.services.agent.runner.termination import (
     evaluate_checkpoint,
     evaluate_iteration_gate,
     extension_grant_narration,
+    required_steps_completed,
     running_seconds_column_value,
 )
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry
@@ -96,12 +97,16 @@ class _InMemoryConversationStore:
     terminal exit, so a signature that only takes `(workflow_run_id, state)`
     would raise `TypeError` the first time this module's own tests reach a
     terminal `stop_reason` (nearly all of them, being #1120's own
-    termination-policy suite)."""
+    termination-policy suite).
+
+    `required_steps_completed` (issue #1220) is accepted and recorded the
+    same way, for the same reason."""
 
     def __init__(self) -> None:
         self._store: dict[uuid.UUID, RunState] = {}
         self._status: dict[uuid.UUID, WorkflowRunStatus] = {}
         self._stop_reason: dict[uuid.UUID, StopReason] = {}
+        self._required_steps_completed: dict[uuid.UUID, bool | None] = {}
 
     def seed(self, workflow_run_id: uuid.UUID, state: RunState | None = None) -> None:
         self._store[workflow_run_id] = state if state is not None else RunState()
@@ -116,14 +121,19 @@ class _InMemoryConversationStore:
         *,
         status: WorkflowRunStatus | None = None,
         stop_reason: StopReason | None = None,
+        required_steps_completed: bool | None = None,
     ) -> None:
         self._store[workflow_run_id] = state
         if status is not None:
             self._status[workflow_run_id] = status
             self._stop_reason[workflow_run_id] = stop_reason
+            self._required_steps_completed[workflow_run_id] = required_steps_completed
 
     def state_for(self, workflow_run_id: uuid.UUID) -> RunState:
         return self._store[workflow_run_id]
+
+    def required_steps_completed_for(self, workflow_run_id: uuid.UUID) -> bool | None:
+        return self._required_steps_completed[workflow_run_id]
 
 
 class _SpyToolExecutor:
@@ -1151,3 +1161,210 @@ class TestStopReasonReachability:
         # scenario, and nothing scripted here reaches outside the reachable set.
         assert {result.stop_reason for result in reached.values()} == _REACHABLE_BY_THIS_SLICE
         assert set(reached.keys()) == _REACHABLE_BY_THIS_SLICE
+
+
+# =============================================================================
+# `required_steps_completed` -- the "did the job" outcome fact (issue #1220,
+# ADR-073 decision 2)
+# =============================================================================
+
+
+class TestRequiredStepsCompletedFunction:
+    """Direct unit tests of the pure scan `core.py`'s
+    `WorkflowRunner._required_steps_completed` and the reaper's
+    `_ReaperEventSink.emit` both call — pinning its scanning rules once
+    here rather than only indirectly through full runner scenarios."""
+
+    REQUIRED = ("update_product_listing", "update_product_price")
+
+    def test_all_required_tools_completed_is_true(self):
+        window = [
+            {
+                "role": "tool",
+                "tool_call_id": "c0",
+                "tool_name": "update_product_listing",
+                "content": {"title": "T"},
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "c1",
+                "tool_name": "update_product_price",
+                "content": {"updated_skus": ["S1"]},
+            },
+        ]
+        assert required_steps_completed(window, self.REQUIRED) is True
+
+    def test_missing_one_required_tool_is_false(self):
+        window = [
+            {
+                "role": "tool",
+                "tool_call_id": "c0",
+                "tool_name": "update_product_listing",
+                "content": {"title": "T"},
+            },
+        ]
+        assert required_steps_completed(window, self.REQUIRED) is False
+
+    def test_empty_conversation_window_is_false(self):
+        assert required_steps_completed([], self.REQUIRED) is False
+
+    def test_an_error_envelope_entry_does_not_count(self):
+        """A refusal or a failed call always leaves this shape behind
+        (`sanitize/errors.py::to_error_envelope`) — see
+        `core.py::_refuse`/`_dispatch_tool_call`."""
+        window = [
+            {
+                "role": "tool",
+                "tool_call_id": "c0",
+                "tool_name": "update_product_listing",
+                "content": {
+                    "error": {"category": "validation", "message": "bad", "retryable": False}
+                },
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "c1",
+                "tool_name": "update_product_price",
+                "content": {"updated_skus": ["S1"]},
+            },
+        ]
+        assert required_steps_completed(window, self.REQUIRED) is False
+
+    def test_a_declined_confirmation_entry_does_not_count(self):
+        window = [
+            {
+                "role": "tool",
+                "tool_call_id": "c0",
+                "tool_name": "update_product_listing",
+                "content": {"confirmation": {"decision": "declined"}},
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "c1",
+                "tool_name": "update_product_price",
+                "content": {"updated_skus": ["S1"]},
+            },
+        ]
+        assert required_steps_completed(window, self.REQUIRED) is False
+
+    def test_non_tool_role_entries_are_ignored(self):
+        window = [
+            {"role": "assistant", "content": "I will update the listing."},
+            {
+                "role": "tool",
+                "tool_call_id": "c0",
+                "tool_name": "update_product_listing",
+                "content": {"title": "T"},
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "c1",
+                "tool_name": "update_product_price",
+                "content": {"updated_skus": ["S1"]},
+            },
+        ]
+        assert required_steps_completed(window, self.REQUIRED) is True
+
+    def test_entries_for_tools_outside_required_steps_are_ignored(self):
+        window = [
+            {
+                "role": "tool",
+                "tool_call_id": "c0",
+                "tool_name": "get_product_information",
+                "content": {"title": "T"},
+            },
+        ]
+        assert required_steps_completed(window, self.REQUIRED) is False
+
+
+class TestRequiredStepsCompletedAcrossUnrelatedTerminations:
+    """AC5: a run terminating for a reason unrelated to `required_steps`
+    (`llm_error`, `cancelled_by_seller`) still records what it did
+    complete. This is the behavioral proof of ADR-073 decision 2's point:
+    `stop_reason` (how the loop ended) and `required_steps_completed`
+    (did the job) are two independent facts — one can be `True` while the
+    other is a failure-class `stop_reason`, and vice versa.
+    """
+
+    @staticmethod
+    def _both_required_steps_completed_window() -> list[dict]:
+        return [
+            {
+                "role": "assistant",
+                "tool_call": {
+                    "call_id": "c0",
+                    "tool_name": "update_product_listing",
+                    "arguments": {"title": "New Title"},
+                },
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "c0",
+                "tool_name": "update_product_listing",
+                "content": {"title": "New Title", "description": None, "image_attached": False},
+            },
+            {
+                "role": "assistant",
+                "tool_call": {
+                    "call_id": "c1",
+                    "tool_name": "update_product_price",
+                    "arguments": {"skus": [{"sku_ref": "S1", "amount": "1000"}]},
+                },
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "c1",
+                "tool_name": "update_product_price",
+                "content": {"updated_skus": ["S1"]},
+            },
+        ]
+
+    async def test_llm_error_still_records_true_when_both_required_steps_already_completed(self):
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(
+            run_id, RunState(conversation_window=self._both_required_steps_completed_window())
+        )
+        playbook = _minimal_playbook((_step("get_product_information"),))
+        runner = _runner(
+            llm_service=_RaisingLLMService(
+                LLMProviderError("OpenAI Responses API returned HTTP 500")
+            ),
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            playbook=playbook,
+            registry=_full_registry(),
+        )
+
+        result = await runner.run(run_id, product_ref="prod-1")
+
+        assert result.stop_reason == StopReason.LLM_ERROR
+        assert result.status == WorkflowRunStatus.FAILED
+        assert store.required_steps_completed_for(run_id) is True
+
+    async def test_cancelled_by_seller_still_records_false_for_what_it_did_not_complete(self):
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        # Only update_product_listing (the window's first pair) completed
+        # before the seller cancelled.
+        store.seed(
+            run_id,
+            RunState(conversation_window=self._both_required_steps_completed_window()[:2]),
+        )
+        playbook = _minimal_playbook((_step("get_product_information"),))
+        runner = _runner(
+            llm_service=_llm(_turn(TextBlock(text="thinking..."))),
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            playbook=playbook,
+            registry=_full_registry(),
+            cancel_check=lambda: True,
+        )
+
+        result = await runner.run(run_id, product_ref="prod-1")
+
+        assert result.stop_reason == StopReason.CANCELLED_BY_SELLER
+        assert result.status == WorkflowRunStatus.CANCELLED
+        assert store.required_steps_completed_for(run_id) is False

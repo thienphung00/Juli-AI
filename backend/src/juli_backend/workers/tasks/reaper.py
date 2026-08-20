@@ -101,6 +101,10 @@ WorkflowRunStatus = _agent_runner.WorkflowRunStatus
 WorkflowFailedEvent = _agent_events.WorkflowFailedEvent
 WorkflowFailedPayload = _agent_events.WorkflowFailedPayload
 TerminationPolicy = _agent_playbooks.TerminationPolicy
+# issue #1220: the same pure "did the job" scan `WorkflowRunner` uses
+# (`core.py::_required_steps_completed`), re-bound at the same depth-2
+# facade every other name in this block already uses.
+required_steps_completed = _agent_runner.required_steps_completed
 
 # The default policy every workflow_runs row is scored against -- see the
 # module docstring's "Playbook resolution" note. Termination values are read
@@ -223,10 +227,20 @@ class _TerminalEventSink(Protocol):
 class _ReaperEventSink:
     """Local `EventSink`-protocol implementation, scoped to `workflow.failed`
     only -- see the module docstring for why this exists instead of
-    importing P8-3's `PersistingEventSink`."""
+    importing P8-3's `PersistingEventSink`.
 
-    def __init__(self, session: AsyncSession) -> None:
+    `policy` (issue #1220) defaults to the same
+    `OPTIMIZE_PRODUCT_TERMINATION_POLICY` every other reaper computation
+    reads off -- see the module docstring's "Playbook resolution" note --
+    and is injectable for the same reason `reap_workflow_runs`'s own
+    `policy=` parameter is: so a test can prove `required_steps_completed`
+    genuinely moves with the policy's `required_steps`, not a value copied
+    at import time.
+    """
+
+    def __init__(self, session: AsyncSession, *, policy: TerminationPolicy | None = None) -> None:
         self._session = session
+        self._policy = policy if policy is not None else _DEFAULT_TERMINATION_POLICY
 
     async def emit(self, event: WorkflowFailedEvent) -> None:
         run = await self._session.get(WorkflowRun, event.workflow_run_id)
@@ -247,6 +261,19 @@ class _ReaperEventSink:
         run.status = event.payload.status.value
         run.stop_reason = event.payload.stop_reason.value
         run.completed_at = event.timestamp
+        # issue #1220: the same outcome fact `WorkflowRunner` writes at its
+        # own terminal exits, computed here off the run's own persisted
+        # `state` blob -- the only record of what the run actually did that
+        # survives to reap time -- rather than a second bookkeeping
+        # structure. `run.state` is a plain JSONB dict at this layer (the
+        # reaper never reconstructs a `RunState`), so this reads
+        # `conversation_window` off it directly.
+        conversation_window = (
+            run.state.get("conversation_window", []) if isinstance(run.state, dict) else []
+        )
+        run.required_steps_completed = required_steps_completed(
+            conversation_window, self._policy.required_steps
+        )
 
         await self._session.commit()
 
@@ -392,8 +419,10 @@ async def reap_workflow_runs(
     """
     now = now if now is not None else _utcnow()
     has_live_task = has_live_task if has_live_task is not None else _default_has_live_task
-    resolved_sink: _TerminalEventSink = sink if sink is not None else _ReaperEventSink(session)
     policy = policy if policy is not None else _DEFAULT_TERMINATION_POLICY
+    resolved_sink: _TerminalEventSink = (
+        sink if sink is not None else _ReaperEventSink(session, policy=policy)
+    )
 
     stale = await _reap_stale_running_and_queued(session, resolved_sink, now, has_live_task, policy)
     expired = await _reap_expired_waiting_approval(session, resolved_sink, now, policy)
