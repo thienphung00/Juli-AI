@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 1234,
+  "metrics": {
+    "acceptanceMapped": 7,
+    "acceptanceTotal": 7,
+    "criticalFindings": 2,
+    "modulesTouched": [
+      "backend/src/juli_backend/integrations/tiktok/merchant.py",
+      "infra/scripts/env/api.env.example",
+      "tests/unit/test_tiktok_merchant_config.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1234.json",
+    "ownerSignoffPresent": false,
+    "sha256": "4d0a4a3706c52a1d4d55243c4b2c536ed23da69dab60672755da64932ef8cc6a",
+    "signoffRequired": true,
+    "status": "PASS_WITH_WARNINGS",
+    "warningsAcknowledged": false
+  },
+  "timestamp": "2026-08-20T10:16:49Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1234.json",
+    "sha256": "cd825c96d52fab86f03ba69090d8251fd2e80e45c8bbee0b3ed8f5198f65ddc2",
+    "status": "FAIL"
+  },
+  "wave": "wave-agent-w4"
+}
