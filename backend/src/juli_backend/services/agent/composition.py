@@ -98,7 +98,7 @@ from juli_backend.integrations.tiktok import (
 )
 from juli_backend.services.agent.llm import LLMService, resolve_llm_config
 from juli_backend.services.agent.llm.openai_adapter import OpenAIResponsesAdapter
-from juli_backend.services.agent.tools import ToolRegistry
+from juli_backend.services.agent.tools import ToolClassification, ToolRegistry
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
 from juli_backend.services.execution.sandbox_guard import load_sandbox_write_resources
@@ -138,6 +138,46 @@ def build_product_tool_registry() -> ToolRegistry:
     register_product_read_tools(registry)
     register_product_write_tools(registry)
     return registry
+
+
+def measurable_write_tool_names() -> frozenset[str]:
+    """Every WRITE-classified capability name in the real ADR-069 product
+    tool registry -- issue #1219 / AGT-W4B's fix for the defect where
+    `workers/impact_reader/queries.py` scanned for the old dispatcher's own
+    name (`listing.optimize_product`) while the agent ledger
+    (`services/agent/runner/ledger.py`, `ProductToolExecutor.execute` --
+    `tool_executor.py`) actually writes `ToolExecution.tool_name` as the
+    registered tool name itself (`update_product_price`,
+    `update_product_listing`, `upload_product_image` today), so the reader
+    selected zero rows, forever, silently.
+
+    Derived from `build_product_tool_registry()` -- never a second
+    hand-maintained literal -- so a new WRITE capability becomes measurable
+    purely by being registered into that registry, with no edit to this
+    module or to `workers/impact_reader/queries.py`. This is the sanctioned
+    same-package seam (module docstring) `workers/impact_reader/queries.py`
+    reaches to compute its own `measurable_tool_names()`, since that
+    module's own top-level package (`workers`) may not deep-import
+    `services.agent.tools` directly (`.importlinter.toml`'s
+    `max_cross_package_depth = 2`) -- this function returns a plain
+    `frozenset[str]`, never a `ToolSpec`/`ToolRegistry`, so no such type
+    ever needs to cross that boundary either.
+
+    Includes every WRITE-classified tool regardless of `ToolPolicy`
+    (`AUTO` or `CONFIRM`): `upload_product_image` is WRITE/AUTO but builds
+    no classifiable request payload (`tool_executor.py
+    ::_build_request_payload` returns `None` for it), so
+    `classify.classify_mutation_kinds` yields no mutation kinds for any row
+    it produces and the impact-reader pipeline (`pipeline.py`) reports that
+    execution `executions_skipped_unclassified` rather than measuring it --
+    harmless to include, and correct per this issue's literal
+    "WRITE-classified capabilities" derivation rule rather than a second
+    hand-maintained CONFIRM-only filter.
+    """
+    registry = build_product_tool_registry()
+    return frozenset(
+        spec.name for spec in registry.list_all() if spec.classification is ToolClassification.WRITE
+    )
 
 
 def _tiktok_app_credentials() -> tuple[str, str]:

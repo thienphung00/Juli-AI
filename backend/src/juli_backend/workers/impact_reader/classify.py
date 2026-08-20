@@ -5,14 +5,17 @@ leaves this classification to a future caller: "the caller (a future daily
 impact-reader beat task) is responsible for deciding which ``MutationKind``
 value(s) a given execution maps to." This module is that caller.
 
-Only ``listing.optimize_product`` (workflow key ``optimize_product_2`` — see
-``services/operations/outcome_tracking.py``, and note the ``_2`` suffix: the
-prompt *directory* name is ``optimize_product`` without it, a distinct
-string this reader never uses) produces measurable SEO/description/image/
-price mutations today — ``listing.create_hero_product`` creates a brand-new
-listing with no pre-period baseline to measure against, so it is out of
-scope here (see ``queries.MEASURABLE_TOOL_NAMES``, the single source of
-truth for which tool names this reader scans at all).
+The legacy dispatcher's ``listing.optimize_product`` (workflow key
+``optimize_product_2`` — see ``services/operations/outcome_tracking.py``,
+and note the ``_2`` suffix: the prompt *directory* name is
+``optimize_product`` without it, a distinct string this reader never uses)
+and the real ADR-069 agent tool registry's WRITE-classified capabilities
+(``update_product_price``, ``update_product_listing``, etc.) produce
+measurable SEO/description/image/price mutations — ``listing.create_hero_product``
+creates a brand-new listing with no pre-period baseline to measure against,
+so it is out of scope here (see ``queries.measurable_tool_names()``, the
+single source of truth for which tool names this reader scans at all —
+issue #1219 / AGT-W4B).
 
 Classification reads the *request* payload (``ToolExecution.payload_json``),
 not the outcome (``ToolExecution.outcome_json``): the caller's own declared
