@@ -28,17 +28,18 @@ TOKEN_FIXTURE = {
     "refresh_token": "ROW_secret_refresh",
     "advertiser_ids": ["7123456789012345"],
     "scope": [1, 2, 3],
+    # ADR-081 decision 3: access_token_expires_at() no longer synthesizes a
+    # value when this is missing -- it raises. Every fixture that reaches
+    # persist_advertiser_oauth_tokens must therefore carry a real value, the
+    # same way test_tiktok_oauth.py's _mock_exchange already does.
+    "access_token_expire_in": 7200,
 }
 
 
 def _build_state(user_id: uuid.UUID, *, secret: str = APP_SECRET) -> str:
-    payload = json.dumps(
-        {"user_id": str(user_id), "nonce": secrets.token_urlsafe(16)}
-    )
+    payload = json.dumps({"user_id": str(user_id), "nonce": secrets.token_urlsafe(16)})
     encoded = base64.urlsafe_b64encode(payload.encode()).decode()
-    signature = hmac.new(
-        secret.encode(), encoded.encode(), hashlib.sha256
-    ).hexdigest()
+    signature = hmac.new(secret.encode(), encoded.encode(), hashlib.sha256).hexdigest()
     return f"{encoded}.{signature}"
 
 
@@ -65,9 +66,10 @@ def mock_token_exchange(monkeypatch):
 
 @pytest_asyncio.fixture
 async def client(engine, monkeypatch):
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
     from juli_backend.api.app import create_app
     from juli_backend.database import get_session
-    from sqlalchemy.ext.asyncio import async_sessionmaker
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
     application = create_app()
@@ -78,9 +80,7 @@ async def client(engine, monkeypatch):
 
     application.dependency_overrides[get_session] = _test_session
 
-    async with AsyncClient(
-        transport=ASGITransport(app=application), base_url="http://test"
-    ) as c:
+    async with AsyncClient(transport=ASGITransport(app=application), base_url="http://test") as c:
         yield c
 
 
@@ -188,9 +188,9 @@ class TestBusinessAdvertiserOAuthCallbackRoute:
     @pytest.mark.asyncio
     async def test_callback_does_not_require_jwt(self, client):
         resp = await client.get(CALLBACK_PATH)
-        assert resp.status_code != 401 or "authorization" not in resp.json().get(
-            "detail", ""
-        ).lower()
+        assert (
+            resp.status_code != 401 or "authorization" not in resp.json().get("detail", "").lower()
+        )
 
     @pytest.mark.asyncio
     async def test_callback_route_is_listed_in_openapi(self, client):
