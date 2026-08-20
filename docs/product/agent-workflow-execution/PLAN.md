@@ -27,7 +27,7 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 10 | P9+P14 — Approval, safety & security prerequisites | 🟨 **W5** — design grilled 2026-08-12 — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) drafted; implementation pending | ⬜ |
 | 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 **W6** — design grilled 2026-08-12 — [ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md) drafted; implementation pending | ⬜ |
 | 11b | P-IM — Incremental impact measurement (NEW) | ✅ implemented, gate reopened in **W4** — [ADR-077](../../adr/077-incremental-impact-measurement.md); re-run wave merged to `main` (#1113, 2026-08-14), #1040–#1045 + #1068 all with status records, after the [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B refusal of the first attempt | 🟥 2026-08-20 — code gates green, but the one real end-to-end reading is **unreachable**, not merely un-run: the reader selects `tool_name IN {"listing.optimize_product"}` and the agent ledger writes `update_product_price` / `update_product_listing`, and the ledger records no `payload_json`, which classification and product binding both require. See [Wave 3 live verification](#wave-3-live-verification-2026-08-19--2026-08-20) |
-| 11c | P-CRED — TikTok credential lifecycle / refresh-token rotation (NEW) | 🟨 **W4 — design settled; credentials lapse 2026-08-25.** Grilled 2026-08-17 ([ADR-080](../../adr/080-tiktok-credential-lifecycle.md)), re-grilled 2026-08-18 against the code and **amended by [ADR-081](../../adr/081-refresh-token-rotation.md)**: three-layer refresh (beat + lazy + reactive), one guarded door with a session-level advisory lock, vendor-authoritative expiry, dedicated `credentials` queue, five additive columns; `CREDENTIALS_DATABASE_URL` descoped. Four slices — see [Wave 4](#wave-4--p-cred-refresh-token-rotation-2026-08-18); gate = full matrix + one real sandbox-token refresh | ⬜ |
+| 11c | P-CRED — TikTok credential lifecycle / refresh-token rotation (NEW) | 🟨 **W4 — design settled; credentials lapse 2026-08-27 04:30 UTC** (manually refreshed 2026-08-20; each manual run buys 7 days from the moment it runs, not 7 added to what is left).** Grilled 2026-08-17 ([ADR-080](../../adr/080-tiktok-credential-lifecycle.md)), re-grilled 2026-08-18 against the code and **amended by [ADR-081](../../adr/081-refresh-token-rotation.md)**: three-layer refresh (beat + lazy + reactive), one guarded door with a session-level advisory lock, vendor-authoritative expiry, dedicated `credentials` queue, five additive columns; `CREDENTIALS_DATABASE_URL` descoped. Four slices — see [Wave 4](#wave-4--p-cred-refresh-token-rotation-2026-08-18); gate = full matrix + one real sandbox-token refresh | ⬜ |
 | 11d | P-PROD — Production-write unlock (NEW) | ⬜ **W7** — RLS across 13 tables, manual red-team pass, the ADR-068 capability flip, and the ADR-050 C2 data dependencies. Gates P-IM's real reading and P10's business-impact metric | ⬜ |
 | 12 | P10 — Observability baseline | ⬜ **W8** | ⬜ |
 | 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ **W9** (with P7) | ⬜ |
@@ -330,11 +330,12 @@ named for the phases they implement.
 
 ### Three constraints that fix the order
 
-1. **2026-08-25.** All three TikTok credentials expire (`production_read` 05:44:29,
-   `seller_connect` 05:44:32, `sandbox_write` 05:54:27 UTC) and **nothing automatically
-   refreshes them**: the only production refresh call site sits inside `run_fujiwa_poll_cycle`,
+1. **2026-08-27 04:30 UTC.** All three TikTok credentials expire together, and **nothing
+   automatically refreshes them**: the only production refresh call site sits inside `run_fujiwa_poll_cycle`,
    which is not in the Celery beat schedule, and `sandbox_write` has no refresh call site at
-   all. Everything that touches TikTok dies with them. P-CRED cannot move.
+   all. Everything that touches TikTok dies with them. **Verified live 2026-08-20**, not inferred:
+   a dry run of the bridge script reported all three within five days of expiry with no scheduled
+   refresher. P-CRED cannot move.
 2. **A real impact reading requires a production write.** The sandbox shop has no analytics
    series, so ADR-077's outstanding reading cannot come from a sandbox mutation. Production
    writes have two preconditions already on record — functional RLS and a manual red-team
@@ -356,6 +357,25 @@ named for the phases they implement.
 | **W8 — P10** | 12 | Logging baseline re-verification, per-run rollup, the five-link outcome chain, the four unconflated metrics · closes #1226's second half | — |
 | **W9 — P15 + P7** | 13, 9 | Hardening pass over the whole Optimize Product path; extract the per-workflow config template (prompt + allowlist + **output schema**) · P7 structured output contract | — |
 | **W10 — P13** | 14 | Edge-case matrix; register the 4 unregistered tool handlers; onboard the remaining ten workflows via the template | — |
+
+### Filed work — W4 and W5
+
+Slice titles follow the Wave 3 convention (`W<wave>-<sub-wave>/P<phase>-<n>`). A `HITL:` prefix
+means the slice needs the repo owner to run something, observe something live, or make a call a
+coding agent cannot; those issues carry a numbered "What you need to do" section.
+
+| Wave | Parent PRD | Slices |
+| --- | --- | --- |
+| **W4-A — P-CRED** | #1228 | `W4-A/P-CRED-1..5` (ADR-081 decisions 1–9) |
+| **W4-B — P-IM** | #1228 | #1215 ledger payload · #1216 running seconds · #1219 reader vocabulary · #1220 did-the-job fact |
+| **W5-A — P9 approval** | #1213 | #1214 schema · #1221 decision requests · #1222 approve-is-run-creation · #1224 confirmation endpoint · #1225 decline |
+| **W5-B — P14 security** | #1213 | #1217 auth + boot assertion · #1218 sanitizer + adversarial fixtures · #1223 abuse limits |
+| **W5 gate** | #1213 | #1226 (HITL) — seller-path approval end to end |
+
+**W4-B's own gate — the first real impact reading — is deliberately not in W4.** The sandbox shop
+has no analytics series, so a genuine DiD reading requires a production-shop write, which is W7's
+unlock. W4 makes the reading *reachable*; W7 is what makes it *possible*. Recording a `suppressed`
+reading and calling the gate met would be dishonest, and the issue says so explicitly.
 
 **W6 ∥ W7 is the one real parallelism gain.** P-UI is `apps/demo/**` and `packages/contracts`;
 the production unlock is security, infra and data-platform. Zero write-path overlap, and it
@@ -457,15 +477,19 @@ W4-2/W4-3 never touch the migration.
 ### Wave gate
 
 The full ADR-081 decision-9 matrix, **plus one real end-to-end refresh of the live sandbox
-credential** (`sandbox_write`, expiring **2026-08-24**) showing a new expiry, incremented
+credential** (`sandbox_write`, expiring **2026-08-27**) showing a new expiry, incremented
 `refresh_count`, populated `last_refreshed_at`, and the log line present. That single observation
 is the only step that proves the vendor contract rather than our belief about it, and it also
 settles whether `refresh_token_expire_in` exists at all — it appears nowhere in the codebase,
 fixtures, or `docs/integrations/tiktok_api/authentication.md` today, which is why
 `refresh_token_expires_at` is nullable and the health signal rides on `last_refreshed_at` instead.
 
-**The sandbox credential expires 2026-08-24.** If the wave has not reached its gate by then, the
-credential must be re-seeded before the gate can run.
+**The sandbox credential expires 2026-08-27 04:30 UTC.** A manual refresh (`/root/refresh_
+credentials.py --dry-run` then without the flag, on the deployment host) buys 7 days from the
+moment it runs — it is the bridge, not the fix, and it is what the owner ran on 2026-08-20 to
+move the deadline off 2026-08-25. If the wave has not reached its gate by the current date, run
+the bridge again rather than letting the credential lapse; a lapsed credential must be re-seeded
+through the Partner Center sandbox OAuth exchange before the gate can run at all.
 
 ### Exit condition
 
