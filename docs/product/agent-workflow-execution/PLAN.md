@@ -553,13 +553,20 @@ mid-W4 change.
    *same* id or `phase_run_correlation` fails, and a slice with a release evidence plan
    must also carry its `releaseEvidencePlanId`.
 
-   **A field is populated only if the run actually observed it.** `skillsLoaded`,
-   `rulesLoaded` and `mcpsUsed` are empty when no skill, rule or MCP was loaded — that
-   is the true value, not a blank to be helpfully filled. One reviewer filled them from
-   `issue-context-cache`'s `harnessUtility` block, which records what Meta *would*
-   route, and briefly turned the guard green on two false observations. The harness
-   optimizer consumes these fields to learn which skills correlate with success, so a
-   plausible guess there is worse than an honest gap.
+   **A field is populated only if the run actually observed it — and empty must itself
+   be true.** `skillsLoaded`, `rulesLoaded` and `mcpsUsed` are empty when no skill, rule
+   or MCP was loaded: that is the true value, not a blank to be helpfully filled. One
+   reviewer filled them from `issue-context-cache`'s `harnessUtility` block, which
+   records what Meta *would* route, and briefly turned the guard green on two false
+   observations. The harness optimizer learns from these fields, so a plausible guess is
+   worse than an honest gap.
+
+   **But do not over-apply that.** `contextFilesLoaded` is a *blocking* gate
+   (`check_implementation_artifact.py` requires a non-empty list) and empty is a FALSE
+   statement — an executor that edits three files and writes a 415-line test read more
+   than zero files. Both gate-2 executors read the rule above and emptied this field
+   too, blocking both PRs. The test is not "am I certain?" but "did this happen?":
+   nothing was loaded → empty is true; files were read → name them.
 
    Known trap: `phase_run_correlation` reads the *previous* generation's validation
    artifact (#1143), so `generate_validation_artifact.py` must be run twice before its
