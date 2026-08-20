@@ -12,15 +12,15 @@
   "review": {
     "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1246.json",
     "ownerSignoffPresent": false,
-    "sha256": "e01c94d5fd4f5d66be74f4689a74ded6c8c26c4a33cfb4fd035c30aaffee6b3d",
+    "sha256": "8241e4e9f9d2b8f79550c5544330c5e4f0fb0b01d57eae6212c31d8cd2dbc4ba",
     "signoffRequired": true,
     "status": "PASS_WITH_WARNINGS",
     "warningsAcknowledged": false
   },
-  "timestamp": "2026-08-20T13:33:35Z",
+  "timestamp": "2026-08-20T14:03:25Z",
   "validation": {
     "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1246.json",
-    "sha256": "7958ae9a4363e2f14bcd95d72046bcdb830d81983d903337be5d1ee17c2faec1",
+    "sha256": "bdbd6f6b06076a2454e5e504641869974a64dcc1194e55a875ff87fc6189345b",
     "status": "FAIL"
   },
   "wave": "wave-agent-w4"
