@@ -28,6 +28,21 @@ merchants; leaving them unset means a new deployment's own shops will not
 match either fallback ID (extremely unlikely to collide) and will resolve to
 ``SELLER_CONNECT``, never silently to Juli's ``PRODUCTION_READ`` /
 ``SANDBOX_WRITE`` treatment of Juli's own shops.
+
+**Update (#1246), correcting a caveat that used to be true here:** the
+transport guards that actually build outbound clients --
+``integrations/tiktok/capabilities.py`` and ``factories.py``'s
+``ProductionReadClientFactory`` / ``SandboxWriteClientFactory`` -- used to
+hold their own independent literal copies of these two IDs, disconnected
+from the env config above. #1234 alone was not enough to onboard a new
+deployment: setting the two env vars correctly reclassified a merchant here,
+but the transport guards still hard-compared against Juli's compiled-in
+IDs and raised ``ValueError`` for any other merchant. #1246 fixed that --
+``capabilities.py`` now re-exports these two names from this module instead
+of redefining them, so the transport guards read the same env-configured
+values as ``resolve_merchant_context``/``is_cross_merchant_lookup`` above.
+Setting the two env vars now genuinely onboards a new deployment's
+production/sandbox merchants end to end, transport guards included.
 """
 
 from __future__ import annotations
