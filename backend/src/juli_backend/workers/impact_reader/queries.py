@@ -26,12 +26,43 @@ from juli_backend.models.models import (
 )
 from juli_backend.services.impact import ControlCandidate, RawDailyRecord
 
-#: The only tool this reader knows how to classify mutations for today (see
-#: ``classify.py``) — the single source of truth so the "due executions"
-#: scan and the "did another run touch this product" confounding check both
-#: filter on exactly the same tool-name set. ``listing.create_hero_product``
-#: is deliberately excluded: a brand-new listing has no pre-period baseline.
-MEASURABLE_TOOL_NAMES = frozenset({"listing.optimize_product"})
+#: The pre-#1219 legacy dispatcher's own tool name
+#: (``services/execution/listing.py::run_optimize_product_chain``, workflow
+#: key ``optimize_product_2``) — kept measurable forever even though no
+#: current ``ToolRegistry`` entry produces this name, so historical rows
+#: written before the ADR-069 agent tool registry existed are still read.
+#: ``listing.create_hero_product`` is deliberately excluded: a brand-new
+#: listing has no pre-period baseline. Everything else this reader scans for
+#: comes from the real registry — see :func:`measurable_tool_names`.
+_LEGACY_MEASURABLE_TOOL_NAMES = frozenset({"listing.optimize_product"})
+
+
+def measurable_tool_names() -> frozenset[str]:
+    """Every tool name this reader treats as measurable — the single source
+    of truth so the "due executions" scan (:func:`load_measurable_executions`)
+    and the "did another run touch this product" confounding check
+    (:func:`load_touch_dates`) both filter on exactly the same set.
+
+    Defect this fixes (issue #1219 / AGT-W4B): this used to be a
+    hand-maintained literal naming the *old* dispatcher's tool name
+    (``listing.optimize_product``), while the real agent ledger
+    (``services/agent/runner/ledger.py``) writes ``ToolExecution.tool_name``
+    as the *registered* tool name itself — ``update_product_price``,
+    ``update_product_listing``, etc. — so this reader selected zero rows,
+    forever, silently.
+
+    Derived from the real ADR-069 tool registry's WRITE-classified
+    capabilities (``services/agent/composition.py::measurable_write_tool_names``,
+    the sanctioned same-package seam this ``workers``-package module reaches
+    it through — see that function's own docstring for why), unioned with
+    the legacy name above. A new WRITE tool becomes measurable purely by
+    being registered into ``composition.build_product_tool_registry()`` —
+    never by editing this module.
+    """
+    from juli_backend.services.agent import composition as composition_module
+
+    return composition_module.measurable_write_tool_names() | _LEGACY_MEASURABLE_TOOL_NAMES
+
 
 #: ``AnalyticsPerformanceInterval.grain`` value for per-product daily rows —
 #: the same convention ``services/analytics_backfill`` and the KPI precompute
@@ -53,7 +84,7 @@ async def load_measurable_executions(session: AsyncSession) -> Sequence[ToolExec
     filters by elapsed time and already-written kinds."""
     stmt = select(ToolExecution).where(
         ToolExecution.status == TERMINAL_SUCCEEDED,
-        ToolExecution.tool_name.in_(MEASURABLE_TOOL_NAMES),
+        ToolExecution.tool_name.in_(measurable_tool_names()),
     )
     result = await session.execute(stmt)
     return result.scalars().all()
@@ -156,7 +187,7 @@ async def load_touch_dates(
     stmt = select(ToolExecution).where(
         ToolExecution.shop_id == shop_id,
         ToolExecution.status == TERMINAL_SUCCEEDED,
-        ToolExecution.tool_name.in_(MEASURABLE_TOOL_NAMES),
+        ToolExecution.tool_name.in_(measurable_tool_names()),
         ToolExecution.id != exclude_execution_id,
     )
     result = await session.execute(stmt)

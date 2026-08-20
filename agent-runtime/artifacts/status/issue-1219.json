@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 1219,
+  "metrics": {
+    "acceptanceMapped": 0,
+    "acceptanceTotal": 0,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/workers/impact_reader/queries.py",
+      "backend/src/juli_backend/workers/impact_reader/classify.py",
+      "backend/src/juli_backend/services/agent/composition.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1219.json",
+    "ownerSignoffPresent": true,
+    "sha256": "b7af8c9cf607de9ac3ee2ff86b3e984a9c3eaf6f763d563f1a3d877768149d2c",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-20T07:44:57Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1219.json",
+    "sha256": "43c0bca993627b18d9fac44c2f36d31cf501732aacc3dad68854a6f1bfbeb020",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w4"
+}
