@@ -23,11 +23,11 @@
     "status": "PASS",
     "warningsAcknowledged": true
   },
-  "timestamp": "2026-08-20T08:00:46Z",
+  "timestamp": "2026-08-20T08:03:26Z",
   "validation": {
     "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1231.json",
-    "sha256": "2ec0e6b65c2714abc10c9ab504831f312c13373736e05564818c2b20b96a2c0a",
-    "status": "FAIL"
+    "sha256": "ba2fa209d4da0cc6a630328ca0293f049c2a614f73a101d58d264c7ece7bf6dd",
+    "status": "PASS"
   },
   "wave": "wave-agent-w4"
 }
