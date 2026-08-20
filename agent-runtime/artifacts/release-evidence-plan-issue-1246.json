@@ -1,0 +1,75 @@
+{
+  "planId": "capabilities-merchant-id-single-source-2026-08-20",
+  "affectedPublicSurfaces": [
+    "No user-facing route, asset or frontend change. The public-release classification comes from the transport-guard path: `integrations/tiktok/capabilities.py` stops defining its own `PRODUCTION_AUTH_ID`/`SANDBOX_AUTH_ID` literals and sources them from `merchant.py`, which #1234 made environment-configurable. `factories.py`'s `ProductionReadClientFactory` / `SandboxWriteClientFactory` keep their comparison logic unchanged; only the values they compare against stop being compiled-in."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Local tests on feature/issue-1246-capabilities-merchant-config, cut from feature/agent-w4-wave. No VPS contact, no deployment, no vendor calls.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "env-config-reaches-the-transport-guards",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1246",
+        "assertions": [
+          "capabilities.py contains no literal merchant ID; both names resolve to merchant.py's environment-configured values",
+          "setting TIKTOK_PRODUCTION_MERCHANT_ID changes what factories.py compares against, asserted by module reload rather than a value frozen at import",
+          "that regression test FAILS against the pre-#1246 code, proving it exercises the real defect rather than passing vacuously",
+          "with TIKTOK_PRODUCTION_MERCHANT_ID set to a non-Juli value, ProductionReadClientFactory builds a client for that merchant instead of raising ValueError",
+          "the same holds for SandboxWriteClientFactory and TIKTOK_SANDBOX_MERCHANT_ID",
+          "with no env vars set, behaviour is byte-identical to today for the existing merchant IDs and every pre-existing test passes unmodified",
+          "a mismatched merchant still raises ValueError — the guard still fails closed and never silently accepts a cross-merchant client",
+          "the five package-root consumers of these names are untouched"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route or asset change — two constants change their source module, plus tests."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration, no schema change, no new environment variable. #1234 already introduced TIKTOK_PRODUCTION_MERCHANT_ID and TIKTOK_SANDBOX_MERCHANT_ID; this slice only redirects where two existing constants are read from. Stable and candidate pods agree because both read the same defaults when the vars are unset."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without this slice, a deployment that sets the two env vars per #1234's own onboarding documentation gets correct classification from merchant.py and then a hard ValueError from ProductionReadClientFactory, because capabilities.py still holds Juli's compiled-in IDs. That is today's accepted, signed-off state (#1234's PASS_WITH_WARNINGS) — no new exposure, but the documented onboarding path stays broken.",
+    "postCutoverFailureBehavior": "Revert the commit; capabilities.py returns to its own literals and behaviour returns to the signed-off #1234 state. The guard semantics are unchanged either way — a mismatched merchant raises ValueError before any client is constructed, so no cross-merchant request can be issued in either direction. The failure mode this slice removes is fail-closed, never a silent misroute, which is why reverting is safe rather than merely tolerable.",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": false,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -q -k 'merchant or capabilit or factor or tiktok_credential'",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -q",
+    "python agent-runtime/scripts/ci/check_import_boundaries.py --strict --baseline-file docs/architecture/import-boundary-baseline.json",
+    "ruff check backend tests"
+  ],
+  "doNotInfer": [
+    "This slice does not add, rename or remove an environment variable — #1234 already added both.",
+    "It does not change factories.py's comparison logic, only the source of the values compared. A mismatched merchant must still raise.",
+    "merchant.py has zero internal juli_backend imports, so sourcing from it introduces no circular-import risk. That was verified before the issue was filed, not assumed.",
+    "This does not touch multi-merchant ingest fan-out or rollout, which PLAN.md places in P13 territory."
+  ]
+}
