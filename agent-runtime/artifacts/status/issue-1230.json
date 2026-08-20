@@ -1,0 +1,32 @@
+{
+  "gateVersion": 1,
+  "issue": 1230,
+  "metrics": {
+    "acceptanceMapped": 11,
+    "acceptanceTotal": 11,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "agent-runtime/artifacts/release-evidence-plan-issue-1230.json",
+      "backend/src/juli_backend/database/migrations/versions/038_credential_refresh_cols.py",
+      "backend/src/juli_backend/models/models.py",
+      "backend/src/juli_backend/repositories/repos.py",
+      "tests/integration/test_migrations.py",
+      "tests/unit/test_credential_refresh_columns.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1230.json",
+    "ownerSignoffPresent": true,
+    "sha256": "6a5463cb4ef1fc29da29d2f0ad8b32e266bd5d5af9569ea10c6d56a6ef39bef2",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-20T06:30:30Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1230.json",
+    "sha256": "31f18227adcb9ec6271e923caccd3c49b82f06ca75bd473015fb7be2ceaa0e05",
+    "status": "FAIL"
+  },
+  "wave": "wave-agent-w4"
+}
