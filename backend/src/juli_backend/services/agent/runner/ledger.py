@@ -96,6 +96,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -104,6 +105,47 @@ from juli_backend.models.models import ToolExecution
 
 _DEFAULT_LOCK_TIMEOUT_MS = 3_000
 _DEFAULT_STATEMENT_TIMEOUT_MS = 10_000
+
+
+class ToolExecutionRequestPayload(BaseModel):
+    """The shape `ToolExecutionLedger` persists as `ToolExecution
+    .payload_json` for a WRITE dispatch (issue #1215 / AGT-W4B).
+
+    Field names are pinned to what the two impact-reader consumers actually
+    read off that JSON blob — **not** to any `ToolSpec.input_model`, which
+    uses different field names entirely (ADR-070 decision 1 keeps raw
+    vendor IDs/URIs out of the LLM-facing schema, e.g.
+    `UpdateProductPriceInput.skus` vs. this model's `price_update`, and no
+    `product_id` field on any input_model at all):
+
+    - `product_id`: `workers/impact_reader/pipeline.py`'s
+      `tiktok_product_id = str(payload.get("product_id") or "")` and
+      `queries.py::load_touch_dates`'s `str(payload.get("product_id"))`
+      comparison — the reader's attribution/join key.
+    - `price_update`, `image_uri`, `image_content_base64`, `title`,
+      `description`: `workers/impact_reader/classify.py
+      ::classify_mutation_kinds`'s per-field truthy heuristics (that
+      module also reads a nested `edit_body` dict as a fallback for
+      `title`/`description`, which this shape never populates — the two
+      top-level fields alone satisfy its `or` checks).
+
+    Deliberately excludes any credential, token, or raw vendor auth value:
+    none of these fields ever carry one, by construction — this model is
+    built from `ToolSpec.input_model` fields plus the run's bound
+    (non-secret) product/asset identifiers, never from marketplace client
+    credentials, which live entirely outside `ProductToolExecutor`'s
+    `params`/context surface (`integrations/tiktok/factories.py
+    ::ClientFactoryConfig`).
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    product_id: str
+    price_update: list[dict[str, str]] | None = None
+    image_uri: str | None = None
+    image_content_base64: str | None = None
+    title: str | None = None
+    description: str | None = None
 
 
 class LedgerStatus(str, enum.Enum):
@@ -214,6 +256,7 @@ class ToolExecutionLedger:
         operation: str,
         perform: Callable[[], Mapping[str, Any]],
         verify_applied: Callable[[], VerifyReadBack] | None = None,
+        request_payload: ToolExecutionRequestPayload | None = None,
     ) -> Mapping[str, Any]:
         """Resolve one WRITE tool call through the ledger.
 
@@ -225,6 +268,15 @@ class ToolExecutionLedger:
         runs first of all (Postgres-only; a no-op on SQLite) so the
         transaction this call opens never blocks on lock contention past
         the configured bound.
+
+        `request_payload` (#1215 / AGT-W4B), when supplied, is recorded on
+        the fresh-dispatch INSERT only (`_insert_in_flight`) — a row found
+        by `_select` already carries whatever `payload_json` its own
+        original fresh dispatch recorded, so `request_payload` is inert on
+        every branch below the initial `if row is not None` check. `None`
+        (the default) leaves `payload_json` at the `ToolExecution` model's
+        own default (`"{}"`), byte-for-byte as before this parameter
+        existed — every pre-existing call site keeps behaving unchanged.
         """
         self._apply_bounded_wait()
         row = self._select(workflow_run_id, tool_call_id, operation)
@@ -238,6 +290,7 @@ class ToolExecutionLedger:
             operation=operation,
             perform=perform,
             verify_applied=verify_applied,
+            request_payload=request_payload,
         )
 
     # --- bounded-wait boundary ------------------------------------------
@@ -274,7 +327,11 @@ class ToolExecutionLedger:
         return self._session.execute(stmt).scalar_one_or_none()
 
     def _insert_in_flight(
-        self, workflow_run_id: uuid.UUID, tool_call_id: str, operation: str
+        self,
+        workflow_run_id: uuid.UUID,
+        tool_call_id: str,
+        operation: str,
+        request_payload: ToolExecutionRequestPayload | None = None,
     ) -> ToolExecution:
         """INSERT the claim row and commit it durably before the vendor call
         runs — a crash between here and `_mark_succeeded`/`_mark_failed`
@@ -285,6 +342,12 @@ class ToolExecutionLedger:
         unique index") when another attempt claimed this exact key first —
         the caller (`_claim_and_execute`) is what handles that, never this
         method.
+
+        `request_payload` (#1215 / AGT-W4B): recorded as `payload_json` when
+        supplied, so the impact-reader consumers (`classify.py`,
+        `pipeline.py`) can classify and attribute this row later — left at
+        the model's own `"{}"` default when `None`, exactly as before this
+        parameter existed.
         """
         row = ToolExecution(
             shop_id=self._shop_id,
@@ -294,6 +357,11 @@ class ToolExecutionLedger:
             workflow_run_id=workflow_run_id,
             tool_call_id=tool_call_id,
             operation=operation,
+            **(
+                {"payload_json": request_payload.model_dump_json()}
+                if request_payload is not None
+                else {}
+            ),
         )
         self._session.add(row)
         self._session.flush()
@@ -371,9 +439,10 @@ class ToolExecutionLedger:
         operation: str,
         perform: Callable[[], Mapping[str, Any]],
         verify_applied: Callable[[], VerifyReadBack] | None,
+        request_payload: ToolExecutionRequestPayload | None = None,
     ) -> Mapping[str, Any]:
         try:
-            row = self._insert_in_flight(workflow_run_id, tool_call_id, operation)
+            row = self._insert_in_flight(workflow_run_id, tool_call_id, operation, request_payload)
         except IntegrityError:
             # Lost the unique-index race (ADR-073 decision 3): never fall
             # through to a second vendor call — resolve through the
@@ -416,6 +485,7 @@ class ToolExecutionLedger:
 __all__ = [
     "LedgerStatus",
     "ToolExecutionLedger",
+    "ToolExecutionRequestPayload",
     "ToolExecutionUnrecoverableError",
     "VerifyOutcome",
     "VerifyReadBack",
