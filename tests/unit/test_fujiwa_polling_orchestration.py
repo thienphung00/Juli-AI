@@ -257,22 +257,29 @@ class TestRunFujiwaPollCycle:
             )
 
     @pytest.mark.asyncio
-    async def test_refreshes_tokens_before_sync(
+    async def test_does_not_refresh_via_oauth_service_anymore(
         self,
         fujiwa_credential,
         oauth_service,
         mock_resources,
         run_poll,
     ):
+        """ADR-081 decision 4 / #1232: `run_fujiwa_poll_cycle` used to call
+        `oauth_service.refresh_merchant_tokens` itself before syncing. That
+        call site is deleted -- the credential `resolve_credential` hands
+        back is used directly, because in production that resolver
+        (`resolve_production_read_credential`) now carries the lazy refresh
+        layer itself (`core/security/credential_resolver.py`). `oauth_service`
+        stays a required parameter only so
+        `services/action_cards/refresh.py::maybe_poll_tiktok_data` keeps
+        constructing and passing one unmodified; this test pins that the
+        parameter is otherwise inert."""
         refresh_mock = AsyncMock(return_value=fujiwa_credential)
         oauth_service.refresh_merchant_tokens = refresh_mock
 
         await run_poll(fujiwa_credential=fujiwa_credential)
 
-        refresh_mock.assert_awaited_once_with(
-            PRODUCTION_AUTH_ID,
-            TikTokCapability.PRODUCTION_READ,
-        )
+        refresh_mock.assert_not_awaited()
         mock_resources.orders.search_all.assert_called_once()
         mock_resources.inventory.search.assert_called_once()
 

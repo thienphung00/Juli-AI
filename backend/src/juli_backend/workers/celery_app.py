@@ -24,9 +24,18 @@ celery_app.conf.update(
     # (`workers/tasks/agent_workflow.py`) so multi-minute runs never starve
     # beat or the analytics tasks below, which stay on the (unlisted, thus
     # default) "celery" queue unchanged.
+    #
+    # ADR-081 decision 6 / #1232 — dedicated `credentials` queue, same
+    # precedent: a sub-second task that must never queue behind the
+    # ~37-minute hourly reconcile on the shared "celery" queue. #1205's
+    # trap applies here too — see infra/systemd/juli-celery-worker.service's
+    # `-Q` flag, which MUST be updated in the same commit as this entry or
+    # credential_refresh_beat tasks enqueue into a queue nobody consumes and
+    # sit at status=queued forever, silently.
     task_routes={
         "juli_backend.run_agent_workflow": {"queue": "agent_runs"},
         "juli_backend.resume_agent_workflow": {"queue": "agent_runs"},
+        "juli_backend.credential_refresh_beat": {"queue": "credentials"},
     },
     beat_schedule={
         # ADR-038 §5 — Mock-mode hourly reconciliation for DEMO_REFERENCE_SHOP_ID only (#533).
@@ -67,6 +76,18 @@ celery_app.conf.update(
         "reap-abandoned-workflow-runs": {
             "task": "juli_backend.reap_abandoned_workflow_runs",
             "schedule": crontab(minute="*/5"),
+        },
+        # ADR-081 decision 1, row 1 / #1232 — the fleet's first credential
+        # refresh schedule (run_fujiwa_poll_cycle has never appeared in
+        # beat_schedule; before this entry, nothing refreshed TikTok tokens
+        # on a schedule at all). Every 30 minutes, scans #1230's
+        # list_expiring_within(REFRESH_BUFFER=24h) window and calls
+        # refresh_credential(force=False) per row — see
+        # workers/tasks/credential_refresh_beat.py for the isolation
+        # contract (one needs_reauth credential never aborts the cycle).
+        "credential-refresh-beat": {
+            "task": "juli_backend.credential_refresh_beat",
+            "schedule": crontab(minute="*/30"),
         },
     },
 )

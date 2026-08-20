@@ -2,6 +2,17 @@
 
 Wires production-read credentials, token refresh, per-endpoint sync state,
 and rate-limit backoff into the existing sync workers.
+
+ADR-081 decision 4 / #1232: the two `oauth_service.refresh_merchant_tokens`
+calls this module used to make (one per entrypoint) are deleted. `resolve()`
+already returns the credential from `resolve_production_read_credential`
+(or a caller-supplied override), and that resolver now runs the lazy refresh
+layer itself (`core/security/credential_resolver.py`) -- so the credential
+`resolve()` hands back is already warm. `oauth_service: TikTokOAuthService`
+stays a required parameter on both entrypoints purely so
+`services/action_cards/refresh.py::maybe_poll_tiktok_data` (out of this
+slice's write-path lock) keeps working unmodified; neither entrypoint's body
+calls it anymore.
 """
 
 from __future__ import annotations
@@ -171,11 +182,6 @@ async def run_fujiwa_material_resource_fetch(
     credential = await resolve(session)
     _assert_fujiwa_credential(credential)
 
-    credential = await oauth_service.refresh_merchant_tokens(
-        PRODUCTION_AUTH_ID,
-        TikTokCapability.PRODUCTION_READ,
-    )
-
     client_factory = factory or ProductionReadClientFactory()
     build_resources = create_resources or client_factory.create_resources
     resources = build_resources(_factory_config(config, credential))
@@ -240,11 +246,6 @@ async def run_fujiwa_poll_cycle(
     resolve = resolve_credential or resolve_production_read_credential
     credential = await resolve(session)
     _assert_fujiwa_credential(credential)
-
-    credential = await oauth_service.refresh_merchant_tokens(
-        PRODUCTION_AUTH_ID,
-        TikTokCapability.PRODUCTION_READ,
-    )
 
     client_factory = factory or ProductionReadClientFactory()
     build_resources = create_resources or client_factory.create_resources
