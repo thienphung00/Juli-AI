@@ -30,7 +30,6 @@ suite that constructs a client via these factories.
 
 from __future__ import annotations
 
-import importlib
 import inspect
 import os
 from pathlib import Path
@@ -50,31 +49,35 @@ _NEW_DEPLOYMENT_PRODUCTION_ID = "new_deployment_prod_merchant_999"
 _NEW_DEPLOYMENT_SANDBOX_ID = "new_deployment_sandbox_merchant_999"
 
 
-@pytest.fixture(autouse=True)
-def _restore_reloaded_modules():
-    """Guarantee capabilities/factories globals are back to defaults.
-
-    ``factories.py``'s ``create()`` methods resolve ``PRODUCTION_AUTH_ID`` /
-    ``SANDBOX_AUTH_ID`` as module globals at call time, not at import time.
-    A reload performed by a test in this file mutates the (shared, cached)
-    module object in place, so leaving it reloaded with a non-default env
-    would break unrelated tests elsewhere in the suite that build clients
-    via these factories and expect Juli's default IDs.
-    """
-    yield
-    os.environ.pop("TIKTOK_PRODUCTION_MERCHANT_ID", None)
-    os.environ.pop("TIKTOK_SANDBOX_MERCHANT_ID", None)
-    importlib.reload(merchant)
-    importlib.reload(capabilities)
-    importlib.reload(factories)
-
-
 def _reload_chain_with_env(monkeypatch, *, production_id: str, sandbox_id: str) -> None:
+    """Reconfigure the merchant IDs across the whole chain, WITHOUT reloading.
+
+    An earlier revision of this helper called ``importlib.reload`` on
+    ``merchant`` -> ``capabilities`` -> ``factories``. That propagated the
+    values correctly but mutated the shared, cached module objects in place,
+    giving every class defined in those modules -- including ``factories``'
+    ``ProductionReadResources`` / ``SandboxWriteResources`` dataclasses -- a
+    **new class identity**. Any test module that had already imported the
+    pre-reload classes then failed ``isinstance`` against a same-shape object.
+    Reproduced against ``test_layer1_read_resources.py`` and
+    ``test_layer2_sandbox_write_contract.py``, which pass in isolation and
+    fail when this file runs first.
+
+    It never fired in CI only because pytest's alphabetical collection happens
+    to run those files before this one -- an accidental guarantee that would
+    break silently under ``pytest-randomly``, a manual subset run, or a new
+    test file sorting after this one.
+
+    ``monkeypatch.setattr`` rebinds only the two names, creates no new class
+    objects, and is undone by pytest per-test. ``factories.create()`` resolves
+    these as live module globals at call time, so all three modules must be
+    patched -- patching ``merchant`` alone would not reach the guards.
+    """
     monkeypatch.setenv("TIKTOK_PRODUCTION_MERCHANT_ID", production_id)
     monkeypatch.setenv("TIKTOK_SANDBOX_MERCHANT_ID", sandbox_id)
-    importlib.reload(merchant)
-    importlib.reload(capabilities)
-    importlib.reload(factories)
+    for module in (merchant, capabilities, factories):
+        monkeypatch.setattr(module, "PRODUCTION_AUTH_ID", production_id, raising=False)
+        monkeypatch.setattr(module, "SANDBOX_AUTH_ID", sandbox_id, raising=False)
 
 
 class TestCapabilitiesModuleHasNoLiteralMerchantId:
@@ -118,13 +121,21 @@ class TestCapabilitiesAndFactoriesFollowMerchantEnvConfig:
         assert capabilities.SANDBOX_AUTH_ID == _NEW_DEPLOYMENT_SANDBOX_ID
         assert factories.SANDBOX_AUTH_ID == _NEW_DEPLOYMENT_SANDBOX_ID
 
-    def test_unset_env_stays_byte_identical_to_juli_defaults_after_reload(self, monkeypatch):
-        monkeypatch.delenv("TIKTOK_PRODUCTION_MERCHANT_ID", raising=False)
-        monkeypatch.delenv("TIKTOK_SANDBOX_MERCHANT_ID", raising=False)
-        importlib.reload(merchant)
-        importlib.reload(capabilities)
-        importlib.reload(factories)
+    @pytest.mark.skipif(
+        bool(os.getenv("TIKTOK_PRODUCTION_MERCHANT_ID"))
+        or bool(os.getenv("TIKTOK_SANDBOX_MERCHANT_ID")),
+        reason="merchant IDs are configured in this environment; this test asserts "
+        "the unset-default path",
+    )
+    def test_unset_env_stays_byte_identical_to_juli_defaults(self):
+        """Both modules carry Juli's fallback defaults when nothing is configured.
 
+        Deliberately reload-free. The property is resolved at import time
+        (``merchant.py`` reads ``os.getenv`` at module level), so asserting the
+        already-imported values tests exactly the same thing. An earlier
+        revision reloaded all three modules here, which handed every class in
+        them a new identity and broke ``isinstance`` in unrelated test modules.
+        """
         assert capabilities.PRODUCTION_AUTH_ID == _JULI_DEFAULT_PRODUCTION_AUTH_ID
         assert capabilities.SANDBOX_AUTH_ID == _JULI_DEFAULT_SANDBOX_AUTH_ID
         assert factories.PRODUCTION_AUTH_ID == _JULI_DEFAULT_PRODUCTION_AUTH_ID
