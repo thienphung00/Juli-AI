@@ -23,14 +23,15 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 6 | P1 — Agent execution loop (blocks + runner) | ✅ **implemented and live-verified** — [ADR-073](../../adr/073-agent-execution-loop-and-write-path-hardening.md); PRD #1115, slices #1117–#1124 merged via #1183. Read path, CONFIRM pause, resume, sandbox write, ledger and cancel all proven against the deployed host — see [Wave 3 live verification](#wave-3-live-verification-2026-08-19--2026-08-20) | ✅ 2026-08-20 |
 | 7 | P-CS — Conversation & state storage (NEW) | ⏸ deferred (user, 2026-08-11) until real users exist — stand-in: `workflow_runs.state` JSONB blob behind the `ConversationStore` protocol (ADR-073 d.5) | ⬜ |
 | 8 | P8 — Streaming (SSE + Celery relay) | ✅ **implemented and live-verified** — [ADR-074](../../adr/074-agent-event-streaming-and-relay.md); PRD #1116, slices #1125–#1133 merged via #1183. Live SSE, gapless duplicate-free `Last-Event-ID` reconnect, mid-run cancel, and the fail-closed `memory://` boot assertion all proven on the deployed host — see [Wave 3 live verification](#wave-3-live-verification-2026-08-19--2026-08-20) | ✅ 2026-08-20 |
-| 9 | P7 — Structured output contract | ⏸ deferred (user, 2026-08-11) — loop runs on ADR-072 prose output; wires in via `FinalResponse` block + prompt v2 bump (ADR-073 d.5) | ⬜ |
-| 10 | P9+P14 — Approval, safety & security prerequisites | 🟨 design grilled 2026-08-12 — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) drafted; implementation pending | ⬜ |
-| 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 design grilled 2026-08-12 — [ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md) drafted; implementation pending | ⬜ |
-| 11b | P-IM — Incremental impact measurement (NEW) | ✅ implemented — [ADR-077](../../adr/077-incremental-impact-measurement.md); re-run wave merged to `main` (#1113, 2026-08-14), #1040–#1045 + #1068 all with status records, after the [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B refusal of the first attempt | 🟥 2026-08-20 — code gates green, but the one real end-to-end reading is **unreachable**, not merely un-run: the reader selects `tool_name IN {"listing.optimize_product"}` and the agent ledger writes `update_product_price` / `update_product_listing`, and the ledger records no `payload_json`, which classification and product binding both require. See [Wave 3 live verification](#wave-3-live-verification-2026-08-19--2026-08-20) |
-| 11c | P-CRED — TikTok credential lifecycle / refresh-token rotation (NEW) | 🟨 **design settled — W4**. Grilled 2026-08-17 ([ADR-080](../../adr/080-tiktok-credential-lifecycle.md)), re-grilled 2026-08-18 against the code and **amended by [ADR-081](../../adr/081-refresh-token-rotation.md)**: three-layer refresh (beat + lazy + reactive), one guarded door with a session-level advisory lock, vendor-authoritative expiry, dedicated `credentials` queue, five additive columns; `CREDENTIALS_DATABASE_URL` descoped. Four slices — see [Wave 4](#wave-4--p-cred-refresh-token-rotation-2026-08-18); gate = full matrix + one real sandbox-token refresh | ⬜ |
-| 12 | P10 — Observability baseline | ⬜ | ⬜ |
-| 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ | ⬜ |
-| 14 | P13 — Edge cases + rollout to remaining 10 workflows | ⬜ | ⬜ |
+| 9 | P7 — Structured output contract | ⏸ deferred (user, 2026-08-11) — scheduled **W9** with P15 (see the wave roadmap) — loop runs on ADR-072 prose output; wires in via `FinalResponse` block + prompt v2 bump (ADR-073 d.5) | ⬜ |
+| 10 | P9+P14 — Approval, safety & security prerequisites | 🟨 **W5** — design grilled 2026-08-12 — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) drafted; implementation pending | ⬜ |
+| 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 **W6** — design grilled 2026-08-12 — [ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md) drafted; implementation pending | ⬜ |
+| 11b | P-IM — Incremental impact measurement (NEW) | ✅ implemented, gate reopened in **W4** — [ADR-077](../../adr/077-incremental-impact-measurement.md); re-run wave merged to `main` (#1113, 2026-08-14), #1040–#1045 + #1068 all with status records, after the [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B refusal of the first attempt | 🟥 2026-08-20 — code gates green, but the one real end-to-end reading is **unreachable**, not merely un-run: the reader selects `tool_name IN {"listing.optimize_product"}` and the agent ledger writes `update_product_price` / `update_product_listing`, and the ledger records no `payload_json`, which classification and product binding both require. See [Wave 3 live verification](#wave-3-live-verification-2026-08-19--2026-08-20) |
+| 11c | P-CRED — TikTok credential lifecycle / refresh-token rotation (NEW) | 🟨 **W4 — design settled; credentials lapse 2026-08-27 04:30 UTC** (manually refreshed 2026-08-20; each manual run buys 7 days from the moment it runs, not 7 added to what is left).** Grilled 2026-08-17 ([ADR-080](../../adr/080-tiktok-credential-lifecycle.md)), re-grilled 2026-08-18 against the code and **amended by [ADR-081](../../adr/081-refresh-token-rotation.md)**: three-layer refresh (beat + lazy + reactive), one guarded door with a session-level advisory lock, vendor-authoritative expiry, dedicated `credentials` queue, five additive columns; `CREDENTIALS_DATABASE_URL` descoped. Four slices — see [Wave 4](#wave-4--p-cred-refresh-token-rotation-2026-08-18); gate = full matrix + one real sandbox-token refresh | ⬜ |
+| 11d | P-PROD — Production-write unlock (NEW) | ⬜ **W7** — RLS across 13 tables, manual red-team pass, the ADR-068 capability flip, and the ADR-050 C2 data dependencies. Gates P-IM's real reading and P10's business-impact metric | ⬜ |
+| 12 | P10 — Observability baseline | ⬜ **W8** | ⬜ |
+| 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ **W9** (with P7) | ⬜ |
+| 14 | P13 — Edge cases + rollout to remaining 10 workflows | ⬜ **W10** | ⬜ |
 | 15 | P6 — Documentation retrieval tool (deferred, optional) | ⬜ | ⬜ |
 
 ## Wave 2 status — re-run inside the harness contract (2026-08-14)
@@ -298,7 +299,7 @@ This was the third bug of that exact shape on that seam (#1177 was `call_id` vs 
 
 1. **The approval decision is not authorized by anything.** `POST /v1/demo/runs/{id}/confirmations/{tool_call_id}` returns `501` by design (ADR-074 d.5 reserves it for W4-A). The live pause/resume above was driven through `WorkflowRunner.resume` directly, so it proves the **loop's** write path, not the **product's** approval gate. No seller can approve a write today.
 2. **P-IM cannot read an agent run.** Entry point: `run_daily_impact_reader(session, reference_date)` (`workers/impact_reader/pipeline.py`), scheduled as the beat task `juli_backend.daily_impact_reader`. It scans `tool_executions` where `status='succeeded'` and `tool_name IN MEASURABLE_TOOL_NAMES` — which is `frozenset({"listing.optimize_product"})`, the *old* execution layer's name. The agent ledger writes `update_product_price` / `update_product_listing`, so **no agent run is ever selected**. Even if it were, the ledger records no `payload_json`, and both `classify_mutation_kinds` and the product binding read it. Two changes are needed before ADR-077's "one real end-to-end reading" is reachable at all; a third (the sandbox shop has no analytics series) means the first honest reading will have to come from a production-shop write, not a sandbox one.
-3. **`TerminationPolicy.required_steps` has no production consumer.** `OPTIMIZE_PRODUCT_TERMINATION_POLICY` declares `("update_product_listing", "update_product_price")` as the definition of "did the job", and every reference to it outside that declaration is in a test. A run that performs zero required writes still records `completed` / `final_response` — indistinguishable, in the execution-quality metric, from one that did the work. This is the one gap that corrupts data rather than blocking a feature.
+3. **The "did the job" outcome fact is never recorded.** `OPTIMIZE_PRODUCT_TERMINATION_POLICY` declares `required_steps = ("update_product_listing", "update_product_price")`, and every reference to it outside that declaration is in a test. **This is not a missing termination rule** — ADR-073 decision 2 is explicit that it must not be one: "whether it *did the job* (`required_steps` completed) is an outcome fact on the run record feeding the execution-quality metric — a `final_response` without the required mutation is honest data, not a synthetic failure." Terminating differently would contradict the design. What is missing is the *record*: `workflow_runs` has no column for the fact, and nothing computes it, so the execution-quality metric has no input. Its only consumer is the measurement layer, which is gap 2 — same seam, one slice.
 4. **`workflow_runs.running_seconds_elapsed` records 0** on runs that took real wall-clock time — #1117's denormalized mirror is not being written.
 
 ### Exit-gate verdict
@@ -308,10 +309,127 @@ and P8's gate ("browser sees live events for a real run; reconnect mid-run repla
 gaps/duplicates; cancellation stops the loop") are both met with recorded evidence, and the
 `memory://` assertion that #1133 inherited is armed and fires.
 
-**W3 is closed. It does not close P15.** Gap 1 means no seller-initiated write can happen
-(W4-A), gap 3 means execution-quality data is unreliable until `required_steps` is enforced,
-and gap 2 means business-impact data has no path at all. P15 ("E2E prototype complete") should
-not be ticked until 1 and 3 land; gap 2 belongs to a P-IM ↔ W3 reconciliation slice.
+**W3 is closed. It does not close P15.** None of the four gaps is W3's own contract:
+
+- **Gap 1** is the approval gate by explicit design — ADR-074 d.5 reserves the confirmation
+  decision, and the route returns `501` deliberately. No seller-initiated write can happen
+  until it lands (W5 below).
+- **Gaps 2, 3 and 4 are one slice, not three.** All three are the same defect: the agent's
+  run and ledger records do not carry what the measurement layer needs. The reader selects a
+  tool name the ledger never writes; the ledger records no `payload_json` to classify; the
+  run record has nowhere to put the "did the job" fact; and `running_seconds_elapsed` is
+  never written. One measurement-reconciliation slice covers all four symptoms and is the
+  honest prerequisite for any of the four metrics (W4 below).
+
+P15 ("E2E prototype complete") is not tickable until both land — see the wave roadmap.
+
+## Wave roadmap — W4 to W10 (2026-08-20)
+
+Every remaining phase, assigned to a wave, in the order the constraints allow. Waves are
+named for the phases they implement.
+
+### Three constraints that fix the order
+
+1. **2026-08-27 04:30 UTC.** All three TikTok credentials expire together, and **nothing
+   automatically refreshes them**: the only production refresh call site sits inside `run_fujiwa_poll_cycle`,
+   which is not in the Celery beat schedule, and `sandbox_write` has no refresh call site at
+   all. Everything that touches TikTok dies with them. **Verified live 2026-08-20**, not inferred:
+   a dry run of the bridge script reported all three within five days of expiry with no scheduled
+   refresher. P-CRED cannot move.
+2. **A real impact reading requires a production write.** The sandbox shop has no analytics
+   series, so ADR-077's outstanding reading cannot come from a sandbox mutation. Production
+   writes have two preconditions already on record — functional RLS and a manual red-team
+   pass — so P-IM's gate and P10's business-impact metric are gated on a *security* wave,
+   not an engineering one.
+3. **The four metrics have four different sources.** Approval rate comes from
+   `run_confirmations` (W5), execution quality from the run record (W4), business impact from
+   `impact_readings` (needs W7), recommendation quality from scoring signals vs observed
+   outcomes. P10 cannot precede all of them.
+
+### The waves
+
+| Wave | Phases | Contents | Parallel with |
+| --- | --- | --- | --- |
+| **W4 — P-CRED + P-IM** | 11c, 11b gate | P-CRED slices W4-1…W4-5 (ADR-081) · measurement reconciliation #1215, #1216, #1219, #1220 | — |
+| **W5 — P9+P14** | 10 | Approval gate #1214, #1221, #1222, #1224, #1225 · security prerequisites #1217, #1218, #1223 (ADR-075) · W3 leftovers #1139, #1140, #1142 | — |
+| **W6 — P-UI** | 11 | ADR-076 + PUI-DESIGN.md in full — dual entry, recorded-replay + live flag, staged run view, consent-grade option picker, run ledger, `useRunStream`, localStorage mock deleted · #1077 (seller-copy TS half) | **W7** |
+| **W7 — P-PROD** | 11d (NEW) | Production-write unlock: RLS across the 13 tables · manual red-team pass · the ADR-068 capability flip · the ADR-050 C2 data dependencies (per-shop analytics topup, OAuth→signals cold start, 7D bootstrap) | **W6** |
+| **W8 — P10** | 12 | Logging baseline re-verification, per-run rollup, the five-link outcome chain, the four unconflated metrics · closes #1226's second half | — |
+| **W9 — P15 + P7** | 13, 9 | Hardening pass over the whole Optimize Product path; extract the per-workflow config template (prompt + allowlist + **output schema**) · P7 structured output contract | — |
+| **W10 — P13** | 14 | Edge-case matrix; register the 4 unregistered tool handlers; onboard the remaining ten workflows via the template | — |
+
+### Filed work — W4 and W5
+
+Slice titles follow the Wave 3 convention (`W<wave>-<sub-wave>/P<phase>-<n>`). A `HITL:` prefix
+means the slice needs the repo owner to run something, observe something live, or make a call a
+coding agent cannot; those issues carry a numbered "What you need to do" section.
+
+| Wave | Parent PRD | Slices |
+| --- | --- | --- |
+| **W4-A — P-CRED** | #1228 | `W4-A/P-CRED-1..5` (ADR-081 decisions 1–9) |
+| **W4-B — P-IM** | #1228 | #1215 ledger payload · #1216 running seconds · #1219 reader vocabulary · #1220 did-the-job fact |
+| **W5-A — P9 approval** | #1213 | #1214 schema · #1221 decision requests · #1222 approve-is-run-creation · #1224 confirmation endpoint · #1225 decline |
+| **W5-B — P14 security** | #1213 | #1217 auth + boot assertion · #1218 sanitizer + adversarial fixtures · #1223 abuse limits |
+| **W5 gate** | #1213 | #1226 (HITL) — seller-path approval end to end |
+
+**W4-B's own gate — the first real impact reading — is deliberately not in W4.** The sandbox shop
+has no analytics series, so a genuine DiD reading requires a production-shop write, which is W7's
+unlock. W4 makes the reading *reachable*; W7 is what makes it *possible*. Recording a `suppressed`
+reading and calling the gate met would be dishonest, and the issue says so explicitly.
+
+**W6 ∥ W7 is the one real parallelism gain.** P-UI is `apps/demo/**` and `packages/contracts`;
+the production unlock is security, infra and data-platform. Zero write-path overlap, and it
+saves a wave of wall-clock on the two heaviest remaining items.
+
+### Why this order
+
+- **P-CRED cannot move** — it is the only wave with an external clock. The measurement slices
+  ride with it because they are small, backend-only, write-path-disjoint from it, and they are
+  what makes execution quality measurable at all.
+- **W5 before W6**: P-UI's option picker renders the decision-request structure W5 defines.
+  Building the UI first means building against a guess.
+- **W7 before W8**: business impact needs real readings, which need production writes. P10
+  earlier produces a dashboard with one populated column.
+- **P15 and P13 last**, by their own definitions — one hardens the finished path, the other
+  generalises it.
+
+### Where P7 lands, and why not W10
+
+P7 (structured output) goes in **W9, with P15** — not W10:
+
+- W9's deliverable *is* the per-workflow template, and P15's own minimal spec defines that
+  template as "prompt + allowlist + **output schema**". Extracting it before P7 exists means
+  extracting a template with an empty slot, and W10 then multiplies that hole by ten workflows.
+- W10's edge-case matrix lists **"malformed LLM output"** as a case to work. Without P7 there
+  is no validation, so there is nothing to be malformed against and no repair path to test.
+  P7 is a prerequisite for one of W10's own matrix rows, not a peer of them.
+
+**A stronger case exists for W6.** P7's own gate is "frontend can type against the schema",
+and W6 *is* the frontend. If P-UI's completion stage renders prose now and typed output later,
+that view gets built twice. Recorded here so the move is a one-line decision.
+
+**P7 carries one correction when it is picked up.** Its deferral note says it "adds no new
+vocabulary" because `output_validation_failed` was already reserved. That is no longer true:
+#1210 gave that stop_reason its first real producer (the outbound banned-pattern guard), so a
+`failed` run carrying it will be ambiguous between a guard hit and a validation failure. P7
+must split the reason or carry a discriminator.
+
+### Still deferred, with the trigger for picking each up
+
+| Phase | Pick up when |
+| --- | --- |
+| **P-CS** (7) — conversation storage | Real users exist, or a run must survive worker restart mid-conversation. |
+| **P6** (15) — documentation retrieval | Only if agent answers actually need it. No trigger yet. |
+
+### Debt that rides along rather than getting its own wave
+
+The harness/CI issues (#1090, #1091, #1093, #1100, #1101, #1111, #1112, #1143) touch only
+`.github/` and `agent-runtime/`, so they are write-path-disjoint from every wave and can ride
+with any of them. #1136 (`services/agent` unmapped in MODULES.md) and #1071 (prompt voice
+review) are single-PR items.
+
+**Backlog hygiene, outside any wave:** roughly 25 W3 issues (#1117–#1133, #1145, #1160, #1164,
+#1171–#1181) are merged but still open, which makes the issue list unreadable at a glance.
 
 ## Wave 4 — P-CRED, refresh-token rotation (2026-08-18)
 
@@ -359,15 +477,19 @@ W4-2/W4-3 never touch the migration.
 ### Wave gate
 
 The full ADR-081 decision-9 matrix, **plus one real end-to-end refresh of the live sandbox
-credential** (`sandbox_write`, expiring **2026-08-24**) showing a new expiry, incremented
+credential** (`sandbox_write`, expiring **2026-08-27**) showing a new expiry, incremented
 `refresh_count`, populated `last_refreshed_at`, and the log line present. That single observation
 is the only step that proves the vendor contract rather than our belief about it, and it also
 settles whether `refresh_token_expire_in` exists at all — it appears nowhere in the codebase,
 fixtures, or `docs/integrations/tiktok_api/authentication.md` today, which is why
 `refresh_token_expires_at` is nullable and the health signal rides on `last_refreshed_at` instead.
 
-**The sandbox credential expires 2026-08-24.** If the wave has not reached its gate by then, the
-credential must be re-seeded before the gate can run.
+**The sandbox credential expires 2026-08-27 04:30 UTC.** A manual refresh (`/root/refresh_
+credentials.py --dry-run` then without the flag, on the deployment host) buys 7 days from the
+moment it runs — it is the bridge, not the fix, and it is what the owner ran on 2026-08-20 to
+move the deadline off 2026-08-25. If the wave has not reached its gate by the current date, run
+the bridge again rather than letting the credential lapse; a lapsed credential must be re-seeded
+through the Partner Center sandbox OAuth exchange before the gate can run at all.
 
 ### Exit condition
 
