@@ -11,7 +11,7 @@ from typing import Any, Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.core.security import TikTokOAuthService
+from juli_backend.core.security import resolve_production_read_credential
 from juli_backend.database.exceptions import NotFound
 from juli_backend.integrations.tiktok import (
     PRODUCTION_AUTH_ID,
@@ -19,7 +19,6 @@ from juli_backend.integrations.tiktok import (
     ProductionReadClientFactory,
     ProductionReadResources,
     RateLimiter,
-    TikTokAuth,
     TikTokCapability,
 )
 from juli_backend.models.models import Shop, TikTokCredential
@@ -38,7 +37,6 @@ from juli_backend.services.cdp_speed.targeted_fetch_sync import (
     sync_returns,
 )
 from juli_backend.services.ingestion.handoff import HandoffFn
-from juli_backend.services.tiktok.credential_binding import make_binding_verifier
 
 logger = logging.getLogger(__name__)
 
@@ -237,27 +235,14 @@ async def execute_targeted_fetch_to_bronze(
 
     import redis
 
-    tiktok_auth = TikTokAuth(
-        app_key=resolved_env.app_key,
-        app_secret=resolved_env.app_secret,
-        base_url=os.getenv(
-            "TIKTOK_API_BASE_URL",
-            "https://open-api.tiktokglobalshop.com",
-        ),
-    )
-    oauth_service = TikTokOAuthService(
-        tiktok_auth=tiktok_auth,
-        session=session,
-        redirect_uri=resolved_env.redirect_uri,
-        app_secret=resolved_env.app_secret,
-        binding_verifier=make_binding_verifier(
-            app_key=tiktok_auth.app_key, app_secret=resolved_env.app_secret
-        ),
-    )
-    refreshed = await oauth_service.refresh_merchant_tokens(
-        PRODUCTION_AUTH_ID,
-        TikTokCapability.PRODUCTION_READ,
-    )
+    # ADR-081 decision 4 / #1232: this used to construct a TikTokOAuthService
+    # here just to call refresh_merchant_tokens(PRODUCTION_AUTH_ID,
+    # PRODUCTION_READ) -- the exact same merchant/capability pair
+    # `resolve_production_read_credential` looks up. That resolver now runs
+    # the lazy refresh layer itself (core/security/credential_resolver.py),
+    # so calling it here returns an already-warm credential with no separate
+    # OAuth-service construction.
+    refreshed = await resolve_production_read_credential(session)
     if not credential_belongs_to_job(refreshed, shop_id):
         logger.warning(
             "targeted_fetch_skipped",
