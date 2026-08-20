@@ -431,6 +431,140 @@ review) are single-PR items.
 **Backlog hygiene, outside any wave:** roughly 25 W3 issues (#1117–#1133, #1145, #1160, #1164,
 #1171–#1181) are merged but still open, which makes the issue list unreadable at a glance.
 
+## W4 orchestration contract (2026-08-20)
+
+Derived from what W3 actually cost, not from general practice. Two failure classes were
+measured across W3's issues, PRs, and every worktree's git state; each gets a mechanism here.
+
+### What W3 cost, in numbers
+
+**Four re-implementations.** Four worktrees hold finished work that was redone on a
+differently-named branch: `feature/issue-1127-persisting-sink` (8 commits, PR #1154 closed
+unmerged) → `feature/issue-1171-persisting-sink`; `feature/issue-1142-last-event-id` →
+`feature/issue-1142-sse-last-event-id`; `fix/issue-1138-aware-datetime` →
+`fix/issue-1138-confirm-shipment-tz`; `feature/issue-1173-runner-composition` → the same
+branch with `-v2`. Twenty worktrees are still alive, seven dirty, the oldest untouched since
+2026-07-21.
+
+The cause is recorded in the [W3 meta handoff](../../handoffs/2026-08-17-w3-meta-handoff.md)
+§2.2: the wave was squash-merged repeatedly while a 12-deep stack sat on top of it, so every
+squash re-diverged everything behind it. Two commits were lost outright. **No sub-agent went
+stale on its own — the base moved under it**, and the cheapest recovery from a base that no
+longer exists is to redo the work on a fresh branch. Briefing agents harder would have
+prevented none of the four.
+
+**Sixteen post-merge fixes, six of them one defect.** The wave merged 2026-08-18 with every
+slice reviewed PASS; sixteen fix PRs landed 08-18 → 08-20. Six are the same shape — two
+slices agreeing on a name in prose and disagreeing in code, with both sides' unit tests green
+because each tested against its own fixture:
+
+| PR | Producer wrote | Consumer read |
+| --- | --- | --- |
+| #1182 (#1177) | `tool_call_id` | `call_id` |
+| #1212 | `input_schema` | `parameters` — *every tool reached the model declared as taking no arguments* |
+| #1190 (#1188) | `state={}` | a complete state blob |
+| #1196 (#1195) | sequences from 0 | 0 means "no cursor" |
+| #1194 (#1191) | no `function_call` | a `function_call` |
+| #1179 (#1173) | a new constructor | the old signature |
+
+\#1145 — the decomposition gap Meta filed against itself — is the seventh instance. The rest
+were environment-only (#1205/#1207 unconsumed queue and unregistered task, #1201 the wrong
+systemd unit, #1187 the vendor requiring GET) and were invisible to any test at any tier.
+
+So most of what looked like scope creep was **deferred discovery**: gaps that could not be
+found until something ran end to end, surfacing all at once on day six. Genuine silent scope
+expansion happened once (handoff §2.7), and the fault was telling the owner after rather than
+before.
+
+### The wave branch stays — it was never the problem
+
+Direct-to-`main` per slice was considered and rejected on measurement:
+
+- The `Protect main` ruleset sets `strict_required_status_checks_policy: true`, so every merge
+  to `main` forces every other open PR to update and re-run.
+- `pr.yml`'s `classify-tier` keys the tier off `base_ref`: `feature/*-wave` → **issue** tier
+  (path-filtered unit, lint, policy); `main` → **main** tier (full regression, E2E, security,
+  deploy readiness). Nine slices PR'd to `main` is nine full main-tier regressions.
+
+[ADR-052](../../adr/052-wave-free-merge-deferred-artifact-gate.md) removed up-to-date-with-base
+on `feature/*-wave` specifically to kill this thrash. Abandoning the wave would undo the
+decision that solves the problem.
+
+**GitHub's stacked pull requests (public preview, 2026-07-30) do not help here.** The docs
+state CI checks triggered by pull requests on the default branch run for all PRs in the
+stack — so a stacked slice would either hit `classify-tier`'s `else` and fail as
+`Unsupported CI flow`, or run full main tier. Neither path reaches the cheap issue tier,
+because this repo's cost model is keyed to `base_ref`, not to rebase ergonomics. What stacks
+*would* fix — automatic rebasing and auto-retarget on merge — is the recovery automation for
+W3's damage, not its cause. Adopting them means rewriting `pr.yml`'s trigger and classifier
+and re-deriving the artifact gate's timing: an ADR-052 amendment, its own wave, not a
+mid-W4 change.
+
+### The eight rules
+
+1. **`feature/agent-w4-wave` is the base.** Slices PR into it at issue tier; one wave→`main`
+   PR at the end.
+2. **Maximum stack depth 2, against W3's 12.** Slices inside a gate are path-disjoint siblings
+   cut straight from the wave, so squash-merging one re-diverges nothing — and with
+   up-to-date-with-base off the wave, the others do not even rebuild. Real depth exists only
+   where a dependency is real (#1219 on #1215; the P-CRED chain on #1231), and each is one
+   `rebase --onto` at one known moment.
+3. **The wave squash-merges to `main` exactly once, at the end.** No mid-wave wave→`main`
+   merge while anything is stacked. This is the single change that prevents all four W3
+   re-implementations.
+4. **Contract slices land alone, before any fan-out, and the contract is a typed object.**
+   W4's seams are known: P-IM's ledger `payload_json` → `classify_mutation_kinds` →
+   `MEASURABLE_TOOL_NAMES` (#1215 producing, #1219 consuming); P-CRED's new
+   `tiktok_credentials` columns → `credential_refresh.py` → the three deleted call sites
+   (#1230 → #1231 → #1232). A shape crossing a module boundary is a TypedDict/Pydantic model,
+   the fix #1212 forced on `ToolDefinition`, applied before a live run instead of after one.
+5. **Cross-boundary DoD: the producer's tests call the real consumer.** Any slice changing a
+   shape that crosses a module boundary adds one test exercising the actual consumer, never a
+   fixture. This kills the six-defect class above at its root and is already written into
+   #1215's acceptance criteria as the deliverable.
+6. **Migration numbers are assigned by Meta up front, never read from head by an executor.**
+   `037_required_steps_completed` is on `main` as of 2026-08-20, so **#1230 takes `038`**.
+   Revision ids stay ≤32 characters — a longer id fails at upgrade time with
+   `StringDataRightTruncation`, not at write time.
+7. **Meta owns worktrees and branch names; redo happens in place.** One branch per issue,
+   `feature|fix/issue-<N>-<slug>`, force-pushed if work must be redone. An executor never
+   creates a worktree, never picks a branch name, never renames. No `-v2` branch can exist,
+   which makes stale work visible instead of invisible. Teardown stays with Meta and stays
+   *after* Review — removing a worktree early destroys the run's telemetry permanently.
+8. **Scope protocol: file, don't widen.** When an executor finds something outside its spec:
+   if its own acceptance criterion is false without the fix, fix it and say so in the PR (the
+   #1235 reaper case, which was right); otherwise report it and touch nothing. **No new issue
+   is filed without the owner's approval.** Anything that changes an already-reviewed slice's
+   scope goes to the owner *before* the change, not after — handoff §2.7's lesson.
+
+Retained from W3 because each caught a real defect: the duplicate-replay check
+(`git log --oneline <wave>..<branch>`) before every merge; the tree-identity check before
+rebasing; re-running an executor's tests in its own worktree with `PYTHONPATH` pinned rather
+than reading its report.
+
+### Concrete assignment — gates and lanes
+
+Dependencies confirmed from the issue bodies, not from the roadmap: P-CRED is a genuine chain,
+P-IM is not.
+
+| Gate | Concurrency | Slices | Domain | Write paths |
+| --- | --- | --- | --- | --- |
+| 0 | Meta | #1235 merged; migration `038` pinned to #1230 | — | — |
+| 1 | 3 | **#1215** ledger payload *(contract)* · **#1230** credential columns *(contract)* · **#1216** running seconds | backend · data-platform · backend | `runner/ledger.py`+`tool_executor.py` · `migrations/`+`models.py`+`repos.py` · `runner/core.py` |
+| 2 | 2 | **#1219** impact reader (needs #1215) · **#1231** the guarded door (needs #1230) | backend · integrations | `workers/impact_reader/` · `core/security/credential_refresh.py` |
+| 3 | 2 | **#1232** beat + delete call sites · **#1233** reactive auth-retry — both need #1231 only | integrations · integrations | `workers/tasks/` · `integrations/tiktok/` |
+| 4 | 1 | **#1234** merchant identity from the vendor | integrations | `services/tiktok/` |
+
+Three concurrent executors maximum, never two in one file. Gates 1→2 and 2→3 are real barriers
+because they are the contract seams; inside a gate no coordination is needed at all.
+
+**HITL checkpoints — Meta pauses and does not proceed past:** any PR ready to merge (the owner
+merges every PR); any gap that would require a new issue; #1234, which lands last to keep the
+credential surface still. **P-CRED-2 (#1231) carries a live credential refresh against the
+vendor as its acceptance criterion** — that slice is what deletes the manual refresh bridge
+script, so proving it against a real credential *is* the criterion. Meta runs it against the
+sandbox credential; the production credentials stay the owner's.
+
 ## Wave 4 — P-CRED, refresh-token rotation (2026-08-18)
 
 Wave 4 implements phase 11c. Design settled in [ADR-081](../../adr/081-refresh-token-rotation.md),
