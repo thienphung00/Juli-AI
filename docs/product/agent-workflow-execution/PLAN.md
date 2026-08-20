@@ -298,7 +298,7 @@ This was the third bug of that exact shape on that seam (#1177 was `call_id` vs 
 
 1. **The approval decision is not authorized by anything.** `POST /v1/demo/runs/{id}/confirmations/{tool_call_id}` returns `501` by design (ADR-074 d.5 reserves it for W4-A). The live pause/resume above was driven through `WorkflowRunner.resume` directly, so it proves the **loop's** write path, not the **product's** approval gate. No seller can approve a write today.
 2. **P-IM cannot read an agent run.** Entry point: `run_daily_impact_reader(session, reference_date)` (`workers/impact_reader/pipeline.py`), scheduled as the beat task `juli_backend.daily_impact_reader`. It scans `tool_executions` where `status='succeeded'` and `tool_name IN MEASURABLE_TOOL_NAMES` — which is `frozenset({"listing.optimize_product"})`, the *old* execution layer's name. The agent ledger writes `update_product_price` / `update_product_listing`, so **no agent run is ever selected**. Even if it were, the ledger records no `payload_json`, and both `classify_mutation_kinds` and the product binding read it. Two changes are needed before ADR-077's "one real end-to-end reading" is reachable at all; a third (the sandbox shop has no analytics series) means the first honest reading will have to come from a production-shop write, not a sandbox one.
-3. **`TerminationPolicy.required_steps` has no production consumer.** `OPTIMIZE_PRODUCT_TERMINATION_POLICY` declares `("update_product_listing", "update_product_price")` as the definition of "did the job", and every reference to it outside that declaration is in a test. A run that performs zero required writes still records `completed` / `final_response` — indistinguishable, in the execution-quality metric, from one that did the work. This is the one gap that corrupts data rather than blocking a feature.
+3. **The "did the job" outcome fact is never recorded.** `OPTIMIZE_PRODUCT_TERMINATION_POLICY` declares `required_steps = ("update_product_listing", "update_product_price")`, and every reference to it outside that declaration is in a test. **This is not a missing termination rule** — ADR-073 decision 2 is explicit that it must not be one: "whether it *did the job* (`required_steps` completed) is an outcome fact on the run record feeding the execution-quality metric — a `final_response` without the required mutation is honest data, not a synthetic failure." Terminating differently would contradict the design. What is missing is the *record*: `workflow_runs` has no column for the fact, and nothing computes it, so the execution-quality metric has no input. Its only consumer is the measurement layer, which is gap 2 — same seam, one slice.
 4. **`workflow_runs.running_seconds_elapsed` records 0** on runs that took real wall-clock time — #1117's denormalized mirror is not being written.
 
 ### Exit-gate verdict
@@ -308,10 +308,19 @@ and P8's gate ("browser sees live events for a real run; reconnect mid-run repla
 gaps/duplicates; cancellation stops the loop") are both met with recorded evidence, and the
 `memory://` assertion that #1133 inherited is armed and fires.
 
-**W3 is closed. It does not close P15.** Gap 1 means no seller-initiated write can happen
-(W4-A), gap 3 means execution-quality data is unreliable until `required_steps` is enforced,
-and gap 2 means business-impact data has no path at all. P15 ("E2E prototype complete") should
-not be ticked until 1 and 3 land; gap 2 belongs to a P-IM ↔ W3 reconciliation slice.
+**W3 is closed. It does not close P15.** None of the four gaps is W3's own contract:
+
+- **Gap 1** is W4-A by explicit design — ADR-074 d.5 reserves the confirmation decision, and
+  the route returns `501` deliberately. No seller-initiated write can happen until it lands.
+- **Gaps 2, 3 and 4 are one slice, not three.** All three are the same defect: the agent's
+  run and ledger records do not carry what the measurement layer needs. The reader selects a
+  tool name the ledger never writes; the ledger records no `payload_json` to classify; the
+  run record has nowhere to put the "did the job" fact; and `running_seconds_elapsed` is
+  never written. One **measurement-reconciliation slice** (P-IM ↔ W3) covers all four
+  symptoms and is the honest prerequisite for any of the four metrics in the grill's item 7.
+
+P15 ("E2E prototype complete") should not be ticked until gap 1 and that slice land. Order:
+close W3 → measurement-reconciliation slice → W4-A's approval gate → revisit P15.
 
 ## Wave 4 — P-CRED, refresh-token rotation (2026-08-18)
 
