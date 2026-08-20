@@ -14,11 +14,16 @@ import json
 import logging
 import secrets
 import uuid
-from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.core.security.credential_refresh import (
+    REFRESH_BUFFER,
+    RefreshOutcome,
+    RefreshStatus,
+    refresh_credential,
+)
 from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.database.exceptions import NotFound
 from juli_backend.integrations.tiktok import (
@@ -32,7 +37,11 @@ from juli_backend.services.tiktok.token_expiry import access_token_expires_at
 
 logger = logging.getLogger(__name__)
 
-REFRESH_BUFFER = timedelta(minutes=30)
+# Re-exported for backward compatibility: this used to be the module that
+# defined REFRESH_BUFFER (30 minutes). The single source of truth is now
+# core/security/credential_refresh.py (24 hours, ADR-081 decision 2), shared
+# with W4-3's beat scan predicate.
+__all__ = ["BindingVerifier", "REFRESH_BUFFER", "TikTokOAuthService"]
 
 
 class BindingVerifier(Protocol):
@@ -57,9 +66,22 @@ class BindingVerifier(Protocol):
     ) -> str: ...
 
 
-def _utc_now() -> datetime:
-    """Naive UTC timestamp (compatible with SQLite and PostgreSQL)."""
-    return datetime.now(UTC).replace(tzinfo=None)
+def _unwrap_for_legacy_caller(outcome: RefreshOutcome) -> TikTokCredential:
+    """Translate a :class:`RefreshOutcome` back into the pre-#1231 contract.
+
+    ``transient``/``needs_reauth`` re-raise the exact vendor exception
+    ``refresh_credential`` caught, so a caller of ``refresh_tokens`` /
+    ``refresh_merchant_tokens`` observes the identical failure it always did.
+    ``locked`` returns whatever credential we have rather than raising: no
+    caller of these two methods ever encountered lock contention before
+    (there was no lock), so there is no old behaviour to preserve for that
+    case, and failing the caller over a few hundred milliseconds of
+    contention would itself be a regression relative to doing nothing.
+    """
+    if outcome.status in (RefreshStatus.TRANSIENT, RefreshStatus.NEEDS_REAUTH):
+        if outcome.error is not None:
+            raise outcome.error
+    return outcome.credential
 
 
 class TikTokOAuthService:
@@ -190,72 +212,32 @@ class TikTokOAuthService:
         return shop
 
     async def refresh_tokens(self, shop_id: uuid.UUID) -> TikTokCredential:
-        """Proactively refresh tokens if within REFRESH_BUFFER of expiry."""
+        """Proactively refresh tokens if within REFRESH_BUFFER of expiry.
+
+        Thin wrapper over ``credential_refresh.refresh_credential`` (ADR-081
+        decision 4) -- kept exactly as ADR-081 specifies so the pre-#1231
+        call sites (``orchestrate.py``, ``targeted_fetch_executor.py``) keep
+        raising on refresh failure precisely as before, until W4-3 moves them
+        onto the resolver directly ("nothing outside this slice breaks").
+        """
         cred_repo = TikTokCredentialRepo(self._session)
         credential = await cred_repo.get_by_shop(shop_id)
-        return await self._refresh_credential(credential, shop_id=shop_id)
+        outcome = await refresh_credential(self._session, credential.id, auth=self._tiktok_auth)
+        return _unwrap_for_legacy_caller(outcome)
 
     async def refresh_merchant_tokens(
         self,
         merchant_authorization_id: str,
         capability: TikTokCapability | str,
     ) -> TikTokCredential:
-        """Refresh tokens for a merchant authorization ID + capability pair."""
+        """Refresh tokens for a merchant authorization ID + capability pair.
+
+        Thin wrapper -- see ``refresh_tokens`` docstring.
+        """
         cred_repo = TikTokCredentialRepo(self._session)
         credential = await cred_repo.get_by_merchant(merchant_authorization_id, capability)
-        return await self._refresh_credential(
-            credential,
-            shop_id=credential.shop_id,
-            merchant_authorization_id=merchant_authorization_id,
-            capability=capability,
-        )
-
-    async def _refresh_credential(
-        self,
-        credential: TikTokCredential,
-        *,
-        shop_id: uuid.UUID,
-        merchant_authorization_id: str | None = None,
-        capability: TikTokCapability | str | None = None,
-    ) -> TikTokCredential:
-        cred_repo = TikTokCredentialRepo(self._session)
-
-        now = _utc_now()
-        if credential.token_expires_at > now + REFRESH_BUFFER:
-            return credential
-
-        token_data = await asyncio.to_thread(
-            self._tiktok_auth.refresh_access_token, credential.refresh_token
-        )
-
-        new_expires_at = access_token_expires_at(token_data.get("access_token_expire_in"))
-
-        # Access token is required; refresh token may be omitted by provider
-        # (fall back to existing if missing from response).
-        new_refresh_token = token_data.get("refresh_token", credential.refresh_token)
-
-        updated = await cred_repo.update_tokens(
-            credential_id=credential.id,
-            access_token=token_data["access_token"],
-            refresh_token=new_refresh_token,
-            token_expires_at=new_expires_at,
-        )
-
-        # Commit immediately to ensure token durability regardless of caller behavior.
-        # This is a deliberate exception to the "repos never commit" convention (#745).
-        await self._session.commit()
-
-        log_extra: dict[str, str] = {"shop_id": str(shop_id)}
-        if merchant_authorization_id is not None:
-            log_extra["merchant_authorization_id"] = merchant_authorization_id
-        if capability is not None:
-            capability_value = (
-                capability.value if isinstance(capability, TikTokCapability) else capability
-            )
-            log_extra["capability"] = capability_value
-
-        logger.info("tiktok_token_refreshed", extra=log_extra)
-        return updated
+        outcome = await refresh_credential(self._session, credential.id, auth=self._tiktok_auth)
+        return _unwrap_for_legacy_caller(outcome)
 
     def _build_state(self, user_id: uuid.UUID) -> str:
         """Build an HMAC-signed state parameter encoding user_id + nonce."""
