@@ -46,7 +46,12 @@ def _registry_tool_definitions():
         {
             "name": spec.name,
             "description": spec.description,
-            "parameters": spec.render_input_schema(),
+            # The key `ToolDefinition` declares and `WorkflowRunner`
+            # produces. This said `parameters` -- the adapter's own internal
+            # wire key -- so even the recorded round-trip, the test closest
+            # to a real provider call, agreed with the consumer instead of
+            # the producer and never caught the mismatch.
+            "input_schema": spec.render_input_schema(),
         }
         for spec in sorted(registry.list_all(), key=lambda spec: spec.name)
     ]

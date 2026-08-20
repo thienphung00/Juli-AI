@@ -16,20 +16,43 @@ from tests.integration.tiktok_sandbox import (
     sandbox_app_secret,
 )
 
+#: The module whose tests actually run `alembic downgrade base`. The
+#: non-local-host guard belongs to *these* tests, not to the directory.
+_DESTRUCTIVE_TEST_MODULE = "test_migrations.py"
 
-def pytest_configure(config):
+
+def pytest_collection_modifyitems(session, config, items):
     """Guard against destructive migration tests pointing at non-local databases.
 
-    Runs at the very start of the test session, before any fixtures or tests,
-    to prevent accidental production data loss. Issue #734.
-    """
-    # Only validate if migration tests will run (DATABASE_URL is set)
-    database_url = os.environ.get("DATABASE_URL", "").strip()
-    if database_url:
-        # Import here to avoid circular imports
-        from tests.integration.test_migrations import _validate_destructive_db_url
+    Runs after collection and before any test executes, so a destructive run
+    against a remote database still dies before it can drop a table. Issue
+    #734; rescoped from `pytest_configure` because that hook fires for the
+    *session*, not for a selection.
 
-        _validate_destructive_db_url(database_url)
+    **Why the rescope matters.** The old hook validated on nothing more than
+    `DATABASE_URL` being set — its own comment read "only validate if
+    migration tests will run (DATABASE_URL is set)", but those are not the
+    same condition. Selecting a single non-destructive live smoke in this
+    directory was enough to trip it, and the error it raised named exactly
+    one escape hatch: `ALLOW_DESTRUCTIVE_MIGRATION_TESTS=1`. So the
+    documented way to run a read-only smoke against the only database that
+    has real credentials in it was to set a flag whose meaning is "you may
+    run `alembic downgrade base` here" — against that same database. An
+    operator following the message on production would arm precisely the
+    catastrophe the guard exists to prevent. Scoping it to the destructive
+    module removes the incentive without weakening the guard: every path
+    that can actually drop a table is still checked.
+    """
+    database_url = os.environ.get("DATABASE_URL", "").strip()
+    if not database_url:
+        return
+    if not any(item.path.name == _DESTRUCTIVE_TEST_MODULE for item in items):
+        return
+
+    # Import here to avoid circular imports
+    from tests.integration.test_migrations import _validate_destructive_db_url
+
+    _validate_destructive_db_url(database_url)
 
 
 @pytest.fixture(scope="session")
@@ -38,7 +61,21 @@ def anyio_backend():
 
 
 @pytest.fixture(autouse=True)
-def token_encryption_key(monkeypatch):
+def token_encryption_key(request, monkeypatch):
+    """A deterministic encryption key for every test that mints its own
+    credential rows — but never for a `live` test.
+
+    `database/token_crypto.py` reads `TIKTOK_TOKEN_ENCRYPTION_KEY` from the
+    environment at call time. A `live` smoke resolves a REAL stored
+    credential (`resolve_sandbox_write_credential`) that was encrypted with
+    the deployment's real key, so substituting the fake one here does not
+    isolate the test — it decrypts to garbage and the smoke can never reach
+    the vendor at all. Live tests therefore keep whatever key the
+    environment actually carries; everything else keeps the fake, so no test
+    that mints its own rows depends on a real secret being present.
+    """
+    if request.node.get_closest_marker("live"):
+        return
     monkeypatch.setenv("TIKTOK_TOKEN_ENCRYPTION_KEY", "unit-test-token-encryption-key")
 
 

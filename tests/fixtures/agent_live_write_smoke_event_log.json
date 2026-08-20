@@ -1,0 +1,63 @@
+{
+  "events": [
+    {
+      "eventType": "workflow.started",
+      "payload": {
+        "product_ref": "<redacted-vendor-product-id>",
+        "prompt_version": "optimize_product.v1",
+        "workflow_key": "optimize_product_2"
+      },
+      "sequenceNumber": 1,
+      "tOffsetSeconds": 0.0
+    },
+    {
+      "eventType": "workflow.approval_required",
+      "payload": {
+        "expires_at": "2026-08-20T07:26:21.561789Z",
+        "proposed_change": {
+          "skus": [
+            {
+              "amount": "82000",
+              "currency": "VND",
+              "sku_ref": "S1"
+            }
+          ]
+        },
+        "tool_call_id": "call_iFUwoQWw58x1w0hMHjILJZPa",
+        "tool_name": "update_product_price"
+      },
+      "sequenceNumber": 2,
+      "tOffsetSeconds": 4.209
+    },
+    {
+      "eventType": "tool.started",
+      "payload": {
+        "tool_call_id": "call_iFUwoQWw58x1w0hMHjILJZPa",
+        "tool_name": "update_product_price"
+      },
+      "sequenceNumber": 3,
+      "tOffsetSeconds": 6.196
+    },
+    {
+      "eventType": "tool.completed",
+      "payload": {
+        "ok": true,
+        "summary": "completed",
+        "tool_call_id": "call_iFUwoQWw58x1w0hMHjILJZPa",
+        "tool_name": "update_product_price"
+      },
+      "sequenceNumber": 4,
+      "tOffsetSeconds": 13.822
+    },
+    {
+      "eventType": "workflow.completed",
+      "payload": {
+        "stop_reason": "final_response"
+      },
+      "sequenceNumber": 5,
+      "tOffsetSeconds": 16.842
+    }
+  ],
+  "note": "Golden scenario for P-UI (implementation handoff Sec.8, 'W3 close') -- captured by tests/integration/test_agent_live_smoke_sandbox_write.py. Timestamps are relative offsets from the first event, not wall-clock times.",
+  "workflowKey": "optimize_product_2"
+}
