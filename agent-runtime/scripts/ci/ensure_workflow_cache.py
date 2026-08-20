@@ -44,8 +44,19 @@ from workflow_cache_store import (  # noqa: E402
 DEFAULT_CONFIG = REPO_ROOT / "agent-runtime" / "config" / "agent-runtime.config.yml"
 ISSUE_PREPARE_DIR = REPO_ROOT / "agent-runtime" / "config" / "issue-prepare"
 
+# The `## Parent` section's body may carry a short leading label before the
+# issue reference — `to-issues` emitted `PRD #1228` for all 17 W4/W5 issues,
+# and the un-labelled form was the only one this matched, so the mandatory
+# Meta gate halted on every one of them with "Cannot resolve parent".
+#
+# The label set is ENUMERATED, deliberately, rather than "any word": a generic
+# `\w+\s+` would make `## Parent\nSee #5 for context` resolve #5. Only labels a
+# generator plausibly emits are admitted, so an unrecognised line still fails
+# loudly instead of resolving to the wrong parent.
+_PARENT_LABEL = r"(?:(?:PRD|Epic|Issue|Parent)\s+)?"
 PARENT_LINE_RE = re.compile(
-    r"(?im)^(?:##\s*Parent\s*\n+\s*#?|#?\s*Parent\s*[:#]\s*|Part of\s+#?)(\d+)\b"
+    r"(?im)^(?:##\s*Parent\s*\n+\s*" + _PARENT_LABEL + r"#?"
+    r"|#?\s*Parent\s*[:#]\s*|Part of\s+#?)(\d+)\b"
 )
 SLICE_LINE_RE = re.compile(
     r"(?im)^(?:Slice|sliceId|focusSlice|Focus slice)\s*[:#]\s*([A-Za-z0-9][A-Za-z0-9_.-]*)\s*$"
