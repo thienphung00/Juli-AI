@@ -24,7 +24,7 @@ from enum import Enum
 from typing import Protocol
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession
 from sqlalchemy.orm.attributes import set_committed_value
 
 from juli_backend.database.exceptions import NotFound
@@ -243,7 +243,19 @@ async def _try_advisory_lock(
     if _dialect_name(session) != "postgresql":
         return True, None
 
+    # `Session.bind` is typed `AsyncEngine | AsyncConnection`, and only an
+    # engine can hand out the *separate* connection this lock depends on.
+    # Fail closed rather than cast: if the session were ever bound to a single
+    # connection, `.connect()` would not exist and -- worse than a type error
+    # -- there would be no second connection to hold the lock on, silently
+    # reintroducing the NullPool release this function exists to prevent.
     engine = session.bind
+    if not isinstance(engine, AsyncEngine):
+        raise RuntimeError(
+            "refresh_credential requires a session bound to an AsyncEngine; "
+            f"got {type(engine).__name__}. The advisory lock must be held on a "
+            "connection independent of the caller's session."
+        )
     conn = await engine.connect()
     try:
         result = await conn.execute(
