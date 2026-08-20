@@ -1,0 +1,34 @@
+{
+  "gateVersion": 1,
+  "issue": 1232,
+  "metrics": {
+    "acceptanceMapped": 8,
+    "acceptanceTotal": 8,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/core/security/credential_resolver.py",
+      "backend/src/juli_backend/workers/celery_app.py",
+      "backend/src/juli_backend/workers/tasks/credential_refresh_beat.py",
+      "backend/src/juli_backend/workers/tasks/__init__.py",
+      "backend/src/juli_backend/workers/services/polling/orchestrate.py",
+      "backend/src/juli_backend/services/cdp_speed/targeted_fetch_executor.py",
+      "infra/systemd/juli-celery-worker.service",
+      "docs/architecture/ownership-registry.yml"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1232.json",
+    "ownerSignoffPresent": true,
+    "sha256": "fb2921b5d740d1a7935f3038ed080f2a073674dc4fe9df31e4dc1e6bbe16ef31",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-20T09:53:30Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1232.json",
+    "sha256": "2ef3a662e1de461face345e86ad8806a1e43233736b4cfc56a4aa759734fd0c5",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w4"
+}

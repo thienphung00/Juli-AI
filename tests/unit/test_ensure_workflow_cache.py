@@ -31,6 +31,44 @@ def test_parse_parent_and_slice_from_issue_body() -> None:
     assert parse_slice_id(body) == "P2-OPS-1"
 
 
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        # Forms that worked before the label was admitted. These are the
+        # regression half: the widening must not have moved any of them.
+        ("## Parent\n#419\n", 419),
+        ("## Parent\n1228\n", 1228),
+        ("Parent: 55\n", 55),
+        ("Part of #66\n", 66),
+        # `to-issues` emitted this for all 17 W4/W5 issues, and it parsed as
+        # nothing -- so `meta_prepare_executor` halted on every one of them
+        # with "Cannot resolve parent". That is a mandatory gate, and a gate
+        # that always halts is one operators learn to route around.
+        ("## Parent\nPRD #1228\n", 1228),
+        ("## Parent\nEpic #77\n", 77),
+        ("## Parent\nIssue #12\n", 12),
+    ],
+)
+def test_parent_line_accepts_an_optional_enumerated_label(body: str, expected: int) -> None:
+    assert parse_parent_issue_id(body) == expected
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        # The label set is enumerated rather than `\w+` precisely so these
+        # keep failing loudly. A generic word class would resolve #5 and #1219
+        # here -- briefing an Executor against a confidently wrong parent,
+        # which is strictly worse than the halt it replaced.
+        "## Parent\nSee #5 for context\n",
+        "## Parent\nBlocked by #1219\n",
+        "## Parent\nNone - can start immediately\n",
+    ],
+)
+def test_parent_line_rejects_an_unenumerated_label(body: str) -> None:
+    assert parse_parent_issue_id(body) is None
+
+
 def test_single_domain_harness_utility_never_dual() -> None:
     harness = single_domain_harness_utility("backend")
     skills = harness["skills"]

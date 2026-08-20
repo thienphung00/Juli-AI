@@ -26,7 +26,7 @@ AC -> test map:
   test_reaped_run_has_both_the_event_row_and_the_status_update
 - beat schedule, every 5 minutes, existing entries unaffected ->
   test_reaper_beat_entry_runs_every_five_minutes,
-  test_beat_schedule_has_exactly_the_five_expected_entries,
+  test_beat_schedule_has_exactly_the_six_expected_entries,
   test_reaper_task_is_registered_on_the_worker
 - termination values are READ off TerminationPolicy, never a copied literal
   (this phase's architect lock) ->
@@ -715,7 +715,9 @@ def test_reaper_beat_entry_runs_every_five_minutes():
     assert entry["schedule"] == crontab(minute="*/5")
 
 
-def test_beat_schedule_has_exactly_the_five_expected_entries():
+def test_beat_schedule_has_exactly_the_six_expected_entries():
+    """#1232, ADR-081 decision 1 row 1: `credential-refresh-beat` joins this
+    set as the fleet's first credential refresh schedule."""
     schedule = celery_app.conf.beat_schedule
     assert set(schedule) == {
         "mock-analytics-hourly-reconcile",
@@ -723,6 +725,7 @@ def test_beat_schedule_has_exactly_the_five_expected_entries():
         "analytics-backfill-topup",
         "daily-impact-reader",
         "reap-abandoned-workflow-runs",
+        "credential-refresh-beat",
     }
 
 

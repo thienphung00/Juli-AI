@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "wave_manifest",
+  "waveId": "wave-agent-w4",
+  "branch": "feature/agent-w4-wave",
+  "issues": [
+    1215,
+    1216,
+    1219,
+    1230,
+    1231,
+    1232,
+    1233,
+    1234,
+    1246
+  ]
+}

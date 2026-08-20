@@ -385,6 +385,26 @@ workflow_prompt_cache:
         - docs/product/design/
         - docs/integrations/tiktok_corpora/
         - Sibling issue context caches
+    # 1228 — W4 PRD; registered 2026-08-20. Two lanes under one parent:
+    # AGT-W4A (P-CRED, ADR-081) is the default; the P-IM slices route to
+    # AGT-W4B via childSlices and are given ADR-077 with --handoff.
+    1228:
+      defaultSliceId: AGT-W4A
+      handoffPath: docs/adr/081-refresh-token-rotation.md
+      parentScopeBlock: "# Parent #1228 - W4: credential lifecycle (P-CRED) and measurable runs (P-IM) (constant)\n## Which lane you are in\n- W4-A / AGT-W4A - P-CRED, ADR-081: #1230 #1231 #1232 #1233 #1234\n- W4-B / AGT-W4B - P-IM, ADR-077: #1215 #1216 #1219\nRead only your lane's ADR. The other lane is a different executor's tree; never edit its files.\n## Product boundary\n- W4-A touches core/security/, integrations/tiktok/, workers/tasks/, models/models.py, repositories/repos.py, and exactly one migration\n- W4-B touches services/agent/runner/ and workers/impact_reader/ only - no migration in this lane, both columns already exist\n- No UI, no API routes, no approval authorization in either lane - that is W5\n## Architect locks - both lanes\n- Migration numbering is ASSIGNED BY META, never read from head: #1230 takes 038. Revision ids stay <= 32 characters, or the upgrade fails at run time with StringDataRightTruncation.\n- A shape that crosses a module boundary is a TypedDict or Pydantic model, never an untyped dict. Six W3 defects were a producer and a consumer disagreeing about a key while both test suites stayed green.\n- A slice that changes such a shape adds one test that calls the REAL consumer. A test that hand-builds the payload does not satisfy this criterion.\n- Credential material never reaches a persisted payload, a log line, an artifact, or argv. Assert it; do not assume it.\n- Tests live flat in tests/unit and tests/integration per repo convention.\n## Architect locks - W4-A only\n- ADR-081 supersedes ADR-080 wherever they differ. ADR-080 was never implemented and the beat it specifies would refresh nothing.\n- status is a plain varchar checked in application code, following the workflow_runs.status precedent. No CREATE TYPE.\n- refresh_token_expires_at is populated only if the vendor sends it; nothing may assume it is ever non-null.\n- Do not rename token_expires_at to access_token_expires_at - ADR-081 d.7 rejects that rename explicitly.\n- W4-2 and W4-3 never touch the migration; #1230 is the only schema slice in this wave.\n## Architect locks - W4-B only\n- required_steps_completed is a RECORDED OUTCOME FACT, never a termination rule. ADR-073 d.2: a final_response without the required mutation is honest data, not a synthetic failure. Never change stop_reason or status to express it.\n- running_seconds_elapsed excludes paused time because the runner does not accumulate during the pause - never by subtracting afterwards.\n- No termination decision reads the mirrored column; evaluate_checkpoint keeps comparing the authoritative float.\n- No new numeric literal in core.py or termination.py - policy values are read off the termination policy.\n## Epic deferrals\n- Seller approval authorization, decision requests and consent binding - W5 / ADR-075\n- Production writes - the capability flip is a later ADR-068 unlock, not this wave\n- The first real impact reading needs a production-shop write and is the W5 gate, not a W4 slice\n## Scope protocol\n- Found a gap outside your spec? If your own acceptance criterion is false without the fix, fix it and say so in the PR. Otherwise REPORT it and touch nothing. Never open a new issue.\n"
+      childSlices:
+        1215: AGT-W4B
+        1216: AGT-W4B
+        1219: AGT-W4B
+        1230: AGT-W4A-DP
+        1231: AGT-W4A-BE
+        1232: AGT-W4A-WIRE
+      doNotLoad:
+        - apps/
+        - ios/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
     1057:
       defaultSliceId: AGT-W2A
       handoffPath: docs/adr/072-agent-prompt-architecture.md

@@ -73,7 +73,16 @@ Use this body template.
 ### Issue body template
 
 ## Parent
-<!-- If the source was a GitHub issue, otherwise omit this section -->
+#<parent-issue-number>
+<!-- If the source was a GitHub issue, otherwise omit this section.
+     The number on its own line, `#` optional, NOTHING else on that line.
+     `ensure_workflow_cache.py::PARENT_LINE_RE` parses this, and
+     `meta_prepare_executor.py` — the mandatory Meta gate — halts with
+     "Cannot resolve parent" when it cannot. A prose label such as
+     `PRD #1228` is tolerated only for the enumerated set
+     PRD|Epic|Issue|Parent; anything else (`See #5`, `Blocked by #12`)
+     is rejected by design, so write the bare reference.
+     All 17 W4/W5 issues shipped with `PRD #<n>` and halted the gate. -->
 
 ## What to build
 <!-- Describe end-to-end behavior, not layer-by-layer implementation -->

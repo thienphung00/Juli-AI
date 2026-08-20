@@ -119,6 +119,10 @@ async def test_execute_skips_when_resolved_credential_shop_mismatch(shop_session
 
 @pytest.mark.asyncio
 async def test_execute_skips_when_refreshed_credential_shop_mismatch(shop_session, monkeypatch):
+    """#1232: the executor no longer builds its own TikTokOAuthService --
+    it calls resolve_production_read_credential (which now carries the lazy
+    refresh layer, ADR-081 decision 1 row 2) for the merchant-level
+    credential it checks against the job's shop."""
     session, shop = shop_session
     fetch_plan = plan_targeted_fetch(
         event_type="ORDER_STATUS_CHANGE",
@@ -131,11 +135,10 @@ async def test_execute_skips_when_refreshed_credential_shop_mismatch(shop_sessio
         del sess, shop_id
         return job_cred
 
-    oauth_mock = MagicMock()
-    oauth_mock.refresh_merchant_tokens = AsyncMock(return_value=other_cred)
+    resolve_production_mock = AsyncMock(return_value=other_cred)
     monkeypatch.setattr(
-        "juli_backend.services.cdp_speed.targeted_fetch_executor.TikTokOAuthService",
-        lambda **kwargs: oauth_mock,
+        "juli_backend.services.cdp_speed.targeted_fetch_executor.resolve_production_read_credential",
+        resolve_production_mock,
     )
 
     env = PartnerFetchEnv(
@@ -156,10 +159,7 @@ async def test_execute_skips_when_refreshed_credential_shop_mismatch(shop_sessio
     )
 
     assert tracker.appended_count == 0
-    oauth_mock.refresh_merchant_tokens.assert_awaited_once_with(
-        PRODUCTION_AUTH_ID,
-        TikTokCapability.PRODUCTION_READ,
-    )
+    resolve_production_mock.assert_awaited_once_with(session)
 
 
 def test_executor_module_does_not_import_workers():
