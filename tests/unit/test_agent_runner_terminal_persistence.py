@@ -53,8 +53,10 @@ undetected until now.
 
 from __future__ import annotations
 
+import ast
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -72,9 +74,13 @@ from juli_backend.services.agent.runner.conversation_store import JsonbConversat
 from juli_backend.services.agent.runner.core import WorkflowRunner
 from juli_backend.services.agent.runner.state import RunState
 from juli_backend.services.agent.runner.status import StopReason, WorkflowRunStatus
+from juli_backend.services.agent.runner.termination import running_seconds_column_value
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+CORE_MODULE_PATH = REPO_ROOT / "backend/src/juli_backend/services/agent/runner/core.py"
 
 
 class _SpyToolExecutor:
@@ -85,6 +91,23 @@ class _SpyToolExecutor:
     def execute(self, *, tool_name: str, params: object, tool_call_id: str | None = None) -> dict:
         self.calls.append((tool_name, params))
         return dict(self._result)
+
+
+class _SteppingClock:
+    """A controllable fake clock: each call returns the current value, then
+    advances it by `step` -- no real sleeping anywhere (issue #1216's own
+    AC: "proven with a controlled clock, not a sleep"). Mirrors
+    `test_agent_runner_pause_resume.py`'s own helper of the same name (not
+    imported from there -- that module is a sibling issue's write path)."""
+
+    def __init__(self, *, step: float, start: float = 0.0) -> None:
+        self._value = start
+        self._step = step
+
+    def __call__(self) -> float:
+        value = self._value
+        self._value += self._step
+        return value
 
 
 class _RaisingLLMService:
@@ -329,3 +352,102 @@ class TestNonTerminalPersistNeverTouchesStatusColumns:
         row = await _reload_row(session, run_id)
         assert row.status == WorkflowRunStatus.COMPLETED.value
         assert row.stop_reason == StopReason.FINAL_RESPONSE.value
+
+
+class TestRunningSecondsColumnMirror:
+    """Issue #1216: the defect this closes. `workflow_runs.running_seconds_
+    elapsed` recorded `0` on every real run to date regardless of how long
+    it actually ran -- `termination.running_seconds_column_value` existed
+    and was correct (stateless, recomputed from the authoritative float),
+    but nothing on the live path ever called it. DB-backed against the real
+    `JsonbConversationStore` for the same reason the rest of this file is:
+    asserting on `RunResult` alone (which never carried this value to begin
+    with) cannot prove anything landed on the actual column.
+
+    Uses a controllable fake clock (`_SteppingClock`), never a real
+    `sleep`, per issue #1216's own acceptance criterion."""
+
+    async def test_a_measurable_duration_run_persists_a_non_zero_column_value(
+        self, session: AsyncSession
+    ):
+        run_id = await _seed_workflow_run(session)
+        store = JsonbConversationStore(session)
+        playbook = _minimal_playbook((_step("get_product_information"),))
+        clock = _SteppingClock(start=0.0, step=8.0)  # one iteration, an 8.0s delta
+        runner = WorkflowRunner(
+            llm_service=FakeLLMService(script=[_turn(FinalResponse(content="All done."))]),
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            registry=_full_registry(),
+            playbook=playbook,
+            clock=clock,
+        )
+
+        result = await runner.run(run_id, product_ref="prod-1")
+        assert result.stop_reason == StopReason.FINAL_RESPONSE
+
+        row = await _reload_row(session, run_id)
+        assert row.running_seconds_elapsed == 8
+        assert row.running_seconds_elapsed == running_seconds_column_value(8.0)
+
+    async def test_the_column_updates_on_the_ordinary_mid_run_persist_not_only_at_the_terminal_one(
+        self, session: AsyncSession
+    ):
+        """AC: "wherever WorkflowRunner persists the run -- the per-iteration
+        persist and every terminal persist". Two iterations, each a 5.0s
+        clock delta, accumulate to 10.0s total by the time the run ends --
+        `test_the_ordinary_per_iteration_persist_call_site_carries_the_kwarg`
+        below is the AST-level guarantee that the mid-run write itself (not
+        only the terminal one) carries the mirror; this test pins the
+        resulting number end to end."""
+        run_id = await _seed_workflow_run(session)
+        store = JsonbConversationStore(session)
+        playbook = _minimal_playbook((_step("get_product_information"), _step("get_seo_keywords")))
+        clock = _SteppingClock(start=0.0, step=5.0)
+        runner = WorkflowRunner(
+            llm_service=FakeLLMService(
+                script=[
+                    _turn(
+                        ToolCallBlock(
+                            call_id="c1", tool_name="get_product_information", arguments={}
+                        )
+                    ),
+                    _turn(FinalResponse(content="Done.")),
+                ]
+            ),
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            registry=_full_registry(),
+            playbook=playbook,
+            clock=clock,
+        )
+
+        await runner.run(run_id, product_ref="prod-1")
+
+        row = await _reload_row(session, run_id)
+        assert row.running_seconds_elapsed == 10
+
+    def test_the_ordinary_per_iteration_persist_call_site_carries_the_kwarg(self):
+        """AST-level guarantee, not just a behavioural inference: every
+        `_conversation_store.persist(...)` call site in `core.py` -- the
+        ordinary per-iteration one at the bottom of `_drive_loop`'s loop
+        body included, not only the terminal ones that already carry
+        `status=`/`stop_reason=` -- passes `running_seconds_elapsed=`."""
+        tree = ast.parse(CORE_MODULE_PATH.read_text(encoding="utf-8"))
+        persist_calls = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "persist"
+        ]
+        assert len(persist_calls) >= 8  # every call site this issue's report touched
+        for call in persist_calls:
+            keyword_names = {kw.arg for kw in call.keywords}
+            assert "running_seconds_elapsed" in keyword_names, (
+                f"a persist(...) call at line {call.lineno} in core.py is missing "
+                "running_seconds_elapsed= -- issue #1216 requires it at every "
+                "call site, not only terminal ones."
+            )
