@@ -472,13 +472,21 @@ class _FakeLedger:
         self.execute_write_calls: list[dict] = []
 
     def execute_write(
-        self, *, workflow_run_id, tool_call_id, operation, perform, verify_applied=None
+        self,
+        *,
+        workflow_run_id,
+        tool_call_id,
+        operation,
+        perform,
+        verify_applied=None,
+        request_payload=None,
     ):
         self.execute_write_calls.append(
             {
                 "workflow_run_id": workflow_run_id,
                 "tool_call_id": tool_call_id,
                 "operation": operation,
+                "request_payload": request_payload,
             }
         )
         return perform()

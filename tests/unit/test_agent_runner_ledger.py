@@ -77,6 +77,7 @@ from juli_backend.orm_base import Base
 from juli_backend.services.agent.runner.ledger import (
     LedgerStatus,
     ToolExecutionLedger,
+    ToolExecutionRequestPayload,
     ToolExecutionUnrecoverableError,
     VerifyOutcome,
     VerifyReadBack,
@@ -88,9 +89,13 @@ from juli_backend.services.agent.tools.product import (
     register_product_read_tools,
 )
 from juli_backend.services.agent.tools.product_write import (
+    UpdateProductListingInput,
     UpdateProductPriceInput,
     register_product_write_tools,
 )
+from juli_backend.services.impact import MutationKind
+from juli_backend.workers.impact_reader.classify import classify_mutation_kinds
+from juli_backend.workers.impact_reader.queries import extract_payload
 
 # --- dual-backend engine matrix -------------------------------------------
 
@@ -913,6 +918,7 @@ class _FakeProductsResource:
     def __init__(self) -> None:
         self.get_details_calls: list[str] = []
         self.update_prices_calls: list[tuple[str, dict]] = []
+        self.edit_calls: list[tuple[str, dict]] = []
 
     def get_details(self, product_id: str) -> dict:
         self.get_details_calls.append(product_id)
@@ -920,6 +926,10 @@ class _FakeProductsResource:
 
     def update_prices(self, *, product_id: str, body: dict) -> dict:
         self.update_prices_calls.append((product_id, body))
+        return {}
+
+    def edit(self, *, product_id: str, body: dict) -> dict:
+        self.edit_calls.append((product_id, body))
         return {}
 
 
@@ -931,7 +941,14 @@ class _FakeLedger:
         self.execute_write_calls: list[dict] = []
 
     def execute_write(
-        self, *, workflow_run_id, tool_call_id, operation, perform, verify_applied=None
+        self,
+        *,
+        workflow_run_id,
+        tool_call_id,
+        operation,
+        perform,
+        verify_applied=None,
+        request_payload=None,
     ):
         self.execute_write_calls.append(
             {
@@ -939,6 +956,7 @@ class _FakeLedger:
                 "tool_call_id": tool_call_id,
                 "operation": operation,
                 "verify_applied": verify_applied,
+                "request_payload": request_payload,
             }
         )
         return perform()
@@ -1020,6 +1038,11 @@ class TestToolExecutorLedgerRouting:
         assert call["tool_call_id"] == "call-write-1"
         assert call["operation"] == "update_product_price"
         assert products.update_prices_calls  # perform() ran, dispatched by the fake ledger
+        # #1215 / AGT-W4B: the ledger dispatch also carries the request
+        # payload the impact reader will later classify/attribute from.
+        assert call["request_payload"] == ToolExecutionRequestPayload(
+            product_id="p1", price_update=[{"sku_ref": "S1", "amount": "1000", "currency": "VND"}]
+        )
 
     def test_write_call_without_tool_call_id_bypasses_the_ledger(self):
         """`core.py`'s existing (pre-#1121) call site
@@ -1061,3 +1084,215 @@ class TestToolExecutorLedgerRouting:
         executor.execute(tool_name="update_product_price", params=params, tool_call_id="call-1")
 
         assert products.update_prices_calls
+
+
+# --- AC: `request_payload` is recorded on fresh dispatch and is inert on
+# every replay/verify-then-decide branch (issue #1215 / AGT-W4B) -----------
+
+
+class TestRequestPayloadPersistence:
+    def test_request_payload_is_persisted_as_payload_json_on_fresh_dispatch(self, session):
+        shop_id, run_id = _seed_run(session)
+        ledger = ToolExecutionLedger(session, shop_id=shop_id)
+        tool_call_id = _fresh_tool_call_id()
+        payload = ToolExecutionRequestPayload(product_id="tt-123", price_update=[{"a": "b"}])
+
+        ledger.execute_write(
+            workflow_run_id=run_id,
+            tool_call_id=tool_call_id,
+            operation="update_product_price",
+            perform=_CallSpy(result={"ok": True}),
+            request_payload=payload,
+        )
+
+        row = ledger._select(run_id, tool_call_id, "update_product_price")
+        assert json.loads(row.payload_json) == {
+            "product_id": "tt-123",
+            "price_update": [{"a": "b"}],
+            "image_uri": None,
+            "image_content_base64": None,
+            "title": None,
+            "description": None,
+        }
+
+    def test_omitting_request_payload_leaves_the_models_own_default(self, session):
+        """Unchanged pre-existing behaviour: no `request_payload` -> the
+        `ToolExecution` model's own `payload_json` default (`"{}"`)."""
+        shop_id, run_id = _seed_run(session)
+        ledger = ToolExecutionLedger(session, shop_id=shop_id)
+        tool_call_id = _fresh_tool_call_id()
+
+        ledger.execute_write(
+            workflow_run_id=run_id,
+            tool_call_id=tool_call_id,
+            operation="update_product_price",
+            perform=_CallSpy(result={"ok": True}),
+        )
+
+        row = ledger._select(run_id, tool_call_id, "update_product_price")
+        assert row.payload_json == "{}"
+
+    def test_request_payload_is_inert_on_a_replay_of_an_existing_row(self, session):
+        """A row already resolved by an earlier fresh dispatch must never
+        have its `payload_json` overwritten by a later retry's own
+        (possibly different) `request_payload` -- `_resolve_existing`
+        never touches `payload_json` on any of its branches."""
+        shop_id, run_id = _seed_run(session)
+        ledger = ToolExecutionLedger(session, shop_id=shop_id)
+        tool_call_id = _fresh_tool_call_id()
+        first_payload = ToolExecutionRequestPayload(product_id="tt-first")
+
+        ledger.execute_write(
+            workflow_run_id=run_id,
+            tool_call_id=tool_call_id,
+            operation="update_product_price",
+            perform=_CallSpy(result={"ok": True}),
+            request_payload=first_payload,
+        )
+
+        second_payload = ToolExecutionRequestPayload(product_id="tt-WOULD-BE-WRONG")
+        ledger.execute_write(
+            workflow_run_id=run_id,
+            tool_call_id=tool_call_id,
+            operation="update_product_price",
+            perform=_CallSpy(result={"ok": "WOULD-BE-WRONG"}),
+            request_payload=second_payload,
+        )
+
+        row = ledger._select(run_id, tool_call_id, "update_product_price")
+        assert json.loads(row.payload_json)["product_id"] == "tt-first"
+
+
+# --- AC: the #1215 deliverable -- a row produced by the *real* ledger,
+# dispatched through the *real* ProductToolExecutor, is fed to the *real*
+# classify_mutation_kinds and the *real* payload-extraction/attribution read
+# the impact reader itself uses. This is the #1212 pattern: a test that
+# hand-builds the payload dict does not count -- both halves must meet from
+# one row. ------------------------------------------------------------------
+
+
+def _select_row(session: Session, *, run_id: uuid.UUID, tool_call_id: str, operation: str):
+    return session.execute(
+        select(ToolExecution).where(
+            ToolExecution.workflow_run_id == run_id,
+            ToolExecution.tool_call_id == tool_call_id,
+            ToolExecution.operation == operation,
+        )
+    ).scalar_one()
+
+
+class TestPayloadContractWithImpactReader:
+    def test_update_product_price_payload_feeds_classify_and_attribution(self, session):
+        shop_id, run_id = _seed_run(session)
+        products = _FakeProductsResource()
+        executor = ProductToolExecutor(
+            registry=_full_registry(),
+            write_resources=_write_resources(products),
+            product_id="tt-product-price-1",
+            sku_refs={"S1": "vendor-sku-1"},
+            ledger=ToolExecutionLedger(session, shop_id=shop_id),
+            workflow_run_id=run_id,
+        )
+        params = UpdateProductPriceInput.model_validate(
+            {"skus": [{"sku_ref": "S1", "amount": "129000", "currency": "VND"}]}
+        )
+
+        executor.execute(
+            tool_name="update_product_price", params=params, tool_call_id="call-price-1"
+        )
+
+        row = _select_row(
+            session, run_id=run_id, tool_call_id="call-price-1", operation="update_product_price"
+        )
+
+        # The REAL impact-reader parser, fed the REAL persisted row.
+        payload = extract_payload(row)
+        # The REAL classifier.
+        kinds = classify_mutation_kinds(payload)
+
+        assert kinds  # AC1: a non-empty mutation set
+        assert MutationKind.PRICE in kinds
+        # AC2: the reader's own attribution read (pipeline.py /
+        # queries.load_touch_dates both do `str(payload.get("product_id"))`).
+        assert str(payload.get("product_id")) == "tt-product-price-1"
+
+    def test_update_product_listing_payload_feeds_classify_and_attribution(self, session):
+        shop_id, run_id = _seed_run(session)
+        products = _FakeProductsResource()
+        executor = ProductToolExecutor(
+            registry=_full_registry(),
+            write_resources=_write_resources(products),
+            product_id="tt-product-listing-1",
+            ledger=ToolExecutionLedger(session, shop_id=shop_id),
+            workflow_run_id=run_id,
+        )
+        params = UpdateProductListingInput.model_validate(
+            {"title": "New SEO Title", "description": "New description copy"}
+        )
+
+        executor.execute(
+            tool_name="update_product_listing", params=params, tool_call_id="call-listing-1"
+        )
+
+        row = _select_row(
+            session,
+            run_id=run_id,
+            tool_call_id="call-listing-1",
+            operation="update_product_listing",
+        )
+
+        payload = extract_payload(row)
+        kinds = classify_mutation_kinds(payload)
+
+        assert kinds  # AC4 (same as AC1, for update_product_listing)
+        assert MutationKind.SEO_KEYWORDS_TITLE in kinds
+        assert MutationKind.DESCRIPTION in kinds
+        assert str(payload.get("product_id")) == "tt-product-listing-1"
+
+
+# --- AC: no credential/token/raw vendor auth value ever reaches a persisted
+# payload (issue #1215 / AGT-W4B) -------------------------------------------
+
+
+class TestPayloadNeverCarriesCredentials:
+    def test_persisted_payload_has_no_credential_shaped_keys_or_values(self, session):
+        shop_id, run_id = _seed_run(session)
+        products = _FakeProductsResource()
+        # A credential value living on the marketplace resource object --
+        # ProductToolExecutor has this object in scope at dispatch time, so
+        # this proves the payload builder never reaches into it, rather
+        # than merely asserting an absence nothing could have produced.
+        secret_marker = "SECRET-VENDOR-ACCESS-TOKEN-98765"
+        products.access_token = secret_marker
+        executor = ProductToolExecutor(
+            registry=_full_registry(),
+            write_resources=_write_resources(products),
+            product_id="tt-product-cred-1",
+            sku_refs={"S1": "vendor-sku-should-not-leak"},
+            ledger=ToolExecutionLedger(session, shop_id=shop_id),
+            workflow_run_id=run_id,
+        )
+        params = UpdateProductPriceInput.model_validate(
+            {"skus": [{"sku_ref": "S1", "amount": "50000", "currency": "VND"}]}
+        )
+
+        executor.execute(
+            tool_name="update_product_price", params=params, tool_call_id="call-cred-1"
+        )
+
+        row = _select_row(
+            session, run_id=run_id, tool_call_id="call-cred-1", operation="update_product_price"
+        )
+
+        assert secret_marker not in row.payload_json
+        payload = extract_payload(row)
+        forbidden_keys = {
+            "access_token",
+            "token",
+            "secret",
+            "authorization",
+            "password",
+            "credential",
+            "shop_cipher",
+        }
+        assert forbidden_keys.isdisjoint(payload.keys())

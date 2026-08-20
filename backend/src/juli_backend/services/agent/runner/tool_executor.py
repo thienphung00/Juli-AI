@@ -110,13 +110,20 @@ from juli_backend.services.agent.runner.concurrency import (
     ConcurrencyGuard,
     extract_mutable_fields,
 )
-from juli_backend.services.agent.runner.ledger import ToolExecutionLedger
+from juli_backend.services.agent.runner.ledger import (
+    ToolExecutionLedger,
+    ToolExecutionRequestPayload,
+)
 from juli_backend.services.agent.tools import ToolClassification, ToolRegistry
 from juli_backend.services.agent.tools.product import (
     PRODUCT_READ_TOOL_HANDLERS,
     ProductToolContext,
 )
-from juli_backend.services.agent.tools.product_write import PRODUCT_WRITE_TOOL_HANDLERS
+from juli_backend.services.agent.tools.product_write import (
+    PRODUCT_WRITE_TOOL_HANDLERS,
+    UpdateProductListingInput,
+    UpdateProductPriceInput,
+)
 
 
 class ToolExecutionError(RuntimeError):
@@ -193,6 +200,48 @@ class ProductToolExecutor:
         self._ledger = ledger
         self._workflow_run_id = workflow_run_id
         self._concurrency_guard = concurrency_guard
+
+    def _build_request_payload(
+        self, *, tool_name: str, params: BaseModel
+    ) -> ToolExecutionRequestPayload | None:
+        """Build the `ToolExecutionRequestPayload` `ToolExecutionLedger`
+        persists as `payload_json` (issue #1215 / AGT-W4B) — in the shape
+        `workers.impact_reader.classify.classify_mutation_kinds` and
+        `workers.impact_reader.pipeline`/`queries.extract_payload` actually
+        read (see `ledger.ToolExecutionRequestPayload`'s docstring), not the
+        `ToolSpec.input_model` shape verbatim: `UpdateProductPriceInput`
+        carries no `price_update` field (it has `skus`), and neither input
+        model carries `product_id` at all (ADR-070 decision 1 keeps raw
+        vendor IDs out of the LLM-facing schema) — this method is what
+        bridges the two, from constructor-bound state
+        (`self._product_id`/`self._staged_image_uri`), never from anything
+        an agent could spoof through tool call arguments.
+
+        Returns `None` for WRITE tools this reader does not classify (e.g.
+        `upload_product_image`), leaving `payload_json` at the `ToolExecution`
+        model's own default (`"{}"`) — unchanged from before this slice.
+        """
+        if isinstance(params, UpdateProductPriceInput):
+            return ToolExecutionRequestPayload(
+                product_id=self._product_id,
+                price_update=[
+                    {"sku_ref": sku.sku_ref, "amount": sku.amount, "currency": sku.currency}
+                    for sku in params.skus
+                ],
+            )
+        if isinstance(params, UpdateProductListingInput):
+            return ToolExecutionRequestPayload(
+                product_id=self._product_id,
+                title=params.title,
+                description=params.description,
+                # The raw staged asset URI, never the LLM-facing
+                # `attach_staged_image: bool` alone — this is a persisted
+                # analytics record, not agent-facing output, so ADR-070
+                # decision 2's "the model never sees the URI" constraint
+                # (which governs tool *output*) does not apply here.
+                image_uri=self._staged_image_uri if params.attach_staged_image else None,
+            )
+        return None
 
     def execute(
         self, *, tool_name: str, params: BaseModel, tool_call_id: str | None = None
@@ -289,6 +338,7 @@ class ProductToolExecutor:
                 operation=tool_name,
                 perform=_dispatch,
                 verify_applied=None,
+                request_payload=self._build_request_payload(tool_name=tool_name, params=params),
             )
         else:
             result = _dispatch()
