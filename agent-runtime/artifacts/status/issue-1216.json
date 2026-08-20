@@ -1,0 +1,32 @@
+{
+  "gateVersion": 1,
+  "issue": 1216,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/agent/runner/conversation_store.py",
+      "backend/src/juli_backend/services/agent/runner/core.py",
+      "tests/unit/test_agent_runner_core.py",
+      "tests/unit/test_agent_runner_pause_resume.py",
+      "tests/unit/test_agent_runner_terminal_persistence.py",
+      "tests/unit/test_agent_runner_termination.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1216.json",
+    "ownerSignoffPresent": true,
+    "sha256": "56841d5619218435019000eb4adad401ae746001e21999eeece5a681b5d022fc",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-20T06:29:43Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1216.json",
+    "sha256": "75d8056175838e6e7bf00ff39880b3bc1aa4df8c5a5bc6cf84675f677ac17466",
+    "status": "FAIL"
+  },
+  "wave": "wave-agent-w4"
+}
