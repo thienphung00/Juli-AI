@@ -541,6 +541,30 @@ mid-W4 change.
    is filed without the owner's approval.** Anything that changes an already-reviewed slice's
    scope goes to the owner *before* the change, not after — handoff §2.7's lesson.
 
+9. **The executor emits its own implementation artifact, before it reports done.**
+   ```
+   python agent-runtime/scripts/ci/generate_implementation_artifact.py \
+     --issue <N> --executor-domain <domain> --phase-run-id <id assigned by Meta>
+   ```
+   Gate 1 ran with generic sub-agents rather than the harness's `executor-<domain>`
+   phase, so this was never invoked and no telemetry existed for any slice. One missing
+   file failed five validate gates each, and `artifact-retention-guard` held all three
+   PRs. Meta assigns the `phaseRunId` up front — review and validation must carry the
+   *same* id or `phase_run_correlation` fails, and a slice with a release evidence plan
+   must also carry its `releaseEvidencePlanId`.
+
+   **A field is populated only if the run actually observed it.** `skillsLoaded`,
+   `rulesLoaded` and `mcpsUsed` are empty when no skill, rule or MCP was loaded — that
+   is the true value, not a blank to be helpfully filled. One reviewer filled them from
+   `issue-context-cache`'s `harnessUtility` block, which records what Meta *would*
+   route, and briefly turned the guard green on two false observations. The harness
+   optimizer consumes these fields to learn which skills correlate with success, so a
+   plausible guess there is worse than an honest gap.
+
+   Known trap: `phase_run_correlation` reads the *previous* generation's validation
+   artifact (#1143), so `generate_validation_artifact.py` must be run twice before its
+   verdict is current.
+
 Retained from W3 because each caught a real defect: the duplicate-replay check
 (`git log --oneline <wave>..<branch>`) before every merge; the tree-identity check before
 rebasing; re-running an executor's tests in its own worktree with `PYTHONPATH` pinned rather
