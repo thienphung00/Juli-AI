@@ -1,0 +1,31 @@
+{
+  "gateVersion": 1,
+  "issue": 1233,
+  "metrics": {
+    "acceptanceMapped": 7,
+    "acceptanceTotal": 7,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "backend/src/juli_backend/integrations/tiktok/client.py",
+      "backend/src/juli_backend/integrations/tiktok/reactive_refresh.py",
+      "tests/unit/test_tiktok_reactive_refresh.py",
+      "tests/unit/test_tiktok_client_auth_header.py",
+      "tests/integration/test_reactive_refresh_concurrency.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1233.json",
+    "ownerSignoffPresent": true,
+    "sha256": "c0275db3aca9e0ed7da54ea7343fa056d9c08251df76630d0cd125e817dcfdc4",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-20T09:10:21Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1233.json",
+    "sha256": "97757bfa2eae19c48dbcae6573b6a1e739c5de22ce7d25898d5ab2f30cfc69d6",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w4"
+}
