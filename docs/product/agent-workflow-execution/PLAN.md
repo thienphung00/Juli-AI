@@ -20,13 +20,13 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 3 | P5 — TikTok sanitization (product surface only) | ✅ implemented — [ADR-070](../../adr/070-agent-safe-sanitization-contract.md); sanitize package (#990–#995), wired into the real READ handlers + golden re-pointed to the production path (#996) | ✅ 2026-08-13 |
 | 4 | P11 — Model abstraction (minimal LLM service) | ✅ implemented — [ADR-071](../../adr/071-llm-service-openai-adapter.md); `LLMService`/adapter/fake (#985–#989), `FakeLLMService` proven downstream against the real registry + sanitizer (#996) | ✅ 2026-08-13 |
 | 5 | P12 — Prompt architecture (system + Optimize Product) | ✅ implemented — [ADR-072](../../adr/072-agent-prompt-architecture.md); re-run wave merged to `main` (#1107, 2026-08-14) with all four status records after the [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B refusal of the first attempt | ✅ 2026-08-14 (mechanical gates; human voice review #1071 open) |
-| 6 | P1 — Agent execution loop (blocks + runner) | 🟦 **in flight — W3-A, `wave-agent-w3`** — [ADR-073](../../adr/073-agent-execution-loop-and-write-path-hardening.md); PRD #1115, slices #1117–#1124 | ⬜ |
+| 6 | P1 — Agent execution loop (blocks + runner) | ✅ **implemented and live-verified** — [ADR-073](../../adr/073-agent-execution-loop-and-write-path-hardening.md); PRD #1115, slices #1117–#1124 merged via #1183. Read path, CONFIRM pause, resume, sandbox write, ledger and cancel all proven against the deployed host — see [Wave 3 live verification](#wave-3-live-verification-2026-08-19--2026-08-20) | ✅ 2026-08-20 |
 | 7 | P-CS — Conversation & state storage (NEW) | ⏸ deferred (user, 2026-08-11) until real users exist — stand-in: `workflow_runs.state` JSONB blob behind the `ConversationStore` protocol (ADR-073 d.5) | ⬜ |
-| 8 | P8 — Streaming (SSE + Celery relay) | 🟦 **in flight — W3-B, `wave-agent-w3`** — [ADR-074](../../adr/074-agent-event-streaming-and-relay.md); PRD #1116, slices #1125–#1133 | ⬜ |
+| 8 | P8 — Streaming (SSE + Celery relay) | ✅ **implemented and live-verified** — [ADR-074](../../adr/074-agent-event-streaming-and-relay.md); PRD #1116, slices #1125–#1133 merged via #1183. Live SSE, gapless duplicate-free `Last-Event-ID` reconnect, mid-run cancel, and the fail-closed `memory://` boot assertion all proven on the deployed host — see [Wave 3 live verification](#wave-3-live-verification-2026-08-19--2026-08-20) | ✅ 2026-08-20 |
 | 9 | P7 — Structured output contract | ⏸ deferred (user, 2026-08-11) — loop runs on ADR-072 prose output; wires in via `FinalResponse` block + prompt v2 bump (ADR-073 d.5) | ⬜ |
 | 10 | P9+P14 — Approval, safety & security prerequisites | 🟨 design grilled 2026-08-12 — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) drafted; implementation pending | ⬜ |
 | 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 design grilled 2026-08-12 — [ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md) drafted; implementation pending | ⬜ |
-| 11b | P-IM — Incremental impact measurement (NEW) | ✅ implemented — [ADR-077](../../adr/077-incremental-impact-measurement.md); re-run wave merged to `main` (#1113, 2026-08-14), #1040–#1045 + #1068 all with status records, after the [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B refusal of the first attempt | ✅ 2026-08-14 (code gates; the one real end-to-end reading waits for W3-A's runner — W3 checkpoint) |
+| 11b | P-IM — Incremental impact measurement (NEW) | ✅ implemented — [ADR-077](../../adr/077-incremental-impact-measurement.md); re-run wave merged to `main` (#1113, 2026-08-14), #1040–#1045 + #1068 all with status records, after the [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B refusal of the first attempt | 🟥 2026-08-20 — code gates green, but the one real end-to-end reading is **unreachable**, not merely un-run: the reader selects `tool_name IN {"listing.optimize_product"}` and the agent ledger writes `update_product_price` / `update_product_listing`, and the ledger records no `payload_json`, which classification and product binding both require. See [Wave 3 live verification](#wave-3-live-verification-2026-08-19--2026-08-20) |
 | 11c | P-CRED — TikTok credential lifecycle / refresh-token rotation (NEW) | 🟨 **design settled — W4**. Grilled 2026-08-17 ([ADR-080](../../adr/080-tiktok-credential-lifecycle.md)), re-grilled 2026-08-18 against the code and **amended by [ADR-081](../../adr/081-refresh-token-rotation.md)**: three-layer refresh (beat + lazy + reactive), one guarded door with a session-level advisory lock, vendor-authoritative expiry, dedicated `credentials` queue, five additive columns; `CREDENTIALS_DATABASE_URL` descoped. Four slices — see [Wave 4](#wave-4--p-cred-refresh-token-rotation-2026-08-18); gate = full matrix + one real sandbox-token refresh | ⬜ |
 | 12 | P10 — Observability baseline | ⬜ | ⬜ |
 | 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ | ⬜ |
@@ -201,15 +201,20 @@ warning **fixed** and reviewer signoff given. Both sit at exactly two red gates 
 `ownerSignoff` are human attestations. Every agent asked declined to forge them, including
 when it was the only thing between them and a clean gate. That is the control working.
 
-### Not started — require credentials no agent holds
+### Not started — require credentials no agent holds *(cleared 2026-08-20)*
 
 **#1124** (two live GPT-5.4 nano smokes: `OPENAI_API_KEY`, sandbox shop) and **#1133**
-(live gate: real Redis broker, VPS worker, observed browser reconnect).
+(live gate: real Redis broker, VPS worker, observed browser reconnect) were written but had
+never run anywhere. Both have now run against the deployed host with real credentials — see
+[Wave 3 live verification](#wave-3-live-verification-2026-08-19--2026-08-20). Running them
+took sixteen defect fixes; none of the sixteen was visible to the 4,028-test suite.
 
-#1133 also inherits a requirement from #1129's review: `AGENT_WORKFLOWS_ENABLED` is wired
-into no systemd unit and no `api.env.example`, so the fail-closed broker assertion **cannot
-currently fire on a real deployment**. A guard that cannot fire reads as protection without
-being any.
+#1133 also inherited a requirement from #1129's review: `AGENT_WORKFLOWS_ENABLED` was wired
+into no systemd unit and no `api.env.example`, so the fail-closed broker assertion could not
+fire on a real deployment. A guard that cannot fire reads as protection without being any.
+**Now armed and verified**: the live worker process carries `AGENT_WORKFLOWS_ENABLED=1` and
+`CELERY_BROKER_URL=redis://…/1`, and importing `celery_app` in the deployed venv with the
+broker unset raises the `RuntimeError` rather than booting.
 
 ### Defects found outside the wave's own scope
 
@@ -223,14 +228,22 @@ being any.
 | #1142 | Unguarded `int(last_event_id)` — a non-numeric `Last-Event-ID` returns HTTP 500 instead of degrading |
 | #1143 | `phase_run_correlation` reads the previous generation's validation artifact — a read-before-write off-by-one |
 
-### Two limitations recorded deliberately
+### Two limitations recorded deliberately *(resolved 2026-08-20)*
 
-The **idempotency ledger (#1121)** and **basis-hash concurrency (#1122)** are both
+The **idempotency ledger (#1121)** and **basis-hash concurrency (#1122)** were both
 implemented, unit-proven, and **structurally inert on the live path**: no non-test call site
-constructs `ProductToolExecutor`, and `core.py` passes no `tool_call_id`, `ledger` or
-`concurrency_guard`. Fail-closed makes that safe and it is the correct build order — but
+constructed `ProductToolExecutor`, and `core.py` passed no `tool_call_id`, `ledger` or
+`concurrency_guard`. Fail-closed made that safe and it was the correct build order — but
 "we have an idempotency ledger" and "our writes are idempotent" are different claims, as
 are "we have concurrency control" and "our writes are version-checked in production".
+
+#1145 and #1173 wired both, and the live write-path run on 2026-08-20 is what turns the
+first claim into the second: a real sandbox write left one `tool_executions` row
+(`status=succeeded`, `operation=update_product_price`, `outcome_json` carrying the applied
+SKU price) written through the real ledger, with the real `ConcurrencyGuard` holding a
+basis snapshot captured before the write. Both are now load-bearing on a path that has
+actually executed. One gap the same run exposed: that ledger row records **no
+`payload_json`**, which is what makes the P-IM reading unreachable (below).
 
 ### Prompt-injection attempts during the wave
 
@@ -241,6 +254,64 @@ variant impersonated a harness directive urging raw Bash over the Read/Edit/Writ
 which carry read-before-write and match-ambiguity protections that `sed` does not. Every
 instance was disproven with `git status --short` and `git hash-object` against
 `git rev-parse HEAD:<path>`, and none were acted on. No mutation was left in any tree.
+
+## Wave 3 live verification (2026-08-19 → 2026-08-20)
+
+Wave 3 merged with every slice reviewed and every unit gate green. Nothing in it had ever
+run. This section records what was proven on the deployed host (release `6ce2ec89`), against
+the real TikTok Partner API, the real GPT-5.4 nano endpoint, the real Redis broker and the
+real database — and what is still not proven.
+
+### Proven
+
+| Claim | Evidence |
+| --- | --- |
+| A read-path run executes end to end | run `16b0364c`, `completed` / `final_response`, three real tool calls (`get_product_information`, `get_seo_keywords`, `inspect_product_image`) |
+| Events stream live over SSE, sequence-numbered from 1 | 8 events, `[1,2,3]` before a deliberate disconnect |
+| `Last-Event-ID` reconnect is gapless and duplicate-free | reconnect at 3, `[4,5,6,7,8]` after — **GAPLESS PASS**, **DUPLICATE-FREE PASS** |
+| A CONFIRM-policy write pauses for approval | `workflow.approval_required` carrying `proposed_change` and `expires_at` |
+| An approved write reaches the vendor, exactly once, through the ledger | run `379d8dd5`; one `tool_executions` row, `succeeded`, `outcome_json` = the applied SKU price |
+| The full write path reaches `final_response` | same run, `workflow.completed` / `final_response`; reproduced on a second consecutive run |
+| Mid-run cancel stops the loop | `202` mid-flight, in-flight tool call allowed to finish (cooperative by design), terminal `status=cancelled` / `stop_reason=cancelled_by_seller` |
+| The `memory://` boot assertion crashes, and is armed | `RuntimeError` on importing `celery_app` in the deployed venv with the broker unset; the live worker carries `AGENT_WORKFLOWS_ENABLED=1` and a real Redis broker |
+| P-UI has its first golden scenario | `tests/fixtures/agent_live_write_smoke_event_log.json`, sanitized, written by the live smoke |
+
+### What running it cost
+
+Sixteen defects, every one surfaced by real credentials meeting real APIs and **none** by the
+4,028-test suite. The recurring shape, named across #1195 / #1201 / #1205 / #1207 / #1212:
+**two internally-consistent halves that nothing reconciled, disagreeing only in production.**
+Each fix shipped the missing reconciliation — a contract test that makes the two halves meet —
+not just the correction.
+
+The clearest instance is #1212. `WorkflowRunner._tool_definitions` renders each tool as
+`{name, description, input_schema}`; `openai_adapter._translate_tool` read `parameters` and
+substituted an empty schema when it found nothing. **Every tool reached the model declared as
+taking no arguments.** The read tools take none, so they worked; every write attempt arrived as
+`{}`, and the model's own (correct) explanation that it had been given nothing to send read as
+the model being too small for the job. `ToolDefinition` was `Mapping[str, Any]`, so nothing
+could reconcile the two ends — and all three tests covering the translation, including the
+recorded round-trip, hand-built definitions using the consumer's key. It is now a `TypedDict`.
+This was the third bug of that exact shape on that seam (#1177 was `call_id` vs `tool_call_id`).
+
+### Not proven — the remaining gaps
+
+1. **The approval decision is not authorized by anything.** `POST /v1/demo/runs/{id}/confirmations/{tool_call_id}` returns `501` by design (ADR-074 d.5 reserves it for W4-A). The live pause/resume above was driven through `WorkflowRunner.resume` directly, so it proves the **loop's** write path, not the **product's** approval gate. No seller can approve a write today.
+2. **P-IM cannot read an agent run.** Entry point: `run_daily_impact_reader(session, reference_date)` (`workers/impact_reader/pipeline.py`), scheduled as the beat task `juli_backend.daily_impact_reader`. It scans `tool_executions` where `status='succeeded'` and `tool_name IN MEASURABLE_TOOL_NAMES` — which is `frozenset({"listing.optimize_product"})`, the *old* execution layer's name. The agent ledger writes `update_product_price` / `update_product_listing`, so **no agent run is ever selected**. Even if it were, the ledger records no `payload_json`, and both `classify_mutation_kinds` and the product binding read it. Two changes are needed before ADR-077's "one real end-to-end reading" is reachable at all; a third (the sandbox shop has no analytics series) means the first honest reading will have to come from a production-shop write, not a sandbox one.
+3. **`TerminationPolicy.required_steps` has no production consumer.** `OPTIMIZE_PRODUCT_TERMINATION_POLICY` declares `("update_product_listing", "update_product_price")` as the definition of "did the job", and every reference to it outside that declaration is in a test. A run that performs zero required writes still records `completed` / `final_response` — indistinguishable, in the execution-quality metric, from one that did the work. This is the one gap that corrupts data rather than blocking a feature.
+4. **`workflow_runs.running_seconds_elapsed` records 0** on runs that took real wall-clock time — #1117's denormalized mirror is not being written.
+
+### Exit-gate verdict
+
+**W3's own gates pass.** P1's gate ("real-provider smoke run completes for Optimize Product")
+and P8's gate ("browser sees live events for a real run; reconnect mid-run replays without
+gaps/duplicates; cancellation stops the loop") are both met with recorded evidence, and the
+`memory://` assertion that #1133 inherited is armed and fires.
+
+**W3 is closed. It does not close P15.** Gap 1 means no seller-initiated write can happen
+(W4-A), gap 3 means execution-quality data is unreliable until `required_steps` is enforced,
+and gap 2 means business-impact data has no path at all. P15 ("E2E prototype complete") should
+not be ticked until 1 and 3 land; gap 2 belongs to a P-IM ↔ W3 reconciliation slice.
 
 ## Wave 4 — P-CRED, refresh-token rotation (2026-08-18)
 
