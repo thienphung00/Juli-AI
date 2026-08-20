@@ -14,7 +14,7 @@ import os
 import re
 import sys
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from urllib.parse import urlparse
@@ -167,6 +167,13 @@ REVISION_023_BRONZE_TABLES = ("order_raw_payloads", "return_raw_payloads")
 REVISION_029_BRONZE_TABLES = ("ctor_performance_raw_payloads", "live_hours_raw_payloads")
 REVISION_030_COLUMNS = ("revenue", "units_sold")
 REVISION_031_COLUMN = "velocity"
+REVISION_038_COLUMNS = (
+    "status",
+    "last_refreshed_at",
+    "last_refresh_error",
+    "refresh_count",
+    "refresh_token_expires_at",
+)
 MEDALLION_SCHEMAS = ("bronze", "silver", "gold", "ops")
 CLIENT_ISOLATED_SCHEMAS = ("bronze", "silver", "ops")
 POSTGREST_CLIENT_ROLES = ("anon", "authenticated")
@@ -1243,6 +1250,84 @@ def test_latest_downgrade_drops_only_revision_031_column(postgres_at_head: Engin
             {"id": inventory_id},
         ).scalar_one()
     assert velocity == "low"
+
+
+@requires_postgres
+def test_latest_downgrade_drops_only_revision_038_columns(postgres_at_head: Engine):
+    """Downgrading past 038 removes the five tiktok_credentials refresh-tracking
+    columns (#1230, ADR-081 decision 7); 037's own column stays untouched.
+
+    Targets 037 explicitly rather than ``-1`` for the same reason 031's test
+    does: a per-revision downgrade test names its target revision.
+    """
+    ids = _seed_representative_rows(postgres_at_head)
+    cfg = _alembic_config()
+
+    for column in REVISION_038_COLUMNS:
+        assert _table_has_column(postgres_at_head, "tiktok_credentials", column)
+
+    credential_id = uuid.uuid4()
+    expires_at = datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=1)
+    with postgres_at_head.begin() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO tiktok_credentials
+                    (id, shop_id, access_token, refresh_token, token_expires_at)
+                VALUES
+                    (:id, :shop_id, :access_token, :refresh_token, :token_expires_at)
+                """
+            ),
+            {
+                "id": credential_id,
+                "shop_id": ids["shop_id"],
+                "access_token": "migration_access_365",
+                "refresh_token": "migration_refresh_365",
+                "token_expires_at": expires_at,
+            },
+        )
+
+    with postgres_at_head.connect() as conn:
+        status, refresh_count = conn.execute(
+            text("SELECT status, refresh_count FROM tiktok_credentials WHERE id = :id"),
+            {"id": credential_id},
+        ).one()
+    assert status == "active"
+    assert refresh_count == 0
+
+    command.downgrade(cfg, "037_required_steps_completed")
+
+    for column in REVISION_038_COLUMNS:
+        assert not _table_has_column(postgres_at_head, "tiktok_credentials", column)
+    assert _table_has_column(postgres_at_head, "workflow_runs", "required_steps_completed")
+
+    with postgres_at_head.connect() as conn:
+        credential_count = conn.execute(
+            text("SELECT COUNT(*) FROM tiktok_credentials")
+        ).scalar_one()
+    assert credential_count == 1
+
+    command.upgrade(cfg, "head")
+    for column in REVISION_038_COLUMNS:
+        assert _table_has_column(postgres_at_head, "tiktok_credentials", column)
+    with postgres_at_head.connect() as conn:
+        status, refresh_count, last_refreshed_at, last_refresh_error, refresh_token_expires_at = (
+            conn.execute(
+                text(
+                    """
+                    SELECT status, refresh_count, last_refreshed_at,
+                           last_refresh_error, refresh_token_expires_at
+                    FROM tiktok_credentials WHERE id = :id
+                    """
+                ),
+                {"id": credential_id},
+            ).one()
+        )
+    assert status == "active"
+    assert refresh_count == 0
+    assert last_refreshed_at is None
+    assert last_refresh_error is None
+    assert refresh_token_expires_at is None
 
 
 @requires_postgres

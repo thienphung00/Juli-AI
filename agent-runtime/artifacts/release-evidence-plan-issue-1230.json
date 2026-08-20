@@ -1,0 +1,73 @@
+{
+  "planId": "credential-refresh-columns-2026-08-20",
+  "affectedPublicSurfaces": [
+    "None reachable by a user. Migration 038 adds five additive columns to tiktok_credentials, mirrors them onto the TikTokCredential ORM model, and adds three repository methods. No route, no asset, no frontend, no behavior change on any existing read path — ADR-081 decision 7 scopes this slice to persistence only, and #1231/#1232 are the first slices that write through it. publicRelease classification follows from the migration, not from a user-facing surface."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Local tests on feature/issue-1230-credential-columns, cut from feature/agent-w4-wave. No VPS contact, no deployment, no vendor calls, no production database access.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "additive-column-round-trip",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1230",
+        "assertions": [
+          "alembic upgrade head and alembic downgrade -1 both round-trip cleanly against a seeded database, under the migration_heavy marker",
+          "ORM-vs-migration schema parity holds for all five new columns under the schema_parity marker",
+          "a row inserted through the ORM without setting status reads back 'active', and refresh_count reads back 0",
+          "a pre-migration-shaped row reads back None for last_refreshed_at, last_refresh_error and refresh_token_expires_at rather than a synthesized value",
+          "the mark-refreshed repo method increments refresh_count by exactly 1 and clears a previously-set last_refresh_error back to NULL",
+          "the mark-needs-reauth repo method sets status and leaves access_token, refresh_token and token_expires_at untouched",
+          "the scan method returns exactly the 1h and 20h rows for a 24h window against seeded rows at 1h/20h/48h — the gap-6 regression, written so it would fail against the old 30-minute REFRESH_BUFFER",
+          "the scan method excludes a status='needs_reauth' row whose token_expires_at is inside the window"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route or asset changes — one migration, models.py, repos.py and their tests."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Revision 038 is assigned by Meta, not read from head: 037_required_steps_completed is on main as of 2026-08-20, and the issue body's 037 guess is stale. The revision id stays at or under 32 characters — a longer id commits fine and then fails at upgrade time with StringDataRightTruncation. All five columns are additive and either nullable or server-defaulted, with no backfill and no index (ADR-081 d.7 rejects an index at ~100 rows), so stable pods reading the old shape and candidate pods reading the new one coexist. status is a plain varchar checked in application code, following workflow_runs.status — no CREATE TYPE, so downgrade drops columns without an orphaned type. Deploy path is infra/scripts/safe-alembic-upgrade.sh. ALLOW_DESTRUCTIVE_MIGRATION_TESTS is never set for this slice and must never be set against the production database."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without this slice the five columns do not exist and #1231/#1232 cannot be written — the pre-existing state, in which nothing automatically refreshes a credential. No new exposure.",
+    "postCutoverFailureBehavior": "alembic downgrade -1 drops the five columns. Nothing reads or writes them at this point in the wave, so the downgrade is behavior-neutral by construction; revert the commit alongside it.",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": false,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -q -k 'credential or tiktok_credential'",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/integration/test_schema_parity.py tests/integration/test_migrations.py -q",
+    "ruff check backend tests && ruff format --check backend/src/juli_backend/models/models.py backend/src/juli_backend/repositories/repos.py"
+  ],
+  "doNotInfer": [
+    "This slice adds columns and repo methods only. It does not refresh a credential, does not add a beat or a queue, and does not delete any of the three existing direct refresh call sites — those are #1231 and #1232.",
+    "refresh_token_expires_at is populated only if the vendor sends refresh_token_expire_in, which appears nowhere in the codebase, fixtures or docs today. Nothing may assume the column is ever non-null.",
+    "token_expires_at is not renamed to access_token_expires_at; ADR-081 d.7 rejects that rename explicitly."
+  ]
+}

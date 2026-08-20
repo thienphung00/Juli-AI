@@ -53,6 +53,19 @@ class Shop(Base):
 
 
 class TikTokCredential(Base):
+    """TikTok OAuth credential row for a shop/merchant capability.
+
+    ``status``/``last_refreshed_at``/``last_refresh_error``/``refresh_count``/
+    ``refresh_token_expires_at`` (ADR-081 decision 7, migration 038) are
+    persistence only in this slice -- the scan predicate, fail-closed
+    resolver and the three refresh layers that read/write them land in
+    #1231/#1232. ``status`` is a plain varchar (``active`` | ``needs_reauth``)
+    checked in application code, mirroring ``workflow_runs.status`` -- no
+    native DB enum. ``refresh_token_expires_at`` is populated only if a
+    vendor response ever carries ``refresh_token_expire_in``; nothing may
+    assume it is non-null.
+    """
+
     __tablename__ = "tiktok_credentials"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -64,6 +77,13 @@ class TikTokCredential(Base):
     refresh_token: Mapped[str] = mapped_column(Text, nullable=False)
     token_expires_at: Mapped[datetime] = mapped_column(nullable=False)
     scopes: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(
+        String(20), default="active", server_default="active", nullable=False
+    )
+    last_refreshed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    last_refresh_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    refresh_count: Mapped[int] = mapped_column(default=0, server_default="0", nullable=False)
+    refresh_token_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
