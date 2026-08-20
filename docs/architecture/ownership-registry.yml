@@ -289,6 +289,19 @@ celeryTasks:
       running/queued runs (no event + no live task -> worker_lost -> failed)
       and expired waiting_approval runs (past approval_timeout_h ->
       confirmation_expired -> cancelled) through the normal EventSink path.
+  juli_backend.credential_refresh_beat:
+    owner: Workers & Async
+    wrapper: backend/src/juli_backend/workers/tasks/credential_refresh_beat.py
+    delegatesTo: workers.tasks.credential_refresh_beat.run_credential_refresh_cycle
+    notes: >
+      ADR-081 decision 1 row 1 (#1232). Beat task every 30 minutes on the
+      dedicated `credentials` queue; scans tiktok_credentials inside the 24h
+      REFRESH_BUFFER window (needs_reauth rows already excluded by the repo
+      method) and calls refresh_credential(force=False) per row. The fleet's
+      FIRST scheduled refresh — run_fujiwa_poll_cycle has never appeared in
+      beat_schedule, so before this nothing refreshed TikTok tokens on a
+      schedule at all. One bad credential never aborts the cycle: that is why
+      refresh_credential returns an outcome instead of raising.
 
 redisNamespaces:
   - pattern: "ratelimit:*"
