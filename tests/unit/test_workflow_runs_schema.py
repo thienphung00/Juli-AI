@@ -43,6 +43,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
 MIGRATIONS_DIR = REPO_ROOT / "backend/src/juli_backend/database/migrations/versions"
 MIGRATION_034_PATH = MIGRATIONS_DIR / "034_workflow_runs_table.py"
+MIGRATION_037_PATH = MIGRATIONS_DIR / "037_required_steps_completed.py"
 
 _KNOWN_SCHEMAS = ("public", "bronze", "silver", "gold", "ops")
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
@@ -166,6 +167,32 @@ def test_exactly_one_migration_head_after_034():
     assert len(heads) == 1, f"expected exactly one head, got {sorted(heads)}"
 
 
+def test_migration_037_revision_equals_filename_stem():
+    """issue #1220: `workflow_runs.required_steps_completed`. Revision id
+    must also be <= 32 characters -- a longer one only fails at *upgrade*
+    time with `StringDataRightTruncation` against Alembic's own
+    `alembic_version.version_num VARCHAR(32)`, never at import or file-read
+    time, so this is asserted explicitly rather than left to be discovered
+    live."""
+    assert MIGRATION_037_PATH.exists(), f"missing {MIGRATION_037_PATH}"
+    body = MIGRATION_037_PATH.read_text(encoding="utf-8")
+    rev = re.search(r'^revision: str = "([^"]+)"', body, re.M)
+    assert rev is not None, "migration 037 has no `revision: str = ...` line"
+    assert rev.group(1) == "037_required_steps_completed"
+    assert rev.group(1) == MIGRATION_037_PATH.stem
+    assert len(rev.group(1)) <= 32, (
+        f"revision id {rev.group(1)!r} is {len(rev.group(1))} chars -- "
+        "alembic_version.version_num is VARCHAR(32)"
+    )
+
+
+def test_migration_037_down_revision_is_036():
+    body = MIGRATION_037_PATH.read_text(encoding="utf-8")
+    down = re.search(r'^down_revision: str \| None = "([^"]+)"', body, re.M)
+    assert down is not None, "migration 037 has no string `down_revision`"
+    assert down.group(1) == "036_cancel_requested_column"
+
+
 # ---------------------------------------------------------------------------
 # Postgres-backed schema assertions.
 # ---------------------------------------------------------------------------
@@ -191,6 +218,7 @@ def test_workflow_runs_table_shape_at_head(postgres_at_head: Engine):
         "waiting_approval_since",
         "running_seconds_elapsed",
         "cancel_requested",
+        "required_steps_completed",
         "created_at",
         "updated_at",
     }
@@ -227,6 +255,24 @@ def test_workflow_runs_table_shape_at_head(postgres_at_head: Engine):
         "backfill UPDATE instead of the additive in-place default"
     )
     assert "false" in str(columns["cancel_requested"]["default"]).lower()
+
+    # issue #1220: required_steps_completed is a nullable outcome fact --
+    # NULL means "not yet determined", distinct from False ("determined:
+    # not all required steps completed"). Deliberately no server default
+    # (unlike cancel_requested): a guessed True/False for a pre-existing
+    # row would be a fabricated fact, not a backfill.
+    assert "BOOL" in str(columns["required_steps_completed"]["type"]).upper(), (
+        "required_steps_completed expected a boolean type, got "
+        f"{columns['required_steps_completed']['type']}"
+    )
+    assert columns["required_steps_completed"]["nullable"] is True, (
+        "required_steps_completed must be nullable -- NULL is 'not yet determined', "
+        "a real third state, not merely permissive schema design"
+    )
+    assert columns["required_steps_completed"].get("default") is None, (
+        "required_steps_completed must have no server default -- a guessed value for "
+        "a pre-existing row would be a fabricated fact, not an additive backfill"
+    )
 
     fks = {
         fk["constrained_columns"][0]: fk["referred_table"]
@@ -311,6 +357,108 @@ def test_cancel_requested_backfills_false_for_row_seeded_before_036():
         assert row.cancel_requested is False, (
             "pre-existing row did not backfill cancel_requested=false on upgrade to 036"
         )
+    finally:
+        engine.dispose()
+
+
+@requires_postgres
+def test_required_steps_completed_reads_null_for_row_seeded_before_037():
+    """The flip side of the cancel_requested backfill test above: issue
+    #1220's column is deliberately NOT backfilled to a guessed value. A
+    workflow_runs row inserted at revision 036 -- before the column existed
+    -- must read NULL (not False, not True) after upgrading straight to
+    037, with no manual UPDATE in between."""
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    from sqlalchemy import text
+
+    cfg = _alembic_config()
+    engine = _sync_engine()
+    try:
+        _reset_to_revision(cfg, "036_cancel_requested_column")
+
+        user_id, shop_id, product_id, run_id = uuid4(), uuid4(), uuid4(), uuid4()
+        with engine.begin() as conn:
+            conn.execute(
+                text("INSERT INTO users (id, phone) VALUES (:id, :phone)"),
+                {"id": user_id, "phone": "+15550001220"},
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO shops (id, user_id, shop_name) VALUES (:id, :user_id, :shop_name)"
+                ),
+                {"id": shop_id, "user_id": user_id, "shop_name": "AGT-W3A-DP Test Shop 1220"},
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO products "
+                    "(id, shop_id, tiktok_product_id, name, status, update_time) "
+                    "VALUES (:id, :shop_id, :tiktok_product_id, :name, :status, :update_time)"
+                ),
+                {
+                    "id": product_id,
+                    "shop_id": shop_id,
+                    "tiktok_product_id": "issue-1220-backfill-product",
+                    "name": "Backfill Widget 1220",
+                    "status": "active",
+                    "update_time": datetime.now(UTC),
+                },
+            )
+            # No required_steps_completed column exists yet at revision 036
+            # -- this INSERT is only possible because the column doesn't exist.
+            conn.execute(
+                text(
+                    "INSERT INTO workflow_runs "
+                    "(id, shop_id, product_id, state, status, prompt_version, prompt_sha256) "
+                    "VALUES (:id, :shop_id, :product_id, '{}', :status, "
+                    ":prompt_version, :prompt_sha256)"
+                ),
+                {
+                    "id": run_id,
+                    "shop_id": shop_id,
+                    "product_id": product_id,
+                    "status": "completed",
+                    "prompt_version": "optimize_product.v1",
+                    "prompt_sha256": "d" * 64,
+                },
+            )
+
+        command.upgrade(cfg, "037_required_steps_completed")
+
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT required_steps_completed FROM workflow_runs WHERE id = :id"),
+                {"id": run_id},
+            ).one()
+        assert row.required_steps_completed is None, (
+            "pre-existing row must read NULL ('not yet determined'), never a guessed "
+            "True/False, after upgrading to 037"
+        )
+    finally:
+        engine.dispose()
+
+
+@requires_postgres
+def test_migration_037_upgrade_and_downgrade_round_trip_cleanly():
+    """Migration 037's `downgrade()` actually works -- drops the column,
+    and upgrading again restores it, with no leftover state in between."""
+    cfg = _alembic_config()
+    engine = _sync_engine()
+    try:
+        _reset_to_revision(cfg, "037_required_steps_completed")
+        columns_at_head = _columns_by_name(engine, "workflow_runs")
+        assert "required_steps_completed" in columns_at_head
+
+        command.downgrade(cfg, "036_cancel_requested_column")
+        columns_after_downgrade = _columns_by_name(engine, "workflow_runs")
+        assert "required_steps_completed" not in columns_after_downgrade, (
+            "downgrade() did not drop required_steps_completed"
+        )
+
+        command.upgrade(cfg, "037_required_steps_completed")
+        columns_after_reupgrade = _columns_by_name(engine, "workflow_runs")
+        assert "required_steps_completed" in columns_after_reupgrade
     finally:
         engine.dispose()
 

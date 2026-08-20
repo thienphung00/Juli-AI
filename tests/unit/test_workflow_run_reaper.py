@@ -147,12 +147,13 @@ async def _make_run(
     started_at: datetime | None = None,
     waiting_approval_since: datetime | None = None,
     created_at: datetime | None = None,
+    state: dict | None = None,
 ) -> WorkflowRun:
     run = WorkflowRun(
         id=uuid.uuid4(),
         shop_id=shop_id,
         product_id=product_id,
-        state={},
+        state=state if state is not None else {},
         status=status,
         prompt_version="optimize_product_2/v1",
         prompt_sha256="a" * 64,
@@ -226,6 +227,101 @@ async def test_stale_running_run_past_threshold_with_no_live_task_is_reaped_as_w
     assert events[0].sequence_number == 0
     assert events[0].payload["stop_reason"] == "worker_lost"
     assert events[0].payload["status"] == "failed"
+
+
+# --- issue #1220: required_steps_completed is written on the worker_lost path,
+# the same way the runner writes it on every path it produces itself. -------
+
+
+async def test_worker_lost_still_records_required_steps_completed_true(session, shop, product):
+    """A worker died (`worker_lost`) *after* the run had already completed
+    both required writes -- `required_steps_completed` records that honest
+    fact even though the run's own `stop_reason` is a failure the run
+    itself never chose (ADR-073 decision 2: the two are independent)."""
+    completed_window = [
+        {
+            "role": "tool",
+            "tool_call_id": "c0",
+            "tool_name": "update_product_listing",
+            "content": {"title": "New Title"},
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "c1",
+            "tool_name": "update_product_price",
+            "content": {"updated_skus": ["S1"]},
+        },
+    ]
+    run = await _make_run(
+        session,
+        shop.id,
+        product.id,
+        status="running",
+        started_at=NOW - timedelta(seconds=STALE_THRESHOLD_S + 100),
+        state={"conversation_window": completed_window},
+    )
+
+    result = await reaper.reap_workflow_runs(session, now=NOW, has_live_task=_never_live)
+
+    assert result.stale_runs_reaped == (run.id,)
+    reloaded = await _reload(session, run)
+    assert reloaded.stop_reason == StopReason.WORKER_LOST.value
+    assert reloaded.required_steps_completed is True
+
+
+async def test_worker_lost_records_required_steps_completed_false_when_nothing_completed(
+    session, shop, product
+):
+    run = await _make_run(
+        session,
+        shop.id,
+        product.id,
+        status="running",
+        started_at=NOW - timedelta(seconds=STALE_THRESHOLD_S + 100),
+        state={"conversation_window": []},
+    )
+
+    await reaper.reap_workflow_runs(session, now=NOW, has_live_task=_never_live)
+
+    reloaded = await _reload(session, run)
+    assert reloaded.stop_reason == StopReason.WORKER_LOST.value
+    assert reloaded.required_steps_completed is False
+
+
+async def test_worker_lost_required_steps_completed_moves_with_injected_policy(
+    session, shop, product
+):
+    """Proves `_ReaperEventSink` reads `required_steps` off whatever policy
+    it is given, not the real playbook's copied at import time -- the same
+    discipline `test_reap_stale_threshold_moves_with_injected_policy_not_
+    the_default` already pins for the wall-clock threshold."""
+    run = await _make_run(
+        session,
+        shop.id,
+        product.id,
+        status="running",
+        started_at=NOW - timedelta(seconds=STALE_THRESHOLD_S + 100),
+        state={
+            "conversation_window": [
+                {
+                    "role": "tool",
+                    "tool_call_id": "c0",
+                    "tool_name": "some_step",
+                    "content": {"ok": True},
+                }
+            ]
+        },
+    )
+    policy = _custom_policy(wall_clock_timeout_s=WALL_CLOCK_TIMEOUT_S, approval_timeout_h=1)
+
+    await reaper.reap_workflow_runs(session, now=NOW, has_live_task=_never_live, policy=policy)
+
+    reloaded = await _reload(session, run)
+    assert reloaded.required_steps_completed is True, (
+        "the custom policy's required_steps=('some_step',) was satisfied by the "
+        "seeded conversation_window -- proves the sink read the injected policy, "
+        "not OPTIMIZE_PRODUCT_TERMINATION_POLICY.required_steps"
+    )
 
 
 async def test_stale_queued_run_with_no_events_uses_created_at_fallback_and_is_reaped(

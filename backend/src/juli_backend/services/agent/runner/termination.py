@@ -107,8 +107,10 @@ silently going stale here.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
 from juli_backend.services.agent.playbooks.base import TerminationPolicy
 from juli_backend.services.agent.runner.status import StopReason
@@ -285,6 +287,50 @@ def extension_grant_narration(
     )
 
 
+def required_steps_completed(
+    conversation_window: Sequence[Mapping[str, Any]],
+    required_steps: tuple[str, ...],
+) -> bool:
+    """Whether every tool name in `required_steps`
+    (`TerminationPolicy.required_steps` -- the "did the job" outcome fact,
+    ADR-073 decision 2) has at least one *successfully completed*
+    tool-result entry in `conversation_window`.
+
+    Scans the conversation window rather than tracking a second, parallel
+    bookkeeping structure: `conversation_window` is the one durable record
+    of what a run actually did, already surviving a CONFIRM pause/resume
+    round trip unchanged (`WorkflowRunner.resume` loads it fresh from the
+    injected `ConversationStore`) -- a separate completed-steps set would
+    have to be threaded through that same seam and could drift from this
+    one.
+
+    A `role == "tool"` entry counts as a completed step for its
+    `tool_name` only when its `content` is neither the `{"error": {...}}`
+    envelope (`sanitize/errors.py::to_error_envelope`, covering every
+    refusal, malformed-params rejection, and inbound-guard block — see
+    `core.py::_refuse`/`_dispatch_tool_call`) nor a declined-confirmation
+    record (`{"confirmation": {"decision": "declined"}}`,
+    `WorkflowRunner.resume`'s own decline branch) -- both name the tool but
+    never performed the operation. A required tool never proposed at all
+    simply never appears, which this function treats identically to an
+    explicit refusal: not completed.
+    """
+    completed: set[str] = set()
+    for message in conversation_window:
+        if message.get("role") != "tool":
+            continue
+        tool_name = message.get("tool_name")
+        if tool_name not in required_steps:
+            continue
+        content = message.get("content")
+        if not isinstance(content, Mapping):
+            continue
+        if "error" in content or "confirmation" in content:
+            continue
+        completed.add(tool_name)
+    return all(name in completed for name in required_steps)
+
+
 __all__ = [
     "IterationGate",
     "IterationGateAction",
@@ -293,5 +339,6 @@ __all__ = [
     "evaluate_checkpoint",
     "evaluate_iteration_gate",
     "extension_grant_narration",
+    "required_steps_completed",
     "running_seconds_column_value",
 ]

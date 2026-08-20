@@ -53,6 +53,23 @@ the reaper never touches and which never touches the reaper — two distinct
 authorities for two distinct callers (a run's own terminal transition vs. the
 reaper's opportunistic sweep of rows abandoned by a dead worker), never one
 reaching into the other's write path.
+
+**`required_steps_completed` persistence (issue #1220, migration
+`037_required_steps_completed`).** A third fact, orthogonal to
+`status`/`stop_reason`: whether the active `Playbook`'s
+`TerminationPolicy.required_steps` all completed successfully during the
+run (ADR-073 decision 2's "did the job" outcome fact, feeding the
+execution-quality metric — never a synthetic failure folded into
+`stop_reason`). `persist` grows one more keyword-only parameter,
+`required_steps_completed`, defaulting to `None` exactly like
+`status`/`stop_reason` — the same true no-op for every non-terminal,
+per-iteration call. `WorkflowRunner` (`core.py`) computes the value (via
+`termination.py::required_steps_completed`, scanning the persisted
+conversation window) at every terminal exit and passes it alongside
+`status`/`stop_reason`; this module only ever forwards it onto the row.
+The reaper's own terminal write (`_ReaperEventSink.emit`) computes and
+writes the same fact independently, off `run.state` directly, for the
+`worker_lost`/`confirmation_expired` paths this module never sees.
 """
 
 from __future__ import annotations
@@ -106,6 +123,7 @@ class ConversationStore(Protocol):
         *,
         status: WorkflowRunStatus | None = None,
         stop_reason: StopReason | None = None,
+        required_steps_completed: bool | None = None,
     ) -> None:
         """Persist `state` as this run's current `RunState`.
 
@@ -115,6 +133,13 @@ class ConversationStore(Protocol):
         `status`, an implementation is expected to also stamp
         `completed_at` (terminal statuses) or `waiting_approval_since`
         (`WAITING_APPROVAL`) — see `JsonbConversationStore.persist` below.
+
+        `required_steps_completed` (issue #1220) is a third, independent
+        outcome fact — never `stop_reason` and never derived from it — set
+        alongside `status`/`stop_reason` at the same call sites, `None`
+        by the same no-op default. `WorkflowRunner` computes it off the
+        active `Playbook`'s `TerminationPolicy.required_steps`; this
+        protocol only ever forwards the caller-computed value.
         """
         ...
 
@@ -149,6 +174,7 @@ class JsonbConversationStore:
         *,
         status: WorkflowRunStatus | None = None,
         stop_reason: StopReason | None = None,
+        required_steps_completed: bool | None = None,
     ) -> None:
         run = await self._session.get(WorkflowRun, workflow_run_id)
         if run is None:
@@ -157,6 +183,7 @@ class JsonbConversationStore:
         if status is not None:
             run.status = status.value
             run.stop_reason = stop_reason.value if stop_reason is not None else None
+            run.required_steps_completed = required_steps_completed
             now = datetime.now(UTC)
             if status in _TERMINAL_STATUSES:
                 run.completed_at = now

@@ -69,12 +69,17 @@ class _InMemoryConversationStore:
     double is exercised by real `WorkflowRunner.run()`/`resume()` calls,
     which pass them at every terminal exit, so a signature that only takes
     `(workflow_run_id, state)` would raise `TypeError` the first time this
-    module's own tests reach a terminal `stop_reason`."""
+    module's own tests reach a terminal `stop_reason`.
+
+    `required_steps_completed` (issue #1220) is accepted and recorded the
+    same way, for the same reason: `WorkflowRunner` now passes it at every
+    one of those same terminal exits."""
 
     def __init__(self) -> None:
         self._store: dict[uuid.UUID, RunState] = {}
         self._status: dict[uuid.UUID, WorkflowRunStatus] = {}
         self._stop_reason: dict[uuid.UUID, StopReason] = {}
+        self._required_steps_completed: dict[uuid.UUID, bool | None] = {}
 
     def seed(self, workflow_run_id: uuid.UUID, state: RunState | None = None) -> None:
         self._store[workflow_run_id] = state if state is not None else RunState()
@@ -89,11 +94,16 @@ class _InMemoryConversationStore:
         *,
         status: WorkflowRunStatus | None = None,
         stop_reason: StopReason | None = None,
+        required_steps_completed: bool | None = None,
     ) -> None:
         self._store[workflow_run_id] = state
         if status is not None:
             self._status[workflow_run_id] = status
             self._stop_reason[workflow_run_id] = stop_reason
+            self._required_steps_completed[workflow_run_id] = required_steps_completed
+
+    def required_steps_completed_for(self, workflow_run_id: uuid.UUID) -> bool | None:
+        return self._required_steps_completed[workflow_run_id]
 
 
 class _SpyToolExecutor:
@@ -1153,3 +1163,262 @@ class TestRefusalsAreHonestOnTheWireAndInTheConversation:
             first_seen.setdefault(payload_call_id, event.event_type)
         assert set(first_seen) == {"c1", "c2", "c3"}
         assert set(first_seen.values()) == {"tool.started"}
+
+
+# --- AC: `required_steps_completed` -- the "did the job" outcome fact
+# (issue #1220, ADR-073 decision 2) -----------------------------------------
+
+
+class TestRequiredStepsCompletedPersistence:
+    """`OPTIMIZE_PRODUCT_TERMINATION_POLICY.required_steps` is
+    `("update_product_listing", "update_product_price")` — `_minimal_playbook`
+    always carries the real termination policy, so every scenario below is
+    scored against those two tool names regardless of which steps its own
+    playbook lists.
+
+    Critical regression guard (`test_zero_required_writes_still_terminates_
+    completed_final_response`): `stop_reason`/`status` must never change
+    because of this fact. A run that writes nothing still ends
+    `final_response`/`completed` — `required_steps_completed=False` is
+    recorded *alongside* that, never instead of it.
+    """
+
+    async def test_completing_every_required_step_records_true(self):
+        """AC1. Seeds a conversation window where `update_product_listing`
+        already completed successfully, then resumes an approved
+        `update_product_price` pending confirmation -- the second and last
+        required step -- straight through to `final_response`."""
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(
+            run_id,
+            RunState(
+                conversation_window=[
+                    {
+                        "role": "assistant",
+                        "tool_call": {
+                            "call_id": "c0",
+                            "tool_name": "update_product_listing",
+                            "arguments": {"title": "New Title"},
+                        },
+                    },
+                    {
+                        "role": "tool",
+                        "tool_call_id": "c0",
+                        "tool_name": "update_product_listing",
+                        "content": {
+                            "title": "New Title",
+                            "description": None,
+                            "image_attached": False,
+                        },
+                    },
+                ],
+                pending_confirmation={
+                    "call_id": "c1",
+                    "tool_name": "update_product_price",
+                    "arguments": {"skus": [{"sku_ref": "S1", "amount": "1000"}]},
+                },
+            ),
+        )
+        playbook = _minimal_playbook(
+            (
+                _step("update_product_listing", policy=ToolPolicy.CONFIRM),
+                _step("update_product_price", policy=ToolPolicy.CONFIRM),
+            )
+        )
+        runner = _runner(
+            script=[_turn(FinalResponse(content="Both changes are live."))],
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            playbook=playbook,
+            registry=_full_registry(),
+        )
+
+        result = await runner.resume(run_id, approved=True)
+
+        assert result.stop_reason == StopReason.FINAL_RESPONSE
+        assert result.status == WorkflowRunStatus.COMPLETED
+        assert store.required_steps_completed_for(run_id) is True
+
+    async def test_completing_some_required_steps_records_false(self):
+        """AC2. Only `update_product_listing` ever completed;
+        `update_product_price` is never even proposed."""
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(
+            run_id,
+            RunState(
+                conversation_window=[
+                    {
+                        "role": "assistant",
+                        "tool_call": {
+                            "call_id": "c0",
+                            "tool_name": "update_product_listing",
+                            "arguments": {"title": "New Title"},
+                        },
+                    },
+                    {
+                        "role": "tool",
+                        "tool_call_id": "c0",
+                        "tool_name": "update_product_listing",
+                        "content": {
+                            "title": "New Title",
+                            "description": None,
+                            "image_attached": False,
+                        },
+                    },
+                ]
+            ),
+        )
+        playbook = _minimal_playbook(
+            (
+                _step("update_product_listing", policy=ToolPolicy.CONFIRM),
+                _step("update_product_price", policy=ToolPolicy.CONFIRM),
+            )
+        )
+        runner = _runner(
+            script=[_turn(FinalResponse(content="Only the listing changed."))],
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            playbook=playbook,
+            registry=_full_registry(),
+        )
+
+        result = await runner.run(run_id, product_ref="prod-1")
+
+        assert result.stop_reason == StopReason.FINAL_RESPONSE
+        assert result.status == WorkflowRunStatus.COMPLETED
+        assert store.required_steps_completed_for(run_id) is False
+
+    async def test_completing_no_required_steps_records_false(self):
+        """AC3. A READ-only run (`get_product_information`) never touches
+        either required WRITE step."""
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(run_id)
+        playbook = _minimal_playbook((_step("get_product_information"),))
+        runner = _runner(
+            script=[
+                _turn(
+                    ToolCallBlock(call_id="c1", tool_name="get_product_information", arguments={})
+                ),
+                _turn(FinalResponse(content="Here's what the listing looks like today.")),
+            ],
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            playbook=playbook,
+            registry=_full_registry(),
+        )
+
+        result = await runner.run(run_id, product_ref="prod-1")
+
+        assert result.stop_reason == StopReason.FINAL_RESPONSE
+        assert store.required_steps_completed_for(run_id) is False
+
+    async def test_zero_required_writes_still_terminates_completed_final_response(self):
+        """AC4, the regression guard. No tool call at all -- the model
+        finalizes immediately. `required_steps_completed=False` must be
+        recorded *alongside* an entirely ordinary `final_response`/
+        `completed` termination, never as a reason to invent a different
+        one. If a future change makes this test's `stop_reason`/`status`
+        assertions fail, that change turned an outcome fact into a
+        synthetic termination rule -- exactly what ADR-073 decision 2
+        forbids."""
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(run_id)
+        playbook = _minimal_playbook(
+            (
+                _step("update_product_listing", policy=ToolPolicy.CONFIRM),
+                _step("update_product_price", policy=ToolPolicy.CONFIRM),
+            )
+        )
+        runner = _runner(
+            script=[_turn(FinalResponse(content="Nothing needed changing."))],
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            playbook=playbook,
+            registry=_full_registry(),
+        )
+
+        result = await runner.run(run_id, product_ref="prod-1")
+
+        assert result.stop_reason == StopReason.FINAL_RESPONSE, (
+            "a run with no required writes must still end final_response, not a "
+            "synthetic failure invented because required_steps_completed is False"
+        )
+        assert result.status == WorkflowRunStatus.COMPLETED
+        assert store.required_steps_completed_for(run_id) is False
+
+    async def test_refused_and_malformed_calls_do_not_count_as_completed(self):
+        """AC6. `update_product_price` is proposed twice with malformed
+        params (never reaches `ToolExecutor`) and the run gives up --
+        `tool_error_unrecoverable`. Neither attempt counts as completed."""
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(run_id)
+        spy = _SpyToolExecutor()
+        playbook = _minimal_playbook((_step("update_product_price", policy=ToolPolicy.CONFIRM),))
+
+        runner = _runner(
+            script=[
+                _turn(
+                    ToolCallBlock(
+                        call_id="c1", tool_name="update_product_price", arguments={"skus": "nope"}
+                    )
+                ),
+                _turn(
+                    ToolCallBlock(
+                        call_id="c2",
+                        tool_name="update_product_price",
+                        arguments={"skus": "still-nope"},
+                    )
+                ),
+            ],
+            tool_executor=spy,
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            playbook=playbook,
+            registry=_full_registry(),
+        )
+
+        result = await runner.run(run_id, product_ref="prod-1")
+
+        assert spy.calls == []
+        assert result.stop_reason == StopReason.TOOL_ERROR_UNRECOVERABLE
+        assert store.required_steps_completed_for(run_id) is False
+
+    async def test_an_unregistered_tool_refusal_does_not_count_as_completed(self):
+        """AC6, the allowlist-refusal variant: a tool name that happens to
+        collide with a required step name but is refused before
+        `ToolExecutor` is ever reached must not count."""
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(run_id)
+        spy = _SpyToolExecutor()
+        # A playbook that does NOT list update_product_price -- the
+        # allowlist refusal path -- while the real termination policy
+        # (carried by _minimal_playbook) still requires it.
+        playbook = _minimal_playbook((_step("get_product_information"),))
+
+        runner = _runner(
+            script=[
+                _turn(ToolCallBlock(call_id="c1", tool_name="update_product_price", arguments={})),
+                _turn(FinalResponse(content="Can't touch the price from here.")),
+            ],
+            tool_executor=spy,
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            playbook=playbook,
+            registry=_full_registry(),
+        )
+
+        result = await runner.run(run_id, product_ref="prod-1")
+
+        assert spy.calls == []
+        assert result.stop_reason == StopReason.FINAL_RESPONSE
+        assert store.required_steps_completed_for(run_id) is False

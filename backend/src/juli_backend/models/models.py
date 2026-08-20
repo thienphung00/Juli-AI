@@ -569,6 +569,19 @@ class WorkflowRun(Base):
     cancel_requested: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
+    #: Outcome fact, not a status field (migration 037, issue #1220,
+    #: ADR-073 decision 2): whether every operation named by the active
+    #: `Playbook`'s `TerminationPolicy.required_steps` completed
+    #: successfully during this run -- the "did the job" signal feeding the
+    #: execution-quality metric. Nullable, default NULL ("not yet
+    #: determined") -- distinct from `False` ("determined: not all
+    #: required steps completed"). Never drives `status`/`stop_reason`: a
+    #: `final_response` (or any other terminal stop_reason) with this
+    #: `False` is honest data, not a synthetic failure. Written by
+    #: `WorkflowRunner` (via `ConversationStore.persist`) and the reaper
+    #: (`_ReaperEventSink.emit`) at every terminal exit, alongside
+    #: `status`/`stop_reason` -- never a second, independent write path.
+    required_steps_completed: Mapped[bool | None] = mapped_column(Boolean)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
