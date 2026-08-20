@@ -568,6 +568,19 @@ mid-W4 change.
    too, blocking both PRs. The test is not "am I certain?" but "did this happen?":
    nothing was loaded → empty is true; files were read → name them.
 
+   **Validate the artifact against its schema before reporting done:**
+   ```
+   python agent-runtime/scripts/validate/check_implementation_schema_valid.py --issue <N>
+   python agent-runtime/scripts/validate/check_implementation_artifact.py --issue <N>
+   ```
+   `implementation-artifact.schema.json` sets `additionalProperties: false`, so an
+   invented field name fails the gate even when the content behind it is excellent.
+   #1231 recorded the best evidence of the wave — the `NullPool` lock-release finding —
+   under `redCommand`/`redResult`/`greenCommand`/`greenResult` with `cycle` as a
+   descriptive string, and blocked its own PR. The schema wants `cycle` as an integer
+   plus `failingTestEvidence` / `passingTestEvidence` / `commands[{command, exitCode,
+   outputSummary}]`.
+
    Known trap: `phase_run_correlation` reads the *previous* generation's validation
    artifact (#1143), so `generate_validation_artifact.py` must be run twice before its
    verdict is current.
