@@ -5,22 +5,38 @@ import heroMascot from "@juli/brand/assets/hero-mascot.webp";
 import { DEMO_URL, LOGIN_URL } from "../lib/site";
 import { CtaLink } from "./cta-link";
 
+/** The outcome triplet, rendered one promise per line under the problem copy. */
+const PROMISES = [
+  "Ít việc thủ công hơn.",
+  "Ít chi phí thất thoát hơn.",
+  "Nhiều lợi nhuận hơn.",
+] as const;
+
 export function HeroSection() {
   return (
     <section aria-labelledby="hero-heading" className="lp-hero">
       <div className="lp-hero__copy">
         <p className="lp-hero__badge">TikTok Shop Partner ✓</p>
         <h1 className="lp-hero__heading" id="hero-heading">
-          Shop của bạn đang mất tiền ở đâu?
+          Trợ lý AI giúp bạn tự động hóa vận hành, giảm chi phí và tối ưu lợi
+          nhuận.
         </h1>
         <p className="lp-hero__body">
-          Nhập hàng chậm, đơn hoàn chồng chất, quảng cáo đốt ngân sách vào sai
-          sản phẩm. Những khoản thất thoát này trực tiếp ảnh hưởng vào lợi
-          nhuận. Juli theo dõi 24/7.
+          Juli theo dõi shop 24/7, tự động phát hiện vấn đề, tìm cơ hội tối ưu
+          và đề xuất những việc cần làm để bạn không phải làm mọi thứ thủ công.
         </p>
         <p className="lp-hero__flow">
-          Xem ngay ở Demo: Chặn thất thoát: tồn kho, đơn hoàn, phí ẩn → Tăng
-          doanh thu: quảng cáo, sản phẩm tiềm năng, giá bán.
+          Sản phẩm cần tối ưu. Nhập hàng chậm. Đơn hoàn chồng chất. Quảng cáo
+          đốt ngân sách. Những công việc vận hành lặp lại khiến bạn mất thời
+          gian và những sai sót nhỏ có thể trực tiếp ăn vào lợi nhuận và chi
+          phí.
+        </p>
+        <p className="lp-hero__promise">
+          {PROMISES.map((promise) => (
+            <span className="lp-hero__promise-line" key={promise}>
+              {promise}
+            </span>
+          ))}
         </p>
         <p className="lp-hero__hook">
           Đăng nhập ngay để biết chính xác 3 điều shop bạn cần cải thiện.
