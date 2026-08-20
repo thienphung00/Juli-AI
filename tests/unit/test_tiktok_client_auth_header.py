@@ -77,3 +77,26 @@ class TestTikTokClientAuthTransport:
         _, kwargs = client._session.post.call_args
         assert kwargs["headers"]["x-tts-access-token"] == "tok-abc"
         assert "access_token" not in kwargs["params"]
+
+
+class TestAccessTokenProperty:
+    """Settable so a credential-aware caller (#1233's reactive refresh
+    layer) can swap in a freshly refreshed token on an existing client
+    instance -- see ``integrations/tiktok/reactive_refresh.py``."""
+
+    def test_getter_reflects_constructor_value(self, client):
+        assert client.access_token == "tok-abc"
+
+    def test_setter_updates_subsequent_requests(self, client):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"code": 0, "data": {}}
+        mock_resp.raise_for_status = MagicMock()
+        client._session.post.return_value = mock_resp
+
+        client.access_token = "tok-refreshed"
+        assert client.access_token == "tok-refreshed"
+
+        client.post(ORDER_SEARCH_PATH, body={"order_status": "UNPAID"})
+
+        _, kwargs = client._session.post.call_args
+        assert kwargs["headers"]["x-tts-access-token"] == "tok-refreshed"

@@ -94,6 +94,22 @@ class TikTokClient:
         self._timeout = timeout
         self._session = requests.Session()
 
+    @property
+    def access_token(self) -> str:
+        """Current bearer token used to authorize requests.
+
+        Settable so a credential-aware caller one level up (e.g.
+        ``integrations/tiktok/reactive_refresh.py``) can swap in a freshly
+        refreshed token on an existing client instance after a ``105002``/
+        ``401`` auth-expiry signal, without reconstructing the client (and
+        therefore its underlying ``requests.Session``) mid-retry.
+        """
+        return self._access_token
+
+    @access_token.setter
+    def access_token(self, value: str) -> None:
+        self._access_token = value
+
     @overload
     def get(
         self,
