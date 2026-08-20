@@ -1,7 +1,7 @@
 import json
 import re
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Generic, TypeVar
 
@@ -241,6 +241,93 @@ class TikTokCredentialRepo:
         await self._session.flush()
         _hydrate_decrypted_tokens(credential)
         return credential
+
+    async def mark_refreshed(
+        self,
+        credential_id: uuid.UUID,
+        access_token: str,
+        refresh_token: str,
+        token_expires_at: datetime,
+        refresh_token_expires_at: datetime | None = None,
+    ) -> TikTokCredential:
+        """Persist a successful rotation (ADR-081 decisions 4/7).
+
+        Sets the token triad exactly as ``update_tokens`` does, then records
+        the health signal: ``last_refreshed_at = now()``, ``refresh_count``
+        incremented by exactly 1, and ``last_refresh_error`` cleared back to
+        ``NULL`` -- a credential that was previously flagged and has now
+        refreshed successfully carries no stale error message.
+        ``refresh_token_expires_at`` is written only when the caller has one
+        to give (the vendor rarely sends ``refresh_token_expire_in`` today);
+        omitting it leaves any previously-captured value untouched rather
+        than clobbering it with ``NULL``.
+        """
+        credential = await self._session.get(TikTokCredential, credential_id)
+        if credential is None:
+            raise NotFound(f"Credential {credential_id} not found")
+        credential.access_token = encrypt_token(access_token)
+        credential.refresh_token = encrypt_token(refresh_token)
+        credential.token_expires_at = token_expires_at
+        credential.last_refreshed_at = datetime.now(UTC).replace(tzinfo=None)
+        credential.refresh_count = credential.refresh_count + 1
+        credential.last_refresh_error = None
+        if refresh_token_expires_at is not None:
+            credential.refresh_token_expires_at = refresh_token_expires_at
+        await self._session.flush()
+        _hydrate_decrypted_tokens(credential)
+        return credential
+
+    async def mark_needs_reauth(
+        self,
+        credential_id: uuid.UUID,
+        error: str,
+    ) -> TikTokCredential:
+        """Flip a credential terminal (ADR-081 decisions 1/7, gap 5).
+
+        Sets ``status = 'needs_reauth'`` and records *why* in
+        ``last_refresh_error`` for operator diagnosis without SSH. Does not
+        touch ``access_token``/``refresh_token``/``token_expires_at`` --
+        the last-known-good tokens stay exactly as they were; only the
+        beat/lazy/reactive refresh layers stop trusting them.
+        """
+        credential = await self._session.get(TikTokCredential, credential_id)
+        if credential is None:
+            raise NotFound(f"Credential {credential_id} not found")
+        credential.status = "needs_reauth"
+        credential.last_refresh_error = error
+        await self._session.flush()
+        _hydrate_decrypted_tokens(credential)
+        return credential
+
+    async def list_expiring_within(
+        self,
+        window: timedelta,
+        *,
+        now: datetime | None = None,
+    ) -> list[TikTokCredential]:
+        """Credentials whose ``token_expires_at`` falls inside *window* of
+        *now* (the beat's scan predicate, ADR-081 decisions 2/7/9).
+
+        Excludes ``status = 'needs_reauth'`` rows even when their
+        ``token_expires_at`` is inside the window -- a terminal credential
+        is not re-attempted by the warm-keeping beat; only the reactive
+        layer (a later slice) revives it.
+        """
+        reference = now if now is not None else datetime.now(UTC).replace(tzinfo=None)
+        cutoff = reference + window
+        stmt = (
+            select(TikTokCredential)
+            .where(
+                TikTokCredential.token_expires_at <= cutoff,
+                TikTokCredential.status != "needs_reauth",
+            )
+            .order_by(TikTokCredential.token_expires_at.asc())
+        )
+        result = await self._session.execute(stmt)
+        credentials = list(result.scalars().all())
+        for credential in credentials:
+            _hydrate_decrypted_tokens(credential)
+        return credentials
 
 
 _ENDPOINT_STATE_KEYS: dict[str, str] = {
