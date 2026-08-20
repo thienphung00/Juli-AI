@@ -1,0 +1,74 @@
+{
+  "planId": "credential-beat-queue-lazy-2026-08-20",
+  "affectedPublicSurfaces": [
+    "No user-facing route, asset or frontend changes. The public-release classification comes from the deployment surface: a new `beat_schedule` entry and a new `credentials` Celery queue in `workers/celery_app.py`, plus the matching `-Q` flag in `infra/systemd/juli-celery-worker.service`. Also deletes three direct `refresh_merchant_tokens` call sites (`orchestrate.py` x2, `services/cdp_speed/targeted_fetch_executor.py`), replacing them with the now-lazy `resolve_production_read_credential`. Data-plane behaviour of the poll cycle is unchanged; only the refresh call is replaced by a resolve call."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Local tests on feature/issue-1232-credential-beat, cut from feature/agent-w4-wave. No VPS contact and no deployment in this slice; no vendor calls beyond test doubles.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "fleet-refresh-beat-and-queue-routing",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1232",
+        "assertions": [
+          "the beat task, given credentials at 1h/20h/48h to expiry against a 24h window, refreshes the 1h and 20h rows and skips the 48h row",
+          "a needs_reauth row anywhere in the scanned set does not abort the cycle — both active rows due for refresh are still refreshed and the cycle completes",
+          "the per-cycle summary log reports correct scanned/refreshed/skipped-locked/failed counts against a fixture carrying one of each RefreshOutcome variant",
+          "resolve_production_read_credential calls refresh_credential for a credential inside the 24h window and does NOT call it for one outside, so a hot-path resolve issues no vendor call",
+          "refresh_merchant_tokens has zero call sites outside core/security/tiktok_oauth.py and this slice's beat/lazy code, asserted statically rather than by inspection",
+          "task_routes carries the credentials queue entry AND infra/systemd/juli-celery-worker.service's -Q flag includes it, in this same commit",
+          "run_fujiwa_poll_cycle and run_fujiwa_material_resource_fetch keep their existing sync-step order; only the refresh call becomes a resolve call"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route or asset changes — Celery config, a beat task, a resolver, three call-site deletions, and one systemd unit."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration. #1230 already landed the five columns and repo methods this beat scans through; this slice only reads them. ALLOW_DESTRUCTIVE_MIGRATION_TESTS is never set."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without this slice nothing refreshes TikTok tokens on a schedule at all — run_fujiwa_poll_cycle is absent from beat_schedule and is reachable only via the manual action-card refresh hook. That is the pre-existing state, so no new exposure; the operator's manual refresh remains the only mechanism.",
+    "postCutoverFailureBehavior": "The dangerous failure is a HALF deploy, not a bad one: if the task_routes entry ships without the matching -Q flag on the worker unit, refresh tasks enqueue into a queue nobody consumes and sit at status=queued forever, silently — exactly how #1205 broke agent_runs on the VPS on 2026-08-19, where the unit file's own comment now records it. Both edits are therefore required in this same PR. Rollback is reverting the commit, which removes the schedule entry and the queue together; credentials then revert to manual refresh, which is today's behaviour and is safe.",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": false,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -q -k 'credential or celery or resolver or orchestrate or beat'",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -q",
+    "python agent-runtime/scripts/ci/check_import_boundaries.py --strict --baseline-file docs/architecture/import-boundary-baseline.json",
+    "ruff check backend tests"
+  ],
+  "doNotInfer": [
+    "This slice schedules and routes the refresh; it does not add the reactive auth-retry path, which is #1233.",
+    "Deleting the refresh call site from orchestrate.py does not remove its grandfathered workers -> integrations baseline entry — the file still imports those symbols for unrelated reasons. The requirement is only that NO NEW baseline entry is added.",
+    "The beat creates the fleet's first refresh schedule. It is not tightening an existing one: run_fujiwa_poll_cycle has never appeared in beat_schedule.",
+    "No deployment happens in this slice. Landing the systemd change in the repo is not the same as the VPS unit being reloaded — that is a separate operator step."
+  ]
+}
