@@ -100,13 +100,21 @@ class _InMemoryConversationStore:
     termination-policy suite).
 
     `required_steps_completed` (issue #1220) is accepted and recorded the
-    same way, for the same reason."""
+    same way, for the same reason.
+
+    `running_seconds_elapsed` (issue #1216) is accepted the same way too --
+    unlike the three fields above, `WorkflowRunner` now passes it on
+    *every* persist call, terminal or not, so a signature omitting it would
+    raise `TypeError` on this double's very first `persist` call in any
+    scenario in this module, not just one reaching a terminal
+    `stop_reason`."""
 
     def __init__(self) -> None:
         self._store: dict[uuid.UUID, RunState] = {}
         self._status: dict[uuid.UUID, WorkflowRunStatus] = {}
         self._stop_reason: dict[uuid.UUID, StopReason] = {}
         self._required_steps_completed: dict[uuid.UUID, bool | None] = {}
+        self._running_seconds_elapsed: dict[uuid.UUID, int | None] = {}
 
     def seed(self, workflow_run_id: uuid.UUID, state: RunState | None = None) -> None:
         self._store[workflow_run_id] = state if state is not None else RunState()
@@ -122,8 +130,11 @@ class _InMemoryConversationStore:
         status: WorkflowRunStatus | None = None,
         stop_reason: StopReason | None = None,
         required_steps_completed: bool | None = None,
+        running_seconds_elapsed: int | None = None,
     ) -> None:
         self._store[workflow_run_id] = state
+        if running_seconds_elapsed is not None:
+            self._running_seconds_elapsed[workflow_run_id] = running_seconds_elapsed
         if status is not None:
             self._status[workflow_run_id] = status
             self._stop_reason[workflow_run_id] = stop_reason
@@ -134,6 +145,9 @@ class _InMemoryConversationStore:
 
     def required_steps_completed_for(self, workflow_run_id: uuid.UUID) -> bool | None:
         return self._required_steps_completed[workflow_run_id]
+
+    def running_seconds_elapsed_for(self, workflow_run_id: uuid.UUID) -> int | None:
+        return self._running_seconds_elapsed[workflow_run_id]
 
 
 class _SpyToolExecutor:

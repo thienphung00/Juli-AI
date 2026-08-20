@@ -70,6 +70,23 @@ conversation window) at every terminal exit and passes it alongside
 The reaper's own terminal write (`_ReaperEventSink.emit`) computes and
 writes the same fact independently, off `run.state` directly, for the
 `worker_lost`/`confirmation_expired` paths this module never sees.
+
+**`running_seconds_elapsed` column mirror (issue #1216).** The
+`workflow_runs.running_seconds_elapsed` `Integer` column (#1117) existed
+before this module did, but nothing on the live path ever wrote it --
+`WorkflowRunner` only ever accumulated the authoritative float on
+`RunState.running_seconds_elapsed`, never mirrored it onto the row.
+`persist` grows a fourth keyword-only parameter, `running_seconds_elapsed`
+(an `int`, already rounded -- the caller is expected to have called
+`termination.running_seconds_column_value(state.running_seconds_elapsed)`
+first; this module never rounds anything itself), defaulting to `None`.
+Unlike `status`/`stop_reason`/`required_steps_completed` -- which are only
+ever non-`None` at a terminal exit -- `WorkflowRunner` passes this one on
+every `persist` call, terminal or not (issue #1216's own framing: "the
+per-iteration persist and every terminal persist"), so the column tracks
+the float at every write, not only at the end of a run. `None` stays a
+true no-op regardless, so any caller that omits it (an older test double,
+a future non-runner caller) leaves the column untouched.
 """
 
 from __future__ import annotations
@@ -124,6 +141,7 @@ class ConversationStore(Protocol):
         status: WorkflowRunStatus | None = None,
         stop_reason: StopReason | None = None,
         required_steps_completed: bool | None = None,
+        running_seconds_elapsed: int | None = None,
     ) -> None:
         """Persist `state` as this run's current `RunState`.
 
@@ -140,6 +158,16 @@ class ConversationStore(Protocol):
         by the same no-op default. `WorkflowRunner` computes it off the
         active `Playbook`'s `TerminationPolicy.required_steps`; this
         protocol only ever forwards the caller-computed value.
+
+        `running_seconds_elapsed` (issue #1216) is a fourth, independent
+        value: the `workflow_runs.running_seconds_elapsed` `Integer`
+        column's mirror of `RunState.running_seconds_elapsed`, already
+        rounded by the caller (`termination.running_seconds_column_value`)
+        — this protocol never rounds anything itself. `None` by the same
+        no-op default, but unlike the three fields above, `WorkflowRunner`
+        passes a value here on *every* `persist` call, not only terminal
+        ones — the column must track the float at every write, not only
+        at a run's end.
         """
         ...
 
@@ -175,11 +203,14 @@ class JsonbConversationStore:
         status: WorkflowRunStatus | None = None,
         stop_reason: StopReason | None = None,
         required_steps_completed: bool | None = None,
+        running_seconds_elapsed: int | None = None,
     ) -> None:
         run = await self._session.get(WorkflowRun, workflow_run_id)
         if run is None:
             raise NotFound(f"WorkflowRun {workflow_run_id} not found")
         run.state = state.to_dict()
+        if running_seconds_elapsed is not None:
+            run.running_seconds_elapsed = running_seconds_elapsed
         if status is not None:
             run.status = status.value
             run.stop_reason = stop_reason.value if stop_reason is not None else None

@@ -67,6 +67,7 @@ from juli_backend.services.agent.runner.conversation_store import JsonbConversat
 from juli_backend.services.agent.runner.core import NoPendingConfirmationError, WorkflowRunner
 from juli_backend.services.agent.runner.state import RunState
 from juli_backend.services.agent.runner.status import StopReason, WorkflowRunStatus
+from juli_backend.services.agent.runner.termination import running_seconds_column_value
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
@@ -355,6 +356,70 @@ class TestPauseResumeRoundTrip:
             assert resumed_state.running_seconds_elapsed < 100.0
 
             assert resumed_state.pending_confirmation is None  # resolved, not carried forward
+
+
+class TestRunningSecondsColumnExcludesThePauseInterval:
+    """Issue #1216, AC: "A run that pauses for approval and resumes records
+    elapsed time that excludes the paused interval -- proven with a
+    controlled clock, not a sleep." `TestPauseResumeRoundTrip` above already
+    proves this at the `RunState` float (`resumed_state.running_seconds_
+    elapsed`); this class proves the same fact at the real
+    `workflow_runs.running_seconds_elapsed` INTEGER column -- the thing an
+    operator or a later slice would actually query, and the thing that
+    stayed `0` on every real run before this issue's fix regardless of how
+    the float behaved.
+
+    Reuses `_pause_runner_a`'s exact scripted scenario (two 2.0s iterations
+    before pausing, `clock_b` starting at `999_999.0` to stand in for "a
+    very long real-world pause") so the numbers here are the same ones
+    `TestPauseResumeRoundTrip` already pins at the float level -- 4.0 pre-
+    pause, 7.0 post-resume -- cross-checked here against the column mirror.
+    """
+
+    async def test_column_reflects_pre_pause_value_then_excludes_the_pause_after_resume(
+        self, engine: AsyncEngine
+    ):
+        run_id, state_at_pause, _event_count_a, weak_runner_a = await _pause_runner_a(engine)
+        gc.collect()
+        assert weak_runner_a() is None
+
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        # --- AC1 + AC3: the column already reflects the pre-pause running
+        # time, non-zero, matching the pure mirror function applied to the
+        # exact float the paused blob carries ---------------------------
+        async with factory() as session_check:
+            paused_row = await session_check.get(WorkflowRun, run_id)
+            assert paused_row is not None
+            assert paused_row.running_seconds_elapsed == running_seconds_column_value(
+                state_at_pause["running_seconds_elapsed"]
+            )
+            assert paused_row.running_seconds_elapsed == 4  # two 2.0s iterations
+
+        # --- resume: a huge simulated real-world pause gap (clock_b starts
+        # at 999_999.0) must contribute nothing to the column ------------
+        async with factory() as session_b:
+            store_b = JsonbConversationStore(session_b)
+            runner_b = WorkflowRunner(
+                llm_service=FakeLLMService(script=[_turn(FinalResponse(content="All done."))]),
+                tool_executor=_SpyToolExecutor(result={"ok": True}),
+                event_sink=InMemoryEventSink(),
+                conversation_store=store_b,
+                registry=_full_registry(),
+                playbook=_pause_resume_playbook(),
+                clock=_SteppingClock(start=999_999.0, step=3.0),
+            )
+            result_b = await runner_b.resume(run_id, approved=True)
+            assert result_b.stop_reason == StopReason.FINAL_RESPONSE
+
+            # --- AC2: the terminal row's column excludes the pause entirely,
+            # read from the same session runner B just wrote through (no
+            # commit needed -- mirrors how `resumed_state` is read in
+            # `TestPauseResumeRoundTrip` above) ----------------------------
+            final_row = await session_b.get(WorkflowRun, run_id)
+            assert final_row is not None
+            assert final_row.running_seconds_elapsed == 7  # 4.0 (A) + 3.0 (B) -- never ~999,000
+            assert final_row.running_seconds_elapsed < 100
 
 
 class TestResumeDeclined:

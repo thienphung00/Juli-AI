@@ -53,9 +53,13 @@ is accumulated once per completed iteration via
 `termination.accumulate_running_seconds`, using this module's own injected
 `clock` to measure the iteration's running-time delta — see
 `termination.py`'s module docstring for the rounding decision governing the
-`workflow_runs.running_seconds_elapsed` integer mirror, which this module
-does not itself write (no direct database access here, same as
-`prompt_version`/`prompt_sha256`/`status`).
+`workflow_runs.running_seconds_elapsed` integer mirror. As of issue #1216
+this module *does* write that mirror (previously it did not — the column
+stayed `0` on every real run regardless of duration): every
+`_conversation_store.persist(...)` call site, per-iteration and terminal
+alike, passes `running_seconds_elapsed=running_seconds_column_value(state
+.running_seconds_elapsed)` alongside whatever else it already passes — see
+that paragraph below.
 
 **Pause/resume for a CONFIRM-policy tool (ADR-073 decisions 1 and 5, issue
 #1123 / AGT-W3A).** Once a `ToolCallBlock` clears the allowlist and
@@ -140,8 +144,8 @@ has no direct database access of its own (only `ConversationStore.load`/
 `persist`), so writing them to the row's actual `prompt_version`/
 `prompt_sha256` columns stays a later slice's job. `status`/`stop_reason`/
 `completed_at` are no longer in that "later slice" bucket as of issue #1178
-(next paragraph) — `running_seconds_elapsed`'s own denormalized integer
-mirror still is.
+(next paragraph), nor is `running_seconds_elapsed`'s own denormalized
+integer mirror, as of issue #1216 (two paragraphs below).
 
 **Terminal `status`/`stop_reason`/`completed_at` persistence (issue #1178).**
 Every `_conversation_store.persist(...)` call this module makes at a
@@ -176,6 +180,30 @@ writes completed — that run still ends `stop_reason=final_response`,
 `status=completed`; `required_steps_completed=False` is recorded
 alongside it as an honest, separate outcome fact (ADR-073 decision 2),
 not a reason to invent a new failure branch here.
+
+**`running_seconds_elapsed` column mirror (issue #1216).** The defect:
+`workflow_runs.running_seconds_elapsed` recorded `0` on every real run
+regardless of how long it actually ran, because nothing on the live path
+ever called `termination.running_seconds_column_value` — the pure
+function existed and was correct, it was simply never wired to a write.
+Unlike `status`/`stop_reason`/`required_steps_completed` (terminal-only),
+*every* `_conversation_store.persist(...)` call site in this module —
+the per-iteration persist at the bottom of `_drive_loop`'s loop body,
+`resume()`'s own persist right after a successfully-dispatched approved
+tool call, and every terminal site alongside the other three — now also
+passes `running_seconds_elapsed=running_seconds_column_value(state
+.running_seconds_elapsed)`, so the column tracks the authoritative float
+at every write, not only at a run's end. The mirror is computed fresh
+from `state.running_seconds_elapsed` at each call, never accumulated
+independently (`termination.py`'s own rounding-decision paragraph), and
+this module still never reads the column back for anything — every
+termination decision (`evaluate_checkpoint`, both call sites above) keeps
+comparing the float directly, exactly as before. The clock excludes a
+`waiting_approval` pause by construction, not by subtraction: nothing in
+this module calls `accumulate_running_seconds` between the pause site
+(`_pause_pending_confirmation`) and `resume()`'s own first clock reading
+inside `_drive_loop`, so a pause of any length contributes nothing to the
+accumulator either before or after this issue's fix.
 """
 
 from __future__ import annotations
@@ -232,6 +260,7 @@ from juli_backend.services.agent.runner.termination import (
     evaluate_iteration_gate,
     extension_grant_narration,
     required_steps_completed,
+    running_seconds_column_value,
 )
 from juli_backend.services.agent.runner.tool_executor import ToolExecutor
 from juli_backend.services.agent.sanitize import (
@@ -495,6 +524,7 @@ class WorkflowRunner:
                 status=status,
                 stop_reason=stop_reason,
                 required_steps_completed=self._required_steps_completed(state),
+                running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
             )
             return RunResult(
                 stop_reason=stop_reason,
@@ -530,6 +560,7 @@ class WorkflowRunner:
                 status=stop.status,
                 stop_reason=stop.stop_reason,
                 required_steps_completed=self._required_steps_completed(state),
+                running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
             )
             return stop
         except ToolExecutionUnrecoverableError:
@@ -542,6 +573,7 @@ class WorkflowRunner:
                 status=stop.status,
                 stop_reason=stop.stop_reason,
                 required_steps_completed=self._required_steps_completed(state),
+                running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
             )
             return stop
         sanitized = guard_inbound_tool_result(raw_result, tool_name=tool_name)
@@ -565,7 +597,11 @@ class WorkflowRunner:
                 "content": dict(sanitized),
             }
         )
-        await self._conversation_store.persist(workflow_run_id, state)
+        await self._conversation_store.persist(
+            workflow_run_id,
+            state,
+            running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+        )
 
         return await self._drive_loop(
             workflow_run_id,
@@ -613,6 +649,9 @@ class WorkflowRunner:
                     status=stop.status,
                     stop_reason=stop.stop_reason,
                     required_steps_completed=self._required_steps_completed(state),
+                    running_seconds_elapsed=running_seconds_column_value(
+                        state.running_seconds_elapsed
+                    ),
                 )
                 return stop
 
@@ -640,6 +679,9 @@ class WorkflowRunner:
                     status=stop.status,
                     stop_reason=stop.stop_reason,
                     required_steps_completed=self._required_steps_completed(state),
+                    running_seconds_elapsed=running_seconds_column_value(
+                        state.running_seconds_elapsed
+                    ),
                 )
                 return stop
             if gate.action is IterationGateAction.EXTEND:
@@ -682,6 +724,9 @@ class WorkflowRunner:
                     status=stop.status,
                     stop_reason=stop.stop_reason,
                     required_steps_completed=self._required_steps_completed(state),
+                    running_seconds_elapsed=running_seconds_column_value(
+                        state.running_seconds_elapsed
+                    ),
                 )
                 return stop
             state.iteration_count += 1
@@ -754,6 +799,7 @@ class WorkflowRunner:
                 required_steps_completed=(
                     self._required_steps_completed(state) if stop is not None else None
                 ),
+                running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
             )
 
             if stop is not None:
