@@ -13,17 +13,17 @@
   },
   "review": {
     "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1234.json",
-    "ownerSignoffPresent": false,
-    "sha256": "4d0a4a3706c52a1d4d55243c4b2c536ed23da69dab60672755da64932ef8cc6a",
+    "ownerSignoffPresent": true,
+    "sha256": "20dd1a1b53fe6829fc498e8454d6a819acd516ac803b44cf3e4771016e9cdff8",
     "signoffRequired": true,
     "status": "PASS_WITH_WARNINGS",
-    "warningsAcknowledged": false
+    "warningsAcknowledged": true
   },
-  "timestamp": "2026-08-20T10:16:49Z",
+  "timestamp": "2026-08-20T12:23:51Z",
   "validation": {
     "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1234.json",
-    "sha256": "cd825c96d52fab86f03ba69090d8251fd2e80e45c8bbee0b3ed8f5198f65ddc2",
-    "status": "FAIL"
+    "sha256": "ca274acab45898100d454b93cac193ff2196af1387c0ba0f8157969b604bae29",
+    "status": "PASS"
   },
   "wave": "wave-agent-w4"
 }
