@@ -25,8 +25,21 @@ from juli_backend.integrations.tiktok.constants import (
     RETURN_SEARCH_PATH,
 )
 
-PRODUCTION_AUTH_ID = "7658073774813611784"
-SANDBOX_AUTH_ID = "7658096633384781588"
+# Re-exported, not redefined (#1246): these two names used to be independent
+# literals in this module, disconnected from merchant.py's env-configured
+# values (#1234) -- a new deployment that set the two env vars per #1234's
+# onboarding docs got correct classification from merchant.py and then a
+# hard ValueError from the factories below, because this module never saw
+# the env config. merchant.py is the single source of truth for both names;
+# this module has no independent copy to keep in sync. merchant.py has zero
+# internal juli_backend imports, so this import carries no circular-import
+# risk.
+from juli_backend.integrations.tiktok.merchant import (
+    PRODUCTION_AUTH_ID as PRODUCTION_AUTH_ID,
+)
+from juli_backend.integrations.tiktok.merchant import (
+    SANDBOX_AUTH_ID as SANDBOX_AUTH_ID,
+)
 
 
 class MerchantCapability(str, Enum):
