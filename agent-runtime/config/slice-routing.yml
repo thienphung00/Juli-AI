@@ -3247,3 +3247,97 @@ OPS-REPO-FIX:
     - docs/product/design/
     - docs/integrations/tiktok_corpora/
     - Sibling issue context caches
+
+# ---------------------------------------------------------------------------
+# W4 — #1228. Three profiles because the wave spans three executor domains;
+# splitting them follows the AGT-W3A / AGT-W3A-DP precedent above, which was
+# registered only after Review caught the mismatch. Registered up front here.
+# ---------------------------------------------------------------------------
+
+# AGT-W4A — #1228 P-CRED refresh lifecycle, integrations domain (#1231-#1234).
+# The guarded refresh door, the beat and queue, reactive auth-retry, and vendor
+# merchant identity. Owns no schema: #1230 is the wave's only migration slice.
+AGT-W4A:
+  executorDomain: integrations
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/080-tiktok-credential-lifecycle.md
+  requiredModules:
+    - backend/src/juli_backend/core/security/tiktok_oauth.py
+    - backend/src/juli_backend/integrations/tiktok/auth.py
+    - backend/src/juli_backend/repositories/repos.py
+  loadWhenNeeded:
+    - docs/product/agent-workflow-execution/PLAN.md
+    - backend/src/juli_backend/workers/celery_app.py
+    - backend/src/juli_backend/services/tiktok/credential_binding.py
+    - docs/integrations/tiktok_api/authentication.md
+  doNotLoad:
+    - apps/
+    - ios/
+    - packages/
+    - backend/src/juli_backend/services/agent/
+    - backend/src/juli_backend/database/migrations/
+    - backend/src/juli_backend/workers/impact_reader/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
+# AGT-W4A-DP — #1228 P-CRED schema slice, issue #1230. Data-platform for the
+# same reason as AGT-W3A-DP: an Alembic migration plus models.py and repository
+# durability. executor-backend is instructed to halt rather than widen into
+# Alembic, so inheriting AGT-W4A's integrations routing would brief the wrong
+# domain skill. Migration number is ASSIGNED (038) — never read from head.
+AGT-W4A-DP:
+  executorDomain: data-platform
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+  requiredModules:
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/repositories/repos.py
+    - backend/src/juli_backend/database/migrations/versions/037_required_steps_completed.py
+  loadWhenNeeded:
+    - tests/integration/test_schema_parity.py
+    - tests/integration/test_migrations.py
+    - infra/scripts/safe-alembic-upgrade.sh
+    - dictionary.md
+  doNotLoad:
+    - apps/
+    - ios/
+    - packages/
+    - backend/src/juli_backend/services/agent/
+    - backend/src/juli_backend/api/routes/
+    - backend/src/juli_backend/workers/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
+# AGT-W4B — #1228 P-IM measurement reconciliation, backend domain
+# (#1215, #1216, #1219). Makes an agent run leave a trace the measurement layer
+# can actually read. No migration in this lane: payload_json and
+# running_seconds_elapsed both already exist on their tables.
+AGT-W4B:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/073-agent-execution-loop-and-write-path-hardening.md
+  requiredModules:
+    - backend/src/juli_backend/services/agent/runner/ledger.py
+    - backend/src/juli_backend/services/agent/runner/core.py
+    - backend/src/juli_backend/services/agent/runner/termination.py
+    - backend/src/juli_backend/workers/impact_reader/queries.py
+    - backend/src/juli_backend/workers/impact_reader/classify.py
+  loadWhenNeeded:
+    - docs/product/agent-workflow-execution/PLAN.md
+    - backend/src/juli_backend/services/agent/runner/tool_executor.py
+    - backend/src/juli_backend/workers/impact_reader/pipeline.py
+    - tests/unit/test_agent_runner_core.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - packages/
+    - backend/src/juli_backend/database/migrations/
+    - backend/src/juli_backend/api/routes/
+    - backend/src/juli_backend/core/security/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
