@@ -28,7 +28,7 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 **W6** — design grilled 2026-08-12 — [ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md) drafted; implementation pending | ⬜ |
 | 11b | P-IM — Incremental impact measurement (NEW) | ✅ implemented, gate reopened in **W4** — [ADR-077](../../adr/077-incremental-impact-measurement.md); re-run wave merged to `main` (#1113, 2026-08-14), #1040–#1045 + #1068 all with status records, after the [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B refusal of the first attempt | 🟥 2026-08-20 — code gates green, but the one real end-to-end reading is **unreachable**, not merely un-run: the reader selects `tool_name IN {"listing.optimize_product"}` and the agent ledger writes `update_product_price` / `update_product_listing`, and the ledger records no `payload_json`, which classification and product binding both require. See [Wave 3 live verification](#wave-3-live-verification-2026-08-19--2026-08-20) |
 | 11c | P-CRED — TikTok credential lifecycle / refresh-token rotation (NEW) | 🟨 **W4 — design settled; credentials lapse 2026-08-27 04:30 UTC** (manually refreshed 2026-08-20; each manual run buys 7 days from the moment it runs, not 7 added to what is left).** Grilled 2026-08-17 ([ADR-080](../../adr/080-tiktok-credential-lifecycle.md)), re-grilled 2026-08-18 against the code and **amended by [ADR-081](../../adr/081-refresh-token-rotation.md)**: three-layer refresh (beat + lazy + reactive), one guarded door with a session-level advisory lock, vendor-authoritative expiry, dedicated `credentials` queue, five additive columns; `CREDENTIALS_DATABASE_URL` descoped. Four slices — see [Wave 4](#wave-4--p-cred-refresh-token-rotation-2026-08-18); gate = full matrix + one real sandbox-token refresh | ⬜ |
-| 11d | P-PROD — Production-write unlock (NEW) | ⬜ **W7** — RLS across 13 tables, manual red-team pass, the ADR-068 capability flip, and the ADR-050 C2 data dependencies. Gates P-IM's real reading and P10's business-impact metric | ⬜ |
+| 11d | P-PROD — Leave the test harness (NEW) | ⬜ **W7** — RLS across 13 tables, manual red-team pass, the deployment-mode switch, and the ADR-050 C2 data dependencies. Gates P-IM's real reading and P10's business-impact metric | ⬜ |
 | 12 | P10 — Observability baseline | ⬜ **W8** | ⬜ |
 | 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ **W9** (with P7) | ⬜ |
 | 14 | P13 — Edge cases + rollout to remaining 10 workflows | ⬜ **W10** | ⬜ |
@@ -353,7 +353,7 @@ named for the phases they implement.
 | **W4 — P-CRED + P-IM** | 11c, 11b gate | P-CRED slices W4-1…W4-5 (ADR-081) · measurement reconciliation #1215, #1216, #1219, #1220 | — |
 | **W5 — P9+P14** | 10 | Approval gate #1214, #1221, #1222, #1224, #1225 · security prerequisites #1217, #1218, #1223 (ADR-075) · W3 leftovers #1139, #1140, #1142 | — |
 | **W6 — P-UI** | 11 | ADR-076 + PUI-DESIGN.md in full — dual entry, recorded-replay + live flag, staged run view, consent-grade option picker, run ledger, `useRunStream`, localStorage mock deleted · #1077 (seller-copy TS half) | **W7** |
-| **W7 — P-PROD** | 11d (NEW) | Production-write unlock: RLS across the 13 tables · manual red-team pass · the ADR-068 capability flip · the ADR-050 C2 data dependencies (per-shop analytics topup, OAuth→signals cold start, 7D bootstrap) | **W6** |
+| **W7 — P-PROD** | 11d (NEW) | Leave the test harness: RLS across the 13 tables · manual red-team pass · switch the deployment mode from testing to deployed · the ADR-050 C2 data dependencies (per-shop analytics topup, OAuth→signals cold start, 7D bootstrap) | **W6** |
 | **W8 — P10** | 12 | Logging baseline re-verification, per-run rollup, the five-link outcome chain, the four unconflated metrics · closes #1226's second half | — |
 | **W9 — P15 + P7** | 13, 9 | Hardening pass over the whole Optimize Product path; extract the per-workflow config template (prompt + allowlist + **output schema**) · P7 structured output contract | — |
 | **W10 — P13** | 14 | Edge-case matrix; register the 4 unregistered tool handlers; onboard the remaining ten workflows via the template | — |
@@ -392,6 +392,31 @@ saves a wave of wall-clock on the two heaviest remaining items.
   earlier produces a dashboard with one populated column.
 - **P15 and P13 last**, by their own definitions — one hardens the finished path, the other
   generalises it.
+
+### What `production_read` / `sandbox_write` actually are (owner, 2026-08-20)
+
+`MerchantCapability` is **not a model of vendor reality**. TikTok grants read *and* write to any
+merchant that authorizes the app — which is why `GET /authorization/{v}/shops` has no capability
+field, and why `credential_binding.py` already refuses to guess one ("this module will not guess
+which one a capability is bound to").
+
+The split is Juli's own **test harness**: production reads prove the read path against real data,
+sandbox writes prove the write path without mutating a real merchant's catalogue. In the deployed
+system, any authorized merchant has both.
+
+Three consequences the plan now carries:
+
+- **W7 is not a capability unlock, it is leaving the harness.** ADR-068 decision 3 already frames
+  it as "a guard-configuration change, not an architecture change". The preconditions are
+  unchanged — functional RLS and a manual red-team pass — but the thing being switched is a
+  deployment mode, not a vendor grant.
+- **The per-merchant capability table is scaffolding and should not survive the switch.** Moving
+  `_KNOWN_MERCHANTS` into configuration (W4-A/P-CRED-5, #1234) is necessary but not sufficient:
+  deployed mode performs no per-merchant capability lookup at all. The mode must fail closed —
+  unset, unrecognized, or testing-mode-with-no-map all refuse, never fall through to read+write.
+- **The impact-reading blocker is the mode, not the vendor.** Once deployed mode is on, a run's
+  writes land on the authorizing shop and a DiD reading follows from real analytics. The sandbox
+  has no analytics series, which is why the reading cannot be obtained before W7.
 
 ### Where P7 lands, and why not W10
 
