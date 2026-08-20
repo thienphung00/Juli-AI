@@ -776,6 +776,19 @@ class WorkflowRunner:
                     f"Parameters for tool {block.tool_name!r} failed validation: "
                     f"{exc.errors()!r}. Correct the parameters and try again."
                 ),
+                # The one refusal that a *different next call* genuinely
+                # fixes, so the only one tagged retryable. Observed on the
+                # live write-path smoke: the model proposed
+                # `update_product_price` with `{}`, got this refusal back
+                # carrying `retryable: false` alongside prose reading
+                # "Correct the parameters and try again", and finalized
+                # without ever retrying -- it believed the flag, not the
+                # sentence. The run recorded `final_response` having written
+                # nothing. The two allowlist refusals below stay
+                # non-retryable: re-proposing a tool that is not registered,
+                # or not in this playbook, cannot succeed however it is
+                # phrased.
+                retryable=True,
             )
             return _ToolCallOutcome.MALFORMED
 
@@ -836,6 +849,7 @@ class WorkflowRunner:
         block: ToolCallBlock,
         *,
         message: str,
+        retryable: bool = False,
     ) -> None:
         """Record a refused `ToolCallBlock` — never dispatched to
         `ToolExecutor` — as one assistant proposal plus one error tool
@@ -843,13 +857,33 @@ class WorkflowRunner:
         shape `guard_inbound_tool_result` uses for a sanitizer hit, so the
         conversation has one error shape to reason about regardless of which
         seam produced it.
+
+        `retryable` defaults to `False` (the safe direction: never invite a
+        retry that cannot succeed) and is raised only by the malformed-params
+        caller — see that call site for what the live smoke observed.
+
+        **Both events, not just the completion.** A refusal emits
+        `tool.started` before `tool.completed`, even though nothing is
+        dispatched. The stream's consumers pair the two by `tool_call_id` —
+        a UI opens a running-tool card on `tool.started` and closes it on
+        `tool.completed` — so a lone completion is a close with no open. The
+        refusal is still fully distinguishable on the stream by the
+        completion's own `ok: false` and `summary`, which is where a
+        consumer should read the outcome from; `tool.started` says only that
+        the model proposed this call, which is true of a refusal too.
         """
         state.conversation_window.append(self._tool_call_message(block))
+        await self._emit(
+            workflow_run_id,
+            state,
+            ToolStartedEvent,
+            ToolStartedPayload(tool_call_id=block.call_id, tool_name=block.tool_name),
+        )
         envelope = to_error_envelope(
             TranslatedError(
                 category=ExecutionErrorCategory.VALIDATION,
                 message=message,
-                retryable=False,
+                retryable=retryable,
             )
         )
         state.conversation_window.append(

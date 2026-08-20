@@ -40,10 +40,13 @@ drive the Responses API:
   this adapter's `Message` shape (issue #1177: the adapter previously read
   only ``"call_id"``, so every runner-driven round-trip reached OpenAI with
   an empty ``call_id``).
-- A tool definition -> ``{"name": str, "description": str, "parameters":
-  dict}``, matching a Pydantic ``model_json_schema()`` render (ADR-069
-  decision 3, W1-A's registry shape) translated into a Responses API
-  ``{"type": "function", ...}`` tool entry.
+- A tool definition -> ``{"name": str, "description": str, "input_schema":
+  dict}`` (the `ToolDefinition` TypedDict in ``service.py``), carrying a
+  Pydantic ``model_json_schema()`` render (ADR-069 decision 3, W1-A's
+  registry shape), translated into a Responses API ``{"type": "function",
+  ...}`` entry whose ``parameters`` is that schema. This module documented
+  the key as ``parameters`` while the only producer emitted
+  ``input_schema`` — see ``_translate_tool``.
 
 Reconstructing a prior turn's own tool-call proposal as an ``input`` item is
 out of scope here -- that composition belongs to the loop/P-CS module this
@@ -227,11 +230,33 @@ def _translate_message(message: Message) -> dict[str, Any]:
 
 
 def _translate_tool(tool: ToolDefinition) -> dict[str, Any]:
+    """One `ToolDefinition` -> one Responses API function-tool entry.
+
+    Reads `input_schema` (the domain key `ToolDefinition` declares) and
+    emits `parameters` (the wire key) — the rename is the translation. It
+    used to read `parameters` from the definition itself, which the sole
+    producer has never set, and substitute an empty schema when absent: see
+    `ToolDefinition`'s docstring for what that cost live.
+
+    A missing schema now raises rather than defaulting. An empty parameter
+    schema is a lie the model cannot detect — it declares a tool takes no
+    arguments — and it is indistinguishable downstream from a genuinely
+    argument-less tool. Pydantic's `model_json_schema()` always returns a
+    populated object (`{"type": "object", "properties": {...}, ...}`) even
+    for a model with no fields, so a real `ToolSpec` render can never
+    trigger this.
+    """
+    input_schema = tool.get("input_schema")
+    if not input_schema:
+        raise ValueError(
+            f"tool definition {tool.get('name', '')!r} carries no 'input_schema'; refusing "
+            "to declare it to the model as taking no arguments"
+        )
     return {
         "type": "function",
         "name": tool.get("name", ""),
         "description": tool.get("description", ""),
-        "parameters": tool.get("parameters") or {"type": "object", "properties": {}},
+        "parameters": input_schema,
     }
 
 

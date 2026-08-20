@@ -237,7 +237,11 @@ class TestResponseTranslatedToJuliBlocks:
                 {
                     "name": "get_inventory",
                     "description": "Look up current stock for a SKU.",
-                    "parameters": {
+                    # The key the runner actually produces (`ToolDefinition`).
+                    # These tests used the adapter's own former key,
+                    # `parameters`, which is why they stayed green while every
+                    # real tool reached the model with an empty schema.
+                    "input_schema": {
                         "type": "object",
                         "properties": {"sku": {"type": "string"}},
                         "required": ["sku"],
@@ -497,7 +501,11 @@ class TestRequestTranslation:
                 {
                     "name": "get_inventory",
                     "description": "Look up current stock for a SKU.",
-                    "parameters": {
+                    # The key the runner actually produces (`ToolDefinition`).
+                    # These tests used the adapter's own former key,
+                    # `parameters`, which is why they stayed green while every
+                    # real tool reached the model with an empty schema.
+                    "input_schema": {
                         "type": "object",
                         "properties": {"sku": {"type": "string"}},
                         "required": ["sku"],

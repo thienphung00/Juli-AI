@@ -144,6 +144,7 @@ from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 from juli_backend.services.agent import composition as composition_module
 from juli_backend.services.agent import playbooks as playbooks_module
 from juli_backend.services.agent import prompts as prompts_module
+from juli_backend.services.agent import run_context as run_context_module
 from juli_backend.services.agent.events.persisting_sink import PersistingEventSink
 from juli_backend.services.agent.runner import (
     ConcurrencyGuard,
@@ -292,13 +293,44 @@ def _opening_context_message(
         },
         "product_binding": {
             "note": "confirms product binding; no raw vendor identifier",
-            "proposed_price": {"sku_ref": sku_ref, "amount": new_amount, "currency": currency},
+            # A LIST named for what it is, whose element shape is exactly
+            # `ProductSkuPrice` (`product_write.py`) -- the tool's own
+            # `skus` element type. It was a singular `proposed_price`
+            # object, and live the model never made the object -> list
+            # mapping: it called `update_product_price` with `{}` and then
+            # explained, correctly, that it lacked the SKU list the tool
+            # wanted. This smoke removes `get_product_information` from the
+            # playbook (see `_write_only_playbook`), so the opening context
+            # is the model's ONLY source for that data -- when it is shaped
+            # unlike the tool that consumes it, there is no second path to
+            # recover from. Nothing here names the tool or its parameter:
+            # the mapping is still the model's to make.
+            "proposed_prices": [{"sku_ref": sku_ref, "amount": new_amount, "currency": currency}],
         },
     }
 
 
+def _redact_payload(payload: dict) -> dict:
+    """Strip the raw vendor identifiers a payload carries verbatim.
+
+    `workflow.started` puts the run's `product_ref` -- the raw TikTok
+    product id -- straight into its payload, and this fixture is committed.
+    The docstring below has always promised "no raw vendor id", but the only
+    thing asserted was the *SKU* id, so the product id shipped in the clear.
+    Replaced with a stable placeholder rather than dropped, so the fixture
+    still shows P-UI that the field exists and where.
+    """
+    if "product_ref" not in payload:
+        return payload
+    return {**payload, "product_ref": "<redacted-vendor-product-id>"}
+
+
 def _write_fixture(
-    events: list[WorkflowRunEventRow], *, workflow_key: str, vendor_sku_id: str
+    events: list[WorkflowRunEventRow],
+    *,
+    workflow_key: str,
+    vendor_sku_id: str,
+    vendor_product_id: str,
 ) -> None:
     """Sanitize and write the golden event-log fixture -- redacted
     timestamps (relative offsets only), no raw vendor id/credential/basis
@@ -316,7 +348,7 @@ def _write_fixture(
                 "sequenceNumber": event.sequence_number,
                 "eventType": event.event_type,
                 "tOffsetSeconds": round((event.timestamp - base_ts).total_seconds(), 3),
-                "payload": event.payload,
+                "payload": _redact_payload(event.payload),
             }
             for event in events
         ],
@@ -324,6 +356,7 @@ def _write_fixture(
     _FIXTURE_PATH.parent.mkdir(parents=True, exist_ok=True)
     serialized = json.dumps(sanitized, indent=2, ensure_ascii=False, sort_keys=True)
     assert vendor_sku_id not in serialized, "fixture must never carry a raw vendor SKU id"
+    assert vendor_product_id not in serialized, "fixture must never carry a raw vendor product id"
     assert "access_token" not in serialized, "fixture must never carry a credential"
     _FIXTURE_PATH.write_text(serialized + "\n", encoding="utf-8")
 
@@ -406,10 +439,22 @@ async def test_live_write_path_pauses_resumes_and_executes_exactly_once():
                 id=uuid.uuid4(),
                 shop_id=credential.shop_id,
                 product_id=product.id,
+                # Built the way `api/routes/agent_runs.py::create_run` builds
+                # it (#1188), not hand-written: `RunState.from_dict` requires
+                # every `_KNOWN_FIELDS` entry, and a literal here silently
+                # omitted five of them (`iteration_count`,
+                # `extensions_granted`, `next_sequence`,
+                # `pending_confirmation`, `running_seconds_elapsed`), so this
+                # smoke died inside `run()`'s first statement before reaching
+                # the LLM. `test_agent_live_smoke_read_only.py` was corrected
+                # to `initial_run_state` when #1188 landed; this file, its
+                # twin, was not -- the write half kept the pre-#1188 shape.
+                # `basis_snapshots` is layered on top because only this smoke
+                # captures a pre-write basis for `ConcurrencyGuard`; it is a
+                # real `RunState` field, so it round-trips rather than
+                # landing in `unknown_fields`.
                 state={
-                    "conversation_window": [
-                        {"role": "user", "content": json.dumps(opening_message)}
-                    ],
+                    **run_context_module.initial_run_state(opening_message),
                     "basis_snapshots": basis_snapshot,
                 },
                 status="running",
@@ -605,7 +650,12 @@ async def test_live_write_path_pauses_resumes_and_executes_exactly_once():
             )
             events = events_result.scalars().all()
             assert events, "a paused-then-resumed run must have persisted events"
-            _write_fixture(events, workflow_key=workflow_key, vendor_sku_id=vendor_sku_id)
+            _write_fixture(
+                events,
+                workflow_key=workflow_key,
+                vendor_sku_id=vendor_sku_id,
+                vendor_product_id=product.tiktok_product_id,
+            )
             assert _FIXTURE_PATH.exists()
             assert _FIXTURE_PATH.stat().st_size > 0
     finally:

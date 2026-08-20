@@ -10,6 +10,14 @@ import pytest
 from tests.integration.test_migrations import _validate_destructive_db_url
 
 
+def _collected(filename: str):
+    """A stand-in for a collected pytest item — the guard reads only its
+    filename to decide whether the destructive module is in this selection."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(path=SimpleNamespace(name=filename))
+
+
 class TestMigrationHostGuard:
     """Validates that destructive migration tests refuse non-local hosts."""
 
@@ -126,11 +134,21 @@ class TestMigrationHostGuard:
     # pytest_configure hook, so removing the guard call from it, moving it into a
     # fixture, or renaming the hook fails the suite.
 
-    def test_guard_runs_ahead_of_downgrade_via_pytest_configure(self, monkeypatch):
-        """AC5: guard fires from pytest_configure, the earliest hook in the session.
+    def test_guard_runs_ahead_of_downgrade_at_collection_time(self, monkeypatch):
+        """AC5: the guard fires before any test in the session executes.
 
-        pytest_configure runs before collection, before any fixture, and therefore
-        before postgres_at_head can create an engine or reach command.downgrade.
+        It hung off `pytest_configure` until 2026-08-20. That hook fires for
+        the *session*, on nothing but `DATABASE_URL` being set, so selecting
+        one non-destructive live smoke in `tests/integration/` tripped it —
+        and the error it raised named `ALLOW_DESTRUCTIVE_MIGRATION_TESTS=1`
+        as the way forward, i.e. told an operator to authorise
+        `alembic downgrade base` on the very database they were only reading
+        from. `pytest_collection_modifyitems` still runs before any test
+        body, before any fixture, and therefore before `postgres_at_head`
+        can create an engine or reach `command.downgrade` — the property
+        AC5 is actually about — while seeing which tests were selected.
+        `tests/unit/test_integration_conftest_guard_scope.py` pins the
+        scoping in both directions.
         """
         monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@prod.example.com:5432/juli_prod")
         from tests.integration import conftest as integration_conftest
@@ -138,18 +156,24 @@ class TestMigrationHostGuard:
         with pytest.raises(
             RuntimeError, match="Destructive migration tests refuse non-local hosts"
         ) as exc_info:
-            integration_conftest.pytest_configure(None)
+            integration_conftest.pytest_collection_modifyitems(
+                session=None, config=None, items=[_collected("test_migrations.py")]
+            )
         assert "prod.example.com" in str(exc_info.value)
 
     def test_existing_local_runs_unaffected_and_stay_green(self, monkeypatch):
-        """AC6: a local DATABASE_URL passes configure untouched."""
+        """AC6: a local DATABASE_URL passes the guard untouched."""
         from tests.integration import conftest as integration_conftest
 
         monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/juli")
-        integration_conftest.pytest_configure(None)
+        integration_conftest.pytest_collection_modifyitems(
+            session=None, config=None, items=[_collected("test_migrations.py")]
+        )
 
         monkeypatch.delenv("DATABASE_URL", raising=False)
-        integration_conftest.pytest_configure(None)
+        integration_conftest.pytest_collection_modifyitems(
+            session=None, config=None, items=[_collected("test_migrations.py")]
+        )
 
     @pytest.mark.parametrize(
         "url",

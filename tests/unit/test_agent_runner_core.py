@@ -1045,3 +1045,111 @@ class TestImportsEventSinkRatherThanRedefiningIt:
                         source_modules.add(node.module)
         assert "EventSink" in imported_names
         assert source_modules == {"juli_backend.services.agent.events"}
+
+
+# --- What the live write-path smoke found (2026-08-20) -------------------------
+
+
+class TestRefusalsAreHonestOnTheWireAndInTheConversation:
+    """Two defects the first real write-path run surfaced, neither visible to
+    any scripted scenario because both are about what the *model* does with a
+    refusal, and a fake LLM does whatever its script says.
+
+    Observed: the model proposed `update_product_price` with `{}`, the params
+    refusal came back tagged `retryable: false` while its own prose said
+    "Correct the parameters and try again", and the model finalized without
+    retrying. The run recorded `completed` / `final_response` having written
+    nothing. Separately, the refusal put a `tool.completed` on the stream with
+    no matching `tool.started`.
+    """
+
+    async def _refusal_run(self, sink, store, run_id):
+        playbook = _minimal_playbook((_step("update_product_price", policy=ToolPolicy.CONFIRM),))
+        runner = _runner(
+            script=[
+                _turn(ToolCallBlock(call_id="c1", tool_name="not_a_real_tool", arguments={})),
+                _turn(
+                    ToolCallBlock(call_id="c2", tool_name="get_product_information", arguments={})
+                ),
+                _turn(
+                    ToolCallBlock(
+                        call_id="c3", tool_name="update_product_price", arguments={"skus": "nope"}
+                    )
+                ),
+                _turn(FinalResponse(content="stop")),
+            ],
+            tool_executor=_SpyToolExecutor(),
+            event_sink=sink,
+            conversation_store=store,
+            playbook=playbook,
+            registry=_full_registry(),
+        )
+        await runner.run(run_id, product_ref="prod-1")
+        return [m for m in store._store[run_id].conversation_window if m.get("role") == "tool"]
+
+    async def test_a_malformed_params_refusal_invites_the_retry_it_asks_for(self):
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(run_id)
+
+        tool_messages = await self._refusal_run(InMemoryEventSink(), store, run_id)
+
+        malformed = [m for m in tool_messages if m["tool_call_id"] == "c3"]
+        assert len(malformed) == 1
+        error = malformed[0]["content"]["error"]
+        assert "try again" in error["message"]
+        assert error["retryable"] is True, (
+            "a params refusal whose message asks the model to correct and retry must "
+            "not also tell it the failure is not retryable -- live, the model believed "
+            "the flag and gave up on the write"
+        )
+
+    async def test_the_two_allowlist_refusals_stay_non_retryable(self):
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(run_id)
+
+        tool_messages = await self._refusal_run(InMemoryEventSink(), store, run_id)
+
+        for call_id in ("c1", "c2"):
+            message = next(m for m in tool_messages if m["tool_call_id"] == call_id)
+            assert message["content"]["error"]["retryable"] is False, (
+                f"refusal {call_id} names a tool this run can never call -- re-proposing "
+                "it cannot succeed however it is phrased"
+            )
+
+    async def test_every_tool_completed_has_a_matching_tool_started(self):
+        """The pairing invariant a stream consumer relies on: it opens a
+        running-tool card on `tool.started` and closes it on
+        `tool.completed`. All three refusal paths used to emit only the
+        close."""
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(run_id)
+        sink = InMemoryEventSink()
+
+        await self._refusal_run(sink, store, run_id)
+
+        started = [e for e in sink.events if e.event_type == "tool.started"]
+        completed = [e for e in sink.events if e.event_type == "tool.completed"]
+        assert len(completed) == 3
+        assert [e.payload.tool_call_id for e in started] == [
+            e.payload.tool_call_id for e in completed
+        ]
+
+    async def test_tool_started_precedes_its_completion_in_sequence_order(self):
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(run_id)
+        sink = InMemoryEventSink()
+
+        await self._refusal_run(sink, store, run_id)
+
+        first_seen: dict[str, str] = {}
+        for event in sorted(sink.events, key=lambda e: e.sequence_number):
+            payload_call_id = getattr(event.payload, "tool_call_id", None)
+            if payload_call_id is None:
+                continue
+            first_seen.setdefault(payload_call_id, event.event_type)
+        assert set(first_seen) == {"c1", "c2", "c3"}
+        assert set(first_seen.values()) == {"tool.started"}
