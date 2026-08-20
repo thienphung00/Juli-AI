@@ -8,7 +8,7 @@ brand set (`Juli-images-unique`, maintained outside the repo; see its
 |------|------------------|------------|
 | `logo-wordmark.png` | `logo-upscale-retouch.png` | background keyed to transparent, trimmed, 649×213 |
 | `bird-glyph.png` | `magnific_minimalist-and-simplistic_hEWqR2fvqL.png` | background keyed to transparent, trimmed, 512px |
-| `hero-mascot.webp` | `ChatGPT Image Jun 28, 2026, 11_28_15 AM.png` | 1600×900, WebP q82 (no baked headline copy) |
+| `hero-mascot.webp` | `ChatGPT Image Jun 28, 2026, 11_28_15 AM.png` | 1600×1161, WebP q82 (no baked headline copy; empty left margin cropped, then rescaled to 1600px wide) |
 
 Rules:
 
