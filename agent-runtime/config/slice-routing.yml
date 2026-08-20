@@ -3341,3 +3341,36 @@ AGT-W4B:
     - backend/src/juli_backend/core/security/
     - docs/integrations/tiktok_corpora/
     - Sibling issue context caches
+
+# AGT-W4A-BE — #1228 P-CRED refresh mechanics, backend domain (#1231).
+# Split from AGT-W4A (integrations) on the issue's own instruction: #1231's Notes
+# say "Domain: backend", and the work lives in core/security/ and services/tiktok/,
+# not integrations/. The distinction is load-bearing here rather than cosmetic --
+# .importlinter.toml forbids the `core -> integrations` edge outright, so an
+# executor briefed with the integrations profile would be pointed at modules this
+# slice is structurally barred from importing. TikTokAuth is passed in as a call
+# argument, never imported inside credential_refresh.py.
+AGT-W4A-BE:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/080-tiktok-credential-lifecycle.md
+  requiredModules:
+    - backend/src/juli_backend/core/security/tiktok_oauth.py
+    - backend/src/juli_backend/services/tiktok/token_expiry.py
+    - backend/src/juli_backend/repositories/repos.py
+  loadWhenNeeded:
+    - docs/product/agent-workflow-execution/PLAN.md
+    - backend/src/juli_backend/database/database.py
+    - .importlinter.toml
+    - docs/architecture/import-boundary-baseline.json
+  doNotLoad:
+    - apps/
+    - ios/
+    - packages/
+    - backend/src/juli_backend/services/agent/
+    - backend/src/juli_backend/workers/impact_reader/
+    - backend/src/juli_backend/database/migrations/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

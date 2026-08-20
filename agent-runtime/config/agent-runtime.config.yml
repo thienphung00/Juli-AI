@@ -397,6 +397,7 @@ workflow_prompt_cache:
         1216: AGT-W4B
         1219: AGT-W4B
         1230: AGT-W4A-DP
+        1231: AGT-W4A-BE
       doNotLoad:
         - apps/
         - ios/
