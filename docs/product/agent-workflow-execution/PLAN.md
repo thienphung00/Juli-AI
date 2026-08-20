@@ -527,7 +527,11 @@ mid-W4 change.
    Revision ids stay ≤32 characters — a longer id fails at upgrade time with
    `StringDataRightTruncation`, not at write time.
 7. **Meta owns worktrees and branch names; redo happens in place.** One branch per issue,
-   `feature|fix/issue-<N>-<slug>`, force-pushed if work must be redone. An executor never
+   **`feature/issue-<N>-<slug>` — the `feature/` prefix is mandatory, not a convention.**
+   `pr.yml`'s `policy-checks` fails an issue-tier PR outright with *"Issue-tier PRs must use
+   feature/\* branches"* on any other prefix; a `fix/`-named branch cost W4 one
+   closed-and-reopened PR before this was written down. Force-push if work must be redone.
+   An executor never
    creates a worktree, never picks a branch name, never renames. No `-v2` branch can exist,
    which makes stale work visible instead of invisible. Teardown stays with Meta and stays
    *after* Review — removing a worktree early destroys the run's telemetry permanently.
