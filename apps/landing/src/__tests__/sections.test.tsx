@@ -4,17 +4,28 @@ import { describe, expect, it } from "vitest";
 import LandingPage from "../app/page";
 
 describe("landing sections (PRD 2.7)", () => {
-  it("renders the hero with problem-led heading, reassurance line, and partner badge", () => {
+  it("renders the hero with outcome-led heading, promise triplet, hook, reassurance line, and partner badge", () => {
     render(<LandingPage />);
 
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: /shop của bạn đang mất tiền ở đâu/i,
+        name: /trợ lý ai giúp bạn tự động hóa vận hành, giảm chi phí và tối ưu lợi nhuận/i,
       }),
     ).toBeInTheDocument();
     // Hero badge + footer both carry the partner line.
     expect(screen.getAllByText(/TikTok Shop Partner/).length).toBeGreaterThanOrEqual(1);
+    // The outcome triplet is three separate lines, not one run-on sentence.
+    for (const promise of [
+      "Ít việc thủ công hơn.",
+      "Ít chi phí thất thoát hơn.",
+      "Nhiều lợi nhuận hơn.",
+    ]) {
+      expect(screen.getByText(promise)).toBeInTheDocument();
+    }
+    expect(
+      screen.getByText(/đăng nhập ngay để biết chính xác 3 điều shop bạn cần cải thiện/i),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(/miễn phí trải nghiệm · dành cho điện thoại/i),
     ).toBeInTheDocument();
