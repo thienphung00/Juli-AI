@@ -639,7 +639,25 @@ class TestExtensionGrantNarration:
         )
         text = extension_grant_narration(extensions_granted_after_grant=2, policy=policy)
         assert "9" in text  # extension_iterations
-        assert "2 of 5" in text  # extensions_granted_after_grant of max_extensions
+        assert "2/5" in text  # extensions_granted_after_grant / max_extensions
+
+    def test_narration_is_vietnamese_not_english(self):
+        """Issue #1140: `phase_narration` must be VI copy (ADR-074 d.2;
+        `WorkflowStatusPayload`'s own docstring). The old English wording
+        must not survive as a regression."""
+        policy = TerminationPolicy(
+            max_iterations=3,
+            max_extensions=5,
+            extension_iterations=9,
+            wall_clock_timeout_s=10,
+            approval_timeout_h=1,
+            required_steps=("x",),
+        )
+        text = extension_grant_narration(extensions_granted_after_grant=2, policy=policy)
+        assert "Continuing past the standard iteration limit" not in text
+        assert "iteration(s)" not in text
+        # Vietnamese-specific diacritics from the chosen wording.
+        assert "gia hạn" in text
 
 
 # =============================================================================
@@ -722,7 +740,7 @@ class TestIterationCapAndExtensions:
         assert len(status_events) == 1  # exactly one grant -> exactly one event
         assert isinstance(status_events[0], WorkflowStatusEvent)
         assert "2" in status_events[0].payload.phase_narration  # extension_iterations
-        assert "1 of 1" in status_events[0].payload.phase_narration
+        assert "1/1" in status_events[0].payload.phase_narration
 
     async def test_zero_workflow_status_events_when_the_run_finishes_well_under_the_soft_cap(self):
         run_id = uuid.uuid4()
