@@ -40,6 +40,7 @@ metadata:
       the owning module; routes enqueue or delegate, they do not reimplement vendor I/O.
 
 planningModules:
+  - Agent Execution
   - Auth & Security
   - Backend API
   - Cross-cutting
@@ -182,11 +183,11 @@ databaseTables:
       these rows must never be reachable by the Celery/Partner-write path;
       no worker or Celery task ever writes this table.
   workflow_runs:
-    owner: Workers & Async
+    owner: Agent Execution
     access: write
     notes: WorkflowRunner (services/agent/runner) persists; Celery task (P8) drives the run.
   workflow_run_events:
-    owner: Workers & Async
+    owner: Agent Execution
     access: write
     notes: >
       Postgres-authoritative event log for a workflow_runs row (ADR-074 decision 1,
@@ -194,7 +195,7 @@ databaseTables:
       Async owns the Celery-driven run records); P8-3's PersistingEventSink (a later
       slice) is the write path, invoked from the WorkflowRunner's Celery task.
   tool_executions:
-    owner: Workers & Async
+    owner: Agent Execution
     access: write
     notes: Execution module persists; Celery task updates status.
   impact_readings:
@@ -264,7 +265,7 @@ celeryTasks:
       Scans terminal listing.optimize_product executions whose T+7/T+14 has elapsed
       and writes impact_readings rows; matches that table's own owner (Intelligence).
   juli_backend.run_agent_workflow:
-    owner: Workers & Async
+    owner: Agent Execution
     wrapper: backend/src/juli_backend/workers/tasks/agent_workflow.py
     delegatesTo: services.agent.runner.WorkflowRunner.run
     notes: >
@@ -273,7 +274,7 @@ celeryTasks:
       Nothing calls .delay() on this task anywhere in this codebase yet (P9/W4-A's
       job); it is not reachable from live traffic.
   juli_backend.resume_agent_workflow:
-    owner: Workers & Async
+    owner: Agent Execution
     wrapper: backend/src/juli_backend/workers/tasks/agent_workflow.py
     delegatesTo: services.agent.runner.WorkflowRunner.resume
     notes: >
@@ -281,7 +282,7 @@ celeryTasks:
       by #1145). Carries an already-authorized `approved` decision through to the
       runner; does not itself validate or authorize it (W4-A's job).
   juli_backend.reap_abandoned_workflow_runs:
-    owner: Workers & Async
+    owner: Agent Execution
     wrapper: backend/src/juli_backend/workers/tasks/reaper.py
     delegatesTo: workers.tasks.reaper.reap_workflow_runs
     notes: >
@@ -290,7 +291,7 @@ celeryTasks:
       and expired waiting_approval runs (past approval_timeout_h ->
       confirmation_expired -> cancelled) through the normal EventSink path.
   juli_backend.credential_refresh_beat:
-    owner: Workers & Async
+    owner: Auth & Security
     wrapper: backend/src/juli_backend/workers/tasks/credential_refresh_beat.py
     delegatesTo: workers.tasks.credential_refresh_beat.run_credential_refresh_cycle
     notes: >
