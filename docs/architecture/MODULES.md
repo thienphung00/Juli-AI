@@ -580,6 +580,61 @@ declaring this module healthy for heavier Phase 3+ reliance.
 
 ---
 
+## 16. Agent Execution
+
+- **Status:** partial *(W1–W4 landed and deployed; W5–W10 remaining — see
+  [PLAN.md](../product/agent-workflow-execution/PLAN.md))*
+- **Path:** `backend/src/juli_backend/services/agent/` (`tools/`, `llm/`, `sanitize/`,
+  `prompts/`, `playbooks/`, `runner/`, `events/`), `workers/tasks/agent_workflow.py`,
+  `workers/tasks/reaper.py`, `workers/tasks/credential_refresh_beat.py`,
+  `api/routes/agent_runs.py`, `packages/contracts/src/agent-events.ts`
+- **Purpose:** The **seller-facing agent** that executes a workflow end to end — LLM loop,
+  guarded tool dispatch, write-path ledger, event stream, approval pause.
+- **Not to be confused with §11 Agent Runtime**, which is the HITL *harness that builds the
+  product*. §11 is `agent-runtime/` and `.cursor/skills/`; §16 is the product runtime a seller
+  actually triggers. The two were conflated until #1136 because §16 did not exist, and §11 was
+  never in `planningModules` either — so every agent-era table was filed under a neighbouring
+  module by per-table judgment rather than by rule.
+- **Goals:**
+  - One `WorkflowRunner` loop with a **total** `stop_reason` → `WorkflowRunStatus` mapping,
+    asserted in both directions. `worker_lost` stays distinct from `tool_error_unrecoverable`
+    so infrastructure death never corrupts the execution-quality metric (ADR-073/074).
+  - The LLM never sees vendor endpoints, credentials, raw payloads or basis hashes. Tool
+    results reach the conversation only through the inbound guard; agent output leaves only
+    through the outbound guard (ADR-070).
+  - Writes go to the **sandbox** shop only. The production capability flip is an ADR-068
+    unlock item, gated on W7, not a runtime toggle.
+  - Postgres is the replay authority; Redis is best-effort delivery. Anything a client sees
+    exists as a `workflow_run_events` row first (ADR-074).
+  - **Registry:** sole write owner for `workflow_runs`, `workflow_run_events`,
+    `tool_executions`, and the `run_agent_workflow` / `resume_agent_workflow` /
+    `reap_abandoned_workflow_runs` tasks.
+  - **Boundary:** `services/agent/composition.py` is the sanctioned seam for reaching deep
+    collaborators — `workers` may not deep-import `services.agent.tools` (import depth cap 2).
+- **Features:**
+  - **Shipped:** tool registry + schemas (ADR-069) · LLM service over the OpenAI Responses
+    adapter (ADR-071) · agent-safe sanitization with source-role provenance (ADR-070) ·
+    versioned prompts + typed Playbook (ADR-072) · `WorkflowRunner`, termination policy,
+    idempotent write ledger, basis-hash concurrency (ADR-073) · event union, `PersistingEventSink`,
+    SSE with `Last-Event-ID` replay, five-minute reaper (ADR-074) · impact measurement reads
+    (ADR-077) · credential refresh lifecycle (ADR-081).
+  - **In progress:** approval gate + security prerequisites (ADR-075, W5).
+  - **Planned:** demo execution experience (ADR-076, W6) · production-write unlock (W7) ·
+    observability rollup (W8) · structured output contract (W9) · remaining ten workflows (W10).
+- **Related EXECUTION slices:** the agent workflow execution waves W1–W10
+- **Out of scope:** the harness that builds the product (§11) · ingest fan-out and
+  multi-merchant rollout (P13) · seller-facing copy register, which is governed by
+  `dictionary.md` and the shared banned-pattern source.
+- **Links:** ADR-068 · ADR-069 · ADR-070 · ADR-071 · ADR-072 · ADR-073 · ADR-074 · ADR-075 ·
+  ADR-076 · ADR-077 · ADR-080 · ADR-081 · [PLAN.md](../product/agent-workflow-execution/PLAN.md)
+
+> **§15 is deliberately skipped.** It is reserved for **Observability (DOCP)** by
+> `CONTEXT.md` and `docs/product/phases/phase-2.11/PRD.md`, which reference it by number
+> although the section is not yet written. Taking §15 here would have created exactly the
+> silent numbering conflict this module exists to prevent.
+
+---
+
 ## Maintenance
 
 1. **Adding a planning module:** add an index row + full schema A section; link `map.md`
