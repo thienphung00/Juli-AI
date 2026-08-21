@@ -32,11 +32,14 @@ the agent's direct-address final response text. The corresponding
 
 **What a machine cannot check.** The banned-pattern gate and the dynamic-number
 tests below prove the copy is well-formed and safe; neither can judge
-Vietnamese register or tone. A human voice review against `dictionary.md`
-and `docs/product/design/design-context.md` is still outstanding for the
-string in this module (tracked on issue #1140, following #1120's and
-#1071's precedent of disclosing this rather than papering over it with a
-mechanical "looks Vietnamese" heuristic).
+Vietnamese register or tone. That review is a human act, and it was done:
+the repo owner approved this string's register and tone on 2026-08-21,
+against `dictionary.md` and `docs/product/design/design-context.md`
+(issue #1140). The gap was disclosed rather than papered over with a
+mechanical "looks Vietnamese" heuristic, following #1120's and #1071's
+precedent -- and then closed by a reader, which is the only way it can be.
+**Any future string added here inherits the same rule: the tests below
+cannot approve it.**
 
 **Number formatting.** Vietnamese carries no plural inflection -- "lượt"
 (turn/iteration) reads identically whether the count is 1 or 5, so there is

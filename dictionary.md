@@ -379,5 +379,5 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 **`agent.narration.extension_grant`**
 - EN: Continuing past the standard iteration limit: granting [extension_iterations] more iteration(s) (extension [granted] of [max]).
 - VI: Đã đạt giới hạn số lượt thực hiện tiêu chuẩn, Juli gia hạn thêm [extension_iterations] lượt để hoàn tất công việc (lần gia hạn [granted]/[max]).
-- Status: needs_review — mechanical gates (banned-pattern gate, dynamic-number tests) are green; Vietnamese register/tone has not yet had the human voice review ADR-072/​#1071 requires for seller-facing copy.
+- Status: reviewed — mechanical gates (banned-pattern gate, dynamic-number tests) green, and the repo owner approved the Vietnamese register and tone on 2026-08-21, supplying the human voice review ADR-072/​#1071 requires for seller-facing copy. The reviewed wording renders "extension K of M" as the fraction `K/M` rather than translating the preposition, and carries no plural inflection because Vietnamese has none.
 - Definition: `workflow.status` `phase_narration` (ADR-074 d.2) for one iteration-cap extension grant (`services/agent/narration_copy.py::extension_grant_phase_narration`, issue #1140). The one narration the agent runner produces today; every bracketed number is sourced from `TerminationPolicy`, never a literal.
