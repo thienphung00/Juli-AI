@@ -113,7 +113,7 @@ from enum import StrEnum
 from typing import Any
 
 from juli_backend.services.agent.playbooks.base import TerminationPolicy
-from juli_backend.services.agent.runner.status import StopReason
+from juli_backend.services.agent.status import StopReason
 
 
 def evaluate_checkpoint(

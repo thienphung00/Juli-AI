@@ -4,13 +4,20 @@ them — ADR-073 decision 2, plus the 2026-08-12 `worker_lost` amendment
 
 Pure-Python, no database needed: this slice ships vocabulary and a mapping
 dict, not runner logic.
+
+The vocabulary itself relocated from `services/agent/runner/status.py` to
+`services/agent/status.py` in #1139 (AGT-W3A) -- a neutral leaf module both
+`runner` and `events` import directly, eliminating the import-cycle hazard
+that used to require a lazy `__getattr__` workaround in
+`runner/__init__.py`. This test file's assertions about the vocabulary and
+mapping are unchanged; only the import path moved.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from juli_backend.services.agent.runner.status import (
+from juli_backend.services.agent.status import (
     NON_TERMINAL_STATUSES,
     STOP_REASON_TO_STATUS,
     StopReason,
@@ -157,14 +164,15 @@ def test_output_validation_failed_is_produced_only_by_the_outbound_guard():
 
     This walks every `.py` file under `services/agent/runner/` at test-run time
     (not a hardcoded file list), so it keeps guarding as later slices add
-    modules to that package.
+    modules to that package. The vocabulary module itself (`status.py`,
+    which legitimately references `OUTPUT_VALIDATION_FAILED` in its mapping
+    table) moved to `services/agent/status.py` in #1139 -- outside this
+    walked directory -- so no exemption for it is needed here anymore.
     """
     assert RUNNER_PACKAGE_DIR.is_dir(), f"runner package not found at {RUNNER_PACKAGE_DIR}"
 
     offending: list[str] = []
     for path in sorted(RUNNER_PACKAGE_DIR.rglob("*.py")):
-        if path.name == "status.py":
-            continue
         # #1210: core.py's `_finalize` is the ONE sanctioned producer. Counted
         # rather than skipped -- a blanket exemption would let a second
         # producer appear in the same file unnoticed, which is the discipline

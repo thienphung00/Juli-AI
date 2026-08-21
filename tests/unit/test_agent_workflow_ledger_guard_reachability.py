@@ -63,8 +63,8 @@ from juli_backend.services.agent.runner.conversation_store import JsonbConversat
 from juli_backend.services.agent.runner.core import WorkflowRunner
 from juli_backend.services.agent.runner.ledger import LedgerStatus, ToolExecutionLedger
 from juli_backend.services.agent.runner.state import RunState
-from juli_backend.services.agent.runner.status import StopReason
 from juli_backend.services.agent.runner.tool_executor import ProductToolExecutor
+from juli_backend.services.agent.status import StopReason
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools

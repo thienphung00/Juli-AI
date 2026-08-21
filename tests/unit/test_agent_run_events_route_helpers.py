@@ -14,8 +14,9 @@ reproductions against their real, canonical definitions so they cannot
 silently drift: each test below recomputes the expected value from the real
 module and asserts equality against `agent_runs`'s local copy, so mutating
 the canonical source (e.g. `NON_TERMINAL_STATUSES` in
-`services/agent/runner/status.py`) turns the matching test red rather than
-leaving it green on a stale hardcoded expectation.
+`services/agent/status.py`, relocated from `services/agent/runner/status.py`
+by #1139/AGT-W3A) turns the matching test red rather than leaving it green
+on a stale hardcoded expectation.
 
 The live-subscription seam (`EventSubscriber`/`_RedisEventSubscriber`) is
 different in kind, not just missing a check: it is not a reproduction of an
@@ -46,7 +47,7 @@ from juli_backend.services.agent.events.envelope import (
     WorkflowFailedEvent,
 )
 from juli_backend.services.agent.events.persisting_sink import run_events_channel
-from juli_backend.services.agent.runner.status import (
+from juli_backend.services.agent.status import (
     NON_TERMINAL_STATUSES,
     WorkflowRunStatus,
 )

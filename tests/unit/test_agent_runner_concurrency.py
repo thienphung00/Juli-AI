@@ -41,9 +41,9 @@ from juli_backend.services.agent.runner.concurrency import (
     field_scope_for,
 )
 from juli_backend.services.agent.runner.state import RunState
-from juli_backend.services.agent.runner.status import StopReason
 from juli_backend.services.agent.runner.tool_executor import ProductToolExecutor
 from juli_backend.services.agent.sanitize import guard_inbound_tool_result
+from juli_backend.services.agent.status import StopReason
 from juli_backend.services.agent.tools import ToolRegistry
 from juli_backend.services.agent.tools.product import (
     GetProductInformationInput,

@@ -47,8 +47,8 @@ from juli_backend.services.agent.runner.concurrency import ConcurrencyExhaustedE
 from juli_backend.services.agent.runner.core import RunResult, WorkflowRunner
 from juli_backend.services.agent.runner.ledger import ToolExecutionUnrecoverableError
 from juli_backend.services.agent.runner.state import RunState
-from juli_backend.services.agent.runner.status import StopReason, WorkflowRunStatus
 from juli_backend.services.agent.runner.tool_executor import ProductToolExecutor
+from juli_backend.services.agent.status import StopReason, WorkflowRunStatus
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools

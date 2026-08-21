@@ -1,11 +1,33 @@
 """`WorkflowRunStatus` and the `stop_reason` vocabulary — ADR-073 decision 2,
 plus the 2026-08-12 `worker_lost` amendment (ADR-074).
 
+**Why this module lives directly under `services/agent/`, not inside
+`services/agent/runner/` (relocated here by #1139, AGT-W3A).** This
+vocabulary is a *contract*, not a runner implementation detail: the event
+payload/envelope union in `services/agent/events/` mirrors it (a `stop_reason`
+rides on `workflow.completed`/`workflow.failed` payloads), and a TypeScript
+union in `packages/contracts` mirrors it again downstream. Originally (#1117)
+it shipped inside `services/agent/runner/status.py`, since the runner is what
+persists `workflow_runs.status`/`stop_reason`. That made `events/payloads.py`
+(#1125) depend on `services.agent.runner` for vocabulary it doesn't own —
+backwards, and a genuine import-cycle hazard: importing any submodule of
+`runner` forces `runner/__init__.py` to execute first, so an eager
+`runner/__init__.py -> runner.core -> events` edge would cycle back into
+`events` while it was still initializing. #1119 worked around that with a
+PEP 562 lazy `__getattr__` in `runner/__init__.py`, deferring the `core`/
+`tool_executor` exports rather than fixing the dependency direction.
+
+Moving the vocabulary to this neutral leaf module — which itself imports
+nothing from `runner` or `events` — lets both packages depend on it directly
+instead of one depending on the other. `runner/__init__.py`'s lazy
+`__getattr__` is deleted as of #1139: with `events` no longer importing
+anything from `runner`, nothing about `runner/__init__.py`'s own import
+order (eager or lazy) can cycle back into `events`.
+
 This module is deliberately narrow: the vocabulary and the TOTAL
 `StopReason -> WorkflowRunStatus` mapping, nothing else. The runner that
 reads/writes `workflow_runs.status`/`stop_reason` (block dispatch, iteration
-count, checkpoints) lands in a later slice (P1-2 and on) — this slice ships
-schema plus vocabulary only.
+count, checkpoints) lives in `services/agent/runner/core.py`.
 
 Every loop exit records exactly one `stop_reason` (ADR-073 decision 2: "no
 silent exits"). `STOP_REASON_TO_STATUS` is that mapping, and it is TOTAL over
@@ -22,11 +44,12 @@ in both directions — not a vacuous "some status somewhere" check.
 
 `OUTPUT_VALIDATION_FAILED` is reserved for P7 (structured output) per ADR-073
 decision 5: present in the enum and mapped to `FAILED` now, so P7 adds no new
-vocabulary later, but no code in this slice (or any slice before P7)
-constructs it. `tests/unit/test_workflow_run_status_mapping.py` also guards
-that this module is the *only* place the member is referenced within
-`services/agent/runner/`, so a future accidental "producer" trips a test
-instead of silently breaking the P7 deferral.
+vocabulary later. Its one sanctioned producer (the outbound banned-pattern
+guard translation, #1210) lives in `services/agent/runner/core.py::_finalize`;
+`tests/unit/test_workflow_run_status_mapping.py` guards that this stays the
+*only* place the member is referenced within `services/agent/runner/`, so a
+future accidental second "producer" trips a test instead of silently
+breaking the discipline.
 """
 
 from __future__ import annotations

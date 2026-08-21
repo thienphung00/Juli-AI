@@ -62,7 +62,6 @@ from juli_backend.services.agent.playbooks.optimize_product import (
 from juli_backend.services.agent.runner.concurrency import ConcurrencyExhaustedError
 from juli_backend.services.agent.runner.core import RunResult, WorkflowRunner
 from juli_backend.services.agent.runner.state import RunState
-from juli_backend.services.agent.runner.status import StopReason, WorkflowRunStatus, status_for
 from juli_backend.services.agent.runner.termination import (
     IterationGateAction,
     accumulate_running_seconds,
@@ -73,6 +72,7 @@ from juli_backend.services.agent.runner.termination import (
     required_steps_completed,
     running_seconds_column_value,
 )
+from juli_backend.services.agent.status import StopReason, WorkflowRunStatus, status_for
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools

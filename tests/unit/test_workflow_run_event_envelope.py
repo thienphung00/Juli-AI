@@ -42,7 +42,7 @@ from juli_backend.services.agent.events.payloads import (
     WorkflowStartedPayload,
     WorkflowStatusPayload,
 )
-from juli_backend.services.agent.runner.status import StopReason, WorkflowRunStatus
+from juli_backend.services.agent.status import StopReason, WorkflowRunStatus
 
 RUN_ID = uuid.uuid4()
 NOW = datetime.now(UTC)

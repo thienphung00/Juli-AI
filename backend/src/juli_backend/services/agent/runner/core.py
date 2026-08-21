@@ -252,7 +252,6 @@ from juli_backend.services.agent.runner.concurrency import ConcurrencyExhaustedE
 from juli_backend.services.agent.runner.conversation_store import ConversationStore
 from juli_backend.services.agent.runner.ledger import ToolExecutionUnrecoverableError
 from juli_backend.services.agent.runner.state import ConversationMessage, RunState
-from juli_backend.services.agent.runner.status import StopReason, WorkflowRunStatus, status_for
 from juli_backend.services.agent.runner.termination import (
     IterationGateAction,
     accumulate_running_seconds,
@@ -270,6 +269,7 @@ from juli_backend.services.agent.sanitize import (
     guard_outbound_agent_output,
     to_error_envelope,
 )
+from juli_backend.services.agent.status import StopReason, WorkflowRunStatus, status_for
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry, UnknownToolError
 from juli_backend.services.execution.types import ExecutionErrorCategory
 
