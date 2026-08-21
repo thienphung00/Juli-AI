@@ -28,6 +28,16 @@ AC -> test map (issue #1224):
   `test_endpoint_no_longer_returns_501_for_a_valid_request`
 - transition committed before enqueue ->
   `test_transition_is_committed_before_the_enqueue_call`
+- structured `error_code` discriminator, distinct per condition (#1224
+  review finding: three different 409s were indistinguishable except by
+  parsing free text) -> an `error_code` assertion on every failing-path
+  test above, plus `test_race_loser_at_transition_returns_confirmation_already_decided_code`
+  for the one condition (`_transition_confirmation_or_none` losing a race)
+  no sequential test path reaches on its own -- it shares
+  `ERROR_CONFIRMATION_ALREADY_DECIDED` with the sequential "already
+  decided" 409 deliberately (see that constant's docstring in
+  `agent_runs.py`), so this test pins that sharing directly rather than
+  assuming it.
 
 The two-sequential-CONFIRM regression (#1221 review) and the concurrent
 single-use race proof both need a real Postgres partial-unique index and
@@ -47,6 +57,16 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
+from juli_backend.api.routes.agent_runs import (
+    ERROR_CONFIRMATION_ALREADY_DECIDED,
+    ERROR_CONFIRMATION_EXPIRED,
+    ERROR_CONFIRMATION_NOT_FOUND,
+    ERROR_INVALID_DECISION,
+    ERROR_OPTION_ID_REQUIRED,
+    ERROR_PARAMS_SHA_MISMATCH,
+    ERROR_RUN_NOT_AWAITING_CONFIRMATION,
+    ERROR_UNKNOWN_OPTION_ID,
+)
 from juli_backend.models.models import Product, RunConfirmation, Shop, User
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.services.agent.runner.confirmation import compute_params_sha
@@ -55,6 +75,12 @@ pytestmark = pytest.mark.asyncio
 
 TOOL_CALL_ID = "call-listing-1"
 PROPOSED_CHANGE = {"title": "New improved title"}
+
+
+def _error_code(resp) -> str:
+    """Pull the machine-readable discriminator out of this endpoint's error
+    shape: `{"detail": {"message": ..., "error_code": ...}}`."""
+    return resp.json()["detail"]["error_code"]
 
 
 # ---------------------------------------------------------------------------
@@ -250,6 +276,7 @@ class TestRung2RunStatus:
             )
 
         assert resp.status_code == 409
+        assert _error_code(resp) == ERROR_RUN_NOT_AWAITING_CONFIRMATION
 
 
 # ---------------------------------------------------------------------------
@@ -269,6 +296,7 @@ class TestRung3ConfirmationMatch:
             )
 
         assert resp.status_code == 404
+        assert _error_code(resp) == ERROR_CONFIRMATION_NOT_FOUND
 
     async def test_already_approved_confirmation_returns_409(self, app, session, user, shop):
         run = await _make_run(session, shop, status="waiting_approval")
@@ -281,6 +309,7 @@ class TestRung3ConfirmationMatch:
             )
 
         assert resp.status_code == 409
+        assert _error_code(resp) == ERROR_CONFIRMATION_ALREADY_DECIDED
 
     async def test_already_declined_confirmation_returns_409(self, app, session, user, shop):
         run = await _make_run(session, shop, status="waiting_approval")
@@ -293,6 +322,7 @@ class TestRung3ConfirmationMatch:
             )
 
         assert resp.status_code == 409
+        assert _error_code(resp) == ERROR_CONFIRMATION_ALREADY_DECIDED
 
     async def test_row_already_flipped_expired_returns_410(self, app, session, user, shop):
         """Defensive: nothing in this codebase writes `status='expired'`
@@ -309,6 +339,7 @@ class TestRung3ConfirmationMatch:
             )
 
         assert resp.status_code == 410
+        assert _error_code(resp) == ERROR_CONFIRMATION_EXPIRED
 
 
 # ---------------------------------------------------------------------------
@@ -346,6 +377,7 @@ class TestRung4Expiry:
                 )
 
         assert resp.status_code == 410
+        assert _error_code(resp) == ERROR_CONFIRMATION_EXPIRED
         mock_task.delay.assert_not_called()
 
         await session.refresh(run)
@@ -369,6 +401,7 @@ async def test_unknown_decision_value_is_rejected(app, session, user, shop):
         )
 
     assert resp.status_code == 422
+    assert _error_code(resp) == ERROR_INVALID_DECISION
 
 
 async def test_approve_without_option_id_is_rejected(app, session, user, shop):
@@ -381,6 +414,7 @@ async def test_approve_without_option_id_is_rejected(app, session, user, shop):
         )
 
     assert resp.status_code == 422
+    assert _error_code(resp) == ERROR_OPTION_ID_REQUIRED
 
 
 async def test_approve_with_unknown_option_id_is_rejected(app, session, user, shop):
@@ -393,6 +427,7 @@ async def test_approve_with_unknown_option_id_is_rejected(app, session, user, sh
         )
 
     assert resp.status_code == 422
+    assert _error_code(resp) == ERROR_UNKNOWN_OPTION_ID
 
 
 # ---------------------------------------------------------------------------
@@ -433,6 +468,7 @@ async def test_params_sha_mismatch_is_rejected_and_never_enqueues(app, session, 
             )
 
     assert resp.status_code == 409
+    assert _error_code(resp) == ERROR_PARAMS_SHA_MISMATCH
     mock_task.delay.assert_not_called()
 
     await session.refresh(confirmation)
@@ -518,11 +554,53 @@ async def test_second_decision_on_same_confirmation_returns_409_and_does_not_enq
 
     assert first.status_code == 202
     assert second.status_code == 409
+    assert _error_code(second) == ERROR_CONFIRMATION_ALREADY_DECIDED
 
     mock_task.delay.assert_called_once()  # never a second enqueue
 
     await session.refresh(confirmation)
     assert confirmation.status == "approved", "the second (losing) request must not overwrite it"
+
+
+async def test_race_loser_at_transition_returns_confirmation_already_decided_code(
+    app, session, user, shop, monkeypatch
+):
+    """`_transition_confirmation_or_none` losing a race (its `UPDATE`'s
+    `rowcount` comes back 0 because a concurrent request already won) is a
+    DIFFERENT code path than rung 3's sequential "already decided" read --
+    but the exact same client-observable fact. This pins that both paths
+    carry the identical `error_code`, not two different ones, by forcing
+    the race-loser branch directly: the row is genuinely still `pending`
+    when this request reads it (so rung 3 passes it through), but the
+    atomic transition itself is monkeypatched to report a loss, standing
+    in for a concurrent winner this single-session unit test cannot
+    otherwise construct (real concurrency is
+    `tests/integration/test_agent_confirmation_decision_postgres.py
+    ::TestSingleUseUnderConcurrentDecisions`'s job).
+    """
+    from juli_backend.api.routes import agent_runs as agent_runs_module
+
+    run, confirmation = await _seed_pending(session, shop)
+
+    async def _always_lose(*args, **kwargs) -> bool:
+        return False
+
+    monkeypatch.setattr(agent_runs_module, "_transition_confirmation_or_none", _always_lose)
+
+    mock_task = _mock_resume_task()
+    with patch("juli_backend.workers.tasks.agent_workflow.resume_agent_workflow", mock_task):
+        async with _client_for(app, user, shop) as client:
+            resp = await client.post(
+                f"/v1/demo/runs/{run.id}/confirmations/{TOOL_CALL_ID}",
+                json={"decision": "approve", "option_id": "1"},
+            )
+
+    assert resp.status_code == 409
+    assert _error_code(resp) == ERROR_CONFIRMATION_ALREADY_DECIDED
+    mock_task.delay.assert_not_called()
+
+    await session.refresh(confirmation)
+    assert confirmation.status == "pending", "the monkeypatched loss must not itself mutate the row"
 
 
 async def test_transition_is_committed_before_the_enqueue_call(app, session, user, shop):

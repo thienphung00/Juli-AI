@@ -628,6 +628,52 @@ class ConfirmationDecisionResponse(BaseModel):
     celery_task_id: str
 
 
+# Machine-readable discriminators carried inside `HTTPException.detail` for
+# every error this endpoint raises on its OWN logic (never `_resolve_owned_run`'s
+# shared tenant-scoping 404, which `/events` and `/cancel` also raise --
+# changing that shared shape is out of this endpoint's scope). #1224 review
+# finding: three of this endpoint's conditions all surfaced as a bare-string
+# 409 -- "run not waiting_approval" (benign, retry later), "already decided"
+# (benign double-submit, single-use), and a `params_sha` divergence, which
+# ADR-075 decision 2 calls "a hard failure, not a warning" -- with no way for
+# a caller to tell them apart short of parsing free text. This is additive:
+# every HTTP status code stays exactly what it already was; `error_code` is a
+# new key riding alongside the existing human-readable `message`, not a
+# reclassification. No error-envelope convention exists elsewhere in this
+# codebase to conform to instead (`.cursor/rules/patterns.mdc`'s
+# `{status, data, error, metadata}` shape is aspirational and unused by any
+# real route -- adopting it here would mean restructuring every response,
+# including this endpoint's own 202 success shape, which is out of scope);
+# every other route's error body stays FastAPI's default bare-string
+# `{"detail": "..."}`, unaffected.
+#
+# The sequential "already decided on read" (rung 3) and the concurrent race
+# loser (`_transition_confirmation_or_none` returning `False`) share ONE code
+# deliberately: both are the identical client-observable fact -- "someone
+# already decided this confirmation" -- detected at two different code paths,
+# never two different facts.
+ERROR_RUN_NOT_AWAITING_CONFIRMATION = "run_not_awaiting_confirmation"
+ERROR_CONFIRMATION_NOT_FOUND = "confirmation_not_found"
+ERROR_CONFIRMATION_ALREADY_DECIDED = "confirmation_already_decided"
+ERROR_CONFIRMATION_EXPIRED = "confirmation_expired"
+ERROR_INVALID_DECISION = "invalid_decision"
+ERROR_OPTION_ID_REQUIRED = "option_id_required"
+ERROR_UNKNOWN_OPTION_ID = "unknown_option_id"
+ERROR_PARAMS_SHA_MISMATCH = "params_sha_mismatch"
+ERROR_RUN_STATE_NOT_RECONSTRUCTABLE = "run_state_not_reconstructable"
+
+
+def _confirmation_error(status_code: int, error_code: str, message: str) -> HTTPException:
+    """Build this endpoint's error shape: `{"detail": {"message": ..., "error_code": ...}}`.
+    `error_code` is the stable, machine-readable discriminator (see the
+    module-level constants above); `message` stays the existing
+    human-readable text, unchanged in content from before this field existed.
+    """
+    return HTTPException(
+        status_code=status_code, detail={"message": message, "error_code": error_code}
+    )
+
+
 def _enqueue_resume_agent_workflow(run_id: uuid.UUID, *, approved: bool) -> str:
     """Enqueue `resume_agent_workflow` for `run_id` -- the same lazy-import-
     then-`.delay()` idiom `_enqueue_run_agent_workflow` above uses (see that
@@ -727,9 +773,10 @@ async def submit_confirmation_decision(
 
     # Rung 2: the run must actually be paused for a decision.
     if run.status != WAITING_APPROVAL_RUN_STATUS:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Run {run_id} is not awaiting a confirmation decision (status={run.status!r}).",
+        raise _confirmation_error(
+            status.HTTP_409_CONFLICT,
+            ERROR_RUN_NOT_AWAITING_CONFIRMATION,
+            f"Run {run_id} is not awaiting a confirmation decision (status={run.status!r}).",
         )
 
     # Rung 3 (+ single-use): the confirmation row for this exact
@@ -746,19 +793,22 @@ async def submit_confirmation_decision(
     )
     confirmation = confirmation_result.scalars().first()
     if confirmation is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No confirmation for tool_call_id={tool_call_id!r} on run {run_id}.",
+        raise _confirmation_error(
+            status.HTTP_404_NOT_FOUND,
+            ERROR_CONFIRMATION_NOT_FOUND,
+            f"No confirmation for tool_call_id={tool_call_id!r} on run {run_id}.",
         )
     if confirmation.status == "expired":
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail="This confirmation has expired; the run is left for the reaper.",
+        raise _confirmation_error(
+            status.HTTP_410_GONE,
+            ERROR_CONFIRMATION_EXPIRED,
+            "This confirmation has expired; the run is left for the reaper.",
         )
     if confirmation.status != PENDING_CONFIRMATION_STATUS:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Confirmation {tool_call_id!r} was already decided ({confirmation.status}).",
+        raise _confirmation_error(
+            status.HTTP_409_CONFLICT,
+            ERROR_CONFIRMATION_ALREADY_DECIDED,
+            f"Confirmation {tool_call_id!r} was already decided ({confirmation.status}).",
         )
 
     # Rung 4: the wall-clock deadline, checked directly against
@@ -767,9 +817,10 @@ async def submit_confirmation_decision(
     # `confirmation_expired` sweep (`workers/tasks/reaper.py`) is the only
     # writer of that transition.
     if _as_aware_utc(confirmation.expires_at) <= datetime.now(UTC):
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail="This confirmation has expired; the run is left for the reaper.",
+        raise _confirmation_error(
+            status.HTTP_410_GONE,
+            ERROR_CONFIRMATION_EXPIRED,
+            "This confirmation has expired; the run is left for the reaper.",
         )
 
     if body.decision == "decline":
@@ -777,9 +828,10 @@ async def submit_confirmation_decision(
         approved = False
     elif body.decision == "approve":
         if body.option_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="An approve decision requires option_id.",
+            raise _confirmation_error(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                ERROR_OPTION_ID_REQUIRED,
+                "An approve decision requires option_id.",
             )
         options = confirmation.options if isinstance(confirmation.options, list) else []
         selected = next(
@@ -787,9 +839,10 @@ async def submit_confirmation_decision(
             None,
         )
         if selected is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"option_id={body.option_id!r} is not one of this confirmation's options.",
+            raise _confirmation_error(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                ERROR_UNKNOWN_OPTION_ID,
+                f"option_id={body.option_id!r} is not one of this confirmation's options.",
             )
 
         # Consent binding (ADR-075 decision 2): re-derive the selected
@@ -807,9 +860,10 @@ async def submit_confirmation_decision(
         run_state = run.state if isinstance(run.state, dict) else {}
         pending_state = run_state.get("pending_confirmation")
         if not isinstance(pending_state, dict) or "arguments" not in pending_state:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Run has no reconstructable pending confirmation state.",
+            raise _confirmation_error(
+                status.HTTP_409_CONFLICT,
+                ERROR_RUN_STATE_NOT_RECONSTRUCTABLE,
+                "Run has no reconstructable pending confirmation state.",
             )
         # Depth-2 facade import (see `_resolve_optimize_product_prompt_pin`
         # above for the identical idiom and the import-boundary rationale):
@@ -828,19 +882,19 @@ async def submit_confirmation_decision(
                     "option_id": body.option_id,
                 },
             )
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "The proposed change no longer matches the run's current state; "
-                    "refusing to execute an unconsented change."
-                ),
+            raise _confirmation_error(
+                status.HTTP_409_CONFLICT,
+                ERROR_PARAMS_SHA_MISMATCH,
+                "The proposed change no longer matches the run's current state; "
+                "refusing to execute an unconsented change.",
             )
         selected_option_id = body.option_id
         approved = True
     else:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"decision must be 'approve' or 'decline', got {body.decision!r}.",
+        raise _confirmation_error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            ERROR_INVALID_DECISION,
+            f"decision must be 'approve' or 'decline', got {body.decision!r}.",
         )
 
     new_status = "approved" if approved else "declined"
@@ -852,12 +906,14 @@ async def submit_confirmation_decision(
     )
     if not won:
         # Lost a race to a concurrent decision on this same confirmation
-        # between the read above and this UPDATE -- no different, from the
-        # caller's perspective, than the sequential single-use 409 above.
-        # Nothing was enqueued; nothing here needs rolling back.
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Confirmation {tool_call_id!r} was already decided.",
+        # between the read above and this UPDATE -- the identical
+        # client-observable fact as the sequential single-use 409 above,
+        # so it carries the SAME error_code (see the constant's own
+        # docstring). Nothing was enqueued; nothing here needs rolling back.
+        raise _confirmation_error(
+            status.HTTP_409_CONFLICT,
+            ERROR_CONFIRMATION_ALREADY_DECIDED,
+            f"Confirmation {tool_call_id!r} was already decided.",
         )
     # The transition is committed BEFORE the enqueue, never after: enqueuing
     # first would let a worker observe the row still `pending` mid-flight --

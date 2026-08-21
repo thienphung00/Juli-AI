@@ -49,6 +49,7 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from juli_backend.api.routes.agent_runs import _transition_confirmation_or_none
 from juli_backend.core.config.runtime import async_database_url, sync_database_url
 from juli_backend.models.models import Product, RunConfirmation, Shop, User
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
@@ -272,20 +273,18 @@ class TestTwoSequentialConfirmStepsDoNotCollide:
             confirmation_1_id = rows[0].id
             confirmation_1_tool_call_id = rows[0].tool_call_id
 
-        # --- Approve #1 THROUGH THE SAME TRANSITION FUNCTION THE ENDPOINT
-        # USES -- committed before anything continues the run, exactly
-        # like `submit_confirmation_decision` orders it. ---------------------
+        # --- Approve #1 by calling `_transition_confirmation_or_none` ITSELF
+        # -- the exact function `submit_confirmation_decision` calls, not an
+        # equivalent hand-written `UPDATE` -- committed before anything
+        # continues the run, exactly like the endpoint orders it. -----------
         async with factory() as session:
-            stmt = (
-                RunConfirmation.__table__.update()
-                .where(
-                    RunConfirmation.id == confirmation_1_id,
-                    RunConfirmation.status == "pending",
-                )
-                .values(status="approved", selected_option_id="1", decided_at=datetime.now(UTC))
+            won = await _transition_confirmation_or_none(
+                session,
+                confirmation_1_id,
+                new_status="approved",
+                selected_option_id="1",
             )
-            result = await session.execute(stmt)
-            assert result.rowcount == 1
+            assert won is True
             await session.commit()
 
         # --- Resume into pause #2: update_product_price (step 6) --- this is
@@ -342,19 +341,16 @@ class TestTwoSequentialConfirmStepsDoNotCollide:
             assert rows[1].status == "pending"
             confirmation_2_id = rows[1].id
 
-        # --- Approve #2, same transition function, then drive to a final
-        # response -- the run must reach a terminal state. ------------------
+        # --- Approve #2, same real transition function, then drive to a
+        # final response -- the run must reach a terminal state. ------------
         async with factory() as session:
-            stmt = (
-                RunConfirmation.__table__.update()
-                .where(
-                    RunConfirmation.id == confirmation_2_id,
-                    RunConfirmation.status == "pending",
-                )
-                .values(status="approved", selected_option_id="1", decided_at=datetime.now(UTC))
+            won = await _transition_confirmation_or_none(
+                session,
+                confirmation_2_id,
+                new_status="approved",
+                selected_option_id="1",
             )
-            result = await session.execute(stmt)
-            assert result.rowcount == 1
+            assert won is True
             await session.commit()
 
         spy_3 = _SpyToolExecutor(result={"updated_skus": []})
