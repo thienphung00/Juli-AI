@@ -110,6 +110,18 @@ def test_agent_workflows_enabled_false_when_unset(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+#: #1217 / ADR-075 decision 3: `celery_app.py` now boots through the
+#: consolidated `assert_agent_runtime_config()`, whose check 5
+#: (SUPABASE_JWT_SECRET) is unconditional -- it fires regardless of
+#: AGENT_WORKFLOWS_ENABLED. Every subprocess boot below needs it set so the
+#: cases below keep exercising *broker* durability specifically, not an
+#: unrelated JWT-secret crash. The real deployed worker already carries this
+#: (same `/etc/juli/api.env` -> `juli/api/production` secret the API reads --
+#: `docs/runbooks/app-review-runbook.md`), so this mirrors production, not a
+#: new synthetic requirement.
+_BASE_BOOT_ENV = {"SUPABASE_JWT_SECRET": "test-jwt-secret-for-celery-boot-tests"}
+
+
 def _run_boot_in_subprocess(
     env_overrides: dict[str, str], code: str
 ) -> subprocess.CompletedProcess:
@@ -118,6 +130,8 @@ def _run_boot_in_subprocess(
     env = dict(os.environ)
     env.pop("CELERY_BROKER_URL", None)
     env.pop(AGENT_WORKFLOWS_ENABLED_ENV_VAR, None)
+    env.pop("SUPABASE_JWT_SECRET", None)
+    env.update(_BASE_BOOT_ENV)
     env.update(env_overrides)
     env["PYTHONPATH"] = str(BACKEND_SRC)
     return subprocess.run(
@@ -148,13 +162,22 @@ def test_real_celery_app_boot_crashes_on_explicit_memory_broker_when_agent_enabl
     )
     assert result.returncode != 0
     assert "RuntimeError" in result.stderr
+    assert "memory://" in result.stderr
 
 
 def test_real_celery_app_boot_does_not_crash_on_real_broker_when_agent_enabled():
+    """#1217: AGENT_WORKFLOWS_ENABLED=1 now also exercises checks 1
+    (OPENAI_API_KEY) and 4 (sandbox-write guard config) at worker boot, not
+    just check 2 (broker) -- so this "does not crash" case needs the full
+    agent-enabled config, matching what the real deployed worker already
+    carries (same shared secret the API reads)."""
     result = _run_boot_in_subprocess(
         {
             AGENT_WORKFLOWS_ENABLED_ENV_VAR: "1",
             "CELERY_BROKER_URL": "redis://localhost:6379/0",
+            "OPENAI_API_KEY": "sk-test-openai-key-for-celery-boot-tests",
+            "TIKTOK_APP_KEY": "test-tiktok-app-key-for-celery-boot-tests",
+            "TIKTOK_APP_SECRET": "test-tiktok-app-secret-for-celery-boot-tests",
         },
         "from juli_backend.workers.celery_app import celery_app; print('booted')",
     )
