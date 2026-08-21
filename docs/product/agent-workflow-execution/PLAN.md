@@ -26,8 +26,8 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 9 | P7 — Structured output contract | ⏸ deferred (user, 2026-08-11) — scheduled **W9** with P15 (see the wave roadmap) — loop runs on ADR-072 prose output; wires in via `FinalResponse` block + prompt v2 bump (ADR-073 d.5) | ⬜ |
 | 10 | P9+P14 — Approval, safety & security prerequisites | 🟨 **W5** — design grilled 2026-08-12 — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) drafted; implementation pending | ⬜ |
 | 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 **W6** — design grilled 2026-08-12 — [ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md) drafted; implementation pending | ⬜ |
-| 11b | P-IM — Incremental impact measurement (NEW) | ✅ implemented, gate reopened in **W4** — [ADR-077](../../adr/077-incremental-impact-measurement.md); re-run wave merged to `main` (#1113, 2026-08-14), #1040–#1045 + #1068 all with status records, after the [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B refusal of the first attempt | 🟥 2026-08-20 — code gates green, but the one real end-to-end reading is **unreachable**, not merely un-run: the reader selects `tool_name IN {"listing.optimize_product"}` and the agent ledger writes `update_product_price` / `update_product_listing`, and the ledger records no `payload_json`, which classification and product binding both require. See [Wave 3 live verification](#wave-3-live-verification-2026-08-19--2026-08-20) |
-| 11c | P-CRED — TikTok credential lifecycle / refresh-token rotation (NEW) | 🟨 **W4 — design settled; credentials lapse 2026-08-27 04:30 UTC** (manually refreshed 2026-08-20; each manual run buys 7 days from the moment it runs, not 7 added to what is left).** Grilled 2026-08-17 ([ADR-080](../../adr/080-tiktok-credential-lifecycle.md)), re-grilled 2026-08-18 against the code and **amended by [ADR-081](../../adr/081-refresh-token-rotation.md)**: three-layer refresh (beat + lazy + reactive), one guarded door with a session-level advisory lock, vendor-authoritative expiry, dedicated `credentials` queue, five additive columns; `CREDENTIALS_DATABASE_URL` descoped. Four slices — see [Wave 4](#wave-4--p-cred-refresh-token-rotation-2026-08-18); gate = full matrix + one real sandbox-token refresh | ⬜ |
+| 11b | P-IM — Incremental impact measurement (NEW) | ✅ implemented, gate reopened in **W4** — [ADR-077](../../adr/077-incremental-impact-measurement.md); re-run wave merged to `main` (#1113, 2026-08-14), #1040–#1045 + #1068 all with status records, after the [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B refusal of the first attempt | 🟨 2026-08-21 — **reachable, still un-run.** W4 fixed all three broken reads (#1215 payload, #1216 duration, #1219 measurable set). The reading itself needs a production-shop write, because the sandbox shop has no analytics series — that is W5's gate, not a code gap |
+| 11c | P-CRED — TikTok credential lifecycle / refresh-token rotation (NEW) | ✅ **W4 closed 2026-08-21** — deployed on release `14807670` and verified against the vendor: sandbox credential refreshed through the real `refresh_credential` path, `refresh_count` 0→1, expiry moved 2026-08-27→2026-08-28. Beat and lazy layers live; **reactive layer built but wired to nothing** (#1233), so a token that dies before its recorded expiry is not self-healed. `/root/refresh_credentials.py` retired. [ADR-081](../../adr/081-refresh-token-rotation.md) | ✅ 2026-08-21 — full matrix green + one real sandbox-token refresh |
 | 11d | P-PROD — Production-write unlock (NEW) | ⬜ **W7** — RLS across 13 tables, manual red-team pass, the ADR-068 capability flip, and the ADR-050 C2 data dependencies. Gates P-IM's real reading and P10's business-impact metric | ⬜ |
 | 12 | P10 — Observability baseline | ⬜ **W8** | ⬜ |
 | 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ **W9** (with P7) | ⬜ |
@@ -350,8 +350,8 @@ named for the phases they implement.
 
 | Wave | Phases | Contents | Parallel with |
 | --- | --- | --- | --- |
-| **W4 — P-CRED + P-IM** | 11c, 11b gate | P-CRED slices W4-1…W4-5 (ADR-081) · measurement reconciliation #1215, #1216, #1219, #1220 | — |
-| **W5 — P9+P14** | 10 | Approval gate #1214, #1221, #1222, #1224, #1225 · security prerequisites #1217, #1218, #1223 (ADR-075) · W3 leftovers #1139, #1140, #1142 | — |
+| **W4 — P-CRED + P-IM** | 11c, 11b gate | ✅ **CLOSED 2026-08-21**, deployed `14807670` · #1215 #1216 #1219 #1230 #1231 #1232 #1233 #1234 #1246 | ✅ |
+| **W5 — P9+P14** | 10 | 🟨 **OPEN 2026-08-21** — approval gate #1214, #1221, #1222, #1224, #1225 · security prerequisites #1217, #1218, #1223 (ADR-075) · #1181 resume-status prerequisite · W3 leftovers #1139, #1140 | — |
 | **W6 — P-UI** | 11 | ADR-076 + PUI-DESIGN.md in full — dual entry, recorded-replay + live flag, staged run view, consent-grade option picker, run ledger, `useRunStream`, localStorage mock deleted · #1077 (seller-copy TS half) | **W7** |
 | **W7 — P-PROD** | 11d (NEW) | Production-write unlock: RLS across the 13 tables · manual red-team pass · the ADR-068 capability flip · the ADR-050 C2 data dependencies (per-shop analytics topup, OAuth→signals cold start, 7D bootstrap) | **W6** |
 | **W8 — P10** | 12 | Logging baseline re-verification, per-run rollup, the five-link outcome chain, the four unconflated metrics · closes #1226's second half | — |
@@ -613,7 +613,107 @@ vendor as its acceptance criterion** — that slice is what deletes the manual r
 script, so proving it against a real credential *is* the criterion. Meta runs it against the
 sandbox credential; the production credentials stay the owner's.
 
-## Wave 4 — P-CRED, refresh-token rotation (2026-08-18)
+## Wave 4 — CLOSED 2026-08-21, deployed and verified against the vendor
+
+Nine slices, merged to `main` as #1248, deployed to the VPS on release `14807670`.
+
+### What is now true that was not
+
+**Juli refreshes its own TikTok credentials on a schedule — for the first time.**
+`run_fujiwa_poll_cycle` had never appeared in `beat_schedule`; the only refresh path was the
+manual action-card hook, which is why operator scripts were load-bearing.
+
+**An agent run leaves a measurable trace.** Three independent reads were broken at once: the
+ledger wrote `payload_json = '{}'`, `running_seconds_elapsed` recorded `0`, and
+`MEASURABLE_TOOL_NAMES` held the *old dispatcher's* name — so the reader selected zero agent
+rows, forever, silently. ADR-077's "one real end-to-end reading" was **unreachable**, not
+merely un-run. It is now reachable; it still needs a production-shop write, which is W5's gate.
+
+### The three refresh layers, and which are live
+
+| Layer | Trigger | State |
+| --- | --- | --- |
+| **Beat** | `credential-refresh-beat`, `crontab(minute="*/30")`, scans `list_expiring_within(24h)` excluding `needs_reauth`, calls `refresh_credential(force=False)` | **live** |
+| **Lazy** | shared helper in `credential_resolver.py`, both resolvers, `force=False`; no vendor call on a hot-path resolve because the 24h guard returns `fresh` | **live** |
+| **Reactive** | `call_with_reactive_refresh` on `105002`/`401` with `force=True` | **built, wired to nothing** |
+
+**The reactive gap is the one that matters.** It is the only layer that can self-heal a
+`token_expires_at` that is *lying* — the 2026-08-18 sandbox case, where the column said
+`now + 7d` and the vendor said `105002 Expired`. Beat and lazy both trust that column and would
+skip a lying row identically. So today, a token that dies before its recorded expiry is not
+recovered automatically. #1233 delivers and tests the wrapper (twenty concurrent callers collapse
+to one vendor call); wiring it into a live request path lives in `workers`/`services`, outside
+that slice's write-path lock. This is the [#1145](https://github.com/thienphung00/Juli-AI/issues/1145)
+shape — component complete, wiring absent — caught during the wave rather than at the gate.
+
+### Live verification, 2026-08-21
+
+Sandbox credential refreshed through the real `refresh_credential` path on the deployed release:
+
+```
+outcome: refreshed
+expires: 2026-08-27 04:30:03 -> 2026-08-28 02:05:02
+count  : 0 -> 1     last_refreshed: 2026-08-21 02:05:02
+status : active     last_error: None
+```
+
+`force=True` as a typed argument did what `FORCE_EXPIRED=1` used to do by backdating a column.
+The credential was six days from expiry — outside the 24h buffer — and refreshed because the
+caller asked, not because the guard was lied to. `/root/refresh_credentials.py` is retired.
+
+`production_read` and `seller_connect` were deliberately **not** refreshed: rotating live
+credentials has an inherent crash window between the vendor's response and our write, and the
+beat picks them up automatically on 2026-08-26.
+
+### The deploy gap this wave exposed
+
+`deploy.sh` does **not** copy systemd unit files out of the release into `/etc/systemd/system/`.
+After #1248 deployed, the host ran `-Q celery,agent_runs` while the release carried
+`-Q celery,agent_runs,credentials` — the beat was active and enqueueing into a queue nobody
+consumed, with `NeedDaemonReload=no` so systemd reported itself current. This is exactly
+[#1205](https://github.com/thienphung00/Juli-AI/issues/1205)'s failure, and #1205 was treated as
+a one-off `-Q` bug when it is the symptom of a missing deploy step. Fixed manually by the owner;
+verified by the worker's own startup banner listing `credentials` under `[queues]` and
+`juli_backend.credential_refresh_beat` under `[tasks]` — the `ExecStart` flag alone proves only
+what systemd loaded, not what the process subscribed to.
+
+**Not yet filed as an issue.** `deploy.sh` should either sync unit files or fail loudly when a
+release's unit differs from the installed one; today it does neither. Whether every systemd
+change in this repo shares the gap is *unverified* — it is consistent with what was observed,
+but `deploy.sh` has not been read.
+
+### Slices
+
+| # | Lane | What |
+| --- | --- | --- |
+| [#1215](https://github.com/thienphung00/Juli-AI/issues/1215) | P-IM | Ledger records the mutation — `ToolExecutionRequestPayload`, fields derived from what the consumers read, not from `ToolSpec.input_model` |
+| [#1216](https://github.com/thienphung00/Juli-AI/issues/1216) | P-IM | `running_seconds_elapsed` at all 8 persist sites; pause excluded structurally |
+| [#1219](https://github.com/thienphung00/Juli-AI/issues/1219) | P-IM | Measurable set derived from the real WRITE registry via `composition.py` |
+| [#1230](https://github.com/thienphung00/Juli-AI/issues/1230) | P-CRED | Five columns, migration `038` (number assigned, not read from head) |
+| [#1231](https://github.com/thienphung00/Juli-AI/issues/1231) | P-CRED | The one guarded door; returns an outcome, never raises |
+| [#1232](https://github.com/thienphung00/Juli-AI/issues/1232) | P-CRED | Beat, `credentials` queue, lazy layer, three call sites deleted |
+| [#1233](https://github.com/thienphung00/Juli-AI/issues/1233) | P-CRED | Reactive retry — built, not wired |
+| [#1234](https://github.com/thienphung00/Juli-AI/issues/1234) | P-CRED | Merchant IDs become configuration |
+| [#1246](https://github.com/thienphung00/Juli-AI/issues/1246) | P-CRED | …and that configuration reaches the transport guards |
+
+### Two defects only real infrastructure could find
+
+**#1231 — `NullPool` released the advisory lock.** The first implementation took the lock through
+the caller's session. Under `NullPool`, `AsyncSession.commit()` returns the connection and
+`NullPool` *closes* it, so a session-level advisory lock died before the vendor call. Verified
+with `pg_backend_pid()`; caught as 2 vendor calls for 2 callers. SQLite could not have surfaced
+it. Review then ran the suite 8× — one vendor call across twenty concurrent callers every time,
+zero leaked locks.
+
+**#1246 — a silent cross-merchant acceptance, correcting the record.** #1245's PR body and its
+review both called the `capabilities.py` gap *"fail-closed, not a silent misroute."* Half right.
+Pre-fix, a client carrying Juli's **old** merchant ID was silently *accepted* by a deployment
+configured for different merchants. Both directions were broken; only the loud one was
+documented.
+
+---
+
+## Wave 4 design record — P-CRED, refresh-token rotation (2026-08-18)
 
 Wave 4 implements phase 11c. Design settled in [ADR-081](../../adr/081-refresh-token-rotation.md),
 which amends [ADR-080](../../adr/080-tiktok-credential-lifecycle.md) after re-grilling it against
