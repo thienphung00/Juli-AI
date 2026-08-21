@@ -1,0 +1,32 @@
+{
+  "gateVersion": 1,
+  "issue": 1140,
+  "metrics": {
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 3,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/agent/events/payloads.py",
+      "backend/src/juli_backend/services/agent/narration_copy.py",
+      "backend/src/juli_backend/services/agent/runner/termination.py",
+      "dictionary.md",
+      "tests/unit/test_agent_narration_copy.py",
+      "tests/unit/test_agent_runner_termination.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1140.json",
+    "ownerSignoffPresent": true,
+    "sha256": "24369612dfdee641de1b19cee699ec96cfff40941c02d1e8a64d3f8d354f7d8f",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-21T10:24:49Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1140.json",
+    "sha256": "a9139590243eb92aed43a806717064969b965db68a28953971e5b43a5c117494",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w5"
+}
