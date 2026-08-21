@@ -1,11 +1,21 @@
 """HTTP-level tests for the agent-run routes -- ADR-074 decisions 3 and 5,
-#1128 / AGT-W3B: the SSE wire format, tenant scoping (404 never 403),
-cancel idempotency, and the reserved confirmations shape.
+#1128 / AGT-W3B: the SSE wire format, tenant scoping (404 never 403), and
+cancel idempotency.
 
 `event_stream`'s internal mechanics (subscribe-before-replay, dedupe,
 heartbeat, poll fallback, terminal close) are proven directly against the
 generator in `test_agent_run_events_stream.py`; this file proves the
 FastAPI route wraps it correctly and enforces auth/tenant scoping.
+
+The confirmation-decision endpoint's own authorization ladder, consent
+binding and single-use behavior (ADR-075 decision 2, issue #1224 / AGT-W5A
+-- this route used to be a reserved 501 shape only) has its own dedicated
+suite: `test_agent_confirmation_decision_route.py`. The one confirmations
+test that stays here, `test_cross_tenant_run_returns_404_never_403_on_confirmations`,
+is kept alongside its `/events` and `/cancel` siblings because all three
+prove the identical `_resolve_owned_run` tenant-scoping contract this file
+is otherwise about; `test_confirmations_route_requires_decision_field`
+stays for the same reason (a body-shape check, not a decision-ladder one).
 """
 
 from __future__ import annotations
@@ -366,28 +376,13 @@ async def test_cross_tenant_cancel_never_sets_flag_on_other_shops_run(
 
 
 # ---------------------------------------------------------------------------
-# AC (ADR-074 d.5) -- reserved confirmations shape
+# AC (ADR-075 d.2 / #1224) -- confirmations body-shape validation. The
+# route's own authorization ladder, consent binding and single-use tests
+# live in `test_agent_confirmation_decision_route.py`; the 501-only
+# "reserved shape" test this replaced is
+# `test_agent_confirmation_decision_route.py
+# ::test_endpoint_no_longer_returns_501_for_a_valid_request`.
 # ---------------------------------------------------------------------------
-
-
-async def test_confirmations_route_exists_accepts_shape_and_does_not_authorize(
-    app, session, user, shop
-):
-    run = await _make_run(session, shop, status="waiting_approval")
-
-    async with _client_for(app, user, shop) as client:
-        resp = await client.post(
-            f"/v1/demo/runs/{run.id}/confirmations/tool-call-1",
-            json={"decision": "approve"},
-        )
-
-    assert resp.status_code == 501
-    body = resp.json()
-    assert "not yet implemented" in body["detail"].lower()
-
-    # No real side effect: the run's own status is untouched by this call.
-    await session.refresh(run)
-    assert run.status == "waiting_approval"
 
 
 async def test_confirmations_route_requires_decision_field(app, session, user, shop):
