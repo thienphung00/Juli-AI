@@ -46,6 +46,9 @@ PUBLIC_CHECK_TIMEOUT_SECS="${PUBLIC_CHECK_TIMEOUT_SECS:-45}"
 # single, immediate check instead of a real wait.
 CELERY_VERIFY_TIMEOUT_SECS="${CELERY_VERIFY_TIMEOUT_SECS:-20}"
 CELERY_VERIFY_POLL_SECS="${CELERY_VERIFY_POLL_SECS:-2}"
+# Stamped immediately before each `systemctl restart` below, and used only as the
+# fallback journal window when systemd reports no InvocationID for the unit.
+CELERY_VERIFY_SINCE="${CELERY_VERIFY_SINCE:-}"
 API_ENV_FILE="${API_ENV_FILE:-/etc/juli/api.env}"
 VERIFY_HARNESS="${CANONICAL_ROOT}/infra/scripts/verify-release-assets.sh"
 
@@ -348,11 +351,28 @@ celery_unit_queues() {
 # Those differed on the host for ~25 minutes after #1248. Polls journalctl for the unit
 # rather than reading api.env or any secret — this never touches credentials.
 verify_celery_worker_queues() {
-    local unit="$1" unit_file="$2" expected banner q missing deadline
+    local unit="$1" unit_file="$2" expected banner q missing deadline invocation
     expected="$(celery_unit_queues "${unit_file}")" || return 1
     deadline=$((SECONDS + CELERY_VERIFY_TIMEOUT_SECS))
     while :; do
-        banner="$(journalctl -u "${unit}" --no-pager -n 200 2>/dev/null || true)"
+        # Scope the banner to the unit's CURRENT systemd invocation. `journalctl -u
+        # <unit> -n 200` returns the last 200 lines across *every* invocation, so a
+        # worker that restarts cleanly and then crash-loops could be "verified" from
+        # a previous healthy start's banner still sitting inside that window — the
+        # exact failure mode this whole function exists to catch. Re-read the id on
+        # every poll: a crash-loop mints a new invocation, which discards the stale
+        # evidence instead of letting it accumulate.
+        invocation="$(systemctl show -p InvocationID --value "${unit}" 2>/dev/null || true)"
+        if [ -n "${invocation}" ]; then
+            banner="$(journalctl "_SYSTEMD_INVOCATION_ID=${invocation}" --no-pager -n 200 2>/dev/null || true)"
+        elif [ -n "${CELERY_VERIFY_SINCE}" ]; then
+            # No invocation id (systemd < 232, or the unit is not currently active).
+            # Fall back to the restart-scoped window — never to an unbounded journal.
+            banner="$(journalctl -u "${unit}" --no-pager -n 200 --since "${CELERY_VERIFY_SINCE}" 2>/dev/null || true)"
+        else
+            echo "FAIL: ${unit} has no systemd InvocationID and no restart timestamp to scope the journal — refusing to verify against an unscoped journal window" >&2
+            return 1
+        fi
         missing=""
         while IFS= read -r q; do
             [ -n "${q}" ] || continue
@@ -462,6 +482,7 @@ deploy_lane_api() {
                 record_step api celery "failed" "${unit} drift unresolved"
                 return 1
             fi
+            CELERY_VERIFY_SINCE="$(date '+%Y-%m-%d %H:%M:%S')"
             if ! systemctl restart "${unit}"; then
                 record_step api celery "failed" "${unit} restart refused"
                 return 1

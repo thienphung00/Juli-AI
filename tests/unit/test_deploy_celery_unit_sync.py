@@ -244,18 +244,62 @@ def _verify_queues_script(script_text: str) -> str:
 
 
 def _run_verify(
-    script_text: str, unit_file: Path, banner: str, tmp_path: Path, timeout_secs: int = 0
+    script_text: str,
+    unit_file: Path,
+    banner: str,
+    tmp_path: Path,
+    timeout_secs: int = 0,
+    *,
+    invocation: str = "current",
+    unit_wide_banner: str | None = None,
+    since: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    """Drive `verify_celery_worker_queues` against stubbed systemd.
+
+    The stubs model the distinction the function depends on:
+
+    - `systemctl show -p InvocationID --value <unit>` yields ``invocation``. Pass
+      ``invocation=""`` to model a host whose systemd reports no invocation id.
+    - `journalctl _SYSTEMD_INVOCATION_ID=<id>` yields only what that *specific*
+      invocation logged — ``banner`` for the current one, nothing for any other.
+    - `journalctl -u <unit>` yields ``unit_wide_banner``: everything the unit has
+      logged across *all* invocations. This defaults to ``banner`` so the unit-wide
+      and invocation-scoped views agree, but a crash-loop test sets them apart —
+      that gap is what proves the function reads the scoped view.
+    """
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
-    journalctl_stub = bin_dir / "journalctl"
-    journalctl_stub.write_text(f"#!/bin/bash\ncat <<'BANNER'\n{banner}\nBANNER\n")
-    journalctl_stub.chmod(0o755)
+    journal_dir = tmp_path / "journal"
+    journal_dir.mkdir(exist_ok=True)
+
+    if invocation:
+        (journal_dir / f"inv-{invocation}").write_text(banner)
+    (journal_dir / "unit-wide").write_text(banner if unit_wide_banner is None else unit_wide_banner)
+
+    (bin_dir / "systemctl").write_text(f"#!/bin/bash\nprintf '%s\\n' '{invocation}'\n")
+    (bin_dir / "systemctl").chmod(0o755)
+
+    # Dispatch on the argument form, exactly as the real journalctl does: a bare
+    # `FIELD=value` match selects one invocation, `-u <unit>` selects the unit.
+    (bin_dir / "journalctl").write_text(
+        "#!/bin/bash\n"
+        "id=''\n"
+        'for a in "$@"; do\n'
+        '  case "$a" in _SYSTEMD_INVOCATION_ID=*) id="${a#_SYSTEMD_INVOCATION_ID=}";; esac\n'
+        "done\n"
+        'if [ -n "${id}" ]; then\n'
+        f"  cat '{journal_dir}/inv-'\"${{id}}\" 2>/dev/null || true\n"
+        "else\n"
+        f"  cat '{journal_dir}/unit-wide' 2>/dev/null || true\n"
+        "fi\n"
+    )
+    (bin_dir / "journalctl").chmod(0o755)
 
     script = (
         "set -uo pipefail\n"
         f"export CELERY_VERIFY_TIMEOUT_SECS={timeout_secs}\n"
         "export CELERY_VERIFY_POLL_SECS=0\n"
+        f"CELERY_VERIFY_SINCE='{'' if since is None else since}'\n"
         f"{_verify_queues_script(script_text)}\n"
         f"verify_celery_worker_queues juli-celery-worker '{unit_file}'\n"
     )
@@ -317,6 +361,124 @@ def test_verify_fails_loudly_when_unit_has_no_dash_q_flag(tmp_path: Path, script
     result = _run_verify(script_text, unit_file, banner="[queues]\n", tmp_path=tmp_path)
     assert result.returncode != 0
     assert "no -Q flag found" in result.stderr
+
+
+_HEALTHY_BANNER = (
+    "[queues]\n"
+    "  .> celery           exchange=celery(direct) key=celery\n"
+    "  .> agent_runs       exchange=agent_runs(direct) key=agent_runs\n"
+    "  .> credentials      exchange=credentials(direct) key=credentials\n"
+)
+
+
+def test_verify_ignores_a_banner_from_a_previous_invocation(tmp_path: Path, script_text: str):
+    """The crash-loop case, found in review of #1250.
+
+    `journalctl -u <unit> -n 200` returns the last 200 lines across *every*
+    invocation. So a worker that restarts cleanly, prints a healthy banner, then
+    dies and crash-loops leaves that healthy banner sitting in the unit-wide
+    window — and an unscoped check reports PASS for a worker that is currently
+    down. That is a verification passing for a reason unrelated to its claim,
+    which is the precise defect this whole function was added to eliminate.
+
+    Here the unit-wide journal holds a complete healthy banner (invocation 1),
+    while the *current* invocation logged only a traceback. Verification must
+    fail: it must read the current invocation, not the unit's whole history.
+    """
+    unit_file = tmp_path / "worker.service"
+    unit_file.write_text("ExecStart=celery worker -Q celery,agent_runs,credentials\n")
+    result = _run_verify(
+        script_text,
+        unit_file,
+        banner="Traceback (most recent call last):\nKilled\n",
+        tmp_path=tmp_path,
+        invocation="crashloop-2",
+        unit_wide_banner=_HEALTHY_BANNER + "\nTraceback (most recent call last):\nKilled\n",
+    )
+    assert result.returncode != 0, (
+        "verification passed on a crash-looping worker by reading a previous "
+        f"invocation's banner. stdout={result.stdout!r}"
+    )
+    assert "FAIL" in result.stderr
+    assert "PASS" not in result.stdout
+
+
+def test_verify_reads_the_current_invocation_not_the_unit_wide_journal(
+    tmp_path: Path, script_text: str
+):
+    """The inverse pin of the test above, so neither can pass vacuously: when the
+    current invocation *is* healthy, an empty unit-wide window must not spoil it."""
+    unit_file = tmp_path / "worker.service"
+    unit_file.write_text("ExecStart=celery worker -Q celery,agent_runs,credentials\n")
+    result = _run_verify(
+        script_text,
+        unit_file,
+        banner=_HEALTHY_BANNER,
+        tmp_path=tmp_path,
+        invocation="healthy-3",
+        unit_wide_banner="",
+    )
+    assert result.returncode == 0, result.stderr
+    assert "PASS" in result.stdout
+
+
+def test_verify_falls_back_to_the_restart_scoped_window_without_an_invocation_id(
+    tmp_path: Path, script_text: str
+):
+    """systemd < 232 reports no InvocationID. The fallback is the restart-scoped
+    `--since` window — still bounded, never the unit's whole history."""
+    unit_file = tmp_path / "worker.service"
+    unit_file.write_text("ExecStart=celery worker -Q celery,agent_runs,credentials\n")
+    result = _run_verify(
+        script_text,
+        unit_file,
+        banner="",
+        tmp_path=tmp_path,
+        invocation="",
+        unit_wide_banner=_HEALTHY_BANNER,
+        since="2026-08-21 10:00:00",
+    )
+    assert result.returncode == 0, result.stderr
+    assert "PASS" in result.stdout
+
+
+def test_verify_refuses_to_check_an_unscoped_journal(tmp_path: Path, script_text: str):
+    """No InvocationID *and* no restart timestamp means there is no way to tell a
+    current banner from a stale one. Fail closed and say why — do not silently
+    degrade to the unbounded check, which is the bug this fix removes."""
+    unit_file = tmp_path / "worker.service"
+    unit_file.write_text("ExecStart=celery worker -Q celery,agent_runs,credentials\n")
+    result = _run_verify(
+        script_text,
+        unit_file,
+        banner="",
+        tmp_path=tmp_path,
+        invocation="",
+        unit_wide_banner=_HEALTHY_BANNER,
+        since=None,
+    )
+    assert result.returncode != 0, (
+        f"verified against an unscoped journal window. stdout={result.stdout!r}"
+    )
+    assert "unscoped" in result.stderr
+    assert "PASS" not in result.stdout
+
+
+def test_verify_scopes_the_journal_read_by_invocation(script_text: str):
+    """A structural pin: the scoping must come from the invocation id, not from a
+    wider `-n` window that happens to be small enough today."""
+    body = _extract_function(script_text, "verify_celery_worker_queues")
+    assert "_SYSTEMD_INVOCATION_ID" in body
+    assert "InvocationID" in body
+
+
+def test_restart_stamps_the_fallback_window_before_restarting(script_text: str):
+    """`CELERY_VERIFY_SINCE` is only sound if it is stamped *before* the restart —
+    stamped after, it could exclude the very banner it is meant to bound."""
+    api_lane = _extract_function(script_text, "deploy_lane_api")
+    stamp = api_lane.index("CELERY_VERIFY_SINCE=")
+    restart = api_lane.index('systemctl restart "${unit}"')
+    assert stamp < restart, "CELERY_VERIFY_SINCE is stamped after the restart it bounds"
 
 
 def test_verify_with_zero_timeout_does_not_hang(tmp_path: Path, script_text: str):
