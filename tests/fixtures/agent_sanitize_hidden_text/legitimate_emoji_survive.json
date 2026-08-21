@@ -1,0 +1,9 @@
+{
+  "id": "legitimate_emoji_survive",
+  "category": "legitimate_emoji",
+  "description": "Ordinary single-codepoint emoji (delivery truck, thumbs up, party popper -- category So, no ZWJ sequencing) in vendor product text; must survive stripping byte-for-byte.",
+  "source_field": "vendor",
+  "raw_text": "Giao hàng nhanh 🚚 chất lượng tốt 👍 cảm ơn quý khách 🎉",
+  "expected_guard_outcome": "passthrough",
+  "expected_stripped_text": "Giao hàng nhanh 🚚 chất lượng tốt 👍 cảm ơn quý khách 🎉"
+}

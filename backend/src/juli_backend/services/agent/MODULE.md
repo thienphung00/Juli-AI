@@ -21,8 +21,12 @@ gate that exercises all of it together is a separate issue (#995).
   timestamps, `Money`, bare-number rates), `sanitize/caps.py` (list/text/image
   size caps with signalled truncation), `sanitize/errors.py` (marketplace
   error -> `{"error": {"category", "message", "retryable"}}` translation),
-  and `sanitize/chokepoints.py` (the two fail-closed banned-pattern seams:
-  `guard_inbound_tool_result` and `guard_outbound_agent_output`).
+  `sanitize/hidden_text.py` (ADR-075 decision 5, #1218 — strips control
+  characters, zero-width/invisible Unicode, and bidi overrides from
+  vendor-tagged text; Vietnamese diacritics and emoji are untouched), and
+  `sanitize/chokepoints.py` (the two fail-closed banned-pattern seams:
+  `guard_inbound_tool_result` — which strips hidden text from vendor
+  fields before it scans — and `guard_outbound_agent_output`).
 
 ## Public Interface
 
@@ -51,7 +55,10 @@ from juli_backend.services.agent.sanitize import (
     TranslatedError,
     to_error_envelope,
     translate_marketplace_error,
-    # chokepoints (#994, ADR-070 decision 6 / ADR-068 decision 6(c))
+    # hidden_text (#1218, ADR-075 decision 5)
+    strip_hidden_text,
+    strip_hidden_text_from_vendor_fields,
+    # chokepoints (#994, ADR-070 decision 6 / ADR-068 decision 6(c); #1218 for stripping)
     BannedPatternGuardFailure,
     BannedPatternHit,
     BannedPatternScanError,
@@ -83,18 +90,35 @@ from juli_backend.services.agent.sanitize import (
   `{"error": {"category", "message", "retryable"}}`; `category` reuses
   `ExecutionErrorCategory`, `retryable` derives from `RETRYABLE_VENDOR_CODES`
   (`{100005, 100006, 36009003}`) plus transport-level failures.
-- `guard_inbound_tool_result(result, *, tool_name) -> Mapping` — scans a tool
-  result for a banned-pattern hit before it enters the conversation. On a hit,
-  or on any failure inside the scanning machinery itself, discards `result`
-  and returns the same `to_error_envelope` shape
-  (`category="validation"`, `retryable=False`) — the model never sees the
-  leaked value. The hit is logged server-side (`logger.warning`) with pattern
-  id, structural path, and matched text.
+- `guard_inbound_tool_result(result, *, tool_name) -> Mapping` — strips hidden
+  text from every vendor-tagged field in `result` (#1218, ADR-075 decision 5
+  — see `strip_hidden_text_from_vendor_fields` below), **then** scans the
+  stripped result for a banned-pattern hit before it enters the
+  conversation. Stripping runs before the scan deliberately: an identifier
+  obfuscated with an invisible character would evade the scan's regexes
+  otherwise. On a hit, or on any failure inside the scanning machinery
+  itself, discards the result and returns the same `to_error_envelope`
+  shape (`category="validation"`, `retryable=False`) — the model never sees
+  the leaked value. The hit is logged server-side (`logger.warning`) with
+  pattern id, structural path, and matched text. A clean result with
+  nothing to strip is returned as the exact same object it was passed in
+  as (object-identity preserved) — a clean result that *was* stripped
+  comes back as a new, equal-except-for-the-stripped-text object.
 - `guard_outbound_agent_output(output) -> None` — scans agent-authored output
   before it streams or persists. Raises `BannedPatternGuardFailure` on a hit,
   or on a scanning-machinery failure. Seam only — no repair-retry or
   rules-template fallback (that recovery behavior is deferred to the
   user-deferred structured-output phase, #994).
+- `strip_hidden_text(text) -> str` — removes control characters (Unicode
+  category `Cc`, minus `\t`/`\n`/`\r`) and format characters (category `Cf`
+  — every zero-width character and every bidi-override control character
+  lives in this one category) from `text`. Vietnamese combining diacritics
+  (`Mn`) and emoji (`So`/`Sk`) are untouched (#1218, ADR-075 decision 5).
+- `strip_hidden_text_from_vendor_fields(value) -> Any` — recursively strips
+  hidden text from every node shaped `{"source": "vendor", "text": ...}`
+  inside `value`; `seller`/`juli` envelopes and plain strings are left
+  alone. This is the function `guard_inbound_tool_result` calls ahead of
+  its scan (#1218).
 - `find_banned_pattern_hits(value) -> tuple[BannedPatternHit, ...]` — the
   shared whole-structure scan both guards use; raises
   `BannedPatternScanError` if the shared pattern source fails to load/compile.
@@ -102,8 +126,8 @@ from juli_backend.services.agent.sanitize import (
 ## Dependencies
 
 - stdlib only (`json`, `re`, `pathlib`, `dataclasses`, `functools`, `math`,
-  `logging`, `inspect`/`ast` in tests only) plus `requests` (transport-error
-  detection in `errors.py`) and `juli_backend.integrations.tiktok` /
+  `unicodedata`, `logging`, `inspect`/`ast` in tests only) plus `requests`
+  (transport-error detection in `errors.py`) and `juli_backend.integrations.tiktok` /
   `juli_backend.services.execution.types` (existing in-repo modules, not new
   dependencies).
 - Reads `packages/contracts/seller-copy-banned-patterns.json` via a
@@ -119,6 +143,14 @@ from juli_backend.services.agent.sanitize import (
 - Only the `i` (case-insensitive) JS regex flag is translated; any other flag
   raises `re.error` naming the offending pattern id rather than being silently
   dropped.
+- `hidden_text.py`: stripping is scoped to Unicode categories `Cc` (minus
+  `\t`/`\n`/`\r`) and `Cf` only — Vietnamese combining diacritics (`Mn`) and
+  emoji (`So`/`Sk`, plus the `Mn` variation selector) are never touched, in
+  either NFC or NFD form, enforced by `tests/unit/test_agent_sanitize_hidden_text.py`.
+  Stripping is scoped to `source: "vendor"` text only — `seller`/`juli`
+  envelopes and plain unwrapped strings are left alone. `chokepoints.py`
+  calls this **before** its banned-pattern scan, never after — enforced by
+  `tests/unit/test_agent_sanitize_chokepoints.py::TestInboundStripsHiddenTextFromVendorTextBeforeScanning`.
 - `caps.py`: every cut is deterministic server code (pure slicing — no model
   call, no randomness, no wall-clock branching); the same input always produces
   a byte-identical serialized result, enforced by
