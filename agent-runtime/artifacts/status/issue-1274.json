@@ -1,0 +1,28 @@
+{
+  "gateVersion": 1,
+  "issue": 1274,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "data-platform",
+      "agent-execution-schema"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1274.json",
+    "ownerSignoffPresent": true,
+    "sha256": "76792184ebb17af19ec7f7ce1d7370c0ddf4f03d67a331033b8114974d205924",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-21T15:40:15Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1274.json",
+    "sha256": "7ec595200afe4465d33153502f10335c46ece75c2b7b6b14e2168ae08ab09961",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w5"
+}
