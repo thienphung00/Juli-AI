@@ -1,0 +1,33 @@
+{
+  "gateVersion": 1,
+  "issue": 1217,
+  "metrics": {
+    "acceptanceMapped": 13,
+    "acceptanceTotal": 13,
+    "criticalFindings": 3,
+    "modulesTouched": [
+      "backend/src/juli_backend/api/main.py",
+      "backend/src/juli_backend/workers/agent_runtime_boot.py",
+      "backend/src/juli_backend/workers/celery_app.py",
+      "tests/conftest.py",
+      "tests/unit/test_agent_runs_require_auth.py",
+      "tests/unit/test_agent_runtime_boot_assertion.py",
+      "tests/unit/test_celery_agent_broker_boot_assertion.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1217.json",
+    "ownerSignoffPresent": true,
+    "sha256": "3ba88faac10f6bbfea3054c52bf84e389de69390fb1bb6daa9563c280c947a67",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-21T04:44:31Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1217.json",
+    "sha256": "8b6b9b28f256d0107897a063c82b6fff8d5e6b98ad824651c3f17fe028373d2e",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w5"
+}

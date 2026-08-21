@@ -1,4 +1,23 @@
+import os
+
 import pytest
+
+# #1217 / ADR-075 decision 3: `workers/celery_app.py` now runs
+# `assert_agent_runtime_config()` at *module import* time, whose check 5
+# (SUPABASE_JWT_SECRET) is unconditional -- independent of
+# AGENT_WORKFLOWS_ENABLED, which stays unset (and therefore skips every
+# other check) for the whole unit-test suite by default. `celery_app` is
+# imported transitively by many test modules that have nothing to do with
+# auth (any test importing `workers.tasks`, which imports
+# `workers.tasks.agent_workflow`, which imports `celery_app`) -- pytest
+# imports every test module during collection, before any per-test
+# `monkeypatch` fixture ever runs, so those modules need this set at import
+# time, not test time. `setdefault` only fills the gap: any test that
+# `monkeypatch.delenv("SUPABASE_JWT_SECRET", ...)` to exercise the
+# missing-secret path (e.g. `test_api_main.py`,
+# `test_get_current_user.py`) still removes it for that test's duration and
+# `monkeypatch` restores it afterward, unaffected by this default.
+os.environ.setdefault("SUPABASE_JWT_SECRET", "test-jwt-secret-collection-default")
 
 
 @pytest.fixture

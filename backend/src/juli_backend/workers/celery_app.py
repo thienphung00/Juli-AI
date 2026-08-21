@@ -94,12 +94,19 @@ celery_app.conf.update(
 
 celery_app.autodiscover_tasks(["juli_backend.workers.tasks"])
 
-from juli_backend.workers.agent_broker_guard import run_agent_broker_startup_check  # noqa: E402
+from juli_backend.workers.agent_runtime_boot import assert_agent_runtime_config  # noqa: E402
 from juli_backend.workers.dispatch_binding import bind_celery_dispatchers  # noqa: E402
 
 bind_celery_dispatchers()
 
-# ADR-074 decision 4, "the trap" — agent-enabled deployments must not boot on
-# the in-memory broker. No-op (memory:// stays the unit-test default) unless
-# AGENT_WORKFLOWS_ENABLED is set; see agent_broker_guard for the full story.
-run_agent_broker_startup_check(celery_app.conf.broker_url)
+# ADR-075 decision 3 / #1217 — the consolidated six-check boot assertion,
+# called here (worker AND beat import this module) instead of the old
+# standalone `run_agent_broker_startup_check` call it replaces. Check 2
+# inside `assert_agent_runtime_config` absorbs that exact function
+# unmodified (ADR-074 decision 4, "the trap" — agent-enabled deployments
+# must not boot on the in-memory broker; message/behaviour unchanged), so
+# this call is a strict superset of the old one, not a second broker check.
+# No-op for checks 1/2/3/4/6 (memory:// included) unless AGENT_WORKFLOWS_ENABLED
+# is set; check 5 (SUPABASE_JWT_SECRET) is unconditional — see
+# agent_runtime_boot.py for the full contract.
+assert_agent_runtime_config(broker_url=celery_app.conf.broker_url)
