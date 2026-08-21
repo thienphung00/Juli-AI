@@ -100,7 +100,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.database.exceptions import NotFound
 from juli_backend.models.models import WorkflowRun
 from juli_backend.services.agent.runner.state import RunState
-from juli_backend.services.agent.runner.status import (
+from juli_backend.services.agent.status import (
     NON_TERMINAL_STATUSES,
     StopReason,
     WorkflowRunStatus,

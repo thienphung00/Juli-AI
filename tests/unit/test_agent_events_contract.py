@@ -62,7 +62,7 @@ from juli_backend.services.agent.events import (
     WorkflowStartedPayload,
     WorkflowStatusPayload,
 )
-from juli_backend.services.agent.runner.status import STOP_REASON_TO_STATUS
+from juli_backend.services.agent.status import STOP_REASON_TO_STATUS
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACTS_DIR = REPO_ROOT / "packages" / "contracts"

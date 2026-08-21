@@ -16,7 +16,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from juli_backend.services.agent.runner.status import (
+from juli_backend.services.agent.status import (
     STOP_REASON_TO_STATUS,
     StopReason,
     WorkflowRunStatus,

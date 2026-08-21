@@ -58,7 +58,7 @@ from juli_backend.services.agent.playbooks.base import TerminationPolicy
 from juli_backend.services.agent.playbooks.optimize_product import (
     OPTIMIZE_PRODUCT_TERMINATION_POLICY,
 )
-from juli_backend.services.agent.runner.status import StopReason, WorkflowRunStatus
+from juli_backend.services.agent.status import StopReason, WorkflowRunStatus
 from juli_backend.workers.celery_app import celery_app
 from juli_backend.workers.tasks import reaper
 

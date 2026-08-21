@@ -549,7 +549,7 @@ class WorkflowRun(Base):
     in a later slice, not this one.
 
     ``status``/``stop_reason`` mirror the vocabulary in
-    ``services/agent/runner/status.py`` (``WorkflowRunStatus``/``StopReason``)
+    ``services/agent/status.py`` (``WorkflowRunStatus``/``StopReason``)
     but are stored as plain check-constrained strings rather than a native DB
     enum — the same choice ``impact_readings.kind``/``confidence`` made
     (migration 033) so a future vocabulary addition is an additive migration,

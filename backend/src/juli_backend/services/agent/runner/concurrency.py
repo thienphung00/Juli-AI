@@ -83,7 +83,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from juli_backend.services.agent.runner.status import StopReason
+from juli_backend.services.agent.status import StopReason
 
 #: The four — and only the four — mutable product fields this epic's basis
 #: hash governs (ADR-073 decision 4). `MutableProductFields` below is a

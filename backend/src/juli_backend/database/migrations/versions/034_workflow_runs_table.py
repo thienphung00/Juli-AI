@@ -16,7 +16,7 @@ renamed, narrowed, or made ``NOT NULL``.
 conversation-window/iteration-count/pending-confirmation/basis-snapshot blob
 that stands in for the deferred P-CS chat store. ``status``/``stop_reason``
 are check-constrained strings mirroring
-``services/agent/runner/status.py``'s ``WorkflowRunStatus``/``StopReason``
+``services/agent/status.py``'s ``WorkflowRunStatus``/``StopReason``
 vocabulary, the same "string + CHECK, not a native enum" choice migration 033
 made for ``impact_readings.kind``/``confidence`` — an additive migration adds
 a vocabulary member later, never an ``ALTER TYPE``.
