@@ -252,5 +252,5 @@ vine==5.1.0
     #   kombu
 wcwidth==0.8.2
     # via prompt-toolkit
-xgboost==3.4.0
+xgboost==3.4.1
     # via juli-backend (pyproject.toml)
