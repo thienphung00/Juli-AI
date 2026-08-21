@@ -52,9 +52,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from juli_backend.models.models import Product, Shop, User, WorkflowRun
+from juli_backend.models.models import Product, RunConfirmation, Shop, User, WorkflowRun
 from juli_backend.services.agent.events import InMemoryEventSink
 from juli_backend.services.agent.llm import AssistantTurn, FinalResponse, ToolCallBlock, Usage
 from juli_backend.services.agent.llm.fake import FakeLLMService
@@ -534,3 +535,114 @@ class TestNoHardcodedPolicyLiteralInResumePath:
             and node.value in forbidden
         }
         assert found == set()
+
+
+# --- AC: decision requests are recorded at the pause (issue #1221 / AGT-W5A) -
+
+
+class TestDecisionRequestRecordedAtPause:
+    """ADR-075 decision 2 acceptance criteria, proven through the real
+    `WorkflowRunner` pause path (not just `JsonbConversationStore.persist`
+    in isolation -- `test_conversation_store.py`'s own coverage) -- reuses
+    `_pause_runner_a`'s exact scripted scenario: the CONFIRM tool is
+    `update_product_listing`, called with `{"title": "New improved
+    title"}`, `call_id="c2"`."""
+
+    async def test_reaching_a_confirm_pause_writes_exactly_one_pending_row(
+        self, engine: AsyncEngine
+    ):
+        run_id, _state_at_pause, _event_count_a, weak_runner_a = await _pause_runner_a(engine)
+        gc.collect()
+        assert weak_runner_a() is None
+
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            rows = (
+                (
+                    await session.execute(
+                        select(RunConfirmation).where(RunConfirmation.workflow_run_id == run_id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+
+            assert len(rows) == 1
+            row = rows[0]
+            assert row.tool_call_id == "c2"  # the CONFIRM call's own call_id
+            assert row.status == "pending"
+            assert row.selected_option_id is None
+            assert row.decided_at is None
+
+            # AC: exactly one option (binary confirm is the N=1 case), and
+            # storage round-trips proposed_change byte-identically -- the
+            # exact dict block.arguments carried, never re-derived through
+            # update_product_listing's own input_model.
+            assert len(row.options) == 1
+            option = row.options[0]
+            assert option["option_id"] == "1"
+            assert option["proposed_change"] == {"title": "New improved title"}
+            assert isinstance(option["rationale"], str) and option["rationale"]
+            assert isinstance(option["params_sha"], str)
+            assert len(option["params_sha"]) == 64
+            int(option["params_sha"], 16)  # a real hex digest
+
+    async def test_the_persisted_row_and_the_emitted_event_carry_the_same_options(
+        self, engine: AsyncEngine
+    ):
+        """`build_confirmation_options` is called exactly once in
+        `_pause_pending_confirmation` -- the event a seller sees and the
+        row #1224 authorizes against must be the same construction, not
+        two independently-computed values that could drift."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session_a:
+            run_id = await _seed_workflow_run(session_a)
+            store_a = JsonbConversationStore(session_a)
+            sink_a = InMemoryEventSink()
+            llm_a = FakeLLMService(
+                script=[
+                    _turn(
+                        ToolCallBlock(
+                            call_id="c1", tool_name="get_product_information", arguments={}
+                        )
+                    ),
+                    _turn(
+                        ToolCallBlock(
+                            call_id="c2",
+                            tool_name="update_product_listing",
+                            arguments={"title": "New improved title"},
+                        )
+                    ),
+                ]
+            )
+            runner_a = WorkflowRunner(
+                llm_service=llm_a,
+                tool_executor=_SpyToolExecutor(result={"title": "unused"}),
+                event_sink=sink_a,
+                conversation_store=store_a,
+                registry=_full_registry(),
+                playbook=_pause_resume_playbook(),
+            )
+            await runner_a.run(run_id, product_ref="prod-1")
+            await session_a.commit()
+
+            approval_events = [
+                e for e in sink_a.events if e.event_type == "workflow.approval_required"
+            ]
+            assert len(approval_events) == 1
+            event_options = approval_events[0].payload.options
+
+        async with factory() as session_check:
+            row = (
+                (
+                    await session_check.execute(
+                        select(RunConfirmation).where(RunConfirmation.workflow_run_id == run_id)
+                    )
+                )
+                .scalars()
+                .one()
+            )
+            persisted_options = row.options
+
+        assert len(event_options) == len(persisted_options) == 1
+        assert event_options[0].model_dump(mode="json") == persisted_options[0]

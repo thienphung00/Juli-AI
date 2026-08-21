@@ -12,19 +12,23 @@ Postgres instance.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database.exceptions import NotFound
-from juli_backend.models.models import Product, Shop, User, WorkflowRun
+from juli_backend.models.models import Product, RunConfirmation, Shop, User, WorkflowRun
+from juli_backend.services.agent.events.payloads import ConfirmationOptionPayload
 from juli_backend.services.agent.runner.conversation_store import (
     ConversationStore,
     JsonbConversationStore,
+    PendingConfirmationWrite,
 )
 from juli_backend.services.agent.runner.state import RunState
+from juli_backend.services.agent.status import WorkflowRunStatus
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RUNNER_PACKAGE_DIR = REPO_ROOT / "backend/src/juli_backend/services/agent/runner"
@@ -152,6 +156,107 @@ class TestJsonbConversationStoreRoundTrip:
 
         with pytest.raises(NotFound):
             await store.persist(uuid.uuid4(), RunState())
+
+
+class TestPendingConfirmationWrite:
+    """`persist`'s `pending_confirmation` kwarg (issue #1221 / AGT-W5A,
+    ADR-075 decision 2) -- a true no-op by default (`None`), exactly like
+    `status`/`stop_reason`/`required_steps_completed`/
+    `running_seconds_elapsed` before it; when passed, writes exactly one
+    `run_confirmations` row with `status='pending'`."""
+
+    def _option(self, *, params_sha: str = "a" * 64) -> ConfirmationOptionPayload:
+        return ConfirmationOptionPayload(
+            option_id="1",
+            proposed_change={"skus": [{"sku_ref": "S1", "amount": "179000"}]},
+            rationale="Apply new SKU prices to the bound product.",
+            params_sha=params_sha,
+        )
+
+    async def test_persist_with_no_pending_confirmation_writes_no_row(self, session: AsyncSession):
+        run_id = await _seed_workflow_run(session)
+        store = JsonbConversationStore(session)
+
+        await store.persist(run_id, RunState())
+
+        rows = (
+            (
+                await session.execute(
+                    select(RunConfirmation).where(RunConfirmation.workflow_run_id == run_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert rows == []
+
+    async def test_persist_with_pending_confirmation_writes_exactly_one_pending_row(
+        self, session: AsyncSession
+    ):
+        run_id = await _seed_workflow_run(session)
+        store = JsonbConversationStore(session)
+        expires_at = datetime.now(UTC) + timedelta(hours=4)
+        option = self._option()
+
+        await store.persist(
+            run_id,
+            RunState(),
+            status=WorkflowRunStatus.WAITING_APPROVAL,
+            pending_confirmation=PendingConfirmationWrite(
+                tool_call_id="call_1",
+                options=[option],
+                expires_at=expires_at,
+            ),
+        )
+
+        rows = (
+            (
+                await session.execute(
+                    select(RunConfirmation).where(RunConfirmation.workflow_run_id == run_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.tool_call_id == "call_1"
+        assert row.status == "pending"
+        assert row.selected_option_id is None
+        assert row.decided_at is None
+        # sqlite (this test's backend, per this module's own docstring)
+        # round-trips `DateTime(timezone=True)` as a naive datetime --
+        # compare on naive UTC wall-clock value, matching this file's
+        # sqlite-vs-Postgres discipline elsewhere.
+        assert row.expires_at.replace(tzinfo=UTC) == expires_at
+        # AC: storage round-trips proposed_change byte-identically -- the
+        # exact same dict that was passed in, not a re-derivation.
+        assert row.options == [option.model_dump(mode="json")]
+        assert row.options[0]["proposed_change"] == option.proposed_change
+
+    async def test_persist_with_pending_confirmation_leaves_status_columns_alone(
+        self, session: AsyncSession
+    ):
+        """`pending_confirmation` and `status` are independent kwargs --
+        writing the confirmation row must not implicitly stamp
+        `waiting_approval_since` on its own; that stays `status`'s job,
+        exactly as before this issue."""
+        run_id = await _seed_workflow_run(session)
+        store = JsonbConversationStore(session)
+
+        await store.persist(
+            run_id,
+            RunState(),
+            pending_confirmation=PendingConfirmationWrite(
+                tool_call_id="call_1",
+                options=[self._option()],
+                expires_at=datetime.now(UTC) + timedelta(hours=4),
+            ),
+        )
+
+        row = await session.get(WorkflowRun, run_id)
+        assert row is not None
+        assert row.waiting_approval_since is None
 
 
 class TestNoWorkflowRunnerInThisSlice:

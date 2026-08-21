@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from juli_backend.services.agent.status import (
     STOP_REASON_TO_STATUS,
@@ -75,11 +75,52 @@ class ToolCompletedPayload(_EventPayload):
     summary: str
 
 
+class ConfirmationOptionPayload(_EventPayload):
+    """One decision-request option (ADR-075 decision 2, issue #1221 /
+    AGT-W5A) -- mirrors a `run_confirmations.options[]` element exactly,
+    field-for-field: this is the same shape emitted on the wire and
+    persisted to storage, not two independently-drifting definitions (see
+    `runner/confirmation.py`, which builds these and is the one place both
+    consumers get their values from).
+
+    `proposed_change` is stored/emitted VERBATIM -- the tool params the
+    model actually proposed, never re-derived or re-typed through the
+    tool's `input_model`. `params_sha` is `runner.confirmation
+    .compute_params_sha`'s canonical-JSON SHA-256 over that same dict --
+    see that function's docstring for the exact canonicalization rules
+    #1224's re-derivation must reproduce byte-for-byte.
+    """
+
+    option_id: str
+    proposed_change: dict[str, Any]
+    rationale: str
+    params_sha: str
+
+
 class WorkflowApprovalRequiredPayload(_EventPayload):
+    """`options` is additive AND OPTIONAL (ADR-075 decision 2, issue #1221 /
+    AGT-W5A) -- the one exception to this module's own "every field
+    required" rule (module docstring), deliberately. `workflow_run_events`
+    rows carrying this event type were already being written, and are
+    already committed on real hosts, before this issue existed -- those
+    rows have no `options` key at all. A required field would make any
+    future reconstruction of a historical row through this model
+    (`WorkflowRunEventAdapter.validate_python`, defined in `envelope.py`
+    precisely as "the Postgres replay authority" per ADR-074 decision 1)
+    raise `ValidationError` on data that was valid when it was written.
+    Defaulting to an empty list keeps every pre-existing four-field payload
+    constructible exactly as before, with `options == []` meaning "no
+    structured options were recorded for this historical event" -- never
+    "zero options were offered." Binary confirm is the N=1 case for every
+    *new* write: exactly one `ConfirmationOptionPayload`, not a
+    structurally different shape from an eventual N>1 decision request.
+    """
+
     tool_call_id: str
     tool_name: str
     proposed_change: dict[str, Any]
     expires_at: datetime
+    options: list[ConfirmationOptionPayload] = Field(default_factory=list)
 
 
 class WorkflowCompletedPayload(_EventPayload):

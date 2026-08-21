@@ -34,6 +34,7 @@ from juli_backend.services.agent.events.envelope import (
 from juli_backend.services.agent.events.payloads import (
     FAILURE_STOP_REASONS,
     AssistantTextPayload,
+    ConfirmationOptionPayload,
     ToolCompletedPayload,
     ToolStartedPayload,
     WorkflowApprovalRequiredPayload,
@@ -140,17 +141,24 @@ def test_tool_completed_event_round_trips_exact_fields():
 
 
 def test_workflow_approval_required_event_round_trips_exact_fields():
+    """No `options=` is passed here on purpose (issue #1221 / AGT-W5A):
+    `options` defaults to `[]`, so this is also the regression guard for
+    "a payload built the pre-#1221 way still constructs" -- see the
+    dedicated `TestOptionsIsOptionalForBackwardCompatibility` class below
+    for the full historical-row round-trip through the envelope/adapter."""
     payload = WorkflowApprovalRequiredPayload(
         tool_call_id="call-1",
         tool_name="update_price",
         proposed_change={"price": {"from": "19.99", "to": "17.99"}},
         expires_at=NOW,
     )
+    assert payload.options == []
     assert set(payload.model_dump()) == {
         "tool_call_id",
         "tool_name",
         "proposed_change",
         "expires_at",
+        "options",
     }
 
     event = WorkflowApprovalRequiredEvent(**_envelope_kwargs("workflow.approval_required", payload))
@@ -166,6 +174,56 @@ def test_workflow_approval_required_event_round_trips_exact_fields():
         )
     with pytest.raises(ValidationError):
         WorkflowApprovalRequiredPayload(tool_call_id="c", tool_name="t")
+
+
+class TestOptionsIsOptionalForBackwardCompatibility:
+    """`options` defaults to `[]` (issue #1221 / AGT-W5A) specifically so a
+    `workflow_run_events` row written *before* this issue -- which has no
+    `options` key in its `payload` JSON at all -- still constructs through
+    this same Pydantic model via `WorkflowRunEventAdapter.validate_python`,
+    the adapter `envelope.py`'s own docstring names as "the Postgres replay
+    authority" (ADR-074 decision 1). A required field would raise
+    `ValidationError` on data that was valid when it was written; this
+    class is the regression guard for that specific property, not merely a
+    relaxed-type sanity check."""
+
+    def test_a_pre_1221_four_field_payload_dict_still_validates_through_the_full_envelope(self):
+        legacy_payload = {
+            "tool_call_id": "call-legacy-1",
+            "tool_name": "update_price",
+            "proposed_change": {"price": {"from": "19.99", "to": "17.99"}},
+            "expires_at": NOW.isoformat(),
+            # deliberately no "options" key -- the exact shape a row
+            # persisted before this issue shipped has in Postgres today.
+        }
+        raw_event = _envelope_kwargs("workflow.approval_required", legacy_payload)
+        raw_event["workflow_run_id"] = str(RUN_ID)
+
+        event = WorkflowRunEventAdapter.validate_python(raw_event)
+
+        assert event.payload.options == []
+        assert event.payload.proposed_change["price"]["to"] == "17.99"
+
+    def test_a_new_payload_with_a_real_option_still_round_trips_alongside_the_default(self):
+        """The default doesn't come at the cost of the new shape -- a
+        freshly-built option list still constructs and round-trips
+        normally; this class is about the *old* shape surviving, not about
+        weakening the *new* one."""
+        option = ConfirmationOptionPayload(
+            option_id="1",
+            proposed_change={"price": {"from": "19.99", "to": "17.99"}},
+            rationale="Apply the new price.",
+            params_sha="a" * 64,
+        )
+        payload = WorkflowApprovalRequiredPayload(
+            tool_call_id="call-1",
+            tool_name="update_price",
+            proposed_change={"price": {"from": "19.99", "to": "17.99"}},
+            expires_at=NOW,
+            options=[option],
+        )
+        assert payload.options == [option]
+        assert payload.model_dump()["options"][0]["option_id"] == "1"
 
 
 def test_workflow_completed_event_round_trips_exact_fields():
@@ -335,6 +393,8 @@ def test_discriminated_union_validates_each_of_the_eight_types():
         WorkflowApprovalRequiredEvent(
             **_envelope_kwargs(
                 "workflow.approval_required",
+                # No `options=` here either -- proves the discriminated
+                # union's own construction path tolerates the default too.
                 WorkflowApprovalRequiredPayload(
                     tool_call_id="c",
                     tool_name="n",

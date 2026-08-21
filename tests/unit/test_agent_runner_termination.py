@@ -60,6 +60,7 @@ from juli_backend.services.agent.playbooks.optimize_product import (
     OPTIMIZE_PRODUCT_TERMINATION_POLICY,
 )
 from juli_backend.services.agent.runner.concurrency import ConcurrencyExhaustedError
+from juli_backend.services.agent.runner.conversation_store import PendingConfirmationWrite
 from juli_backend.services.agent.runner.core import RunResult, WorkflowRunner
 from juli_backend.services.agent.runner.state import RunState
 from juli_backend.services.agent.runner.termination import (
@@ -107,7 +108,14 @@ class _InMemoryConversationStore:
     *every* persist call, terminal or not, so a signature omitting it would
     raise `TypeError` on this double's very first `persist` call in any
     scenario in this module, not just one reaching a terminal
-    `stop_reason`."""
+    `stop_reason`.
+
+    `pending_confirmation` (issue #1221) is accepted the same way -- this
+    module's own `_step(..., policy=ToolPolicy.CONFIRM)` scenario now
+    reaches `WorkflowRunner._pause_pending_confirmation`'s dedicated
+    `persist` call at pause; the value itself is out of scope for this
+    termination-policy suite, so it is accepted-and-discarded rather than
+    recorded."""
 
     def __init__(self) -> None:
         self._store: dict[uuid.UUID, RunState] = {}
@@ -131,6 +139,7 @@ class _InMemoryConversationStore:
         stop_reason: StopReason | None = None,
         required_steps_completed: bool | None = None,
         running_seconds_elapsed: int | None = None,
+        pending_confirmation: PendingConfirmationWrite | None = None,
     ) -> None:
         self._store[workflow_run_id] = state
         if running_seconds_elapsed is not None:
@@ -139,6 +148,7 @@ class _InMemoryConversationStore:
             self._status[workflow_run_id] = status
             self._stop_reason[workflow_run_id] = stop_reason
             self._required_steps_completed[workflow_run_id] = required_steps_completed
+        del pending_confirmation  # accepted so WorkflowRunner's pause call doesn't TypeError
 
     def state_for(self, workflow_run_id: uuid.UUID) -> RunState:
         return self._store[workflow_run_id]

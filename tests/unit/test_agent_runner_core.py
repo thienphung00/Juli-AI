@@ -44,6 +44,7 @@ from juli_backend.services.agent.playbooks.optimize_product import (
 )
 from juli_backend.services.agent.prompts.composer import prompt_sha256, prompt_version
 from juli_backend.services.agent.runner.concurrency import ConcurrencyExhaustedError
+from juli_backend.services.agent.runner.conversation_store import PendingConfirmationWrite
 from juli_backend.services.agent.runner.core import RunResult, WorkflowRunner
 from juli_backend.services.agent.runner.ledger import ToolExecutionUnrecoverableError
 from juli_backend.services.agent.runner.state import RunState
@@ -79,7 +80,14 @@ class _InMemoryConversationStore:
     same way -- unlike the three fields above, `WorkflowRunner` now passes
     it on *every* persist call, terminal or not, so a signature omitting it
     would raise `TypeError` on this double's very first `persist` call in
-    any scenario, not just one that reaches a terminal `stop_reason`."""
+    any scenario, not just one that reaches a terminal `stop_reason`.
+
+    `pending_confirmation` (issue #1221) is accepted and recorded the same
+    way -- `WorkflowRunner` now makes a dedicated `persist` call carrying
+    it at every CONFIRM pause (`_pause_pending_confirmation`), so a
+    signature omitting it would raise `TypeError` the first time this
+    module's own tests reach a CONFIRM pause (most of `TestConfirmPause`
+    and friends)."""
 
     def __init__(self) -> None:
         self._store: dict[uuid.UUID, RunState] = {}
@@ -87,6 +95,7 @@ class _InMemoryConversationStore:
         self._stop_reason: dict[uuid.UUID, StopReason] = {}
         self._required_steps_completed: dict[uuid.UUID, bool | None] = {}
         self._running_seconds_elapsed: dict[uuid.UUID, int | None] = {}
+        self._pending_confirmations: dict[uuid.UUID, list[PendingConfirmationWrite]] = {}
 
     def seed(self, workflow_run_id: uuid.UUID, state: RunState | None = None) -> None:
         self._store[workflow_run_id] = state if state is not None else RunState()
@@ -103,6 +112,7 @@ class _InMemoryConversationStore:
         stop_reason: StopReason | None = None,
         required_steps_completed: bool | None = None,
         running_seconds_elapsed: int | None = None,
+        pending_confirmation: PendingConfirmationWrite | None = None,
     ) -> None:
         self._store[workflow_run_id] = state
         if running_seconds_elapsed is not None:
@@ -111,12 +121,19 @@ class _InMemoryConversationStore:
             self._status[workflow_run_id] = status
             self._stop_reason[workflow_run_id] = stop_reason
             self._required_steps_completed[workflow_run_id] = required_steps_completed
+        if pending_confirmation is not None:
+            self._pending_confirmations.setdefault(workflow_run_id, []).append(pending_confirmation)
 
     def required_steps_completed_for(self, workflow_run_id: uuid.UUID) -> bool | None:
         return self._required_steps_completed[workflow_run_id]
 
     def running_seconds_elapsed_for(self, workflow_run_id: uuid.UUID) -> int | None:
         return self._running_seconds_elapsed[workflow_run_id]
+
+    def pending_confirmations_for(
+        self, workflow_run_id: uuid.UUID
+    ) -> list[PendingConfirmationWrite]:
+        return self._pending_confirmations.get(workflow_run_id, [])
 
 
 class _SpyToolExecutor:

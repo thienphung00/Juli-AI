@@ -249,7 +249,11 @@ from juli_backend.services.agent.llm.openai_adapter import LLMProviderError
 from juli_backend.services.agent.playbooks.base import Playbook
 from juli_backend.services.agent.prompts.composer import compose, prompt_sha256, prompt_version
 from juli_backend.services.agent.runner.concurrency import ConcurrencyExhaustedError
-from juli_backend.services.agent.runner.conversation_store import ConversationStore
+from juli_backend.services.agent.runner.confirmation import build_confirmation_options
+from juli_backend.services.agent.runner.conversation_store import (
+    ConversationStore,
+    PendingConfirmationWrite,
+)
 from juli_backend.services.agent.runner.ledger import ToolExecutionUnrecoverableError
 from juli_backend.services.agent.runner.state import ConversationMessage, RunState
 from juli_backend.services.agent.runner.termination import (
@@ -270,7 +274,7 @@ from juli_backend.services.agent.sanitize import (
     to_error_envelope,
 )
 from juli_backend.services.agent.status import StopReason, WorkflowRunStatus, status_for
-from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry, UnknownToolError
+from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry, ToolSpec, UnknownToolError
 from juli_backend.services.execution.types import ExecutionErrorCategory
 
 
@@ -881,7 +885,7 @@ class WorkflowRunner:
             return _ToolCallOutcome.MALFORMED
 
         if spec.policy is ToolPolicy.CONFIRM:
-            await self._pause_pending_confirmation(workflow_run_id, state, block)
+            await self._pause_pending_confirmation(workflow_run_id, state, block, spec)
             return _ToolCallOutcome.PAUSED
 
         state.conversation_window.append(self._tool_call_message(block))
@@ -992,7 +996,7 @@ class WorkflowRunner:
         )
 
     async def _pause_pending_confirmation(
-        self, workflow_run_id: uuid.UUID, state: RunState, block: ToolCallBlock
+        self, workflow_run_id: uuid.UUID, state: RunState, block: ToolCallBlock, spec: ToolSpec
     ) -> None:
         """Record a validated CONFIRM-policy `ToolCallBlock` as this run's
         pending confirmation (issue #1123) — the proposal is appended to the
@@ -1005,6 +1009,31 @@ class WorkflowRunner:
         never a literal) — the reaper's 4h expiry sweep (#1130) is what
         actually enforces it; this module only surfaces the deadline on the
         `workflow.approval_required` event.
+
+        **Decision request recording (issue #1221 / AGT-W5A, ADR-075
+        decision 2).** `build_confirmation_options` (`confirmation.py`)
+        builds the `options[]` list exactly once here — binary confirm's
+        N=1 case, `spec.description` as the placeholder rationale (a
+        genuinely reasoned, per-option rationale is P12's prompt-content
+        concern, not this module's) — and the *same* list is both emitted
+        on `WorkflowApprovalRequiredPayload.options` and written to a new
+        `run_confirmations` row via a dedicated
+        `self._conversation_store.persist(..., pending_confirmation=...)`
+        call, deliberately separate from the per-iteration
+        `status=WAITING_APPROVAL` persist call `_drive_loop` already makes
+        a few lines after this method returns. Two consequences of that
+        separation, both intentional:
+
+        - `state.pending_confirmation` (the JSONB-blob bookkeeping dict
+          `resume()` reads `call_id`/`tool_name`/`arguments` back off of)
+          stays exactly the three keys it always was — the new options/
+          expires_at data never lands there, so it can never leak into
+          that dict's exact-equality test coverage or `resume()`'s own
+          reads of it.
+        - This method calls `persist` with no `status`/`stop_reason` —
+          `JsonbConversationStore.persist`'s existing `waiting_approval_
+          since` stamping stays entirely `_drive_loop`'s job, unchanged;
+          this call's only effect is the `run_confirmations` INSERT.
         """
         state.conversation_window.append(self._tool_call_message(block))
         state.pending_confirmation = {
@@ -1014,6 +1043,10 @@ class WorkflowRunner:
         }
         policy = self._playbook.termination_policy
         expires_at = datetime.now(UTC) + timedelta(hours=policy.approval_timeout_h)
+        options = build_confirmation_options(
+            rationale=spec.description,
+            arguments=block.arguments,
+        )
         await self._emit(
             workflow_run_id,
             state,
@@ -1022,6 +1055,17 @@ class WorkflowRunner:
                 tool_call_id=block.call_id,
                 tool_name=block.tool_name,
                 proposed_change=dict(block.arguments),
+                expires_at=expires_at,
+                options=options,
+            ),
+        )
+        await self._conversation_store.persist(
+            workflow_run_id,
+            state,
+            running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+            pending_confirmation=PendingConfirmationWrite(
+                tool_call_id=block.call_id,
+                options=options,
                 expires_at=expires_at,
             ),
         )
