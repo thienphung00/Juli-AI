@@ -194,6 +194,29 @@ databaseTables:
       #1125 / AGT-W3B) — same owner as workflow_runs per MODULES.md §8 (Workers &
       Async owns the Celery-driven run records); P8-3's PersistingEventSink (a later
       slice) is the write path, invoked from the WorkflowRunner's Celery task.
+  run_confirmations:
+    owner: Agent Execution
+    access: write
+    notes: >
+      Decision request presented at a CONFIRM pause (ADR-075 decision 2, #1214 /
+      AGT-W5A-DP) — same owner as workflow_runs/workflow_run_events. The
+      WorkflowRunner writes the row at the CONFIRM pause (#1221, a later slice);
+      the confirmation endpoint transitions pending → approved/declined (#1224,
+      a later slice). Schema landed in #1214; nothing reads or writes this table
+      yet — the first writers are #1221 and #1224.
+  action_card_approvals:
+    owner: Agent Execution
+    access: write
+    notes: >
+      Approval audit record — who approved which ActionCard, when, and a
+      snapshot of the card as shown (ADR-075 decision 1, #1214 / AGT-W5A-DP).
+      Deliberately Agent Execution, not Intelligence (Action Cards / Scoring,
+      the owner of action_cards itself): ownership here tracks who *writes*,
+      and the sole writer is the approve-is-run-creation transaction (#1222, a
+      later slice, ADR-075 decision 1) — the same transaction that flips
+      action_cards.status and inserts the workflow_runs row — not the scoring
+      pipeline that owns action_cards. Schema landed in #1214; nothing reads or
+      writes this table yet — the first writer is #1222.
   tool_executions:
     owner: Agent Execution
     access: write
