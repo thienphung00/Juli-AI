@@ -26,6 +26,7 @@ from juli_backend.services.agent.events.envelope import (
 from juli_backend.services.agent.events.payloads import (
     FAILURE_STOP_REASONS,
     AssistantTextPayload,
+    ConfirmationOptionPayload,
     ToolCompletedPayload,
     ToolStartedPayload,
     WorkflowApprovalRequiredPayload,
@@ -46,6 +47,7 @@ __all__ = [
     "FAILURE_STOP_REASONS",
     "AssistantTextEvent",
     "AssistantTextPayload",
+    "ConfirmationOptionPayload",
     "EventPublisher",
     "EventSink",
     "InMemoryEventSink",

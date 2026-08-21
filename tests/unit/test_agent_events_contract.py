@@ -438,3 +438,29 @@ def test_ts_only_valid_divergence_fails_the_python_side_naming_tool_started():
     assert "tool.started" in str(exc_info.value), (
         f"Python-side failure must name the offending event type, got: {exc_info.value!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# `options` is additive AND OPTIONAL (ADR-075 decision 2, issue #1221 /
+# AGT-W5A): a `workflow.approval_required` row persisted before this issue
+# shipped has no `options` key in its payload JSON at all. Both languages
+# must still validate it -- required-on-either-side would raise on data
+# that was valid when it was written, on the Postgres replay authority's
+# own adapter (ADR-074 decision 1).
+# ---------------------------------------------------------------------------
+
+
+def test_pre_1221_legacy_approval_required_fixture_validates_on_both_languages_without_options():
+    raw = _read_json(FIXTURES_DIR / "workflow-approval-required-legacy-no-options.json")
+    assert "options" not in raw["payload"], "fixture must be the genuine pre-#1221 shape"
+
+    event = WorkflowRunEventAdapter.validate_python(raw)
+    assert event.payload.options == []
+    assert event.payload.proposed_change == {"price": {"from": "199000", "to": "179000"}}
+
+    results = _ts_validate_batch([{"id": "legacy-no-options", "event": raw}])
+    result = results["legacy-no-options"]
+    assert result["ok"], (
+        f"TS validator rejected the legacy no-options fixture: {result.get('error')}"
+    )
+    assert "options" not in result["value"]["payload"]

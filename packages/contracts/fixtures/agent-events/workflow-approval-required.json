@@ -12,7 +12,20 @@
         "to": "179000"
       }
     },
-    "expires_at": "2026-08-14T16:00:05Z"
+    "expires_at": "2026-08-14T16:00:05Z",
+    "options": [
+      {
+        "option_id": "1",
+        "proposed_change": {
+          "price": {
+            "from": "199000",
+            "to": "179000"
+          }
+        },
+        "rationale": "Apply the new price to the bound product.",
+        "params_sha": "21e39b8b688d33711086e974731e227a9818c5da5abe137b16d35157777d5fb1"
+      }
+    ]
   },
   "v": 1
 }
