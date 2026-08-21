@@ -475,6 +475,34 @@ class WorkflowRunner:
         `pending_confirmation` — resuming a run that was never paused (or
         whose pause was already resolved) is a caller bug, never a silent
         no-op.
+
+        **Entry transition off `waiting_approval` (issue #1181 / AGT-W5A,
+        review finding 1178-R2).** Before either branch below does
+        anything else — no tool dispatch, no `LLM` call, not even the
+        decline branch's `_emit` calls — this method persists
+        `status=RUNNING` through the `ConversationStore` seam. A crash
+        anywhere in the rest of this method (the approve branch's
+        synchronous `ToolExecutor.execute`, in particular, is the case
+        #1178's review called out) then leaves the row at `running`, not
+        `waiting_approval`: `workers/tasks/reaper.py::
+        _reap_expired_waiting_approval` selects rows by `status ==
+        WAITING_APPROVAL` alone, so this write drops the run out of that
+        sweep's selection immediately, regardless of how stale
+        `waiting_approval_since` (never cleared here — `JsonbConversation
+        Store.persist` only ever stamps it, never unsets it) is left
+        sitting. The same write makes the row newly eligible for
+        `_reap_stale_running_and_queued` (`status in (QUEUED, RUNNING)`),
+        so an abandoned resume is reaped as `worker_lost`/`failed` by the
+        5-minute sweep instead of silently owned by nobody. `RUNNING` is
+        the existing, already-total vocabulary member for "a run is
+        actively being worked" (`status.py`'s `NON_TERMINAL_STATUSES`) —
+        no new `StopReason`/`WorkflowRunStatus` member, and no
+        `stop_reason` is recorded here (this is not a loop exit, so
+        ADR-073 decision 2's "every exit records exactly one stop_reason"
+        does not apply). This call passes no `stop_reason`,
+        `required_steps_completed`, or `pending_confirmation` — all three
+        stay `None`, the same true no-op every ordinary per-iteration
+        persist relies on.
         """
         state = await self._conversation_store.load(workflow_run_id)
         if state.pending_confirmation is None:
@@ -482,6 +510,13 @@ class WorkflowRunner:
                 f"WorkflowRunner.resume: run {workflow_run_id} has no "
                 "pending_confirmation to resume from."
             )
+
+        await self._conversation_store.persist(
+            workflow_run_id,
+            state,
+            status=WorkflowRunStatus.RUNNING,
+            running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+        )
 
         system_prompt = compose(self._playbook.workflow_key, self._playbook.version)
         version_str = prompt_version(self._playbook.workflow_key, self._playbook.version)

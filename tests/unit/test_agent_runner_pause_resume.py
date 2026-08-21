@@ -462,6 +462,69 @@ class TestResumeDeclined:
             assert resumed_state.next_sequence == event_count_a + 2 + 1
 
 
+class _CrashingToolExecutor:
+    """Raises an unhandled exception from `execute` -- standing in for a
+    worker process dying mid-dispatch (issue #1181 / AGT-W5A). Deliberately
+    NOT one of `ConcurrencyExhaustedError`/`ToolExecutionUnrecoverableError`
+    -- those are translated outcomes `resume()` already handles and
+    persists a terminal row for; this is the *unhandled* crash case the
+    review finding (1178-R2) is about, which `resume()` never catches."""
+
+    def execute(self, *, tool_name: str, params: Any, tool_call_id: str | None = None) -> dict:
+        raise RuntimeError("simulated worker crash mid-dispatch")
+
+
+class TestResumeEntryPersistsOffWaitingApproval:
+    """Issue #1181 / AGT-W5A, review finding 1178-R2: `resume()` must
+    persist a status transition off `waiting_approval` at entry, before any
+    tool dispatch or LLM call -- so a crash during resume's active phase
+    (simulated here by a `ToolExecutor` that raises) is reaped by the
+    5-minute `worker_lost` sweep rather than the 4-hour approval-expiry
+    sweep. Proven by driving the real `resume()` and reading the row back
+    mid-crash, not by asserting on `RunResult` (which the crash never
+    produces)."""
+
+    async def test_the_row_leaves_waiting_approval_before_the_crashing_dispatch_completes(
+        self, engine: AsyncEngine
+    ):
+        run_id, _state_at_pause, _event_count_a, weak_runner_a = await _pause_runner_a(engine)
+        gc.collect()
+        assert weak_runner_a() is None
+
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session_b:
+            paused_row = await session_b.get(WorkflowRun, run_id)
+            assert paused_row is not None
+            assert paused_row.status == WorkflowRunStatus.WAITING_APPROVAL.value
+
+            store_b = JsonbConversationStore(session_b)
+            runner_b = WorkflowRunner(
+                llm_service=FakeLLMService(script=[]),  # never reached -- crash precedes it
+                tool_executor=_CrashingToolExecutor(),
+                event_sink=InMemoryEventSink(),
+                conversation_store=store_b,
+                registry=_full_registry(),
+                playbook=_pause_resume_playbook(),
+            )
+
+            try:
+                await runner_b.resume(run_id, approved=True)
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError("expected the simulated crash to propagate out of resume()")
+
+            # The crash happened inside the approve branch's dispatch, well
+            # after resume()'s entry -- if the entry persist ran first (the
+            # fix), the row already reads `running`, not `waiting_approval`,
+            # despite resume() never reaching a terminal exit at all.
+            crashed_row = await session_b.get(WorkflowRun, run_id)
+            assert crashed_row is not None
+            assert crashed_row.status == WorkflowRunStatus.RUNNING.value
+            assert crashed_row.stop_reason is None
+            assert crashed_row.completed_at is None
+
+
 class TestResumeWithNoPendingConfirmationRaises:
     async def test_resuming_a_run_that_was_never_paused_raises(self, engine: AsyncEngine):
         factory = async_sessionmaker(engine, expire_on_commit=False)
