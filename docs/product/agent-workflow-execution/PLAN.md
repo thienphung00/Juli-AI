@@ -667,6 +667,33 @@ beat picks them up automatically on 2026-08-26.
 
 ### The deploy gap this wave exposed
 
+After #1248 deployed, the host ran `-Q celery,agent_runs` while the release carried
+`-Q celery,agent_runs,credentials` — the beat was active and enqueueing into a queue nobody
+consumed, with `NeedDaemonReload=no` so systemd reported itself current about the file it had.
+Fixed manually by the owner; verified by the worker's own startup banner listing `credentials`
+under `[queues]` and `juli_backend.credential_refresh_beat` under `[tasks]` — the `ExecStart`
+flag alone proves only what systemd loaded, not what the process subscribed to.
+
+**Filed as [#1250](https://github.com/thienphung00/Juli-AI/issues/1250) after reading the
+script.** The cause is narrower than first recorded here, and the first wording was wrong:
+`deploy.sh` **does** install unit files (`deploy.sh:225-227`, `install -m 0644` +
+`daemon-reload`) — but only for **lanes**, which are exactly `api`, `demo`, `landing`. That is
+the only `install -m` in the 593-line script. The Celery worker and beat are handled separately
+(`deploy.sh:383-389`): `systemctl cat` checks the unit *exists*, then `systemctl restart` runs
+it — from whatever is already on the host. So the API unit was never affected; only the Celery
+units are, and they are restarted with stale config while the deploy reports success.
+
+Two aggravating details found in the same read. `lane_path_filters api` covers `backend/`,
+`requirements.txt` and `infra/systemd/juli-api.service`, so **the API unit is a deploy trigger
+for its own lane while the Celery unit files trigger nothing** — a commit changing only
+`juli-celery-worker.service` marks every lane unchanged and deploys nothing. And the API lane
+ends with a real `public_check` against a live URL, whereas the Celery branch records
+`record_step api celery "restarted"`, which asserts that `systemctl restart` was *called*, not
+that the worker came up consuming the intended queues.
+
+[#1205](https://github.com/thienphung00/Juli-AI/issues/1205) was diagnosed as a one-off missing
+`-Q` flag and fixed by editing the unit. It is the same defect as this one, and it will recur on
+every future Celery unit change until #1250 lands.
 `deploy.sh` does **not** copy systemd unit files out of the release into `/etc/systemd/system/`.
 After #1248 deployed, the host ran `-Q celery,agent_runs` while the release carried
 `-Q celery,agent_runs,credentials` — the beat was active and enqueueing into a queue nobody
