@@ -51,10 +51,13 @@ class WorkflowStartedPayload(_EventPayload):
 
 class WorkflowStatusPayload(_EventPayload):
     """`phase_narration` is VI-locale copy describing the run's current
-    phase. The runner also emits this same event type (same single field)
-    to make an iteration-cap extension grant visible on the stream
-    (ADR-073 decision 2 / ADR-074 d.2) -- there is no separate "extension"
-    field; the grant is narrated through this one free-text field."""
+    phase (issue #1140 -- the Vietnamese text is generated server-side, in
+    this payload, per `services/agent/narration_copy.py`, not translated or
+    looked up by a client-side copy table). The runner also emits this same
+    event type (same single field) to make an iteration-cap extension grant
+    visible on the stream (ADR-073 decision 2 / ADR-074 d.2) -- there is no
+    separate "extension" field; the grant is narrated through this one
+    free-text field."""
 
     phase_narration: str
 
