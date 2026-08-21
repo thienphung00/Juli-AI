@@ -132,6 +132,28 @@ def test_migration_039_down_revision_is_038():
 
 
 def test_exactly_one_migration_head_after_039():
+    """Walks the entire chain (not just 039) so a second, unrelated branch
+    anywhere in the tree also fails this.
+
+    Asserts the chain-invariant this test actually cares about -- no
+    accidental branch, exactly one head -- without pinning which revision
+    that head is, matching the convention `test_workflow_runs_schema.py`'s
+    `test_exactly_one_migration_head_after_034` and
+    `test_workflow_run_events_schema.py`'s
+    `test_exactly_one_migration_head_after_035` already establish.
+    `039_run_confirmations` was head the day this test was written, but is a
+    valid, expected non-head the moment a later slice
+    (`040_workflow_run_action_card`, #1269 / AGT-W5A-DP, ADR-082 decision 6)
+    chains onto it -- a literal-pinned assertion here fails every subsequent
+    migration for the wrong reason, exactly the anti-pattern
+    `tests/integration/test_migrations.py`'s `_latest_revision()` docstring
+    already warns against. Original literal pin here was this test's own
+    oversight relative to the sibling convention; corrected in #1269 rather
+    than left to break the wave->main PR. `039` itself being a real, present,
+    non-orphaned node in the chain is asserted separately by
+    `test_migration_039_down_revision_is_038` above and by 040's own
+    `test_migration_040_down_revision_is_039`
+    (`test_workflow_run_action_card_fk_schema.py`)."""
     revisions: dict[str, str | None] = {}
     for path in MIGRATIONS_DIR.glob("*.py"):
         body = path.read_text(encoding="utf-8")
@@ -142,7 +164,6 @@ def test_exactly_one_migration_head_after_039():
     parents = {d for d in revisions.values() if d}
     heads = [r for r in revisions if r not in parents]
     assert len(heads) == 1, f"expected exactly one head, got {sorted(heads)}"
-    assert heads[0] == "039_run_confirmations"
 
 
 def test_migration_039_does_not_touch_required_steps_completed():

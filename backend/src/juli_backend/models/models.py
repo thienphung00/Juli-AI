@@ -602,11 +602,20 @@ class WorkflowRun(Base):
     #: (`_ReaperEventSink.emit`) at every terminal exit, alongside
     #: `status`/`stop_reason` -- never a second, independent write path.
     required_steps_completed: Mapped[bool | None] = mapped_column(Boolean)
+    #: The ActionCard whose approval created this run (migration 040, issue
+    #: #1269, ADR-082 decision 6): ADR-075 decision 1 has always specified
+    #: "INSERT the `workflow_run` (FK to the card)", but #1214 shipped no
+    #: link in either direction. Nullable, no backfill -- runs created
+    #: before this column existed have no card, and inventing one would be
+    #: false data. Nothing writes this column yet; #1222's approve
+    #: transaction is the first writer.
+    action_card_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("action_cards.id"))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index("ix_workflow_runs_shop", "shop_id"),
+        Index("ix_workflow_runs_action_card", "action_card_id"),
         Index(
             "uq_workflow_runs_active_shop_product",
             "shop_id",

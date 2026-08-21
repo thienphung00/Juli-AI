@@ -185,7 +185,13 @@ databaseTables:
   workflow_runs:
     owner: Agent Execution
     access: write
-    notes: WorkflowRunner (services/agent/runner) persists; Celery task (P8) drives the run.
+    notes: >
+      WorkflowRunner (services/agent/runner) persists; Celery task (P8) drives the run.
+      `action_card_id` (nullable, FK to `action_cards.id`, migration 040, #1269,
+      ADR-082 decision 6) links a run back to the ActionCard whose approval created
+      it, completing ADR-075 decision 1's "FK to the card". No backfill -- runs
+      predating this column read back NULL. Schema landed in #1269; nothing writes
+      it yet -- the first writer is #1222's approve transaction.
   workflow_run_events:
     owner: Agent Execution
     access: write
