@@ -56,7 +56,7 @@ from sqlalchemy.ext.asyncio import (
 
 from juli_backend.core.config.runtime import async_database_url, sync_database_url
 from juli_backend.database.database import Base
-from juli_backend.models.models import Product, Shop, User
+from juli_backend.models.models import ActionCard, Product, Shop, User
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 from juli_backend.services.agent.events.envelope import WorkflowStatusEvent
@@ -362,6 +362,13 @@ _PG_TABLES: list[Any] = [
     User.__table__,
     Shop.__table__,
     Product.__table__,
+    # workflow_runs.action_card_id FKs to action_cards (migration 040, #1269,
+    # ADR-082 decision 6) -- this subset schema must include action_cards or
+    # `CREATE TABLE workflow_runs (...)` fails with
+    # `UndefinedTableError: relation "action_cards" does not exist`. Listed
+    # before WorkflowRunRow for readability; SQLAlchemy's create_all/drop_all
+    # topologically sort by FK dependency regardless of list order.
+    ActionCard.__table__,
     WorkflowRunRow.__table__,
     WorkflowRunEventRow.__table__,
 ]
@@ -423,11 +430,13 @@ def _disposable_postgres_url():
 
 @pytest_asyncio.fixture
 async def postgres_session_factory(_disposable_postgres_url):
-    """A minimal, self-contained schema (just the 5 tables this sink's FK
-    chain needs) created fresh in the session's throwaway database and
-    dropped again on teardown -- deliberately independent of the Alembic
-    migration chain (that belongs to `test_workflow_run_events_schema.py`;
-    this is a unit test of sink *behavior*, not of the migration)."""
+    """A minimal, self-contained schema (just the 6 tables this sink's FK
+    chain needs -- `action_cards` included since #1269/migration 040 gave
+    `workflow_runs` an FK to it) created fresh in the session's throwaway
+    database and dropped again on teardown -- deliberately independent of
+    the Alembic migration chain (that belongs to
+    `test_workflow_run_events_schema.py`; this is a unit test of sink
+    *behavior*, not of the migration)."""
     eng = create_async_engine(async_database_url(_disposable_postgres_url))
 
     def _create(sync_conn):
