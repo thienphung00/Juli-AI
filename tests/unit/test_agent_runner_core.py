@@ -87,7 +87,19 @@ class _InMemoryConversationStore:
     it at every CONFIRM pause (`_pause_pending_confirmation`), so a
     signature omitting it would raise `TypeError` the first time this
     module's own tests reach a CONFIRM pause (most of `TestConfirmPause`
-    and friends)."""
+    and friends).
+
+    `durable` (issue #1181 / AGT-W5A review round 2) is accepted and
+    recorded on `self._durable_calls` for the same reason -- `resume()`'s
+    entry-transition persist now passes `durable=True`, so a signature
+    omitting it would raise `TypeError` the first time this module's own
+    tests reach `resume()` (three `TestConcurrencyConflictTranslation`/
+    `TestToolErrorUnrecoverableViaLedgerTranslation`/`TestRequiredSteps
+    CompletedPersistence` scenarios do). There is no session for this
+    in-memory double to roll back, so the flag has no observable effect on
+    `self._store` beyond the write already happening unconditionally --
+    `JsonbConversationStore` is what `test_agent_runner_pause_resume.py`
+    exercises for the actual durability guarantee."""
 
     def __init__(self) -> None:
         self._store: dict[uuid.UUID, RunState] = {}
@@ -96,6 +108,7 @@ class _InMemoryConversationStore:
         self._required_steps_completed: dict[uuid.UUID, bool | None] = {}
         self._running_seconds_elapsed: dict[uuid.UUID, int | None] = {}
         self._pending_confirmations: dict[uuid.UUID, list[PendingConfirmationWrite]] = {}
+        self._durable_calls: list[uuid.UUID] = []
 
     def seed(self, workflow_run_id: uuid.UUID, state: RunState | None = None) -> None:
         self._store[workflow_run_id] = state if state is not None else RunState()
@@ -113,6 +126,7 @@ class _InMemoryConversationStore:
         required_steps_completed: bool | None = None,
         running_seconds_elapsed: int | None = None,
         pending_confirmation: PendingConfirmationWrite | None = None,
+        durable: bool = False,
     ) -> None:
         self._store[workflow_run_id] = state
         if running_seconds_elapsed is not None:
@@ -123,6 +137,8 @@ class _InMemoryConversationStore:
             self._required_steps_completed[workflow_run_id] = required_steps_completed
         if pending_confirmation is not None:
             self._pending_confirmations.setdefault(workflow_run_id, []).append(pending_confirmation)
+        if durable:
+            self._durable_calls.append(workflow_run_id)
 
     def required_steps_completed_for(self, workflow_run_id: uuid.UUID) -> bool | None:
         return self._required_steps_completed[workflow_run_id]

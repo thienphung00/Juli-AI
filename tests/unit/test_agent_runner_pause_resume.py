@@ -462,6 +462,107 @@ class TestResumeDeclined:
             assert resumed_state.next_sequence == event_count_a + 2 + 1
 
 
+class _CrashingToolExecutor:
+    """Raises an unhandled exception from `execute` -- standing in for a
+    worker process dying mid-dispatch (issue #1181 / AGT-W5A). Deliberately
+    NOT one of `ConcurrencyExhaustedError`/`ToolExecutionUnrecoverableError`
+    -- those are translated outcomes `resume()` already handles and
+    persists a terminal row for; this is the *unhandled* crash case the
+    review finding (1178-R2) is about, which `resume()` never catches."""
+
+    def execute(self, *, tool_name: str, params: Any, tool_call_id: str | None = None) -> dict:
+        raise RuntimeError("simulated worker crash mid-dispatch")
+
+
+class TestResumeEntryPersistsOffWaitingApproval:
+    """Issue #1181 / AGT-W5A, review finding 1178-R2 (round 1) + review
+    round 2's durability finding: `resume()` must persist a status
+    transition off `waiting_approval` at entry, before any tool dispatch or
+    LLM call, and that write must SURVIVE a crash in the rest of `resume()`
+    independently of whether the caller's own transaction ever commits.
+
+    **Why this reproduces the production session lifecycle instead of
+    reading the row back through the same session that wrote it (review
+    round 2's own finding about the round-1 version of this test).**
+    `workers/tasks/agent_workflow.py::_resume_agent_workflow_async` opens
+    exactly ONE `AsyncSession`, threads it into `JsonbConversationStore`,
+    calls `await runner.resume(...)`, and commits that session exactly
+    once -- AFTER `resume()` returns -- with no `try`/`except` around any
+    of it (`test_task_body_has_no_loop_or_branch_logic`'s own AST guard on
+    that module forbids one). If `resume()` raises, the exception
+    propagates straight out through the `async with factory() as session:`
+    block, whose `__aexit__` closes the session WITHOUT committing --
+    SQLAlchemy rolls back anything only `flush()`-ed, never `commit()`-ed,
+    in that transaction. `_crash_resume_mirroring_the_production_task_body`
+    below reproduces that exact shape (open session -> construct runner ->
+    resume -> commit, never reached) so the crash's rollback boundary is
+    the real one, not a stand-in. The row is then read back through session
+    C -- a wholly separate session/connection the way a fresh worker
+    process (or the reaper, in a different process entirely) would see it
+    -- never session B, which performed the write and would show its own
+    uncommitted flush as if it were durable regardless of whether the fix
+    exists (exactly how the round-1 version of this test passed for the
+    wrong reason: reading back through the writer's own still-open
+    transaction cannot distinguish "flushed" from "committed")."""
+
+    async def _crash_resume_mirroring_the_production_task_body(
+        self, factory: async_sessionmaker[AsyncSession], run_id: uuid.UUID
+    ) -> None:
+        """Shaped exactly like `_resume_agent_workflow_async`: one session,
+        no `try`/`except`, one `commit()` call sited AFTER `resume()`
+        returns -- never reached here, since the crashing `ToolExecutor`
+        makes `resume()` raise first."""
+        async with factory() as session_b:
+            store_b = JsonbConversationStore(session_b)
+            runner_b = WorkflowRunner(
+                llm_service=FakeLLMService(script=[]),  # never reached -- crash precedes it
+                tool_executor=_CrashingToolExecutor(),
+                event_sink=InMemoryEventSink(),
+                conversation_store=store_b,
+                registry=_full_registry(),
+                playbook=_pause_resume_playbook(),
+            )
+            await runner_b.resume(run_id, approved=True)
+            await session_b.commit()  # mirrors the task shell's own single final commit
+
+    async def test_the_entry_write_survives_a_crash_read_back_through_a_separate_session(
+        self, engine: AsyncEngine
+    ):
+        run_id, _state_at_pause, _event_count_a, weak_runner_a = await _pause_runner_a(engine)
+        gc.collect()
+        assert weak_runner_a() is None
+
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async with factory() as session_precheck:
+            paused_row = await session_precheck.get(WorkflowRun, run_id)
+            assert paused_row is not None
+            assert paused_row.status == WorkflowRunStatus.WAITING_APPROVAL.value
+
+        try:
+            await self._crash_resume_mirroring_the_production_task_body(factory, run_id)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("expected the simulated crash to propagate out of resume()")
+
+        # Session C: a wholly separate session/connection from the one that
+        # performed the write -- exactly what a fresh worker process (or the
+        # reaper) reads. Only a genuinely committed write is visible here;
+        # an uncommitted flush inside session B's now-closed, rolled-back
+        # transaction is not.
+        async with factory() as session_c:
+            durable_row = await session_c.get(WorkflowRun, run_id)
+            assert durable_row is not None
+            assert durable_row.status == WorkflowRunStatus.RUNNING.value, (
+                "the resume-entry status transition must survive independently of "
+                "whether the rest of resume() ever completes -- read back through a "
+                "session that never touched the write itself"
+            )
+            assert durable_row.stop_reason is None
+            assert durable_row.completed_at is None
+
+
 class TestResumeWithNoPendingConfirmationRaises:
     async def test_resuming_a_run_that_was_never_paused_raises(self, engine: AsyncEngine):
         factory = async_sessionmaker(engine, expire_on_commit=False)
