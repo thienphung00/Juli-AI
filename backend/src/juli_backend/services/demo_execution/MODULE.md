@@ -62,6 +62,24 @@ site for this slice, because splitting it across domains had twice produced
 correct code nothing called in this wave (the call site lives in backend
 paths — `api/routes/demo_execution.py`).
 
+**Retired call site (#1222, 2026-08-21).** `api/routes/demo_execution.py`'s
+`POST /v1/demo/decisions/{action_card_id}/approve` no longer calls
+`approve_decision_dry_run` — owner decision (ADR-075 decision 1, ADR-082):
+approve-is-run-creation took over that route, and the dry-run behaviour on
+that HTTP path is retired. This module (the table, the model, the function,
+its own direct unit tests in `tests/unit/test_demo_execution_dry_run.py`,
+and the AST import-boundary test in
+`tests/unit/test_demo_execution_import_boundary.py`) is left in place —
+registered but **unreachable from any route** — rather than deleted
+outright: no other module ever called `approve_decision_dry_run` besides
+that one route (grepped across `backend/src/juli_backend` at removal time),
+so nothing else breaks either way, but deleting a tested, isolated module
+whose own migration/table/tests all still pass would be destroying working,
+documented code to chase a smaller diff rather than because anything here
+is wrong. If a future slice determines this module has no remaining
+purpose, that is a deliberate deletion decision for that slice, not a
+byproduct of #1222 removing its one caller.
+
 ## Public Interface
 
 - `approve_decision_dry_run(session, *, shop_id, action_card_id, now=None)`
@@ -118,16 +136,17 @@ verified against unknown deployed data. A future slice that adds a
 migration to de-duplicate any existing rows first could safely add the
 constraint afterward.
 
-## HTTP (via `api/routes/demo_execution.py`)
+## HTTP — retired (#1222)
 
-- `POST /v1/demo/decisions/{action_card_id}/approve` — unauthenticated,
-  server-bound `DEMO_REFERENCE_SHOP_ID` (same pattern as
-  `GET /v1/demo/analytics`, #531, via `api/routes/demo_analytics.py`'s
-  `get_demo_reference_shop_id`). No `X-Shop-Id` header, no bearer token. 200
-  with `{execution_id, action_card_id, status, narrative}` on success; 404 if
-  the Decision does not exist for the reference shop. Response body
-  deliberately omits `workflow_key` — internal identifiers stay out of the
-  public Demo response body (same standard #718/B-6 sets for the read API).
+`POST /v1/demo/decisions/{action_card_id}/approve` (`api/routes/
+demo_execution.py`) no longer calls anything in this module. As of #1222 it
+is authenticated (`get_current_user` + `get_active_shop`, ADR-075 decision
+3) real agent-run creation — see that route module's own docstring and
+`services/agent/approval.py`. This module has no HTTP surface of its own
+any more; the paragraph this section used to describe (unauthenticated,
+`DEMO_REFERENCE_SHOP_ID`-bound, `{execution_id, action_card_id, status,
+narrative}` response) is history, kept out of this file rather than left to
+silently drift from what the route now actually does.
 
 ## Key behaviors
 

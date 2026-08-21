@@ -690,6 +690,28 @@ class ProductsRepo(ShopScopedRepo[Product]):
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_highest_revenue_product(self, shop_id: uuid.UUID) -> Product | None:
+        """The ADR-082 decision 2 product-binding rule: highest `revenue`
+        first, `tiktok_product_id` ascending as the deterministic tiebreak.
+
+        The tiebreak is not decoration -- without it, two products with
+        identical `revenue` would resolve by whatever order Postgres
+        happens to return them in, so the same `ActionCard` approved twice
+        could bind to a different listing for no reason a seller could
+        observe (`services/agent/approval.py`, the sole caller). `None`
+        when the shop has zero products -- the caller (`approve_action_card`)
+        turns that into `NoProductsForShop` rather than creating a run with
+        a NULL `product_id`.
+        """
+        stmt = (
+            select(self._model)
+            .where(self._model.shop_id == shop_id)
+            .order_by(self._model.revenue.desc(), self._model.tiktok_product_id.asc())
+            .limit(1)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
 
 class InventoryRepo(ShopScopedRepo[InventoryItem]):
     _model = InventoryItem
