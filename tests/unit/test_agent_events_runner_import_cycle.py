@@ -137,6 +137,42 @@ class TestWorkflowRunnerExportIsEagerNotLazy:
         assert "core_loaded=True" in result.stdout
         assert "tool_executor_loaded=True" in result.stdout
 
+    def test_tool_executor_exports_resolve_as_package_attributes_in_either_order(self):
+        """Regression cover for the one assertion lost when
+        `test_agent_runner_lazy_import.py` was deleted (found in review of #1139).
+
+        The three `tool_executor` names must resolve off the `runner` *package*,
+        not merely off `runner.tool_executor`. Under the old lazy `__getattr__`
+        that resolution was the entire point of the workaround; with the
+        workaround deleted it has to hold eagerly instead — and in both import
+        orders, since events-first is the order that used to cycle.
+
+        `test_core_and_tool_executor_are_in_sys_modules_immediately` proves the
+        submodules load, which is a weaker claim: a submodule can be in
+        `sys.modules` while the package never re-exports its names.
+        """
+        events_mod = "juli_backend.services.agent.events.payloads"
+        runner_mod = "juli_backend.services.agent.runner"
+        names = ("ProductToolExecutor", "ToolExecutor", "ToolExecutionError")
+
+        for first, second in ((events_mod, runner_mod), (runner_mod, events_mod)):
+            result = _run_in_subprocess(
+                f"import {first}\n"
+                f"import {second}\n"
+                f"import {runner_mod} as runner\n"
+                f"for name in {names!r}:\n"
+                "    print(f'{name}={getattr(runner, name).__name__}')\n"
+            )
+            assert result.returncode == 0, (
+                f"import order {first} -> {second} failed: "
+                f"stdout={result.stdout!r} stderr={result.stderr!r}"
+            )
+            for name in names:
+                assert f"{name}={name}" in result.stdout, (
+                    f"{name} did not resolve as a `runner` package attribute in "
+                    f"import order {first} -> {second}: stdout={result.stdout!r}"
+                )
+
     def test_runner_init_has_no_module_getattr(self):
         import juli_backend.services.agent.runner as runner
 
@@ -150,6 +186,57 @@ class TestWorkflowRunnerExportIsEagerNotLazy:
 
         with pytest.raises(AttributeError):
             runner.NotARealExport
+
+
+_RUNNER_MODULE = "juli_backend.services.agent.runner"
+
+
+def _is_runner_module(dotted: str) -> bool:
+    """True for the runner package itself and anything beneath it — but not for a
+    sibling that merely shares the prefix (`...agent.runner_utils`)."""
+    return dotted == _RUNNER_MODULE or dotted.startswith(_RUNNER_MODULE + ".")
+
+
+def _containing_package(path: Path) -> str:
+    """Dotted name of the package a file lives in — the base a `level=1` relative
+    import resolves against. That is the containing directory either way: for
+    `pkg/__init__.py` it is `pkg` (the package the file defines), and for
+    `pkg/mod.py` it is also `pkg` (the module's parent)."""
+    return ".".join(path.parent.relative_to(BACKEND_SRC).parts)
+
+
+def _imported_module_paths(node: ast.AST, path: Path) -> list[str]:
+    """Every absolute dotted module path an import statement can reach.
+
+    Three forms have to be resolved, not just the obvious one — a guard that
+    only understands `from juli_backend.services.agent.runner.x import y` is
+    trivially, and silently, bypassed by the other two:
+
+    - `import a.b.c`                    -> the dotted names directly
+    - `from a.b import c`               -> `a.b` *and* `a.b.c`, since `c` may be
+                                           a submodule rather than an attribute
+    - `from ..runner import c`          -> resolved against the containing
+                                           package, since `node.module` is a
+                                           bare `"runner"` with `level=2`
+    """
+    if isinstance(node, ast.Import):
+        return [alias.name for alias in node.names]
+    if not isinstance(node, ast.ImportFrom):
+        return []
+
+    if node.level:
+        parts = _containing_package(path).split(".")
+        base_parts = parts[: len(parts) - (node.level - 1)]
+        base = ".".join(base_parts)
+        target = f"{base}.{node.module}" if node.module else base
+    else:
+        target = node.module or ""
+
+    if not target:
+        return []
+    # `from X import name` binds X.name when `name` is a submodule, so both the
+    # package and each imported name have to be checked.
+    return [target] + [f"{target}.{alias.name}" for alias in node.names]
 
 
 class TestEventsPackageImportsNothingFromRunner:
@@ -166,15 +253,51 @@ class TestEventsPackageImportsNothingFromRunner:
         for path in sorted(EVENTS_PACKAGE_DIR.rglob("*.py")):
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
             for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom) and node.module:
-                    if node.module.startswith("juli_backend.services.agent.runner"):
-                        offending.append(f"{path}: from {node.module} import ...")
-                elif isinstance(node, ast.Import):
-                    for alias in node.names:
-                        if alias.name.startswith("juli_backend.services.agent.runner"):
-                            offending.append(f"{path}: import {alias.name}")
+                for target in _imported_module_paths(node, path):
+                    if _is_runner_module(target):
+                        offending.append(f"{path}: {ast.unparse(node)}  -> {target}")
 
         assert not offending, (
             "services/agent/events/ must not import from services/agent/runner/ "
             f"(the events contract must not depend on the runner implementation): {offending}"
+        )
+
+    @pytest.mark.parametrize(
+        ("statement", "trips"),
+        [
+            # The obvious form.
+            ("from juli_backend.services.agent.runner.core import WorkflowRunner", True),
+            ("from juli_backend.services.agent.runner import core", True),
+            ("import juli_backend.services.agent.runner.core", True),
+            ("import juli_backend.services.agent.runner as r", True),
+            # Importing the subpackage *by name* — `node.module` is only
+            # `...services.agent` here, so a guard reading `node.module` alone
+            # never sees `runner` and waves this straight through.
+            ("from juli_backend.services.agent import runner", True),
+            # Relative forms — `node.module` is a bare `"runner"` with level=2,
+            # which does not start with the absolute prefix at all.
+            ("from ..runner import core", True),
+            ("from ..runner.core import WorkflowRunner", True),
+            ("from .. import runner", True),
+            # Must NOT trip: the neutral status module this slice created, in
+            # every form, or a sibling that merely shares the name prefix.
+            ("from juli_backend.services.agent.status import StopReason", False),
+            ("from juli_backend.services.agent import status", False),
+            ("from ..status import StopReason", False),
+            ("import juli_backend.services.agent.runner_utils", False),
+        ],
+    )
+    def test_guard_resolves_every_form_of_import(self, statement: str, trips: bool):
+        """The guard is only worth having if it cannot be sidestepped by writing
+        the same import a different way. Each form below is resolved to the
+        absolute module paths it can actually reach, and checked.
+
+        The `False` rows matter as much as the `True` ones: a guard that trips on
+        everything would pass the `True` rows while making the package unusable,
+        and `runner_utils` pins that prefix matching respects module boundaries.
+        """
+        node = ast.parse(statement).body[0]
+        targets = _imported_module_paths(node, EVENTS_PACKAGE_DIR / "synthetic_module.py")
+        assert any(_is_runner_module(t) for t in targets) is trips, (
+            f"{statement!r} resolved to {targets}"
         )
