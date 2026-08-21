@@ -28,6 +28,15 @@ AC -> test map (issue #1224):
   `test_endpoint_no_longer_returns_501_for_a_valid_request`
 - transition committed before enqueue ->
   `test_transition_is_committed_before_the_enqueue_call`
+- consent binding re-verified inside `WorkflowRunner.resume()` too (#1224
+  review round 2, ADR-075 decision 2 attributes the re-hash to "the resume
+  task" itself, not only this endpoint) -> this endpoint's own contribution
+  to that defense-in-depth is stamping the validated `params_sha` onto
+  `run.state["pending_confirmation"]` before enqueueing, so `resume()` can
+  independently re-derive-and-compare with no database access of its own;
+  pinned here by `test_approve_stamps_params_sha_onto_run_state_for_resume_to_reverify`.
+  The resume()-side check itself, including the zero-calls spy proof, lives
+  in `tests/unit/test_agent_runner_resume_params_sha_binding.py`.
 - structured `error_code` discriminator, distinct per condition (#1224
   review finding: three different 409s were indistinguishable except by
   parsing free text) -> an `error_code` assertion on every failing-path
@@ -533,6 +542,38 @@ async def test_endpoint_no_longer_returns_501_for_a_valid_request(app, session, 
     await session.refresh(confirmation)
     assert confirmation.status == "approved"
     assert confirmation.selected_option_id == "1"
+
+
+async def test_approve_stamps_params_sha_onto_run_state_for_resume_to_reverify(
+    app, session, user, shop
+):
+    """`WorkflowRunner.resume()` has no database access beyond
+    `ConversationStore` -- it cannot read `run_confirmations.options[]
+    .params_sha` itself. This endpoint's contribution to that resume-side
+    re-verification (#1224 review round 2) is stamping the already-validated
+    hash onto `run.state["pending_confirmation"]["params_sha"]` before
+    enqueueing, so `resume()` can independently re-derive-and-compare from
+    state it already loads. This is the only assertion of that stamp at the
+    endpoint level; the resume()-side check itself is
+    `tests/unit/test_agent_runner_resume_params_sha_binding.py`'s job.
+    """
+    run, confirmation = await _seed_pending(session, shop)
+    expected_sha = compute_params_sha(PROPOSED_CHANGE)
+    mock_task = _mock_resume_task()
+
+    with patch("juli_backend.workers.tasks.agent_workflow.resume_agent_workflow", mock_task):
+        async with _client_for(app, user, shop) as client:
+            resp = await client.post(
+                f"/v1/demo/runs/{run.id}/confirmations/{TOOL_CALL_ID}",
+                json={"decision": "approve", "option_id": "1"},
+            )
+
+    assert resp.status_code == 202
+    await session.refresh(run)
+    assert run.state["pending_confirmation"]["params_sha"] == expected_sha
+    # The rest of the pending_confirmation blob is untouched by this stamp.
+    assert run.state["pending_confirmation"]["arguments"] == PROPOSED_CHANGE
+    assert run.state["pending_confirmation"]["call_id"] == TOOL_CALL_ID
 
 
 async def test_second_decision_on_same_confirmation_returns_409_and_does_not_enqueue_again(

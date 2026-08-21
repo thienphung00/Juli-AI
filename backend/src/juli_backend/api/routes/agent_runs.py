@@ -888,6 +888,21 @@ async def submit_confirmation_decision(
                 "The proposed change no longer matches the run's current state; "
                 "refusing to execute an unconsented change.",
             )
+        # Freeze the confirmed params_sha onto the run's own reconstructable
+        # state (ADR-075 decision 2, #1224 review round 2). `WorkflowRunner`
+        # has no database access beyond `ConversationStore`
+        # (`services/agent/runner/core.py`'s own docstring: "no direct
+        # database access here") -- it cannot read
+        # `run_confirmations.options[].params_sha` itself, so this is the
+        # only channel that lets `resume()`'s approve branch independently
+        # re-derive-and-compare before `ToolExecutor.execute`, entirely
+        # from state it already loads, rather than trusting whichever
+        # caller enqueued the task. Reassigned (not mutated in place) so
+        # SQLAlchemy's JSON-column change detection actually sees it --
+        # the same idiom `JsonbConversationStore.persist` uses for `run.state`.
+        updated_pending_state = {**pending_state, "params_sha": expected_params_sha}
+        run.state = {**run_state, "pending_confirmation": updated_pending_state}
+
         selected_option_id = body.option_id
         approved = True
     else:

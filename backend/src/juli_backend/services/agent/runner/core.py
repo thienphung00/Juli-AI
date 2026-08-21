@@ -249,7 +249,10 @@ from juli_backend.services.agent.llm.openai_adapter import LLMProviderError
 from juli_backend.services.agent.playbooks.base import Playbook
 from juli_backend.services.agent.prompts.composer import compose, prompt_sha256, prompt_version
 from juli_backend.services.agent.runner.concurrency import ConcurrencyExhaustedError
-from juli_backend.services.agent.runner.confirmation import build_confirmation_options
+from juli_backend.services.agent.runner.confirmation import (
+    build_confirmation_options,
+    compute_params_sha,
+)
 from juli_backend.services.agent.runner.conversation_store import (
     ConversationStore,
     PendingConfirmationWrite,
@@ -453,6 +456,12 @@ class WorkflowRunner:
         approval endpoint is what validates *who* may decide and records
         consent; this method only ever consumes the resulting boolean,
         never a raw request — see the module docstring's boundary note.
+        **Consent binding is re-verified here too (ADR-075 decision 2,
+        #1224 review round 2), not only at that endpoint** — see the inline
+        comment right before the approve branch's `ToolExecutor.execute`
+        call for the full rationale (why this method, not only the caller,
+        must independently refuse an unconsented change; why
+        `CONCURRENCY_CONFLICT` rather than a new `StopReason` member).
         A declined confirmation ends the run immediately with
         `stop_reason=confirmation_declined` (`status.py`'s total mapping:
         `completed`) without ever calling `ToolExecutor.execute`. An
@@ -605,6 +614,69 @@ class WorkflowRunner:
 
         spec = self._registry.get(tool_name)
         params = spec.input_model.model_validate(arguments)
+
+        # Consent binding, re-verified here (ADR-075 decision 2, #1224
+        # review round 2) -- not only at the confirmation-authorization
+        # endpoint. ADR-075 attributes this check to "the resume task"
+        # itself; before this, it lived solely in `api/routes/agent_runs.py`,
+        # which happened to be `resume_agent_workflow`'s only enqueuer but
+        # was never a structural guarantee of it -- #1225 adds a second
+        # driver of this method next (the decline branch, which never
+        # reaches this line), and a control that holds only because there
+        # is exactly one caller today is not a control at all. `pending`
+        # (`state.pending_confirmation`) is the ONLY channel this method
+        # has: `WorkflowRunner` has no direct database access beyond
+        # `ConversationStore` (this module's own opening docstring), so it
+        # cannot read `run_confirmations.options[].params_sha` itself --
+        # the confirmation endpoint stamps the value it already validated
+        # onto `pending_confirmation["params_sha"]` before enqueueing
+        # (`agent_runs.py`'s approve branch) specifically so this method can
+        # independently re-derive-and-compare from state alone, without
+        # trusting whichever caller got it here. Absent entirely (every
+        # existing caller that resumes a pause it constructed directly,
+        # never through that endpoint -- this module's own test suite
+        # included) is a true no-op, matching every other optional
+        # `pending_confirmation` extension this codebase has added so far;
+        # once present, a mismatch is unconditionally a hard failure, never
+        # a warning, and `compute_params_sha` -- imported, never
+        # reimplemented, see that function's own canonicalization contract
+        # -- is computed over `arguments` verbatim, the same raw dict the
+        # endpoint hashed, not `params` (the validated `input_model`).
+        confirmed_params_sha = pending.get("params_sha")
+        params_sha_diverged = (
+            confirmed_params_sha is not None
+            and compute_params_sha(arguments) != confirmed_params_sha
+        )
+        if params_sha_diverged:
+            # Reuses `CONCURRENCY_CONFLICT` rather than adding a new
+            # `StopReason` member: `STOP_REASON_TO_STATUS` is a tested-total
+            # mapping (`services/agent/status.py`), and this is the same
+            # *shape* of failure the `ConcurrencyExhaustedError` branch just
+            # below already reuses it for -- a compare-before-write guard,
+            # running in this exact method, refusing a write because
+            # reconstructed state no longer matches what was captured at
+            # decision time. `runner/confirmation.py`'s own docstring notes
+            # `params_sha` is a distinct *mechanism* from `_hash_field`
+            # (different scope: whole tool-params dict vs. one product
+            # field) -- but the two failures are the identical *class* to an
+            # operator reading `stop_reason=concurrency_conflict`: state
+            # drifted between consent and dispatch, so the write was
+            # refused. Both map to `FAILED`, which is the correct bucket
+            # here regardless: this is an integrity failure, not a benign
+            # seller decision.
+            stop = await self._terminate(
+                workflow_run_id, state, StopReason.CONCURRENCY_CONFLICT, version_str, sha256
+            )
+            await self._conversation_store.persist(
+                workflow_run_id,
+                state,
+                status=stop.status,
+                stop_reason=stop.stop_reason,
+                required_steps_completed=self._required_steps_completed(state),
+                running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+            )
+            return stop
+
         await self._emit(
             workflow_run_id,
             state,
