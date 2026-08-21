@@ -180,7 +180,7 @@ python-dateutil==2.9.0.post0
     #   celery
     #   freezegun
     #   pandas
-python-dotenv==1.2.2
+python-dotenv==1.2.3
     # via juli-backend (pyproject.toml)
 pyyaml==6.0.3
     # via
