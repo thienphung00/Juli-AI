@@ -26,12 +26,18 @@ future re-deriver, including #1224):**
 
 1. Recurse into dicts and lists; every other value (str/int/float/bool/
    None) passes through unchanged.
-2. Every string, at any depth (including dict keys, though keys here are
-   always plain ASCII tool-param names), is Unicode NFC-normalized before
-   serialization -- two byte-different-but-canonically-equal strings (a
-   precomposed Vietnamese diacritic vs. the same character spelled as
-   base + combining mark, both legal UTF-8 a model could emit) must hash
-   identically.
+2. Every string, at any depth -- dict keys AND values, in nested dicts and
+   lists alike -- is Unicode NFC-normalized before serialization -- two
+   byte-different-but-canonically-equal strings (a precomposed Vietnamese
+   diacritic vs. the same character spelled as base + combining mark,
+   both legal UTF-8 a model could emit) must hash identically. Neither of
+   today's two registered CONFIRM tools (`update_product_price`,
+   `update_product_listing`) ever puts a non-ASCII string in a dict *key*
+   -- their schemas use fixed English field names -- but the contract is
+   general on purpose: a hashing layer whose actual behaviour is narrower
+   than its documented contract is exactly the kind of check that passes
+   today for a reason unrelated to its claim, and #1224 re-derives this
+   hash byte-for-byte, not "for the inputs we happened to test."
 3. Serialized with `json.dumps(..., sort_keys=True, ensure_ascii=True,
    separators=(",", ":"))` -- `sort_keys=True` makes the result
    independent of the dict's construction/insertion order (proven with a
@@ -71,15 +77,37 @@ _SINGLE_OPTION_ID = "1"
 
 
 def _normalize_for_hash(value: Any) -> Any:
-    """Recursively NFC-normalize every string in `value`; every other type
-    passes through unchanged. See module docstring rule 2."""
+    """Recursively NFC-normalize every string in `value` -- dict KEYS as
+    well as values, at every depth. Every other type passes through
+    unchanged. See module docstring rule 2.
+
+    Dict keys are normalized the same way values are: a non-string key
+    (this module's inputs are always JSON-safe, so in practice this never
+    fires, but the function stays honest about non-`dict[str, ...]`
+    input rather than assuming it) passes through unchanged; a string key
+    is NFC-normalized exactly like a string value. Without this, two
+    dicts that are the *same* logical object -- one key spelled with a
+    precomposed accented character, the other with the canonically-equal
+    base+combining-mark sequence -- would silently hash differently,
+    which is precisely the gap `sort_keys=True` cannot close on its own
+    (it sorts by codepoint, not by canonical equivalence).
+    """
     if isinstance(value, dict):
-        return {key: _normalize_for_hash(val) for key, val in value.items()}
+        return {_normalize_key(key): _normalize_for_hash(val) for key, val in value.items()}
     if isinstance(value, list):
         return [_normalize_for_hash(item) for item in value]
     if isinstance(value, str):
         return unicodedata.normalize("NFC", value)
     return value
+
+
+def _normalize_key(key: Any) -> Any:
+    """NFC-normalize a dict key exactly like `_normalize_for_hash`
+    normalizes a string value; a non-string key passes through
+    unchanged. Split out from `_normalize_for_hash`'s dict branch only to
+    keep that comprehension within the repo's line-length limit -- not a
+    second, independently-drifting normalization rule."""
+    return unicodedata.normalize("NFC", key) if isinstance(key, str) else key
 
 
 def canonicalize_params(params: dict[str, Any]) -> str:
