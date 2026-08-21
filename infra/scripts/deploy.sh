@@ -41,6 +41,11 @@ NGINX_UPSTREAM_DIR="${NGINX_UPSTREAM_DIR:-/etc/nginx/juli}"
 KEEP_RELEASES="${KEEP_RELEASES:-3}"
 CANDIDATE_TIMEOUT_SECS="${CANDIDATE_TIMEOUT_SECS:-120}"
 PUBLIC_CHECK_TIMEOUT_SECS="${PUBLIC_CHECK_TIMEOUT_SECS:-45}"
+# #1250: how long to poll the Celery worker's own journal for its startup banner to
+# report the routed queues before failing the deploy. Overridable so tests can force a
+# single, immediate check instead of a real wait.
+CELERY_VERIFY_TIMEOUT_SECS="${CELERY_VERIFY_TIMEOUT_SECS:-20}"
+CELERY_VERIFY_POLL_SECS="${CELERY_VERIFY_POLL_SECS:-2}"
 API_ENV_FILE="${API_ENV_FILE:-/etc/juli/api.env}"
 VERIFY_HARNESS="${CANONICAL_ROOT}/infra/scripts/verify-release-assets.sh"
 
@@ -73,7 +78,8 @@ lane_public_url() { case "$1" in api) echo "https://api.app-juli.com/health" ;; 
 # feed the API. Filters are prefixes matched against `git diff --name-only`.
 lane_path_filters() {
     case "$1" in
-        api)     printf '%s\n' backend/ requirements.txt infra/systemd/juli-api.service ;;
+        api)     printf '%s\n' backend/ requirements.txt infra/systemd/juli-api.service \
+                     infra/systemd/juli-celery-worker.service infra/systemd/juli-celery-beat.service ;;
         demo)    printf '%s\n' apps/demo/ packages/ pnpm-lock.yaml ;;
         landing) printf '%s\n' apps/landing/ packages/ pnpm-lock.yaml ;;
         *) return 1 ;;
@@ -296,6 +302,72 @@ PY
 }
 
 # --------------------------------------------------------------------------------------
+# Celery unit sync (#1250): deploy.sh installed unit files only for the api/demo/landing
+# lanes; the Celery worker and beat were restarted from whatever unit was already on the
+# host. `systemctl cat` (below) only proves a unit is LOADED, never that it matches the
+# release, so a stale `-Q` flag deployed clean while beat enqueued into an unconsumed
+# queue (#1205, #1248). These three functions install the release's unit, prove it took,
+# and prove the worker process itself subscribed to what that unit says it should.
+# --------------------------------------------------------------------------------------
+
+# Install the release's copy of a Celery unit file, reload systemd, and confirm the
+# installed unit now matches the release byte-for-byte. Mirrors write_runtime_env's
+# lane install. daemon-reload MUST run before any later `systemctl restart`, or the
+# restart launches the process from the unit systemd already had loaded, not this one.
+sync_celery_unit() {
+    local unit="$1" src dest
+    src="${CANONICAL_ROOT}/infra/systemd/${unit}.service"
+    dest="/etc/systemd/system/${unit}.service"
+    [ -f "${src}" ] || { echo "FAIL: ${src} not found in this release" >&2; return 1; }
+    if ! install -m 0644 "${src}" "${dest}"; then
+        echo "FAIL: could not install ${dest} from the release — refusing to restart a unit that may not match" >&2
+        return 1
+    fi
+    systemctl daemon-reload
+    if ! cmp -s "${src}" "${dest}"; then
+        echo "FAIL: ${dest} still differs from ${src} after install — unresolvable drift" >&2
+        return 1
+    fi
+}
+
+# The routed queues a Celery unit expects, derived from its OWN `-Q` flag rather than a
+# hardcoded list here — a hardcoded list becomes the next stale thing (that is exactly
+# how #1248 happened: the routing list and the deploy's idea of it fell out of step).
+celery_unit_queues() {
+    local unit_file="$1" flag
+    flag="$(grep -oE -- '-Q[[:space:]]+[A-Za-z0-9_,]+' "${unit_file}" 2>/dev/null | head -n 1 || true)"
+    if [ -z "${flag}" ]; then
+        echo "FAIL: no -Q flag found in ${unit_file} — cannot derive routed queues" >&2
+        return 1
+    fi
+    printf '%s\n' "${flag#-Q}" | tr -d '[:space:]' | tr ',' '\n'
+}
+
+# The `-Q` flag on the unit proves only what systemd loaded; the worker's own startup
+# banner (`.> <queue>   exchange=...`) proves what the process actually subscribed to.
+# Those differed on the host for ~25 minutes after #1248. Polls journalctl for the unit
+# rather than reading api.env or any secret — this never touches credentials.
+verify_celery_worker_queues() {
+    local unit="$1" unit_file="$2" expected banner q missing deadline
+    expected="$(celery_unit_queues "${unit_file}")" || return 1
+    deadline=$((SECONDS + CELERY_VERIFY_TIMEOUT_SECS))
+    while :; do
+        banner="$(journalctl -u "${unit}" --no-pager -n 200 2>/dev/null || true)"
+        missing=""
+        while IFS= read -r q; do
+            [ -n "${q}" ] || continue
+            printf '%s\n' "${banner}" | grep -qE '\.>[[:space:]]+'"${q}"'([[:space:]]|$)' \
+                || missing="${missing} ${q}"
+        done <<< "${expected}"
+        [ -z "${missing}" ] && { echo "PASS: ${unit} subscribed to:${expected//$'\n'/ }"; return 0; }
+        [ "${SECONDS}" -ge "${deadline}" ] && break
+        sleep "${CELERY_VERIFY_POLL_SECS}"
+    done
+    echo "FAIL: ${unit} did not subscribe to routed queue(s):${missing} (checked startup banner via journalctl -u ${unit})" >&2
+    return 1
+}
+
+# --------------------------------------------------------------------------------------
 # Lanes
 # --------------------------------------------------------------------------------------
 
@@ -379,15 +451,32 @@ deploy_lane_api() {
         return 1
     fi
     record_step api public_check "passed"
-    # Celery workers follow the API release (they import the same tree).
+    # Celery workers follow the API release (they import the same tree). #1250:
+    # `systemctl cat` only proves the unit already exists on this host — absent is not
+    # the same as stale, so a host that legitimately never had Celery units still SKIPs
+    # cleanly (unchanged below). A host that HAS them gets synced from the release
+    # before the restart, and the worker's own startup banner is checked afterward.
     for unit in juli-celery-worker juli-celery-beat; do
         if systemctl cat "${unit}" >/dev/null 2>&1; then
-            systemctl restart "${unit}"
+            if ! sync_celery_unit "${unit}"; then
+                record_step api celery "failed" "${unit} drift unresolved"
+                return 1
+            fi
+            if ! systemctl restart "${unit}"; then
+                record_step api celery "failed" "${unit} restart refused"
+                return 1
+            fi
+            if [ "${unit}" = "juli-celery-worker" ]; then
+                if ! verify_celery_worker_queues "${unit}" "/etc/systemd/system/${unit}.service"; then
+                    record_step api celery "failed" "${unit} missing routed queue(s)"
+                    return 1
+                fi
+            fi
         else
             echo "SKIP: ${unit} not installed on this host"
         fi
     done
-    record_step api celery "restarted"
+    record_step api celery "verified"
 }
 
 deploy_lane_demo() {
