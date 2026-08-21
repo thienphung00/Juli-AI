@@ -477,14 +477,14 @@ class WorkflowRunner:
         no-op.
 
         **Entry transition off `waiting_approval` (issue #1181 / AGT-W5A,
-        review finding 1178-R2).** Before either branch below does
-        anything else — no tool dispatch, no `LLM` call, not even the
-        decline branch's `_emit` calls — this method persists
-        `status=RUNNING` through the `ConversationStore` seam. A crash
-        anywhere in the rest of this method (the approve branch's
-        synchronous `ToolExecutor.execute`, in particular, is the case
-        #1178's review called out) then leaves the row at `running`, not
-        `waiting_approval`: `workers/tasks/reaper.py::
+        review finding 1178-R2; `durable=True` added in review round 2).**
+        Before either branch below does anything else — no tool dispatch, no
+        `LLM` call, not even the decline branch's `_emit` calls — this
+        method persists `status=RUNNING` through the `ConversationStore`
+        seam, with `durable=True`. A crash anywhere in the rest of this
+        method (the approve branch's synchronous `ToolExecutor.execute`, in
+        particular, is the case #1178's review called out) then leaves the
+        row at `running`, not `waiting_approval`: `workers/tasks/reaper.py::
         _reap_expired_waiting_approval` selects rows by `status ==
         WAITING_APPROVAL` alone, so this write drops the run out of that
         sweep's selection immediately, regardless of how stale
@@ -503,6 +503,34 @@ class WorkflowRunner:
         `required_steps_completed`, or `pending_confirmation` — all three
         stay `None`, the same true no-op every ordinary per-iteration
         persist relies on.
+
+        **Why `durable=True` here and nowhere else in this module (review
+        round 2, 2026-08-21).** `workers/tasks/agent_workflow.py::
+        _resume_agent_workflow_async` builds this runner's `ConversationStore`
+        from one `AsyncSession` it commits exactly once, *after*
+        `resume()` returns — every other `persist` call in this module
+        (every per-iteration write, and every terminal-exit write) rides
+        that same not-yet-committed transaction, by design (ADR-074
+        decision 4's `acks_late, max_retries=1`: a crash is meant to be
+        absorbed by Celery redelivery replaying from the last *committed*
+        state, not by a partially-committed one). Review round 1 missed
+        that this entry write inherits the same fate: without
+        `durable=True` it is only ever `flush()`-ed, so a crash in the
+        approve branch's `ToolExecutor.execute` — the exact scenario this
+        docstring opened with — rolls it back along with everything else
+        when the caller's session closes uncommitted, leaving the row at
+        `waiting_approval` regardless of this method ever having run.
+        `durable=True` makes `JsonbConversationStore.persist` call
+        `self._session.commit()` immediately after this one write, so it
+        survives independently of whatever happens next. Nothing else in
+        `resume()`/`_drive_loop`'s transaction semantics changes: the
+        commit ends the transaction that covered `load()`'s read plus this
+        one write; every write from here on (the approve branch's own
+        per-iteration/terminal persists, the decline branch's terminal
+        persist) begins a new transaction on first use (SQLAlchemy
+        autobegin) and is still covered by the caller's own single final
+        `await session.commit()` exactly as before — this method still
+        commits nothing else itself.
         """
         state = await self._conversation_store.load(workflow_run_id)
         if state.pending_confirmation is None:
@@ -516,6 +544,7 @@ class WorkflowRunner:
             state,
             status=WorkflowRunStatus.RUNNING,
             running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+            durable=True,
         )
 
         system_prompt = compose(self._playbook.workflow_key, self._playbook.version)

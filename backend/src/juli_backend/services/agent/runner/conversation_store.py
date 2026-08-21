@@ -168,6 +168,7 @@ class ConversationStore(Protocol):
         required_steps_completed: bool | None = None,
         running_seconds_elapsed: int | None = None,
         pending_confirmation: PendingConfirmationWrite | None = None,
+        durable: bool = False,
     ) -> None:
         """Persist `state` as this run's current `RunState`.
 
@@ -206,6 +207,33 @@ class ConversationStore(Protocol):
         an implementation must not infer one from the other: writing the
         confirmation row is this kwarg's job alone, never a side effect of
         `status` landing on `WAITING_APPROVAL`.
+
+        `durable` (issue #1181 / AGT-W5A review round 2) is a sixth,
+        independent flag, `False` by the same no-op default: every ordinary
+        `persist` call (per-iteration, and every terminal exit `run()`/
+        `resume()` already produced before this issue) rides the *caller's*
+        transaction — `WorkflowRunner` has no session of its own by design
+        (ADR-073 decision 5's deferral seam: a future Redis/Postgres P-CS
+        store swaps the implementation, not the runner, so the runner must
+        never reach into a concrete `AsyncSession`), and
+        `workers/tasks/agent_workflow.py`'s task shells commit that
+        transaction exactly once, after `run()`/`resume()` returns. That is
+        by design for the ordinary case: ADR-074 decision 4's "acks_late,
+        max_retries=1" already treats a crashed task as re-run-from-scratch
+        (the ledger/idempotent-emit machinery absorbs the redelivery), not
+        as a partially-durable checkpoint. `durable=True` is the one
+        documented exception: it asks the store to make *this* write
+        survive independently of whether the caller's own commit is ever
+        reached — the resume-entry status transition off `waiting_approval`
+        needs exactly that (a crash anywhere in the rest of `resume()`, most
+        notably `ToolExecutor.execute` in the approve branch, must not roll
+        the entry write back with it, or the run stays selected by the 4h
+        approval sweep instead of the 5-min stale sweep). Expressed as a
+        protocol-level flag rather than `WorkflowRunner` reaching for
+        `self._session.commit()` directly, so a future storage backend can
+        satisfy "durable now" however durability means for that backend
+        (fsync, replication acknowledgement, ...), not specifically a SQL
+        `COMMIT`.
         """
         ...
 
@@ -243,6 +271,7 @@ class JsonbConversationStore:
         required_steps_completed: bool | None = None,
         running_seconds_elapsed: int | None = None,
         pending_confirmation: PendingConfirmationWrite | None = None,
+        durable: bool = False,
     ) -> None:
         run = await self._session.get(WorkflowRun, workflow_run_id)
         if run is None:
@@ -277,3 +306,16 @@ class JsonbConversationStore:
                 )
             )
         await self._session.flush()
+        if durable:
+            # issue #1181 / AGT-W5A review round 2: make THIS write survive
+            # independently of whatever the caller's own transaction does
+            # afterward -- a real `COMMIT` on the shared session, not merely
+            # a flush that stays visible only within this same open
+            # transaction. `expire_on_commit=False` (the production and test
+            # session-factory setting, `database/database.py`) keeps every
+            # already-loaded ORM object usable afterward with no re-fetch
+            # surprise, so nothing downstream in `resume()` observes this
+            # commit at all -- the transaction that follows simply begins
+            # implicitly on next use, exactly as SQLAlchemy's autobegin
+            # already does after any commit.
+            await self._session.commit()
