@@ -160,7 +160,16 @@ esac
 
 
 def test_celery_restart_invoked_when_units_exist(script_text: str):
-    """When units exist, systemctl restart must be invoked for each."""
+    """When units exist, systemctl restart must be invoked for each.
+
+    #1250 inserted `sync_celery_unit` (install + daemon-reload + drift check) before the
+    restart, and `verify_celery_worker_queues` after it for the worker only. Those two
+    functions get their own dedicated orchestration and behavioural coverage in
+    tests/unit/test_deploy_celery_unit_sync.py — including the required red evidence
+    against a deliberately stale unit — so here they are stubbed as pass-through
+    successes. This test's job stays exactly what it always was: given the units exist
+    and everything they depend on succeeds, `systemctl restart` fires for each.
+    """
     # Stub systemctl that exits 0 and tracks restart invocations
     stub_systemctl = """\
 #!/bin/bash
@@ -175,6 +184,9 @@ case "$1" in
         echo "RESTART: $2"
         exit 0
         ;;
+    daemon-reload)
+        exit 0
+        ;;
     *)
         exit 1
         ;;
@@ -183,6 +195,15 @@ esac
 
     # Extract the actual restart block from the real script
     restart_block = _extract_celery_restart_block(script_text)
+
+    # sync_celery_unit and verify_celery_worker_queues are exercised for real
+    # elsewhere; here they are pass-through stubs so this test isolates the loop's
+    # own orchestration (call restart when the unit exists) from their internals.
+    stub_functions = """\
+sync_celery_unit() { echo "SYNC: $1"; return 0; }
+verify_celery_worker_queues() { echo "VERIFY: $1"; return 0; }
+record_step() { :; }
+"""
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = Path(tmpdir)
@@ -194,7 +215,7 @@ esac
 
         # Write test script
         test_script = tmpdir_path / "test.sh"
-        test_script.write_text(restart_block)
+        test_script.write_text(stub_functions + restart_block)
         test_script.chmod(0o755)
 
         # Run with stub systemctl on PATH
@@ -219,6 +240,22 @@ esac
         )
         assert "RESTART: juli-celery-beat" in result.stdout, (
             "Missing restart invocation for juli-celery-beat"
+        )
+
+        # And sync_celery_unit must have run for both, before their restarts
+        assert "SYNC: juli-celery-worker" in result.stdout
+        assert "SYNC: juli-celery-beat" in result.stdout
+        sync_idx = result.stdout.index("SYNC: juli-celery-worker")
+        restart_idx = result.stdout.index("RESTART: juli-celery-worker")
+        assert sync_idx < restart_idx, (
+            "sync_celery_unit must run before systemctl restart, or daemon-reload never "
+            "happens before the process is restarted"
+        )
+
+        # Queue verification only applies to the worker, never beat (beat has no -Q flag)
+        assert "VERIFY: juli-celery-worker" in result.stdout
+        assert "VERIFY: juli-celery-beat" not in result.stdout, (
+            "verify_celery_worker_queues must not run for juli-celery-beat"
         )
 
 
