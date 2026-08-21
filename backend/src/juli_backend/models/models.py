@@ -631,7 +631,8 @@ class WorkflowRun(Base):
         CheckConstraint(
             "stop_reason IS NULL OR stop_reason IN ("
             "'final_response', 'confirmation_declined', 'paused_for_confirmation', "
-            "'cancelled_by_seller', 'confirmation_expired', 'iteration_cap_exceeded', "
+            "'cancelled_by_seller', 'confirmation_expired', 'confirmation_diverged', "
+            "'iteration_cap_exceeded', "
             "'wall_clock_timeout', 'tool_error_unrecoverable', 'llm_error', "
             "'concurrency_conflict', 'output_validation_failed', 'worker_lost')",
             name="ck_workflow_runs_stop_reason",

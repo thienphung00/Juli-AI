@@ -22,6 +22,18 @@ value is the ONLY channel by which `resume()` can independently re-derive and
 compare "what was consented to" against "what is about to execute", entirely
 from state it already loads.
 
+**Review round 3: a dedicated `StopReason.CONFIRMATION_DIVERGED`, not a
+reuse.** Round 2 mapped a divergence to the existing `CONCURRENCY_CONFLICT`
+member on the reasoning that both are compare-before-write guards; Review
+correctly rejected that as two different failure classes with opposite
+operational meaning (`concurrency_conflict` = a stale *product* snapshot,
+routine and retryable; a `params_sha` divergence = the write does not match
+what the seller consented to, rare and alarming) that the execution-quality
+metric reading this vocabulary must be able to tell apart. See
+`services/agent/status.py`'s own docstring addition and
+`tests/unit/test_workflow_run_status_mapping.py` for the vocabulary-side
+half of this fix.
+
 AC -> test map:
 - a `params_sha` mismatch never executes the tool, proven with a spy
   executor recording zero calls (not a log line, not a status check alone)
@@ -222,12 +234,12 @@ async def test_mismatched_params_sha_executes_nothing(session: AsyncSession, sho
     assert llm.recorded_calls == (), (
         "the LLM must never be re-entered either -- refused before dispatch"
     )
-    assert result.stop_reason == StopReason.CONCURRENCY_CONFLICT
+    assert result.stop_reason == StopReason.CONFIRMATION_DIVERGED
     assert result.status == WorkflowRunStatus.FAILED
 
     await session.refresh(run := await session.get(WorkflowRunRow, run_id))
     assert run.status == "failed"
-    assert run.stop_reason == "concurrency_conflict"
+    assert run.stop_reason == "confirmation_diverged"
 
 
 # ---------------------------------------------------------------------------

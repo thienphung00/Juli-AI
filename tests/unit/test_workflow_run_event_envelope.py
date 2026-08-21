@@ -436,6 +436,7 @@ def test_workflow_failed_documents_exact_failure_class_members():
     assert {r.value for r in FAILURE_STOP_REASONS} == {
         "cancelled_by_seller",
         "confirmation_expired",
+        "confirmation_diverged",
         "iteration_cap_exceeded",
         "wall_clock_timeout",
         "tool_error_unrecoverable",
@@ -451,6 +452,7 @@ def test_workflow_failed_documents_exact_failure_class_members():
     [
         (StopReason.CANCELLED_BY_SELLER, WorkflowRunStatus.CANCELLED),
         (StopReason.CONFIRMATION_EXPIRED, WorkflowRunStatus.CANCELLED),
+        (StopReason.CONFIRMATION_DIVERGED, WorkflowRunStatus.FAILED),
         (StopReason.ITERATION_CAP_EXCEEDED, WorkflowRunStatus.TIMED_OUT),
         (StopReason.WALL_CLOCK_TIMEOUT, WorkflowRunStatus.TIMED_OUT),
         (StopReason.TOOL_ERROR_UNRECOVERABLE, WorkflowRunStatus.FAILED),

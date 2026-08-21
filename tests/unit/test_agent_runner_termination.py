@@ -1142,6 +1142,11 @@ _DEFERRED_TO_LATER_SLICES: frozenset[StopReason] = frozenset(
         StopReason.CONFIRMATION_DECLINED,
         StopReason.PAUSED_FOR_CONFIRMATION,
         StopReason.CONFIRMATION_EXPIRED,
+        # #1224 review round 3: produced by `resume()`'s approve branch (the
+        # same later-slice method that produces the other three CONFIRM-
+        # family members above), never by this file's own `run()`-only
+        # scenario suite.
+        StopReason.CONFIRMATION_DIVERGED,
     }
 )
 

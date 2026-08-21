@@ -460,8 +460,12 @@ class WorkflowRunner:
         #1224 review round 2), not only at that endpoint** — see the inline
         comment right before the approve branch's `ToolExecutor.execute`
         call for the full rationale (why this method, not only the caller,
-        must independently refuse an unconsented change; why
-        `CONCURRENCY_CONFLICT` rather than a new `StopReason` member).
+        must independently refuse an unconsented change) and for why a
+        divergence stops the run with its own dedicated, individually-named
+        member of `status.py`'s total `StopReason` vocabulary (review round
+        3) rather than reusing `CONCURRENCY_CONFLICT` — a different failure
+        class with an opposite operational meaning, not a mechanically
+        similar one.
         A declined confirmation ends the run immediately with
         `stop_reason=confirmation_declined` (`status.py`'s total mapping:
         `completed`) without ever calling `ToolExecutor.execute`. An
@@ -648,24 +652,30 @@ class WorkflowRunner:
             and compute_params_sha(arguments) != confirmed_params_sha
         )
         if params_sha_diverged:
-            # Reuses `CONCURRENCY_CONFLICT` rather than adding a new
-            # `StopReason` member: `STOP_REASON_TO_STATUS` is a tested-total
-            # mapping (`services/agent/status.py`), and this is the same
-            # *shape* of failure the `ConcurrencyExhaustedError` branch just
-            # below already reuses it for -- a compare-before-write guard,
-            # running in this exact method, refusing a write because
-            # reconstructed state no longer matches what was captured at
-            # decision time. `runner/confirmation.py`'s own docstring notes
-            # `params_sha` is a distinct *mechanism* from `_hash_field`
-            # (different scope: whole tool-params dict vs. one product
-            # field) -- but the two failures are the identical *class* to an
-            # operator reading `stop_reason=concurrency_conflict`: state
-            # drifted between consent and dispatch, so the write was
-            # refused. Both map to `FAILED`, which is the correct bucket
-            # here regardless: this is an integrity failure, not a benign
-            # seller decision.
+            # A DEDICATED stop_reason (ADR-073 amendment, ADR-075 decision 2,
+            # #1224 review round 3) -- not a reuse of `CONCURRENCY_CONFLICT`.
+            # Round 2 of this review reused that member on the reasoning that
+            # both are compare-before-write guards; round 3 corrected that:
+            # `concurrency_conflict` (ADR-073 decision 4) means a stale
+            # PRODUCT snapshot -- someone else edited the listing, routine
+            # and retryable in spirit. A `params_sha` divergence means the
+            # write about to execute does NOT match what the seller
+            # consented to -- rare, alarming, and the exact signal the
+            # execution-quality metric (which reads this total vocabulary,
+            # ADR-073 decision 2) must never conflate with "a seller edited
+            # concurrently". Same reasoning extends to any seller-facing
+            # copy that ever renders a stop_reason: reusing
+            # `concurrency_conflict` here would say "someone else edited
+            # your product" for what is actually Juli refusing to run
+            # something the seller never approved. Both still map to
+            # `FAILED` (an integrity failure, not a benign seller decision),
+            # but as two distinct, individually-named members of the total
+            # mapping (`services/agent/status.py`), not one overloaded one --
+            # this is that member's one sanctioned producer, guarded by
+            # `tests/unit/test_workflow_run_status_mapping.py
+            # ::test_confirmation_diverged_is_produced_only_by_the_resume_consent_check`.
             stop = await self._terminate(
-                workflow_run_id, state, StopReason.CONCURRENCY_CONFLICT, version_str, sha256
+                workflow_run_id, state, StopReason.CONFIRMATION_DIVERGED, version_str, sha256
             )
             await self._conversation_store.persist(
                 workflow_run_id,

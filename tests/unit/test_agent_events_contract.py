@@ -267,12 +267,12 @@ def test_payload_field_sets_match_between_python_and_typescript(event_type):
 # ---------------------------------------------------------------------------
 # `WORKFLOW_FAILED_STOP_REASON_TO_STATUS` (TS) mirrors the failure-class
 # subset of `STOP_REASON_TO_STATUS` (Python, ADR-073's single authority) --
-# all 9 members, not just the 1 exercised by the workflow.failed golden
+# all 10 members, not just the 1 exercised by the workflow.failed golden
 # fixture (review follow-up, #1126).
 # ---------------------------------------------------------------------------
 
 
-def test_workflow_failed_stop_reason_to_status_mapping_matches_python_for_all_nine_members():
+def test_workflow_failed_stop_reason_to_status_mapping_matches_python_for_all_ten_members():
     introspected = _ts_introspect()
     ts_mapping = introspected["workflowFailedStopReasonToStatus"]
 
@@ -283,6 +283,7 @@ def test_workflow_failed_stop_reason_to_status_mapping_matches_python_for_all_ni
     assert set(python_mapping) == {
         "cancelled_by_seller",
         "confirmation_expired",
+        "confirmation_diverged",
         "iteration_cap_exceeded",
         "wall_clock_timeout",
         "tool_error_unrecoverable",
@@ -291,7 +292,7 @@ def test_workflow_failed_stop_reason_to_status_mapping_matches_python_for_all_ni
         "output_validation_failed",
         "worker_lost",
     }
-    assert len(python_mapping) == 9
+    assert len(python_mapping) == 10
 
     assert set(ts_mapping) == set(python_mapping), (
         f"stop_reason membership diverges -- python-only={set(python_mapping) - set(ts_mapping)}, "

@@ -140,3 +140,20 @@ ADR-074's reaper to runs whose worker died twice (crash + failed redelivery), ke
 the execution-quality metric honest about infrastructure deaths vs task failures. The
 reaper is also where `approval_timeout_h` physically runs: `waiting_approval` past 4h
 → `confirmation_expired` → `cancelled`. The total-mapping test covers both.
+
+## Amendment — `confirmation_diverged` (2026-08-21, [ADR-075](075-agent-approval-gate-and-security-prerequisites.md) decision 2, issue #1224 review round 3)
+
+One additive `stop_reason` member: **`confirmation_diverged`** (→ `failed`) —
+`WorkflowRunner.resume`'s approve branch re-derives the selected confirmation option's
+params fingerprint from reconstructed run state immediately before `ToolExecutor
+.execute` and terminates with this member on any divergence from what the seller
+consented to (ADR-075 decision 2's own word: "divergence... is a hard failure, not a
+warning"). Deliberately **not** a reuse of `concurrency_conflict`, even though both are
+compare-before-write guards running from the same method: `concurrency_conflict`
+(decision 4 above) means a stale *product* snapshot — someone else edited the listing,
+routine and expected — while `confirmation_diverged` means the write about to execute
+does not match what the seller approved — rare and alarming. The execution-quality
+metric this total mapping feeds needs to distinguish the two, and any seller-facing
+copy that ever renders a `stop_reason` must not describe an integrity refusal as a
+concurrent edit. The total-mapping test (and its own single-producer guard, mirroring
+`output_validation_failed`'s) covers this member the same way.
