@@ -694,6 +694,20 @@ that the worker came up consuming the intended queues.
 [#1205](https://github.com/thienphung00/Juli-AI/issues/1205) was diagnosed as a one-off missing
 `-Q` flag and fixed by editing the unit. It is the same defect as this one, and it will recur on
 every future Celery unit change until #1250 lands.
+`deploy.sh` does **not** copy systemd unit files out of the release into `/etc/systemd/system/`.
+After #1248 deployed, the host ran `-Q celery,agent_runs` while the release carried
+`-Q celery,agent_runs,credentials` — the beat was active and enqueueing into a queue nobody
+consumed, with `NeedDaemonReload=no` so systemd reported itself current. This is exactly
+[#1205](https://github.com/thienphung00/Juli-AI/issues/1205)'s failure, and #1205 was treated as
+a one-off `-Q` bug when it is the symptom of a missing deploy step. Fixed manually by the owner;
+verified by the worker's own startup banner listing `credentials` under `[queues]` and
+`juli_backend.credential_refresh_beat` under `[tasks]` — the `ExecStart` flag alone proves only
+what systemd loaded, not what the process subscribed to.
+
+**Not yet filed as an issue.** `deploy.sh` should either sync unit files or fail loudly when a
+release's unit differs from the installed one; today it does neither. Whether every systemd
+change in this repo shares the gap is *unverified* — it is consistent with what was observed,
+but `deploy.sh` has not been read.
 
 ### Slices
 
