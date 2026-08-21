@@ -4,7 +4,7 @@
   "metrics": {
     "acceptanceMapped": 7,
     "acceptanceTotal": 7,
-    "criticalFindings": 2,
+    "criticalFindings": 1,
     "modulesTouched": [
       "backend/src/juli_backend/services/agent/events",
       "backend/src/juli_backend/services/agent/runner",
@@ -14,17 +14,17 @@
   },
   "review": {
     "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1221.json",
-    "ownerSignoffPresent": false,
-    "sha256": "55fe4deeef292989ed04a02418790341a9b0cb8eeaf6b3663a137728e11a70e9",
-    "signoffRequired": true,
-    "status": "PASS_WITH_WARNINGS",
-    "warningsAcknowledged": false
+    "ownerSignoffPresent": true,
+    "sha256": "4826d8a9c662b305a0cbad58fb9e30acf9b38aed5a25af44eea37cc1ec479f70",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
   },
-  "timestamp": "2026-08-21T07:26:28Z",
+  "timestamp": "2026-08-21T07:53:08Z",
   "validation": {
     "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1221.json",
-    "sha256": "6eaecf64f47ec76bdd126e85dd5d9bda7d5cd5b032a60ead4f7749dc66ff65f4",
-    "status": "FAIL"
+    "sha256": "6c15205bb904bff5ee34de845b413c5eb5c639b42ca7585b794edd851f13e6c6",
+    "status": "PASS"
   },
   "wave": "wave-agent-w5"
 }
