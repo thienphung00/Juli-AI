@@ -2,17 +2,27 @@
 `039_run_confirmations`) -- ties directly to the issue's acceptance
 criteria: the `run_confirmations` shape (ADR-075 decision 2), the
 `action_card_approvals` audit-record shape (ADR-075 decision 1), the
-partial unique index's actual runtime behavior (a second `pending` row for
-the same run must raise `IntegrityError`, not just "the index exists"),
-revision id length, exactly one migration head, and a clean
-downgrade/upgrade round trip.
+partial unique index's and the `status` CHECK constraint's actual runtime
+behavior (each proven by an insert that must raise `IntegrityError`, not
+just "the constraint exists"), revision id length, exactly one migration
+head, and a clean downgrade/upgrade round trip.
 
 File-content assertions (revision string, down_revision, single head, id
-length) need no database and always run. Everything else is gated by
-`requires_postgres` (reused from `tests/integration/test_migrations.py`,
-the same gate every other migration-shaped test in this repo already uses)
-and skips cleanly wherever `DATABASE_URL` is not a reachable local
-Postgres.
+length, the `required_steps_completed` non-duplication check -- four tests
+total) need no database and always run at issue tier.
+
+Everything else is Postgres-backed: gated by `requires_postgres` (reused
+from `tests/integration/test_migrations.py`, the same gate every other
+migration-shaped test in this repo already uses) and skips cleanly wherever
+`DATABASE_URL` is not a reachable local Postgres, AND individually marked
+`@pytest.mark.migration_heavy` -- deliberately per-test, not a module-level
+`pytestmark`, so the four structural tests above keep running at issue tier
+while these seven (which reuse `test_migrations.py`'s `postgres_at_head`
+fixture, doing a full `alembic downgrade base` + re-upgrade per test, or
+call `command.downgrade`/`upgrade` directly) run only at main tier on the
+wave->main PR, matching `pr.yml`'s issue-tier `test` job deselecting
+`migration_heavy`. This mirrors `schema_parity` being its own marker
+distinct from `migration_heavy` for the identical reason.
 """
 
 from __future__ import annotations
@@ -152,6 +162,7 @@ def test_migration_039_does_not_touch_required_steps_completed():
 
 
 @requires_postgres
+@pytest.mark.migration_heavy
 def test_run_confirmations_table_shape_at_head(postgres_at_head: Engine):
     inspector = inspect(postgres_at_head)
     assert "run_confirmations" in inspector.get_table_names()
@@ -183,6 +194,7 @@ def test_run_confirmations_table_shape_at_head(postgres_at_head: Engine):
 
 
 @requires_postgres
+@pytest.mark.migration_heavy
 def test_action_card_approvals_table_shape_at_head(postgres_at_head: Engine):
     inspector = inspect(postgres_at_head)
     assert "action_card_approvals" in inspector.get_table_names()
@@ -202,6 +214,7 @@ def test_action_card_approvals_table_shape_at_head(postgres_at_head: Engine):
 
 
 @requires_postgres
+@pytest.mark.migration_heavy
 def test_run_confirmations_partial_unique_index_rejects_second_pending_row(
     postgres_at_head: Engine,
 ):
@@ -277,6 +290,64 @@ def test_run_confirmations_partial_unique_index_rejects_second_pending_row(
 
 
 @requires_postgres
+@pytest.mark.migration_heavy
+def test_run_confirmations_status_check_constraint_rejects_invalid_value(
+    postgres_at_head: Engine,
+):
+    """The `status` CHECK constraint (`ck_run_confirmations_status`) is a
+    vocabulary guard, same standard as the partial-unique-index test above:
+    proven by actually inserting a row whose `status` is outside
+    `pending | approved | declined | expired` and asserting the database
+    rejects it -- not by asserting the constraint exists."""
+    from sqlalchemy.orm import Session
+
+    from juli_backend.models import models as m
+
+    with Session(postgres_at_head) as session:
+        user, shop = _seed_shop_and_user(session)
+        product = m.Product(
+            shop_id=shop.id,
+            tiktok_product_id="agt-w5a-dp-product-2",
+            name="Test Widget 2",
+            status="active",
+            update_time=datetime.now(UTC),
+        )
+        session.add(product)
+        session.flush()
+
+        run = m.WorkflowRun(
+            shop_id=shop.id,
+            product_id=product.id,
+            state={},
+            status="waiting_approval",
+            prompt_version="optimize_product.v1",
+            prompt_sha256="d" * 64,
+        )
+        session.add(run)
+        session.flush()
+
+        invalid = m.RunConfirmation(
+            workflow_run_id=run.id,
+            tool_call_id="call_invalid_status",
+            options=[
+                {
+                    "option_id": "opt_1",
+                    "proposed_change": {"price": "199000"},
+                    "rationale": "hold margin",
+                    "params_sha": "e" * 64,
+                }
+            ],
+            status="not_a_real_status",
+            expires_at=datetime.now(UTC) + timedelta(hours=4),
+        )
+        session.add(invalid)
+        with pytest.raises(IntegrityError):
+            session.commit()
+        session.rollback()
+
+
+@requires_postgres
+@pytest.mark.migration_heavy
 def test_migration_039_upgrade_and_downgrade_round_trip_cleanly():
     """Migration 039's `downgrade()` actually works -- drops both tables,
     and upgrading again restores them, with no leftover state in between."""
@@ -308,6 +379,7 @@ def test_migration_039_upgrade_and_downgrade_round_trip_cleanly():
 
 
 @requires_postgres
+@pytest.mark.migration_heavy
 def test_latest_downgrade_drops_only_revision_039_tables(postgres_at_head: Engine):
     """Downgrading past 039 removes both new tables; earlier tables/data
     (037's required_steps_completed, 038's credential columns) remain."""
@@ -341,6 +413,7 @@ def test_latest_downgrade_drops_only_revision_039_tables(postgres_at_head: Engin
 
 
 @requires_postgres
+@pytest.mark.migration_heavy
 def test_action_card_approval_survives_action_card_change(postgres_at_head: Engine):
     """The deciding constraint: the audit snapshot must survive the
     ActionCard it describes later changing -- proven by mutating the card
