@@ -1,0 +1,9 @@
+{
+  "id": "control_characters_backspace_style_trick",
+  "category": "control_characters",
+  "description": "BEL/ESC/FORM-FEED control bytes spliced into an otherwise ordinary Vietnamese product description -- a classic terminal/rendering hidden-text trick.",
+  "source_field": "vendor",
+  "raw_text": "Áo thun cotton cao cấp\u0007\u001b\fbán chạy nhất",
+  "expected_guard_outcome": "passthrough",
+  "expected_stripped_text": "Áo thun cotton cao cấpbán chạy nhất"
+}

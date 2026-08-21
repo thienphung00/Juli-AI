@@ -1,0 +1,9 @@
+{
+  "id": "bidi_override_trojan_source_style",
+  "category": "bidi_override",
+  "description": "RIGHT-TO-LEFT OVERRIDE / POP DIRECTIONAL FORMATTING bracketing a substring inside vendor text -- a Trojan Source-style visual reordering trick.",
+  "source_field": "vendor",
+  "raw_text": "Giá tốt hôm nay‮ reversed-looking-injected-text‬ chỉ trong hôm nay",
+  "expected_guard_outcome": "passthrough",
+  "expected_stripped_text": "Giá tốt hôm nay reversed-looking-injected-text chỉ trong hôm nay"
+}

@@ -1,0 +1,9 @@
+{
+  "id": "legitimate_vietnamese_diacritics_survive",
+  "category": "legitimate_vietnamese_diacritics",
+  "description": "Ordinary Vietnamese vendor product text in NFD (combining-mark) form -- combining diacritics live in Unicode category Mn, never Cc/Cf, and must survive stripping byte-for-byte.",
+  "source_field": "vendor",
+  "raw_text": "Cảm ơn quý khách đã tin tưởng và ủng hộ sản phẩm của chúng tôi",
+  "expected_guard_outcome": "passthrough",
+  "expected_stripped_text": "Cảm ơn quý khách đã tin tưởng và ủng hộ sản phẩm của chúng tôi"
+}

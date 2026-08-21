@@ -24,9 +24,17 @@
   `errors` envelope shape) before it reaches the conversation; `guard_outbound_agent_output`
   raises `BannedPatternGuardFailure` before agent-authored output streams or persists. Both
   fail closed on a scanning-machinery failure, not just a pattern hit (#994).
+  `guard_inbound_tool_result` also strips hidden text from vendor fields (see
+  `hidden_text` below) *before* scanning (#1218).
+- `hidden_text` (ADR-075 decision 5, #1218) — strips control characters, zero-width/
+  invisible Unicode, and bidirectional overrides from vendor-tagged text
+  (`strip_hidden_text_from_vendor_fields`) or a bare string
+  (`strip_hidden_text`). Vietnamese combining diacritics and ordinary emoji are
+  untouched (different Unicode categories). Scoped to `source: "vendor"` text only.
 
-See `docs/adr/070-agent-safe-sanitization-contract.md`. The remaining golden-file gate is a
-separate issue (#995).
+See `docs/adr/070-agent-safe-sanitization-contract.md` and
+`docs/adr/075-agent-approval-gate-and-security-prerequisites.md` decision 5. The remaining
+golden-file gate is a separate issue (#995).
 """
 
 from juli_backend.services.agent.sanitize.banned_patterns import (
@@ -63,6 +71,10 @@ from juli_backend.services.agent.sanitize.errors import (
     TranslatedError,
     to_error_envelope,
     translate_marketplace_error,
+)
+from juli_backend.services.agent.sanitize.hidden_text import (
+    strip_hidden_text,
+    strip_hidden_text_from_vendor_fields,
 )
 from juli_backend.services.agent.sanitize.machine_values import (
     Money,
@@ -118,6 +130,8 @@ __all__ = [
     "load_banned_patterns",
     "numeric_value",
     "sanitize_images",
+    "strip_hidden_text",
+    "strip_hidden_text_from_vendor_fields",
     "to_error_envelope",
     "to_json_safe",
     "translate_marketplace_error",

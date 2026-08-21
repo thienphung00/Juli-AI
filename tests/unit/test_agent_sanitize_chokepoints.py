@@ -373,3 +373,63 @@ def test_guard_outbound_agent_output_signature_has_no_retry_or_fallback_paramete
 
     params = inspect.signature(guard_outbound_agent_output).parameters
     assert set(params) == {"output"}
+
+
+# ---------------------------------------------------------------------------
+# Hidden-text stripping (ADR-070/075 decision 5, issue #1218) — ordering.
+# ---------------------------------------------------------------------------
+
+
+class TestInboundStripsHiddenTextFromVendorTextBeforeScanning:
+    """Ordering matters: `guard_inbound_tool_result` must strip hidden text
+    from vendor fields *before* running `find_banned_pattern_hits`, not
+    after. A banned word split by an invisible character would evade the
+    banned-pattern regex if the scan ran first — stripping first closes
+    that evasion route, and is the reason this module's stripping runs
+    ahead of the pre-existing scan-and-block gate rather than behind it.
+    """
+
+    def test_zero_width_obfuscated_banned_word_is_still_caught(self):
+        # "web​hook" would not match `\bwebhook\b` if scanned before
+        # the zero-width space is removed — this proves strip-then-scan.
+        obfuscated = "web​hook"
+        planted = {"description": {"source": "vendor", "text": f"Contact us via {obfuscated}."}}
+
+        result = guard_inbound_tool_result(planted, tool_name="get_product_information")
+
+        assert set(result) == {"error"}
+
+    def test_hidden_characters_are_stripped_from_an_otherwise_clean_vendor_result(self):
+        planted = {"description": {"source": "vendor", "text": "Nice product​​today"}}
+
+        result = guard_inbound_tool_result(planted, tool_name="get_product_information")
+
+        assert result == {"description": {"source": "vendor", "text": "Nice producttoday"}}
+
+    def test_seller_text_is_not_stripped(self):
+        planted = {"note": {"source": "seller", "text": "keep​this"}}
+
+        result = guard_inbound_tool_result(planted, tool_name="get_product_information")
+
+        assert result == {"note": {"source": "seller", "text": "keep​this"}}
+
+    def test_vietnamese_diacritics_and_emoji_in_vendor_text_survive_the_guard(self):
+        text = "Giao hàng nhanh 🚚 chất lượng tốt 👍"
+        planted = {"description": {"source": "vendor", "text": text}}
+
+        result = guard_inbound_tool_result(planted, tool_name="get_product_information")
+
+        assert result == {"description": {"source": "vendor", "text": text}}
+
+    def test_clean_result_with_nothing_to_strip_preserves_object_identity(self):
+        """`WorkflowRunner._dispatch_tool_call` (runner/core.py) computes its
+        `tool.completed` telemetry as `sanitized is raw_result` — this is
+        the regression this module's stripping must never break: a result
+        with no hidden characters (and no banned-pattern hit) must come
+        back as the exact same object, not an equal-but-rebuilt copy.
+        """
+        clean = _deeply_nested_tool_result(banned_value="a completely unrelated value")
+
+        result = guard_inbound_tool_result(clean, tool_name="get_product_reviews")
+
+        assert result is clean
