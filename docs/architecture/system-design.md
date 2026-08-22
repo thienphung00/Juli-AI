@@ -596,6 +596,26 @@ env only (`ANTHROPIC_API_KEY`); rules fallback when unavailable or budget exceed
 
 ---
 
+## Agent concurrency & scale envelopes (target — not a current-phase gate)
+
+> **Out of scope for current implementation.** These are agreed **target NFRs** for the
+> seller-facing agent runtime ([ADR-082](../adr/082-agent-concurrency-target-nfrs.md));
+> no current W-slice is gated on them. Current work must merely avoid foreclosing them.
+> Vocabulary: `CONTEXT.md` → **Run queue**, **Agent concurrency key**, **Agent progress surface**.
+
+| Envelope | Target |
+|----------|--------|
+| **Acceptance (surge)** | 100 run requests for one shop accepted in < 5 s, zero lost — runs are Postgres `queued` rows first; Redis broker loss is recoverable by re-enqueue from Postgres (ADR-041). Campaign/Sales-day surges are absorbed as queue depth, never as unbounded compute. |
+| **Execution concurrency** | Config-bounded per-shop slot pool, initial target **10** concurrently executing runs; the rest drain with visible queue state. |
+| **Exclusion key** | One agent per `(shop, workflow category, product)` — equivalently one active run per subject-scoped Action Card. Same product may host concurrent agents only under **different** categories; same category + product queues. Cross-category field collisions are arbitrated by the basis-snapshot guard (ADR-073), not admission-time exclusion. |
+| **Progress accuracy** | Overview = polled Postgres read model (2–5 s) over the same rows the event stream persists — overview and stream can never disagree; opened runs stream via per-run SSE with `Last-Event-ID` replay (ADR-074). Every rendered state exists as a Postgres row first. Multiplexed per-shop stream is deferred behind an explicit trigger (< 1 s overview requirement, or measurable poll load at N tenants). |
+
+Entity implications when scheduled (all deferred): subject-scoped `action_cards`
+(`(shop, workflow_key)` → `(shop, workflow_key, subject)`), active-run index re-key from
+`(shop_id, product_id)` to card-level, card→run FK (with ADR-075), run-list read model with
+queue positions, slot-pool admission, broker-loss re-enqueue sweep, nginx HTTP/2 +
+unbuffered SSE on the run-events location.
+
 ## Out of scope (see EXECUTION.md)
 
 Celery / multi-node workers, Kafka streams, creator↔shop matching, vendor scrapers,

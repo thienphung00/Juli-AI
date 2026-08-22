@@ -609,6 +609,11 @@ declaring this module healthy for heavier Phase 3+ reliance.
   - **Registry:** sole write owner for `workflow_runs`, `workflow_run_events`,
     `tool_executions`, and the `run_agent_workflow` / `resume_agent_workflow` /
     `reap_abandoned_workflow_runs` tasks.
+  - **Target NFRs (ADR-082 — out of scope for current W-slices):** queue-based acceptance
+    (100 requests/shop < 5 s, per-shop slot pool of 10), one agent per
+    `(shop, category, product)` (= one active run per subject-scoped card; same product
+    concurrently only across different categories), polled-overview + per-run-SSE progress
+    surface. Current slices must not foreclose these; nothing is gated on them.
   - **Boundary:** `services/agent/composition.py` is the sanctioned seam for reaching deep
     collaborators — `workers` may not deep-import `services.agent.tools` (import depth cap 2).
 - **Features:**
@@ -619,14 +624,14 @@ declaring this module healthy for heavier Phase 3+ reliance.
     SSE with `Last-Event-ID` replay, five-minute reaper (ADR-074) · impact measurement reads
     (ADR-077) · credential refresh lifecycle (ADR-081).
   - **In progress:** approval gate + security prerequisites (ADR-075, W5).
-  - **Planned:** demo execution experience (ADR-076, W6) · production-write unlock (W7) ·
+  - **Planned:** concurrency & progress target NFRs (ADR-082, out-of-scope design targets) · demo execution experience (ADR-076, W6) · production-write unlock (W7) ·
     observability rollup (W8) · structured output contract (W9) · remaining ten workflows (W10).
 - **Related EXECUTION slices:** the agent workflow execution waves W1–W10
 - **Out of scope:** the harness that builds the product (§11) · ingest fan-out and
   multi-merchant rollout (P13) · seller-facing copy register, which is governed by
   `dictionary.md` and the shared banned-pattern source.
 - **Links:** ADR-068 · ADR-069 · ADR-070 · ADR-071 · ADR-072 · ADR-073 · ADR-074 · ADR-075 ·
-  ADR-076 · ADR-077 · ADR-080 · ADR-081 · [PLAN.md](../product/agent-workflow-execution/PLAN.md)
+  ADR-076 · ADR-077 · ADR-080 · ADR-081 · ADR-082 · [PLAN.md](../product/agent-workflow-execution/PLAN.md)
 
 > **§15 is deliberately skipped.** It is reserved for **Observability (DOCP)** by
 > `CONTEXT.md` and `docs/product/phases/phase-2.11/PRD.md`, which reference it by number
