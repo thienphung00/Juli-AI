@@ -167,3 +167,27 @@ from juli_backend.services.agent.sanitize import (
   `tests/unit/test_agent_sanitize_chokepoints.py`. Both consume the shared
   #990 pattern source only; no second copy of the banned-pattern list exists
   in `chokepoints.py`.
+
+## Top-level modules
+
+- `abuse_limits.py` (ADR-075 decision 4, #1223) — inbound abuse limits for
+  the agent-run routes: approve/run creation (5/hour, burst 2), confirmations
+  (30/hour), and SSE (10 concurrent streams), all keyed by shop after
+  authentication and config-driven (`AGENT_APPROVE_RATE_LIMIT_*`,
+  `AGENT_CONFIRMATION_RATE_LIMIT_*`, `AGENT_SSE_*` env vars, named defaults
+  in the module). `AbuseLimitGate` (`try_acquire_approve` /
+  `try_acquire_confirmation` / `try_acquire_stream` / `release_stream`) is
+  implemented by `RedisAbuseLimitGate` (production — async-native
+  fixed-window INCR+EXPIRE over the shared `redis.asyncio` client, fails
+  closed on any Redis error), `UnavailableAbuseLimitGate` (bound when
+  `REDIS_URL` is unset — also fails closed), and `InMemoryAbuseLimitGate`
+  (test double). `get_agent_abuse_limit_gate()` / `set_agent_abuse_limit_gate()`
+  / `bind_agent_abuse_limit_gate()` follow the exact binding idiom
+  `services.action_cards.refresh_cooldown` already established. Cancel
+  (`api/routes/agent_runs.py::cancel_run`) never imports or calls this
+  module at all — the safety-valve exemption is structural, not a
+  fail-open branch inside it. Imported from `api` as `from
+  juli_backend.services.agent import abuse_limits` (never `from
+  juli_backend.services.agent.abuse_limits import ...`, which the
+  `.importlinter.toml` depth-2 cap forbids), the same idiom this
+  package's `approval.py` already uses.

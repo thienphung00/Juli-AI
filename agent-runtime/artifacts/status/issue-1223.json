@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 1223,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/agent",
+      "backend/src/juli_backend/api/routes",
+      "backend/src/juli_backend/api"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1223.json",
+    "ownerSignoffPresent": true,
+    "sha256": "6dd2dc6f801ba51669ff088c6df03ad9b2877a578e4f7dd3acd87707fbbd5fe6",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-22T12:18:44Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1223.json",
+    "sha256": "2fadf5f70cf19ce2238643b321b9acbce5ad237c23f5b47e9b30199206bdbdfa",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w5"
+}
