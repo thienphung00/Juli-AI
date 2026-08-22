@@ -207,29 +207,48 @@ def test_output_validation_failed_is_produced_only_by_the_outbound_guard():
     outcome: letting it escape left the row non-terminal and the reaper stamped
     `worker_lost`, which was false.
 
-    The discipline is unchanged in substance -- exactly ONE producer, named
-    here. A second one appearing without a decision is still a failure.
+    Issue #1225 (AGT-W5A) review round 2 added the SECOND, identical
+    producer, in the same file: `WorkflowRunner.resume`'s decline branch
+    now gives the model one closing turn (`_closing_turn_after_decline`),
+    which reaches the exact same `guard_outbound_agent_output` chokepoint
+    `_finalize` already wraps -- and must translate a hit through this same
+    terminal member for the identical reason #1210 exists at all (an
+    uncaught hit here would strand the row `RUNNING`, #1181's
+    entry-transition persist, for the reaper to mislabel `worker_lost`).
+    Both call sites are literally "the outbound guard translation", never a
+    producer unrelated to the guard -- the discipline is unchanged in
+    substance: a NAMED, FIXED count of sanctioned producers. A third one
+    appearing without a decision is still a failure.
 
-    This walks every `.py` file under `services/agent/runner/` at test-run time
-    (not a hardcoded file list), so it keeps guarding as later slices add
-    modules to that package. The vocabulary module itself (`status.py`,
+    This walks every `.py` file under `services/agent/runner/` at test-run
+    time (not a hardcoded file list), so it keeps guarding as later slices
+    add modules to that package. The vocabulary module itself (`status.py`,
     which legitimately references `OUTPUT_VALIDATION_FAILED` in its mapping
     table) moved to `services/agent/status.py` in #1139 -- outside this
     walked directory -- so no exemption for it is needed here anymore.
     """
     assert RUNNER_PACKAGE_DIR.is_dir(), f"runner package not found at {RUNNER_PACKAGE_DIR}"
 
+    # The exact code pattern a producer call site uses -- `StopReason
+    # .OUTPUT_VALIDATION_FAILED` as a positional argument to `_terminate(...)`
+    # -- not a blanket substring search, so prose/docstring mentions (this
+    # test's own module included, and core.py's own explanatory comments)
+    # never inflate the count.
+    producer_pattern = "StopReason.OUTPUT_VALIDATION_FAILED,"
+
     offending: list[str] = []
     for path in sorted(RUNNER_PACKAGE_DIR.rglob("*.py")):
-        # #1210: core.py's `_finalize` is the ONE sanctioned producer. Counted
-        # rather than skipped -- a blanket exemption would let a second
-        # producer appear in the same file unnoticed, which is the discipline
-        # this test exists to keep.
+        # #1210 + #1225: core.py's `_finalize` and `resume()`'s decline
+        # branch are the TWO sanctioned producers, both translating the same
+        # guard hit. Counted rather than skipped -- a blanket exemption
+        # would let an unrelated third producer appear in the same file
+        # unnoticed, which is the discipline this test exists to keep.
         if path.name == "core.py":
-            occurrences = path.read_text(encoding="utf-8").count("OUTPUT_VALIDATION_FAILED")
-            assert occurrences == 1, (
-                f"core.py references OUTPUT_VALIDATION_FAILED {occurrences} times; "
-                "exactly one producer (the outbound guard translation) is sanctioned"
+            occurrences = path.read_text(encoding="utf-8").count(producer_pattern)
+            assert occurrences == 2, (
+                f"core.py has {occurrences} OUTPUT_VALIDATION_FAILED producer call sites; "
+                "exactly two are sanctioned (_finalize and resume()'s decline branch, "
+                "both translating the same outbound guard hit)"
             )
             continue
         text = path.read_text(encoding="utf-8")

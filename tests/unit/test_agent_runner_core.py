@@ -1516,3 +1516,141 @@ class TestRequiredStepsCompletedPersistence:
             "the declined write never happened -- required_steps_completed must "
             "say so, independently of the non-failure status above"
         )
+
+
+# --- AC: the decline closing turn's outbound guard, review round 2 ---------------
+# (issue #1225, CRITICAL finding) -----------------------------------------------
+
+
+class TestDeclineClosingTurnOutboundGuard:
+    """`_closing_turn_after_decline`'s `guard_outbound_agent_output` call is a
+    second call site to the exact guard `_finalize` already wraps in
+    `try`/`except BannedPatternGuardFailure` (issue #1210). This slice added
+    the second call site but not the matching handling -- Review round 2
+    caught it: `resume()` has already durably committed `status=RUNNING`
+    (#1181's entry-transition persist, `durable=True`, before either branch
+    runs) by the time this guard call happens, and
+    `workers/tasks/agent_workflow.py::_resume_agent_workflow_async` has no
+    `try`/`except` around `await runner.resume(...)` — it commits only after
+    `resume()` returns. So an uncaught guard hit here leaves the row stuck at
+    `RUNNING`: the Celery task exhausts `max_retries=1`, and
+    `_reap_stale_running_and_queued` reaps it as `worker_lost` five minutes
+    later — the exact mislabel #1210 already fixed for `_finalize`,
+    reintroduced through this slice's own new call site to the same guard.
+    """
+
+    async def test_a_banned_pattern_in_the_closing_response_terminates_instead_of_propagating(
+        self,
+    ):
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(
+            run_id,
+            RunState(
+                pending_confirmation={
+                    "call_id": "c1",
+                    "tool_name": "update_product_price",
+                    "arguments": {"skus": [{"sku_ref": "S1", "amount": "1000"}]},
+                }
+            ),
+        )
+        sink = InMemoryEventSink()
+        spy = _SpyToolExecutor()
+        playbook = _minimal_playbook((_step("update_product_price", policy=ToolPolicy.CONFIRM),))
+        runner = _runner(
+            # Same banned-pattern text `TestOutboundGuard` above uses to trip
+            # `guard_outbound_agent_output` -- not a new fixture.
+            script=[_turn(FinalResponse(content="We call an internal endpoint for this."))],
+            tool_executor=spy,
+            event_sink=sink,
+            conversation_store=store,
+            playbook=playbook,
+            registry=_full_registry(),
+        )
+
+        # Must return a terminal RunResult -- must NOT raise
+        # BannedPatternGuardFailure out of resume(). Before the fix, this
+        # call raises straight through this test (pytest reports it as an
+        # error, not an assertion failure) -- the proof that the guard hit
+        # currently escapes `resume()` uncaught.
+        result = await runner.resume(run_id, approved=False)
+
+        assert spy.calls == []  # still never dispatched -- the declined call
+        # Reuses the SAME StopReason `_finalize` already uses for this exact
+        # guard (#1210) -- never a new vocabulary member for one failure class.
+        assert result.stop_reason is StopReason.OUTPUT_VALIDATION_FAILED
+        assert result.status is WorkflowRunStatus.FAILED
+
+        # The blocked content never reaches a completion event or the
+        # conversation -- mirrors TestOutboundGuard's own assertions exactly.
+        completed = [e for e in sink.events if e.event_type == "workflow.completed"]
+        assert completed == []
+        assert not any(
+            m.get("content") == "We call an internal endpoint for this."
+            for m in store._store[run_id].conversation_window
+        )
+
+
+class TestDeclineClosingTurnRefusesToolCalls:
+    """The invariant that a declined run cannot execute the work the seller
+    just refused, even if the model proposes a tool call in its one closing
+    turn (`_closing_turn_after_decline`'s `ToolCallBlock` branch, refused via
+    `_refuse` exactly like an unlisted-tool refusal) -- Review round 2's
+    WARNING: this path is correct but had zero regression coverage."""
+
+    async def test_a_tool_call_in_the_closing_turn_is_refused_never_dispatched(self):
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(
+            run_id,
+            RunState(
+                pending_confirmation={
+                    "call_id": "c1",
+                    "tool_name": "update_product_price",
+                    "arguments": {"skus": [{"sku_ref": "S1", "amount": "1000"}]},
+                }
+            ),
+        )
+        sink = InMemoryEventSink()
+        spy = _SpyToolExecutor()
+        playbook = _minimal_playbook((_step("update_product_price", policy=ToolPolicy.CONFIRM),))
+        runner = _runner(
+            # The model tries to propose the very price change the seller
+            # just declined, in its one closing turn.
+            script=[
+                _turn(
+                    ToolCallBlock(
+                        call_id="c2",
+                        tool_name="update_product_price",
+                        arguments={"skus": [{"sku_ref": "S1", "amount": "999"}]},
+                    )
+                )
+            ],
+            tool_executor=spy,
+            event_sink=sink,
+            conversation_store=store,
+            playbook=playbook,
+            registry=_full_registry(),
+        )
+
+        result = await runner.resume(run_id, approved=False)
+
+        # The whole guarantee under test: zero tool calls happened.
+        assert spy.calls == []
+        assert result.stop_reason == StopReason.CONFIRMATION_DECLINED
+        assert result.status == WorkflowRunStatus.COMPLETED
+        assert result.final_response is None  # refused, not a closing FinalResponse
+
+        # The refusal is recorded like any other refusal: proposal + error
+        # result, never a bare drop.
+        tool_messages = [
+            m for m in store._store[run_id].conversation_window if m.get("role") == "tool"
+        ]
+        refusal_messages = [m for m in tool_messages if m.get("tool_call_id") == "c2"]
+        assert len(refusal_messages) == 1
+        assert "error" in refusal_messages[0]["content"]
+
+        completed_events = [e for e in sink.events if e.event_type == "tool.completed"]
+        refused_completion = [e for e in completed_events if e.payload.tool_call_id == "c2"]
+        assert len(refused_completion) == 1
+        assert refused_completion[0].payload.ok is False

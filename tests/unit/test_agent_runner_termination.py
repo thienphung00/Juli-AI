@@ -1166,7 +1166,7 @@ class TestStopReasonReachability:
         assert not (_REACHABLE_BY_THIS_SLICE & _RESERVED_UNREACHABLE)
         assert not (_DEFERRED_TO_LATER_SLICES & _RESERVED_UNREACHABLE)
 
-    def test_worker_lost_is_never_referenced_and_output_validation_has_one_producer(
+    def test_worker_lost_is_never_referenced_and_output_validation_has_two_producers(
         self,
     ):
         """`worker_lost` stays reaper-only: the runner must never claim a worker
@@ -1174,20 +1174,35 @@ class TestStopReasonReachability:
 
         `output_validation_failed` gained its first legitimate producer in
         #1210 -- the outbound banned-pattern guard, in `core.py::_finalize`.
-        Asserted as a count so a second producer cannot appear unnoticed, and
-        `termination.py` stays free of it entirely.
+        Issue #1225 (AGT-W5A) review round 2 added the SECOND, identical
+        producer: `resume()`'s decline branch calls the exact same
+        `guard_outbound_agent_output` chokepoint (via
+        `_closing_turn_after_decline`) for the model's closing response, and
+        must translate a hit through this same terminal member for the same
+        reason #1210 exists at all -- an uncaught guard hit would otherwise
+        leave the row `RUNNING` (this method's own entry-transition persist,
+        #1181) for the reaper to mislabel `worker_lost`. Both are literally
+        "the outbound guard translation" -- one call site each, both inside
+        an `except BannedPatternGuardFailure:` handler -- never a producer
+        unrelated to the guard.
+
+        Counts the exact code pattern (`StopReason.OUTPUT_VALIDATION_FAILED,`
+        as an argument to `_terminate(...)`), not a blanket substring search
+        across the whole file, so prose/docstring mentions of the member
+        (this test's own module included) never inflate the count -- asserted
+        as a fixed number so a THIRD, unreviewed producer cannot appear
+        unnoticed, and `termination.py` stays free of it entirely.
         """
         for path in (CORE_MODULE_PATH, TERMINATION_MODULE_PATH):
             source = path.read_text(encoding="utf-8")
             assert "WORKER_LOST" not in source, f"{path} references the reaper-only stop_reason"
 
-        assert (
-            TERMINATION_MODULE_PATH.read_text(encoding="utf-8").count("OUTPUT_VALIDATION_FAILED")
-            == 0
+        producer_pattern = "StopReason.OUTPUT_VALIDATION_FAILED,"
+        assert TERMINATION_MODULE_PATH.read_text(encoding="utf-8").count(producer_pattern) == 0
+        assert CORE_MODULE_PATH.read_text(encoding="utf-8").count(producer_pattern) == 2, (
+            "exactly two producers are sanctioned: _finalize and resume()'s decline "
+            "branch, both translating the same guard hit"
         )
-        assert (
-            CORE_MODULE_PATH.read_text(encoding="utf-8").count("OUTPUT_VALIDATION_FAILED") == 1
-        ), "exactly one producer (the outbound guard translation) is sanctioned"
 
     async def test_every_reachable_stop_reason_has_a_dedicated_scenario_reaching_it(self):
         reached: dict[StopReason, RunResult] = {

@@ -605,12 +605,44 @@ class WorkflowRunner:
                     summary="declined by the seller",
                 ),
             )
-            final_response = await self._closing_turn_after_decline(
-                workflow_run_id,
-                state,
-                system_prompt=system_prompt,
-                tool_definitions=tool_definitions,
-            )
+            try:
+                final_response = await self._closing_turn_after_decline(
+                    workflow_run_id,
+                    state,
+                    system_prompt=system_prompt,
+                    tool_definitions=tool_definitions,
+                )
+            except BannedPatternGuardFailure:
+                # Mirrors `_finalize`'s own handling of this exact guard
+                # (#1210), reused here for the identical reason (review
+                # finding, issue #1225 round 2): this method's own entry-
+                # transition persist (#1181, `durable=True`, top of this
+                # method) has already committed `status=RUNNING` before
+                # either branch runs, so leaving this uncaught would strand
+                # the row at RUNNING for `_reap_stale_running_and_queued` to
+                # mislabel `worker_lost` five minutes later -- infrastructure
+                # death for what is actually a guard correctly refusing the
+                # model's closing-turn output. Reuses `_finalize`'s own
+                # `StopReason.OUTPUT_VALIDATION_FAILED` -- the vocabulary
+                # already covers this failure class; no new member.
+                stop = await self._terminate(
+                    workflow_run_id,
+                    state,
+                    StopReason.OUTPUT_VALIDATION_FAILED,
+                    version_str,
+                    sha256,
+                )
+                await self._conversation_store.persist(
+                    workflow_run_id,
+                    state,
+                    status=stop.status,
+                    stop_reason=stop.stop_reason,
+                    required_steps_completed=self._required_steps_completed(state),
+                    running_seconds_elapsed=running_seconds_column_value(
+                        state.running_seconds_elapsed
+                    ),
+                )
+                return stop
             await self._emit(
                 workflow_run_id,
                 state,
@@ -1292,6 +1324,21 @@ class WorkflowRunner:
         at all (e.g. only `TextBlock`s, or a refused `ToolCallBlock`) —
         `resume()`'s decline branch still ends `confirmation_declined`
         either way, this only ever affects `RunResult.final_response`.
+
+        Raises `BannedPatternGuardFailure`, uncaught here, on a guard hit —
+        deliberately NOT swallowed to `None` in this method, the same way
+        `_finalize` does not swallow its own identical guard call. `resume`'s
+        decline branch is what catches it (review finding, issue #1225 round
+        2) and translates it through `_terminate`/`StopReason
+        .OUTPUT_VALIDATION_FAILED` — the same terminal member `_finalize`
+        already uses for this exact failure (#1210), never a new one — for
+        the same reason #1210 exists at all: this method's caller has
+        already durably committed `status=RUNNING` (#1181's entry-transition
+        persist, before either branch runs), so an exception left to
+        propagate all the way out of `resume()` leaves the row stuck at
+        `RUNNING` for `_reap_stale_running_and_queued` to reap as
+        `worker_lost` five minutes later — a lie (no worker was lost) for
+        what is actually a guard correctly refusing the model's output.
         """
         turn = await self._llm_service.complete(
             messages=state.conversation_window_for_llm(),
