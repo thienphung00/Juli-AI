@@ -466,14 +466,26 @@ class WorkflowRunner:
         3) rather than reusing `CONCURRENCY_CONFLICT` — a different failure
         class with an opposite operational meaning, not a mechanically
         similar one.
-        A declined confirmation ends the run immediately with
-        `stop_reason=confirmation_declined` (`status.py`'s total mapping:
-        `completed`) without ever calling `ToolExecutor.execute`. An
-        approved confirmation dispatches the pending call through the same
-        `ToolExecutor.execute` -> `guard_inbound_tool_result` -> append
-        path `_dispatch_tool_call` uses for an AUTO tool, then re-enters
-        `_drive_loop` — the same block-dispatch loop `run()` uses — to
-        drive the rest of the scripted scenario to completion.
+        A declined confirmation is a conversation, not a kill (ADR-075
+        decision 2, issue #1225 / AGT-W5A): it never calls `ToolExecutor
+        .execute`, but it is not a silent stop either. The decline is
+        appended to the conversation exactly like an ordinary tool result,
+        then `_closing_turn_after_decline` gives the model one more `LLM
+        Service.complete()` turn — never `_drive_loop` itself, so the model
+        cannot propose a further tool dispatch — to produce the honest
+        wrap-up text the seller actually sees; a `ToolCallBlock` in that one
+        turn is refused exactly like an unlisted tool, never dispatched. The
+        run still ends on the dedicated `stop_reason=confirmation_declined`
+        (`status.py`'s total mapping: `completed`) — never `final_response`,
+        which would erase the approval-rate metric's ability to distinguish
+        "declined, then wrapped up" from an ordinary completion — carrying
+        whatever closing text the model produced (or `None`, if it said
+        nothing) as `RunResult.final_response`. An approved confirmation
+        dispatches the pending call through the same `ToolExecutor.execute`
+        -> `guard_inbound_tool_result` -> append path `_dispatch_tool_call`
+        uses for an AUTO tool, then re-enters `_drive_loop` — the same
+        block-dispatch loop `run()` uses — to drive the rest of the
+        scripted scenario to completion.
 
         Because nothing calls `accumulate_running_seconds` or
         `allocate_sequence` while the run sat paused (the pause mechanism
@@ -593,6 +605,12 @@ class WorkflowRunner:
                     summary="declined by the seller",
                 ),
             )
+            final_response = await self._closing_turn_after_decline(
+                workflow_run_id,
+                state,
+                system_prompt=system_prompt,
+                tool_definitions=tool_definitions,
+            )
             await self._emit(
                 workflow_run_id,
                 state,
@@ -610,7 +628,7 @@ class WorkflowRunner:
             return RunResult(
                 stop_reason=stop_reason,
                 status=status,
-                final_response=None,
+                final_response=final_response,
                 prompt_version=version_str,
                 prompt_sha256=sha256,
                 iteration_count=state.iteration_count,
@@ -1240,6 +1258,69 @@ class WorkflowRunner:
             prompt_sha256=sha256,
             iteration_count=state.iteration_count,
         )
+
+    async def _closing_turn_after_decline(
+        self,
+        workflow_run_id: uuid.UUID,
+        state: RunState,
+        *,
+        system_prompt: str,
+        tool_definitions: tuple[ToolDefinition, ...],
+    ) -> str | None:
+        """One `LLMService.complete()` turn after a decline is already in
+        the conversation (issue #1225 / AGT-W5A, ADR-075 decision 2): "the
+        model is told the seller declined, wraps up honestly". This is what
+        makes `resume()`'s decline branch "resume the loop", not just record
+        a decision — the seller who declined a price change still gets the
+        analysis and reasoning the run already produced, restated in the
+        model's own words for this response.
+
+        Deliberately never `_drive_loop` — the run's terminal outcome is
+        already decided (`stop_reason=confirmation_declined`, the dedicated
+        vocabulary member #1224 made reachable), so this is exactly one
+        turn, not an open-ended continuation. A `TextBlock` is appended and
+        emitted exactly like an ordinary mid-run one. A `FinalResponse` runs
+        through the same `guard_outbound_agent_output` chokepoint
+        `_finalize` uses before anything about it is recorded, then its
+        `content` becomes this call's return value — `resume`'s caller
+        threads that straight onto `RunResult.final_response`. A
+        `ToolCallBlock` is refused exactly like `_dispatch_tool_call`
+        refuses a call outside the active playbook's allowlist (`_refuse`,
+        never `ToolExecutor.execute`) — the seller already declined; this
+        turn is for wrapping up, not for proposing new action. Returns
+        `None` when the model's one turn produced no `FinalResponse` block
+        at all (e.g. only `TextBlock`s, or a refused `ToolCallBlock`) —
+        `resume()`'s decline branch still ends `confirmation_declined`
+        either way, this only ever affects `RunResult.final_response`.
+        """
+        turn = await self._llm_service.complete(
+            messages=state.conversation_window_for_llm(),
+            system=system_prompt,
+            tools=tool_definitions,
+            config=self._llm_config,
+        )
+        final_response: str | None = None
+        for block in turn.blocks:
+            if isinstance(block, TextBlock):
+                await self._append_text_block(workflow_run_id, state, block)
+            elif isinstance(block, FinalResponse):
+                guard_outbound_agent_output(
+                    {"content": block.content, "structured_output": block.structured_output}
+                )
+                state.conversation_window.append({"role": "assistant", "content": block.content})
+                final_response = block.content
+                break
+            elif isinstance(block, ToolCallBlock):
+                await self._refuse(
+                    workflow_run_id,
+                    state,
+                    block,
+                    message=(
+                        "The seller declined this change; the run is wrapping up "
+                        "without dispatching any further tool calls."
+                    ),
+                )
+        return final_response
 
     async def _finalize(
         self,

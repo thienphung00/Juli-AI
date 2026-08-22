@@ -424,25 +424,36 @@ class TestRunningSecondsColumnExcludesThePauseInterval:
 
 
 class TestResumeDeclined:
-    """`resume(approved=False)` -- not itself one of #1123's core five
-    acceptance criteria, but the other half of the branch `resume` owns;
-    covered here rather than left untested."""
+    """`resume(approved=False)` -- ADR-075 decision 2 / issue #1225 (AGT-W5A):
+    "decline is a conversation, not a kill." The seller's decline is
+    appended to the conversation, the model gets one more turn to wrap up
+    honestly (a REAL `FakeLLMService.complete()` call, never skipped), and
+    the run still ends on the dedicated `confirmation_declined` stop_reason
+    (never `final_response`, which would erase the metric's ability to
+    distinguish "declined then wrapped up" from an ordinary completion) --
+    all while the seller's prior work survives untouched, both in the
+    persisted `RunState` and on the sequence-numbered event stream."""
 
-    async def test_declined_confirmation_ends_the_run_without_dispatching_the_tool(
+    async def test_decline_gives_the_model_a_closing_turn_and_preserves_prior_work(
         self, engine: AsyncEngine
     ):
-        run_id, _state_at_pause, event_count_a, weak_runner_a = await _pause_runner_a(engine)
+        run_id, state_at_pause, event_count_a, weak_runner_a = await _pause_runner_a(engine)
         gc.collect()
         assert weak_runner_a() is None
+        pre_pause_conversation = list(state_at_pause["conversation_window"])
 
         factory = async_sessionmaker(engine, expire_on_commit=False)
         async with factory() as session_b:
             store_b = JsonbConversationStore(session_b)
             spy_b = _SpyToolExecutor()
+            sink_b = InMemoryEventSink()
+            llm_b = FakeLLMService(
+                script=[_turn(FinalResponse(content="Understood -- no changes were made."))]
+            )
             runner_b = WorkflowRunner(
-                llm_service=FakeLLMService(script=[]),  # must never be called
+                llm_service=llm_b,
                 tool_executor=spy_b,
-                event_sink=InMemoryEventSink(),
+                event_sink=sink_b,
                 conversation_store=store_b,
                 registry=_full_registry(),
                 playbook=_pause_resume_playbook(),
@@ -450,15 +461,51 @@ class TestResumeDeclined:
 
             result_b = await runner_b.resume(run_id, approved=False)
 
+            # --- AC: the dedicated stop_reason, not a reuse of final_response ---
             assert result_b.stop_reason == StopReason.CONFIRMATION_DECLINED
             assert result_b.status == WorkflowRunStatus.COMPLETED
+
+            # --- AC: "resumes the loop ... the model produces a closing
+            # response" -- a real LLM turn happened, not a hard stop --------
+            assert len(llm_b.recorded_calls) == 1
+            assert result_b.final_response == "Understood -- no changes were made."
+
+            # --- AC: the declined operation is never dispatched -------------
             assert spy_b.calls == []  # declined -- never dispatched
 
             resumed_state = await store_b.load(run_id)
             assert resumed_state.pending_confirmation is None
-            # decline emits exactly two events (tool.completed, workflow.completed),
-            # continuing from runner A's next_sequence -- no reset, no reuse.
-            # The +1 is #1195's 1-based minting base (see the pause assertion above).
+
+            # --- AC: prior work (tool results, assistant text) survives,
+            # verbatim, as a strict prefix of the post-decline conversation --
+            assert (
+                resumed_state.conversation_window[: len(pre_pause_conversation)]
+                == pre_pause_conversation
+            )
+            # ... plus the decline record and the model's own closing text.
+            assert resumed_state.conversation_window[len(pre_pause_conversation) :] == [
+                {
+                    "role": "tool",
+                    "tool_call_id": "c2",
+                    "tool_name": "update_product_listing",
+                    "content": {"confirmation": {"decision": "declined"}},
+                },
+                {"role": "assistant", "content": "Understood -- no changes were made."},
+            ]
+
+            # --- AC: prior work also survives "on the event stream" -- the
+            # sequence-numbered stream `PersistingEventSink` would append to
+            # in production continues from runner A's own last id, no reset,
+            # no reuse. decline emits exactly two events of its own
+            # (tool.completed for the decline, workflow.completed) -- the
+            # closing FinalResponse itself gets no dedicated event, mirroring
+            # how an ordinary `final_response` turn's text is never streamed
+            # as its own event either (`core.py::_finalize`). The +1 is
+            # #1195's 1-based minting base (see the pause assertion above).
+            assert len(sink_b.events) == 2
+            assert sink_b.events[0].sequence_number == event_count_a + 1
+            all_sequences = [e.sequence_number for e in sink_b.events]
+            assert all_sequences == sorted(all_sequences)
             assert resumed_state.next_sequence == event_count_a + 2 + 1
 
 

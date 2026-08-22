@@ -1468,3 +1468,51 @@ class TestRequiredStepsCompletedPersistence:
         assert spy.calls == []
         assert result.stop_reason == StopReason.FINAL_RESPONSE
         assert store.required_steps_completed_for(run_id) is False
+
+    async def test_declined_confirmation_records_false_without_the_run_being_a_failure(self):
+        """AC7 -- the #1220 regression guard for the decline branch
+        specifically (issue #1225 / AGT-W5A, ADR-075 decision 2). The two
+        facts must be recorded TOGETHER, in the same test, or one can drift
+        without the other catching it: `required_steps_completed` reads
+        `False` (the declined `update_product_price` never actually ran --
+        `termination.required_steps_completed`'s own docstring says a
+        `{"confirmation": {"decision": "declined"}}` tool-result entry never
+        counts as completed) while `stop_reason`/`status` land on the
+        seller's honest choice (`confirmation_declined`/`completed`), never
+        a synthetic `failed`/`cancelled` invented because the required
+        write didn't happen."""
+        run_id = uuid.uuid4()
+        store = _InMemoryConversationStore()
+        store.seed(
+            run_id,
+            RunState(
+                pending_confirmation={
+                    "call_id": "c1",
+                    "tool_name": "update_product_price",
+                    "arguments": {"skus": [{"sku_ref": "S1", "amount": "1000"}]},
+                }
+            ),
+        )
+        playbook = _minimal_playbook((_step("update_product_price", policy=ToolPolicy.CONFIRM),))
+        spy = _SpyToolExecutor()
+        runner = _runner(
+            script=[_turn(FinalResponse(content="No worries -- keeping the current price."))],
+            tool_executor=spy,
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            playbook=playbook,
+            registry=_full_registry(),
+        )
+
+        result = await runner.resume(run_id, approved=False)
+
+        assert spy.calls == []  # the declined price change never dispatched
+        assert result.stop_reason == StopReason.CONFIRMATION_DECLINED
+        assert result.status == WorkflowRunStatus.COMPLETED, (
+            "a declined confirmation must never be recorded as a failure -- "
+            "ADR-075 decision 2: decline is a conversation, not a kill"
+        )
+        assert store.required_steps_completed_for(run_id) is False, (
+            "the declined write never happened -- required_steps_completed must "
+            "say so, independently of the non-failure status above"
+        )
