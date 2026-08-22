@@ -162,7 +162,11 @@ describe("PAYLOAD_FIELDS / ENVELOPE_FIELDS", () => {
   it("STOP_REASONS names every stop_reason workflow.completed/workflow.failed may carry", () => {
     expect(STOP_REASONS).toContain("final_response");
     expect(STOP_REASONS).toContain("worker_lost");
-    expect(STOP_REASONS).toHaveLength(12);
+    // ADR-073 amendment (ADR-075 decision 2, #1224 review round 3): a
+    // dedicated member for consent-binding refusal, distinct from
+    // concurrency_conflict -- see agent-events.ts's own comment.
+    expect(STOP_REASONS).toContain("confirmation_diverged");
+    expect(STOP_REASONS).toHaveLength(13);
   });
 });
 

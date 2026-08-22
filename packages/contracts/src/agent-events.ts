@@ -55,6 +55,11 @@ export const STOP_REASONS = [
   "paused_for_confirmation",
   "cancelled_by_seller",
   "confirmation_expired",
+  // ADR-073 amendment (ADR-075 decision 2, #1224 review round 3): consent
+  // binding refused a write because it no longer matched what the seller
+  // consented to -- distinct in kind from `concurrency_conflict` (a stale
+  // product snapshot), even though both are compare-before-write guards.
+  "confirmation_diverged",
   "iteration_cap_exceeded",
   "wall_clock_timeout",
   "tool_error_unrecoverable",
@@ -92,6 +97,7 @@ export const WORKFLOW_FAILED_STOP_REASON_TO_STATUS: Readonly<
       StopReason,
       | "cancelled_by_seller"
       | "confirmation_expired"
+      | "confirmation_diverged"
       | "iteration_cap_exceeded"
       | "wall_clock_timeout"
       | "tool_error_unrecoverable"
@@ -105,6 +111,7 @@ export const WORKFLOW_FAILED_STOP_REASON_TO_STATUS: Readonly<
 > = {
   cancelled_by_seller: "cancelled",
   confirmation_expired: "cancelled",
+  confirmation_diverged: "failed",
   iteration_cap_exceeded: "timed_out",
   wall_clock_timeout: "timed_out",
   tool_error_unrecoverable: "failed",

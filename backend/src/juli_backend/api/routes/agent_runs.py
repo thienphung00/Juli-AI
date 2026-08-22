@@ -41,11 +41,42 @@ _construct_runner` wires a `cancel_check` that reads this column fresh from
 the database on every poll -- a cached read would defeat the mechanism,
 since the API process writes the flag and the worker process reads it.
 
-`POST /v1/demo/runs/{run_id}/confirmations/{tool_call_id}` is a **reserved
-shape only**: it exists, tenant-scopes the run, and accepts a `{decision}`
-body, but always answers `501` -- decision validation, consent binding and
-any `run_confirmations` write are W4-A's authorization slice (ADR-074
-decision 5). This route never authorizes and never mutates state.
+`POST /v1/demo/runs/{run_id}/confirmations/{tool_call_id}` authorizes and
+resolves a seller's decision on a CONFIRM-policy pause (ADR-075 decision 2,
+issue #1224 / AGT-W5A). The fail-closed, ordered ladder, each rung its own
+status:
+
+1. the run belongs to the caller's shop -- else `404` (never `403`; no
+   existence oracle).
+2. the run is `waiting_approval` -- else `409`.
+3. `tool_call_id` names a `run_confirmations` row for this run -- else
+   `404`; if that row is no longer `pending` (already decided) -- `409`;
+   if it is `expired` -- `410`.
+4. the confirmation has not passed its `expires_at` wall clock, even if
+   the reaper (`workers/tasks/reaper.py`) has not yet swept it -- else
+   `410`, and this endpoint leaves the run and the row alone for the
+   reaper to finish (never force-terminates).
+
+On `approve`, `option_id` must name one of the confirmation's stored
+options, and the resume path re-derives that option's `params_sha`
+(`services.agent.runner.compute_params_sha`, re-exported at the runner
+package's own depth-2-facade boundary -- never reimplemented here) from
+the run's *reconstructed* state (`workflow_runs.state["pending_confirmation"]
+["arguments"]`, the same raw blob `WorkflowRunner.resume` itself reads) --
+a mismatch is a hard failure (`409`), and the tool is never dispatched: the
+confirmation row is left `pending` and `resume_agent_workflow` is never
+enqueued, so `ToolExecutor.execute` is structurally unreachable on this
+path.
+
+Single-use: the confirmation row's `pending -> approved(option_id) |
+declined` transition is an atomic, conditional `UPDATE ... WHERE
+status = 'pending'` -- a race between two concurrent decisions on the same
+confirmation yields exactly one committed transition (rowcount 1) and one
+loser (rowcount 0, translated to `409`, no enqueue). The transition is
+always committed *before* `resume_agent_workflow` is enqueued -- never the
+reverse, which would let a worker observe the row still `pending` mid-flight
+(the exact `IntegrityError` #1221's review reproduced against a second,
+sequential CONFIRM pause on the same run).
 
 `POST /v1/demo/runs` was issue #1145's Gap 2 fix -- it created a
 `workflow_runs` row directly from a caller-supplied `product_id`, with no
@@ -83,17 +114,18 @@ import logging
 import os
 import uuid
 from collections.abc import AsyncIterator
-from datetime import datetime
-from typing import Any, Protocol, runtime_checkable
+from datetime import UTC, datetime
+from typing import Any, Protocol, cast, runtime_checkable
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import CursorResult, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from juli_backend.api.dependencies import get_active_shop
 from juli_backend.database import Shop, get_session
+from juli_backend.models.models import RunConfirmation
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 
@@ -144,6 +176,19 @@ TERMINAL_EVENT_TYPES: frozenset[str] = frozenset({"workflow.completed", "workflo
 # string column (not a native DB enum), so these are exactly the values
 # ever stored there for a finished run.
 TERMINAL_RUN_STATUSES: frozenset[str] = frozenset({"completed", "cancelled", "timed_out", "failed"})
+
+# `workflow_runs.status` value a run occupies while a CONFIRM-policy pause
+# awaits a seller decision -- mirrors `services.agent.status
+# .WorkflowRunStatus.WAITING_APPROVAL.value`, a plain literal for the same
+# reason `TERMINAL_RUN_STATUSES` above is: `services.agent.status` is a
+# depth-3 cross-package import from `api`, forbidden by
+# `.importlinter.toml` (see the module docstring's import-boundary note).
+WAITING_APPROVAL_RUN_STATUS = "waiting_approval"
+
+# `run_confirmations.status` values (migration `039_run_confirmations`,
+# `models.models.RunConfirmation`) -- same "plain literal, not an import"
+# reasoning as `WAITING_APPROVAL_RUN_STATUS` above.
+PENDING_CONFIRMATION_STATUS = "pending"
 
 DEFAULT_HEARTBEAT_INTERVAL_S = 15.0
 DEFAULT_POLL_INTERVAL_S = 2.0
@@ -574,26 +619,340 @@ async def cancel_run(
 
 class ConfirmationDecisionRequest(BaseModel):
     decision: str
+    option_id: str | None = None
 
 
-@router.post("/{run_id}/confirmations/{tool_call_id}")
+class ConfirmationDecisionResponse(BaseModel):
+    decision: str
+    status: str
+    celery_task_id: str
+
+
+# Machine-readable discriminators carried inside `HTTPException.detail` for
+# every error this endpoint raises on its OWN logic (never `_resolve_owned_run`'s
+# shared tenant-scoping 404, which `/events` and `/cancel` also raise --
+# changing that shared shape is out of this endpoint's scope). #1224 review
+# finding: three of this endpoint's conditions all surfaced as a bare-string
+# 409 -- "run not waiting_approval" (benign, retry later), "already decided"
+# (benign double-submit, single-use), and a `params_sha` divergence, which
+# ADR-075 decision 2 calls "a hard failure, not a warning" -- with no way for
+# a caller to tell them apart short of parsing free text. This is additive:
+# every HTTP status code stays exactly what it already was; `error_code` is a
+# new key riding alongside the existing human-readable `message`, not a
+# reclassification. No error-envelope convention exists elsewhere in this
+# codebase to conform to instead (`.cursor/rules/patterns.mdc`'s
+# `{status, data, error, metadata}` shape is aspirational and unused by any
+# real route -- adopting it here would mean restructuring every response,
+# including this endpoint's own 202 success shape, which is out of scope);
+# every other route's error body stays FastAPI's default bare-string
+# `{"detail": "..."}`, unaffected.
+#
+# The sequential "already decided on read" (rung 3) and the concurrent race
+# loser (`_transition_confirmation_or_none` returning `False`) share ONE code
+# deliberately: both are the identical client-observable fact -- "someone
+# already decided this confirmation" -- detected at two different code paths,
+# never two different facts.
+ERROR_RUN_NOT_AWAITING_CONFIRMATION = "run_not_awaiting_confirmation"
+ERROR_CONFIRMATION_NOT_FOUND = "confirmation_not_found"
+ERROR_CONFIRMATION_ALREADY_DECIDED = "confirmation_already_decided"
+ERROR_CONFIRMATION_EXPIRED = "confirmation_expired"
+ERROR_INVALID_DECISION = "invalid_decision"
+ERROR_OPTION_ID_REQUIRED = "option_id_required"
+ERROR_UNKNOWN_OPTION_ID = "unknown_option_id"
+ERROR_PARAMS_SHA_MISMATCH = "params_sha_mismatch"
+ERROR_RUN_STATE_NOT_RECONSTRUCTABLE = "run_state_not_reconstructable"
+
+
+def _confirmation_error(status_code: int, error_code: str, message: str) -> HTTPException:
+    """Build this endpoint's error shape: `{"detail": {"message": ..., "error_code": ...}}`.
+    `error_code` is the stable, machine-readable discriminator (see the
+    module-level constants above); `message` stays the existing
+    human-readable text, unchanged in content from before this field existed.
+    """
+    return HTTPException(
+        status_code=status_code, detail={"message": message, "error_code": error_code}
+    )
+
+
+def _enqueue_resume_agent_workflow(run_id: uuid.UUID, *, approved: bool) -> str:
+    """Enqueue `resume_agent_workflow` for `run_id` -- the same lazy-import-
+    then-`.delay()` idiom `_enqueue_run_agent_workflow` above uses (see that
+    function's own docstring for why the depth-2 cross-package import is
+    required here). `workers/tasks/agent_workflow.py::resume_agent_workflow`
+    already exists end to end (`_resume_agent_workflow_async` ->
+    `_construct_runner` -> `runner.resume(run.id, approved=...)` -> commit)
+    and is already routed to the `agent_runs` Celery queue -- this is its
+    first and only caller.
+    """
+    from juli_backend.workers.tasks import agent_workflow as agent_workflow_tasks
+
+    async_result = agent_workflow_tasks.resume_agent_workflow.delay(str(run_id), approved)
+    return async_result.id
+
+
+def _as_aware_utc(value: datetime) -> datetime:
+    """Normalize a DB-read datetime to aware UTC before comparing to `now`.
+
+    Mirrors `workers/tasks/reaper.py::_as_aware_utc` (not imported --
+    `juli_backend.workers.tasks.reaper` is a depth-3 cross-package import,
+    forbidden by the same `.importlinter.toml` cap this module's own
+    docstring already explains): `run_confirmations.expires_at` is declared
+    `DateTime(timezone=True)`, but SQLite (the unit-test backend) hands
+    naive datetimes back regardless of the column's declared timezone
+    awareness. Every writer in this codebase seeds UTC, never a local
+    timezone, so attaching UTC to a naive value restores information, it
+    does not guess it.
+    """
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+async def _transition_confirmation_or_none(
+    session: AsyncSession,
+    confirmation_id: uuid.UUID,
+    *,
+    new_status: str,
+    selected_option_id: str | None,
+) -> bool:
+    """Atomically flip a `run_confirmations` row out of `pending`, and
+    report whether *this call* won that transition.
+
+    A single conditional `UPDATE ... WHERE id = :id AND status = 'pending'`
+    -- not a read-then-write -- is what makes this safe under a race: two
+    concurrent decisions on the same confirmation both reach this function,
+    but Postgres serializes the two `UPDATE`s against the same row (one
+    blocks on the other's row lock until it commits or rolls back), so at
+    most one can match `status = 'pending'` and return a matched rowcount
+    of `1`; the loser matches zero rows and gets `False` back, never a
+    second, silently-overwriting write. The caller commits (or does not)
+    based on this return value -- this function itself never commits, so a
+    losing caller's transaction has made no durable change to roll back.
+    """
+    stmt = (
+        update(RunConfirmation)
+        .where(
+            RunConfirmation.id == confirmation_id,
+            RunConfirmation.status == PENDING_CONFIRMATION_STATUS,
+        )
+        .values(
+            status=new_status,
+            selected_option_id=selected_option_id,
+            decided_at=datetime.now(UTC),
+        )
+    )
+    # `AsyncSession.execute` is typed generically as `Result[Any]`; an
+    # `UPDATE` statement's real runtime result is a `CursorResult`, which is
+    # where `.rowcount` actually lives -- the cast tells mypy what
+    # SQLAlchemy itself guarantees for a DML statement, it does not change
+    # runtime behavior.
+    result = cast(CursorResult, await session.execute(stmt))
+    return result.rowcount == 1
+
+
+@router.post(
+    "/{run_id}/confirmations/{tool_call_id}",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ConfirmationDecisionResponse,
+)
 async def submit_confirmation_decision(
     run_id: uuid.UUID,
     tool_call_id: str,
     body: ConfirmationDecisionRequest,
     shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
-) -> None:
-    """Reserved shape only (ADR-074 decision 5). Tenant-scopes the run
-    (404, never 403) and accepts a `{decision}` body, then always answers
-    `501` -- decision validation, consent binding and any
-    `run_confirmations` write are W4-A's. This route never authorizes and
-    never mutates state."""
-    await _resolve_owned_run(run_id, shop, session)
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail=(
-            f"Confirmation decisions for tool_call_id={tool_call_id!r} are not yet "
-            "implemented -- decision authorization lands in a later slice (W4-A)."
-        ),
+) -> ConfirmationDecisionResponse:
+    """Authorize and resolve a seller's decision on a CONFIRM-policy pause
+    (ADR-075 decision 2, issue #1224 / AGT-W5A). See the module docstring
+    for the full ladder, the consent-binding contract, and the single-use
+    race guarantee -- this body is the implementation of exactly that.
+    """
+    # Rung 1: tenant scoping -- 404, never 403, for another shop's run or a
+    # nonexistent one (no existence oracle).
+    run = await _resolve_owned_run(run_id, shop, session)
+
+    # Rung 2: the run must actually be paused for a decision.
+    if run.status != WAITING_APPROVAL_RUN_STATUS:
+        raise _confirmation_error(
+            status.HTTP_409_CONFLICT,
+            ERROR_RUN_NOT_AWAITING_CONFIRMATION,
+            f"Run {run_id} is not awaiting a confirmation decision (status={run.status!r}).",
+        )
+
+    # Rung 3 (+ single-use): the confirmation row for this exact
+    # tool_call_id, whatever its current status. A `tool_call_id` this run
+    # never paused on at all is a 404 (the ladder's "matches THE pending
+    # confirmation" rung); one that already resolved (approved/declined) is
+    # a 409 (single-use, second decision); one already flipped `expired` by
+    # some future writer is a 410, same as the wall-clock check below.
+    confirmation_result = await session.execute(
+        select(RunConfirmation).where(
+            RunConfirmation.workflow_run_id == run_id,
+            RunConfirmation.tool_call_id == tool_call_id,
+        )
+    )
+    confirmation = confirmation_result.scalars().first()
+    if confirmation is None:
+        raise _confirmation_error(
+            status.HTTP_404_NOT_FOUND,
+            ERROR_CONFIRMATION_NOT_FOUND,
+            f"No confirmation for tool_call_id={tool_call_id!r} on run {run_id}.",
+        )
+    if confirmation.status == "expired":
+        raise _confirmation_error(
+            status.HTTP_410_GONE,
+            ERROR_CONFIRMATION_EXPIRED,
+            "This confirmation has expired; the run is left for the reaper.",
+        )
+    if confirmation.status != PENDING_CONFIRMATION_STATUS:
+        raise _confirmation_error(
+            status.HTTP_409_CONFLICT,
+            ERROR_CONFIRMATION_ALREADY_DECIDED,
+            f"Confirmation {tool_call_id!r} was already decided ({confirmation.status}).",
+        )
+
+    # Rung 4: the wall-clock deadline, checked directly against
+    # `expires_at` -- independent of whether the reaper's periodic sweep
+    # has run yet. Never force-terminates the run or the row; the reaper's
+    # `confirmation_expired` sweep (`workers/tasks/reaper.py`) is the only
+    # writer of that transition.
+    if _as_aware_utc(confirmation.expires_at) <= datetime.now(UTC):
+        raise _confirmation_error(
+            status.HTTP_410_GONE,
+            ERROR_CONFIRMATION_EXPIRED,
+            "This confirmation has expired; the run is left for the reaper.",
+        )
+
+    if body.decision == "decline":
+        selected_option_id: str | None = None
+        approved = False
+    elif body.decision == "approve":
+        if body.option_id is None:
+            raise _confirmation_error(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                ERROR_OPTION_ID_REQUIRED,
+                "An approve decision requires option_id.",
+            )
+        options = confirmation.options if isinstance(confirmation.options, list) else []
+        selected = next(
+            (option for option in options if option.get("option_id") == body.option_id),
+            None,
+        )
+        if selected is None:
+            raise _confirmation_error(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                ERROR_UNKNOWN_OPTION_ID,
+                f"option_id={body.option_id!r} is not one of this confirmation's options.",
+            )
+
+        # Consent binding (ADR-075 decision 2): re-derive the selected
+        # option's params_sha from the run's RECONSTRUCTED state -- the
+        # verbatim `pending_confirmation.arguments` blob `WorkflowRunner
+        # .resume` itself reads (`services/agent/runner/state.py`,
+        # `services/agent/runner/core.py::resume`) -- never from the
+        # confirmation row's own `proposed_change` (that would only ever
+        # prove the option is self-consistent, not that it still matches
+        # what the run would actually execute). A mismatch is a hard
+        # failure: the confirmation row is left `pending` and
+        # `resume_agent_workflow` is never enqueued, so `ToolExecutor
+        # .execute` is structurally unreachable on this path -- not a log
+        # line, an absence of the only call site that could reach it.
+        run_state = run.state if isinstance(run.state, dict) else {}
+        pending_state = run_state.get("pending_confirmation")
+        if not isinstance(pending_state, dict) or "arguments" not in pending_state:
+            raise _confirmation_error(
+                status.HTTP_409_CONFLICT,
+                ERROR_RUN_STATE_NOT_RECONSTRUCTABLE,
+                "Run has no reconstructable pending confirmation state.",
+            )
+        # Depth-2 facade import (see `_resolve_optimize_product_prompt_pin`
+        # above for the identical idiom and the import-boundary rationale):
+        # `runner/__init__.py` re-exports `compute_params_sha` for exactly
+        # this caller (see that module's own docstring).
+        from juli_backend.services.agent import runner as runner_module
+
+        expected_params_sha = runner_module.compute_params_sha(pending_state["arguments"])
+        if selected.get("params_sha") != expected_params_sha:
+            logger.warning(
+                "agent_confirmation_params_sha_mismatch",
+                extra={
+                    "shop_id": str(shop.id),
+                    "run_id": str(run_id),
+                    "tool_call_id": tool_call_id,
+                    "option_id": body.option_id,
+                },
+            )
+            raise _confirmation_error(
+                status.HTTP_409_CONFLICT,
+                ERROR_PARAMS_SHA_MISMATCH,
+                "The proposed change no longer matches the run's current state; "
+                "refusing to execute an unconsented change.",
+            )
+        # Freeze the confirmed params_sha onto the run's own reconstructable
+        # state (ADR-075 decision 2, #1224 review round 2). `WorkflowRunner`
+        # has no database access beyond `ConversationStore`
+        # (`services/agent/runner/core.py`'s own docstring: "no direct
+        # database access here") -- it cannot read
+        # `run_confirmations.options[].params_sha` itself, so this is the
+        # only channel that lets `resume()`'s approve branch independently
+        # re-derive-and-compare before `ToolExecutor.execute`, entirely
+        # from state it already loads, rather than trusting whichever
+        # caller enqueued the task. Reassigned (not mutated in place) so
+        # SQLAlchemy's JSON-column change detection actually sees it --
+        # the same idiom `JsonbConversationStore.persist` uses for `run.state`.
+        updated_pending_state = {**pending_state, "params_sha": expected_params_sha}
+        run.state = {**run_state, "pending_confirmation": updated_pending_state}
+
+        selected_option_id = body.option_id
+        approved = True
+    else:
+        raise _confirmation_error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            ERROR_INVALID_DECISION,
+            f"decision must be 'approve' or 'decline', got {body.decision!r}.",
+        )
+
+    new_status = "approved" if approved else "declined"
+    won = await _transition_confirmation_or_none(
+        session,
+        confirmation.id,
+        new_status=new_status,
+        selected_option_id=selected_option_id,
+    )
+    if not won:
+        # Lost a race to a concurrent decision on this same confirmation
+        # between the read above and this UPDATE -- the identical
+        # client-observable fact as the sequential single-use 409 above,
+        # so it carries the SAME error_code (see the constant's own
+        # docstring). Nothing was enqueued; nothing here needs rolling back.
+        raise _confirmation_error(
+            status.HTTP_409_CONFLICT,
+            ERROR_CONFIRMATION_ALREADY_DECIDED,
+            f"Confirmation {tool_call_id!r} was already decided.",
+        )
+    # The transition is committed BEFORE the enqueue, never after: enqueuing
+    # first would let a worker observe the row still `pending` mid-flight --
+    # the exact race that produced #1221's review-reproduced IntegrityError
+    # against a second, sequential CONFIRM pause on the same run (the second
+    # pause's INSERT collides with `uq_run_confirmations_pending_run` while
+    # the first row still says `pending`).
+    await session.commit()
+
+    celery_task_id = _enqueue_resume_agent_workflow(run_id, approved=approved)
+
+    logger.info(
+        "agent_confirmation_decided",
+        extra={
+            "shop_id": str(shop.id),
+            "run_id": str(run_id),
+            "tool_call_id": tool_call_id,
+            "decision": body.decision,
+            "celery_task_id": celery_task_id,
+        },
+    )
+
+    return ConfirmationDecisionResponse(
+        decision=body.decision,
+        status=new_status,
+        celery_task_id=celery_task_id,
     )

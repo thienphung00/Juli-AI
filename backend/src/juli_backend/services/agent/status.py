@@ -50,6 +50,24 @@ guard translation, #1210) lives in `services/agent/runner/core.py::_finalize`;
 *only* place the member is referenced within `services/agent/runner/`, so a
 future accidental second "producer" trips a test instead of silently
 breaking the discipline.
+
+**`CONFIRMATION_DIVERGED` (ADR-073 amendment, ADR-075 decision 2, issue
+#1224 review round 3).** Names the concept, not the mechanism: the
+confirmation the seller consented to no longer matches what is about to
+execute (the ADR-075 decision 2 word is "divergence" — hard failure, never a
+warning), regardless of which hashing scheme ever computes that divergence.
+Distinct in kind from `CONCURRENCY_CONFLICT` (ADR-073 decision 4 — a stale
+*product snapshot*, routine and retryable) even though both are
+compare-before-write guards running from the same method
+(`WorkflowRunner.resume`'s approve branch): the execution-quality metric
+this vocabulary feeds needs to tell "a seller edited concurrently" apart
+from "consent binding refused an unconsented write," and collapsing the two
+would make that metric unable to. Its one sanctioned producer lives in
+`services/agent/runner/core.py::resume`, immediately before
+`ToolExecutor.execute` — same "exactly one producer, named and guarded"
+discipline `OUTPUT_VALIDATION_FAILED` established above, reproduced by
+`tests/unit/test_workflow_run_status_mapping.py
+::test_confirmation_diverged_is_produced_only_by_the_resume_consent_check`.
 """
 
 from __future__ import annotations
@@ -81,6 +99,11 @@ class StopReason(StrEnum):
     PAUSED_FOR_CONFIRMATION = "paused_for_confirmation"
     CANCELLED_BY_SELLER = "cancelled_by_seller"
     CONFIRMATION_EXPIRED = "confirmation_expired"
+    # ADR-073 amendment (ADR-075 decision 2, #1224 review round 3): the
+    # confirmation a seller consented to no longer matches what is about to
+    # execute -- "divergence" is ADR-075 decision 2's own word. 21
+    # characters, well inside `workflow_runs.stop_reason`'s `String(32)`.
+    CONFIRMATION_DIVERGED = "confirmation_diverged"
     ITERATION_CAP_EXCEEDED = "iteration_cap_exceeded"
     WALL_CLOCK_TIMEOUT = "wall_clock_timeout"
     TOOL_ERROR_UNRECOVERABLE = "tool_error_unrecoverable"
@@ -105,6 +128,7 @@ STOP_REASON_TO_STATUS: MappingProxyType[StopReason, WorkflowRunStatus] = Mapping
         StopReason.PAUSED_FOR_CONFIRMATION: WorkflowRunStatus.WAITING_APPROVAL,
         StopReason.CANCELLED_BY_SELLER: WorkflowRunStatus.CANCELLED,
         StopReason.CONFIRMATION_EXPIRED: WorkflowRunStatus.CANCELLED,
+        StopReason.CONFIRMATION_DIVERGED: WorkflowRunStatus.FAILED,
         StopReason.ITERATION_CAP_EXCEEDED: WorkflowRunStatus.TIMED_OUT,
         StopReason.WALL_CLOCK_TIMEOUT: WorkflowRunStatus.TIMED_OUT,
         StopReason.TOOL_ERROR_UNRECOVERABLE: WorkflowRunStatus.FAILED,
