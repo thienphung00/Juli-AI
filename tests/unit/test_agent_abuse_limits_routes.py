@@ -21,6 +21,7 @@ Routes covered:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from datetime import UTC, datetime
@@ -407,15 +408,22 @@ async def test_sse_slot_is_released_after_a_clean_stream_end_over_http(app, sess
     assert second.status_code == 200  # slot was released after the first request
 
 
-async def test_sse_wrapper_releases_slot_on_disconnect_mid_stream():
-    """Direct proof of the disconnect-release guarantee, no FastAPI/Starlette
-    involved -- matches the style of `test_agent_run_events_stream.py`.
+async def test_sse_wrapper_releases_slot_when_explicitly_closed_by_its_consumer():
+    """Proof that an explicit `.aclose()` on this generator -- from a
+    well-behaved consumer, or from CPython's async-generator GC finalizer
+    once nothing references the generator anymore -- releases the slot via
+    `GeneratorExit` unwinding through the `finally` below.
 
-    Simulates Starlette's own behavior on a client disconnect: it calls
-    `.aclose()` on the response body's async generator, which the Python
-    interpreter turns into a `GeneratorExit` thrown at the generator's
-    current suspension point. A `finally` block around the `async for`
-    catches that unwind unconditionally.
+    **This is deliberately NOT a claim about what Starlette does on a
+    client disconnect.** An earlier version of this test claimed exactly
+    that ("Starlette calls `.aclose()` on disconnect"); checked directly
+    against the installed `starlette.responses.StreamingResponse` source
+    (`inspect.getsource`), it does not -- `.aclose()` appears nowhere in
+    that class. See `_sse_stream_with_concurrency_slot`'s own docstring for
+    what Starlette actually does on each ASGI spec version, and
+    `test_sse_wrapper_releases_slot_when_the_consuming_task_is_cancelled`
+    below for the real, synchronous-release disconnect mechanism (task
+    cancellation) proven directly.
     """
     from juli_backend.api.routes.agent_runs import _sse_stream_with_concurrency_slot
 
@@ -425,25 +433,86 @@ async def test_sse_wrapper_releases_slot_on_disconnect_mid_stream():
         while True:
             yield ": heartbeat\n\n"
 
-    await gate.try_acquire_stream("shop-disconnect")
-    assert (await gate.try_acquire_stream("shop-disconnect")).allowed is False  # sanity: full
+    await gate.try_acquire_stream("shop-explicit-close")
+    assert (await gate.try_acquire_stream("shop-explicit-close")).allowed is False  # sanity: full
 
-    await gate.release_stream("shop-disconnect")  # back to representing a real single occupant
-    await gate.try_acquire_stream("shop-disconnect")  # the "connection" this test simulates
+    await gate.release_stream("shop-explicit-close")  # back to a single real occupant
+    await gate.try_acquire_stream("shop-explicit-close")  # the "connection" this test simulates
 
     wrapped = _sse_stream_with_concurrency_slot(
-        _never_ending_stream(), gate=gate, shop_id="shop-disconnect"
+        _never_ending_stream(), gate=gate, shop_id="shop-explicit-close"
     )
     first_chunk = await wrapped.__anext__()
     assert first_chunk == ": heartbeat\n\n"
 
-    # Simulate the client disconnecting mid-stream.
     await wrapped.aclose()
 
     # The slot must be free again -- a fresh acquire for the same shop
     # succeeds.
-    decision = await gate.try_acquire_stream("shop-disconnect")
+    decision = await gate.try_acquire_stream("shop-explicit-close")
     assert decision.allowed is True
+
+
+async def test_sse_wrapper_releases_slot_when_the_consuming_task_is_cancelled():
+    """The real, synchronous disconnect-release mechanism -- ASGI's legacy
+    (`spec_version < (2, 4)`) task-group-cancellation path, verified
+    directly against the installed Starlette source: `listen_for_disconnect`
+    returning on a closed socket cancels the sibling task running
+    `stream_response` via `task_group.cancel_scope.cancel()`. When that
+    cancellation lands while this generator is itself suspended inside
+    `event_stream` -- the common case, since most of a stream's lifetime is
+    spent awaiting a message, a DB read, or the heartbeat timeout, not
+    inside `send()` -- `asyncio.CancelledError` is raised at exactly that
+    suspension point and propagates through the `finally` below like any
+    other exception. Reproduced here with a real asyncio task consuming the
+    wrapped generator, cancelled while it is genuinely suspended
+    mid-iteration.
+
+    The other real path -- `spec_version >= (2, 4)`, what a current uvicorn
+    negotiates, where a disconnected `send()` raises `OSError` OUTSIDE this
+    generator's own frame and release is NOT synchronous -- is not
+    reproduced by a test asserting a passing release, because it does not
+    reliably produce one; it is documented instead, in
+    `_sse_stream_with_concurrency_slot`'s own docstring, as relying on GC
+    finalization plus the safety TTL.
+    """
+    from juli_backend.api.routes.agent_runs import _sse_stream_with_concurrency_slot
+
+    gate = InMemoryAbuseLimitGate(sse_max_concurrent=1)
+    await gate.try_acquire_stream("shop-cancel")
+
+    reached_suspension = asyncio.Event()
+
+    async def _never_ending_stream():
+        yield ": heartbeat\n\n"
+        reached_suspension.set()
+        # Suspends here indefinitely -- the exact kind of await point a
+        # real disconnect's CancelledError lands on mid-`event_stream`.
+        await asyncio.Event().wait()
+        yield ": unreachable\n\n"  # pragma: no cover -- cancelled before this
+
+    wrapped = _sse_stream_with_concurrency_slot(
+        _never_ending_stream(), gate=gate, shop_id="shop-cancel"
+    )
+
+    async def _consume():
+        async for _chunk in wrapped:
+            pass
+
+    task = asyncio.create_task(_consume())
+    await asyncio.wait_for(reached_suspension.wait(), timeout=1.0)
+    # `reached_suspension.set()` only proves the generator yielded once and
+    # ran past it -- hand control back to the event loop once more so the
+    # consumer task actually resumes and re-suspends on the next
+    # `__anext__()` (i.e. genuinely inside the generator) before cancelling.
+    await asyncio.sleep(0)
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    decision = await gate.try_acquire_stream("shop-cancel")
+    assert decision.allowed is True  # released synchronously via `finally` on cancellation
 
 
 async def test_sse_wrapper_releases_slot_when_run_terminates_mid_stream():

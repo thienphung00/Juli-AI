@@ -540,27 +540,57 @@ async def _sse_stream_with_concurrency_slot(
     decision 4 / #1223: "SSE is concurrency, not rate."
 
     The `finally` below runs on every exit path a Python generator can
-    take, which is exactly the set of paths this slot must be released on:
+    take, which covers two of the three ways this slot needs to be
+    released:
 
     - clean end -- `event_stream` returns normally, either after a terminal
       event or (the already-terminal-at-connect case) after a pure replay.
     - the run terminating mid-stream -- the same "clean end" path above;
       `event_stream` itself returns as soon as it sees a terminal event, no
       different signal needed here.
-    - an abnormal client disconnect -- Starlette's `StreamingResponse`
-      detects a closed connection and calls `.aclose()` on the response
-      body iterator it is driving, which throws `GeneratorExit` into this
-      generator at whatever `yield` it is suspended on (inside the `async
-      for` below, which itself is suspended inside `event_stream`). Python
-      is the actual guarantee here, not this codebase: `GeneratorExit`
-      unwinds through every enclosing `async for`/`await` and still runs
-      `finally` blocks, so the release below fires whether the disconnect
-      happens mid-replay, mid-heartbeat-wait, or mid-live-event. Proven
-      directly (no FastAPI/Starlette in the loop) by calling `.aclose()` on
-      this wrapper in `tests/unit/test_agent_abuse_limits_routes.py`,
-      matching the reconnect path `Last-Event-ID` exists for -- a client
-      that reconnects after a drop must find its old slot already freed,
-      not permanently gone.
+
+    **An abnormal client disconnect is the third path, and it does NOT run
+    through a synchronous `.aclose()` call from Starlette.** Checked
+    directly against the installed `starlette.responses.StreamingResponse`
+    source (`inspect.getsource`) rather than assumed: it never calls
+    `.aclose()` on its body iterator anywhere. What actually happens
+    depends on the ASGI spec version the server negotiates:
+
+    - **`spec_version >= (2, 4)`** (what a current uvicorn negotiates):
+      `stream_response` does `async for chunk in self.body_iterator: ...
+      await send(chunk)` -- note `send(chunk)` is OUTSIDE the `async for`'s
+      own `__anext__()` call. A disconnected socket makes `send()` raise
+      `OSError`, which is caught one level up in `__call__` and re-raised
+      as `ClientDisconnect()`. This generator was never re-entered to
+      receive that error -- it is simply abandoned, mid-suspension, at
+      whatever `yield` it last returned from. The `finally` below does NOT
+      fire synchronously with the disconnect in this path. Release then
+      depends on CPython's async-generator GC finalizer eventually
+      scheduling `.aclose()` once nothing references this generator object
+      anymore (`sys.set_asyncgen_hooks`, wired up by asyncio) -- real, but
+      indirect and not deterministic in timing.
+    - **`spec_version < (2, 4)`** (the legacy anyio-task-group path):
+      `listen_for_disconnect` returning cancels the sibling task running
+      `stream_response` via `task_group.cancel_scope.cancel()`. If that
+      cancellation lands while this generator is itself suspended inside
+      `event_stream` (awaiting a message, a DB read, or the heartbeat
+      timeout -- the common case), `asyncio.CancelledError` is raised at
+      exactly that suspension point, propagates through the `async for`
+      below, and the `finally` DOES fire synchronously, same as any other
+      exception.
+
+    So the disconnect path's release is guaranteed-synchronous under task
+    cancellation, best-effort-and-eventual under the modern
+    `OSError`-from-`send()` path. `RedisAbuseLimitGate`'s (and the test
+    double's) 1-hour safety TTL on the concurrency counter exists
+    specifically to bound that worst case -- a leaked slot self-heals
+    within the TTL window even if GC finalization is slow or never runs
+    (e.g. the process is killed before a GC pass). `test_agent_abuse_limits_routes.py`
+    proves the synchronous-release path directly by cancelling the asyncio
+    task consuming this generator while it is suspended inside `event_stream`
+    (the real `CancelledError` mechanism above), not by calling `.aclose()`
+    -- see that test's own docstring for why an `.aclose()`-based test would
+    have proven a mechanism Starlette does not actually use on disconnect.
     """
     try:
         async for chunk in generator:
