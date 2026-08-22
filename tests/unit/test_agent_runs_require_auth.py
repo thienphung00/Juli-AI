@@ -13,6 +13,15 @@ responses are the easy one to miss." The 401 happens before the route
 handler ever constructs a `StreamingResponse`, so it is an ordinary JSON
 error response from the client's point of view -- no special streaming
 handling needed in the test itself.
+
+`POST /v1/demo/runs` (the previous "create a run for a bare product_id"
+route) is REMOVED as of #1222 -- ADR-075 decision 1 forbids a standalone
+create-run endpoint entirely, so there is nothing left to auth-gate there;
+`test_agent_run_create_route.py` documents the removal itself. Its slot in
+this suite is taken by `POST /v1/demo/decisions/{action_card_id}/approve`
+-- #1222 is what brought THAT route under auth in the first place (#1217
+deliberately left it as the one unauthenticated exception, naming #1222 as
+the slice that would close it).
 """
 
 from __future__ import annotations
@@ -61,10 +70,11 @@ async def unauthenticated_client(app) -> AsyncClient:
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 
-async def test_create_run_returns_401_without_jwt(unauthenticated_client):
-    resp = await unauthenticated_client.post(
-        "/v1/demo/runs", json={"product_id": str(uuid.uuid4())}
-    )
+async def test_approve_decision_returns_401_without_jwt(unauthenticated_client):
+    """#1222: the sole route that creates an agent run. Previously the one
+    deliberately unauthenticated exception on this surface (#1217); this is
+    the test proving that exception is closed."""
+    resp = await unauthenticated_client.post(f"/v1/demo/decisions/{uuid.uuid4()}/approve")
     assert resp.status_code == 401
 
 

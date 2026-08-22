@@ -47,13 +47,27 @@ body, but always answers `501` -- decision validation, consent binding and
 any `run_confirmations` write are W4-A's authorization slice (ADR-074
 decision 5). This route never authorizes and never mutates state.
 
-`POST /v1/demo/runs` is issue #1145's Gap 2 fix: creates a `workflow_runs`
-row for a `product_id` under the caller's shop and enqueues
-`run_agent_workflow.delay(str(run_id))` -- the trigger #1129's task shells
-never had. Tenant-scoped the same way every other route here is (404, never
-403, for another shop's product); a second concurrent start on the same
-product fails on #1122's partial unique index (`uq_workflow_runs_active_shop_
-product`) and is translated to `409`, never a bare 500.
+`POST /v1/demo/runs` was issue #1145's Gap 2 fix -- it created a
+`workflow_runs` row directly from a caller-supplied `product_id`, with no
+ActionCard involved. **Removed in #1222** (ADR-075 decision 1: "No 'create
+run' endpoint and no `approval_id` parameter exist on the agent path" --
+a standalone endpoint taking a bare `product_id` is exactly the
+caller-supplied-authority-claim shape that decision forbids, independent of
+whether it also required a card argument). `POST
+/v1/demo/decisions/{action_card_id}/approve`
+(`api/routes/demo_execution.py`) is now the only way a `workflow_runs` row
+comes into existence; it reuses `_enqueue_run_agent_workflow` below (the one
+piece of this removed section still worth sharing -- lazy-import-then-
+`.delay()` is identical regardless of what created the row) via a plain
+intra-package import, and derives its own `product_id` server-side
+(ADR-082) rather than accepting one. `_build_initial_run_state`/
+`_resolve_optimize_product_prompt_pin`, this route's other two Gap-2
+helpers, are NOT reused here: services/agent/approval.py (the new
+transaction module) cannot import this `api`-package module at all (the
+import-boundary contract only allows `api -> services`, never the reverse),
+so it carries its own equivalents, built directly from the ActionCard
+already in hand rather than a heuristic re-query for "the most recent card
+for this workflow".
 
 Every route resolves the run under `get_active_shop` (`api/dependencies.py`,
 the same idiom `api/routes/products.py` uses) and returns **404, never
@@ -76,12 +90,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from juli_backend.api.dependencies import get_active_shop
 from juli_backend.database import Shop, get_session
-from juli_backend.models.models import ActionCard, Product
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 
@@ -396,43 +408,17 @@ async def event_stream(
 
 
 # ---------------------------------------------------------------------------
-# Run creation (issue #1145 Gap 2) -- the only place a `workflow_runs` row
-# and its `run_agent_workflow.delay(...)` enqueue get created.
+# Enqueue helper (issue #1145 Gap 2, originally). The row-creation half of
+# Gap 2 (`create_run` / `POST /v1/demo/runs`, plus its
+# `_resolve_optimize_product_prompt_pin` / `_build_initial_run_state`
+# helpers) was REMOVED in #1222 -- see this module's own docstring, top of
+# file, for why a standalone create-run endpoint is exactly what ADR-075
+# decision 1 forbids. `_enqueue_run_agent_workflow` survives because it has
+# nothing to do with where the row came from: `api/routes/demo_execution.py`
+# (the sole remaining creator, via `POST
+# /v1/demo/decisions/{action_card_id}/approve`) imports it directly from
+# here rather than duplicating the lazy-import-then-`.delay()` idiom.
 # ---------------------------------------------------------------------------
-
-
-def _resolve_optimize_product_prompt_pin() -> tuple[str, str]:
-    """The real, production-pinned `(prompt_version, prompt_sha256)` for the
-    Optimize Product workflow (ADR-072 d.4's "what runs is what was
-    reviewed" pin) -- recorded on the `workflow_runs` row at creation, since
-    `WorkflowRunner` itself never writes these columns back
-    (`services/agent/runner/core.py`'s own docstring: "no direct database
-    access here, same as prompt_version/prompt_sha256/status").
-
-    Reached via `from juli_backend.services.agent import <submodule> as
-    <alias>` -- the same depth-2-facade pattern `workers/tasks/
-    agent_workflow.py` and `workers/tasks/reaper.py` already use to reach
-    `services.agent.playbooks`/`services.agent.runner`'s public re-exports
-    without a forbidden deep import (`.importlinter.toml`'s
-    `max_cross_package_depth = 2`: the import boundary checker measures a
-    `from X import Y` statement's depth off `X`, not off the attribute `Y`
-    resolves to at runtime -- `X` here is `juli_backend.services.agent`,
-    depth 2, allowed). Unlike the four helpers this module's own docstring
-    describes reproducing locally (`_run_events_channel` and friends), a
-    hand-rolled reproduction of `prompt_sha256` is not viable: it is a
-    SHA-256 of the fully rendered prompt file's bytes, which would silently
-    drift the moment the prose file changes -- calling the real function is
-    the only way this value is ever actually correct.
-    """
-    from juli_backend.services.agent import playbooks as playbooks_module
-    from juli_backend.services.agent import prompts as prompts_module
-
-    workflow_key = playbooks_module.OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key
-    version = prompts_module.production_version(workflow_key)
-    return (
-        prompts_module.prompt_version(workflow_key, version),
-        prompts_module.prompt_sha256(workflow_key, version),
-    )
 
 
 def _enqueue_run_agent_workflow(run_id: uuid.UUID) -> str:
@@ -441,152 +427,14 @@ def _enqueue_run_agent_workflow(run_id: uuid.UUID) -> str:
     `refresh_action_cards.delay(...)` / `execute_approved_tool.delay(...)`.
     Reached via `from juli_backend.workers.tasks import agent_workflow as
     <alias>` rather than a direct submodule import: `api` and `workers` are
-    different top-level packages, so the cross-package depth-2 cap applies
-    here in a way it does not for `dispatch_binding.py` (same package as its
-    target) -- see `_resolve_optimize_product_prompt_pin` above for the same
-    technique.
+    different top-level packages, so the cross-package depth-2 cap
+    (`.importlinter.toml`, `max_cross_package_depth = 2`) applies here in a
+    way it does not for `dispatch_binding.py` (same package as its target).
     """
     from juli_backend.workers.tasks import agent_workflow as agent_workflow_tasks
 
     async_result = agent_workflow_tasks.run_agent_workflow.delay(str(run_id))
     return async_result.id
-
-
-class CreateRunRequest(BaseModel):
-    product_id: uuid.UUID
-
-
-class CreateRunResponse(BaseModel):
-    id: uuid.UUID
-    status: str
-    celery_task_id: str
-
-
-async def _build_initial_run_state(session: AsyncSession, *, shop_id: uuid.UUID) -> dict[str, Any]:
-    """The complete `workflow_runs.state` blob a new run must be created with
-    (issue #1188).
-
-    `WorkflowRunner.run()` opens by calling `ConversationStore.load()`, which
-    deserializes this blob through `RunState.from_dict` -- a reader that
-    rejects any missing field because ADR-073 decision 5 requires a truncated
-    blob to fail loudly rather than be mistaken for a fresh run. Creating the
-    row with `{}` therefore crashed every run at its first statement; a fresh
-    run has to be written complete. See `services/agent/run_context.py` for
-    why the fix belongs here rather than in a more permissive `from_dict`.
-
-    The blob carries the opening `source: "juli"` context message the prompt
-    contract (`prompts/optimize_product/v1.md` Sec.3-4) tells the model to
-    ground itself in. When an ActionCard raised this workflow for the shop,
-    its own `description` is the rationale; otherwise the message says
-    plainly that the run was started directly, rather than inventing a
-    business trigger the seller never saw.
-
-    Reached via the depth-2 facade import this module already uses for
-    `services.agent.playbooks` -- see `_resolve_optimize_product_prompt_pin`.
-    """
-    from juli_backend.services.agent import playbooks as playbooks_module
-    from juli_backend.services.agent import run_context as run_context_module
-
-    workflow_key = playbooks_module.OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key
-
-    card = (
-        (
-            await session.execute(
-                select(ActionCard)
-                .where(ActionCard.shop_id == shop_id, ActionCard.workflow_key == workflow_key)
-                .order_by(ActionCard.computed_at.desc())
-                .limit(1)
-            )
-        )
-        .scalars()
-        .first()
-    )
-
-    rationale = (
-        card.description
-        if card is not None and card.description
-        else run_context_module.DIRECT_RUN_RATIONALE
-    )
-    opening = run_context_module.build_opening_context_message(
-        workflow_key=workflow_key, rationale=rationale
-    )
-    return run_context_module.initial_run_state(opening)
-
-
-@router.post("", status_code=status.HTTP_202_ACCEPTED, response_model=CreateRunResponse)
-async def create_run(
-    body: CreateRunRequest,
-    shop: Shop = Depends(get_active_shop),
-    session: AsyncSession = Depends(get_session),
-) -> CreateRunResponse:
-    """Create a `workflow_runs` row for `body.product_id` under the caller's
-    shop and enqueue `run_agent_workflow`. 404s (never 403s) for a product
-    belonging to another shop or that does not exist -- no existence
-    oracle, the same contract every other route in this module holds.
-    `409`s, never `500`s, when #1122's partial unique index
-    (`uq_workflow_runs_active_shop_product`) rejects a second concurrent
-    active run for the same `(shop_id, product_id)`.
-    """
-    product = await session.get(Product, body.product_id)
-    if product is None or product.shop_id != shop.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
-
-    # Captured before commit/rollback: both expire every attribute on every
-    # object the session still holds (shop included -- `shop` is a
-    # `Depends(get_active_shop)`-resolved ORM instance, not a plain value),
-    # and the log calls below (one on each branch) need values that survive
-    # that without an extra async refresh.
-    shop_id = shop.id
-    product_id = product.id
-
-    prompt_version_value, prompt_sha256_value = _resolve_optimize_product_prompt_pin()
-    initial_state = await _build_initial_run_state(session, shop_id=shop_id)
-
-    run = WorkflowRunRow(
-        shop_id=shop_id,
-        product_id=product_id,
-        state=initial_state,
-        status="queued",
-        prompt_version=prompt_version_value,
-        prompt_sha256=prompt_sha256_value,
-    )
-    session.add(run)
-    try:
-        await session.commit()
-    except IntegrityError:
-        await session.rollback()
-        # #1145 Review: the one state-mutating branch here that previously
-        # left no trace -- a rejected duplicate start is exactly the event
-        # an operator would go looking for. No token/credential/PII fields;
-        # shop_id and product_id are both server-resolved identifiers, never
-        # request-body free text.
-        logger.warning(
-            "agent_run_create_conflict",
-            extra={"shop_id": str(shop_id), "product_id": str(product_id)},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An active run already exists for this product",
-        ) from None
-
-    celery_task_id = _enqueue_run_agent_workflow(run.id)
-
-    # #1145 Review: create_run mutates state (a new workflow_runs row plus
-    # an enqueued Celery task) and previously logged nothing on success --
-    # the run_id/shop_id/product_id/celery_task_id fields are the useful
-    # facts for an operator tracing a run back to its trigger; never the
-    # raw request body.
-    logger.info(
-        "agent_run_created",
-        extra={
-            "shop_id": str(shop_id),
-            "product_id": str(product_id),
-            "run_id": str(run.id),
-            "celery_task_id": celery_task_id,
-        },
-    )
-
-    return CreateRunResponse(id=run.id, status=run.status, celery_task_id=celery_task_id)
 
 
 # ---------------------------------------------------------------------------
