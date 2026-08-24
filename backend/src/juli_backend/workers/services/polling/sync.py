@@ -20,6 +20,9 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from juli_backend.integrations.tiktok import (
     ANALYTICS_BESTSELLING_PRODUCTS_PATH,
     ANALYTICS_BESTSELLING_VIDEOS_PATH,
@@ -55,6 +58,7 @@ from juli_backend.integrations.tiktok import (
     normalize_return,
     promotion_activity_path,
 )
+from juli_backend.models.models import TikTokCredential
 from juli_backend.services.ingestion.handoff import HandoffFn
 
 logger = logging.getLogger(__name__)
@@ -771,3 +775,50 @@ async def sync_analytics(
                 )
         if fetched_any:
             sync_state["promotion_activity_last_sync_at"] = synced_at
+
+
+async def check_sandbox_write_catalog_identity_mismatch(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+) -> None:
+    """Log a structured warning if sandbox_write and seller_connect have different merchant IDs.
+
+    When a shop has both sandbox_write (write capability) and seller_connect (read capability)
+    credentials with different merchant authorizations, product binding cannot succeed because
+    the write credential is scoped to a different seller than the catalog source.
+
+    Issues a named log event for operator visibility without aborting the flow.
+    """
+    # Get all credentials for this shop
+    stmt = select(TikTokCredential).where(TikTokCredential.shop_id == shop_id)
+    result = await session.execute(stmt)
+    credentials = result.scalars().all()
+
+    if not credentials:
+        return
+
+    # Find sandbox_write and seller_connect credentials
+    sandbox_write_cred = None
+    seller_connect_cred = None
+
+    for cred in credentials:
+        if cred.capability == "sandbox_write":
+            sandbox_write_cred = cred
+        elif cred.capability == "production_read":
+            # Seller_connect uses production_read capability
+            seller_connect_cred = cred
+
+    # Check if we have both and they differ
+    if sandbox_write_cred and seller_connect_cred:
+        if (
+            sandbox_write_cred.merchant_authorization_id
+            != seller_connect_cred.merchant_authorization_id
+        ):
+            mismatch_logger.warning(
+                "sandbox_write_catalog_identity_mismatch",
+                extra={
+                    "shop_id": str(shop_id),
+                    "sandbox_write_merchant_id": sandbox_write_cred.merchant_authorization_id,
+                    "catalog_source_merchant_id": seller_connect_cred.merchant_authorization_id,
+                },
+            )
