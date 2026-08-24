@@ -16,6 +16,7 @@ import hashlib
 import json
 import logging
 import time
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -57,6 +58,9 @@ from juli_backend.integrations.tiktok import (
 from juli_backend.services.ingestion.handoff import HandoffFn
 
 logger = logging.getLogger(__name__)
+
+# Logger for structured warnings about credential mismatches
+mismatch_logger = logging.getLogger(__name__ + ".sandbox_write_catalog_identity_mismatch")
 
 
 def _inventory_snapshot_event_id(shop_id: str, payload: dict[str, Any]) -> str:
@@ -183,6 +187,93 @@ async def sync_products(
             shop_id,
             json.dumps(normalize_product(product)).encode(),
         )
+        max_update_time = max(
+            max_update_time,
+            product.get("update_time") or product.get("updated_at") or 0,
+        )
+
+    if products:
+        sync_state["products_last_update_time"] = max_update_time
+
+
+async def sync_products_with_local_upsert(
+    *,
+    resource: Any,
+    rate_limiter: RateLimiter,
+    handoff_fn: HandoffFn,
+    products_repo: Any,
+    app_id: str,
+    shop_id: str,
+    sync_state: dict[str, Any],
+) -> None:
+    """Fetch products and upsert to local shop products table (for sandbox catalog sync).
+
+    Unlike sync_products which only hands off to ETL, this function also
+    upserts products directly to the products table for immediate availability
+    in product binding. Used for sandbox_write catalog sync where products
+    must be immediately queryable by the approval path.
+
+    Idempotent: re-running produces no duplicates; pre-existing rows
+    (from other credentials) are preserved.
+    """
+    if not rate_limiter.acquire(
+        app_id, shop_id, PRODUCT_SEARCH_PATH, max_requests=10, window_seconds=60
+    ):
+        logger.info(
+            "rate_limited",
+            extra={"shop_id": shop_id, "resource": "products_with_upsert"},
+        )
+        return
+
+    update_from = sync_state.get("products_last_update_time")
+
+    try:
+        products = resource.search_all(update_time_from=update_from)
+    except TikTokAPIError:
+        logger.warning(
+            "sync_products_with_upsert_failed",
+            extra={"shop_id": shop_id},
+            exc_info=True,
+        )
+        return
+
+    try:
+        shop_uuid = uuid.UUID(shop_id)
+    except (ValueError, AttributeError):
+        logger.warning(
+            "sync_products_invalid_shop_id",
+            extra={"shop_id": shop_id},
+        )
+        return
+
+    max_update_time = update_from or 0
+    for product in products:
+        normalized = normalize_product(product)
+
+        # Hand off to ETL (existing pattern)
+        await handoff_fn(
+            "tiktok.products.raw",
+            shop_id,
+            json.dumps(normalized).encode(),
+        )
+
+        # Upsert to local products table (new for sandbox sync)
+        try:
+            await products_repo.upsert(
+                shop_id=shop_uuid,
+                tiktok_product_id=product.get("product_id", ""),
+                name=product.get("name", "") or product.get("title", ""),
+                status=product.get("status", "unknown"),
+                title=product.get("title", "") or product.get("name", ""),
+                update_time=datetime.now(UTC),
+            )
+        except Exception:
+            logger.warning(
+                "sync_products_local_upsert_failed",
+                extra={"shop_id": shop_id, "product_id": product.get("product_id")},
+                exc_info=True,
+            )
+
         max_update_time = max(
             max_update_time,
             product.get("update_time") or product.get("updated_at") or 0,
