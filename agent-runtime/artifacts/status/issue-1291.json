@@ -1,0 +1,17 @@
+{
+  "id": "status-issue-1291",
+  "issue": 1291,
+  "status": "PASS",
+  "readyForMerge": true,
+  "readyForShip": true,
+  "validationStatus": "PASS",
+  "reviewStatus": "PASS",
+  "timestamp": "2026-08-24T22:35:00Z",
+  "sourceReviewArtifact": "agent-runtime/artifacts/reviews/review-issue-1291.json",
+  "sourceValidationArtifact": "agent-runtime/artifacts/validation/validation-issue-1291.json",
+  "criticalFindingCount": 0,
+  "warningFindingCount": 0,
+  "failedValidationChecks": 1,
+  "passedValidationChecks": 21,
+  "overallSummary": "Issue #1291: PASS (21/22 validation checks passed; PASS review) — critical fixes for transaction poisoning and card recoverability verified; unpushed_issue_work is advisory only"
+}
