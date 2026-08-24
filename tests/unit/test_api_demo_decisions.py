@@ -1,13 +1,27 @@
-"""Public Demo Decisions read API (#718, B-6) — unauthenticated GET list/detail.
+"""Demo Decisions read API (#1283, AGT-W5A) — authenticated GET list/detail,
+scoped to the caller's own shop via `X-Shop-Id`.
 
-Emission-gated (`ActionCard.surfaced_at`-gated), server-bound reference shop
-(same `DEMO_REFERENCE_SHOP_ID` pattern as `GET /v1/demo/analytics` #531 and
-`POST /v1/demo/decisions/{id}/approve` #717 B-5). No visitor-supplied
-`shop_id` anywhere — no query param, no header, no path segment.
+**Posture changed here.** These two routes used to be unauthenticated and
+resolve a server-bound `DEMO_REFERENCE_SHOP_ID` (#718, B-6) — on the deployed
+host that reference shop was a real merchant's production shop, so the
+routes served a live seller's recommendations to anyone who could reach the
+URL (#1283). They also ignored `X-Shop-Id` entirely while `POST /v1/demo/
+decisions/{id}/approve` honoured it via `get_active_shop`, so a card a
+caller could *see* was not necessarily a card that caller could *approve*.
 
-AC1 → contract: only the reference shop's emission-gated active set is
-      returned; any other shop_id is rejected or ignored, never a tenant
-      pivot.
+Both problems close the same way ADR-075 decision 3 already closed them for
+every route that can create/watch/steer/confirm a run: `get_current_user` +
+`get_active_shop`, exactly like `POST /v1/demo/decisions/{id}/approve`
+(`api/routes/demo_execution.py`) already does. These two read routes were
+the deliberate "P-UI's call" exception ADR-075 decision 3 left open; this is
+that call. `get_demo_reference_shop_id` /
+`DEMO_REFERENCE_SHOP_ID` are no longer involved on this surface at all —
+`GET /v1/demo/analytics` (out of scope for #1283) is the remaining caller.
+
+AC1 → contract: only the *authenticated caller's own shop's* emission-gated
+      active set is returned, resolved from `X-Shop-Id` — never a
+      server-bound reference shop, never another shop's cards, even when
+      that other shop is the one with data (the #1283 exposure defect).
 AC2 → response carries `computed_at` / `surfaced_at` (promotion) freshness
       metadata per card.
 AC3 → security: no raw internal identifiers (`workflow_key`, `tool_name`,
@@ -20,6 +34,12 @@ AC4 → integration: compute -> scoring (persist_scoring_result) -> emission
       end-to-end, using the real #715/#716 functions unedited.
 AC5 → list ordering/count reflect the emission-gated active set only —
       suppressed candidates never appear as active.
+AC6 (#1283) → 401 without a valid JWT on both routes.
+AC7 (#1283) → a caller scoped to a shop with zero cards gets an empty list,
+      never another shop's cards — the exposure defect, asserted explicitly.
+AC8 (#1283) → a card that appears in the list is approvable by the same
+      caller — proven by listing, then approving the listed id, with one
+      set of credentials.
 """
 
 from __future__ import annotations
@@ -28,13 +48,14 @@ import json
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
+from unittest.mock import MagicMock, patch
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from juli_backend.models.models import ActionCard, Shop, User
+from juli_backend.models.models import ActionCard, Product, Shop, User
 from juli_backend.services.action_cards.emission_budget import apply_emission_budget
 from juli_backend.services.action_cards.persist import persist_scoring_result
 from juli_backend.services.aggregates.types import (
@@ -52,53 +73,58 @@ from juli_backend.services.scoring.types import (
 
 COMPUTED_AT = datetime(2026, 8, 8, 8, 0, tzinfo=UTC)
 
+pytestmark = pytest.mark.asyncio
+
+
+def _naive_utc_now() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
+
 
 # ---------------------------------------------------------------------------
-# Fixtures — same shape as test_api_demo_analytics.py / test_api_demo_execution.py
+# Fixtures — authenticated caller + owned shop, mirroring
+# test_api_demo_execution.py's pattern (the approve route this listing/
+# approving split is being closed against).
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def demo_reference_shop_id() -> uuid.UUID:
-    return uuid.UUID("c3d4e5f6-a7b8-9012-cdef-123456789012")
-
-
-@pytest.fixture
-def demo_env(monkeypatch, demo_reference_shop_id):
-    monkeypatch.setenv("DEMO_REFERENCE_SHOP_ID", str(demo_reference_shop_id))
 
 
 @pytest_asyncio.fixture
-async def reference_shop(session, user_id, demo_reference_shop_id):
-    user = User(id=user_id, phone="+849180000718")
-    shop = Shop(
-        id=demo_reference_shop_id,
-        user_id=user_id,
-        shop_name="Reference Shop 718",
-        tiktok_shop_id="tiktok_ref_718",
-    )
-    session.add_all([user, shop])
+async def user(session):
+    u = User(phone=f"+1555{uuid.uuid4().int % 10_000_000:07d}")
+    session.add(u)
     await session.flush()
-    return shop
+    return u
+
+
+@pytest_asyncio.fixture
+async def shop(session, user):
+    s = Shop(user_id=user.id, shop_name="AGT-1283 HTTP Shop")
+    session.add(s)
+    await session.flush()
+    return s
 
 
 @pytest_asyncio.fixture
 async def other_shop(session):
-    other_user = User(id=uuid.uuid4(), phone="+849180099999")
-    shop = Shop(
-        id=uuid.uuid4(),
-        user_id=other_user.id,
-        shop_name="Some Other Tenant Shop",
-        tiktok_shop_id="tiktok_other_718",
-    )
-    session.add_all([other_user, shop])
+    other_user = User(phone=f"+1555{uuid.uuid4().int % 10_000_000:07d}")
+    session.add(other_user)
     await session.flush()
-    return shop
+    s = Shop(user_id=other_user.id, shop_name="AGT-1283 Other HTTP Shop")
+    session.add(s)
+    await session.flush()
+    return s
 
 
 @pytest_asyncio.fixture
-async def demo_client(engine, demo_env):
+async def demo_client(engine, user, shop):
+    """Authenticated as ``user``, scoped to ``shop`` — mirrors
+    `test_api_demo_execution.py`'s `_client_for` pattern: auth is exercised
+    via `dependency_overrides` (real JWT parsing / `X-Shop-Id` header
+    resolution is `get_active_shop`'s own concern, covered by
+    `test_agent_runs_require_auth.py`'s 401-without-JWT tests for this
+    surface), so no header needs to be threaded through every call here."""
     from juli_backend.api.app import create_app
+    from juli_backend.api.dependencies import get_active_shop
+    from juli_backend.core.security import get_current_user
     from juli_backend.database import get_session
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -109,11 +135,40 @@ async def demo_client(engine, demo_env):
             yield sess
 
     application.dependency_overrides[get_session] = _test_session
+    application.dependency_overrides[get_current_user] = lambda: user
+    application.dependency_overrides[get_active_shop] = lambda: shop
     async with AsyncClient(
         transport=ASGITransport(app=application), base_url="http://test"
     ) as client:
         yield client
     application.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def app(engine, session):
+    """Shared-session app for tests that need to see rows written through
+    the same session they assert against (mirrors test_api_demo_execution.py,
+    needed for the AC8 list-then-approve test which spans two routers)."""
+    from juli_backend.api.app import create_app
+    from juli_backend.database import get_session
+
+    application = create_app()
+
+    async def _test_session():
+        yield session
+
+    application.dependency_overrides[get_session] = _test_session
+    yield application
+    application.dependency_overrides.clear()
+
+
+def _client_for(client_app, caller: User, caller_shop: Shop) -> AsyncClient:
+    from juli_backend.api.dependencies import get_active_shop
+    from juli_backend.core.security import get_current_user
+
+    client_app.dependency_overrides[get_current_user] = lambda: caller
+    client_app.dependency_overrides[get_active_shop] = lambda: caller_shop
+    return AsyncClient(transport=ASGITransport(app=client_app), base_url="http://test")
 
 
 def _card(
@@ -210,28 +265,18 @@ def _scoring_result(
 
 
 # ---------------------------------------------------------------------------
-# AC1 + AC5 — contract: only the reference shop's emission-gated active set
+# AC1 + AC5 — contract: only the authenticated caller's own emission-gated
+# active set, resolved from X-Shop-Id
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_list_returns_only_surfaced_active_cards_for_reference_shop(
-    demo_client, session, reference_shop
+async def test_list_returns_only_surfaced_active_cards_for_callers_shop(
+    demo_client, session, user, shop
 ):
-    surfaced_a = _card(
-        reference_shop.id,
-        workflow_key="wf_a",
-        priority=2,
-        surfaced_at=COMPUTED_AT,
-    )
-    surfaced_b = _card(
-        reference_shop.id,
-        workflow_key="wf_b",
-        priority=1,
-        surfaced_at=COMPUTED_AT,
-    )
+    surfaced_a = _card(shop.id, workflow_key="wf_a", priority=2, surfaced_at=COMPUTED_AT)
+    surfaced_b = _card(shop.id, workflow_key="wf_b", priority=1, surfaced_at=COMPUTED_AT)
     suppressed = _card(
-        reference_shop.id,
+        shop.id,
         workflow_key="wf_suppressed",
         priority=3,
         surfaced_at=None,
@@ -242,14 +287,10 @@ async def test_list_returns_only_surfaced_active_cards_for_reference_shop(
     # surfaced_at column value may remain (emission_budget only evaluates
     # status == "active" rows; approve never clears surfaced_at).
     approved_stale = _card(
-        reference_shop.id,
-        workflow_key="wf_approved",
-        priority=1,
-        status="approved",
-        surfaced_at=COMPUTED_AT,
+        shop.id, workflow_key="wf_approved", priority=1, status="approved", surfaced_at=COMPUTED_AT
     )
     session.add_all([surfaced_a, surfaced_b, suppressed, approved_stale])
-    await session.flush()
+    await session.commit()
 
     resp = await demo_client.get("/v1/demo/decisions")
 
@@ -262,14 +303,11 @@ async def test_list_returns_only_surfaced_active_cards_for_reference_shop(
     assert len(body["data"]) == 2
 
 
-@pytest.mark.asyncio
-async def test_list_excludes_another_shops_surfaced_cards(
-    demo_client, session, reference_shop, other_shop
-):
-    own_card = _card(reference_shop.id, workflow_key="wf_own", priority=1, surfaced_at=COMPUTED_AT)
+async def test_list_excludes_another_shops_surfaced_cards(demo_client, session, shop, other_shop):
+    own_card = _card(shop.id, workflow_key="wf_own", priority=1, surfaced_at=COMPUTED_AT)
     other_card = _card(other_shop.id, workflow_key="wf_other", priority=1, surfaced_at=COMPUTED_AT)
     session.add_all([own_card, other_card])
-    await session.flush()
+    await session.commit()
 
     resp = await demo_client.get("/v1/demo/decisions")
 
@@ -279,61 +317,67 @@ async def test_list_excludes_another_shops_surfaced_cards(
     assert str(other_card.id) not in ids
 
 
-@pytest.mark.asyncio
-async def test_list_rejects_visitor_supplied_shop_id_query_param(
-    demo_client, session, reference_shop, other_shop
+async def test_list_for_shop_with_no_cards_returns_empty_not_another_shops_cards(
+    demo_client, session, shop, other_shop
 ):
-    resp = await demo_client.get("/v1/demo/decisions", params={"shop_id": str(other_shop.id)})
-    assert resp.status_code == 400
-    assert "shop_id" in resp.json()["detail"].lower()
-
-
-@pytest.mark.asyncio
-async def test_list_ignores_visitor_supplied_shop_id_header_tenant_pivot_attempt(
-    demo_client, session, reference_shop, other_shop
-):
-    """No X-Shop-Id header — or any header — can redirect this endpoint off
-    the server-bound reference shop (PRD security story 21)."""
-    own_card = _card(reference_shop.id, workflow_key="wf_own", priority=1, surfaced_at=COMPUTED_AT)
+    """The core #1283 exposure defect, asserted explicitly: a caller scoped
+    to a shop with zero action cards must see an empty list — never another
+    shop's cards, even when that other shop is the only one with data (the
+    exact shape of the Fujiwa-production-shop exposure)."""
     other_card = _card(
-        other_shop.id, workflow_key="wf_other_secret", priority=1, surfaced_at=COMPUTED_AT
+        other_shop.id, workflow_key="wf_other_only", priority=1, surfaced_at=COMPUTED_AT
     )
-    session.add_all([own_card, other_card])
-    await session.flush()
+    session.add(other_card)
+    await session.commit()
+
+    resp = await demo_client.get("/v1/demo/decisions")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["data"] == []
+    assert "wf_other_only" not in resp.text
+
+
+async def test_list_query_param_shop_id_has_no_effect_x_shop_id_header_is_authoritative(
+    demo_client, session, shop, other_shop
+):
+    """Shop scope now comes exclusively from the authenticated `X-Shop-Id`
+    header (via `get_active_shop`), the same channel every other
+    authenticated route uses — a `shop_id` query param is simply not part of
+    this route's contract any more (it used to be explicitly rejected while
+    the route was unauthenticated and server-bound; #1283)."""
+    own_card = _card(shop.id, workflow_key="wf_own", priority=1, surfaced_at=COMPUTED_AT)
+    session.add(own_card)
+    await session.commit()
 
     resp = await demo_client.get(
         "/v1/demo/decisions",
-        headers={"X-Shop-Id": str(other_shop.id)},
+        params={"shop_id": str(other_shop.id)},
     )
 
     assert resp.status_code == 200
     ids = [item["id"] for item in resp.json()["data"]]
     assert ids == [str(own_card.id)]
-    assert "wf_other_secret" not in resp.text
 
 
-@pytest.mark.asyncio
-async def test_detail_rejects_visitor_supplied_shop_id_query_param(
-    demo_client, session, reference_shop, other_shop
-):
-    own_card = _card(reference_shop.id, workflow_key="wf_own", priority=1, surfaced_at=COMPUTED_AT)
+async def test_detail_query_param_shop_id_has_no_effect(demo_client, session, shop, other_shop):
+    own_card = _card(shop.id, workflow_key="wf_own", priority=1, surfaced_at=COMPUTED_AT)
     session.add(own_card)
-    await session.flush()
+    await session.commit()
 
     resp = await demo_client.get(
         f"/v1/demo/decisions/{own_card.id}",
         params={"shop_id": str(other_shop.id)},
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 200
 
 
-@pytest.mark.asyncio
 async def test_detail_returns_another_shops_surfaced_card_as_404_tenant_pivot_attempt(
-    demo_client, session, reference_shop, other_shop
+    demo_client, session, shop, other_shop
 ):
-    """The core tenant-pivot attempt: a visitor who has (or guesses) another
-    shop's action_card_id must not be able to read it through the
-    reference-shop-bound endpoint."""
+    """The core tenant-pivot attempt: a caller who has (or guesses) another
+    shop's action_card_id must not be able to read it while scoped to their
+    own shop."""
     other_card = _card(
         other_shop.id,
         workflow_key="wf_other_secret",
@@ -342,7 +386,7 @@ async def test_detail_returns_another_shops_surfaced_card_as_404_tenant_pivot_at
         title="Other tenant's private decision title",
     )
     session.add(other_card)
-    await session.flush()
+    await session.commit()
 
     resp = await demo_client.get(f"/v1/demo/decisions/{other_card.id}")
 
@@ -356,52 +400,41 @@ async def test_detail_returns_another_shops_surfaced_card_as_404_tenant_pivot_at
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_detail_returns_404_for_suppressed_card_not_leaked_as_active(
-    demo_client, session, reference_shop
+    demo_client, session, shop
 ):
     suppressed = _card(
-        reference_shop.id,
+        shop.id,
         workflow_key="wf_suppressed",
         priority=1,
         surfaced_at=None,
         suppressed_reason="cooldown",
     )
     session.add(suppressed)
-    await session.flush()
+    await session.commit()
 
     resp = await demo_client.get(f"/v1/demo/decisions/{suppressed.id}")
     assert resp.status_code == 404
 
 
-@pytest.mark.asyncio
-async def test_detail_returns_404_for_nonexistent_card(demo_client, reference_shop):
+async def test_detail_returns_404_for_nonexistent_card(demo_client, shop):
     resp = await demo_client.get(f"/v1/demo/decisions/{uuid.uuid4()}")
     assert resp.status_code == 404
 
 
-@pytest.mark.asyncio
 async def test_detail_404_response_shape_identical_for_suppressed_and_nonexistent(
-    demo_client, session, reference_shop
+    demo_client, session, shop
 ):
     """Suppressed-vs-nonexistent must be indistinguishable from the outside —
     otherwise the 404 itself becomes an existence oracle."""
     suppressed = _card(
-        reference_shop.id,
+        shop.id,
         workflow_key="wf_suppressed",
         priority=1,
         surfaced_at=None,
         suppressed_reason="cooldown",
     )
     session.add(suppressed)
-    # commit (not flush): this test issues two sequential HTTP requests
-    # against a StaticPool sqlite engine, and each request runs in its own
-    # session/connection-transaction. A flush()-only row is only reliably
-    # visible to the FIRST such request — the first request's session
-    # closing without a commit rolls back the shared connection and erases
-    # an uncommitted row for every later request. commit() makes the row
-    # durably visible to both requests, so this test actually exercises the
-    # byte-identical-404 comparison it claims to (#718 Review finding).
     await session.commit()
 
     resp_suppressed = await demo_client.get(f"/v1/demo/decisions/{suppressed.id}")
@@ -411,20 +444,13 @@ async def test_detail_404_response_shape_identical_for_suppressed_and_nonexisten
     assert resp_suppressed.json() == resp_missing.json()
 
 
-@pytest.mark.asyncio
-async def test_detail_returns_surfaced_card_with_freshness_metadata(
-    demo_client, session, reference_shop
-):
+async def test_detail_returns_surfaced_card_with_freshness_metadata(demo_client, session, shop):
     surfaced_at = datetime(2026, 8, 8, 9, 30, tzinfo=UTC)
     card = _card(
-        reference_shop.id,
-        workflow_key="wf_a",
-        priority=1,
-        surfaced_at=surfaced_at,
-        computed_at=COMPUTED_AT,
+        shop.id, workflow_key="wf_a", priority=1, surfaced_at=surfaced_at, computed_at=COMPUTED_AT
     )
     session.add(card)
-    await session.flush()
+    await session.commit()
 
     resp = await demo_client.get(f"/v1/demo/decisions/{card.id}")
 
@@ -443,17 +469,16 @@ async def test_detail_returns_surfaced_card_with_freshness_metadata(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_no_internal_identifiers_or_leaked_content_in_response_body(
-    demo_client, session, reference_shop, other_shop
+    demo_client, session, shop, other_shop
 ):
     internal_uuid_marker = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
     financial_marker = "987654321.42"
 
-    # Card A: legitimately surfaced for the reference shop — its own
+    # Card A: legitimately surfaced for the caller's shop — its own
     # workflow_key must not leak even though the card itself IS included.
     included = _card(
-        reference_shop.id,
+        shop.id,
         workflow_key="internal_secret_workflow_734",
         priority=1,
         surfaced_at=COMPUTED_AT,
@@ -475,9 +500,9 @@ async def test_no_internal_identifiers_or_leaked_content_in_response_body(
         ),
     )
 
-    # Card B: suppressed for the reference shop — must never appear at all.
+    # Card B: suppressed for the caller's shop — must never appear at all.
     suppressed_poisoned = _card(
-        reference_shop.id,
+        shop.id,
         workflow_key="SECRET_WORKFLOW_KEY_B",
         priority=1,
         surfaced_at=None,
@@ -494,7 +519,7 @@ async def test_no_internal_identifiers_or_leaked_content_in_response_body(
         ),
     )
 
-    # Card C: surfaced for a DIFFERENT (non-reference) shop — tenant pivot
+    # Card C: surfaced for a DIFFERENT (non-caller) shop — tenant pivot
     # content must never appear either.
     other_shop_poisoned = _card(
         other_shop.id,
@@ -513,16 +538,6 @@ async def test_no_internal_identifiers_or_leaked_content_in_response_body(
     )
 
     session.add_all([included, suppressed_poisoned, other_shop_poisoned])
-    # commit (not flush): this test issues three sequential HTTP requests
-    # (list, detail_b, detail_c) against a StaticPool sqlite engine. A
-    # flush()-only row is only reliably visible to the FIRST request — by
-    # the time detail_b/detail_c run, an uncommitted row has already been
-    # rolled off the shared connection by the first request's session
-    # closing, so those two calls would 404 because the DB is empty, not
-    # because masking/tenant-isolation correctly excluded the poisoned
-    # cards. commit() makes the fixture rows durably visible to every
-    # request so the leak assertions on detail_b/detail_c actually test
-    # what they claim (#718 Review finding).
     await session.commit()
 
     list_resp = await demo_client.get("/v1/demo/decisions")
@@ -562,18 +577,17 @@ async def test_no_internal_identifiers_or_leaked_content_in_response_body(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_integration_compute_scoring_persist_emission_filter_get_reflects_gated_list(
-    demo_client, session, reference_shop
+    demo_client, session, shop
 ):
     workflows = [
         (f"wf_integration_{i}", f"Workflow {i}", i) for i in range(1, 8)
     ]  # 7 candidates, default max_active=5
-    result = _scoring_result(reference_shop.id, workflows=workflows)
+    result = _scoring_result(shop.id, workflows=workflows)
 
-    cards = await persist_scoring_result(session, reference_shop.id, result)
+    cards = await persist_scoring_result(session, shop.id, result)
     assert len(cards) == 7
-    outcome = await apply_emission_budget(session, reference_shop.id, now=COMPUTED_AT)
+    outcome = await apply_emission_budget(session, shop.id, now=COMPUTED_AT)
     await session.commit()
 
     assert len(outcome.surfaced) == 5
@@ -603,9 +617,8 @@ async def test_integration_compute_scoring_persist_emission_filter_get_reflects_
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_list_failure_surfaces_as_error_not_a_silently_invented_empty_list(
-    demo_client, session, reference_shop, monkeypatch
+    demo_client, session, shop, monkeypatch
 ):
     from unittest.mock import AsyncMock
 
@@ -622,10 +635,10 @@ async def test_list_failure_surfaces_as_error_not_a_silently_invented_empty_list
 
 # ---------------------------------------------------------------------------
 # Row-level resilience (#718 Review finding 1) — one malformed persisted row
-# must not 500 the whole public feed. Pydantic's typed response schema
-# rejecting an unexpected shape is the correct security outcome (no leak);
-# the bug is that the resulting ValidationError previously escaped the
-# route's try/except entirely and took down every other row with it.
+# must not 500 the whole feed. Pydantic's typed response schema rejecting an
+# unexpected shape is the correct security outcome (no leak); the bug is
+# that the resulting ValidationError previously escaped the route's
+# try/except entirely and took down every other row with it.
 # ---------------------------------------------------------------------------
 
 
@@ -667,15 +680,14 @@ def _malformed_card(
     )
 
 
-@pytest.mark.asyncio
 async def test_list_drops_malformed_row_and_still_serves_remaining_rows(
-    demo_client, session, reference_shop, caplog
+    demo_client, session, shop, caplog
 ):
     """The core regression test: one malformed row must not 500 the whole
     feed, must not appear in the response, and must not leak any of its
     own content — the remaining well-formed rows must still be served."""
-    good = _card(reference_shop.id, workflow_key="wf_good", priority=1, surfaced_at=COMPUTED_AT)
-    bad = _malformed_card(reference_shop.id, priority=2)
+    good = _card(shop.id, workflow_key="wf_good", priority=1, surfaced_at=COMPUTED_AT)
+    bad = _malformed_card(shop.id, priority=2)
     session.add_all([good, bad])
     await session.commit()
 
@@ -704,7 +716,7 @@ async def test_list_drops_malformed_row_and_still_serves_remaining_rows(
     ]
     assert len(drop_records) == 1
     record = drop_records[0]
-    assert getattr(record, "reference_shop_id", None) == str(reference_shop.id)
+    assert getattr(record, "shop_id", None) == str(shop.id)
     assert getattr(record, "action_card_id", None) == str(bad.id)
     log_text = str(record.__dict__)
     assert "evil_tool" not in log_text
@@ -712,14 +724,11 @@ async def test_list_drops_malformed_row_and_still_serves_remaining_rows(
     assert "aaaa-bbbb-cccc-dddd" not in log_text
 
 
-@pytest.mark.asyncio
-async def test_list_with_all_rows_malformed_returns_empty_list_not_500(
-    demo_client, session, reference_shop
-):
+async def test_list_with_all_rows_malformed_returns_empty_list_not_500(demo_client, session, shop):
     """Every row bad is still not a 500 — an empty (but valid) list is the
     correct degraded response, distinct from a query failure."""
-    bad_a = _malformed_card(reference_shop.id, priority=1, workflow_key="wf_malformed_a")
-    bad_b = _malformed_card(reference_shop.id, priority=2, workflow_key="wf_malformed_b")
+    bad_a = _malformed_card(shop.id, priority=1, workflow_key="wf_malformed_a")
+    bad_b = _malformed_card(shop.id, priority=2, workflow_key="wf_malformed_b")
     session.add_all([bad_a, bad_b])
     await session.commit()
 
@@ -729,9 +738,8 @@ async def test_list_with_all_rows_malformed_returns_empty_list_not_500(
     assert resp.json()["data"] == []
 
 
-@pytest.mark.asyncio
 async def test_detail_returns_500_for_malformed_persisted_row_not_a_misleading_404(
-    demo_client, session, reference_shop, caplog
+    demo_client, session, shop, caplog
 ):
     """Deliberate detail-endpoint decision (#718 Review finding 1): unlike
     the list, a single detail lookup has no partial result to preserve — the
@@ -741,7 +749,7 @@ async def test_detail_returns_500_for_malformed_persisted_row_not_a_misleading_4
     honest, logged 500. So detail intentionally does NOT silently drop; it
     surfaces the same 500 contract as any other unexpected read failure on
     this route."""
-    bad = _malformed_card(reference_shop.id)
+    bad = _malformed_card(shop.id)
     session.add(bad)
     await session.commit()
 
@@ -751,3 +759,60 @@ async def test_detail_returns_500_for_malformed_persisted_row_not_a_misleading_4
     assert resp.status_code == 500
     assert "evil_tool" not in resp.text
     assert "wf_malformed_shape" not in resp.text
+
+
+# ---------------------------------------------------------------------------
+# AC8 (#1283) — the listing/approving split: a card that appears in the list
+# is approvable by the same caller. Same session/app fixture as
+# test_api_demo_execution.py so both routers see the same rows.
+# ---------------------------------------------------------------------------
+
+
+@pytest_asyncio.fixture
+async def product(session, shop):
+    p = Product(
+        shop_id=shop.id,
+        tiktok_product_id=f"agt-1283-{uuid.uuid4()}",
+        name="Test Widget",
+        status="active",
+        revenue=Decimal("100.00"),
+        update_time=_naive_utc_now(),
+    )
+    session.add(p)
+    await session.flush()
+    await session.commit()
+    return p
+
+
+@pytest_asyncio.fixture
+async def surfaced_card(session, shop):
+    c = _card(shop.id, workflow_key="optimize_product_2", priority=1, surfaced_at=COMPUTED_AT)
+    session.add(c)
+    await session.commit()
+    return c
+
+
+async def test_a_card_that_appears_in_the_list_is_approvable_by_the_same_caller(
+    app, session, user, shop, product, surfaced_card
+):
+    """Proves the listing/approving split (#1283) is closed: the same
+    credentials that can list a card can also approve exactly that listed
+    id — no separate scope resolution, no cross-tenant 404 surprise."""
+    mock_task = MagicMock()
+    mock_async_result = MagicMock()
+    mock_async_result.id = "celery-task-id-1283"
+    mock_task.delay.return_value = mock_async_result
+
+    with patch("juli_backend.workers.tasks.agent_workflow.run_agent_workflow", mock_task):
+        async with _client_for(app, user, shop) as client:
+            list_resp = await client.get("/v1/demo/decisions")
+            assert list_resp.status_code == 200
+            listed_ids = [item["id"] for item in list_resp.json()["data"]]
+            assert str(surfaced_card.id) in listed_ids
+
+            approve_resp = await client.post(
+                f"/v1/demo/decisions/{surfaced_card.id}/approve",
+            )
+
+    assert approve_resp.status_code == 202, approve_resp.text
+    assert approve_resp.json()["data"]["action_card_id"] == str(surfaced_card.id)
