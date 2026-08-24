@@ -29,6 +29,16 @@ validates that deliberately in `supabase_jwks_url()`:
 - missing scheme/host -> `JwksUnavailableError`, named
 - shaped like the database host (`db.*`) -> `JwksUnavailableError`, named,
   explicitly telling the operator DATABASE_URL already owns that hostname
+- carries a path beyond the bare origin, or a query string / fragment ->
+  `JwksUnavailableError`, named. Caught in review: the Supabase dashboard's
+  Data API page displays the project URL as
+  `https://<project-ref>.supabase.co/rest/v1/`, not the bare origin --
+  reading that page verbatim produces exactly this shape. Rejected rather
+  than normalised (stripping the extra component and proceeding) for the
+  same reason as the database-host case above: silently accepting it would
+  teach the operator the wrong value was right, and would still require
+  guessing that "strip everything after the host" is the correct repair
+  for every possible copy-paste mistake, not just this one.
 
 This is intentionally a **structural** check only -- it never makes a
 network call. It cannot prove the URL is *reachable*, only that it is not
@@ -128,6 +138,31 @@ def supabase_jwks_url(supabase_url: str | None = None) -> str:
         raise JwksUnavailableError(
             f"SUPABASE_URL is not a usable Supabase API URL ({raw!r}): expected an "
             "http(s) URL such as https://<project-ref>.supabase.co."
+        )
+    # #1282 review: reject a path/query/fragment-carrying value rather than
+    # blindly concatenating `_JWKS_PATH` onto it. The Supabase dashboard's
+    # Data API page displays the project URL as
+    # `https://<ref>.supabase.co/rest/v1/` -- an operator copying that
+    # value verbatim must not get a silently-wrong, never-reachable
+    # `.../rest/v1/auth/v1/.well-known/jwks.json`. Normalising (stripping
+    # the extra component and proceeding) was considered and rejected: it
+    # would silently paper over the same class of misconfiguration this
+    # function exists to catch, and would teach the operator the wrong
+    # value was right instead of surfacing the mistake. A bare root path
+    # (`/`, or none at all) is not "path-carrying" -- both are accepted, as
+    # they are indistinguishable from a bare origin.
+    if parsed.path not in ("", "/"):
+        raise JwksUnavailableError(
+            f"SUPABASE_URL ({raw!r}) carries a path ({parsed.path!r}) beyond the bare "
+            "project origin -- expected https://<project-ref>.supabase.co with no path. "
+            "This is commonly copied from the Supabase dashboard's Data API page, which "
+            "displays the REST endpoint (https://<project-ref>.supabase.co/rest/v1/) "
+            "rather than the project URL; use the bare origin instead."
+        )
+    if parsed.query or parsed.fragment:
+        raise JwksUnavailableError(
+            f"SUPABASE_URL ({raw!r}) carries a query string or fragment beyond the bare "
+            "project origin -- expected https://<project-ref>.supabase.co with neither."
         )
     return raw.rstrip("/") + _JWKS_PATH
 

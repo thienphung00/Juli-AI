@@ -73,6 +73,38 @@ class TestSupabaseJwksUrl:
         with pytest.raises(RuntimeError, match="SUPABASE_URL"):
             supabase_jwks_url()
 
+    def test_rejects_path_carrying_url(self):
+        """CRITICAL (review of #1282): the Supabase dashboard's Data API page
+        displays the project URL as `https://<ref>.supabase.co/rest/v1/` --
+        an operator reading that page verbatim produces a value that must
+        NOT be silently concatenated with `_JWKS_PATH` into a wrong,
+        never-reachable endpoint (`.../rest/v1/auth/v1/.well-known/
+        jwks.json`). Structural rejection, not normalisation -- silently
+        stripping the path would teach the operator the wrong value was
+        right."""
+        with pytest.raises(JwksUnavailableError, match="rest/v1"):
+            supabase_jwks_url("https://abcdefgh.supabase.co/rest/v1/")
+
+    def test_rejects_path_carrying_url_without_trailing_slash(self):
+        with pytest.raises(JwksUnavailableError, match="path"):
+            supabase_jwks_url("https://abcdefgh.supabase.co/rest/v1")
+
+    def test_rejects_query_string(self):
+        with pytest.raises(JwksUnavailableError, match="SUPABASE_URL"):
+            supabase_jwks_url("https://abcdefgh.supabase.co?apikey=abc123")
+
+    def test_rejects_fragment(self):
+        with pytest.raises(JwksUnavailableError, match="SUPABASE_URL"):
+            supabase_jwks_url("https://abcdefgh.supabase.co#section")
+
+    def test_bare_origin_with_trailing_slash_still_accepted(self):
+        """Regression guard alongside `test_strips_trailing_slash` above --
+        a bare `/` root path is not a "path-carrying" URL and must keep
+        working."""
+        assert supabase_jwks_url("https://abcdefgh.supabase.co/") == (
+            "https://abcdefgh.supabase.co/auth/v1/.well-known/jwks.json"
+        )
+
 
 # ---------------------------------------------------------------------------
 # JwksClient -- fetch, cache, kid selection.
@@ -196,6 +228,56 @@ class TestJwksClientStampedePrevention:
 
         assert calls["count"] == 1
         assert all(isinstance(r, JwksUnavailableError) for r in results)
+
+    async def test_sequential_lookups_of_distinct_unknown_kids_are_cooldown_gated(self):
+        """WARNING gap flagged in review: `test_concurrent_lookups_of_same_
+        unknown_kid_fetch_once` above only proves the *lock* stops a
+        concurrent stampede -- the lock alone would pass even with the
+        cooldown deleted, because each of those 25 calls asks for the SAME
+        kid and the second-through-Nth simply see the first's completed
+        (still-failed) refresh once they get the lock. This test instead
+        awaits 10 lookups *sequentially*, each for a genuinely DIFFERENT
+        unknown kid, so every one of them is a fresh cache-miss that would
+        justify its own refetch if the cooldown were not there. Only the
+        cooldown timestamp -- not the lock -- can hold this to one fetch.
+        See the paired control test below, which disables the cooldown and
+        proves this same scenario produces 10 fetches without it, so this
+        test is not vacuously green."""
+        _, _present_kid, jwk = generate_es256_keypair()
+        transport, calls = _counting_transport([jwks_document(jwk)])
+        client = JwksClient(
+            "https://x.supabase.co/auth/v1/.well-known/jwks.json",
+            transport=transport,
+            min_refetch_interval_seconds=60.0,
+        )
+
+        for i in range(10):
+            with pytest.raises(JwksUnavailableError):
+                await client.get_signing_key(f"kid-that-does-not-exist-{i}")
+
+        assert calls["count"] == 1
+
+    async def test_disabled_cooldown_control_shows_sequential_lookups_would_otherwise_stampede(
+        self,
+    ):
+        """Control for the test above: with `min_refetch_interval_seconds=
+        0.0` (cooldown effectively off), the identical 10-distinct-unknown-
+        kid sequential scenario produces 10 fetches -- proving the cooldown
+        gate, not the lock, is what the other test actually exercises, and
+        that removing it would make that test fail."""
+        _, _present_kid, jwk = generate_es256_keypair()
+        transport, calls = _counting_transport([jwks_document(jwk)])
+        client = JwksClient(
+            "https://x.supabase.co/auth/v1/.well-known/jwks.json",
+            transport=transport,
+            min_refetch_interval_seconds=0.0,
+        )
+
+        for i in range(10):
+            with pytest.raises(JwksUnavailableError):
+                await client.get_signing_key(f"kid-that-does-not-exist-{i}")
+
+        assert calls["count"] == 10
 
     async def test_concurrent_lookups_of_same_known_kid_fetch_once(self):
         _, kid, jwk = generate_es256_keypair()

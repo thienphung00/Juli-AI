@@ -286,6 +286,16 @@ class TestCheck5ExtendedForSupabaseUrl:
         with pytest.raises(RuntimeError, match="database host"):
             assert_agent_runtime_config()
 
+    def test_path_carrying_supabase_url_fails_boot(self, monkeypatch):
+        """CRITICAL (review of #1282): the Supabase dashboard's Data API
+        page displays the project URL as `https://<ref>.supabase.co/rest/v1/`
+        -- an operator reading that page verbatim must not boot green and
+        then 401 every ES256 request at runtime."""
+        _set_valid_baseline_env(monkeypatch)
+        monkeypatch.setenv("SUPABASE_URL", "https://abcdefgh.supabase.co/rest/v1/")
+        with pytest.raises(RuntimeError, match="rest/v1"):
+            assert_agent_runtime_config()
+
     def test_schemeless_supabase_url_fails_boot(self, monkeypatch):
         _set_valid_baseline_env(monkeypatch)
         monkeypatch.setenv("SUPABASE_URL", "abcdefgh.supabase.co")
