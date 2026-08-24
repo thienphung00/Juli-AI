@@ -14,6 +14,7 @@ does not cover. `agent_workflow` was missing here, so `run_agent_workflow` and
 """
 
 from juli_backend.workers.tasks import (
+    action_card_refresh,  # noqa: F401
     agent_workflow,  # noqa: F401
     analytics_backfill_topup,  # noqa: F401
     cdp_batch_reconcile,  # noqa: F401
@@ -21,4 +22,5 @@ from juli_backend.workers.tasks import (
     impact_reader,  # noqa: F401
     mock_analytics_reconcile,  # noqa: F401
     reaper,  # noqa: F401
+    tool_execution,  # noqa: F401
 )
