@@ -523,3 +523,98 @@ async def test_issue429_analytics_ctr_second_refresh_idempotent(
     assert len(second) == len(first)
     for card in after_second:
         assert card.updated_at >= first_updated[card.workflow_key]
+
+
+@pytest.mark.asyncio
+async def test_issue1289_manual_refresh_applies_emission_budget_to_surfaced_decisions(
+    session,
+    user_id,
+    monkeypatch,
+):
+    """#1289: manual refresh applies emission budget so surfaced decisions appear in API.
+
+    AC1: After refresh, cards are evaluated by the emission budget.
+    AC2: Surfaced cards appear in list_surfaced_decisions.
+    AC3: Suppressed cards remain unsurfaced with a recorded suppressed_reason.
+    """
+    from datetime import UTC
+
+    from juli_backend.services.action_cards.refresh import run_action_card_refresh
+    from juli_backend.services.demo_decisions.read import list_surfaced_decisions
+
+    user = User(id=user_id, phone="+84901289289")
+    shop = Shop(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        shop_name="Refresh Emission Shop",
+        tiktok_shop_id="tiktok_refresh_emission_1289",
+        created_at=datetime.now(UTC) - timedelta(days=120),
+    )
+    session.add_all([user, shop])
+    now = datetime.now(UTC)
+    session.add_all(
+        [
+            Product(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                tiktok_product_id="prod-1289",
+                name="Widget 1289",
+                status="ACTIVE",
+                revenue=Decimal("800000"),
+                units_sold=40,
+                update_time=now,
+            ),
+            Order(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                tiktok_order_id="ord-1289",
+                status="COMPLETED",
+                total_amount=Decimal("150000"),
+                currency="VND",
+                update_time=now,
+            ),
+            Return(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                tiktok_return_id="ret-1289",
+                tiktok_order_id="ord-1289",
+                return_type="refund",
+                refund_amount=Decimal("10000"),
+                status="COMPLETED",
+                update_time=now,
+            ),
+        ]
+    )
+    await session.flush()
+
+    monkeypatch.setattr(
+        "juli_backend.services.action_cards.refresh.maybe_poll_tiktok_data",
+        AsyncMock(),
+    )
+
+    # AC1: Run refresh and verify cards were persisted.
+    cards = await run_action_card_refresh(session, shop.id, poll=False)
+    await session.flush()
+    assert len(cards) > 0, "refresh should have produced at least one card"
+
+    # AC2: Cards should appear in list_surfaced_decisions (emission budget applied).
+    surfaced = await list_surfaced_decisions(session, shop.id)
+    assert len(surfaced) > 0, (
+        f"refresh should have surfaced at least one card, but got {len(surfaced)} "
+        "— emission_budget was not applied"
+    )
+
+    # Verify the surfaced cards have surfaced_at set.
+    for card in surfaced:
+        assert card.surfaced_at is not None, f"surfaced card {card.id} should have surfaced_at set"
+        assert card.status == "active", f"surfaced card {card.id} should be active"
+
+    # AC3: Any suppressed cards should have suppressed_reason set (and surfaced_at null).
+    persisted_cards = cards
+    suppressed_cards = [
+        c for c in persisted_cards if c.surfaced_at is None and c.status == "active"
+    ]
+    for card in suppressed_cards:
+        assert card.suppressed_reason is not None, (
+            f"suppressed card {card.id} should have suppressed_reason set"
+        )
