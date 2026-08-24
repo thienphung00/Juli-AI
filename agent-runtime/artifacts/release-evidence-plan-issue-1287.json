@@ -1,0 +1,77 @@
+{
+  "planId": "worker-registers-dispatch-bound-tasks-2026-08-24",
+  "affectedPublicSurfaces": [
+    "Deployed API + Celery worker pair on the single VPS (ADR-057). `POST /v1/action-cards/refresh` enqueues `juli_backend.refresh_action_cards` by NAME; the worker currently answers `Received unregistered task` because `workers/tasks/__init__.py` never imports `action_card_refresh`. Same for `juli_backend.execute_approved_tool` (`tool_execution`), reached via the approved-write path.",
+    "`GET /v1/demo/decisions` — observably empty for the sandbox shop today because card provisioning never runs; it is the downstream read that proves the fix, not a changed surface.",
+    "Mixed-version hazard: the API enqueues by task name and the worker resolves it. Only a worker running the NEW release registers these names, so `systemctl restart juli-celery-worker` off the new `/root/releases/current` is part of the release, not an afterthought. An API-only cutover leaves the defect live."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: local pytest on feature/issue-1287-*, no VPS contact. Post-deploy: authenticated calls with a real seller token against a SANDBOX `X-Shop-Id` only — no public/customer shop is touched, and no public traffic is routed to a candidate task set (single-VPS lane per ADR-057).",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is deliberately FALSE and that is the point of the slice: the defect is worker-side task registration, so a verification run with workers disabled would prove nothing. apiSideEffectsInScope is false because the only side effect exercised live is a recompute of the sandbox shop's own `action_cards` rows — no vendor write, no customer-shop mutation. `execute_approved_tool` is verified by REGISTRATION INSPECTION (`celery inspect registered`), never executed live, because executing it would perform a real TikTok write.",
+    "journeys": [
+      {
+        "name": "dispatch-bound-tasks-register-and-execute",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1287",
+        "assertions": [
+          "pre-merge: a regression test enumerates every task referenced by `dispatch_binding.py`'s enqueue adapters and asserts each name is in the worker's registry; it FAILS against pre-#1287 `workers/tasks/__init__.py`, proving it exercises the real defect rather than passing vacuously",
+          "pre-merge: `juli_backend.refresh_action_cards` and `juli_backend.execute_approved_tool` both appear in the registry; the existing beat-schedule and task_routes registration tests still pass unmodified",
+          "post-deploy: `/root/releases/current` resolves to the release containing the fix, and `systemctl show -p InvocationID --value juli-celery-worker` changed across the deploy — proving the worker restarted onto that release, not that a stale process is still serving",
+          "post-deploy: `celery -A juli_backend.workers.celery_app inspect registered` on the host lists BOTH `juli_backend.refresh_action_cards` and `juli_backend.execute_approved_tool`",
+          "post-deploy: `POST /v1/action-cards/refresh` with a real seller token and a sandbox `X-Shop-Id` returns its accepted response AND `journalctl -u juli-celery-worker --since <restart>` shows the task received and succeeded",
+          "post-deploy: that same worker log window contains ZERO `Received unregistered task` / `KeyError: 'juli_backend.refresh_action_cards'` lines — asserted by absence over the window, not by grepping for a success marker (a task that raises before logging success would be invisible to a success grep)",
+          "post-deploy: `GET /v1/demo/decisions` re-listed for the same sandbox shop returns the provisioned cards where it previously returned empty — this is the observation that unblocks gate #1226 observation 1"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — two import lines in `backend/src/juli_backend/workers/tasks/__init__.py` plus one test module."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "worker-journal"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration, no schema change, no new env var, no message-format change. The task NAMES and signatures already exist and are already what the API enqueues; only the worker's import list changes so those names resolve. An old worker beside a new API behaves exactly as today (task dropped as unregistered); a new worker beside an old API is strictly better (it can resolve names the old API also enqueues). Queued messages in flight are unaffected — they carry the same names either way."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without the fix the deployed worker keeps dropping `refresh_action_cards` and `execute_approved_tool` as unregistered — the pre-existing #1287 defect, no new exposure and no data hazard.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart `juli-celery-worker`. The two task names simply become unregistered again, returning to today's behavior; no schema downgrade, no data migration, no partially-applied state, since the change is import-only. Any refresh enqueued while the bad release is live is dropped, not corrupted.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_celery_worker_consumes_routed_queues.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_celery_tool_execution_contract.py tests/unit/test_deploy_celery_unit_sync.py -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "This registers two already-existing tasks on the worker and pins dispatch-bound tasks against recurrence. It does NOT change what `refresh_action_cards` or `execute_approved_tool` do, their signatures, their routing, or the cooldown gate.",
+    "Post-deploy verification exercises `refresh_action_cards` only. `execute_approved_tool` is proven registered, NOT executed live — do not trigger a real approved write to 'complete' the journey.",
+    "This closes card provisioning for gate #1226 observation 1; it does not itself close #1226, and it does not touch the auth path fixed by #1282.",
+    "Do not add unrelated modules to `workers/tasks/__init__.py` opportunistically — the regression test, not a hand-curated list, is the durable guard."
+  ]
+}

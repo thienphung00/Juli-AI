@@ -1,0 +1,28 @@
+{
+  "gateVersion": 1,
+  "issue": 1287,
+  "metrics": {
+    "acceptanceMapped": 2,
+    "acceptanceTotal": 2,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/workers/tasks/__init__.py",
+      "tests/unit/test_dispatch_bound_tasks_are_registered.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1287.json",
+    "ownerSignoffPresent": true,
+    "sha256": "6233911f90f1006230c7116e93d72a0d8b88de09d790b0a29e72e4e231fcd38d",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-24T08:48:54Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1287.json",
+    "sha256": "e09df3311580621c23178607d11298c5bad2aef4fcacde8908174077d45499d8",
+    "status": "PASS"
+  },
+  "wave": null
+}
