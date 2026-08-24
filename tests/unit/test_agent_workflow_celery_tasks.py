@@ -146,11 +146,15 @@ def _function_node(func) -> ast.AsyncFunctionDef:
 def test_task_body_has_no_loop_or_branch_logic(func):
     """The loop/state-machine belongs to WorkflowRunner, never the task body.
 
-    A `for`/`while`/`if`/`try` anywhere in the body would be exactly the
-    ADR-073 d.1 rejected alternative: "loop inline in the Celery task".
+    A `for`/`while`/`if` anywhere in the body would be exactly the ADR-073 d.1
+    rejected alternative: "loop inline in the Celery task". `try`/`except` is
+    permitted for crash handling (issue #1291) since it's error handling, not
+    loop/state-machine logic.
     """
     node = _function_node(func)
-    forbidden = (ast.For, ast.While, ast.If, ast.Try)
+    # Forbid loop/branch logic, but allow try/except for crash handling (ADR-074
+    # decision 4, issue #1291: runs must end in terminal state even on crash)
+    forbidden = (ast.For, ast.While, ast.If)
     for child in ast.walk(node):
         assert not isinstance(child, forbidden), (
             f"{func.__name__} contains {type(child).__name__} — loop/branch logic must live "
@@ -174,6 +178,11 @@ def test_task_body_is_a_session_scoped_thin_shell(func):
     that matters -- no loop or state-machine logic in the task body -- is
     unchanged and still enforced by
     `test_task_body_has_no_loop_or_branch_logic` above.
+
+    Issue #1291 adds try/except for crash handling, so the 4 statements are
+    now wrapped in a try block. The invariant is preserved: the try block
+    contains exactly load-context, construct-runner, run/resume, commit, with
+    exception handling to emit terminal events.
     """
     node = _function_node(func)
     assert len(node.body) == 2, (
@@ -184,9 +193,18 @@ def test_task_body_is_a_session_scoped_thin_shell(func):
     assert isinstance(async_with, ast.AsyncWith), "the second statement opens the async session"
     sync_with = async_with.body[0]
     assert isinstance(sync_with, ast.With), "the ledger's sync session is bound inside it"
-    assert len(sync_with.body) == 4, (
-        f"{func.__name__}'s inner block has {len(sync_with.body)} statements; a thin shell "
-        "is exactly load-context, construct-runner, run/resume, commit"
+
+    # Issue #1291: crash handling is now a top-level try/except wrapping the
+    # 4 statements (load-context, construct-runner, run/resume, commit).
+    assert len(sync_with.body) == 1, (
+        f"{func.__name__}'s inner block has {len(sync_with.body)} statements; expected "
+        "a single try/except wrapping the shell logic"
+    )
+    try_stmt = sync_with.body[0]
+    assert isinstance(try_stmt, ast.Try), "the single statement should be a try/except block"
+    assert len(try_stmt.body) == 4, (
+        f"{func.__name__}'s try block has {len(try_stmt.body)} statements; "
+        "a thin shell is exactly load-context, construct-runner, run/resume, commit"
     )
 
 

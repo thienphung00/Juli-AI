@@ -1,4 +1,11 @@
-"""Manual refresh pipeline: optional poll → scoring → persist — ADR-021."""
+"""Manual refresh pipeline: optional poll → scoring → persist → emission budget — ADR-021, #1289.
+
+As of #1289, the pipeline applies the emission/surfacing budget (emission_budget.py)
+immediately after persisting scoring results, on the same refresh run — matching the
+continuous-trigger path (cdp_speed.decision_rules_scoring_stage). This ensures
+manually-refreshed shops' cards surface properly in the public Demo API
+(GET /v1/demo/decisions, which gates on surfaced_at IS NOT NULL).
+"""
 
 from __future__ import annotations
 
@@ -10,6 +17,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import ActionCard
+from juli_backend.services.action_cards.emission_budget import apply_emission_budget
 from juli_backend.services.action_cards.persist import persist_scoring_result
 from juli_backend.services.scoring.pipeline import run_daily_scoring_for_shop
 from juli_backend.services.tiktok.credential_binding import make_binding_verifier
@@ -99,10 +107,62 @@ async def run_action_card_refresh(
     poll: bool = True,
     poll_hook: Any | None = None,
 ) -> list[ActionCard]:
-    """Execute one manual refresh cycle for a shop."""
+    """Execute one manual refresh cycle for a shop: poll → score → persist → emit budget.
+
+    Applies the emission/surfacing budget immediately after persisting the candidates,
+    on the same refresh run (#1289). This ensures manually-refreshed shops' cards
+    surface properly in the public Demo API (list_surfaced_decisions gates on
+    surfaced_at IS NOT NULL). Matches the continuous-trigger path's wiring
+    (cdp_speed.decision_rules_scoring_stage).
+
+    The persisted candidates are committed on their own durability boundary before
+    the emission budget runs (dual cadence: recomputation and surfacing are
+    independently gated). An emission-budget failure does not roll back the
+    candidates already persisted.
+    """
     if poll:
         runner = poll_hook or maybe_poll_tiktok_data
         await runner(session, shop_id)
 
     result = await run_daily_scoring_for_shop(session, shop_id)
-    return await persist_scoring_result(session, shop_id, result)
+    persisted_cards = await persist_scoring_result(session, shop_id, result)
+
+    logger.info(
+        "action_card_refresh_persisted",
+        extra={
+            "shop_id": str(shop_id),
+            "persisted_card_count": len(persisted_cards),
+        },
+    )
+
+    # Commit the persisted candidates on their own boundary, independent of
+    # the emission budget below. This is the dual-cadence guarantee: a
+    # recomputation must be durable even when the surfacing decision that
+    # follows it fails. Matches decision_rules_scoring_stage (#716, B-4).
+    await session.commit()
+
+    try:
+        outcome = await apply_emission_budget(session, shop_id)
+    except Exception:
+        logger.exception(
+            "action_card_refresh_emission_failed",
+            extra={
+                "shop_id": str(shop_id),
+            },
+        )
+        # Roll back only the emission budget's own (uncommitted) writes —
+        # the candidates committed above are untouched. Re-raise: this is
+        # containment of the *data*, not suppression of the *failure*.
+        await session.rollback()
+        raise
+
+    logger.info(
+        "action_card_refresh_emission_applied",
+        extra={
+            "shop_id": str(shop_id),
+            "surfaced_count": len(outcome.surfaced),
+            "suppressed_count": sum(len(cards) for cards in outcome.suppressed.values()),
+        },
+    )
+
+    return persisted_cards
