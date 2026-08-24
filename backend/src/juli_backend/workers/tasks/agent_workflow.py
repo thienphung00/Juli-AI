@@ -483,63 +483,79 @@ async def _emit_crash_terminal_event(
     Called when the task catches an exception anywhere in run/resume.
     Ensures the run ends in a terminal `failed` state with a proper
     `workflow.failed` event, not stranded in `queued` or `running` with
-    no terminal event."""
-    run = await session.get(WorkflowRun, run_id)
-    if run is None:
-        logger.warning(
-            "workflow_run_crash_terminal_event_skipped_run_not_found",
-            extra={"run_id": str(run_id)},
-        )
-        return
+    no terminal event.
 
-    try:
-        now = datetime.now(UTC)
-        seq = await _next_sequence_number(session, run_id)
+    The incoming session may be poisoned (transaction failed). Rollback and
+    use a fresh session to write durably (NullPool via #871 makes this safe)."""
+    # Rollback the poisoned session to clear transaction state
+    await session.rollback()
 
-        event = WorkflowFailedEvent(
-            workflow_run_id=run_id,
-            sequence_number=seq,
-            event_type="workflow.failed",
-            timestamp=now,
-            payload=WorkflowFailedPayload(
-                status=WorkflowRunStatus.FAILED,
-                stop_reason=StopReason.WORKER_LOST,
-            ),
-            v=1,
-        )
+    # Get a fresh session to write the terminal state durably
+    factory = _ensure_session_factory()
+    async with factory() as fresh_session:
+        try:
+            from juli_backend.models.models import ActionCard
 
-        # Insert the event row
-        row = WorkflowRunEventRow(
-            id=uuid.uuid4(),
-            workflow_run_id=event.workflow_run_id,
-            sequence_number=event.sequence_number,
-            event_type=event.event_type,
-            timestamp=event.timestamp,
-            payload=event.payload.model_dump(mode="json"),
-            v=event.v,
-        )
-        session.add(row)
+            run = await fresh_session.get(WorkflowRun, run_id)
+            if run is None:
+                logger.warning(
+                    "workflow_run_crash_terminal_event_skipped_run_not_found",
+                    extra={"run_id": str(run_id)},
+                )
+                return
 
-        # Update run status
-        run.status = WorkflowRunStatus.FAILED.value
-        run.stop_reason = StopReason.WORKER_LOST.value
-        run.completed_at = now
+            now = datetime.now(UTC)
+            seq = await _next_sequence_number(fresh_session, run_id)
 
-        # Mark required_steps_completed as False for crash recovery tracking
-        run.required_steps_completed = False
+            event = WorkflowFailedEvent(
+                workflow_run_id=run_id,
+                sequence_number=seq,
+                event_type="workflow.failed",
+                timestamp=now,
+                payload=WorkflowFailedPayload(
+                    status=WorkflowRunStatus.FAILED,
+                    stop_reason=StopReason.WORKER_LOST,
+                ),
+                v=1,
+            )
 
-        await session.commit()
+            # Insert the event row
+            row = WorkflowRunEventRow(
+                id=uuid.uuid4(),
+                workflow_run_id=event.workflow_run_id,
+                sequence_number=event.sequence_number,
+                event_type=event.event_type,
+                timestamp=event.timestamp,
+                payload=event.payload.model_dump(mode="json"),
+                v=event.v,
+            )
+            fresh_session.add(row)
 
-        logger.info(
-            "workflow_run_crash_terminal_event_emitted",
-            extra={"run_id": str(run_id)},
-        )
-    except Exception:
-        logger.exception(
-            "workflow_run_crash_terminal_event_emission_failed",
-            extra={"run_id": str(run_id)},
-            exc_info=True,
-        )
+            # Update run status
+            run.status = WorkflowRunStatus.FAILED.value
+            run.stop_reason = StopReason.WORKER_LOST.value
+            run.completed_at = now
+            run.required_steps_completed = False
+
+            # AC3: Auto-revert consumed action card for recoverability
+            if run.action_card_id:
+                card = await fresh_session.get(ActionCard, run.action_card_id)
+                if card and card.status == "approved":
+                    card.status = "active"
+                    card.approved_at = None
+
+            await fresh_session.commit()
+
+            logger.info(
+                "workflow_run_crash_terminal_event_emitted",
+                extra={"run_id": str(run_id)},
+            )
+        except Exception:
+            logger.error(
+                "workflow_run_crash_terminal_event_emission_failed",
+                extra={"run_id": str(run_id)},
+                exc_info=True,
+            )
 
 
 async def _run_agent_workflow_async(run_id: str) -> None:
