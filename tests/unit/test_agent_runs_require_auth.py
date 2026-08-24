@@ -22,6 +22,15 @@ this suite is taken by `POST /v1/demo/decisions/{action_card_id}/approve`
 -- #1222 is what brought THAT route under auth in the first place (#1217
 deliberately left it as the one unauthenticated exception, naming #1222 as
 the slice that would close it).
+
+`GET /v1/demo/decisions` and `GET /v1/demo/decisions/{action_card_id}`
+(#1283, AGT-W5A) join this suite too: they were the last unauthenticated
+routes on the demo surface, resolving a server-bound reference shop that on
+the deployed host was a real merchant's production shop. ADR-075 decision 3
+deliberately left these two read-only routes as "P-UI's call" while bringing
+every route that can create/watch/steer/confirm a run under auth; #1283 is
+that call, closing them the same way `#1222` closed approve --
+`get_current_user` + `get_active_shop`.
 """
 
 from __future__ import annotations
@@ -95,4 +104,19 @@ async def test_confirmation_decision_returns_401_without_jwt(unauthenticated_cli
         f"/v1/demo/runs/{uuid.uuid4()}/confirmations/tool-call-1",
         json={"decision": "approve"},
     )
+    assert resp.status_code == 401
+
+
+async def test_list_demo_decisions_returns_401_without_jwt(unauthenticated_client):
+    """#1283: previously the deliberate unauthenticated exception ADR-075
+    decision 3 left as "P-UI's call" -- closed by resolving shop scope via
+    `get_active_shop` instead of a server-bound reference shop."""
+    resp = await unauthenticated_client.get("/v1/demo/decisions")
+    assert resp.status_code == 401
+
+
+async def test_get_demo_decision_returns_401_without_jwt(unauthenticated_client):
+    """The detail route too, not just the list -- #1283's own acceptance
+    criteria calls this out explicitly."""
+    resp = await unauthenticated_client.get(f"/v1/demo/decisions/{uuid.uuid4()}")
     assert resp.status_code == 401

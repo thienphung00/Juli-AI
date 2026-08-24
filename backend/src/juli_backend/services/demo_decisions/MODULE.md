@@ -2,13 +2,25 @@
 
 ## Purpose
 
-Public Demo Decisions **read** service (#718, B-6, ADR-037 Demo no-auth /
-ADR-038) — the query + masking layer behind
+Demo Decisions **read** service (originally #718, B-6; auth posture updated
+by #1283, AGT-W5A) — the query + masking layer behind
 `GET /v1/demo/decisions` (list) and `GET /v1/demo/decisions/{id}` (detail).
 This is the read counterpart to `services/demo_execution` (#717, B-5, the
-approve → dry-run write path) and consumes, but never mutates, persistence
-owned by #715 (B-3, `services/action_cards/persist.py`) and #716 (B-4,
+approve → dry-run write path, itself since retired by #1222 — see that
+module's own MODULE.md) and consumes, but never mutates, persistence owned
+by #715 (B-3, `services/action_cards/persist.py`) and #716 (B-4,
 `services/action_cards/emission_budget.py`).
+
+**This module's own functions never changed for #1283.**
+`list_surfaced_decisions(session, shop_id)` /
+`get_surfaced_decision(session, shop_id, action_card_id)` already took an
+arbitrary `shop_id` — the #1283 fix was entirely at the HTTP layer
+(`api/routes/demo_decisions.py`): resolving that `shop_id` from the
+authenticated caller's `X-Shop-Id` via `get_active_shop` instead of a
+server-bound `DEMO_REFERENCE_SHOP_ID`. See that route module's own docstring
+for the full rationale — on the deployed host the reference shop was a real
+merchant's production shop, so the unauthenticated routes served a live
+seller's recommendations to any caller with no credentials at all.
 
 "Emission-gated" means `ActionCard.surfaced_at`-gated: a candidate the
 emission budget most recently *suppressed* (or never evaluated) is excluded
@@ -73,16 +85,27 @@ existing authenticated `GET /v1/action-cards` precedent
 
 ## HTTP (via `api/routes/demo_decisions.py`)
 
-- `GET /v1/demo/decisions` — unauthenticated, server-bound
-  `DEMO_REFERENCE_SHOP_ID` (same pattern as `GET /v1/demo/analytics`, #531).
-  No `X-Shop-Id` header, no bearer token, no client-controllable `shop_id`
-  anywhere (query param explicitly rejected with 400, mirroring
-  `demo_analytics.py`; no header is ever read; no path segment exists).
-  Returns the ranked, emission-gated active Decision envelope list.
-- `GET /v1/demo/decisions/{action_card_id}` — same no-auth/server-bound
-  contract. 404 (safe default) for a suppressed candidate, a nonexistent id,
-  or a card belonging to another shop — all three are indistinguishable in
-  the response, so detail lookup never leaks existence across tenants.
+- `GET /v1/demo/decisions` — authenticated (`get_current_user` +
+  `get_active_shop`, ADR-075 decision 3, #1283). 401 without a valid JWT;
+  shop scope resolves from the authenticated caller's `X-Shop-Id` header,
+  ownership-checked by `get_active_shop` — the same channel every other
+  authenticated `/v1/*` read route uses. No `shop_id` query param (removed
+  by #1283 — that guard existed only to stop a caller redirecting the old
+  unauthenticated, server-bound route off the reference shop; its rationale
+  is gone once shop scope is a real per-caller value). Returns the ranked,
+  emission-gated active Decision envelope list for the caller's own shop —
+  a shop with zero cards gets an empty list, never another shop's cards.
+- `GET /v1/demo/decisions/{action_card_id}` — same authenticated contract.
+  404 (safe default) for a suppressed candidate, a nonexistent id, or a card
+  belonging to another shop — all three are indistinguishable in the
+  response, so detail lookup never leaks existence across tenants, never
+  403 (no existence oracle).
+- A card returned by the list route is approvable by the same caller via
+  `POST /v1/demo/decisions/{id}/approve` (`api/routes/demo_execution.py`) —
+  both routes resolve shop scope through the identical `get_active_shop`
+  channel, closing the listing/approving split #1283 found (a caller could
+  previously see a card here that a different, server-bound shop scope made
+  it approve against, 404ing as cross-tenant).
 
 ## Row-level resilience (#718 Review finding 1)
 

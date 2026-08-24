@@ -77,16 +77,20 @@ ALLOWLISTED_PRODUCT_ROUTES: dict[tuple[str, str], str] = {
     ("GET", "/v1/demo/analytics"): (
         "Public Demo Analytics read (#531, ADR-037) — unauthenticated by design. Serves a "
         "server-bound DEMO_REFERENCE_SHOP_ID; no client-controllable shop_id anywhere "
-        "(rejected as a query param, never read as a header)."
+        "(rejected as a query param, never read as a header). Out of scope for #1283 — "
+        "ADR-075 decision 3 left this read-only route as a deliberate exception; only the "
+        "two Demo Decisions routes below (#718, B-6) were reconsidered."
     ),
-    ("GET", "/v1/demo/decisions"): (
-        "Public Demo Decisions list (#718, B-6) — same ADR-037 unauthenticated-by-design "
-        "pattern as GET /v1/demo/analytics; server-bound reference shop only."
-    ),
-    ("GET", "/v1/demo/decisions/{action_card_id}"): (
-        "Public Demo Decisions detail (#718, B-6) — same ADR-037 pattern as the list route; "
-        "a suppressed/foreign-shop card is indistinguishable from a nonexistent id (404)."
-    ),
+    # GET /v1/demo/decisions and GET /v1/demo/decisions/{action_card_id} (#718, B-6)
+    # used to be here too — unauthenticated, server-bound DEMO_REFERENCE_SHOP_ID, same
+    # ADR-037 pattern as GET /v1/demo/analytics above. #1283: on the deployed host that
+    # reference shop was a real merchant's production shop, so both routes served a live
+    # seller's recommendations to any caller with no credentials at all. ADR-075 decision
+    # 3 had deliberately left these two read-only routes as "P-UI's call"; #1283 is that
+    # call — both now resolve get_active_shop (X-Shop-Id, ownership-checked) exactly like
+    # POST /v1/demo/decisions/{action_card_id}/approve below, closing the exposure and the
+    # listing/approving split (a caller could see a card via these routes it could not
+    # approve) in one move. Removed from this allowlist entirely, not just re-justified.
     ("POST", "/v1/demo/decisions/{action_card_id}/approve"): (
         "Public Demo approve->execute (#717, B-5) — same ADR-037 pattern. Writes only a "
         "local dry-run execution record against the server-bound reference shop; no real "
