@@ -1,0 +1,81 @@
+{
+  "planId": "manual-refresh-applies-emission-budget-2026-08-24",
+  "affectedPublicSurfaces": [
+    "`POST /v1/action-cards/refresh` (authenticated) → Celery task `juli_backend.refresh_action_cards` → `services/action_cards/refresh.py::run_action_card_refresh` → `persist_scoring_result`. Today that path persists active `action_cards` rows with `surfaced_at IS NULL`, because `apply_emission_budget` (`services/action_cards/emission_budget.py`) is invoked only from `services/cdp_speed/decision_rules_scoring.py`. The refresh path is what changes.",
+    "`GET /v1/demo/decisions` — the public Demo read surface (ADR-037, edge zone `demo_public` in `infra/nginx/api.app-juli.com.conf`). `services/demo_decisions/read.py::list_surfaced_decisions` gates on `surfaced_at IS NOT NULL`, so this endpoint returns `count: 0` for a shop holding 3 active cards. It is the observation that proves the fix, and it is the surface a seller actually sees.",
+    "`POST /v1/demo/decisions/{id}/approve` — not modified, but its disagreement with the read surface (approve does not require `surfaced_at`) is the reason the defect is currently invisible from the API alone. After this change, the card a seller can approve is the card the list returned, which is the property to hold, not to break.",
+    "Mixed-version hazard: this is worker-side product logic reached over the public API. Only a worker running the NEW release applies the budget on refresh, so `systemctl restart juli-celery-worker` off the new `/root/releases/current` is part of the release (ADR-057 single-VPS lane). An API-only cutover leaves the defect fully live."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest on `feature/issue-1289-*` with `PYTHONPATH` pinned to the worktree's `backend/src`, no VPS contact. Post-deploy: an authenticated `POST /v1/action-cards/refresh` with a real seller token and a SANDBOX `X-Shop-Id` (`1862f13b-…`) only, then an unauthenticated `GET /v1/demo/decisions` scoped to that same sandbox shop. No customer shop is touched and no public traffic is routed to a candidate task set — the single-VPS lane (ADR-057) has no second task set to route to.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is deliberately FALSE: the defect lives inside the Celery refresh task, so a verification run with workers disabled would prove nothing at all. apiSideEffectsInScope is FALSE in the sense the pairing rule protects — the only side effect the live journey produces is a recompute plus a `surfaced_at` / emission-budget update on the SANDBOX shop's own `action_cards` rows. No vendor call, no customer-shop mutation, no write leaves the Juli database. Note the interaction with #1293: on the deployed release the same refresh path still runs a full production poll first, so this journey's refresh call may take ~25 minutes until #1293 lands — that is a latency dependency, not a correctness one; the surfacing assertion below is unaffected either way. Do not use #1293 as a reason to skip the live journey.",
+    "journeys": [
+      {
+        "name": "refresh-surfaces-cards-and-decisions-lists-them",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1289",
+        "assertions": [
+          "pre-merge: a regression test drives refresh → list for one shop and asserts the persisted card comes back from `list_surfaced_decisions`; it FAILS against pre-#1289 `services/action_cards/refresh.py`, proving it exercises the real defect rather than passing vacuously",
+          "pre-merge: after refresh, every card the run persisted as active has been evaluated by the emission budget — a card the budget deliberately suppresses stays unsurfaced, so 'apply the budget' is asserted, not 'set surfaced_at on everything'",
+          "pre-merge: the existing scheduled path (`decision_rules_scoring.py`) still applies the budget exactly once per run — `tests/unit/test_cdp_speed_decision_rules_scoring_emission.py` and `tests/unit/test_decision_emission_budget.py` pass unmodified, so refresh does not double-apply or re-surface an already-suppressed card",
+          "post-deploy: `/root/releases/current` resolves to the release containing the fix, and `systemctl show -p InvocationID --value juli-celery-worker` changed across the deploy — proving the worker restarted onto that release rather than a stale process still serving",
+          "post-deploy: `POST /v1/action-cards/refresh` with a real seller token and the sandbox `X-Shop-Id` is accepted, and `journalctl -u juli-celery-worker --since <restart>` shows the refresh task received and succeeded",
+          "post-deploy: that same worker log window contains ZERO tracebacks from the refresh task — asserted by absence of error lines over the window, not by grepping for a success marker, since a task that raises before its success log is invisible to a success grep",
+          "post-deploy: `GET /v1/demo/decisions` for the sandbox shop returns at least one card with a non-null surfaced timestamp where it previously returned `count: 0` — the observation that unblocks gate #1226 observation 1 at card discovery",
+          "post-deploy: the card id returned by that list is accepted by `POST /v1/demo/decisions/{id}/approve` (read and approve agree) — verified against the SANDBOX shop only, and only as far as the approve response; do not chase the downstream write, which is #1290's subject"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — the diff is confined to backend Python under `backend/src/juli_backend/services/action_cards/` plus tests. The Demo front end is an unchanged consumer of `GET /v1/demo/decisions`."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "worker-journal",
+      "api-json-response"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration. The emission-budget columns already exist (migration `027_decision_emission_budget`) and are already written by the scheduled scoring path; this change only makes the manual refresh path call the same existing `apply_emission_budget`. An old worker beside a new API behaves exactly as today (cards persist unsurfaced); a new worker beside an old API is strictly better (refresh surfaces, everything else unchanged). No message format, task name, or signature changes, so queued refresh messages in flight are unaffected. If implementation discovers it genuinely needs a schema change, this plan must be revised to expand-contract-only BEFORE merge — do not smuggle a migration under a plan that declares none."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without the fix, manual refresh keeps persisting cards with `surfaced_at IS NULL` and `/v1/demo/decisions` stays empty — the pre-existing #1289 defect, no new exposure and no data hazard.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart `juli-api` and `juli-celery-worker`. Behavior returns to today's: refresh persists but does not surface. Rows already surfaced by the new release stay surfaced and remain valid under the old code — `surfaced_at` is an existing column the old read path already understands — so rollback leaves no partially-applied or unreadable state, and no schema downgrade is claimed or needed.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_decision_emission_budget.py tests/unit/test_cdp_speed_decision_rules_scoring_emission.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_action_card_refresh_cooldown.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'refresh or emission or demo_decisions' -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "This makes the manual refresh path apply the EXISTING emission budget for the refreshed shop. It does not change the budget's rules, caps, priority ordering, cooldown, or what `apply_emission_budget` considers a candidate.",
+    "It does not change `POST /v1/demo/decisions/{id}/approve` or its non-requirement of `surfaced_at`. Making approve reject unsurfaced cards is a separate decision (#1283's sibling) and is out of scope here.",
+    "It does not fix the ~25-minute refresh latency — that is #1293 — and it does not fix the write step (#1290) or the crash-path honesty (#1291). It closes gate #1226 observation 1 at CARD DISCOVERY only; it does not close #1226.",
+    "Reading a card id out of the database to 'prove' the journey is exactly the internal-access substitution the gate forbids. The card id used post-deploy must come from the `GET /v1/demo/decisions` response body."
+  ]
+}
