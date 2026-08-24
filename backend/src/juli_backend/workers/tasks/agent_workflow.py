@@ -151,18 +151,31 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import os
 import uuid
 from collections.abc import Callable, Iterator
+from datetime import UTC, datetime
 
 from sqlalchemy import create_engine as create_sync_engine
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import Session, sessionmaker
 
 from juli_backend.models.models import Product, WorkflowRun
+from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
+from juli_backend.services.agent import events as events_module
+from juli_backend.services.agent import runner as runner_module
 from juli_backend.workers.celery_app import celery_app
 from juli_backend.workers.tasks.database import get_async_database_url
+
+logger = logging.getLogger(__name__)
+
+# Re-bound from depth-2 facade imports for crash handling
+StopReason = runner_module.StopReason
+WorkflowRunStatus = runner_module.WorkflowRunStatus
+WorkflowFailedEvent = events_module.WorkflowFailedEvent
+WorkflowFailedPayload = events_module.WorkflowFailedPayload
 
 
 class RunnerCompositionUnavailableError(RuntimeError):
@@ -448,24 +461,127 @@ async def _construct_runner(
     )
 
 
+async def _next_sequence_number(session: AsyncSession, run_id: uuid.UUID) -> int:
+    """Get the next sequence number for an event on this run.
+
+    Used when emitting a terminal event after a crash. Mirrors the reaper's
+    own logic (reaper.py::_next_sequence_number)."""
+    result = await session.execute(
+        select(func.coalesce(func.max(WorkflowRunEventRow.sequence_number), -1)).where(
+            WorkflowRunEventRow.workflow_run_id == run_id
+        )
+    )
+    return result.scalar_one() + 1
+
+
+async def _emit_crash_terminal_event(
+    session: AsyncSession,
+    run_id: uuid.UUID,
+) -> None:
+    """Emit a terminal `workflow.failed` event after a crash (issue #1291).
+
+    Called when the task catches an exception anywhere in run/resume.
+    Ensures the run ends in a terminal `failed` state with a proper
+    `workflow.failed` event, not stranded in `queued` or `running` with
+    no terminal event."""
+    run = await session.get(WorkflowRun, run_id)
+    if run is None:
+        logger.warning(
+            "workflow_run_crash_terminal_event_skipped_run_not_found",
+            extra={"run_id": str(run_id)},
+        )
+        return
+
+    try:
+        now = datetime.now(UTC)
+        seq = await _next_sequence_number(session, run_id)
+
+        event = WorkflowFailedEvent(
+            workflow_run_id=run_id,
+            sequence_number=seq,
+            event_type="workflow.failed",
+            timestamp=now,
+            payload=WorkflowFailedPayload(
+                status=WorkflowRunStatus.FAILED,
+                stop_reason=StopReason.WORKER_LOST,
+            ),
+            v=1,
+        )
+
+        # Insert the event row
+        row = WorkflowRunEventRow(
+            id=uuid.uuid4(),
+            workflow_run_id=event.workflow_run_id,
+            sequence_number=event.sequence_number,
+            event_type=event.event_type,
+            timestamp=event.timestamp,
+            payload=event.payload.model_dump(mode="json"),
+            v=event.v,
+        )
+        session.add(row)
+
+        # Update run status
+        run.status = WorkflowRunStatus.FAILED.value
+        run.stop_reason = StopReason.WORKER_LOST.value
+        run.completed_at = now
+
+        # Mark required_steps_completed as False for crash recovery tracking
+        run.required_steps_completed = False
+
+        await session.commit()
+
+        logger.info(
+            "workflow_run_crash_terminal_event_emitted",
+            extra={"run_id": str(run_id)},
+        )
+    except Exception:
+        logger.exception(
+            "workflow_run_crash_terminal_event_emission_failed",
+            extra={"run_id": str(run_id)},
+            exc_info=True,
+        )
+
+
 async def _run_agent_workflow_async(run_id: str) -> None:
     factory = _ensure_session_factory()
     async with factory() as session:
         with _sync_ledger_session() as sync_session:
-            run, product = await _load_context(session, uuid.UUID(run_id))
-            runner = await _construct_runner(session, sync_session, run, product)
-            await runner.run(run.id, product_ref=product.tiktok_product_id)
-            await session.commit()
+            try:
+                run, product = await _load_context(session, uuid.UUID(run_id))
+                runner = await _construct_runner(session, sync_session, run, product)
+                await runner.run(run.id, product_ref=product.tiktok_product_id)
+                await session.commit()
+            except Exception:
+                # Catch any crash and emit a terminal event so the run doesn't
+                # stay stranded in queued/running with no terminal event (ADR-074
+                # decision 4, issue #1291).
+                run_uuid = uuid.UUID(run_id)
+                logger.exception(
+                    "workflow_run_crashed",
+                    extra={"run_id": str(run_uuid)},
+                    exc_info=True,
+                )
+                await _emit_crash_terminal_event(session, run_uuid)
 
 
 async def _resume_agent_workflow_async(run_id: str, *, approved: bool) -> None:
     factory = _ensure_session_factory()
     async with factory() as session:
         with _sync_ledger_session() as sync_session:
-            run, product = await _load_context(session, uuid.UUID(run_id))
-            runner = await _construct_runner(session, sync_session, run, product)
-            await runner.resume(run.id, approved=approved)
-            await session.commit()
+            try:
+                run, product = await _load_context(session, uuid.UUID(run_id))
+                runner = await _construct_runner(session, sync_session, run, product)
+                await runner.resume(run.id, approved=approved)
+                await session.commit()
+            except Exception:
+                # Same crash handling as run_agent_workflow (issue #1291).
+                run_uuid = uuid.UUID(run_id)
+                logger.exception(
+                    "workflow_resume_crashed",
+                    extra={"run_id": str(run_uuid)},
+                    exc_info=True,
+                )
+                await _emit_crash_terminal_event(session, run_uuid)
 
 
 def run_agent_workflow_sync(run_id: str) -> None:
