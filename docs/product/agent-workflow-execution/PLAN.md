@@ -24,7 +24,7 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 7 | P-CS — Conversation & state storage (NEW) | ⏸ deferred (user, 2026-08-11) until real users exist — stand-in: `workflow_runs.state` JSONB blob behind the `ConversationStore` protocol (ADR-073 d.5) | ⬜ |
 | 8 | P8 — Streaming (SSE + Celery relay) | ✅ **implemented and live-verified** — [ADR-074](../../adr/074-agent-event-streaming-and-relay.md); PRD #1116, slices #1125–#1133 merged via #1183. Live SSE, gapless duplicate-free `Last-Event-ID` reconnect, mid-run cancel, and the fail-closed `memory://` boot assertion all proven on the deployed host — see [Wave 3 live verification](#wave-3-live-verification-2026-08-19--2026-08-20) | ✅ 2026-08-20 |
 | 9 | P7 — Structured output contract | ⏸ deferred (user, 2026-08-11) — scheduled **W9** with P15 (see the wave roadmap) — loop runs on ADR-072 prose output; wires in via `FinalResponse` block + prompt v2 bump (ADR-073 d.5) | ⬜ |
-| 10 | P9+P14 — Approval, safety & security prerequisites | 🟨 **W5** — design grilled 2026-08-12 — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) drafted; implementation pending | ⬜ |
+| 10 | P9+P14 — Approval, safety & security prerequisites | ✅ **implemented, W5 merged 2026-08-24** — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) + [ADR-082](../../adr/082-agent-run-product-binding.md); eleven slices deployed on release `4cce75a7`. The confirmation endpoint no longer returns 501; approve-is-run-creation is the only path to a run; `POST /v1/demo/runs` is removed | 🟥 **2026-08-24 — gate blocked, not passed.** #1226's seller-path approval could not be walked on the deployed host: the API verifies HS256 only while Supabase issues ES256, so **every authenticated route 401s** ([#1282](https://github.com/thienphung00/Juli-AI/issues/1282)). Separately, the sandbox shop has zero action cards and the demo surface is bound to the *production* shop ([#1283](https://github.com/thienphung00/Juli-AI/issues/1283)) |
 | 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 **W6** — design grilled 2026-08-12 — [ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md) drafted; implementation pending | ⬜ |
 | 11b | P-IM — Incremental impact measurement (NEW) | ✅ implemented, gate reopened in **W4** — [ADR-077](../../adr/077-incremental-impact-measurement.md); re-run wave merged to `main` (#1113, 2026-08-14), #1040–#1045 + #1068 all with status records, after the [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B refusal of the first attempt | 🟨 2026-08-21 — **reachable, still un-run.** W4 fixed all three broken reads (#1215 payload, #1216 duration, #1219 measurable set). The reading itself needs a production-shop write, because the sandbox shop has no analytics series — that is W5's gate, not a code gap |
 | 11c | P-CRED — TikTok credential lifecycle / refresh-token rotation (NEW) | ✅ **W4 closed 2026-08-21** — deployed on release `14807670` and verified against the vendor: sandbox credential refreshed through the real `refresh_credential` path, `refresh_count` 0→1, expiry moved 2026-08-27→2026-08-28. Beat and lazy layers live; **reactive layer built but wired to nothing** (#1233), so a token that dies before its recorded expiry is not self-healed. `/root/refresh_credentials.py` retired. [ADR-081](../../adr/081-refresh-token-rotation.md) | ✅ 2026-08-21 — full matrix green + one real sandbox-token refresh |
@@ -323,6 +323,84 @@ gaps/duplicates; cancellation stops the loop") are both met with recorded eviden
 
 P15 ("E2E prototype complete") is not tickable until both land — see the wave roadmap.
 
+## W5 live verification (2026-08-24)
+
+W5's eleven slices merged to `main` as #1281 and deployed on release `4cce75a7`. **The code is live. The
+gate is not passed.**
+
+### What the deployed host proves
+
+The Celery worker's startup banner is the evidence unit tests cannot give:
+
+- **It booted at all** — so `assert_agent_runtime_config()`'s six checks (#1217) passed against the real
+  host: `OPENAI_API_KEY`, a non-`memory://` broker, banned patterns compiling, sandbox-write guard config
+  resolvable for every registered WRITE tool, `SUPABASE_JWT_SECRET` present, and the structural
+  route-group backstop.
+- **`transport: redis://127.0.0.1:6379/1`** — a real broker. The `memory://` assertion would have killed
+  the boot.
+- **`agent_runs` queue consumed**, with `run_agent_workflow` and `resume_agent_workflow` both registered.
+- The reaper beat task runs clean on a 5-minute cadence.
+
+`juli-api` reads `inactive`, which is correct: `deploy.sh` stops the durable unit after every cutover
+(#1069) and traffic is served by a transient `juli-api-candidate-<port>` unit.
+
+### Why #1226 is blocked — two causes, neither anticipated
+
+**1. Every authenticated route returns 401.** ([#1282](https://github.com/thienphung00/Juli-AI/issues/1282))
+
+The Supabase project issues **ES256** tokens signed with asymmetric keys
+(`{"alg":"ES256","kid":"70a78d90-…"}`). `verify_supabase_jwt` calls
+`pyjwt.decode(token, secret, algorithms=["HS256"], …)`, which raises `InvalidAlgorithmError` **before the
+secret is consulted** — so the configured `SUPABASE_JWT_SECRET` is irrelevant and even a correct legacy
+secret would fail. Confirmed live: a freshly minted, structurally valid token (`sub` matching a real
+`users` row, `aud: authenticated`, ~1h remaining) is rejected by `POST /v1/action-cards/refresh`.
+
+This blocks the seller path at **step one**, before card provisioning and before any write question.
+
+**Two mechanisms failed to catch it, and both failed for the same reason.** #1217's check 5 asserts the
+secret is *present*, not that it can verify a token the identity provider actually issues — so the process
+boots green and 401s at runtime. The test suite mints its own HS256 tokens with a test secret, verifying
+the code against its own assumption rather than against the identity provider's behaviour. A green suite
+and a green boot are both fully compatible with a total auth outage.
+
+The unauthenticated demo routes still return 200 throughout, which makes the outage easy to mistake for a
+working system: the surface a browser hits first looks healthy while everything requiring identity is dead.
+
+**2. The sandbox shop has nothing to approve, and the demo surface points at production.**
+([#1283](https://github.com/thienphung00/Juli-AI/issues/1283))
+
+`GET /v1/demo/decisions` is unauthenticated and resolves a **server-bound reference shop**, which on this
+host is **Fujiwa Vietnam Store** — a real merchant's production shop. All four `active` cards belong to it,
+including an `optimize_product_2` card. The sandbox shop `1862f13b-…` has **zero** action cards, though it
+does have one product (*Authentic Stainless Steel Water Bottle 750ml*), so ADR-082's binding would resolve
+unambiguously if a card existed.
+
+Because `/decisions` ignores `X-Shop-Id` while `/approve` honours it, **the cards a caller can see are not
+the cards that caller can approve.** The only walkable approval on this host targets the production shop,
+which the owner's sandbox-only decision (2026-08-21) rules out.
+
+### Observation 2 — unchanged, and still blocked
+
+No production write was authorized. The sandbox shop has no analytics series, so a genuine DiD reading is
+impossible there; RLS across the 13 tables and the manual red-team pass both remain outstanding (W7).
+ADR-077's gate stays open. **No `suppressed` reading was produced and called a reading** — #1226 forbids
+that by name.
+
+### What this changes about W6 and W7
+
+W7 has been framed as "production-write unlock: RLS, a red-team pass, the ADR-068 capability flip." The
+gate shows something larger and earlier: **the seller path has never been walkable end to end on anything
+but production data**, and as of this deployment it is not walkable at all. #1282 is a prerequisite for any
+authenticated flow, and #1283 has to be settled before W6 builds its option picker against a surface bound
+to a live merchant's rows.
+
+### Honest summary
+
+W5 built the approval gate and it is deployed. Whether a seller can use it is **unproven**, and the two
+reasons are recorded rather than worked around. That is the outcome #1226 explicitly permits, and it is
+the finding the HITL gate existed to produce — the fourth time in this wave a check passed for a reason
+unrelated to its claim, and the first to reach production.
+
 ## Wave roadmap — W4 to W10 (2026-08-20)
 
 Every remaining phase, assigned to a wave, in the order the constraints allow. Waves are
@@ -351,7 +429,7 @@ named for the phases they implement.
 | Wave | Phases | Contents | Parallel with |
 | --- | --- | --- | --- |
 | **W4 — P-CRED + P-IM** | 11c, 11b gate | ✅ **CLOSED 2026-08-21**, deployed `14807670` · #1215 #1216 #1219 #1230 #1231 #1232 #1233 #1234 #1246 | ✅ |
-| **W5 — P9+P14** | 10 | 🟨 **OPEN 2026-08-21** — approval gate #1214, #1221, #1222, #1224, #1225 · security prerequisites #1217, #1218, #1223 (ADR-075) · #1181 resume-status prerequisite · W3 leftovers #1139, #1140 | — |
+| **W5 — P9+P14** | 10 | ✅ **CODE MERGED 2026-08-24**, deployed `4cce75a7` · #1214 #1217 #1218 #1221 #1222 #1224 #1225 #1181 #1223 #1269 #1274 #1140 · **gate #1226 blocked** — see [W5 live verification](#w5-live-verification-2026-08-24) | — |
 | **W6 — P-UI** | 11 | ADR-076 + PUI-DESIGN.md in full — dual entry, recorded-replay + live flag, staged run view, consent-grade option picker, run ledger, `useRunStream`, localStorage mock deleted · #1077 (seller-copy TS half) | **W7** |
 | **W7 — P-PROD** | 11d (NEW) | Production-write unlock: RLS across the 13 tables · manual red-team pass · the ADR-068 capability flip · the ADR-050 C2 data dependencies (per-shop analytics topup, OAuth→signals cold start, 7D bootstrap) | **W6** |
 | **W8 — P10** | 12 | Logging baseline re-verification, per-run rollup, the five-link outcome chain, the four unconflated metrics · closes #1226's second half | — |
