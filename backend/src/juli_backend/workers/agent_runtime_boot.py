@@ -25,6 +25,35 @@ module-level, replacing the old lone broker check):
    and `api/main.py`'s existing `require_env` call); this check exists so a
    worker/beat process -- which today asserts nothing about the JWT secret at
    all -- fails the same way the API already does.
+
+   **Extended by #1282.** Presence of `SUPABASE_JWT_SECRET` is not evidence
+   the deployment can verify a real token -- issue #1282's outage shipped
+   with the secret present and this check green, because the deployed
+   Supabase project issues ES256 tokens the (then HS256-only) verifier could
+   never accept regardless of the secret's value, and because
+   `SUPABASE_URL` held the Postgres `db.<ref>.supabase.co` connection host
+   rather than the project API URL ES256 verification derives its JWKS
+   endpoint from. This check now *also* calls
+   `core.security.supabase_jwks_url()` -- pure string validation, **no
+   network call** -- so a `SUPABASE_URL` shaped like the database host, or
+   missing a scheme, fails boot with a named error instead of the ES256
+   path silently 404ing on its first real request.
+
+   **What this proves:** both algorithm paths this codebase supports are
+   *structurally* configured -- a non-empty HS256 secret exists, and
+   `SUPABASE_URL` is not the one specific wrong value that caused this
+   outage (nor otherwise malformed). **What this does NOT prove:** that the
+   JWKS endpoint is actually reachable, that it returns keys, that
+   `SUPABASE_URL` points at the *correct* project, or that either path
+   verifies a token the identity provider would actually issue. Proving
+   reachability would need either a live network call on every boot --
+   including every test collection that imports `celery_app`, since check 5
+   is unconditional and this function is invoked at module-import time
+   there -- or a live token, neither of which is available at boot. This is
+   therefore a structural check, not a live probe; reachability is instead
+   enforced at request time (`core/security/jwks.py`'s fail-closed
+   `JwksUnavailableError`), where a live token and a live network path both
+   already exist.
 6. Structural backstop: in a production-write-capable deployment (proxied by
    `core.config.is_production()`, the same discriminator that already gates
    `/docs`/`/redoc`/`/openapi.json`), the `agent-runs` route group exposes
@@ -128,6 +157,9 @@ def assert_agent_runtime_config(
     # anything below it: an empty SUPABASE_JWT_SECRET crashes at boot rather
     # than any other check masking it (issue #1217 AC).
     require_env("SUPABASE_JWT_SECRET")
+    # #1282: extended. Structural only -- see the check 5 docstring above
+    # for exactly what this does and does not prove.
+    _assert_supabase_jwks_url_usable()
 
     if broker_url is not None:
         resolved_broker_url = broker_url
@@ -149,6 +181,30 @@ def assert_agent_runtime_config(
     _assert_sandbox_write_guard_config_resolvable()
     if app is not None:
         _assert_zero_unauthenticated_agent_route_groups(app)
+
+
+def _assert_supabase_jwks_url_usable() -> None:
+    """Check 5, extended (#1282): `SUPABASE_URL` must structurally resolve
+    to a usable JWKS endpoint -- no network call, see check 5's docstring
+    for the "what this proves / does not" boundary.
+
+    Local import (matching `_assert_zero_unauthenticated_agent_route_groups`
+    below): `core.security` is a depth-2 cross-package import from
+    `workers`, allowed by `.importlinter.toml`, but keeping it lazy avoids
+    pulling `core.security`'s full package (TikTok OAuth, credential
+    resolution, ...) into every module-level import of this file, including
+    `celery_app.py`'s own module-level call.
+    """
+    from juli_backend.core.security import supabase_jwks_url
+
+    try:
+        supabase_jwks_url()
+    except RuntimeError as exc:
+        # Catches both `JwksUnavailableError` (SUPABASE_URL present but
+        # structurally unusable) and the plain `RuntimeError` `require_env`
+        # raises when SUPABASE_URL is absent entirely -- both are boot
+        # failures here, uniformly named.
+        raise RuntimeError(f"assert_agent_runtime_config: {exc}") from exc
 
 
 def _assert_openai_api_key_present() -> None:

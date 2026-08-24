@@ -29,7 +29,7 @@ async def get_current_user(
 
     secret = require_env("SUPABASE_JWT_SECRET")
     try:
-        payload = verify_supabase_jwt(credentials.credentials, secret)
+        payload = await verify_supabase_jwt(credentials.credentials, secret)
     except Unauthorized as exc:
         # The reason goes to the log, not to the caller. `str(exc)` here echoed the JWT
         # library's own parser text ("Signature has expired", "Invalid crypto padding",

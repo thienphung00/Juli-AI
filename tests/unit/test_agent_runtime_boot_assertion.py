@@ -60,6 +60,7 @@ def _set_valid_baseline_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TIKTOK_APP_KEY", "test-tiktok-app-key")
     monkeypatch.setenv("TIKTOK_APP_SECRET", "test-tiktok-app-secret")
     monkeypatch.setenv("SUPABASE_JWT_SECRET", "test-supabase-jwt-secret")
+    monkeypatch.setenv("SUPABASE_URL", "https://test-project.supabase.co")
     monkeypatch.delenv("ENVIRONMENT", raising=False)
 
 
@@ -258,6 +259,58 @@ class TestCheck5IndividuallyUnmet:
         monkeypatch.delenv("TIKTOK_APP_KEY", raising=False)
         monkeypatch.delenv("TIKTOK_APP_SECRET", raising=False)
         monkeypatch.delenv("SUPABASE_JWT_SECRET", raising=False)
+        with pytest.raises(RuntimeError, match="SUPABASE_JWT_SECRET"):
+            assert_agent_runtime_config()
+
+
+# ---------------------------------------------------------------------------
+# Check 5, extended (#1282) -- SUPABASE_URL must structurally resolve to a
+# usable JWKS endpoint. Still unconditional; still fires before checks 1-4
+# and 6, right after the pre-existing SUPABASE_JWT_SECRET presence check.
+# ---------------------------------------------------------------------------
+
+
+class TestCheck5ExtendedForSupabaseUrl:
+    def test_missing_supabase_url_fails_boot_naming_it(self, monkeypatch):
+        _set_valid_baseline_env(monkeypatch)
+        monkeypatch.delenv("SUPABASE_URL", raising=False)
+        with pytest.raises(RuntimeError, match="SUPABASE_URL"):
+            assert_agent_runtime_config()
+
+    def test_database_host_shaped_supabase_url_fails_boot(self, monkeypatch):
+        """The exact defect that shipped the outage: SUPABASE_URL held the
+        Postgres connection host, not the project API URL, while
+        SUPABASE_JWT_SECRET was present and boot was green."""
+        _set_valid_baseline_env(monkeypatch)
+        monkeypatch.setenv("SUPABASE_URL", "db.abcdefgh.supabase.co")
+        with pytest.raises(RuntimeError, match="database host"):
+            assert_agent_runtime_config()
+
+    def test_schemeless_supabase_url_fails_boot(self, monkeypatch):
+        _set_valid_baseline_env(monkeypatch)
+        monkeypatch.setenv("SUPABASE_URL", "abcdefgh.supabase.co")
+        with pytest.raises(RuntimeError, match="SUPABASE_URL"):
+            assert_agent_runtime_config()
+
+    def test_fires_even_when_agent_workflows_disabled(self, monkeypatch):
+        _set_valid_baseline_env(monkeypatch)
+        monkeypatch.delenv(AGENT_WORKFLOWS_ENABLED_ENV_VAR, raising=False)
+        monkeypatch.delenv("SUPABASE_URL", raising=False)
+        with pytest.raises(RuntimeError, match="SUPABASE_URL"):
+            assert_agent_runtime_config()
+
+    def test_valid_supabase_url_passes(self, monkeypatch):
+        _set_valid_baseline_env(monkeypatch)
+        assert assert_agent_runtime_config() is None
+
+    def test_supabase_jwt_secret_check_fires_first_message_unwrapped(self, monkeypatch):
+        """The pre-existing standalone `require_env("SUPABASE_JWT_SECRET")`
+        call (test_api_main.py pins its exact message) must keep firing
+        before the new SUPABASE_URL check -- both missing must still surface
+        the *secret* error, not the URL one."""
+        _set_valid_baseline_env(monkeypatch)
+        monkeypatch.delenv("SUPABASE_JWT_SECRET", raising=False)
+        monkeypatch.delenv("SUPABASE_URL", raising=False)
         with pytest.raises(RuntimeError, match="SUPABASE_JWT_SECRET"):
             assert_agent_runtime_config()
 

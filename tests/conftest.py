@@ -19,6 +19,15 @@ import pytest
 # `monkeypatch` restores it afterward, unaffected by this default.
 os.environ.setdefault("SUPABASE_JWT_SECRET", "test-jwt-secret-collection-default")
 
+# #1282 / AGT-W5B: check 5 is extended to also require SUPABASE_URL be a
+# structurally usable Supabase API URL (JWKS derives from it) -- see
+# `workers/agent_runtime_boot.py`'s check 5 docstring for what this proves
+# and does not. Same import-time-default rationale as SUPABASE_JWT_SECRET
+# above: `celery_app` imports transitively, before any per-test monkeypatch
+# runs. A test exercising the "SUPABASE_URL missing/unusable" failure path
+# still `monkeypatch.delenv`/`setenv`s it for that test's duration.
+os.environ.setdefault("SUPABASE_URL", "https://test-project.supabase.co")
+
 
 @pytest.fixture
 def app_key():
