@@ -1,0 +1,33 @@
+{
+  "gateVersion": 1,
+  "issue": 1283,
+  "metrics": {
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/api/routes/demo_decisions.py",
+      "backend/src/juli_backend/api/MODULE.md",
+      "backend/src/juli_backend/services/demo_decisions/MODULE.md",
+      "tests/unit/test_api_demo_decisions.py",
+      "tests/unit/test_agent_runs_require_auth.py",
+      "tests/unit/test_route_auth_invariant.py",
+      "docs/adr/076-agent-demo-execution-experience.md"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1283.json",
+    "ownerSignoffPresent": true,
+    "sha256": "940f43950edd2697660723c2b1b9433bb96ce68b8dc44a26eb0416f591a98f23",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-24T05:49:49Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1283.json",
+    "sha256": "943324557893ba7dba403a454da2499b9db0dea897fbf538913add8d0146c439",
+    "status": "PASS"
+  },
+  "wave": null
+}

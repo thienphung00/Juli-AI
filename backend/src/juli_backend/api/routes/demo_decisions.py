@@ -1,15 +1,36 @@
-"""Public Demo Decisions read API (#718, B-6) — unauthenticated GET list/detail.
+"""Demo Decisions read API (#1283, AGT-W5A) — authenticated GET list/detail,
+scoped to the caller's own shop.
 
-Unauthenticated, server-bound reference shop — same `DEMO_REFERENCE_SHOP_ID`
-pattern as `GET /v1/demo/analytics` (#531) and
-`POST /v1/demo/decisions/{id}/approve` (#717, B-5) via
-`api.routes.demo_analytics.get_demo_reference_shop_id`. No `X-Shop-Id`
-header, no bearer token, and no client-controllable `shop_id` anywhere — not
-a query param (explicitly rejected, mirroring `GET /v1/demo/analytics`), not
-a header (simply never read), not a path segment (none exists).
+**Posture changed here.** Originally (#718, B-6) these routes were
+unauthenticated and resolved a server-bound `DEMO_REFERENCE_SHOP_ID` — same
+pattern as `GET /v1/demo/analytics` (#531), via
+`api.routes.demo_analytics.get_demo_reference_shop_id`. On the deployed host
+that reference shop was a real merchant's production shop, so the routes
+served a live seller's recommendations — titles, descriptions, rationales,
+expected-impact figures — to any caller who could reach the URL, with no
+credentials at all (#1283). Separately, the routes ignored `X-Shop-Id`
+entirely while `POST /v1/demo/decisions/{id}/approve`
+(`api/routes/demo_execution.py`) already honoured it via `get_active_shop` —
+so a card a caller could *see* was not necessarily a card that caller could
+*approve*.
+
+Both problems close the same way: `get_current_user` + `get_active_shop`,
+exactly the auth `POST /v1/demo/decisions/{id}/approve` already requires
+(ADR-075 decision 3). ADR-075 decision 3 deliberately left these two
+read-only routes as "P-UI's call" while bringing every route that can
+create/watch/steer/confirm a run under auth; this is that call (#1283).
+`get_demo_reference_shop_id` / `DEMO_REFERENCE_SHOP_ID` are no longer
+involved on this surface — shop scope comes from the authenticated caller's
+`X-Shop-Id` header, resolved and ownership-checked by `get_active_shop`, the
+same channel every other authenticated `/v1/*` read route uses (e.g.
+`api/routes/action_cards.py`, `api/routes/products.py`). There is no more
+`shop_id` query param on either route — that guard existed specifically to
+stop a caller from redirecting the old server-bound routes off the
+reference shop, and its rationale evaporates once shop scope is a real,
+ownership-checked per-caller value.
 
 "Emission-gated" means `ActionCard.surfaced_at`-gated (#716, B-4): only the
-active set `apply_emission_budget` most recently surfaced for the reference
+active set `apply_emission_budget` most recently surfaced for the caller's
 shop is returned. A suppressed candidate, or a card belonging to any other
 shop, is never distinguishable from a nonexistent id — detail lookup 404s
 for all three cases identically (see `services/demo_decisions/read.py`).
@@ -37,12 +58,12 @@ from __future__ import annotations
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.routes.demo_analytics import get_demo_reference_shop_id
-from juli_backend.database import get_session
+from juli_backend.api.dependencies import get_active_shop
+from juli_backend.database import Shop, get_session
 from juli_backend.models.models import ActionCard
 from juli_backend.services.demo_decisions import (
     DecisionNotFound,
@@ -104,15 +125,7 @@ class DemoDecisionDetailResponse(BaseModel):
     error: str | None = None
 
 
-def _reject_visitor_shop_id(shop_id: str | None) -> None:
-    if shop_id is not None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="shop_id is not accepted on public demo endpoints",
-        )
-
-
-def _build_masked_item(card: ActionCard, reference_shop_id: uuid.UUID) -> DemoDecisionItem | None:
+def _build_masked_item(card: ActionCard, shop_id: uuid.UUID) -> DemoDecisionItem | None:
     """Validate one card's masked envelope against the strict typed response
     schema; return ``None`` (never raise) if the persisted payload doesn't
     match the expected shape.
@@ -125,14 +138,15 @@ def _build_masked_item(card: ActionCard, reference_shop_id: uuid.UUID) -> DemoDe
     public response). This function is what turns that rejection into a
     per-row drop instead of a whole-response 500 (#718 Review finding 1).
 
-    Observable via a structured log carrying only ``reference_shop_id`` (the
-    server-bound demo shop, never visitor-controlled) and the card's own
-    opaque ``id`` plus a structural validation reason (field path + pydantic
-    error type/message) — never the raw ``recommendation_payload``, never
-    ``title``/``description`` (may carry seller content), and never
-    ``workflow_key``, matching the no-PII/no-raw-payload/no-workflow_key
-    discipline ``services/action_cards/emission_budget.py``'s suppression
-    logging follows.
+    Observable via a structured log carrying only ``shop_id`` (the
+    authenticated caller's own shop, server-resolved from ``X-Shop-Id`` —
+    never a raw request value) and the card's own opaque ``id`` plus a
+    structural validation reason (field path + pydantic error type/message)
+    — never the raw ``recommendation_payload``, never ``title``/
+    ``description`` (may carry seller content), and never ``workflow_key``,
+    matching the no-PII/no-raw-payload/no-workflow_key discipline
+    ``services/action_cards/emission_budget.py``'s suppression logging
+    follows.
     """
     try:
         return DemoDecisionItem(**mask_decision_payload(card))
@@ -140,7 +154,7 @@ def _build_masked_item(card: ActionCard, reference_shop_id: uuid.UUID) -> DemoDe
         logger.warning(
             "demo_decisions_row_dropped_invalid_shape",
             extra={
-                "reference_shop_id": str(reference_shop_id),
+                "shop_id": str(shop_id),
                 "action_card_id": str(card.id),
                 "validation_errors": exc.errors(
                     include_url=False, include_context=False, include_input=False
@@ -152,39 +166,37 @@ def _build_masked_item(card: ActionCard, reference_shop_id: uuid.UUID) -> DemoDe
 
 @router.get("", response_model=DemoDecisionListResponse)
 async def list_demo_decisions(
-    shop_id: str | None = Query(None, description="Rejected — reference shop is server-bound"),
     session: AsyncSession = Depends(get_session),
-    reference_shop_id: uuid.UUID = Depends(get_demo_reference_shop_id),
+    shop: Shop = Depends(get_active_shop),
 ) -> DemoDecisionListResponse:
-    """Ranked, emission-gated active Decision set for the reference shop.
+    """Ranked, emission-gated active Decision set for the authenticated
+    caller's own shop (resolved from ``X-Shop-Id`` via ``get_active_shop``,
+    #1283).
 
     Per-row resilient (#718 Review finding 1): a single persisted row whose
     ``recommendation_payload`` doesn't match the strict response schema is
     dropped — logged, never serialized, never leaked — rather than failing
-    the entire feed. This is a public, unauthenticated surface; one
-    malformed row must not blank out every other seller's legitimately
-    surfaced Decision.
+    the entire feed. One malformed row must not blank out every other
+    legitimately surfaced Decision for this caller's shop.
     """
-    _reject_visitor_shop_id(shop_id)
+    shop_id = shop.id
 
     try:
-        cards = await list_surfaced_decisions(session, reference_shop_id)
+        cards = await list_surfaced_decisions(session, shop_id)
     except Exception:
         logger.exception(
             "demo_decisions_list_failed",
-            extra={"reference_shop_id": str(reference_shop_id)},
+            extra={"shop_id": str(shop_id)},
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to read demo decisions",
         ) from None
 
-    items = [
-        item for card in cards if (item := _build_masked_item(card, reference_shop_id)) is not None
-    ]
+    items = [item for card in cards if (item := _build_masked_item(card, shop_id)) is not None]
     logger.info(
         "demo_decisions_list_read",
-        extra={"reference_shop_id": str(reference_shop_id), "count": len(items)},
+        extra={"shop_id": str(shop_id), "count": len(items)},
     )
     return DemoDecisionListResponse(data=items)
 
@@ -192,13 +204,14 @@ async def list_demo_decisions(
 @router.get("/{action_card_id}", response_model=DemoDecisionDetailResponse)
 async def get_demo_decision(
     action_card_id: uuid.UUID,
-    shop_id: str | None = Query(None, description="Rejected — reference shop is server-bound"),
     session: AsyncSession = Depends(get_session),
-    reference_shop_id: uuid.UUID = Depends(get_demo_reference_shop_id),
+    shop: Shop = Depends(get_active_shop),
 ) -> DemoDecisionDetailResponse:
-    """Single emission-gated Decision. 404 (safe default) for a suppressed
-    candidate, a nonexistent id, or a card belonging to another shop —
-    tenant existence is never leaked through this endpoint.
+    """Single emission-gated Decision for the authenticated caller's own
+    shop (resolved from ``X-Shop-Id`` via ``get_active_shop``, #1283). 404
+    (safe default) for a suppressed candidate, a nonexistent id, or a card
+    belonging to another shop — tenant existence is never leaked through
+    this endpoint.
 
     Deliberately *not* row-resilient like the list endpoint (#718 Review
     finding 1): a detail lookup has no partial result to preserve, so if the
@@ -212,10 +225,10 @@ async def get_demo_decision(
     ``except Exception`` -> 500 contract as any other unexpected read
     failure on this route, not silently downgraded to 404.
     """
-    _reject_visitor_shop_id(shop_id)
+    shop_id = shop.id
 
     try:
-        card = await get_surfaced_decision(session, reference_shop_id, action_card_id)
+        card = await get_surfaced_decision(session, shop_id, action_card_id)
         item = DemoDecisionItem(**mask_decision_payload(card))
     except DecisionNotFound as exc:
         raise HTTPException(
@@ -226,7 +239,7 @@ async def get_demo_decision(
         logger.exception(
             "demo_decisions_detail_failed",
             extra={
-                "reference_shop_id": str(reference_shop_id),
+                "shop_id": str(shop_id),
                 "action_card_id": str(action_card_id),
             },
         )
