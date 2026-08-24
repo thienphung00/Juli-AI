@@ -1,0 +1,28 @@
+{
+  "gateVersion": 1,
+  "issue": 1282,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 3,
+    "modulesTouched": [
+      "backend/src/juli_backend/core/security",
+      "backend/src/juli_backend/workers"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1282.json",
+    "ownerSignoffPresent": true,
+    "sha256": "9cb701f15b777ceaa61cef503682aa286cb2226e495b944fee17da28585f562c",
+    "signoffRequired": true,
+    "status": "PASS_WITH_WARNINGS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-24T07:02:33Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1282.json",
+    "sha256": "d94610cc4199dc3cb0d7351de64f98114cbb74ad050615d9d8800be0218b0690",
+    "status": "PASS"
+  },
+  "wave": null
+}
