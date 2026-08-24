@@ -71,11 +71,17 @@ test.describe("Phase 2.6 exit gate — Decisions journey", () => {
     page,
   }) => {
     await page.goto("/decisions");
-    const keys = await page
-      .locator("article[data-workflow-key]")
-      .evaluateAll((nodes) =>
-        nodes.map((node) => node.getAttribute("data-workflow-key")),
-      );
+    const cards = page.locator("article[data-workflow-key]");
+
+    // `evaluateAll` snapshots the DOM once, with no auto-retry -- run it before
+    // hydration finishes and it returns `[]`, which is how this test flaked on
+    // main-tier while its sibling above (which uses an auto-retrying
+    // `toHaveCount`) passed in the same run. Wait for the count first, then read.
+    await expect(cards).toHaveCount(RECOMMENDATION_WORKFLOWS.length);
+
+    const keys = await cards.evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute("data-workflow-key")),
+    );
 
     expect(keys).toEqual(
       RECOMMENDATION_WORKFLOWS.map((fixture) => fixture.workflowKey),
