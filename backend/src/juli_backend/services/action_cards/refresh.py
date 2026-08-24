@@ -54,9 +54,7 @@ async def maybe_poll_tiktok_data(session: AsyncSession, shop_id: uuid.UUID) -> N
 
     # Resolve the production-read credential and check if this shop owns it.
     # Only the production-read shop should poll; other refreshes skip polling.
-    from juli_backend.core.security.credential_resolver import (
-        resolve_production_read_credential,
-    )
+    from juli_backend.core.security import resolve_production_read_credential
 
     try:
         production_credential = await resolve_production_read_credential(session)
