@@ -442,6 +442,18 @@ _Avoid_: Create Product Bundle (phantom workflow)
 SPS / AHR / Violation Points render from mock/fixture data in Phase 2 — advisory display only, **no execution_layer workflow mapping** until a live source exists.
 _Avoid_: mapping Shop Status KPIs to live workflows while data remains mock
 
+**Run queue (target NFR — out of scope for current phases)**:
+The eventual concurrency model for agent workflow runs: a burst of run requests (target: 100 for one shop accepted in < 5s) is **accepted and durably queued**, never executed in unbounded parallel. Runs are born as Postgres `queued` rows (already true today) and drain through a **config-bounded per-shop slot pool** (initial target: 10 concurrently executing runs per shop); the rest wait with visible queue state. Surge handling (Campaign/Sales days) is a queue-depth problem, not a compute problem. Design target only — not a gate on any current W-slice.
+_Avoid_: 100 concurrent agents (misreads the NFR as parallelism), Redis broker as the queue of record (ADR-041 — broker loss must be recoverable from Postgres `queued` rows)
+
+**Agent concurrency key (target NFR — out of scope for current phases)**:
+One agent per workflow per product: at most one active `WorkflowRun` per `(shop, workflow category, product)` — equivalently, one agent per subject-scoped **Action Card**, since a card is `(shop, category, subject)`. Two agents may work the same product **only under different categories** (e.g. Optimize Product + Inventory Management concurrently on product X); same category + same product queues. An "agent" is a `WorkflowRun` in flight — there is no persistent agent pool. A category may run many agents simultaneously (one per card), which requires cards to become subject-scoped (today's unique `(shop, workflow_key)` caps each category at one card). Cross-category field collisions on a shared product are arbitrated by the **Basis snapshot** guard, not admission-time exclusion. Supersedes (in the target design) the current `(shop_id, product_id)` partial unique index, which is too coarse — it blocks the allowed cross-category case.
+_Avoid_: product-level exclusion across categories (blocks allowed concurrency), two agents on one Action Card, "agent" as a persistent worker entity
+
+**Agent progress surface (target NFR — out of scope for current phases)**:
+How a seller accurately views many agents at once: the **overview** (all runs + queue positions) is a polled Postgres read model (2–5s cadence, same rows the event stream is built from — overview and stream can never disagree); an **opened run** uses the existing per-run SSE with `Last-Event-ID` replay unchanged (ADR-074). Every rendered state exists as a Postgres row first. A multiplexed per-shop event stream is deliberately deferred behind an explicit trigger — a product requirement for < 1s overview reaction, or measurable polled-overview load at N tenants — because it would force composite/global cursor semantics ADR-074 chose per-run sequences to avoid. Edge prerequisite either way: HTTP/2 + unbuffered SSE at nginx on the run-events location.
+_Avoid_: a global shop-level event sequence (breaks exact replay), one SSE connection per queued run (90 heartbeating idle streams), "accurate" read as "sub-second" (accuracy is same-source-of-truth, latency is a separate dial)
+
 ## GMV impact measurement
 
 **Fujiwa T1 GMV experiment**:
