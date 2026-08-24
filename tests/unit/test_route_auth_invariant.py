@@ -91,11 +91,19 @@ ALLOWLISTED_PRODUCT_ROUTES: dict[tuple[str, str], str] = {
     # POST /v1/demo/decisions/{action_card_id}/approve below, closing the exposure and the
     # listing/approving split (a caller could see a card via these routes it could not
     # approve) in one move. Removed from this allowlist entirely, not just re-justified.
-    ("POST", "/v1/demo/decisions/{action_card_id}/approve"): (
-        "Public Demo approve->execute (#717, B-5) — same ADR-037 pattern. Writes only a "
-        "local dry-run execution record against the server-bound reference shop; no real "
-        "shop, TikTok credential, or user data is ever touched."
-    ),
+    #
+    # POST /v1/demo/decisions/{action_card_id}/approve was ALSO here until #1283 —
+    # justified as "Public Demo approve->execute (#717, B-5) ... writes only a local
+    # dry-run execution record against the server-bound reference shop". That was
+    # already false by the time #1283 found it: #1222 had rewritten this route to
+    # resolve get_active_shop + get_current_user and create a real workflow_run, not a
+    # dry-run record. Because an allowlisted entry is *skipped* by
+    # test_every_product_route_resolves_a_session_dependency above, this masked the
+    # route from the very invariant #900 exists to enforce — if a future change had
+    # dropped get_active_shop again, that test would have stayed green throughout,
+    # having never once looked at the route. Removed entirely (not just re-justified);
+    # test_allowlisted_routes_are_genuinely_unauthenticated below now fails loudly if
+    # any allowlisted route is ever found to resolve a session dependency again.
     ("GET", "/v1/auth/tiktok/callback"): (
         "TikTok Shop OAuth redirect callback — authenticated by a signed OAuth `state` "
         "token (TikTokOAuthInfrastructureService.verify_state), which binds the callback "
@@ -225,6 +233,51 @@ def test_every_product_route_resolves_a_session_dependency() -> None:
         "in tests/unit/test_route_auth_invariant.py with an inline justification; "
         "otherwise wire get_current_user or get_active_shop into it. Routes actually "
         f"registered ({len(routes)}): {_registered_route_summary(routes)}"
+    )
+
+
+def test_allowlisted_routes_are_genuinely_unauthenticated() -> None:
+    """Closes the mask this whole allowlist mechanism can hide behind: an
+    entry in ``ALLOWLISTED_PRODUCT_ROUTES`` is *skipped*, never checked, by
+    ``test_every_product_route_resolves_a_session_dependency`` above --
+    so a route that has since **gained** ``get_current_user`` /
+    ``get_active_shop`` but is still listed here is invisible to that
+    invariant. If a future change ever dropped the dependency again, that
+    test would stay green throughout, having never actually looked at the
+    route. This test asserts the opposite direction: every allowlisted
+    route must resolve *no* session dependency at all, so the allowlist can
+    only ever contain routes that are genuinely, currently public. Found
+    live by #1283: ``POST /v1/demo/decisions/{action_card_id}/approve`` was
+    allowlisted with a justification describing pre-#1222 unauthenticated
+    dry-run behaviour, but the route itself was rewritten by #1222 to
+    resolve ``get_active_shop`` -- this test failed against that entry
+    before it was removed (see the #1283 PR for the failure output)."""
+    routes = _product_api_routes()
+    route_by_key: dict[tuple[str, str], Any] = {}
+    for route in routes:
+        for method in route.methods or ():
+            route_by_key[(method, route.path)] = route
+
+    masked: list[str] = []
+    for key in ALLOWLISTED_PRODUCT_ROUTES:
+        route = route_by_key.get(key)
+        if route is None:
+            # A stale (no-longer-registered) entry is already caught, with
+            # its own clearer message, by
+            # test_allowlist_entries_all_correspond_to_currently_registered_routes
+            # -- nothing further to prove about it here.
+            continue
+        calls = _dependency_calls(route.dependant)
+        if calls & _SESSION_DEPENDENCIES:
+            method, path = key
+            masked.append(f"{method} {path} (endpoint={route.name})")
+
+    assert not masked, (
+        "Allowlisted route(s) actually resolve a session/ownership dependency "
+        "(get_current_user / get_active_shop) -- the allowlist entry is masking "
+        "them from test_every_product_route_resolves_a_session_dependency, which "
+        "skips anything allowlisted without ever checking it. This route is no "
+        f"longer public: remove its ALLOWLISTED_PRODUCT_ROUTES entry. Masked: {masked}"
     )
 
 

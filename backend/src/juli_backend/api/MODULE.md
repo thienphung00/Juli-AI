@@ -33,11 +33,17 @@ from juli_backend.api.dependencies import get_active_shop
 - `GET /v1/demo/analytics` — unauthenticated masked Analytics envelope for the
   server-configured reference shop (Issue #531, ADR-037). No visitor `shop_id`;
   read-through Redis → Postgres SoT; masking applied before response.
-- `POST /v1/demo/decisions/{action_card_id}/approve` — unauthenticated Demo
-  approve → dry-run execute for a Decision (#717, B-5, ADR-037/038 §9). Same
-  server-configured reference shop as `GET /v1/demo/analytics`; never calls a
-  real Partner write client; creates a local `DemoExecutionRecord` only. See
-  `services/demo_execution/MODULE.md`.
+- `POST /v1/demo/decisions/{action_card_id}/approve` — authenticated
+  approve-is-run-creation (ADR-075 decision 1, ADR-082, #1222).
+  `get_current_user` + `get_active_shop`, shop scope from the caller's
+  `X-Shop-Id` header. Originally (#717, B-5, ADR-037/038 §9) this route was
+  unauthenticated, server-configured-reference-shop-bound, and created a
+  local `DemoExecutionRecord` dry-run only; #1222 retired that behaviour
+  and made this the sole way a real `workflow_runs` row comes into
+  existence. See `api/routes/demo_execution.py`'s own docstring and
+  `services/demo_execution/MODULE.md`'s "Retired call site" section for
+  the full history (that module is left in place, registered but
+  unreachable from HTTP, rather than deleted).
 - `GET /v1/demo/decisions` / `GET /v1/demo/decisions/{action_card_id}` —
   authenticated Demo Decisions read (originally #718, B-6, ADR-037/038; auth
   posture updated by #1283, AGT-W5A, ADR-075 decision 3). `get_current_user`
