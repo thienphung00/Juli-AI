@@ -91,7 +91,11 @@ class TestSupabaseJwksUrl:
 
     def test_rejects_query_string(self):
         with pytest.raises(JwksUnavailableError, match="SUPABASE_URL"):
-            supabase_jwks_url("https://abcdefgh.supabase.co?apikey=abc123")
+            supabase_jwks_url(
+                # creds-url-guard: allow -- fake literal in a negative test proving a
+                # query-carrying SUPABASE_URL (the realistic apikey copy-paste) is rejected
+                "https://abcdefgh.supabase.co?apikey=abc123"
+            )
 
     def test_rejects_fragment(self):
         with pytest.raises(JwksUnavailableError, match="SUPABASE_URL"):
