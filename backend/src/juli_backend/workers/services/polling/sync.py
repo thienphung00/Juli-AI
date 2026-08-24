@@ -777,6 +777,104 @@ async def sync_analytics(
             sync_state["promotion_activity_last_sync_at"] = synced_at
 
 
+async def sync_sandbox_write_products(session: AsyncSession, shop_id: uuid.UUID) -> None:
+    """Sync sandbox_write seller's products to shop with rate limiting.
+
+    Respects TikTok API rate limits via real RateLimiter backed by Redis.
+    Skips gracefully if Redis is unavailable (named log for operator).
+
+    This is the cohesive entry point for task-layer sandbox catalog sync;
+    it handles rate limiter creation, credential resolution, and client assembly.
+    """
+    import os
+
+    from juli_backend.integrations.tiktok import (
+        SANDBOX_AUTH_ID,
+        ClientFactoryConfig,
+        SandboxWriteClientFactory,
+    )
+    from juli_backend.repositories.repos import ProductsRepo
+
+    # Check for Redis (required for rate limiter)
+    redis_url = os.getenv("REDIS_URL", "").strip()
+    if not redis_url:
+        logger.info(
+            "sandbox_write_catalog_sync_skipped",
+            extra={"shop_id": str(shop_id), "reason": "redis_url_not_configured"},
+        )
+        return
+
+    # Check for TikTok app credentials
+    app_key = os.getenv("TIKTOK_APP_KEY", "").strip()
+    app_secret = os.getenv("TIKTOK_APP_SECRET", "").strip()
+
+    if not app_key or not app_secret:
+        logger.info(
+            "sandbox_write_catalog_sync_skipped",
+            extra={"shop_id": str(shop_id), "reason": "tiktok_app_credentials_missing"},
+        )
+        return
+
+    # Check if shop has sandbox_write credential
+    stmt = select(TikTokCredential).where(
+        TikTokCredential.shop_id == shop_id,
+        TikTokCredential.capability == "sandbox_write",
+    )
+    result = await session.execute(stmt)
+    sandbox_write_cred = result.scalar_one_or_none()
+
+    if sandbox_write_cred is None:
+        # No sandbox_write credential, skip sync
+        return
+
+    try:
+        # Create real rate limiter with Redis
+        import redis.asyncio
+
+        rate_limiter = RateLimiter(redis.asyncio.from_url(redis_url))
+
+        # Create client config and resources
+        config = ClientFactoryConfig(
+            app_key=app_key,
+            app_secret=app_secret,
+            access_token=sandbox_write_cred.access_token,
+            merchant_auth_id=SANDBOX_AUTH_ID,
+            shop_cipher=sandbox_write_cred.shop_cipher,
+        )
+        resources = SandboxWriteClientFactory.create(config)
+
+        # Create products repo and sync state
+        products_repo = ProductsRepo(session)
+        sync_state = {}
+
+        # Empty handoff (we only care about local upsert in task)
+        async def noop_handoff(channel: str, shop_key: str, value: bytes) -> None:
+            pass
+
+        # Run the sync with local upsert
+        await sync_products_with_local_upsert(
+            resource=resources.products,
+            rate_limiter=rate_limiter,
+            handoff_fn=noop_handoff,
+            products_repo=products_repo,
+            app_id="refresh_task",
+            shop_id=str(shop_id),
+            sync_state=sync_state,
+        )
+
+        logger.info(
+            "sandbox_write_catalog_sync_completed",
+            extra={"shop_id": str(shop_id), "products_synced": len(sync_state)},
+        )
+
+    except Exception:
+        logger.warning(
+            "sandbox_write_catalog_sync_failed",
+            extra={"shop_id": str(shop_id)},
+            exc_info=True,
+        )
+
+
 async def check_sandbox_write_catalog_identity_mismatch(
     session: AsyncSession,
     shop_id: uuid.UUID,
