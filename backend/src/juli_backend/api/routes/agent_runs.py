@@ -128,6 +128,7 @@ from juli_backend.database import Shop, get_session
 from juli_backend.models.models import RunConfirmation
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
+from juli_backend.services.agent import abuse_limits as agent_abuse_limits
 
 # This module deliberately never imports `services.agent.events.*` or
 # `services.agent.runner.*`: the import-boundary contract (MMU-2/#552,
@@ -528,6 +529,76 @@ def _clamp_sequence_cursor(value: int) -> int | None:
     return max(value, 0)
 
 
+async def _sse_stream_with_concurrency_slot(
+    generator: AsyncIterator[str],
+    *,
+    gate: agent_abuse_limits.AbuseLimitGate,
+    shop_id: str,
+) -> AsyncIterator[str]:
+    """Wraps `event_stream`'s generator so the SSE concurrency slot
+    `stream_run_events` already acquired is always released -- ADR-075
+    decision 4 / #1223: "SSE is concurrency, not rate."
+
+    The `finally` below runs on every exit path a Python generator can
+    take, which covers two of the three ways this slot needs to be
+    released:
+
+    - clean end -- `event_stream` returns normally, either after a terminal
+      event or (the already-terminal-at-connect case) after a pure replay.
+    - the run terminating mid-stream -- the same "clean end" path above;
+      `event_stream` itself returns as soon as it sees a terminal event, no
+      different signal needed here.
+
+    **An abnormal client disconnect is the third path, and it does NOT run
+    through a synchronous `.aclose()` call from Starlette.** Checked
+    directly against the installed `starlette.responses.StreamingResponse`
+    source (`inspect.getsource`) rather than assumed: it never calls
+    `.aclose()` on its body iterator anywhere. What actually happens
+    depends on the ASGI spec version the server negotiates:
+
+    - **`spec_version >= (2, 4)`** (what a current uvicorn negotiates):
+      `stream_response` does `async for chunk in self.body_iterator: ...
+      await send(chunk)` -- note `send(chunk)` is OUTSIDE the `async for`'s
+      own `__anext__()` call. A disconnected socket makes `send()` raise
+      `OSError`, which is caught one level up in `__call__` and re-raised
+      as `ClientDisconnect()`. This generator was never re-entered to
+      receive that error -- it is simply abandoned, mid-suspension, at
+      whatever `yield` it last returned from. The `finally` below does NOT
+      fire synchronously with the disconnect in this path. Release then
+      depends on CPython's async-generator GC finalizer eventually
+      scheduling `.aclose()` once nothing references this generator object
+      anymore (`sys.set_asyncgen_hooks`, wired up by asyncio) -- real, but
+      indirect and not deterministic in timing.
+    - **`spec_version < (2, 4)`** (the legacy anyio-task-group path):
+      `listen_for_disconnect` returning cancels the sibling task running
+      `stream_response` via `task_group.cancel_scope.cancel()`. If that
+      cancellation lands while this generator is itself suspended inside
+      `event_stream` (awaiting a message, a DB read, or the heartbeat
+      timeout -- the common case), `asyncio.CancelledError` is raised at
+      exactly that suspension point, propagates through the `async for`
+      below, and the `finally` DOES fire synchronously, same as any other
+      exception.
+
+    So the disconnect path's release is guaranteed-synchronous under task
+    cancellation, best-effort-and-eventual under the modern
+    `OSError`-from-`send()` path. `RedisAbuseLimitGate`'s (and the test
+    double's) 1-hour safety TTL on the concurrency counter exists
+    specifically to bound that worst case -- a leaked slot self-heals
+    within the TTL window even if GC finalization is slow or never runs
+    (e.g. the process is killed before a GC pass). `test_agent_abuse_limits_routes.py`
+    proves the synchronous-release path directly by cancelling the asyncio
+    task consuming this generator while it is suspended inside `event_stream`
+    (the real `CancelledError` mechanism above), not by calling `.aclose()`
+    -- see that test's own docstring for why an `.aclose()`-based test would
+    have proven a mechanism Starlette does not actually use on disconnect.
+    """
+    try:
+        async for chunk in generator:
+            yield chunk
+    finally:
+        await gate.release_stream(shop_id)
+
+
 @router.get("/{run_id}/events")
 async def stream_run_events(
     run_id: uuid.UUID,
@@ -541,6 +612,30 @@ async def stream_run_events(
     poll_interval_s: float = Depends(get_poll_interval_s),
 ) -> StreamingResponse:
     run = await _resolve_owned_run(run_id, shop, session)
+
+    # ADR-075 decision 4 / #1223: SSE is a concurrency limit, not a rate
+    # window -- 10 concurrent streams per shop. Acquired AFTER tenant
+    # scoping above (a 404 for someone else's run must never consume a
+    # slot) and released in `_sse_stream_with_concurrency_slot` below on
+    # every exit path -- clean end, run termination, and client disconnect
+    # alike (see that helper's own docstring for the disconnect proof).
+    stream_gate = agent_abuse_limits.get_agent_abuse_limit_gate()
+    stream_limit_decision = await stream_gate.try_acquire_stream(str(shop.id))
+    if not stream_limit_decision.allowed:
+        agent_abuse_limits.log_abuse_limit_exceeded(
+            logger,
+            shop_id=str(shop.id),
+            operation=agent_abuse_limits.OPERATION_SSE,
+            retry_after_seconds=stream_limit_decision.retry_after_seconds,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                "Too many concurrent event streams for this shop; "
+                f"retry in {stream_limit_decision.retry_after_seconds}s"
+            ),
+            headers={"Retry-After": str(stream_limit_decision.retry_after_seconds)},
+        )
 
     last_event_id = request.headers.get("last-event-id")
     after_seq: int | None = None
@@ -581,7 +676,10 @@ async def stream_run_events(
         heartbeat_interval_s=heartbeat_interval_s,
         poll_interval_s=poll_interval_s,
     )
-    return StreamingResponse(generator, media_type="text/event-stream")
+    released_generator = _sse_stream_with_concurrency_slot(
+        generator, gate=stream_gate, shop_id=str(shop.id)
+    )
+    return StreamingResponse(released_generator, media_type="text/event-stream")
 
 
 @router.post("/{run_id}/cancel", status_code=status.HTTP_202_ACCEPTED)
@@ -602,6 +700,12 @@ async def cancel_run(
     run). `workers/tasks/agent_workflow.py::_construct_runner` wires a
     `cancel_check` that reads this column fresh from the database on every
     `WorkflowRunner` checkpoint poll -- that is the seam this write feeds.
+
+    ADR-075 decision 4 / #1223: deliberately calls no `agent_abuse_limits`
+    gate anywhere in this function -- cancel is never throttled, by never
+    asking the question, not by the gate always answering yes. See
+    `services.agent.abuse_limits`'s module docstring, "Cancel is exempt,
+    structurally."
     """
     run = await _resolve_owned_run(run_id, shop, session)
     run.cancel_requested = True
@@ -767,6 +871,31 @@ async def submit_confirmation_decision(
     for the full ladder, the consent-binding contract, and the single-use
     race guarantee -- this body is the implementation of exactly that.
     """
+    # ADR-075 decision 4 / #1223: the "confirmations" bucket -- 30/hour, per
+    # shop, checked before the run is even resolved (a caller probing
+    # tool_call_ids on runs it does not own must still be throttled, not
+    # just successful decisions). See `services.agent.abuse_limits`'s
+    # docstring for the fail-closed-on-backend-outage decision and why
+    # cancel is structurally exempt from this whole module.
+    limit_decision = await agent_abuse_limits.get_agent_abuse_limit_gate().try_acquire_confirmation(
+        str(shop.id)
+    )
+    if not limit_decision.allowed:
+        agent_abuse_limits.log_abuse_limit_exceeded(
+            logger,
+            shop_id=str(shop.id),
+            operation=agent_abuse_limits.OPERATION_CONFIRMATION,
+            retry_after_seconds=limit_decision.retry_after_seconds,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                "Too many confirmation decisions for this shop; "
+                f"retry in {limit_decision.retry_after_seconds}s"
+            ),
+            headers={"Retry-After": str(limit_decision.retry_after_seconds)},
+        )
+
     # Rung 1: tenant scoping -- 404, never 403, for another shop's run or a
     # nonexistent one (no existence oracle).
     run = await _resolve_owned_run(run_id, shop, session)

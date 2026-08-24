@@ -41,6 +41,7 @@ from juli_backend.api.dependencies import get_active_shop
 from juli_backend.api.routes.agent_runs import _enqueue_run_agent_workflow
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
+from juli_backend.services.agent import abuse_limits as agent_abuse_limits
 from juli_backend.services.agent import approval as approval_module
 
 logger = logging.getLogger(__name__)
@@ -86,6 +87,34 @@ async def approve_demo_decision(
     derived `product_id`, and the Celery task id on success.
     """
     shop_id = shop.id
+
+    # ADR-075 decision 4 / #1223: approve is run creation, so it carries the
+    # "approve / run creation" bucket -- 5/hour, burst 2, per shop, checked
+    # before the ActionCard is even resolved (an attacker probing
+    # nonexistent card ids must still be throttled, not just successful
+    # approvals). Cancel (`api/routes/agent_runs.py::cancel_run`) never
+    # calls this module at all -- see `services.agent.abuse_limits`'s own
+    # docstring for why that exemption is structural, not a fail-open
+    # branch here.
+    limit_decision = await agent_abuse_limits.get_agent_abuse_limit_gate().try_acquire_approve(
+        str(shop_id)
+    )
+    if not limit_decision.allowed:
+        agent_abuse_limits.log_abuse_limit_exceeded(
+            logger,
+            shop_id=str(shop_id),
+            operation=agent_abuse_limits.OPERATION_APPROVE,
+            retry_after_seconds=limit_decision.retry_after_seconds,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                "Too many approve requests for this shop; "
+                f"retry in {limit_decision.retry_after_seconds}s"
+            ),
+            headers={"Retry-After": str(limit_decision.retry_after_seconds)},
+        )
+
     try:
         result = await approval_module.approve_action_card(
             session,

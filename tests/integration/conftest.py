@@ -61,6 +61,42 @@ def anyio_backend():
 
 
 @pytest.fixture(autouse=True)
+def bind_agent_abuse_limit_gate_for_integration_tests():
+    """Default to a generous in-memory gate (ADR-075 decision 4, #1223) so
+    every integration test that builds `create_app()` directly -- without
+    running FastAPI's `lifespan()`, which is where `bind_agent_abuse_limit_gate()`
+    normally runs (`api/main.py`) -- doesn't 500 with "Agent abuse-limit
+    gate is not bound" the first time it hits approve, confirmations, or
+    the SSE events route. Exact mirror of
+    `tests/unit/conftest.py::bind_agent_abuse_limit_gate_for_unit_tests` --
+    see that fixture's own docstring for why a permissive default (not
+    "leave unbound") is correct here: these routes are exercised
+    pervasively across many integration files
+    (`test_agent_confirmation_decision_endpoint.py`,
+    `test_agent_confirmation_decision_postgres.py`,
+    `test_agent_events_streaming_matrix.py`), not by one dedicated caller.
+    Production is unaffected -- uvicorn always runs `lifespan()` before
+    serving traffic, so the real fail-closed `bind_agent_abuse_limit_gate()`
+    binding is what actually answers `get_agent_abuse_limit_gate()` there.
+    """
+    from juli_backend.services.agent.abuse_limits import (
+        InMemoryAbuseLimitGate,
+        set_agent_abuse_limit_gate,
+    )
+
+    set_agent_abuse_limit_gate(
+        InMemoryAbuseLimitGate(
+            approve_max_requests=100_000,
+            approve_burst_max_requests=100_000,
+            confirmation_max_requests=100_000,
+            sse_max_concurrent=100_000,
+        )
+    )
+    yield
+    set_agent_abuse_limit_gate(None)
+
+
+@pytest.fixture(autouse=True)
 def token_encryption_key(request, monkeypatch):
     """A deterministic encryption key for every test that mints its own
     credential rows — but never for a `live` test.

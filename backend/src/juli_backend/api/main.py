@@ -41,6 +41,20 @@ async def lifespan(app: FastAPI):
     # is unset — unlike the cache warm below, it must not go fail-open.
     bind_action_card_refresh_cooldown_gate()
 
+    # ADR-075 decision 4 / #1223: the inbound agent-route abuse limiter
+    # (approve, confirmations, SSE concurrency) — fails closed on the same
+    # basis as the refresh cooldown gate above; cancel never calls it at
+    # all (see services.agent.abuse_limits's module docstring). Imported as
+    # `from juli_backend.services.agent import abuse_limits` rather than
+    # `from juli_backend.services.agent.abuse_limits import ...` — the
+    # latter is a depth-3 cross-package import `.importlinter.toml`
+    # forbids from `api` (max_cross_package_depth = 2); this mirrors the
+    # exact idiom `api/routes/demo_execution.py` already uses for
+    # `services.agent.approval`.
+    from juli_backend.services.agent import abuse_limits as agent_abuse_limits
+
+    agent_abuse_limits.bind_agent_abuse_limit_gate()
+
     # ADR-061 "Startup assertions (fail to boot)" / issue #926: a missing
     # SUPABASE_JWT_SECRET must fail the process at boot rather than let it
     # serve /health 200 and 500 on the first authenticated request. The
