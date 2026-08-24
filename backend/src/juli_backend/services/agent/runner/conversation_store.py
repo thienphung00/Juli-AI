@@ -92,13 +92,16 @@ a future non-runner caller) leaves the column untouched.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Protocol, runtime_checkable
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database.exceptions import NotFound
-from juli_backend.models.models import WorkflowRun
+from juli_backend.models.models import RunConfirmation, WorkflowRun
+from juli_backend.services.agent.events.payloads import ConfirmationOptionPayload
 from juli_backend.services.agent.runner.state import RunState
 from juli_backend.services.agent.status import (
     NON_TERMINAL_STATUSES,
@@ -116,17 +119,39 @@ _TERMINAL_STATUSES: frozenset[WorkflowRunStatus] = (
 )
 
 
+@dataclass(frozen=True)
+class PendingConfirmationWrite:
+    """The `run_confirmations` row `persist`'s `pending_confirmation`
+    kwarg writes (issue #1221 / AGT-W5A, ADR-075 decision 2) — always
+    `status='pending'`, always a fresh row: this shape only ever
+    represents "a CONFIRM pause just happened", never an update to an
+    existing row (the approve/decline transition is a later slice's
+    write path, #1224).
+
+    `options` reuses `ConfirmationOptionPayload` — the exact same shape
+    `workflow.approval_required`'s event payload carries
+    (`runner/confirmation.py::build_confirmation_options` builds it once,
+    for both consumers) — rather than a second, independently-typed
+    "row" shape a future edit could let drift from the event.
+    """
+
+    tool_call_id: str
+    options: Sequence[ConfirmationOptionPayload]
+    expires_at: datetime
+
+
 @runtime_checkable
 class ConversationStore(Protocol):
     """Load/persist a `RunState` for a given `workflow_runs` row.
 
-    Two methods plus one optional terminal-transition seam on `persist`
+    Two methods plus two optional terminal-transition seams on `persist`
     (issue #1178's `status`/`stop_reason` keyword-only parameters, both
-    defaulting to `None`) — still the minimal surface `WorkflowRunner`
-    needs. Keeping the protocol this narrow is what makes the P-CS seam
-    real: an implementation only has to satisfy `load` and `persist`, so a
-    later chat-store implementation is a straightforward swap, not a
-    refactor of every caller.
+    defaulting to `None`; issue #1221's `pending_confirmation`, same
+    default) — still the minimal surface `WorkflowRunner` needs. Keeping
+    the protocol this narrow is what makes the P-CS seam real: an
+    implementation only has to satisfy `load` and `persist`, so a later
+    chat-store implementation is a straightforward swap, not a refactor
+    of every caller.
     """
 
     async def load(self, workflow_run_id: uuid.UUID) -> RunState:
@@ -142,6 +167,8 @@ class ConversationStore(Protocol):
         stop_reason: StopReason | None = None,
         required_steps_completed: bool | None = None,
         running_seconds_elapsed: int | None = None,
+        pending_confirmation: PendingConfirmationWrite | None = None,
+        durable: bool = False,
     ) -> None:
         """Persist `state` as this run's current `RunState`.
 
@@ -168,6 +195,45 @@ class ConversationStore(Protocol):
         passes a value here on *every* `persist` call, not only terminal
         ones — the column must track the float at every write, not only
         at a run's end.
+
+        `pending_confirmation` (issue #1221 / AGT-W5A, ADR-075 decision 2)
+        is a fifth, independent value, `None` by the same no-op default:
+        when a caller passes a `PendingConfirmationWrite`, an
+        implementation is expected to INSERT one `run_confirmations` row
+        (`status='pending'`) capturing exactly what
+        `workflow.approval_required` presented to the seller. Orthogonal
+        to `status`/`stop_reason` — `WorkflowRunner` passes both together
+        at a CONFIRM pause (`status=WAITING_APPROVAL` alongside this), but
+        an implementation must not infer one from the other: writing the
+        confirmation row is this kwarg's job alone, never a side effect of
+        `status` landing on `WAITING_APPROVAL`.
+
+        `durable` (issue #1181 / AGT-W5A review round 2) is a sixth,
+        independent flag, `False` by the same no-op default: every ordinary
+        `persist` call (per-iteration, and every terminal exit `run()`/
+        `resume()` already produced before this issue) rides the *caller's*
+        transaction — `WorkflowRunner` has no session of its own by design
+        (ADR-073 decision 5's deferral seam: a future Redis/Postgres P-CS
+        store swaps the implementation, not the runner, so the runner must
+        never reach into a concrete `AsyncSession`), and
+        `workers/tasks/agent_workflow.py`'s task shells commit that
+        transaction exactly once, after `run()`/`resume()` returns. That is
+        by design for the ordinary case: ADR-074 decision 4's "acks_late,
+        max_retries=1" already treats a crashed task as re-run-from-scratch
+        (the ledger/idempotent-emit machinery absorbs the redelivery), not
+        as a partially-durable checkpoint. `durable=True` is the one
+        documented exception: it asks the store to make *this* write
+        survive independently of whether the caller's own commit is ever
+        reached — the resume-entry status transition off `waiting_approval`
+        needs exactly that (a crash anywhere in the rest of `resume()`, most
+        notably `ToolExecutor.execute` in the approve branch, must not roll
+        the entry write back with it, or the run stays selected by the 4h
+        approval sweep instead of the 5-min stale sweep). Expressed as a
+        protocol-level flag rather than `WorkflowRunner` reaching for
+        `self._session.commit()` directly, so a future storage backend can
+        satisfy "durable now" however durability means for that backend
+        (fsync, replication acknowledgement, ...), not specifically a SQL
+        `COMMIT`.
         """
         ...
 
@@ -204,6 +270,8 @@ class JsonbConversationStore:
         stop_reason: StopReason | None = None,
         required_steps_completed: bool | None = None,
         running_seconds_elapsed: int | None = None,
+        pending_confirmation: PendingConfirmationWrite | None = None,
+        durable: bool = False,
     ) -> None:
         run = await self._session.get(WorkflowRun, workflow_run_id)
         if run is None:
@@ -220,4 +288,34 @@ class JsonbConversationStore:
                 run.completed_at = now
             elif status is WorkflowRunStatus.WAITING_APPROVAL:
                 run.waiting_approval_since = now
+        if pending_confirmation is not None:
+            # `proposed_change` round-trips byte-identically: each option
+            # is dumped via Pydantic's own `model_dump(mode="json")`, the
+            # exact JSON-safe shape `ConfirmationOptionPayload` already
+            # validated on construction -- never re-serialized through a
+            # second, hand-rolled dict-building step that could drift.
+            self._session.add(
+                RunConfirmation(
+                    workflow_run_id=workflow_run_id,
+                    tool_call_id=pending_confirmation.tool_call_id,
+                    options=[
+                        option.model_dump(mode="json") for option in pending_confirmation.options
+                    ],
+                    status="pending",
+                    expires_at=pending_confirmation.expires_at,
+                )
+            )
         await self._session.flush()
+        if durable:
+            # issue #1181 / AGT-W5A review round 2: make THIS write survive
+            # independently of whatever the caller's own transaction does
+            # afterward -- a real `COMMIT` on the shared session, not merely
+            # a flush that stays visible only within this same open
+            # transaction. `expire_on_commit=False` (the production and test
+            # session-factory setting, `database/database.py`) keeps every
+            # already-loaded ORM object usable afterward with no re-fetch
+            # surprise, so nothing downstream in `resume()` observes this
+            # commit at all -- the transaction that follows simply begins
+            # implicitly on next use, exactly as SQLAlchemy's autobegin
+            # already does after any commit.
+            await self._session.commit()

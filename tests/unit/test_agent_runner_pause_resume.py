@@ -52,9 +52,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from juli_backend.models.models import Product, Shop, User, WorkflowRun
+from juli_backend.models.models import Product, RunConfirmation, Shop, User, WorkflowRun
 from juli_backend.services.agent.events import InMemoryEventSink
 from juli_backend.services.agent.llm import AssistantTurn, FinalResponse, ToolCallBlock, Usage
 from juli_backend.services.agent.llm.fake import FakeLLMService
@@ -423,25 +424,36 @@ class TestRunningSecondsColumnExcludesThePauseInterval:
 
 
 class TestResumeDeclined:
-    """`resume(approved=False)` -- not itself one of #1123's core five
-    acceptance criteria, but the other half of the branch `resume` owns;
-    covered here rather than left untested."""
+    """`resume(approved=False)` -- ADR-075 decision 2 / issue #1225 (AGT-W5A):
+    "decline is a conversation, not a kill." The seller's decline is
+    appended to the conversation, the model gets one more turn to wrap up
+    honestly (a REAL `FakeLLMService.complete()` call, never skipped), and
+    the run still ends on the dedicated `confirmation_declined` stop_reason
+    (never `final_response`, which would erase the metric's ability to
+    distinguish "declined then wrapped up" from an ordinary completion) --
+    all while the seller's prior work survives untouched, both in the
+    persisted `RunState` and on the sequence-numbered event stream."""
 
-    async def test_declined_confirmation_ends_the_run_without_dispatching_the_tool(
+    async def test_decline_gives_the_model_a_closing_turn_and_preserves_prior_work(
         self, engine: AsyncEngine
     ):
-        run_id, _state_at_pause, event_count_a, weak_runner_a = await _pause_runner_a(engine)
+        run_id, state_at_pause, event_count_a, weak_runner_a = await _pause_runner_a(engine)
         gc.collect()
         assert weak_runner_a() is None
+        pre_pause_conversation = list(state_at_pause["conversation_window"])
 
         factory = async_sessionmaker(engine, expire_on_commit=False)
         async with factory() as session_b:
             store_b = JsonbConversationStore(session_b)
             spy_b = _SpyToolExecutor()
+            sink_b = InMemoryEventSink()
+            llm_b = FakeLLMService(
+                script=[_turn(FinalResponse(content="Understood -- no changes were made."))]
+            )
             runner_b = WorkflowRunner(
-                llm_service=FakeLLMService(script=[]),  # must never be called
+                llm_service=llm_b,
                 tool_executor=spy_b,
-                event_sink=InMemoryEventSink(),
+                event_sink=sink_b,
                 conversation_store=store_b,
                 registry=_full_registry(),
                 playbook=_pause_resume_playbook(),
@@ -449,16 +461,153 @@ class TestResumeDeclined:
 
             result_b = await runner_b.resume(run_id, approved=False)
 
+            # --- AC: the dedicated stop_reason, not a reuse of final_response ---
             assert result_b.stop_reason == StopReason.CONFIRMATION_DECLINED
             assert result_b.status == WorkflowRunStatus.COMPLETED
+
+            # --- AC: "resumes the loop ... the model produces a closing
+            # response" -- a real LLM turn happened, not a hard stop --------
+            assert len(llm_b.recorded_calls) == 1
+            assert result_b.final_response == "Understood -- no changes were made."
+
+            # --- AC: the declined operation is never dispatched -------------
             assert spy_b.calls == []  # declined -- never dispatched
 
             resumed_state = await store_b.load(run_id)
             assert resumed_state.pending_confirmation is None
-            # decline emits exactly two events (tool.completed, workflow.completed),
-            # continuing from runner A's next_sequence -- no reset, no reuse.
-            # The +1 is #1195's 1-based minting base (see the pause assertion above).
+
+            # --- AC: prior work (tool results, assistant text) survives,
+            # verbatim, as a strict prefix of the post-decline conversation --
+            assert (
+                resumed_state.conversation_window[: len(pre_pause_conversation)]
+                == pre_pause_conversation
+            )
+            # ... plus the decline record and the model's own closing text.
+            assert resumed_state.conversation_window[len(pre_pause_conversation) :] == [
+                {
+                    "role": "tool",
+                    "tool_call_id": "c2",
+                    "tool_name": "update_product_listing",
+                    "content": {"confirmation": {"decision": "declined"}},
+                },
+                {"role": "assistant", "content": "Understood -- no changes were made."},
+            ]
+
+            # --- AC: prior work also survives "on the event stream" -- the
+            # sequence-numbered stream `PersistingEventSink` would append to
+            # in production continues from runner A's own last id, no reset,
+            # no reuse. decline emits exactly two events of its own
+            # (tool.completed for the decline, workflow.completed) -- the
+            # closing FinalResponse itself gets no dedicated event, mirroring
+            # how an ordinary `final_response` turn's text is never streamed
+            # as its own event either (`core.py::_finalize`). The +1 is
+            # #1195's 1-based minting base (see the pause assertion above).
+            assert len(sink_b.events) == 2
+            assert sink_b.events[0].sequence_number == event_count_a + 1
+            all_sequences = [e.sequence_number for e in sink_b.events]
+            assert all_sequences == sorted(all_sequences)
             assert resumed_state.next_sequence == event_count_a + 2 + 1
+
+
+class _CrashingToolExecutor:
+    """Raises an unhandled exception from `execute` -- standing in for a
+    worker process dying mid-dispatch (issue #1181 / AGT-W5A). Deliberately
+    NOT one of `ConcurrencyExhaustedError`/`ToolExecutionUnrecoverableError`
+    -- those are translated outcomes `resume()` already handles and
+    persists a terminal row for; this is the *unhandled* crash case the
+    review finding (1178-R2) is about, which `resume()` never catches."""
+
+    def execute(self, *, tool_name: str, params: Any, tool_call_id: str | None = None) -> dict:
+        raise RuntimeError("simulated worker crash mid-dispatch")
+
+
+class TestResumeEntryPersistsOffWaitingApproval:
+    """Issue #1181 / AGT-W5A, review finding 1178-R2 (round 1) + review
+    round 2's durability finding: `resume()` must persist a status
+    transition off `waiting_approval` at entry, before any tool dispatch or
+    LLM call, and that write must SURVIVE a crash in the rest of `resume()`
+    independently of whether the caller's own transaction ever commits.
+
+    **Why this reproduces the production session lifecycle instead of
+    reading the row back through the same session that wrote it (review
+    round 2's own finding about the round-1 version of this test).**
+    `workers/tasks/agent_workflow.py::_resume_agent_workflow_async` opens
+    exactly ONE `AsyncSession`, threads it into `JsonbConversationStore`,
+    calls `await runner.resume(...)`, and commits that session exactly
+    once -- AFTER `resume()` returns -- with no `try`/`except` around any
+    of it (`test_task_body_has_no_loop_or_branch_logic`'s own AST guard on
+    that module forbids one). If `resume()` raises, the exception
+    propagates straight out through the `async with factory() as session:`
+    block, whose `__aexit__` closes the session WITHOUT committing --
+    SQLAlchemy rolls back anything only `flush()`-ed, never `commit()`-ed,
+    in that transaction. `_crash_resume_mirroring_the_production_task_body`
+    below reproduces that exact shape (open session -> construct runner ->
+    resume -> commit, never reached) so the crash's rollback boundary is
+    the real one, not a stand-in. The row is then read back through session
+    C -- a wholly separate session/connection the way a fresh worker
+    process (or the reaper, in a different process entirely) would see it
+    -- never session B, which performed the write and would show its own
+    uncommitted flush as if it were durable regardless of whether the fix
+    exists (exactly how the round-1 version of this test passed for the
+    wrong reason: reading back through the writer's own still-open
+    transaction cannot distinguish "flushed" from "committed")."""
+
+    async def _crash_resume_mirroring_the_production_task_body(
+        self, factory: async_sessionmaker[AsyncSession], run_id: uuid.UUID
+    ) -> None:
+        """Shaped exactly like `_resume_agent_workflow_async`: one session,
+        no `try`/`except`, one `commit()` call sited AFTER `resume()`
+        returns -- never reached here, since the crashing `ToolExecutor`
+        makes `resume()` raise first."""
+        async with factory() as session_b:
+            store_b = JsonbConversationStore(session_b)
+            runner_b = WorkflowRunner(
+                llm_service=FakeLLMService(script=[]),  # never reached -- crash precedes it
+                tool_executor=_CrashingToolExecutor(),
+                event_sink=InMemoryEventSink(),
+                conversation_store=store_b,
+                registry=_full_registry(),
+                playbook=_pause_resume_playbook(),
+            )
+            await runner_b.resume(run_id, approved=True)
+            await session_b.commit()  # mirrors the task shell's own single final commit
+
+    async def test_the_entry_write_survives_a_crash_read_back_through_a_separate_session(
+        self, engine: AsyncEngine
+    ):
+        run_id, _state_at_pause, _event_count_a, weak_runner_a = await _pause_runner_a(engine)
+        gc.collect()
+        assert weak_runner_a() is None
+
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async with factory() as session_precheck:
+            paused_row = await session_precheck.get(WorkflowRun, run_id)
+            assert paused_row is not None
+            assert paused_row.status == WorkflowRunStatus.WAITING_APPROVAL.value
+
+        try:
+            await self._crash_resume_mirroring_the_production_task_body(factory, run_id)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("expected the simulated crash to propagate out of resume()")
+
+        # Session C: a wholly separate session/connection from the one that
+        # performed the write -- exactly what a fresh worker process (or the
+        # reaper) reads. Only a genuinely committed write is visible here;
+        # an uncommitted flush inside session B's now-closed, rolled-back
+        # transaction is not.
+        async with factory() as session_c:
+            durable_row = await session_c.get(WorkflowRun, run_id)
+            assert durable_row is not None
+            assert durable_row.status == WorkflowRunStatus.RUNNING.value, (
+                "the resume-entry status transition must survive independently of "
+                "whether the rest of resume() ever completes -- read back through a "
+                "session that never touched the write itself"
+            )
+            assert durable_row.stop_reason is None
+            assert durable_row.completed_at is None
 
 
 class TestResumeWithNoPendingConfirmationRaises:
@@ -534,3 +683,114 @@ class TestNoHardcodedPolicyLiteralInResumePath:
             and node.value in forbidden
         }
         assert found == set()
+
+
+# --- AC: decision requests are recorded at the pause (issue #1221 / AGT-W5A) -
+
+
+class TestDecisionRequestRecordedAtPause:
+    """ADR-075 decision 2 acceptance criteria, proven through the real
+    `WorkflowRunner` pause path (not just `JsonbConversationStore.persist`
+    in isolation -- `test_conversation_store.py`'s own coverage) -- reuses
+    `_pause_runner_a`'s exact scripted scenario: the CONFIRM tool is
+    `update_product_listing`, called with `{"title": "New improved
+    title"}`, `call_id="c2"`."""
+
+    async def test_reaching_a_confirm_pause_writes_exactly_one_pending_row(
+        self, engine: AsyncEngine
+    ):
+        run_id, _state_at_pause, _event_count_a, weak_runner_a = await _pause_runner_a(engine)
+        gc.collect()
+        assert weak_runner_a() is None
+
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            rows = (
+                (
+                    await session.execute(
+                        select(RunConfirmation).where(RunConfirmation.workflow_run_id == run_id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+
+            assert len(rows) == 1
+            row = rows[0]
+            assert row.tool_call_id == "c2"  # the CONFIRM call's own call_id
+            assert row.status == "pending"
+            assert row.selected_option_id is None
+            assert row.decided_at is None
+
+            # AC: exactly one option (binary confirm is the N=1 case), and
+            # storage round-trips proposed_change byte-identically -- the
+            # exact dict block.arguments carried, never re-derived through
+            # update_product_listing's own input_model.
+            assert len(row.options) == 1
+            option = row.options[0]
+            assert option["option_id"] == "1"
+            assert option["proposed_change"] == {"title": "New improved title"}
+            assert isinstance(option["rationale"], str) and option["rationale"]
+            assert isinstance(option["params_sha"], str)
+            assert len(option["params_sha"]) == 64
+            int(option["params_sha"], 16)  # a real hex digest
+
+    async def test_the_persisted_row_and_the_emitted_event_carry_the_same_options(
+        self, engine: AsyncEngine
+    ):
+        """`build_confirmation_options` is called exactly once in
+        `_pause_pending_confirmation` -- the event a seller sees and the
+        row #1224 authorizes against must be the same construction, not
+        two independently-computed values that could drift."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session_a:
+            run_id = await _seed_workflow_run(session_a)
+            store_a = JsonbConversationStore(session_a)
+            sink_a = InMemoryEventSink()
+            llm_a = FakeLLMService(
+                script=[
+                    _turn(
+                        ToolCallBlock(
+                            call_id="c1", tool_name="get_product_information", arguments={}
+                        )
+                    ),
+                    _turn(
+                        ToolCallBlock(
+                            call_id="c2",
+                            tool_name="update_product_listing",
+                            arguments={"title": "New improved title"},
+                        )
+                    ),
+                ]
+            )
+            runner_a = WorkflowRunner(
+                llm_service=llm_a,
+                tool_executor=_SpyToolExecutor(result={"title": "unused"}),
+                event_sink=sink_a,
+                conversation_store=store_a,
+                registry=_full_registry(),
+                playbook=_pause_resume_playbook(),
+            )
+            await runner_a.run(run_id, product_ref="prod-1")
+            await session_a.commit()
+
+            approval_events = [
+                e for e in sink_a.events if e.event_type == "workflow.approval_required"
+            ]
+            assert len(approval_events) == 1
+            event_options = approval_events[0].payload.options
+
+        async with factory() as session_check:
+            row = (
+                (
+                    await session_check.execute(
+                        select(RunConfirmation).where(RunConfirmation.workflow_run_id == run_id)
+                    )
+                )
+                .scalars()
+                .one()
+            )
+            persisted_options = row.options
+
+        assert len(event_options) == len(persisted_options) == 1
+        assert event_options[0].model_dump(mode="json") == persisted_options[0]

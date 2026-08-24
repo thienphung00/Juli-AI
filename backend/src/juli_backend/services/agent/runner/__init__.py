@@ -30,6 +30,26 @@ is nothing left to cycle. `WorkflowRunner`, `RunResult`, and
 `ToolExecutor`, `ToolExecutionError` (from `tool_executor`) are ordinary
 eager exports below, importable the same way as everything else in
 `__all__`.
+
+**#1224 (AGT-W5A) adds `compute_params_sha` to this package's exports.**
+`api/routes/agent_runs.py`'s confirmation-decision endpoint re-derives an
+approved option's params fingerprint from the run's reconstructed state
+(ADR-075 decision 2's consent binding) and must call the *real* hash
+function, never a reimplementation (`runner/confirmation.py`'s own
+docstring: "byte-for-byte ... including #1224"). `api` cannot import
+`juli_backend.services.agent.runner.confirmation` directly — that is a
+depth-3 cross-package import, forbidden by `.importlinter.toml`'s
+`max_cross_package_depth = 2` (see `agent_runs.py`'s own module docstring)
+— but `from juli_backend.services.agent import runner as runner_module`
+is exactly depth 2 and already this module's own established idiom
+(`_resolve_optimize_product_prompt_pin`'s `playbooks_module`,
+`_enqueue_run_agent_workflow`'s `agent_workflow_tasks`). Re-exporting
+`compute_params_sha` here — rather than relying on the incidental fact
+that `core.py`'s own `from ...confirmation import build_confirmation_options`
+happens to set `confirmation` as an attribute of this package as a Python
+import side effect — makes that reach a deliberate, documented part of
+this package's public surface instead of a fragile accident of import
+order.
 """
 
 from __future__ import annotations
@@ -47,6 +67,7 @@ from juli_backend.services.agent.runner.concurrency import (
     extract_mutable_fields,
     field_scope_for,
 )
+from juli_backend.services.agent.runner.confirmation import compute_params_sha
 from juli_backend.services.agent.runner.conversation_store import (
     ConversationStore,
     JsonbConversationStore,
@@ -125,6 +146,7 @@ __all__ = [
     "WorkflowRunner",
     "accumulate_running_seconds",
     "capture_basis_snapshot",
+    "compute_params_sha",
     "effective_iteration_cap",
     "evaluate_checkpoint",
     "evaluate_iteration_gate",

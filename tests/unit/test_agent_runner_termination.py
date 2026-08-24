@@ -60,6 +60,7 @@ from juli_backend.services.agent.playbooks.optimize_product import (
     OPTIMIZE_PRODUCT_TERMINATION_POLICY,
 )
 from juli_backend.services.agent.runner.concurrency import ConcurrencyExhaustedError
+from juli_backend.services.agent.runner.conversation_store import PendingConfirmationWrite
 from juli_backend.services.agent.runner.core import RunResult, WorkflowRunner
 from juli_backend.services.agent.runner.state import RunState
 from juli_backend.services.agent.runner.termination import (
@@ -107,7 +108,14 @@ class _InMemoryConversationStore:
     *every* persist call, terminal or not, so a signature omitting it would
     raise `TypeError` on this double's very first `persist` call in any
     scenario in this module, not just one reaching a terminal
-    `stop_reason`."""
+    `stop_reason`.
+
+    `pending_confirmation` (issue #1221) is accepted the same way -- this
+    module's own `_step(..., policy=ToolPolicy.CONFIRM)` scenario now
+    reaches `WorkflowRunner._pause_pending_confirmation`'s dedicated
+    `persist` call at pause; the value itself is out of scope for this
+    termination-policy suite, so it is accepted-and-discarded rather than
+    recorded."""
 
     def __init__(self) -> None:
         self._store: dict[uuid.UUID, RunState] = {}
@@ -131,6 +139,7 @@ class _InMemoryConversationStore:
         stop_reason: StopReason | None = None,
         required_steps_completed: bool | None = None,
         running_seconds_elapsed: int | None = None,
+        pending_confirmation: PendingConfirmationWrite | None = None,
     ) -> None:
         self._store[workflow_run_id] = state
         if running_seconds_elapsed is not None:
@@ -139,6 +148,7 @@ class _InMemoryConversationStore:
             self._status[workflow_run_id] = status
             self._stop_reason[workflow_run_id] = stop_reason
             self._required_steps_completed[workflow_run_id] = required_steps_completed
+        del pending_confirmation  # accepted so WorkflowRunner's pause call doesn't TypeError
 
     def state_for(self, workflow_run_id: uuid.UUID) -> RunState:
         return self._store[workflow_run_id]
@@ -629,7 +639,25 @@ class TestExtensionGrantNarration:
         )
         text = extension_grant_narration(extensions_granted_after_grant=2, policy=policy)
         assert "9" in text  # extension_iterations
-        assert "2 of 5" in text  # extensions_granted_after_grant of max_extensions
+        assert "2/5" in text  # extensions_granted_after_grant / max_extensions
+
+    def test_narration_is_vietnamese_not_english(self):
+        """Issue #1140: `phase_narration` must be VI copy (ADR-074 d.2;
+        `WorkflowStatusPayload`'s own docstring). The old English wording
+        must not survive as a regression."""
+        policy = TerminationPolicy(
+            max_iterations=3,
+            max_extensions=5,
+            extension_iterations=9,
+            wall_clock_timeout_s=10,
+            approval_timeout_h=1,
+            required_steps=("x",),
+        )
+        text = extension_grant_narration(extensions_granted_after_grant=2, policy=policy)
+        assert "Continuing past the standard iteration limit" not in text
+        assert "iteration(s)" not in text
+        # Vietnamese-specific diacritics from the chosen wording.
+        assert "gia hạn" in text
 
 
 # =============================================================================
@@ -712,7 +740,7 @@ class TestIterationCapAndExtensions:
         assert len(status_events) == 1  # exactly one grant -> exactly one event
         assert isinstance(status_events[0], WorkflowStatusEvent)
         assert "2" in status_events[0].payload.phase_narration  # extension_iterations
-        assert "1 of 1" in status_events[0].payload.phase_narration
+        assert "1/1" in status_events[0].payload.phase_narration
 
     async def test_zero_workflow_status_events_when_the_run_finishes_well_under_the_soft_cap(self):
         run_id = uuid.uuid4()
@@ -1114,6 +1142,11 @@ _DEFERRED_TO_LATER_SLICES: frozenset[StopReason] = frozenset(
         StopReason.CONFIRMATION_DECLINED,
         StopReason.PAUSED_FOR_CONFIRMATION,
         StopReason.CONFIRMATION_EXPIRED,
+        # #1224 review round 3: produced by `resume()`'s approve branch (the
+        # same later-slice method that produces the other three CONFIRM-
+        # family members above), never by this file's own `run()`-only
+        # scenario suite.
+        StopReason.CONFIRMATION_DIVERGED,
     }
 )
 
@@ -1133,7 +1166,7 @@ class TestStopReasonReachability:
         assert not (_REACHABLE_BY_THIS_SLICE & _RESERVED_UNREACHABLE)
         assert not (_DEFERRED_TO_LATER_SLICES & _RESERVED_UNREACHABLE)
 
-    def test_worker_lost_is_never_referenced_and_output_validation_has_one_producer(
+    def test_worker_lost_is_never_referenced_and_output_validation_has_two_producers(
         self,
     ):
         """`worker_lost` stays reaper-only: the runner must never claim a worker
@@ -1141,20 +1174,35 @@ class TestStopReasonReachability:
 
         `output_validation_failed` gained its first legitimate producer in
         #1210 -- the outbound banned-pattern guard, in `core.py::_finalize`.
-        Asserted as a count so a second producer cannot appear unnoticed, and
-        `termination.py` stays free of it entirely.
+        Issue #1225 (AGT-W5A) review round 2 added the SECOND, identical
+        producer: `resume()`'s decline branch calls the exact same
+        `guard_outbound_agent_output` chokepoint (via
+        `_closing_turn_after_decline`) for the model's closing response, and
+        must translate a hit through this same terminal member for the same
+        reason #1210 exists at all -- an uncaught guard hit would otherwise
+        leave the row `RUNNING` (this method's own entry-transition persist,
+        #1181) for the reaper to mislabel `worker_lost`. Both are literally
+        "the outbound guard translation" -- one call site each, both inside
+        an `except BannedPatternGuardFailure:` handler -- never a producer
+        unrelated to the guard.
+
+        Counts the exact code pattern (`StopReason.OUTPUT_VALIDATION_FAILED,`
+        as an argument to `_terminate(...)`), not a blanket substring search
+        across the whole file, so prose/docstring mentions of the member
+        (this test's own module included) never inflate the count -- asserted
+        as a fixed number so a THIRD, unreviewed producer cannot appear
+        unnoticed, and `termination.py` stays free of it entirely.
         """
         for path in (CORE_MODULE_PATH, TERMINATION_MODULE_PATH):
             source = path.read_text(encoding="utf-8")
             assert "WORKER_LOST" not in source, f"{path} references the reaper-only stop_reason"
 
-        assert (
-            TERMINATION_MODULE_PATH.read_text(encoding="utf-8").count("OUTPUT_VALIDATION_FAILED")
-            == 0
+        producer_pattern = "StopReason.OUTPUT_VALIDATION_FAILED,"
+        assert TERMINATION_MODULE_PATH.read_text(encoding="utf-8").count(producer_pattern) == 0
+        assert CORE_MODULE_PATH.read_text(encoding="utf-8").count(producer_pattern) == 2, (
+            "exactly two producers are sanctioned: _finalize and resume()'s decline "
+            "branch, both translating the same guard hit"
         )
-        assert (
-            CORE_MODULE_PATH.read_text(encoding="utf-8").count("OUTPUT_VALIDATION_FAILED") == 1
-        ), "exactly one producer (the outbound guard translation) is sanctioned"
 
     async def test_every_reachable_stop_reason_has_a_dedicated_scenario_reaching_it(self):
         reached: dict[StopReason, RunResult] = {

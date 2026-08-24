@@ -249,7 +249,14 @@ from juli_backend.services.agent.llm.openai_adapter import LLMProviderError
 from juli_backend.services.agent.playbooks.base import Playbook
 from juli_backend.services.agent.prompts.composer import compose, prompt_sha256, prompt_version
 from juli_backend.services.agent.runner.concurrency import ConcurrencyExhaustedError
-from juli_backend.services.agent.runner.conversation_store import ConversationStore
+from juli_backend.services.agent.runner.confirmation import (
+    build_confirmation_options,
+    compute_params_sha,
+)
+from juli_backend.services.agent.runner.conversation_store import (
+    ConversationStore,
+    PendingConfirmationWrite,
+)
 from juli_backend.services.agent.runner.ledger import ToolExecutionUnrecoverableError
 from juli_backend.services.agent.runner.state import ConversationMessage, RunState
 from juli_backend.services.agent.runner.termination import (
@@ -270,7 +277,7 @@ from juli_backend.services.agent.sanitize import (
     to_error_envelope,
 )
 from juli_backend.services.agent.status import StopReason, WorkflowRunStatus, status_for
-from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry, UnknownToolError
+from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry, ToolSpec, UnknownToolError
 from juli_backend.services.execution.types import ExecutionErrorCategory
 
 
@@ -449,14 +456,36 @@ class WorkflowRunner:
         approval endpoint is what validates *who* may decide and records
         consent; this method only ever consumes the resulting boolean,
         never a raw request — see the module docstring's boundary note.
-        A declined confirmation ends the run immediately with
-        `stop_reason=confirmation_declined` (`status.py`'s total mapping:
-        `completed`) without ever calling `ToolExecutor.execute`. An
-        approved confirmation dispatches the pending call through the same
-        `ToolExecutor.execute` -> `guard_inbound_tool_result` -> append
-        path `_dispatch_tool_call` uses for an AUTO tool, then re-enters
-        `_drive_loop` — the same block-dispatch loop `run()` uses — to
-        drive the rest of the scripted scenario to completion.
+        **Consent binding is re-verified here too (ADR-075 decision 2,
+        #1224 review round 2), not only at that endpoint** — see the inline
+        comment right before the approve branch's `ToolExecutor.execute`
+        call for the full rationale (why this method, not only the caller,
+        must independently refuse an unconsented change) and for why a
+        divergence stops the run with its own dedicated, individually-named
+        member of `status.py`'s total `StopReason` vocabulary (review round
+        3) rather than reusing `CONCURRENCY_CONFLICT` — a different failure
+        class with an opposite operational meaning, not a mechanically
+        similar one.
+        A declined confirmation is a conversation, not a kill (ADR-075
+        decision 2, issue #1225 / AGT-W5A): it never calls `ToolExecutor
+        .execute`, but it is not a silent stop either. The decline is
+        appended to the conversation exactly like an ordinary tool result,
+        then `_closing_turn_after_decline` gives the model one more `LLM
+        Service.complete()` turn — never `_drive_loop` itself, so the model
+        cannot propose a further tool dispatch — to produce the honest
+        wrap-up text the seller actually sees; a `ToolCallBlock` in that one
+        turn is refused exactly like an unlisted tool, never dispatched. The
+        run still ends on the dedicated `stop_reason=confirmation_declined`
+        (`status.py`'s total mapping: `completed`) — never `final_response`,
+        which would erase the approval-rate metric's ability to distinguish
+        "declined, then wrapped up" from an ordinary completion — carrying
+        whatever closing text the model produced (or `None`, if it said
+        nothing) as `RunResult.final_response`. An approved confirmation
+        dispatches the pending call through the same `ToolExecutor.execute`
+        -> `guard_inbound_tool_result` -> append path `_dispatch_tool_call`
+        uses for an AUTO tool, then re-enters `_drive_loop` — the same
+        block-dispatch loop `run()` uses — to drive the rest of the
+        scripted scenario to completion.
 
         Because nothing calls `accumulate_running_seconds` or
         `allocate_sequence` while the run sat paused (the pause mechanism
@@ -471,6 +500,62 @@ class WorkflowRunner:
         `pending_confirmation` — resuming a run that was never paused (or
         whose pause was already resolved) is a caller bug, never a silent
         no-op.
+
+        **Entry transition off `waiting_approval` (issue #1181 / AGT-W5A,
+        review finding 1178-R2; `durable=True` added in review round 2).**
+        Before either branch below does anything else — no tool dispatch, no
+        `LLM` call, not even the decline branch's `_emit` calls — this
+        method persists `status=RUNNING` through the `ConversationStore`
+        seam, with `durable=True`. A crash anywhere in the rest of this
+        method (the approve branch's synchronous `ToolExecutor.execute`, in
+        particular, is the case #1178's review called out) then leaves the
+        row at `running`, not `waiting_approval`: `workers/tasks/reaper.py::
+        _reap_expired_waiting_approval` selects rows by `status ==
+        WAITING_APPROVAL` alone, so this write drops the run out of that
+        sweep's selection immediately, regardless of how stale
+        `waiting_approval_since` (never cleared here — `JsonbConversation
+        Store.persist` only ever stamps it, never unsets it) is left
+        sitting. The same write makes the row newly eligible for
+        `_reap_stale_running_and_queued` (`status in (QUEUED, RUNNING)`),
+        so an abandoned resume is reaped as `worker_lost`/`failed` by the
+        5-minute sweep instead of silently owned by nobody. `RUNNING` is
+        the existing, already-total vocabulary member for "a run is
+        actively being worked" (`status.py`'s `NON_TERMINAL_STATUSES`) —
+        no new `StopReason`/`WorkflowRunStatus` member, and no
+        `stop_reason` is recorded here (this is not a loop exit, so
+        ADR-073 decision 2's "every exit records exactly one stop_reason"
+        does not apply). This call passes no `stop_reason`,
+        `required_steps_completed`, or `pending_confirmation` — all three
+        stay `None`, the same true no-op every ordinary per-iteration
+        persist relies on.
+
+        **Why `durable=True` here and nowhere else in this module (review
+        round 2, 2026-08-21).** `workers/tasks/agent_workflow.py::
+        _resume_agent_workflow_async` builds this runner's `ConversationStore`
+        from one `AsyncSession` it commits exactly once, *after*
+        `resume()` returns — every other `persist` call in this module
+        (every per-iteration write, and every terminal-exit write) rides
+        that same not-yet-committed transaction, by design (ADR-074
+        decision 4's `acks_late, max_retries=1`: a crash is meant to be
+        absorbed by Celery redelivery replaying from the last *committed*
+        state, not by a partially-committed one). Review round 1 missed
+        that this entry write inherits the same fate: without
+        `durable=True` it is only ever `flush()`-ed, so a crash in the
+        approve branch's `ToolExecutor.execute` — the exact scenario this
+        docstring opened with — rolls it back along with everything else
+        when the caller's session closes uncommitted, leaving the row at
+        `waiting_approval` regardless of this method ever having run.
+        `durable=True` makes `JsonbConversationStore.persist` call
+        `self._session.commit()` immediately after this one write, so it
+        survives independently of whatever happens next. Nothing else in
+        `resume()`/`_drive_loop`'s transaction semantics changes: the
+        commit ends the transaction that covered `load()`'s read plus this
+        one write; every write from here on (the approve branch's own
+        per-iteration/terminal persists, the decline branch's terminal
+        persist) begins a new transaction on first use (SQLAlchemy
+        autobegin) and is still covered by the caller's own single final
+        `await session.commit()` exactly as before — this method still
+        commits nothing else itself.
         """
         state = await self._conversation_store.load(workflow_run_id)
         if state.pending_confirmation is None:
@@ -478,6 +563,14 @@ class WorkflowRunner:
                 f"WorkflowRunner.resume: run {workflow_run_id} has no "
                 "pending_confirmation to resume from."
             )
+
+        await self._conversation_store.persist(
+            workflow_run_id,
+            state,
+            status=WorkflowRunStatus.RUNNING,
+            running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+            durable=True,
+        )
 
         system_prompt = compose(self._playbook.workflow_key, self._playbook.version)
         version_str = prompt_version(self._playbook.workflow_key, self._playbook.version)
@@ -512,6 +605,44 @@ class WorkflowRunner:
                     summary="declined by the seller",
                 ),
             )
+            try:
+                final_response = await self._closing_turn_after_decline(
+                    workflow_run_id,
+                    state,
+                    system_prompt=system_prompt,
+                    tool_definitions=tool_definitions,
+                )
+            except BannedPatternGuardFailure:
+                # Mirrors `_finalize`'s own handling of this exact guard
+                # (#1210), reused here for the identical reason (review
+                # finding, issue #1225 round 2): this method's own entry-
+                # transition persist (#1181, `durable=True`, top of this
+                # method) has already committed `status=RUNNING` before
+                # either branch runs, so leaving this uncaught would strand
+                # the row at RUNNING for `_reap_stale_running_and_queued` to
+                # mislabel `worker_lost` five minutes later -- infrastructure
+                # death for what is actually a guard correctly refusing the
+                # model's closing-turn output. Reuses `_finalize`'s own
+                # `StopReason.OUTPUT_VALIDATION_FAILED` -- the vocabulary
+                # already covers this failure class; no new member.
+                stop = await self._terminate(
+                    workflow_run_id,
+                    state,
+                    StopReason.OUTPUT_VALIDATION_FAILED,
+                    version_str,
+                    sha256,
+                )
+                await self._conversation_store.persist(
+                    workflow_run_id,
+                    state,
+                    status=stop.status,
+                    stop_reason=stop.stop_reason,
+                    required_steps_completed=self._required_steps_completed(state),
+                    running_seconds_elapsed=running_seconds_column_value(
+                        state.running_seconds_elapsed
+                    ),
+                )
+                return stop
             await self._emit(
                 workflow_run_id,
                 state,
@@ -529,7 +660,7 @@ class WorkflowRunner:
             return RunResult(
                 stop_reason=stop_reason,
                 status=status,
-                final_response=None,
+                final_response=final_response,
                 prompt_version=version_str,
                 prompt_sha256=sha256,
                 iteration_count=state.iteration_count,
@@ -537,6 +668,75 @@ class WorkflowRunner:
 
         spec = self._registry.get(tool_name)
         params = spec.input_model.model_validate(arguments)
+
+        # Consent binding, re-verified here (ADR-075 decision 2, #1224
+        # review round 2) -- not only at the confirmation-authorization
+        # endpoint. ADR-075 attributes this check to "the resume task"
+        # itself; before this, it lived solely in `api/routes/agent_runs.py`,
+        # which happened to be `resume_agent_workflow`'s only enqueuer but
+        # was never a structural guarantee of it -- #1225 adds a second
+        # driver of this method next (the decline branch, which never
+        # reaches this line), and a control that holds only because there
+        # is exactly one caller today is not a control at all. `pending`
+        # (`state.pending_confirmation`) is the ONLY channel this method
+        # has: `WorkflowRunner` has no direct database access beyond
+        # `ConversationStore` (this module's own opening docstring), so it
+        # cannot read `run_confirmations.options[].params_sha` itself --
+        # the confirmation endpoint stamps the value it already validated
+        # onto `pending_confirmation["params_sha"]` before enqueueing
+        # (`agent_runs.py`'s approve branch) specifically so this method can
+        # independently re-derive-and-compare from state alone, without
+        # trusting whichever caller got it here. Absent entirely (every
+        # existing caller that resumes a pause it constructed directly,
+        # never through that endpoint -- this module's own test suite
+        # included) is a true no-op, matching every other optional
+        # `pending_confirmation` extension this codebase has added so far;
+        # once present, a mismatch is unconditionally a hard failure, never
+        # a warning, and `compute_params_sha` -- imported, never
+        # reimplemented, see that function's own canonicalization contract
+        # -- is computed over `arguments` verbatim, the same raw dict the
+        # endpoint hashed, not `params` (the validated `input_model`).
+        confirmed_params_sha = pending.get("params_sha")
+        params_sha_diverged = (
+            confirmed_params_sha is not None
+            and compute_params_sha(arguments) != confirmed_params_sha
+        )
+        if params_sha_diverged:
+            # A DEDICATED stop_reason (ADR-073 amendment, ADR-075 decision 2,
+            # #1224 review round 3) -- not a reuse of `CONCURRENCY_CONFLICT`.
+            # Round 2 of this review reused that member on the reasoning that
+            # both are compare-before-write guards; round 3 corrected that:
+            # `concurrency_conflict` (ADR-073 decision 4) means a stale
+            # PRODUCT snapshot -- someone else edited the listing, routine
+            # and retryable in spirit. A `params_sha` divergence means the
+            # write about to execute does NOT match what the seller
+            # consented to -- rare, alarming, and the exact signal the
+            # execution-quality metric (which reads this total vocabulary,
+            # ADR-073 decision 2) must never conflate with "a seller edited
+            # concurrently". Same reasoning extends to any seller-facing
+            # copy that ever renders a stop_reason: reusing
+            # `concurrency_conflict` here would say "someone else edited
+            # your product" for what is actually Juli refusing to run
+            # something the seller never approved. Both still map to
+            # `FAILED` (an integrity failure, not a benign seller decision),
+            # but as two distinct, individually-named members of the total
+            # mapping (`services/agent/status.py`), not one overloaded one --
+            # this is that member's one sanctioned producer, guarded by
+            # `tests/unit/test_workflow_run_status_mapping.py
+            # ::test_confirmation_diverged_is_produced_only_by_the_resume_consent_check`.
+            stop = await self._terminate(
+                workflow_run_id, state, StopReason.CONFIRMATION_DIVERGED, version_str, sha256
+            )
+            await self._conversation_store.persist(
+                workflow_run_id,
+                state,
+                status=stop.status,
+                stop_reason=stop.stop_reason,
+                required_steps_completed=self._required_steps_completed(state),
+                running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+            )
+            return stop
+
         await self._emit(
             workflow_run_id,
             state,
@@ -881,7 +1081,7 @@ class WorkflowRunner:
             return _ToolCallOutcome.MALFORMED
 
         if spec.policy is ToolPolicy.CONFIRM:
-            await self._pause_pending_confirmation(workflow_run_id, state, block)
+            await self._pause_pending_confirmation(workflow_run_id, state, block, spec)
             return _ToolCallOutcome.PAUSED
 
         state.conversation_window.append(self._tool_call_message(block))
@@ -992,7 +1192,7 @@ class WorkflowRunner:
         )
 
     async def _pause_pending_confirmation(
-        self, workflow_run_id: uuid.UUID, state: RunState, block: ToolCallBlock
+        self, workflow_run_id: uuid.UUID, state: RunState, block: ToolCallBlock, spec: ToolSpec
     ) -> None:
         """Record a validated CONFIRM-policy `ToolCallBlock` as this run's
         pending confirmation (issue #1123) — the proposal is appended to the
@@ -1005,6 +1205,31 @@ class WorkflowRunner:
         never a literal) — the reaper's 4h expiry sweep (#1130) is what
         actually enforces it; this module only surfaces the deadline on the
         `workflow.approval_required` event.
+
+        **Decision request recording (issue #1221 / AGT-W5A, ADR-075
+        decision 2).** `build_confirmation_options` (`confirmation.py`)
+        builds the `options[]` list exactly once here — binary confirm's
+        N=1 case, `spec.description` as the placeholder rationale (a
+        genuinely reasoned, per-option rationale is P12's prompt-content
+        concern, not this module's) — and the *same* list is both emitted
+        on `WorkflowApprovalRequiredPayload.options` and written to a new
+        `run_confirmations` row via a dedicated
+        `self._conversation_store.persist(..., pending_confirmation=...)`
+        call, deliberately separate from the per-iteration
+        `status=WAITING_APPROVAL` persist call `_drive_loop` already makes
+        a few lines after this method returns. Two consequences of that
+        separation, both intentional:
+
+        - `state.pending_confirmation` (the JSONB-blob bookkeeping dict
+          `resume()` reads `call_id`/`tool_name`/`arguments` back off of)
+          stays exactly the three keys it always was — the new options/
+          expires_at data never lands there, so it can never leak into
+          that dict's exact-equality test coverage or `resume()`'s own
+          reads of it.
+        - This method calls `persist` with no `status`/`stop_reason` —
+          `JsonbConversationStore.persist`'s existing `waiting_approval_
+          since` stamping stays entirely `_drive_loop`'s job, unchanged;
+          this call's only effect is the `run_confirmations` INSERT.
         """
         state.conversation_window.append(self._tool_call_message(block))
         state.pending_confirmation = {
@@ -1014,6 +1239,10 @@ class WorkflowRunner:
         }
         policy = self._playbook.termination_policy
         expires_at = datetime.now(UTC) + timedelta(hours=policy.approval_timeout_h)
+        options = build_confirmation_options(
+            rationale=spec.description,
+            arguments=block.arguments,
+        )
         await self._emit(
             workflow_run_id,
             state,
@@ -1022,6 +1251,17 @@ class WorkflowRunner:
                 tool_call_id=block.call_id,
                 tool_name=block.tool_name,
                 proposed_change=dict(block.arguments),
+                expires_at=expires_at,
+                options=options,
+            ),
+        )
+        await self._conversation_store.persist(
+            workflow_run_id,
+            state,
+            running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+            pending_confirmation=PendingConfirmationWrite(
+                tool_call_id=block.call_id,
+                options=options,
                 expires_at=expires_at,
             ),
         )
@@ -1050,6 +1290,84 @@ class WorkflowRunner:
             prompt_sha256=sha256,
             iteration_count=state.iteration_count,
         )
+
+    async def _closing_turn_after_decline(
+        self,
+        workflow_run_id: uuid.UUID,
+        state: RunState,
+        *,
+        system_prompt: str,
+        tool_definitions: tuple[ToolDefinition, ...],
+    ) -> str | None:
+        """One `LLMService.complete()` turn after a decline is already in
+        the conversation (issue #1225 / AGT-W5A, ADR-075 decision 2): "the
+        model is told the seller declined, wraps up honestly". This is what
+        makes `resume()`'s decline branch "resume the loop", not just record
+        a decision — the seller who declined a price change still gets the
+        analysis and reasoning the run already produced, restated in the
+        model's own words for this response.
+
+        Deliberately never `_drive_loop` — the run's terminal outcome is
+        already decided (`stop_reason=confirmation_declined`, the dedicated
+        vocabulary member #1224 made reachable), so this is exactly one
+        turn, not an open-ended continuation. A `TextBlock` is appended and
+        emitted exactly like an ordinary mid-run one. A `FinalResponse` runs
+        through the same `guard_outbound_agent_output` chokepoint
+        `_finalize` uses before anything about it is recorded, then its
+        `content` becomes this call's return value — `resume`'s caller
+        threads that straight onto `RunResult.final_response`. A
+        `ToolCallBlock` is refused exactly like `_dispatch_tool_call`
+        refuses a call outside the active playbook's allowlist (`_refuse`,
+        never `ToolExecutor.execute`) — the seller already declined; this
+        turn is for wrapping up, not for proposing new action. Returns
+        `None` when the model's one turn produced no `FinalResponse` block
+        at all (e.g. only `TextBlock`s, or a refused `ToolCallBlock`) —
+        `resume()`'s decline branch still ends `confirmation_declined`
+        either way, this only ever affects `RunResult.final_response`.
+
+        Raises `BannedPatternGuardFailure`, uncaught here, on a guard hit —
+        deliberately NOT swallowed to `None` in this method, the same way
+        `_finalize` does not swallow its own identical guard call. `resume`'s
+        decline branch is what catches it (review finding, issue #1225 round
+        2) and translates it through `_terminate`/`StopReason
+        .OUTPUT_VALIDATION_FAILED` — the same terminal member `_finalize`
+        already uses for this exact failure (#1210), never a new one — for
+        the same reason #1210 exists at all: this method's caller has
+        already durably committed `status=RUNNING` (#1181's entry-transition
+        persist, before either branch runs), so an exception left to
+        propagate all the way out of `resume()` leaves the row stuck at
+        `RUNNING` for `_reap_stale_running_and_queued` to reap as
+        `worker_lost` five minutes later — a lie (no worker was lost) for
+        what is actually a guard correctly refusing the model's output.
+        """
+        turn = await self._llm_service.complete(
+            messages=state.conversation_window_for_llm(),
+            system=system_prompt,
+            tools=tool_definitions,
+            config=self._llm_config,
+        )
+        final_response: str | None = None
+        for block in turn.blocks:
+            if isinstance(block, TextBlock):
+                await self._append_text_block(workflow_run_id, state, block)
+            elif isinstance(block, FinalResponse):
+                guard_outbound_agent_output(
+                    {"content": block.content, "structured_output": block.structured_output}
+                )
+                state.conversation_window.append({"role": "assistant", "content": block.content})
+                final_response = block.content
+                break
+            elif isinstance(block, ToolCallBlock):
+                await self._refuse(
+                    workflow_run_id,
+                    state,
+                    block,
+                    message=(
+                        "The seller declined this change; the run is wrapping up "
+                        "without dispatching any further tool calls."
+                    ),
+                )
+        return final_response
 
     async def _finalize(
         self,

@@ -419,6 +419,78 @@ async def test_waiting_approval_run_past_4h_is_reaped_even_with_a_live_task(sess
     assert reloaded.stop_reason == StopReason.CONFIRMATION_EXPIRED.value
 
 
+async def test_run_mid_resume_no_longer_selected_by_the_approval_sweep(session, shop, product):
+    """Issue #1181 / AGT-W5A: `WorkflowRunner.resume` (`core.py`) now
+    persists `status=running` at entry, before any tool dispatch or LLM
+    call -- through the exact `ConversationStore.persist(status=...)` seam
+    `JsonbConversationStore` implements. Once that write lands,
+    `_reap_expired_waiting_approval`'s own SELECT filters on
+    `WorkflowRun.status == WAITING_APPROVAL` alone, so a row already
+    flipped to `running` never matches its WHERE clause -- regardless of
+    how stale `waiting_approval_since` is left sitting, since `persist`
+    only ever stamps that column, never clears it on a non-terminal,
+    non-waiting_approval status. Proven here directly against the real
+    reaper function, not against `WorkflowRunner` -- a plain row already in
+    the shape `resume()`'s entry write produces is enough to pin the
+    reaper's own selection behaviour."""
+    run = await _make_run(
+        session,
+        shop.id,
+        product.id,
+        status="running",  # what resume() persists at entry, per this issue's fix
+        waiting_approval_since=NOW - timedelta(seconds=APPROVAL_THRESHOLD_S + 1),
+        started_at=NOW - timedelta(seconds=10),  # recent -- not stale by the OTHER sweep
+    )
+
+    result = await reaper.reap_workflow_runs(session, now=NOW, has_live_task=_always_live)
+
+    assert result.expired_approvals_reaped == (), (
+        "a run resume() already flipped off waiting_approval must never be "
+        "reaped by the 4h approval sweep, even though waiting_approval_since "
+        "is still sitting at its stale pre-resume value"
+    )
+    assert result.stale_runs_reaped == ()
+    reloaded = await _reload(session, run)
+    assert reloaded.status == "running"
+    assert reloaded.stop_reason is None
+    assert await _events_for(session, run.id) == []
+
+
+async def test_run_stale_after_resume_entry_is_reaped_as_worker_lost_not_confirmation_expired(
+    session, shop, product
+):
+    """The other half of #1181's fix: a run that crashed during resume's
+    active phase -- after the entry write flipped `status=running` but
+    before any further activity -- must not be left owned by nobody. Once
+    it goes stale (no event for `wall_clock_timeout_s + STALE_RUN_SLACK_S`),
+    the 5-minute sweep reaps it as `worker_lost`/`failed`, and it is never
+    also reaped by the 4h approval sweep, even though the leftover
+    `waiting_approval_since` from before resume is itself long past the
+    approval threshold."""
+    run = await _make_run(
+        session,
+        shop.id,
+        product.id,
+        status="running",
+        waiting_approval_since=NOW - timedelta(seconds=APPROVAL_THRESHOLD_S + 1),
+        started_at=NOW - timedelta(seconds=STALE_THRESHOLD_S + 100),
+    )
+
+    result = await reaper.reap_workflow_runs(session, now=NOW, has_live_task=_never_live)
+
+    assert result.stale_runs_reaped == (run.id,)
+    assert result.expired_approvals_reaped == ()
+
+    reloaded = await _reload(session, run)
+    assert reloaded.status == WorkflowRunStatus.FAILED.value
+    assert reloaded.stop_reason == StopReason.WORKER_LOST.value
+
+    events = await _events_for(session, run.id)
+    assert len(events) == 1
+    assert events[0].payload["stop_reason"] == "worker_lost"
+    assert events[0].payload["status"] == "failed"
+
+
 async def test_waiting_approval_run_with_no_waiting_approval_since_is_skipped(
     session, shop, product
 ):

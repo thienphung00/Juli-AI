@@ -55,6 +55,11 @@ export const STOP_REASONS = [
   "paused_for_confirmation",
   "cancelled_by_seller",
   "confirmation_expired",
+  // ADR-073 amendment (ADR-075 decision 2, #1224 review round 3): consent
+  // binding refused a write because it no longer matched what the seller
+  // consented to -- distinct in kind from `concurrency_conflict` (a stale
+  // product snapshot), even though both are compare-before-write guards.
+  "confirmation_diverged",
   "iteration_cap_exceeded",
   "wall_clock_timeout",
   "tool_error_unrecoverable",
@@ -92,6 +97,7 @@ export const WORKFLOW_FAILED_STOP_REASON_TO_STATUS: Readonly<
       StopReason,
       | "cancelled_by_seller"
       | "confirmation_expired"
+      | "confirmation_diverged"
       | "iteration_cap_exceeded"
       | "wall_clock_timeout"
       | "tool_error_unrecoverable"
@@ -105,6 +111,7 @@ export const WORKFLOW_FAILED_STOP_REASON_TO_STATUS: Readonly<
 > = {
   cancelled_by_seller: "cancelled",
   confirmation_expired: "cancelled",
+  confirmation_diverged: "failed",
   iteration_cap_exceeded: "timed_out",
   wall_clock_timeout: "timed_out",
   tool_error_unrecoverable: "failed",
@@ -144,11 +151,36 @@ export interface ToolCompletedPayload {
   summary: string;
 }
 
+/**
+ * One decision-request option (ADR-075 decision 2, issue #1221 / AGT-W5A)
+ * -- mirrors `ConfirmationOptionPayload` in `payloads.py` field-for-field.
+ * `proposed_change` is verbatim (the audit is what was shown); `params_sha`
+ * is the SHA-256 canonical-JSON fingerprint `runner/confirmation.py`
+ * defines (see that module's docstring for the exact canonicalization).
+ */
+export interface ConfirmationOptionPayload {
+  option_id: string;
+  proposed_change: Record<string, unknown>;
+  rationale: string;
+  params_sha: string;
+}
+
 export interface WorkflowApprovalRequiredPayload {
   tool_call_id: string;
   tool_name: string;
   proposed_change: Record<string, unknown>;
   expires_at: string;
+  /**
+   * Additive AND OPTIONAL (ADR-075 decision 2, issue #1221 / AGT-W5A) --
+   * mirrors `payloads.py`'s `WorkflowApprovalRequiredPayload.options`
+   * defaulting to `[]`. A `workflow_run_events` row written before this
+   * issue shipped has no `options` key at all; `validateAgentEvent` below
+   * (`OPTIONAL_PAYLOAD_FIELDS`) does not require it either, so replaying
+   * that historical row still validates on this side too. Binary confirm
+   * is the N=1 case for every *new* write: exactly one option, not a
+   * structurally different shape from an eventual N>1 decision request.
+   */
+  options?: ConfirmationOptionPayload[];
 }
 
 export interface WorkflowCompletedPayload {
@@ -331,6 +363,16 @@ export const GOLDEN_WORKFLOW_APPROVAL_REQUIRED_EVENT: WorkflowApprovalRequiredEv
       price: { from: "199000", to: "179000" },
     },
     expires_at: "2026-08-14T16:00:05Z",
+    options: [
+      {
+        option_id: "1",
+        proposed_change: {
+          price: { from: "199000", to: "179000" },
+        },
+        rationale: "Apply the new price to the bound product.",
+        params_sha: "21e39b8b688d33711086e974731e227a9818c5da5abe137b16d35157777d5fb1",
+      },
+    ],
   },
   v: 1,
 };
@@ -455,17 +497,33 @@ export function validateAgentEvent(value: unknown): AgentEvent {
     throw new Error(`${type}: payload must be a plain object`);
   }
   const payload = obj["payload"] as Record<string, unknown>;
-  assertExactKeys(payload, PAYLOAD_FIELDS[type], type, "payload");
+  assertExactKeys(payload, PAYLOAD_FIELDS[type], type, "payload", OPTIONAL_PAYLOAD_FIELDS[type]);
   validatePayloadFields(type, payload);
 
   return obj as unknown as AgentEvent;
 }
+
+/**
+ * Payload fields that may be *absent* entirely, keyed by event type --
+ * still members of `PAYLOAD_FIELDS[type]` (so a present-and-valid value is
+ * still checked by `validatePayloadFields`, and an excess/unknown field is
+ * still rejected by `assertExactKeys`'s first loop), just not required to
+ * be present. Currently exactly one entry: `workflow.approval_required
+ * .options` (ADR-075 decision 2, issue #1221 / AGT-W5A) -- see that
+ * payload's own interface doc comment for why. Every other event type's
+ * field set stays fully required, matching `payloads.py`'s "every field
+ * required" default.
+ */
+const OPTIONAL_PAYLOAD_FIELDS: Readonly<Partial<Record<AgentEventType, readonly string[]>>> = {
+  "workflow.approval_required": ["options"],
+};
 
 function assertExactKeys(
   obj: Record<string, unknown>,
   allowed: readonly string[],
   eventType: string,
   label: string,
+  optional: readonly string[] = [],
 ): void {
   const allowedSet = new Set(allowed);
   for (const key of Object.keys(obj)) {
@@ -475,7 +533,11 @@ function assertExactKeys(
       );
     }
   }
+  const optionalSet = new Set(optional);
   for (const key of allowed) {
+    if (optionalSet.has(key)) {
+      continue;
+    }
     if (!(key in obj)) {
       throw new Error(`${eventType}: missing required field "${key}" in ${label}`);
     }
@@ -498,6 +560,46 @@ function requireString(
   if (typeof payload[field] !== "string") {
     throw new Error(`${eventType}: payload.${field} must be a string`);
   }
+}
+
+/** `options[]` validator for `workflow.approval_required` (ADR-075
+ * decision 2, issue #1221 / AGT-W5A) -- each element required, extra keys
+ * forbidden, mirroring `ConfirmationOptionPayload` field-for-field. */
+function validateConfirmationOptions(eventType: AgentEventType, value: unknown): void {
+  if (!Array.isArray(value)) {
+    throw new Error(`${eventType}: payload.options must be an array`);
+  }
+  const allowed = ["option_id", "proposed_change", "rationale", "params_sha"] as const;
+  value.forEach((option, index) => {
+    if (!isPlainObject(option)) {
+      throw new Error(`${eventType}: payload.options[${index}] must be an object`);
+    }
+    for (const key of Object.keys(option)) {
+      if (!(allowed as readonly string[]).includes(key)) {
+        throw new Error(
+          `${eventType}: unexpected field "${key}" in payload.options[${index}] ` +
+            "(extra fields are forbidden)",
+        );
+      }
+    }
+    for (const key of allowed) {
+      if (!(key in option)) {
+        throw new Error(`${eventType}: missing required field "${key}" in payload.options[${index}]`);
+      }
+    }
+    if (typeof option["option_id"] !== "string") {
+      throw new Error(`${eventType}: payload.options[${index}].option_id must be a string`);
+    }
+    if (!isPlainObject(option["proposed_change"])) {
+      throw new Error(`${eventType}: payload.options[${index}].proposed_change must be an object`);
+    }
+    if (typeof option["rationale"] !== "string") {
+      throw new Error(`${eventType}: payload.options[${index}].rationale must be a string`);
+    }
+    if (typeof option["params_sha"] !== "string") {
+      throw new Error(`${eventType}: payload.options[${index}].params_sha must be a string`);
+    }
+  });
 }
 
 function validatePayloadFields(type: AgentEventType, payload: Record<string, unknown>): void {
@@ -532,6 +634,12 @@ function validatePayloadFields(type: AgentEventType, payload: Record<string, unk
         throw new Error(`${type}: payload.proposed_change must be an object`);
       }
       requireString(payload, "expires_at", type);
+      // Optional (OPTIONAL_PAYLOAD_FIELDS): a pre-#1221 historical row has
+      // no "options" key at all, and that must still validate -- only
+      // check shape when the key is actually present.
+      if (payload["options"] !== undefined) {
+        validateConfirmationOptions(type, payload["options"]);
+      }
       return;
     case "workflow.completed": {
       const stopReason = payload["stop_reason"];

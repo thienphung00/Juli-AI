@@ -1,0 +1,32 @@
+{
+  "gateVersion": 1,
+  "issue": 1222,
+  "metrics": {
+    "acceptanceMapped": 11,
+    "acceptanceTotal": 11,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/agent/approval.py",
+      "backend/src/juli_backend/api/routes/demo_execution.py",
+      "backend/src/juli_backend/api/routes/agent_runs.py",
+      "backend/src/juli_backend/repositories/repos.py",
+      "backend/src/juli_backend/services/demo_execution/MODULE.md",
+      "docs/architecture/ownership-registry.yml"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1222.json",
+    "ownerSignoffPresent": true,
+    "sha256": "32ff29640ae096a9cfd4cc3a6b7170e493bb5151832271f6fec36ba579ee7057",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-21T14:55:08Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1222.json",
+    "sha256": "f65817f26fd75488dec50da60a416aec01373ffcd3291f65d1131c05630170a9",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w5"
+}

@@ -1,0 +1,31 @@
+{
+  "gateVersion": 1,
+  "issue": 1269,
+  "metrics": {
+    "acceptanceMapped": 8,
+    "acceptanceTotal": 8,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/database/migrations/versions/040_workflow_run_action_card.py",
+      "backend/src/juli_backend/models/models.py",
+      "docs/architecture/ownership-registry.yml",
+      "tests/unit/test_run_confirmations_approvals_schema.py",
+      "tests/unit/test_workflow_run_action_card_fk_schema.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1269.json",
+    "ownerSignoffPresent": true,
+    "sha256": "6e1fcdcff6ebd13b1526cb071b38b661118301e682391ccc3539cf007c9aa61b",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-21T10:24:12Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1269.json",
+    "sha256": "d29d2594cefdd101e36987078c84b0c4a869282d570d66bf724b4752e676269a",
+    "status": "PASS"
+  },
+  "wave": null
+}

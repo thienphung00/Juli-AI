@@ -602,11 +602,20 @@ class WorkflowRun(Base):
     #: (`_ReaperEventSink.emit`) at every terminal exit, alongside
     #: `status`/`stop_reason` -- never a second, independent write path.
     required_steps_completed: Mapped[bool | None] = mapped_column(Boolean)
+    #: The ActionCard whose approval created this run (migration 040, issue
+    #: #1269, ADR-082 decision 6): ADR-075 decision 1 has always specified
+    #: "INSERT the `workflow_run` (FK to the card)", but #1214 shipped no
+    #: link in either direction. Nullable, no backfill -- runs created
+    #: before this column existed have no card, and inventing one would be
+    #: false data. Nothing writes this column yet; #1222's approve
+    #: transaction is the first writer.
+    action_card_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("action_cards.id"))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index("ix_workflow_runs_shop", "shop_id"),
+        Index("ix_workflow_runs_action_card", "action_card_id"),
         Index(
             "uq_workflow_runs_active_shop_product",
             "shop_id",
@@ -622,7 +631,8 @@ class WorkflowRun(Base):
         CheckConstraint(
             "stop_reason IS NULL OR stop_reason IN ("
             "'final_response', 'confirmation_declined', 'paused_for_confirmation', "
-            "'cancelled_by_seller', 'confirmation_expired', 'iteration_cap_exceeded', "
+            "'cancelled_by_seller', 'confirmation_expired', 'confirmation_diverged', "
+            "'iteration_cap_exceeded', "
             "'wall_clock_timeout', 'tool_error_unrecoverable', 'llm_error', "
             "'concurrency_conflict', 'output_validation_failed', 'worker_lost')",
             name="ck_workflow_runs_stop_reason",
@@ -671,6 +681,58 @@ class WorkflowRunEvent(Base):
             unique=True,
         ),
         Index("ix_workflow_run_events_run_id", "workflow_run_id"),
+    )
+
+
+class RunConfirmation(Base):
+    """Decision request presented at a CONFIRM pause -- one row per pause
+    (ADR-075 decision 2, #1214 / AGT-W5A-DP).
+
+    ``options`` is a list of ``{option_id, proposed_change, rationale,
+    params_sha}``; ``proposed_change`` is stored VERBATIM -- the audit is
+    what was shown to the seller, never a re-derivation from later run
+    state. ``status`` mirrors the "string + CHECK, not a native DB enum"
+    choice ``workflow_runs.status`` made in migration 034, so a later
+    vocabulary addition stays additive.
+
+    The partial unique index ``uq_run_confirmations_pending_run`` on
+    ``workflow_run_id`` (filtered to ``status = 'pending'``) is the
+    structural guard the confirmation-authorization ladder assumes: a run
+    has at most one open decision request at a time, though any number of
+    terminal (approved/declined/expired) rows may accumulate over its
+    lifetime.
+
+    This slice ships schema only -- the runner that writes these rows at a
+    CONFIRM pause, and the route that resolves them, land in later W5-A
+    slices (#1221-#1225).
+    """
+
+    __tablename__ = "run_confirmations"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    workflow_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_runs.id"), nullable=False
+    )
+    tool_call_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    options: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    selected_option_id: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        Index("ix_run_confirmations_workflow_run", "workflow_run_id"),
+        Index(
+            "uq_run_confirmations_pending_run",
+            "workflow_run_id",
+            unique=True,
+            postgresql_where="status = 'pending'",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'approved', 'declined', 'expired')",
+            name="ck_run_confirmations_status",
+        ),
     )
 
 
@@ -892,6 +954,39 @@ class ActionCard(Base):
             name="uq_action_cards_shop_workflow",
         ),
     )
+
+
+class ActionCardApproval(Base):
+    """Approval audit record -- who approved which `ActionCard`, when, and a
+    snapshot of the card as shown (ADR-075 decision 1, #1214 / AGT-W5A-DP).
+
+    A NEW TABLE, not additive columns on `ActionCard` -- see
+    `039_run_confirmations.py`'s module docstring for the full rationale.
+    In short: `ActionCard.approved_at`/`executed_at`/`dismissed_at`/
+    `surfaced_at` (#716) are seller-lifecycle state on the live row, not an
+    audit trail, and must not be repurposed; `card_snapshot` must survive
+    the card later changing, which a column on the card itself cannot do
+    (it IS the thing that changes); and `action_cards` allows only one row
+    per `(shop_id, workflow_key)`, so columns there could only ever hold the
+    most recent approval, not a history.
+
+    `card_snapshot` is stored VERBATIM -- the audit is what was shown to
+    the seller at approval time, mirroring `RunConfirmation.options[].
+    proposed_change`'s discipline.
+
+    This slice ships schema only -- the transactional approve-is-run-
+    creation write path lands in a later W5-A slice.
+    """
+
+    __tablename__ = "action_card_approvals"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    action_card_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("action_cards.id"), nullable=False)
+    approved_by_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    approved_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    card_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+    __table_args__ = (Index("ix_action_card_approvals_action_card", "action_card_id"),)
 
 
 class DecisionEmissionNoveltyLedger(Base):

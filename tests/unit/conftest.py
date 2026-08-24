@@ -60,6 +60,39 @@ def bind_celery_dispatchers_for_unit_tests():
 
 
 @pytest.fixture(autouse=True)
+def bind_agent_abuse_limit_gate_for_unit_tests():
+    """Default to a generous in-memory gate (ADR-075 decision 4, #1223) so
+    every OTHER agent-run route test (approve, confirmations, SSE events)
+    keeps passing without opting in explicitly -- unlike the refresh
+    cooldown gate below (exercised by exactly one dedicated test file), the
+    approve/confirmations/events routes are exercised pervasively across
+    many other test files (#1222, #1224, #1128/AGT-W3B and their
+    descendants), so this mirrors `bind_celery_dispatchers_for_unit_tests`'
+    "safe permissive default" shape rather than
+    `reset_action_card_refresh_cooldown_gate_for_unit_tests`'
+    "leave unbound" shape. Tests that specifically exercise abuse-limit
+    exhaustion (`test_agent_abuse_limits_routes.py`,
+    `test_agent_abuse_limits_gate.py`) bind their own tight gate mid-test,
+    which simply overwrites this default for the rest of that test.
+    """
+    from juli_backend.services.agent.abuse_limits import (
+        InMemoryAbuseLimitGate,
+        set_agent_abuse_limit_gate,
+    )
+
+    set_agent_abuse_limit_gate(
+        InMemoryAbuseLimitGate(
+            approve_max_requests=100_000,
+            approve_burst_max_requests=100_000,
+            confirmation_max_requests=100_000,
+            sse_max_concurrent=100_000,
+        )
+    )
+    yield
+    set_agent_abuse_limit_gate(None)
+
+
+@pytest.fixture(autouse=True)
 def reset_action_card_refresh_cooldown_gate_for_unit_tests():
     """Leave the #899 per-shop refresh cooldown gate unbound by default.
 

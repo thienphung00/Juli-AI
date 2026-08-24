@@ -41,19 +41,64 @@ _construct_runner` wires a `cancel_check` that reads this column fresh from
 the database on every poll -- a cached read would defeat the mechanism,
 since the API process writes the flag and the worker process reads it.
 
-`POST /v1/demo/runs/{run_id}/confirmations/{tool_call_id}` is a **reserved
-shape only**: it exists, tenant-scopes the run, and accepts a `{decision}`
-body, but always answers `501` -- decision validation, consent binding and
-any `run_confirmations` write are W4-A's authorization slice (ADR-074
-decision 5). This route never authorizes and never mutates state.
+`POST /v1/demo/runs/{run_id}/confirmations/{tool_call_id}` authorizes and
+resolves a seller's decision on a CONFIRM-policy pause (ADR-075 decision 2,
+issue #1224 / AGT-W5A). The fail-closed, ordered ladder, each rung its own
+status:
 
-`POST /v1/demo/runs` is issue #1145's Gap 2 fix: creates a `workflow_runs`
-row for a `product_id` under the caller's shop and enqueues
-`run_agent_workflow.delay(str(run_id))` -- the trigger #1129's task shells
-never had. Tenant-scoped the same way every other route here is (404, never
-403, for another shop's product); a second concurrent start on the same
-product fails on #1122's partial unique index (`uq_workflow_runs_active_shop_
-product`) and is translated to `409`, never a bare 500.
+1. the run belongs to the caller's shop -- else `404` (never `403`; no
+   existence oracle).
+2. the run is `waiting_approval` -- else `409`.
+3. `tool_call_id` names a `run_confirmations` row for this run -- else
+   `404`; if that row is no longer `pending` (already decided) -- `409`;
+   if it is `expired` -- `410`.
+4. the confirmation has not passed its `expires_at` wall clock, even if
+   the reaper (`workers/tasks/reaper.py`) has not yet swept it -- else
+   `410`, and this endpoint leaves the run and the row alone for the
+   reaper to finish (never force-terminates).
+
+On `approve`, `option_id` must name one of the confirmation's stored
+options, and the resume path re-derives that option's `params_sha`
+(`services.agent.runner.compute_params_sha`, re-exported at the runner
+package's own depth-2-facade boundary -- never reimplemented here) from
+the run's *reconstructed* state (`workflow_runs.state["pending_confirmation"]
+["arguments"]`, the same raw blob `WorkflowRunner.resume` itself reads) --
+a mismatch is a hard failure (`409`), and the tool is never dispatched: the
+confirmation row is left `pending` and `resume_agent_workflow` is never
+enqueued, so `ToolExecutor.execute` is structurally unreachable on this
+path.
+
+Single-use: the confirmation row's `pending -> approved(option_id) |
+declined` transition is an atomic, conditional `UPDATE ... WHERE
+status = 'pending'` -- a race between two concurrent decisions on the same
+confirmation yields exactly one committed transition (rowcount 1) and one
+loser (rowcount 0, translated to `409`, no enqueue). The transition is
+always committed *before* `resume_agent_workflow` is enqueued -- never the
+reverse, which would let a worker observe the row still `pending` mid-flight
+(the exact `IntegrityError` #1221's review reproduced against a second,
+sequential CONFIRM pause on the same run).
+
+`POST /v1/demo/runs` was issue #1145's Gap 2 fix -- it created a
+`workflow_runs` row directly from a caller-supplied `product_id`, with no
+ActionCard involved. **Removed in #1222** (ADR-075 decision 1: "No 'create
+run' endpoint and no `approval_id` parameter exist on the agent path" --
+a standalone endpoint taking a bare `product_id` is exactly the
+caller-supplied-authority-claim shape that decision forbids, independent of
+whether it also required a card argument). `POST
+/v1/demo/decisions/{action_card_id}/approve`
+(`api/routes/demo_execution.py`) is now the only way a `workflow_runs` row
+comes into existence; it reuses `_enqueue_run_agent_workflow` below (the one
+piece of this removed section still worth sharing -- lazy-import-then-
+`.delay()` is identical regardless of what created the row) via a plain
+intra-package import, and derives its own `product_id` server-side
+(ADR-082) rather than accepting one. `_build_initial_run_state`/
+`_resolve_optimize_product_prompt_pin`, this route's other two Gap-2
+helpers, are NOT reused here: services/agent/approval.py (the new
+transaction module) cannot import this `api`-package module at all (the
+import-boundary contract only allows `api -> services`, never the reverse),
+so it carries its own equivalents, built directly from the ActionCard
+already in hand rather than a heuristic re-query for "the most recent card
+for this workflow".
 
 Every route resolves the run under `get_active_shop` (`api/dependencies.py`,
 the same idiom `api/routes/products.py` uses) and returns **404, never
@@ -69,21 +114,21 @@ import logging
 import os
 import uuid
 from collections.abc import AsyncIterator
-from datetime import datetime
-from typing import Any, Protocol, runtime_checkable
+from datetime import UTC, datetime
+from typing import Any, Protocol, cast, runtime_checkable
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import CursorResult, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from juli_backend.api.dependencies import get_active_shop
 from juli_backend.database import Shop, get_session
-from juli_backend.models.models import ActionCard, Product
+from juli_backend.models.models import RunConfirmation
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
+from juli_backend.services.agent import abuse_limits as agent_abuse_limits
 
 # This module deliberately never imports `services.agent.events.*` or
 # `services.agent.runner.*`: the import-boundary contract (MMU-2/#552,
@@ -132,6 +177,19 @@ TERMINAL_EVENT_TYPES: frozenset[str] = frozenset({"workflow.completed", "workflo
 # string column (not a native DB enum), so these are exactly the values
 # ever stored there for a finished run.
 TERMINAL_RUN_STATUSES: frozenset[str] = frozenset({"completed", "cancelled", "timed_out", "failed"})
+
+# `workflow_runs.status` value a run occupies while a CONFIRM-policy pause
+# awaits a seller decision -- mirrors `services.agent.status
+# .WorkflowRunStatus.WAITING_APPROVAL.value`, a plain literal for the same
+# reason `TERMINAL_RUN_STATUSES` above is: `services.agent.status` is a
+# depth-3 cross-package import from `api`, forbidden by
+# `.importlinter.toml` (see the module docstring's import-boundary note).
+WAITING_APPROVAL_RUN_STATUS = "waiting_approval"
+
+# `run_confirmations.status` values (migration `039_run_confirmations`,
+# `models.models.RunConfirmation`) -- same "plain literal, not an import"
+# reasoning as `WAITING_APPROVAL_RUN_STATUS` above.
+PENDING_CONFIRMATION_STATUS = "pending"
 
 DEFAULT_HEARTBEAT_INTERVAL_S = 15.0
 DEFAULT_POLL_INTERVAL_S = 2.0
@@ -396,43 +454,17 @@ async def event_stream(
 
 
 # ---------------------------------------------------------------------------
-# Run creation (issue #1145 Gap 2) -- the only place a `workflow_runs` row
-# and its `run_agent_workflow.delay(...)` enqueue get created.
+# Enqueue helper (issue #1145 Gap 2, originally). The row-creation half of
+# Gap 2 (`create_run` / `POST /v1/demo/runs`, plus its
+# `_resolve_optimize_product_prompt_pin` / `_build_initial_run_state`
+# helpers) was REMOVED in #1222 -- see this module's own docstring, top of
+# file, for why a standalone create-run endpoint is exactly what ADR-075
+# decision 1 forbids. `_enqueue_run_agent_workflow` survives because it has
+# nothing to do with where the row came from: `api/routes/demo_execution.py`
+# (the sole remaining creator, via `POST
+# /v1/demo/decisions/{action_card_id}/approve`) imports it directly from
+# here rather than duplicating the lazy-import-then-`.delay()` idiom.
 # ---------------------------------------------------------------------------
-
-
-def _resolve_optimize_product_prompt_pin() -> tuple[str, str]:
-    """The real, production-pinned `(prompt_version, prompt_sha256)` for the
-    Optimize Product workflow (ADR-072 d.4's "what runs is what was
-    reviewed" pin) -- recorded on the `workflow_runs` row at creation, since
-    `WorkflowRunner` itself never writes these columns back
-    (`services/agent/runner/core.py`'s own docstring: "no direct database
-    access here, same as prompt_version/prompt_sha256/status").
-
-    Reached via `from juli_backend.services.agent import <submodule> as
-    <alias>` -- the same depth-2-facade pattern `workers/tasks/
-    agent_workflow.py` and `workers/tasks/reaper.py` already use to reach
-    `services.agent.playbooks`/`services.agent.runner`'s public re-exports
-    without a forbidden deep import (`.importlinter.toml`'s
-    `max_cross_package_depth = 2`: the import boundary checker measures a
-    `from X import Y` statement's depth off `X`, not off the attribute `Y`
-    resolves to at runtime -- `X` here is `juli_backend.services.agent`,
-    depth 2, allowed). Unlike the four helpers this module's own docstring
-    describes reproducing locally (`_run_events_channel` and friends), a
-    hand-rolled reproduction of `prompt_sha256` is not viable: it is a
-    SHA-256 of the fully rendered prompt file's bytes, which would silently
-    drift the moment the prose file changes -- calling the real function is
-    the only way this value is ever actually correct.
-    """
-    from juli_backend.services.agent import playbooks as playbooks_module
-    from juli_backend.services.agent import prompts as prompts_module
-
-    workflow_key = playbooks_module.OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key
-    version = prompts_module.production_version(workflow_key)
-    return (
-        prompts_module.prompt_version(workflow_key, version),
-        prompts_module.prompt_sha256(workflow_key, version),
-    )
 
 
 def _enqueue_run_agent_workflow(run_id: uuid.UUID) -> str:
@@ -441,152 +473,14 @@ def _enqueue_run_agent_workflow(run_id: uuid.UUID) -> str:
     `refresh_action_cards.delay(...)` / `execute_approved_tool.delay(...)`.
     Reached via `from juli_backend.workers.tasks import agent_workflow as
     <alias>` rather than a direct submodule import: `api` and `workers` are
-    different top-level packages, so the cross-package depth-2 cap applies
-    here in a way it does not for `dispatch_binding.py` (same package as its
-    target) -- see `_resolve_optimize_product_prompt_pin` above for the same
-    technique.
+    different top-level packages, so the cross-package depth-2 cap
+    (`.importlinter.toml`, `max_cross_package_depth = 2`) applies here in a
+    way it does not for `dispatch_binding.py` (same package as its target).
     """
     from juli_backend.workers.tasks import agent_workflow as agent_workflow_tasks
 
     async_result = agent_workflow_tasks.run_agent_workflow.delay(str(run_id))
     return async_result.id
-
-
-class CreateRunRequest(BaseModel):
-    product_id: uuid.UUID
-
-
-class CreateRunResponse(BaseModel):
-    id: uuid.UUID
-    status: str
-    celery_task_id: str
-
-
-async def _build_initial_run_state(session: AsyncSession, *, shop_id: uuid.UUID) -> dict[str, Any]:
-    """The complete `workflow_runs.state` blob a new run must be created with
-    (issue #1188).
-
-    `WorkflowRunner.run()` opens by calling `ConversationStore.load()`, which
-    deserializes this blob through `RunState.from_dict` -- a reader that
-    rejects any missing field because ADR-073 decision 5 requires a truncated
-    blob to fail loudly rather than be mistaken for a fresh run. Creating the
-    row with `{}` therefore crashed every run at its first statement; a fresh
-    run has to be written complete. See `services/agent/run_context.py` for
-    why the fix belongs here rather than in a more permissive `from_dict`.
-
-    The blob carries the opening `source: "juli"` context message the prompt
-    contract (`prompts/optimize_product/v1.md` Sec.3-4) tells the model to
-    ground itself in. When an ActionCard raised this workflow for the shop,
-    its own `description` is the rationale; otherwise the message says
-    plainly that the run was started directly, rather than inventing a
-    business trigger the seller never saw.
-
-    Reached via the depth-2 facade import this module already uses for
-    `services.agent.playbooks` -- see `_resolve_optimize_product_prompt_pin`.
-    """
-    from juli_backend.services.agent import playbooks as playbooks_module
-    from juli_backend.services.agent import run_context as run_context_module
-
-    workflow_key = playbooks_module.OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key
-
-    card = (
-        (
-            await session.execute(
-                select(ActionCard)
-                .where(ActionCard.shop_id == shop_id, ActionCard.workflow_key == workflow_key)
-                .order_by(ActionCard.computed_at.desc())
-                .limit(1)
-            )
-        )
-        .scalars()
-        .first()
-    )
-
-    rationale = (
-        card.description
-        if card is not None and card.description
-        else run_context_module.DIRECT_RUN_RATIONALE
-    )
-    opening = run_context_module.build_opening_context_message(
-        workflow_key=workflow_key, rationale=rationale
-    )
-    return run_context_module.initial_run_state(opening)
-
-
-@router.post("", status_code=status.HTTP_202_ACCEPTED, response_model=CreateRunResponse)
-async def create_run(
-    body: CreateRunRequest,
-    shop: Shop = Depends(get_active_shop),
-    session: AsyncSession = Depends(get_session),
-) -> CreateRunResponse:
-    """Create a `workflow_runs` row for `body.product_id` under the caller's
-    shop and enqueue `run_agent_workflow`. 404s (never 403s) for a product
-    belonging to another shop or that does not exist -- no existence
-    oracle, the same contract every other route in this module holds.
-    `409`s, never `500`s, when #1122's partial unique index
-    (`uq_workflow_runs_active_shop_product`) rejects a second concurrent
-    active run for the same `(shop_id, product_id)`.
-    """
-    product = await session.get(Product, body.product_id)
-    if product is None or product.shop_id != shop.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
-
-    # Captured before commit/rollback: both expire every attribute on every
-    # object the session still holds (shop included -- `shop` is a
-    # `Depends(get_active_shop)`-resolved ORM instance, not a plain value),
-    # and the log calls below (one on each branch) need values that survive
-    # that without an extra async refresh.
-    shop_id = shop.id
-    product_id = product.id
-
-    prompt_version_value, prompt_sha256_value = _resolve_optimize_product_prompt_pin()
-    initial_state = await _build_initial_run_state(session, shop_id=shop_id)
-
-    run = WorkflowRunRow(
-        shop_id=shop_id,
-        product_id=product_id,
-        state=initial_state,
-        status="queued",
-        prompt_version=prompt_version_value,
-        prompt_sha256=prompt_sha256_value,
-    )
-    session.add(run)
-    try:
-        await session.commit()
-    except IntegrityError:
-        await session.rollback()
-        # #1145 Review: the one state-mutating branch here that previously
-        # left no trace -- a rejected duplicate start is exactly the event
-        # an operator would go looking for. No token/credential/PII fields;
-        # shop_id and product_id are both server-resolved identifiers, never
-        # request-body free text.
-        logger.warning(
-            "agent_run_create_conflict",
-            extra={"shop_id": str(shop_id), "product_id": str(product_id)},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An active run already exists for this product",
-        ) from None
-
-    celery_task_id = _enqueue_run_agent_workflow(run.id)
-
-    # #1145 Review: create_run mutates state (a new workflow_runs row plus
-    # an enqueued Celery task) and previously logged nothing on success --
-    # the run_id/shop_id/product_id/celery_task_id fields are the useful
-    # facts for an operator tracing a run back to its trigger; never the
-    # raw request body.
-    logger.info(
-        "agent_run_created",
-        extra={
-            "shop_id": str(shop_id),
-            "product_id": str(product_id),
-            "run_id": str(run.id),
-            "celery_task_id": celery_task_id,
-        },
-    )
-
-    return CreateRunResponse(id=run.id, status=run.status, celery_task_id=celery_task_id)
 
 
 # ---------------------------------------------------------------------------
@@ -635,6 +529,76 @@ def _clamp_sequence_cursor(value: int) -> int | None:
     return max(value, 0)
 
 
+async def _sse_stream_with_concurrency_slot(
+    generator: AsyncIterator[str],
+    *,
+    gate: agent_abuse_limits.AbuseLimitGate,
+    shop_id: str,
+) -> AsyncIterator[str]:
+    """Wraps `event_stream`'s generator so the SSE concurrency slot
+    `stream_run_events` already acquired is always released -- ADR-075
+    decision 4 / #1223: "SSE is concurrency, not rate."
+
+    The `finally` below runs on every exit path a Python generator can
+    take, which covers two of the three ways this slot needs to be
+    released:
+
+    - clean end -- `event_stream` returns normally, either after a terminal
+      event or (the already-terminal-at-connect case) after a pure replay.
+    - the run terminating mid-stream -- the same "clean end" path above;
+      `event_stream` itself returns as soon as it sees a terminal event, no
+      different signal needed here.
+
+    **An abnormal client disconnect is the third path, and it does NOT run
+    through a synchronous `.aclose()` call from Starlette.** Checked
+    directly against the installed `starlette.responses.StreamingResponse`
+    source (`inspect.getsource`) rather than assumed: it never calls
+    `.aclose()` on its body iterator anywhere. What actually happens
+    depends on the ASGI spec version the server negotiates:
+
+    - **`spec_version >= (2, 4)`** (what a current uvicorn negotiates):
+      `stream_response` does `async for chunk in self.body_iterator: ...
+      await send(chunk)` -- note `send(chunk)` is OUTSIDE the `async for`'s
+      own `__anext__()` call. A disconnected socket makes `send()` raise
+      `OSError`, which is caught one level up in `__call__` and re-raised
+      as `ClientDisconnect()`. This generator was never re-entered to
+      receive that error -- it is simply abandoned, mid-suspension, at
+      whatever `yield` it last returned from. The `finally` below does NOT
+      fire synchronously with the disconnect in this path. Release then
+      depends on CPython's async-generator GC finalizer eventually
+      scheduling `.aclose()` once nothing references this generator object
+      anymore (`sys.set_asyncgen_hooks`, wired up by asyncio) -- real, but
+      indirect and not deterministic in timing.
+    - **`spec_version < (2, 4)`** (the legacy anyio-task-group path):
+      `listen_for_disconnect` returning cancels the sibling task running
+      `stream_response` via `task_group.cancel_scope.cancel()`. If that
+      cancellation lands while this generator is itself suspended inside
+      `event_stream` (awaiting a message, a DB read, or the heartbeat
+      timeout -- the common case), `asyncio.CancelledError` is raised at
+      exactly that suspension point, propagates through the `async for`
+      below, and the `finally` DOES fire synchronously, same as any other
+      exception.
+
+    So the disconnect path's release is guaranteed-synchronous under task
+    cancellation, best-effort-and-eventual under the modern
+    `OSError`-from-`send()` path. `RedisAbuseLimitGate`'s (and the test
+    double's) 1-hour safety TTL on the concurrency counter exists
+    specifically to bound that worst case -- a leaked slot self-heals
+    within the TTL window even if GC finalization is slow or never runs
+    (e.g. the process is killed before a GC pass). `test_agent_abuse_limits_routes.py`
+    proves the synchronous-release path directly by cancelling the asyncio
+    task consuming this generator while it is suspended inside `event_stream`
+    (the real `CancelledError` mechanism above), not by calling `.aclose()`
+    -- see that test's own docstring for why an `.aclose()`-based test would
+    have proven a mechanism Starlette does not actually use on disconnect.
+    """
+    try:
+        async for chunk in generator:
+            yield chunk
+    finally:
+        await gate.release_stream(shop_id)
+
+
 @router.get("/{run_id}/events")
 async def stream_run_events(
     run_id: uuid.UUID,
@@ -648,6 +612,30 @@ async def stream_run_events(
     poll_interval_s: float = Depends(get_poll_interval_s),
 ) -> StreamingResponse:
     run = await _resolve_owned_run(run_id, shop, session)
+
+    # ADR-075 decision 4 / #1223: SSE is a concurrency limit, not a rate
+    # window -- 10 concurrent streams per shop. Acquired AFTER tenant
+    # scoping above (a 404 for someone else's run must never consume a
+    # slot) and released in `_sse_stream_with_concurrency_slot` below on
+    # every exit path -- clean end, run termination, and client disconnect
+    # alike (see that helper's own docstring for the disconnect proof).
+    stream_gate = agent_abuse_limits.get_agent_abuse_limit_gate()
+    stream_limit_decision = await stream_gate.try_acquire_stream(str(shop.id))
+    if not stream_limit_decision.allowed:
+        agent_abuse_limits.log_abuse_limit_exceeded(
+            logger,
+            shop_id=str(shop.id),
+            operation=agent_abuse_limits.OPERATION_SSE,
+            retry_after_seconds=stream_limit_decision.retry_after_seconds,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                "Too many concurrent event streams for this shop; "
+                f"retry in {stream_limit_decision.retry_after_seconds}s"
+            ),
+            headers={"Retry-After": str(stream_limit_decision.retry_after_seconds)},
+        )
 
     last_event_id = request.headers.get("last-event-id")
     after_seq: int | None = None
@@ -688,7 +676,10 @@ async def stream_run_events(
         heartbeat_interval_s=heartbeat_interval_s,
         poll_interval_s=poll_interval_s,
     )
-    return StreamingResponse(generator, media_type="text/event-stream")
+    released_generator = _sse_stream_with_concurrency_slot(
+        generator, gate=stream_gate, shop_id=str(shop.id)
+    )
+    return StreamingResponse(released_generator, media_type="text/event-stream")
 
 
 @router.post("/{run_id}/cancel", status_code=status.HTTP_202_ACCEPTED)
@@ -709,6 +700,12 @@ async def cancel_run(
     run). `workers/tasks/agent_workflow.py::_construct_runner` wires a
     `cancel_check` that reads this column fresh from the database on every
     `WorkflowRunner` checkpoint poll -- that is the seam this write feeds.
+
+    ADR-075 decision 4 / #1223: deliberately calls no `agent_abuse_limits`
+    gate anywhere in this function -- cancel is never throttled, by never
+    asking the question, not by the gate always answering yes. See
+    `services.agent.abuse_limits`'s module docstring, "Cancel is exempt,
+    structurally."
     """
     run = await _resolve_owned_run(run_id, shop, session)
     run.cancel_requested = True
@@ -726,26 +723,365 @@ async def cancel_run(
 
 class ConfirmationDecisionRequest(BaseModel):
     decision: str
+    option_id: str | None = None
 
 
-@router.post("/{run_id}/confirmations/{tool_call_id}")
+class ConfirmationDecisionResponse(BaseModel):
+    decision: str
+    status: str
+    celery_task_id: str
+
+
+# Machine-readable discriminators carried inside `HTTPException.detail` for
+# every error this endpoint raises on its OWN logic (never `_resolve_owned_run`'s
+# shared tenant-scoping 404, which `/events` and `/cancel` also raise --
+# changing that shared shape is out of this endpoint's scope). #1224 review
+# finding: three of this endpoint's conditions all surfaced as a bare-string
+# 409 -- "run not waiting_approval" (benign, retry later), "already decided"
+# (benign double-submit, single-use), and a `params_sha` divergence, which
+# ADR-075 decision 2 calls "a hard failure, not a warning" -- with no way for
+# a caller to tell them apart short of parsing free text. This is additive:
+# every HTTP status code stays exactly what it already was; `error_code` is a
+# new key riding alongside the existing human-readable `message`, not a
+# reclassification. No error-envelope convention exists elsewhere in this
+# codebase to conform to instead (`.cursor/rules/patterns.mdc`'s
+# `{status, data, error, metadata}` shape is aspirational and unused by any
+# real route -- adopting it here would mean restructuring every response,
+# including this endpoint's own 202 success shape, which is out of scope);
+# every other route's error body stays FastAPI's default bare-string
+# `{"detail": "..."}`, unaffected.
+#
+# The sequential "already decided on read" (rung 3) and the concurrent race
+# loser (`_transition_confirmation_or_none` returning `False`) share ONE code
+# deliberately: both are the identical client-observable fact -- "someone
+# already decided this confirmation" -- detected at two different code paths,
+# never two different facts.
+ERROR_RUN_NOT_AWAITING_CONFIRMATION = "run_not_awaiting_confirmation"
+ERROR_CONFIRMATION_NOT_FOUND = "confirmation_not_found"
+ERROR_CONFIRMATION_ALREADY_DECIDED = "confirmation_already_decided"
+ERROR_CONFIRMATION_EXPIRED = "confirmation_expired"
+ERROR_INVALID_DECISION = "invalid_decision"
+ERROR_OPTION_ID_REQUIRED = "option_id_required"
+ERROR_UNKNOWN_OPTION_ID = "unknown_option_id"
+ERROR_PARAMS_SHA_MISMATCH = "params_sha_mismatch"
+ERROR_RUN_STATE_NOT_RECONSTRUCTABLE = "run_state_not_reconstructable"
+
+
+def _confirmation_error(status_code: int, error_code: str, message: str) -> HTTPException:
+    """Build this endpoint's error shape: `{"detail": {"message": ..., "error_code": ...}}`.
+    `error_code` is the stable, machine-readable discriminator (see the
+    module-level constants above); `message` stays the existing
+    human-readable text, unchanged in content from before this field existed.
+    """
+    return HTTPException(
+        status_code=status_code, detail={"message": message, "error_code": error_code}
+    )
+
+
+def _enqueue_resume_agent_workflow(run_id: uuid.UUID, *, approved: bool) -> str:
+    """Enqueue `resume_agent_workflow` for `run_id` -- the same lazy-import-
+    then-`.delay()` idiom `_enqueue_run_agent_workflow` above uses (see that
+    function's own docstring for why the depth-2 cross-package import is
+    required here). `workers/tasks/agent_workflow.py::resume_agent_workflow`
+    already exists end to end (`_resume_agent_workflow_async` ->
+    `_construct_runner` -> `runner.resume(run.id, approved=...)` -> commit)
+    and is already routed to the `agent_runs` Celery queue -- this is its
+    first and only caller.
+    """
+    from juli_backend.workers.tasks import agent_workflow as agent_workflow_tasks
+
+    async_result = agent_workflow_tasks.resume_agent_workflow.delay(str(run_id), approved)
+    return async_result.id
+
+
+def _as_aware_utc(value: datetime) -> datetime:
+    """Normalize a DB-read datetime to aware UTC before comparing to `now`.
+
+    Mirrors `workers/tasks/reaper.py::_as_aware_utc` (not imported --
+    `juli_backend.workers.tasks.reaper` is a depth-3 cross-package import,
+    forbidden by the same `.importlinter.toml` cap this module's own
+    docstring already explains): `run_confirmations.expires_at` is declared
+    `DateTime(timezone=True)`, but SQLite (the unit-test backend) hands
+    naive datetimes back regardless of the column's declared timezone
+    awareness. Every writer in this codebase seeds UTC, never a local
+    timezone, so attaching UTC to a naive value restores information, it
+    does not guess it.
+    """
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+async def _transition_confirmation_or_none(
+    session: AsyncSession,
+    confirmation_id: uuid.UUID,
+    *,
+    new_status: str,
+    selected_option_id: str | None,
+) -> bool:
+    """Atomically flip a `run_confirmations` row out of `pending`, and
+    report whether *this call* won that transition.
+
+    A single conditional `UPDATE ... WHERE id = :id AND status = 'pending'`
+    -- not a read-then-write -- is what makes this safe under a race: two
+    concurrent decisions on the same confirmation both reach this function,
+    but Postgres serializes the two `UPDATE`s against the same row (one
+    blocks on the other's row lock until it commits or rolls back), so at
+    most one can match `status = 'pending'` and return a matched rowcount
+    of `1`; the loser matches zero rows and gets `False` back, never a
+    second, silently-overwriting write. The caller commits (or does not)
+    based on this return value -- this function itself never commits, so a
+    losing caller's transaction has made no durable change to roll back.
+    """
+    stmt = (
+        update(RunConfirmation)
+        .where(
+            RunConfirmation.id == confirmation_id,
+            RunConfirmation.status == PENDING_CONFIRMATION_STATUS,
+        )
+        .values(
+            status=new_status,
+            selected_option_id=selected_option_id,
+            decided_at=datetime.now(UTC),
+        )
+    )
+    # `AsyncSession.execute` is typed generically as `Result[Any]`; an
+    # `UPDATE` statement's real runtime result is a `CursorResult`, which is
+    # where `.rowcount` actually lives -- the cast tells mypy what
+    # SQLAlchemy itself guarantees for a DML statement, it does not change
+    # runtime behavior.
+    result = cast(CursorResult, await session.execute(stmt))
+    return result.rowcount == 1
+
+
+@router.post(
+    "/{run_id}/confirmations/{tool_call_id}",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ConfirmationDecisionResponse,
+)
 async def submit_confirmation_decision(
     run_id: uuid.UUID,
     tool_call_id: str,
     body: ConfirmationDecisionRequest,
     shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
-) -> None:
-    """Reserved shape only (ADR-074 decision 5). Tenant-scopes the run
-    (404, never 403) and accepts a `{decision}` body, then always answers
-    `501` -- decision validation, consent binding and any
-    `run_confirmations` write are W4-A's. This route never authorizes and
-    never mutates state."""
-    await _resolve_owned_run(run_id, shop, session)
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail=(
-            f"Confirmation decisions for tool_call_id={tool_call_id!r} are not yet "
-            "implemented -- decision authorization lands in a later slice (W4-A)."
-        ),
+) -> ConfirmationDecisionResponse:
+    """Authorize and resolve a seller's decision on a CONFIRM-policy pause
+    (ADR-075 decision 2, issue #1224 / AGT-W5A). See the module docstring
+    for the full ladder, the consent-binding contract, and the single-use
+    race guarantee -- this body is the implementation of exactly that.
+    """
+    # ADR-075 decision 4 / #1223: the "confirmations" bucket -- 30/hour, per
+    # shop, checked before the run is even resolved (a caller probing
+    # tool_call_ids on runs it does not own must still be throttled, not
+    # just successful decisions). See `services.agent.abuse_limits`'s
+    # docstring for the fail-closed-on-backend-outage decision and why
+    # cancel is structurally exempt from this whole module.
+    limit_decision = await agent_abuse_limits.get_agent_abuse_limit_gate().try_acquire_confirmation(
+        str(shop.id)
+    )
+    if not limit_decision.allowed:
+        agent_abuse_limits.log_abuse_limit_exceeded(
+            logger,
+            shop_id=str(shop.id),
+            operation=agent_abuse_limits.OPERATION_CONFIRMATION,
+            retry_after_seconds=limit_decision.retry_after_seconds,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                "Too many confirmation decisions for this shop; "
+                f"retry in {limit_decision.retry_after_seconds}s"
+            ),
+            headers={"Retry-After": str(limit_decision.retry_after_seconds)},
+        )
+
+    # Rung 1: tenant scoping -- 404, never 403, for another shop's run or a
+    # nonexistent one (no existence oracle).
+    run = await _resolve_owned_run(run_id, shop, session)
+
+    # Rung 2: the run must actually be paused for a decision.
+    if run.status != WAITING_APPROVAL_RUN_STATUS:
+        raise _confirmation_error(
+            status.HTTP_409_CONFLICT,
+            ERROR_RUN_NOT_AWAITING_CONFIRMATION,
+            f"Run {run_id} is not awaiting a confirmation decision (status={run.status!r}).",
+        )
+
+    # Rung 3 (+ single-use): the confirmation row for this exact
+    # tool_call_id, whatever its current status. A `tool_call_id` this run
+    # never paused on at all is a 404 (the ladder's "matches THE pending
+    # confirmation" rung); one that already resolved (approved/declined) is
+    # a 409 (single-use, second decision); one already flipped `expired` by
+    # some future writer is a 410, same as the wall-clock check below.
+    confirmation_result = await session.execute(
+        select(RunConfirmation).where(
+            RunConfirmation.workflow_run_id == run_id,
+            RunConfirmation.tool_call_id == tool_call_id,
+        )
+    )
+    confirmation = confirmation_result.scalars().first()
+    if confirmation is None:
+        raise _confirmation_error(
+            status.HTTP_404_NOT_FOUND,
+            ERROR_CONFIRMATION_NOT_FOUND,
+            f"No confirmation for tool_call_id={tool_call_id!r} on run {run_id}.",
+        )
+    if confirmation.status == "expired":
+        raise _confirmation_error(
+            status.HTTP_410_GONE,
+            ERROR_CONFIRMATION_EXPIRED,
+            "This confirmation has expired; the run is left for the reaper.",
+        )
+    if confirmation.status != PENDING_CONFIRMATION_STATUS:
+        raise _confirmation_error(
+            status.HTTP_409_CONFLICT,
+            ERROR_CONFIRMATION_ALREADY_DECIDED,
+            f"Confirmation {tool_call_id!r} was already decided ({confirmation.status}).",
+        )
+
+    # Rung 4: the wall-clock deadline, checked directly against
+    # `expires_at` -- independent of whether the reaper's periodic sweep
+    # has run yet. Never force-terminates the run or the row; the reaper's
+    # `confirmation_expired` sweep (`workers/tasks/reaper.py`) is the only
+    # writer of that transition.
+    if _as_aware_utc(confirmation.expires_at) <= datetime.now(UTC):
+        raise _confirmation_error(
+            status.HTTP_410_GONE,
+            ERROR_CONFIRMATION_EXPIRED,
+            "This confirmation has expired; the run is left for the reaper.",
+        )
+
+    if body.decision == "decline":
+        selected_option_id: str | None = None
+        approved = False
+    elif body.decision == "approve":
+        if body.option_id is None:
+            raise _confirmation_error(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                ERROR_OPTION_ID_REQUIRED,
+                "An approve decision requires option_id.",
+            )
+        options = confirmation.options if isinstance(confirmation.options, list) else []
+        selected = next(
+            (option for option in options if option.get("option_id") == body.option_id),
+            None,
+        )
+        if selected is None:
+            raise _confirmation_error(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                ERROR_UNKNOWN_OPTION_ID,
+                f"option_id={body.option_id!r} is not one of this confirmation's options.",
+            )
+
+        # Consent binding (ADR-075 decision 2): re-derive the selected
+        # option's params_sha from the run's RECONSTRUCTED state -- the
+        # verbatim `pending_confirmation.arguments` blob `WorkflowRunner
+        # .resume` itself reads (`services/agent/runner/state.py`,
+        # `services/agent/runner/core.py::resume`) -- never from the
+        # confirmation row's own `proposed_change` (that would only ever
+        # prove the option is self-consistent, not that it still matches
+        # what the run would actually execute). A mismatch is a hard
+        # failure: the confirmation row is left `pending` and
+        # `resume_agent_workflow` is never enqueued, so `ToolExecutor
+        # .execute` is structurally unreachable on this path -- not a log
+        # line, an absence of the only call site that could reach it.
+        run_state = run.state if isinstance(run.state, dict) else {}
+        pending_state = run_state.get("pending_confirmation")
+        if not isinstance(pending_state, dict) or "arguments" not in pending_state:
+            raise _confirmation_error(
+                status.HTTP_409_CONFLICT,
+                ERROR_RUN_STATE_NOT_RECONSTRUCTABLE,
+                "Run has no reconstructable pending confirmation state.",
+            )
+        # Depth-2 facade import (see `_resolve_optimize_product_prompt_pin`
+        # above for the identical idiom and the import-boundary rationale):
+        # `runner/__init__.py` re-exports `compute_params_sha` for exactly
+        # this caller (see that module's own docstring).
+        from juli_backend.services.agent import runner as runner_module
+
+        expected_params_sha = runner_module.compute_params_sha(pending_state["arguments"])
+        if selected.get("params_sha") != expected_params_sha:
+            logger.warning(
+                "agent_confirmation_params_sha_mismatch",
+                extra={
+                    "shop_id": str(shop.id),
+                    "run_id": str(run_id),
+                    "tool_call_id": tool_call_id,
+                    "option_id": body.option_id,
+                },
+            )
+            raise _confirmation_error(
+                status.HTTP_409_CONFLICT,
+                ERROR_PARAMS_SHA_MISMATCH,
+                "The proposed change no longer matches the run's current state; "
+                "refusing to execute an unconsented change.",
+            )
+        # Freeze the confirmed params_sha onto the run's own reconstructable
+        # state (ADR-075 decision 2, #1224 review round 2). `WorkflowRunner`
+        # has no database access beyond `ConversationStore`
+        # (`services/agent/runner/core.py`'s own docstring: "no direct
+        # database access here") -- it cannot read
+        # `run_confirmations.options[].params_sha` itself, so this is the
+        # only channel that lets `resume()`'s approve branch independently
+        # re-derive-and-compare before `ToolExecutor.execute`, entirely
+        # from state it already loads, rather than trusting whichever
+        # caller enqueued the task. Reassigned (not mutated in place) so
+        # SQLAlchemy's JSON-column change detection actually sees it --
+        # the same idiom `JsonbConversationStore.persist` uses for `run.state`.
+        updated_pending_state = {**pending_state, "params_sha": expected_params_sha}
+        run.state = {**run_state, "pending_confirmation": updated_pending_state}
+
+        selected_option_id = body.option_id
+        approved = True
+    else:
+        raise _confirmation_error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            ERROR_INVALID_DECISION,
+            f"decision must be 'approve' or 'decline', got {body.decision!r}.",
+        )
+
+    new_status = "approved" if approved else "declined"
+    won = await _transition_confirmation_or_none(
+        session,
+        confirmation.id,
+        new_status=new_status,
+        selected_option_id=selected_option_id,
+    )
+    if not won:
+        # Lost a race to a concurrent decision on this same confirmation
+        # between the read above and this UPDATE -- the identical
+        # client-observable fact as the sequential single-use 409 above,
+        # so it carries the SAME error_code (see the constant's own
+        # docstring). Nothing was enqueued; nothing here needs rolling back.
+        raise _confirmation_error(
+            status.HTTP_409_CONFLICT,
+            ERROR_CONFIRMATION_ALREADY_DECIDED,
+            f"Confirmation {tool_call_id!r} was already decided.",
+        )
+    # The transition is committed BEFORE the enqueue, never after: enqueuing
+    # first would let a worker observe the row still `pending` mid-flight --
+    # the exact race that produced #1221's review-reproduced IntegrityError
+    # against a second, sequential CONFIRM pause on the same run (the second
+    # pause's INSERT collides with `uq_run_confirmations_pending_run` while
+    # the first row still says `pending`).
+    await session.commit()
+
+    celery_task_id = _enqueue_resume_agent_workflow(run_id, approved=approved)
+
+    logger.info(
+        "agent_confirmation_decided",
+        extra={
+            "shop_id": str(shop.id),
+            "run_id": str(run_id),
+            "tool_call_id": tool_call_id,
+            "decision": body.decision,
+            "celery_task_id": celery_task_id,
+        },
+    )
+
+    return ConfirmationDecisionResponse(
+        decision=body.decision,
+        status=new_status,
+        celery_task_id=celery_task_id,
     )

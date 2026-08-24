@@ -1,5 +1,22 @@
 """Fail-closed banned-pattern chokepoints (ADR-070 decision 6; ADR-068 decision 6(c)).
 
+**Hidden-text stripping (ADR-075 decision 5, issue #1218).** Before the
+inbound scan below ever runs, `guard_inbound_tool_result` strips control
+characters, zero-width/invisible Unicode, and bidi overrides from every
+vendor-tagged text field in the result (`hidden_text.strip_hidden_text_from_vendor_fields`
+— see that module for exactly which Unicode categories are removed and why
+Vietnamese diacritics/emoji are not touched). **Stripping runs first, the
+banned-pattern scan runs second.** This ordering is deliberate, not
+incidental: a banned identifier obfuscated with an invisible character
+spliced between its letters (e.g. `"web​hook"`) would not match the
+scan's `\bwebhook\b`-style patterns if the scan ran first — stripping ahead
+of the scan closes that evasion route, so the two protections compose
+instead of one silently undermining the other. This module's own
+`TestInboundStripsHiddenTextFromVendorTextBeforeScanning` test class is the
+regression test for this ordering. The outbound seam is unaffected —
+stripping is scoped to vendor *tool-result* text only, never agent-authored
+output.
+
 Two seams bracket the agent loop:
 
 - **Inbound** (`guard_inbound_tool_result`) — every tool result before it
@@ -50,6 +67,7 @@ from juli_backend.services.agent.sanitize.banned_patterns import (
     load_banned_pattern_entries,
 )
 from juli_backend.services.agent.sanitize.errors import TranslatedError, to_error_envelope
+from juli_backend.services.agent.sanitize.hidden_text import strip_hidden_text_from_vendor_fields
 from juli_backend.services.execution.types import ExecutionErrorCategory
 
 logger = logging.getLogger(__name__)
@@ -184,16 +202,24 @@ def _inbound_guard_error_envelope() -> dict[str, Any]:
 
 
 def guard_inbound_tool_result(result: Mapping[str, Any], *, tool_name: str) -> Mapping[str, Any]:
-    """Fail-closed inbound chokepoint (ADR-070 decision 6(a)).
+    """Fail-closed inbound chokepoint (ADR-070 decision 6(a); ADR-075 decision 5).
 
-    Scans ``result`` for a banned-pattern hit before it is allowed into the
-    conversation. On a hit — or on a `BannedPatternScanError` from the
-    scanning machinery itself, which this function treats identically (fail
-    closed) — ``result`` is discarded in full and replaced with an internal
-    tool error in the same ``{"error": {"category", "message", "retryable"}}``
-    shape #993's `errors.py` established, so the agent loop has one error
-    shape to reason about regardless of whether the failure was a
-    marketplace error or a guard hit.
+    **Strips first, scans second.** Every vendor-tagged text field in
+    ``result`` has control characters, zero-width/invisible Unicode, and
+    bidi overrides removed (`hidden_text.strip_hidden_text_from_vendor_fields`)
+    *before* the banned-pattern scan below ever runs — see the module
+    docstring's "Hidden-text stripping" section for why that ordering is
+    load-bearing, not cosmetic.
+
+    The stripped result is then scanned for a banned-pattern hit before it
+    is allowed into the conversation. On a hit — or on a
+    `BannedPatternScanError` from the scanning machinery itself, which this
+    function treats identically (fail closed) — the (already-stripped)
+    result is discarded in full and replaced with an internal tool error in
+    the same ``{"error": {"category", "message", "retryable"}}`` shape
+    #993's `errors.py` established, so the agent loop has one error shape
+    to reason about regardless of whether the failure was a marketplace
+    error or a guard hit.
 
     ``category`` is `ExecutionErrorCategory.VALIDATION` — the same category
     `errors.py._category_for` assigns a `TransportGuardError`: both are
@@ -208,9 +234,19 @@ def guard_inbound_tool_result(result: Mapping[str, Any], *, tool_name: str) -> M
     — enough detail to debug which tool, which pattern, and where in the
     result it was found — but none of that detail is present in, or
     derivable from, the returned error envelope.
+
+    On a clean result whose stripping actually changed something, this
+    returns the **stripped** value, not the original ``result`` object. On
+    a clean result stripping left unchanged (the common case — no hidden
+    characters anywhere), this returns ``result`` itself, preserving object
+    identity: callers (`runner/core.py`'s `_dispatch_tool_call`) rely on
+    ``sanitized is raw_result`` as their clean/blocked telemetry signal, so
+    an unmodified result must stay identity-equal to what was passed in.
     """
+    stripped_result = strip_hidden_text_from_vendor_fields(result)
+
     try:
-        hits = find_banned_pattern_hits(result, scope=AGENT_OUTPUT_SCOPE)
+        hits = find_banned_pattern_hits(stripped_result, scope=AGENT_OUTPUT_SCOPE)
     except BannedPatternScanError as exc:
         logger.warning(
             "agent_inbound_banned_pattern_guard_failed",
@@ -219,7 +255,14 @@ def guard_inbound_tool_result(result: Mapping[str, Any], *, tool_name: str) -> M
         return _inbound_guard_error_envelope()
 
     if not hits:
-        return result
+        # Preserve object identity when stripping made no actual change.
+        # `WorkflowRunner._dispatch_tool_call` (runner/core.py) computes its
+        # `tool.completed` telemetry as `sanitized is raw_result` -- a
+        # result with no hidden characters must come back as the exact
+        # object it was passed in as, not an equal-but-rebuilt copy, or
+        # that pre-existing identity contract silently breaks for every
+        # ordinary (no-hidden-text) tool result.
+        return result if stripped_result == result else stripped_result
 
     _log_inbound_hits(tool_name=tool_name, hits=hits)
     return _inbound_guard_error_envelope()

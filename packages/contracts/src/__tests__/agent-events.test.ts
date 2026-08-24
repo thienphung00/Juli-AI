@@ -30,6 +30,7 @@ import wrongEnvelopeVersionFixture from "../../fixtures/agent-events/invalid/wro
 import assistantTextDeltaReservedFixture from "../../fixtures/agent-events/invalid/assistant-text-delta-reserved.json";
 import pythonOnlyValidFixture from "../../fixtures/agent-events/invalid/python-only-valid-workflow-started.json";
 import tsOnlyValidFixture from "../../fixtures/agent-events/invalid/ts-only-valid-tool-started.json";
+import legacyNoOptionsFixture from "../../fixtures/agent-events/workflow-approval-required-legacy-no-options.json";
 
 const GOLDEN_FIXTURES: Array<[eventType: string, fixture: unknown]> = [
   ["workflow.started", workflowStartedFixture],
@@ -97,6 +98,21 @@ describe("validateAgentEvent -- negative fixtures", () => {
   });
 });
 
+describe("workflow.approval_required -- options is optional (issue #1221 / AGT-W5A)", () => {
+  it("accepts a pre-#1221 payload with no options key at all", () => {
+    // The exact shape a workflow_run_events row written before this issue
+    // shipped has in Postgres -- ADR-074 decision 1's replay authority
+    // must still be able to serve it. See payloads.py's
+    // WorkflowApprovalRequiredPayload docstring for the full rationale.
+    expect((legacyNoOptionsFixture as { payload: object }).payload).not.toHaveProperty("options");
+
+    const event = validateAgentEvent(legacyNoOptionsFixture);
+
+    expect(event.event_type).toBe("workflow.approval_required");
+    expect(event).toEqual(legacyNoOptionsFixture); // byte-equal-in-shape, not transformed
+  });
+});
+
 describe("GOLDEN_AGENT_EVENTS -- interface-drift guard (#1126 review follow-up)", () => {
   // Each GOLDEN_*_EVENT constant in agent-events.ts is a *fresh object
   // literal* assigned directly to its specific interface (e.g.
@@ -146,7 +162,11 @@ describe("PAYLOAD_FIELDS / ENVELOPE_FIELDS", () => {
   it("STOP_REASONS names every stop_reason workflow.completed/workflow.failed may carry", () => {
     expect(STOP_REASONS).toContain("final_response");
     expect(STOP_REASONS).toContain("worker_lost");
-    expect(STOP_REASONS).toHaveLength(12);
+    // ADR-073 amendment (ADR-075 decision 2, #1224 review round 3): a
+    // dedicated member for consent-binding refusal, distinct from
+    // concurrency_conflict -- see agent-events.ts's own comment.
+    expect(STOP_REASONS).toContain("confirmation_diverged");
+    expect(STOP_REASONS).toHaveLength(13);
   });
 });
 

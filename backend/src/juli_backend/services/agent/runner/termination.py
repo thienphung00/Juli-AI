@@ -112,6 +112,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
+from juli_backend.services.agent.narration_copy import extension_grant_phase_narration
 from juli_backend.services.agent.playbooks.base import TerminationPolicy
 from juli_backend.services.agent.status import StopReason
 
@@ -279,11 +280,16 @@ def extension_grant_narration(
     field"). Every number in the sentence is read off `policy` —
     `extension_iterations`, `extensions_granted_after_grant`,
     `policy.max_extensions` — never a literal.
+
+    The Vietnamese sentence itself lives in `services/agent/narration_copy.py`
+    (issue #1140: `phase_narration` is VI-locale copy, ADR-074 decision 2) —
+    this function stays policy code, reading the numbers off `policy` and
+    handing them to that copy module rather than templating English inline.
     """
-    return (
-        f"Continuing past the standard iteration limit: granting "
-        f"{policy.extension_iterations} more iteration(s) "
-        f"(extension {extensions_granted_after_grant} of {policy.max_extensions})."
+    return extension_grant_phase_narration(
+        extension_iterations=policy.extension_iterations,
+        extensions_granted_after_grant=extensions_granted_after_grant,
+        max_extensions=policy.max_extensions,
     )
 
 

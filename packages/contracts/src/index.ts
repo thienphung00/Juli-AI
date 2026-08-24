@@ -31,6 +31,7 @@ export type {
   AgentEventType,
   AssistantTextEvent,
   AssistantTextPayload,
+  ConfirmationOptionPayload,
   StopReason,
   ToolCompletedEvent,
   ToolCompletedPayload,
