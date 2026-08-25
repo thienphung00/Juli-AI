@@ -108,6 +108,12 @@ from juli_backend.services.execution.sandbox_guard import load_sandbox_write_res
 
 logger = logging.getLogger(__name__)
 
+# Public alias for callers in packages that may not import `integrations`
+# directly (the `workers` package has no allowed edge to `integrations` at
+# any depth — see `workers/tasks/agent_workflow.py`'s module docstring).
+# `services` -> `integrations` is an allowed edge, so the union lives here.
+AgentReadResources = ProductionReadResources | SandboxWriteResources
+
 
 def build_llm_service() -> LLMService:
     """The real ADR-071 `LLMService`: the OpenAI Responses adapter.
