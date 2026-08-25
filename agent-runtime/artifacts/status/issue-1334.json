@@ -1,0 +1,46 @@
+{
+  "gateVersion": 1,
+  "issue": 1334,
+  "metrics": {
+    "acceptanceMapped": 0,
+    "acceptanceTotal": 7,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      {
+        "boundary_concern": false,
+        "path": "backend/src/juli_backend/services/agent/abuse_limits.py",
+        "type": "service"
+      },
+      {
+        "boundary_concern": false,
+        "path": "tests/unit/test_agent_abuse_limits_gate.py",
+        "type": "test"
+      },
+      {
+        "boundary_concern": false,
+        "path": "tests/unit/test_agent_abuse_limits_routes.py",
+        "type": "test"
+      },
+      {
+        "boundary_concern": false,
+        "path": "tests/unit/test_nginx_limit_req_lint.py",
+        "type": "test"
+      }
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1334.json",
+    "ownerSignoffPresent": true,
+    "sha256": "7335a280b5877075727a595ddc0679c80255520e1669cf30a33234fc2e7beb1c",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-25T08:49:29Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1334.json",
+    "sha256": "441efccf9df8aa436e3a8db8c47939d39f276f992fd1a22a4722db02373f4a61",
+    "status": "FAIL"
+  },
+  "wave": null
+}
