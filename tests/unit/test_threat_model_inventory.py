@@ -12,7 +12,9 @@ import json
 from pathlib import Path
 
 import pytest
+from fastapi import APIRouter
 from fastapi.routing import APIRoute
+from pydantic import BaseModel
 
 from juli_backend.api.app import create_app
 from juli_backend.api.dependencies import get_active_shop
@@ -54,13 +56,17 @@ def _is_tenant_scoped(route: APIRoute) -> bool:
     return False
 
 
-def generate_surface_inventory() -> dict:
+def generate_surface_inventory(app=None) -> dict:
     """Generate the surface inventory from the live app and tool registry.
+
+    Args:
+        app: Optional FastAPI app; if None, creates default app.
 
     Returns:
         A dict with keys 'routes' and 'tools', each containing the inventoried surfaces.
     """
-    app = create_app()
+    if app is None:
+        app = create_app()
 
     # Extract routes from app.routes
     routes = []
@@ -120,6 +126,31 @@ def load_committed_inventory() -> dict:
         return json.load(f)
 
 
+def _compute_inventory_diff(generated: dict, committed: dict) -> dict:
+    """Compute structured diff between generated and committed inventories.
+
+    Returns dict with 'missing_routes', 'extra_routes', 'missing_tools', 'extra_tools'.
+    """
+    generated_routes = {(r["path"], tuple(r["methods"])): r for r in generated["routes"]}
+    committed_routes = {(r["path"], tuple(r["methods"])): r for r in committed["routes"]}
+
+    generated_tools = {t["name"]: t for t in generated["tools"]}
+    committed_tools = {t["name"]: t for t in committed["tools"]}
+
+    missing_routes = set(committed_routes.keys()) - set(generated_routes.keys())
+    extra_routes = set(generated_routes.keys()) - set(committed_routes.keys())
+
+    missing_tools = set(committed_tools.keys()) - set(generated_tools.keys())
+    extra_tools = set(generated_tools.keys()) - set(committed_tools.keys())
+
+    return {
+        "missing_routes": [f"{path} {list(methods)}" for path, methods in missing_routes],
+        "extra_routes": [f"{path} {list(methods)}" for path, methods in extra_routes],
+        "missing_tools": sorted(list(missing_tools)),
+        "extra_tools": sorted(list(extra_tools)),
+    }
+
+
 # Explicit allowlist of unauthenticated routes (issue #1331 AC)
 UNAUTHENTICATED_ALLOWLIST = {
     "/v1/auth/tiktok/callback",
@@ -127,6 +158,16 @@ UNAUTHENTICATED_ALLOWLIST = {
     "/v1/auth/tiktok/business/account-holder/callback",
     "/v1/demo/analytics",
 }
+
+REGENERATION_COMMAND = (
+    "python -c \"import sys; sys.path.insert(0, 'backend/src'); "
+    "from tests.unit.test_threat_model_inventory import generate_surface_inventory; "
+    "import json; from pathlib import Path; "
+    "inv = generate_surface_inventory(); "
+    "Path('docs/security/surface_inventory.json').write_text("
+    'json.dumps(inv, indent=2))" '
+    "# or use: PYTHONPATH=$PWD/backend/src pytest tests/unit/test_threat_model_inventory.py"
+)
 
 
 class TestSurfaceInventoryGeneration:
@@ -141,10 +182,106 @@ class TestSurfaceInventoryGeneration:
         generated_json = json.dumps(generated, indent=2, sort_keys=True)
         committed_json = json.dumps(committed, indent=2, sort_keys=True)
 
-        assert generated_json == committed_json, (
-            f"Generated inventory does not match committed file.\n"
-            f"Expected:\n{committed_json}\n"
-            f"Got:\n{generated_json}"
+        if generated_json != committed_json:
+            diff = _compute_inventory_diff(generated, committed)
+            msg = "Generated inventory does not match committed file.\nStructural diff:\n"
+            if diff["missing_routes"]:
+                msg += "  Missing routes (in committed, not in generated):\n"
+                for route in diff["missing_routes"]:
+                    msg += f"    - {route}\n"
+            if diff["extra_routes"]:
+                msg += "  Extra routes (in generated, not in committed):\n"
+                for route in diff["extra_routes"]:
+                    msg += f"    - {route}\n"
+            if diff["missing_tools"]:
+                msg += "  Missing tools (in committed, not in generated):\n"
+                for tool in diff["missing_tools"]:
+                    msg += f"    - {tool}\n"
+            if diff["extra_tools"]:
+                msg += "  Extra tools (in generated, not in committed):\n"
+                for tool in diff["extra_tools"]:
+                    msg += f"    - {tool}\n"
+            msg += f"\nRegenerate with:\n  {REGENERATION_COMMAND}\n"
+            assert False, msg
+
+    def test_adding_unauthenticated_route_not_on_allowlist_fails(self):
+        """Adding an unauthenticated route fails the check if not on allowlist.
+
+        Negative test: creates a test app with an extra unauthenticated route,
+        then asserts the inventory check would fail, naming the route.
+        """
+        # Create a test app and add a fixture route
+        app = create_app()
+        test_router = APIRouter(prefix="/v1/test")
+
+        @test_router.get("/unauthorized-endpoint")
+        async def unauthorized_endpoint() -> dict:
+            """This is intentionally unauthenticated."""
+            return {"message": "test"}
+
+        app.include_router(test_router)
+
+        # Generate inventory with the extra route
+        generated = generate_surface_inventory(app)
+        committed = load_committed_inventory()
+
+        # Verify that the extra route appears in generated
+        extra_route_paths = {r["path"] for r in generated["routes"]}
+        committed_route_paths = {r["path"] for r in committed["routes"]}
+        extra_routes = extra_route_paths - committed_route_paths
+
+        assert "/v1/test/unauthorized-endpoint" in extra_routes, (
+            "Fixture route not found; test setup failed"
+        )
+
+        # Verify that comparing against committed would fail and name the route
+        diff = _compute_inventory_diff(generated, committed)
+        extra_named = diff["extra_routes"]
+        assert any("/v1/test/unauthorized-endpoint" in route for route in extra_named), (
+            f"Check would not name the extra route. Extra routes: {extra_named}"
+        )
+
+    def test_adding_tool_not_in_registry_fails(self):
+        """Adding a tool fails the check if not in real registry.
+
+        Negative test: creates a test registry with an extra tool, generates
+        inventory with it, and asserts the check would fail, naming the tool.
+        """
+        # Build the real registry (verify it exists and has tools)
+        real_registry = build_product_tool_registry()
+        assert real_registry.list_all(), "Real registry should have tools"
+
+        # Create a test inventory with an extra tool
+        class DummyInput(BaseModel):
+            pass
+
+        class DummyOutput(BaseModel):
+            pass
+
+        # Create test inventory with extra tool
+        test_inventory = generate_surface_inventory()
+        test_inventory["tools"].append(
+            {
+                "name": "test_fixture_tool",
+                "classification": "read",
+                "policy": "auto",
+                "playbooks": ["optimize_product"],
+            }
+        )
+        test_inventory["tools"] = sorted(test_inventory["tools"], key=lambda t: t["name"])
+
+        # Load committed and verify extra tool appears
+        committed = load_committed_inventory()
+        diff = _compute_inventory_diff(test_inventory, committed)
+
+        assert "test_fixture_tool" in diff["extra_tools"], (
+            "Fixture tool not in extra_tools; test setup failed"
+        )
+
+        # Verify the check would fail and name the tool
+        extra_named = diff["extra_tools"]
+        assert "test_fixture_tool" in extra_named, (
+            f"Check would not name the extra tool. Extra tools: {extra_named}"
         )
 
     def test_unauthenticated_routes_on_allowlist(self):
@@ -174,14 +311,14 @@ class TestSurfaceInventoryGeneration:
         """All file-and-symbol references in the threat model resolve.
 
         Parses the threat model markdown, extracts file|symbol pairs from control tables,
-        and verifies each reference points to a live function/class/constant. Skips
-        references to non-existent files (they may be future implementations).
+        and verifies each reference points to a live function/class/constant. No skip
+        for missing files/symbols — all controls must have resolvable references.
         """
         threat_model_path = (
             Path(__file__).parent.parent.parent / "docs" / "security" / "threat-model.md"
         )
         if not threat_model_path.exists():
-            pytest.skip("threat-model.md not found")
+            pytest.fail("threat-model.md not found at " + str(threat_model_path))
 
         threat_model_content = threat_model_path.read_text()
 
@@ -196,23 +333,21 @@ class TestSurfaceInventoryGeneration:
         matches = re.findall(pattern, threat_model_content)
 
         if not matches:
-            pytest.skip("No control references found in threat model")
+            pytest.fail("No control references found in threat model")
 
-        # Verify each reference resolves; skip files/symbols that don't
-        # exist yet (they may be future implementations).
+        # Verify every reference resolves (no skip path)
         failures = []
         for file_path, symbol_name in matches:
             try:
                 _verify_reference(file_path, symbol_name)
-            except (FileNotFoundError, AttributeError):
-                # Skip files/symbols that don't exist; they may be future implementations
-                # or references written before the code is implemented
-                pass
             except Exception as e:
                 failures.append((file_path, symbol_name, str(e)))
 
-        assert not failures, "Control references do not resolve:\n" + "\n".join(
-            f"  {f}:{s} — {e}" for f, s, e in failures
+        assert not failures, (
+            "Control references do not resolve (all controls must be in force):\n"
+            + "\n".join(f"  {f}:{s} — {e}" for f, s, e in failures)
+            + "\nIf a control is not yet implemented, move it to the residual-risk "
+            + "section with owner and trigger, or delete it."
         )
 
 

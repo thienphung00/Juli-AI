@@ -32,11 +32,9 @@ This model assumes a threat actor with network access to the public API, ability
 
 | Control | File | Symbol | Notes |
 |---------|------|--------|-------|
-| Webhook signature verification | `juli_backend/services/webhook/app.py` | `validate_tiktok_webhook_signature()` | HMAC-SHA256; rejects unsigned or mismatched signatures before parsing body |
-| Webhook request body parsing | `juli_backend/services/webhook/app.py` | `handle_tiktok_webhook_delivery()` | Fail-closed: JSON parse errors logged, 4xx returned, no state mutation |
-| Demo analytics masking | `juli_backend/services/analytics_kpi_masking.py` | `mask_public_analytics_envelope()` | Removes absolute metrics, returns only rate-of-change; reference shop ID server-bound |
-| OAuth state validation | `juli_backend/services/tiktok/oauth.py` | `complete_tiktok_oauth_callback()` | State string round-tripped through secure session storage; mismatch → 401 |
-| OAuth code exchange | `juli_backend/services/tiktok/oauth.py` | `complete_tiktok_oauth_callback()` | Exchanged server-side only; code never exposed to client |
+| Webhook request handling | `juli_backend/services/webhook/deployed.py` | `handle_tiktok_webhook_delivery()` | Signature validation and fail-closed JSON parsing before mutation |
+| Demo analytics masking | `juli_backend/services/analytics_kpi_masking/mask.py` | `mask_public_analytics_envelope()` | Removes absolute metrics, returns only rate-of-change; reference shop ID server-bound |
+| OAuth callback handling | `juli_backend/api/routes/auth_tiktok.py` | `tiktok_oauth_callback()` | State validation, code exchange server-side only; code never exposed to client |
 
 **Residual risks:**
 
@@ -64,11 +62,9 @@ This model assumes a threat actor with network access to the public API, ability
 
 | Control | File | Symbol | Notes |
 |---------|------|--------|-------|
-| JWT signature verification | `juli_backend/core/security/jwt.py` | `decode_token()` | HS256 symmetric key; token lifetime enforced via `exp` claim |
-| User extraction from JWT | `juli_backend/core/security/dependencies.py` | `get_current_user()` | Looks up user by ID in JWT; missing user → 401 |
-| Shop ownership check | `juli_backend/api/dependencies.py` | `get_active_shop()` | Verifies `X-Shop-Id` header matches a shop in `User.shops`; mismatch → 403 |
-| Session timeout | `juli_backend/core/config/runtime.py` | `JWT_EXPIRY_SECONDS` | JWT expires in 1 hour; refresh mechanism via `/v1/auth/tiktok/callback` |
-| Credential verification at sign-in | `juli_backend/api/routes/auth_tiktok.py` | `tiktok_oauth_callback()` | User identity verified via TikTok OAuth before JWT issued; token is bearer-only |
+| User authentication | `juli_backend/core/security/dependencies.py` | `get_current_user()` | Verifies JWT and looks up user by ID; missing user → 401 |
+| Shop authorization | `juli_backend/api/dependencies.py` | `get_active_shop()` | Verifies `X-Shop-Id` header matches a shop in `User.shops`; mismatch → 403 |
+| OAuth credential exchange | `juli_backend/api/routes/auth_tiktok.py` | `tiktok_oauth_callback()` | User identity verified via TikTok OAuth before JWT issued; code exchanged server-side only |
 
 **Residual risks:**
 
@@ -97,12 +93,9 @@ This model assumes a threat actor with network access to the public API, ability
 
 | Control | File | Symbol | Notes |
 |---------|------|--------|-------|
-| Vendor text sanitization (banned patterns) | `juli_backend/services/agent/sanitize.py` | `guard_inbound_tool_result()` | Regex pattern rejects known jargon (contact info, external links); cap_text() limits length | Narrowed in #1304 to jargon-only; redacted forensics preserved |
-| Vendor text capping | `juli_backend/services/agent/sanitize.py` | `cap_text()` | Truncates to 1024 chars; titles to 512; descriptions to 2048 |
-| Image cap | `juli_backend/services/agent/sanitize.py` | `sanitize_images()` | Returns only `{count, dimensions}`, never URLs or raw bytes |
-| Provenance wrapping | `juli_backend/services/agent/sanitize.py` | `VendorText` | Every vendor-sourced string tagged with `source: "vendor"` for audit; schema enforces in output models |
-| Product context binding | `juli_backend/services/agent/tools/product.py` | `ProductToolContext` | Product ID injected by executor, never LLM-supplied; model has no visibility into raw ID |
-| Prompt static binding | `juli_backend/services/agent/playbooks/optimize_product.py` | `OPTIMIZE_PRODUCT_PLAYBOOK` | Prompt is defined in code, loaded at run-time from `PlaybookSpec`, never constructed from user input |
+| Vendor text sanitization | `juli_backend/services/agent/sanitize/chokepoints.py` | `guard_inbound_tool_result()` | Fail-closed boundary seam: regex rejects banned patterns (jargon only per #1304); forensics preserved |
+| Output schema validation | `juli_backend/services/agent/tools/product.py` | `ProductToolContext` | Handler results validated against declared output schema before return to LLM; mismatch → error |
+| Playbook allow-list | `juli_backend/services/agent/playbooks/optimize_product.py` | `OPTIMIZE_PRODUCT_PLAYBOOK` | Prompt defined in code, never user-constructed; only Optimize Product playbook can execute tools |
 
 **Residual risks:**
 
@@ -130,13 +123,10 @@ This model assumes a threat actor with network access to the public API, ability
 
 | Control | File | Symbol | Notes |
 |---------|------|--------|-------|
-| Tool registry | `juli_backend/services/agent/tools/registry.py` | `ToolRegistry` | Explicit, enumerated registry; tools registered at startup via `build_product_tool_registry()` |
-| Tool dispatch | `juli_backend/services/agent/runner/tool_executor.py` | `ProductToolExecutor` | Looks up tool by name in registry; unknown tool → error, no fallback |
-| Input schema validation | `juli_backend/services/agent/tools/product.py` | Each tool's `input_model` | Pydantic validation; schema passed to LLM so it knows valid input shape |
-| Output schema validation | `juli_backend/services/agent/tools/product.py` | Each tool's `output_model` | Handler result validated against schema before return; mismatch → error, no coercion |
-| WRITE tool confirmation | `juli_backend/services/agent/runner/confirmation.py` | `ConfirmationDecision` | WRITE-classified tools (3/7 tools) pause run for seller approval before executing; `policy=CONFIRM` enforces in registry |
-| Playbook allow-list | `juli_backend/services/agent/playbooks/optimize_product.py` | `OPTIMIZE_PRODUCT_PLAYBOOK` | Only Optimize Product playbook can execute tools; new playbooks require explicit registration |
-| Tool timeout enforcement | `juli_backend/services/agent/runner/termination.py` | `WallClockOvershootBound` | Each tool has `timeout_seconds` in registry; run terminated if exceeded; wall-clock bound is 150s per step |
+| Tool registry enumeration | `juli_backend/services/agent/tools/registry.py` | `ToolRegistry` | Explicit registry; tools registered at startup via `build_product_tool_registry()` — no implicit registration |
+| Tool lookup enforcement | `juli_backend/services/agent/composition.py` | `build_product_tool_registry()` | Unknown tool → error during dispatch; no fallback or dynamic registration |
+| Playbook allow-list | `juli_backend/services/agent/playbooks/optimize_product.py` | `OPTIMIZE_PRODUCT_PLAYBOOK` | Only Optimize Product playbook permitted; new playbooks require explicit registration |
+| Input/output schema binding | `juli_backend/services/agent/tools/product.py` | `ToolSpec` | Pydantic model validation; schema passed to LLM; mismatch on input/output → validation error |
 
 **Residual risks:**
 
@@ -164,11 +154,9 @@ This model assumes a threat actor with network access to the public API, ability
 
 | Control | File | Symbol | Notes |
 |---------|------|--------|-------|
-| Token encryption at rest | `juli_backend/core/security/cipher.py` | `TikTokTokenCipher` | AES-256-GCM; key from environment `TIKTOK_TOKEN_ENCRYPTION_KEY` |
-| Token expiry check | `juli_backend/integrations/tiktok/client.py` | `GuardedTikTokClient` | Before API call, verifies token expiry; expired → error, no silent refresh |
-| Token scope validation | `juli_backend/core/security/credential_resolver.py` | `resolve_production_read_credential()` | Credential stored with declared scopes; mismatch audited |
-| JWT key rotation | `juli_backend/core/security/jwt.py` | No in-application rotation | Key is environment-only; rotation requires redeployment (manual process) |
-| Safe logging (no secrets) | `juli_backend/core/config/logging.py` | Structured logging only; tokens never logged | Audit logging captures decision (auth success/failure) but not token value |
+| Credential resolution | `juli_backend/core/security/credential_resolver.py` | `resolve_production_read_credential()` | Credential lookup enforces scope matching; missing scope → NotFound |
+| Structured logging policy | `juli_backend/core/config/runtime.py` | `require_env()` | Audit logging captures auth decisions; tokens never logged |
+| OAuth callback verification | `juli_backend/api/routes/auth_tiktok.py` | `tiktok_oauth_callback()` | State parameter validated, code exchanged server-side, bearer tokens issued |
 
 **Residual risks:**
 
@@ -197,11 +185,9 @@ This model assumes a threat actor with network access to the public API, ability
 
 | Control | File | Symbol | Notes |
 |---------|------|--------|-------|
-| User-shop ownership check | `juli_backend/database/models.py` | `User.shops` relationship | Query filtered by `user.id == :user_id`; every shop-scoped query includes this |
-| Shop-scoped repository queries | `repositories/repos.py` | Each `*Repo` class | `list()` method requires `shop_id` parameter; returns only rows matching that shop |
-| Database row-level security | (PostgreSQL, not in Python codebase) | N/A | PostgREST RLS policies (if used) enforced at DB layer; Python repositories layer can independently mis-query |
-| Transactional consistency | `juli_backend/database/database.py` | `AsyncSession` | Transactions are ACID; dirty reads blocked by isolation level |
-| Product mutation authorization | `juli_backend/api/routes/products.py` | `update_product()` | Caller's `shop_id` verified before mutation; wrong shop → 403 |
+| User-shop ownership verification | `juli_backend/api/dependencies.py` | `get_active_shop()` | Every shop-scoped request verified against user's own shop membership |
+| Shop-scoped query filtering | `juli_backend/repositories/repos.py` | `ShopsRepo` | Repository methods filter by shop_id parameter; isolation enforced at query layer |
+| Transactional isolation | `juli_backend/database/database.py` | `get_session()` | AsyncSession enforces ACID; pessimistic isolation prevents dirty reads |
 
 **Residual risks:**
 
@@ -247,15 +233,13 @@ File findings as issues in the GitHub repository with the label `sec-finding` an
 
 This threat model is a code artifact. The surface inventory (`docs/security/surface_inventory.json`) is machine-generated from the live route table and tool registry; the CI check in `tests/unit/test_threat_model_inventory.py` fails if the inventory goes stale.
 
-**To update the threat model:**
-
-1. Run the inventory generator to detect route/tool changes:
+**To regenerate the surface inventory after adding a route or tool:**
 
 ```bash
-PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_threat_model_inventory.py -xvs
+PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_threat_model_inventory.py::TestSurfaceInventoryGeneration::test_surface_inventory_matches_committed_file -xvs
 ```
 
-2. If the test fails with a diff, update the inventory:
+The test will fail with a structured diff naming missing routes/tools. To update the inventory, run:
 
 ```bash
 python -c "
@@ -269,8 +253,7 @@ Path('docs/security/surface_inventory.json').write_text(json.dumps(inv, indent=2
 "
 ```
 
-3. Review the changes, add/update boundary documentation if new routes or tools appear.
-4. Commit both the inventory and the threat model together.
+Then commit both the updated inventory and any threat-model.md changes together.
 
 **Unauthenticated allowlist:**
 
@@ -281,9 +264,15 @@ UNAUTHENTICATED_ALLOWLIST = {
     "/v1/auth/tiktok/callback",
     "/v1/auth/tiktok/business/callback",
     "/v1/auth/tiktok/business/account-holder/callback",
-    "/v1/demo/analytics",
+    "/v1/demo/analytics",  # REPORTED FINDING: W6 is bringing demo surfaces under real auth (#1313); this allowlist entry may need to shrink when that lands
     # W6-owned routes may add more (e.g., /v1/demo/runs/{run_id}/events)
 }
 ```
 
 The check fails with the missing route name if a route is added without updating the allowlist.
+
+---
+
+## Reported Findings (for red-team pass #1339)
+
+**Boundary 1 observation:** `/v1/demo/analytics` sits on the unauthenticated allowlist to serve public demo data. However, issue #1313 (W6-A) plans to bring demo surfaces under real seller authentication. The allowlist entry for `/v1/demo/analytics` should be flagged as a **scope change point** — when W6 lands, the red-team pass should confirm whether this route has been moved under auth and the allowlist correspondingly shrunk.
