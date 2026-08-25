@@ -36,4 +36,4 @@ async def list_impact_readings_honest(
         ImpactReading.confidence.in_(["cao", "trung_binh", "thap"]),
     )
     result = await session.execute(stmt)
-    return result.scalars().all()
+    return list(result.scalars().all())

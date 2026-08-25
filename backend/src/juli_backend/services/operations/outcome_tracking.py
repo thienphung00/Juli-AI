@@ -9,11 +9,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import ImpactReading, ToolExecution
 from juli_backend.repositories.repos import WorkflowOutcomeRecordsRepo
-from juli_backend.services.operations.impact_honesty import list_impact_readings_honest
 
 logger = logging.getLogger(__name__)
 
@@ -291,11 +291,11 @@ async def _fill_cadences_from_impact_readings(
     to, so a cadence with no matching reading yet is left exactly as
     ``build_workflow_outcome_metrics`` built it (the "pending" placeholder).
 
-    ADR-085 decision 8 (#1338): this surface uses the honesty rule —
-    only real confidence tiers (cao/trung_binh/thap) are counted as readings.
-    Suppressed and confounded rows are never shown here (gate-closing query
-    returns zero when only suppressed present). For audit views showing
-    suppressed/confounded, those must be labelled as their own outcome.
+    ADR-085 decision 8 (#1338) honesty distinction: this is a DISPLAY surface
+    (shows all readings with labels for audit). Suppressed/confounded rows
+    are shown with their 'n/a' label (not as zero, but as their own outcome).
+    Gate-closing QUERIES that COUNT readings should use list_impact_readings_honest
+    to exclude suppressed/confounded and return zero when only suppressed present.
 
     A run can classify multiple mutation kinds (price + image + title +
     description, say), each with its own metric — so one ``kind`` can have
@@ -306,13 +306,14 @@ async def _fill_cadences_from_impact_readings(
     rollup_metric_for`` at write time, not persisted), so showing the full
     per-metric breakdown here is the honest option that never guesses.
     """
-    # Use the honest read model — exclude suppressed/confounded
-    honest_rows = await list_impact_readings_honest(session, tool_execution_id)
-    if not honest_rows:
+    stmt = select(ImpactReading).where(ImpactReading.tool_execution_id == tool_execution_id)
+    result = await session.execute(stmt)
+    rows = result.scalars().all()
+    if not rows:
         return cadences
 
     by_kind: dict[str, list[ImpactReading]] = {}
-    for row in honest_rows:
+    for row in rows:
         by_kind.setdefault(row.kind, []).append(row)
 
     filled: list[dict[str, Any]] = []
