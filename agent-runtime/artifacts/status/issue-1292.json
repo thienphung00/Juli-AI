@@ -1,0 +1,41 @@
+{
+  "gateVersion": 1,
+  "issue": 1292,
+  "metrics": {
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      {
+        "changes": "event_stream generator (first byte emission), stream_run_events route (header addition)",
+        "module": "backend/api/routes/agent_runs",
+        "rationale": "SSE transport layer changes scoped to this endpoint; no cross-module reach-through"
+      },
+      {
+        "changes": "api.app-juli.com.conf vhost (new location block for streaming endpoint)",
+        "module": "infra/nginx",
+        "rationale": "Edge buffering configuration scoped to this route; no other routes affected"
+      },
+      {
+        "changes": "test_agent_run_events_stream.py (new + updated), test_agent_run_events_api.py (new + updated)",
+        "module": "tests/unit",
+        "rationale": "Tests for transport-layer behavior; no other test modules affected"
+      }
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1292.json",
+    "ownerSignoffPresent": true,
+    "sha256": "10b767308bcb47c22aaf2a741adc0ba977b0db26dc2694f37faca228c652053f",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-24T16:00:32Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1292.json",
+    "sha256": "619cfb5f9c1b7c4a606ccf0a8cdb63c8ca062e1974e9027f94efb0cb433eb037",
+    "status": "PASS"
+  },
+  "wave": null
+}

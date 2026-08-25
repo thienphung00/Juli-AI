@@ -1,0 +1,85 @@
+{
+  "planId": "run-events-sse-replay-heartbeat-edge-path-2026-08-24",
+  "affectedPublicSurfaces": [
+    "`GET /v1/demo/runs/{run_id}/events` (SSE, `backend/src/juli_backend/api/routes/agent_runs.py`). On release `b44b33b7` this delivered ZERO bytes for two minutes for run `8a0bdd48-…` — whose ledger held `workflow.started` and `tool.started` — and the edge then returned Cloudflare `error code: 524`.",
+    "The deployed edge path for that route: nginx vhost `infra/nginx/api.app-juli.com.conf`, `location /v1/demo/`. That location proxies with nginx defaults — `proxy_buffering` ON, HTTP/1.0 upstream (no `proxy_http_version 1.1`), default `proxy_read_timeout 60s` — none of which is safe for a streaming response. Changing it is a public infrastructure change deployed and reloaded SEPARATELY from the Python release.",
+    "Cloudflare in front of that vhost, which returns 524 when the origin produces no response bytes inside its timeout (~100s). The contract this slice must hold at the edge is: first byte immediately, then a keepalive comfortably under both the Cloudflare and nginx read timeouts.",
+    "Mixed-version hazard, in BOTH directions: an app release without the nginx change may still be buffered to zero bytes at the edge, and an nginx change without the app release may hold the connection open with nothing to send. State which of the two was actually deployed and in which order — do not report a green from one and imply the other."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest with `PYTHONPATH` pinned to the worktree's `backend/src` against the already-independently-testable `event_stream` generator, plus `nginx -t` on the rendered vhost — no VPS traffic. Post-deploy: `curl -N` against the events stream of an EXISTING, already-finished run belonging to the SANDBOX shop (`1862f13b-…`), authenticated as that shop. Read-only; no customer shop is touched and no public traffic is routed to a candidate task set (the single-VPS lane has none).",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE for an honest reason, not a convenient one: the single-VPS lane (ADR-057) has no separate candidate task set on which workers could be disabled, and this journey does not need one — it streams a run that has ALREADY finished, so no worker participates. apiSideEffectsInScope is FALSE because the journey is a read: `curl -N` on an SSE endpoint mutates nothing (it does consume one of the 10 concurrent-stream slots per shop, ADR-075 decision 4, released on disconnect). DIAGNOSIS BEFORE FIX — the issue's framing must be checked, not assumed: `api/routes/agent_runs.py::event_stream` ALREADY implements replay from `workflow_run_events` and a `: heartbeat` comment on a 15s default interval (ADR-074 decision 3). So 'no replay, no heartbeat' describes the OBSERVED bytes at the client, not necessarily missing code. Two live hypotheses the Executor must discriminate with evidence before changing anything: (1) EDGE BUFFERING — `location /v1/demo/` uses nginx defaults, so the whole SSE body is buffered and the client sees nothing until the response ends; (2) ORIGIN BLOCKING BEFORE FIRST YIELD — the generator subscribes to Redis BEFORE replaying, so a subscribe that blocks or hangs (or the concurrency-slot acquisition ahead of it) stalls the stream before the first byte is ever produced. The distinguishing evidence is whether the origin emits bytes when called from ON the host bypassing nginx. Report which hypothesis the evidence supported; if it is (1), the code may need only the `X-Accel-Buffering: no` response header and the nginx change, and the plan's honesty requires saying so rather than pretending a replay bug was fixed.",
+    "journeys": [
+      {
+        "name": "events-stream-first-byte-immediate-and-stays-open",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1292",
+        "assertions": [
+          "pre-merge: a test connects to the stream for a run whose ledger already holds events and asserts the persisted events are delivered from sequence 1 (subject to the `Last-Event-ID` / `?after=` cursor) BEFORE any live event — extending the existing `tests/unit/test_agent_run_events_stream.py` coverage to the exact stranded-run shape observed (`queued`, non-terminal, events present, nothing live coming)",
+          "pre-merge: a test asserts a keepalive is emitted on an otherwise-idle stream at an interval well under 100s, and that this holds on the Redis-degraded (Postgres polling) leg too — the leg a subscribe failure lands on",
+          "pre-merge: a test asserts the first byte is produced without waiting on the subscriber — i.e. a slow or hanging `subscribe` cannot stall the stream before replay reaches the client (this is hypothesis 2's regression guard, and it must fail against pre-#1292 code if hypothesis 2 is what the evidence supported)",
+          "pre-merge: a config test asserts the deployed vhost's `/v1/demo/` (or a dedicated events location) disables proxy buffering, uses `proxy_http_version 1.1`, and carries a `proxy_read_timeout` above the heartbeat interval — the same idiom `tests/unit/test_deploy_celery_unit_sync.py` uses to keep committed infra and reality in step; `nginx -t` passes on the rendered config",
+          "post-deploy: `/root/releases/current` resolves to the release containing the fix and `systemctl show -p InvocationID --value juli-api` changed across the deploy — proving the API process restarted onto that release rather than a stale process still serving",
+          "post-deploy: if the nginx vhost changed, `nginx -t` succeeded on the host and nginx was reloaded — record the reload explicitly, since the vhost is deployed separately from the Python release and a forgotten reload leaves the old behavior live while the app release looks green",
+          "post-deploy (origin): `curl -N` against the API upstream ON the host, bypassing nginx, returns the replayed events for the chosen finished run immediately — this is the measurement that separates an origin defect from an edge defect",
+          "post-deploy (edge): `curl -N https://api.app-juli.com/v1/demo/runs/{run_id}/events` for the same run returns its first byte immediately (replayed events, or a heartbeat comment) rather than after a delay",
+          "post-deploy (edge): that same connection stays open past 2 minutes with keepalive traffic arriving, and NO `error code: 524` and no `upstream timed out` line appears in the nginx error log for the window — asserted by absence over the window, not by grepping for a success marker",
+          "post-deploy: a stream opened for a run that IS terminal replays its full history and closes cleanly, so the fix does not turn late joiners into hanging connections"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — the diff is backend Python in `backend/src/juli_backend/api/routes/agent_runs.py` plus, if the evidence supports it, `infra/nginx/api.app-juli.com.conf` and tests. The SSE response is `text/event-stream`, not a rendered document, so ADR-035's static-asset probe has nothing to discover here; the edge check is the `curl -N` byte-timing assertion above instead."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "curl-sse-transcript",
+      "nginx-config",
+      "nginx-error-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration and no schema change: `workflow_run_events` already stores everything replay reads, and this slice changes only transport behavior and edge configuration. No event shape, sequence semantics, or SSE `id:`/`event:` field contract changes, so an old client reconnecting with a `Last-Event-ID` against the new server behaves identically. The compatibility risk here is CONFIGURATION, not schema: the nginx vhost and the Python release are two independently versioned artifacts on the same host, and either one alone changes observed behavior — treat their pairing with the same care a migration would get."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without the fix, the events stream keeps returning zero bytes and Cloudflare keeps answering 524 at ~100s — the pre-existing #1292 defect. No new exposure and no data hazard; the endpoint is read-only.",
+    "postCutoverFailureBehavior": "Two artifacts must be rolled back independently, and this is the trap: redeploying the previous Python release and restarting `juli-api` does NOT revert the nginx vhost. If the vhost changed, restore the previous `infra/nginx/api.app-juli.com.conf` from git, run `nginx -t`, and `systemctl reload nginx` as a separate step; verify with a request that the old behavior is back. Both rollbacks are code/config-only — no schema downgrade, no data migration, and no persisted state is created by this endpoint, so no partially-applied state can survive. Open streams are dropped on reload/restart and clients reconnect with `Last-Event-ID`.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_agent_run_events_stream.py tests/unit/test_agent_run_events_api.py tests/unit/test_agent_run_events_route_helpers.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/integration/test_agent_events_streaming_matrix.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'events or sse or nginx' -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "Do NOT assume replay and heartbeat are absent from the code. `event_stream` already implements both (ADR-074 decision 3). Establish with evidence why zero bytes reached the client — origin or edge — and fix that; a re-implementation of existing replay logic would be a regression risk with no observed cause.",
+    "Do not change the ADR-074 decision-3 ordering guarantees (subscribe-before-replay closes a real lost-event window; server-side dedupe is this endpoint's job, never the client's) while making the first byte prompt. Both properties must survive.",
+    "Any nginx edit is scoped to making this route streamable. Do not remove or relax `limit_req zone=demo_public`, do not touch the `/webhooks/tiktok` location (issue #928's `nodelay` is deliberate), and do not restructure unrelated vhosts.",
+    "Cloudflare configuration itself is an owner-side surface. Do not change Cloudflare settings; fix the origin so the edge has bytes to forward, and say so if a Cloudflare-side change would additionally be needed.",
+    "This unblocks gate #1226 observation 1's streaming step (P-UI golden scenario capture); it does not close #1226, and it does not give a stranded run a terminal event — that is #1291."
+  ]
+}
