@@ -197,6 +197,45 @@ class TestRateLimiterIntegration:
             passed_redis_check = any("sandbox_write_catalog_sync" in m for m in messages)
             assert passed_redis_check, f"Should pass Redis check, got: {messages}"
 
+    @pytest.mark.asyncio
+    async def test_rate_limiter_receives_sync_redis_client(
+        self, session, sandbox_shop_with_sandbox_write_credential, monkeypatch
+    ):
+        """RateLimiter is synchronous — handing it redis.asyncio makes acquire()
+        compare a coroutine to an int (TypeError, seen live 2026-08-25) and the
+        catalog sync silently skips. Pin the sync client type."""
+        import redis
+        import redis.asyncio
+
+        from juli_backend.integrations.tiktok.rate_limiter import RateLimiter
+
+        shop, _ = sandbox_shop_with_sandbox_write_credential
+
+        monkeypatch.setenv("REDIS_URL", "redis://mock:6379")
+        monkeypatch.setenv("TIKTOK_APP_KEY", "test_key")
+        monkeypatch.setenv("TIKTOK_APP_SECRET", "test_secret")
+
+        captured: dict[str, object] = {}
+        real_init = RateLimiter.__init__
+
+        def spy_init(self, redis_client) -> None:
+            captured["client"] = redis_client
+            real_init(self, redis_client)
+
+        monkeypatch.setattr(RateLimiter, "__init__", spy_init)
+
+        from juli_backend.workers.tasks.action_card_refresh import (
+            sync_sandbox_write_products,
+        )
+
+        await sync_sandbox_write_products(session, shop.id)
+
+        assert "client" in captured, "sync never constructed a RateLimiter"
+        assert isinstance(captured["client"], redis.Redis), (
+            f"RateLimiter needs the sync redis client, got {type(captured['client'])}"
+        )
+        assert not isinstance(captured["client"], redis.asyncio.Redis)
+
 
 class TestCredentialMismatchSurfacing:
     """Test credential identity mismatch is logged."""
