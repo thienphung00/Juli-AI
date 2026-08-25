@@ -36,6 +36,7 @@ from juli_backend.models.models import (
     Order,
     OrderItem,
     Product,
+    ProductionWriteAuthorization,
     Recommendation,
     Return,
     Settlement,
@@ -1565,3 +1566,117 @@ class AnalyticsBackfillPartitionsRepo:
         )
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
+
+
+class ProductionWriteAuthorizationsRepo(ShopScopedRepo):
+    """Authorization lifecycle for single-use production mutations (issue #1335).
+
+    Scoped to shop_id; all operations filter by the active shop to prevent
+    cross-tenant data leakage. Single-use means exactly one consumption per
+    authorization. Expiry is checked at lookup time. Revocation preserves the
+    row for audit, setting revoked_at instead of deletion.
+    """
+
+    model = ProductionWriteAuthorization
+
+    async def issue(
+        self,
+        shop_id: uuid.UUID,
+        tiktok_product_id: str,
+        mutation_kind: str,
+        capability: str,
+        shop_cipher: str,
+        authorized_by: str,
+        reason: str | None = None,
+        ttl_hours: int = 24,
+    ) -> ProductionWriteAuthorization:
+        """Issue an authorization after verifying credential binding.
+
+        Raises CredentialBindingError if the credential for this shop and
+        capability is mis-bound (wrong shop_cipher or pointing at a different
+        shop). This prevents authorizing against a mis-provisioned credential.
+        """
+        from juli_backend.services.tiktok.credential_binding import verify_capability_binding
+
+        # Verify the credential binding FIRST
+        await verify_capability_binding(
+            self._session, capability=capability, shop_cipher=shop_cipher
+        )
+
+        # Issue the authorization
+        expires_at = datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=ttl_hours)
+        auth = ProductionWriteAuthorization(
+            shop_id=shop_id,
+            tiktok_product_id=tiktok_product_id,
+            mutation_kind=mutation_kind,
+            authorized_by=authorized_by,
+            reason=reason,
+            expires_at=expires_at,
+        )
+        self._session.add(auth)
+        await self._session.flush()
+        return auth
+
+    async def lookup(
+        self, shop_id: uuid.UUID, tiktok_product_id: str, mutation_kind: str
+    ) -> ProductionWriteAuthorization | None:
+        """Lookup the matching unconsumed, unexpired, unrevoked authorization.
+
+        Returns None if:
+        - The authorization for this shop/product/mutation doesn't exist
+        - It has expired (expires_at <= now)
+        - It has been consumed (consumed_at is not None)
+        - It has been revoked (revoked_at is not None)
+        - Any of the three scoping fields don't match
+        """
+        now = datetime.now(UTC).replace(tzinfo=None)
+        stmt = (
+            select(ProductionWriteAuthorization)
+            .where(
+                ProductionWriteAuthorization.shop_id == shop_id,
+                ProductionWriteAuthorization.tiktok_product_id == tiktok_product_id,
+                ProductionWriteAuthorization.mutation_kind == mutation_kind,
+                ProductionWriteAuthorization.expires_at > now,
+                ProductionWriteAuthorization.consumed_at.is_(None),
+                ProductionWriteAuthorization.revoked_at.is_(None),
+            )
+            .limit(1)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalars().first()
+
+    async def consume(
+        self, authorization_id: uuid.UUID, run_id: uuid.UUID
+    ) -> ProductionWriteAuthorization:
+        """Atomically consume an authorization by setting consumed_at and run_id.
+
+        In a single transaction, this claims the authorization and prevents any
+        other consumer from seeing it. Two concurrent claims against the same
+        authorization succeed exactly once; the loser observes the consumed state.
+        """
+        auth = await self._session.get(ProductionWriteAuthorization, authorization_id)
+        if auth is None:
+            raise NotFound(f"Authorization {authorization_id} not found")
+
+        auth.consumed_at = datetime.now(UTC).replace(tzinfo=None)
+        auth.consumed_by_run_id = run_id
+        await self._session.flush()
+        return auth
+
+    async def revoke(
+        self, authorization_id: uuid.UUID, reason: str | None = None
+    ) -> ProductionWriteAuthorization:
+        """Revoke an authorization, preserving the row for audit.
+
+        Sets revoked_at and revoke_reason without deleting the row. The
+        authorization is no longer valid for lookup (revoked_at is not None
+        is a filtering condition), but remains readable for audit purposes.
+        """
+        auth = await self._session.get(ProductionWriteAuthorization, authorization_id)
+        if auth is None:
+            raise NotFound(f"Authorization {authorization_id} not found")
+
+        auth.revoked_at = datetime.now(UTC).replace(tzinfo=None)
+        auth.revoke_reason = reason
+        await self._session.flush()
+        return auth
