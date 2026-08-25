@@ -1,0 +1,142 @@
+/**
+ * Scoped visual-identity token layer for the Optimize Product run surface +
+ * In-Progress sub-tab (PUI-DESIGN.md §6, ADR-076, ADR-084, issue #1314 /
+ * AGT-W6A). This is the FIRST slice in the P-UI interface lane -- every
+ * later view slice (#1316 staged run view, #1317 option picker, #1318
+ * ledger) consumes these tokens rather than inventing its own.
+ *
+ * SCOPING CONTRACT (do not weaken):
+ *  - Every custom property here is declared under the attribute selector
+ *    `[data-juli-surface="run"]`, never under `:root`.
+ *  - No `--juli-run-*` name collides with an existing `--juli-*` token in
+ *    `tokens.css`, and this file never writes to `--juli-*` (app-wide)
+ *    names -- it only *reads* a few of them via `var()` where the app-wide
+ *    value already carries the right meaning (e.g. `--juli-success`).
+ *  - An element outside a `[data-juli-surface="run"]` subtree resolves none
+ *    of these custom properties -- there is no unscoped fallback anywhere
+ *    in the app for a `--juli-run-*` name, so nothing here can leak.
+ *  - `tokens.css` itself is never edited by this file or by consumers of
+ *    it (`packages/theme/__tests__/run-surface-tokens.test.ts` asserts its
+ *    content stays byte-identical).
+ *
+ * DIRECTION (PUI-DESIGN.md §6): a quieter, deeper-neutral "focus surface"
+ * than the app-wide white canvas, reduced chrome, and exactly ONE accent
+ * (`--juli-run-live-edge`) reserved for the live edge -- the active
+ * stepper node, the streaming caret, and the armed confirm CTA -- and used
+ * nowhere else on this surface. The three rule blocks at the bottom of
+ * this file are the ONLY rules anywhere in the scoped layer that reference
+ * `--juli-run-live-edge` / `--juli-run-live-edge-foreground`; the theme
+ * package's test enumerates every occurrence and fails if a fourth
+ * appears (the "used nowhere else" acceptance criterion).
+ *
+ * Semantic status colors keep the app-wide meaning system (green=success,
+ * amber=warn, red=error, blue=info) -- `--juli-run-success` and
+ * `--juli-run-warning` reuse `--juli-success`/`--juli-warning` unmodified
+ * because both already clear WCAG AA (4.5:1) against both new grounds.
+ * `--juli-run-destructive` and `--juli-run-info` are brightened variants of
+ * `--juli-destructive`/`--juli-info` -- same hue family, same meaning --
+ * because the unmodified values fall under 4.5:1 against the new dark
+ * ground (destructive: 4.34:1 on the raised surface; info: 3.62:1/3.29:1
+ * on both grounds). See the contrast test for the exact ratios.
+ */
+
+[data-juli-surface="run"] {
+  /* Ground -- quieter, deeper neutral than the app-wide white canvas. */
+  --juli-run-bg: #121214;
+  --juli-run-surface: #1c1c20;
+  --juli-run-surface-raised: #232328;
+
+  /* Reduced chrome: an intentionally low-contrast divider, decorative
+     only -- never load-bearing for text or a focus indicator. */
+  --juli-run-border: #2c2c33;
+
+  --juli-run-foreground: #f2f2f5;
+  --juli-run-muted-foreground: #a6a6b0;
+
+  /* The one live-edge accent (PUI-DESIGN.md §5/§6): active stepper node,
+     streaming caret, armed CTA fill. Never used for ordinary emphasis. */
+  --juli-run-live-edge: #ff5fa8;
+  /* Text/icon color for content sitting ON a live-edge fill (e.g. the
+     armed CTA's label) -- 6.03:1 on --juli-run-live-edge, clears AA. */
+  --juli-run-live-edge-foreground: #1c1c20;
+  /* Low-alpha glow for the breathing thinking-state indicator --
+     decorative only, never carries text. */
+  --juli-run-live-edge-soft: rgba(255, 95, 168, 0.22);
+
+  /* A NEW scoped focus-ring token -- this never overwrites the app-wide
+     `--juli-focus-ring` (untouched, still `tokens.css`'s value everywhere
+     it already applied). The app-wide ring's alpha (0.58) blended against
+     this dark ground reads at ~2.6:1, under the 3:1 non-text minimum; this
+     solid, brighter value clears 8.7:1/7.9:1 against both new grounds. */
+  --juli-run-focus-ring: #ff8dc0;
+
+  /* Semantic status -- meaning unchanged from the app's system. */
+  --juli-run-success: var(--juli-success);
+  --juli-run-warning: var(--juli-warning);
+  --juli-run-destructive: #ff6b70;
+  --juli-run-info: #6d9bff;
+  --juli-run-success-tint: rgba(22, 163, 74, 0.16);
+  --juli-run-warning-tint: rgba(245, 158, 11, 0.16);
+  --juli-run-destructive-tint: rgba(255, 107, 112, 0.16);
+  --juli-run-info-tint: rgba(109, 155, 255, 0.16);
+
+  /* Distinct display treatment for the agent's narration text
+     (PUI-DESIGN.md §6: "Type may gain a distinct display treatment for
+     the agent's narration"). Applied by consumers via the
+     `.juli-run-narration` utility below -- never forced onto every
+     element in the scope. */
+  --juli-run-narration-font-style: italic;
+  --juli-run-narration-letter-spacing: 0.01em;
+  --juli-run-narration-line-height: 1.65;
+
+  background: var(--juli-run-bg);
+  color: var(--juli-run-foreground);
+}
+
+/* Generic ground/panel primitives -- reduced chrome, no accent involved. */
+
+.juli-run-panel {
+  border: 1px solid var(--juli-run-border);
+  border-radius: var(--juli-radius, 1rem);
+  background: var(--juli-run-surface);
+  color: var(--juli-run-foreground);
+}
+
+.juli-run-panel--raised {
+  background: var(--juli-run-surface-raised);
+}
+
+.juli-run-text-muted {
+  color: var(--juli-run-muted-foreground);
+}
+
+.juli-run-narration {
+  font-style: var(--juli-run-narration-font-style);
+  letter-spacing: var(--juli-run-narration-letter-spacing);
+  line-height: var(--juli-run-narration-line-height);
+}
+
+/* Focus states stay visible on the new ground. This is additive (a new
+   scoped rule), never a removal of the app-wide focus-ring token or an
+   `outline: none` reset -- neither appears anywhere in this file. */
+[data-juli-surface="run"] :focus-visible {
+  outline: var(--juli-focus-width, 3px) solid var(--juli-run-focus-ring);
+  outline-offset: 3px;
+}
+
+/* --- Live-edge primitives: the ONLY three rules in the scoped layer that
+   reference --juli-run-live-edge / --juli-run-live-edge-foreground. --- */
+
+.juli-run-stepper-node--active {
+  background: var(--juli-run-live-edge);
+  box-shadow: 0 0 0 4px var(--juli-run-live-edge-soft);
+}
+
+.juli-run-streaming-caret {
+  background: var(--juli-run-live-edge);
+}
+
+.juli-run-cta--armed {
+  background: var(--juli-run-live-edge);
+  color: var(--juli-run-live-edge-foreground);
+}

@@ -1,0 +1,96 @@
+{
+  "planId": "rep-1314-run-surface-visual-identity-motion",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com styling (Optimize Product run surface + In-Progress sub-tab, apps/demo/src/app/decisions/recommendations and apps/demo/src/app/decisions/in-progress)",
+    "packages/theme (scoped token layer only — no app-wide value change)"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Load the candidate demo build — zero public canary traffic; presentation/motion-only change with no API side effects",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "Issue's own Release evidence section: 'load the candidate demo, confirm the new surface renders with the scoped tokens and the dashboard is visually unchanged.' Transcribed verbatim into the journeys below — no additional surfaces inferred.",
+    "journeys": [
+      {
+        "name": "run-surface-scoped-tokens-render",
+        "entryUrl": "/decisions/recommendations",
+        "assertions": [
+          "html_200",
+          "run surface renders with the scoped focus-surface tokens (quieter ground, reduced chrome, deeper neutral)",
+          "the live-edge accent token appears only on the active stepper node / streaming caret / armed CTA, nowhere else on the page",
+          "focus rings remain visible on interactive elements on the new surface"
+        ]
+      },
+      {
+        "name": "in-progress-sub-tab-scoped-tokens-render",
+        "entryUrl": "/decisions/in-progress",
+        "assertions": [
+          "html_200",
+          "sub-tab renders with the same scoped token layer as the recommendations run surface",
+          "motion primitives observed only fire on a real event/state transition, never on a bare timer"
+        ]
+      },
+      {
+        "name": "dashboard-visually-unchanged",
+        "entryUrl": "/",
+        "assertions": [
+          "html_200",
+          "computed token values on this route are byte-identical to the pre-change build (dashboard and the other ten workflows' surfaces are unaffected by the scoped layer)"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/decisions/recommendations",
+      "/decisions/in-progress"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true,
+    "notes": "Issue text: 'the built CSS must carry the scoped layer — assert by checking the built artifact, not the source.' The scoped token layer and motion primitive styles must be discoverable in the built CSS output, not only in packages/theme source files."
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Issue text: 'No migration.' This is a token layer and motion primitive change in packages/theme and apps/demo only — no database schema, no persisted-shape change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false,
+    "notes": "Issue text: 'reverting removes the scoped layer only; assert app-wide tokens are untouched so a rollback cannot restyle the rest of the app.' The same byte-identical app-wide token test that gates the forward change also gates rollback safety."
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "pnpm --filter @juli/theme test -- --run"
+  ],
+  "doNotInfer": [
+    "release evidence fields beyond what the issue's Release evidence (ADR-035) section states",
+    "any app-wide token value change — the layer is scoped only",
+    "any use of the live-edge accent token for ordinary emphasis",
+    "any motion primitive driven by a timer alone with no event or state-transition trigger",
+    "a palette that contradicts PUI-DESIGN.md — no new external design reference was gathered for this wave",
+    "editing apps/dashboard or ios/ to prove the dashboard is unchanged — verification reads apps/dashboard's rendered output, it does not modify it"
+  ]
+}
