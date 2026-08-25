@@ -158,6 +158,8 @@ async def _seed_run_at_pause(
     *,
     arguments: dict[str, Any],
     confirmed_params_sha: str | None,
+    prompt_version: str | None = None,
+    prompt_sha256: str | None = None,
 ) -> uuid.UUID:
     """Seeds a `workflow_runs` row already at `waiting_approval` with a
     `pending_confirmation` blob shaped exactly like a real CONFIRM pause
@@ -166,6 +168,10 @@ async def _seed_run_at_pause(
     (`agent_runs.py::submit_confirmation_decision`) -- `None` to simulate a
     caller (or a pre-#1224-review-round-2 test) that never went through
     that endpoint at all.
+
+    `prompt_version` and `prompt_sha256` default to reasonable values ("optimize_product_2/v1"
+    and "0"*64) if not provided. Pass explicit values for edge cases like
+    unparseable versions or corrupt data (issue #1359 tests).
     """
     pending_confirmation: dict[str, Any] = {
         "call_id": "call-listing-1",
@@ -182,8 +188,8 @@ async def _seed_run_at_pause(
         product_id=product.id,
         state=state.to_dict(),
         status="waiting_approval",
-        prompt_version="optimize_product_2/v1",
-        prompt_sha256="0" * 64,
+        prompt_version=prompt_version if prompt_version is not None else "optimize_product_2/v1",
+        prompt_sha256=prompt_sha256 if prompt_sha256 is not None else "0" * 64,
     )
     session.add(run)
     await session.commit()
@@ -413,6 +419,56 @@ async def test_resume_uses_stored_prompt_version_not_production_bump(
     )
     assert result.stop_reason == StopReason.FINAL_RESPONSE
     assert result.status == WorkflowRunStatus.COMPLETED
+
+
+# ---------------------------------------------------------------------------
+# CRITICAL: Resume fails closed if prompt version is missing or unparseable
+# (issue #1359 — never silently fall back to production_version, which
+# reintroduces the bug)
+# ---------------------------------------------------------------------------
+
+
+async def test_resume_fails_closed_when_prompt_version_unparseable(
+    session: AsyncSession, shop_and_product
+):
+    """Resume must NOT execute if the stored prompt_version is unparseable
+    (corrupt data). Fail-closed: better to refuse a paused run than to
+    execute an unknown prompt (issue #1359).
+    """
+    shop, product = shop_and_product
+
+    # Seed a run at pause with a malformed prompt_version to simulate
+    # corrupt/unparseable data (issue #1359)
+    run_id = await _seed_run_at_pause(
+        session,
+        shop,
+        product,
+        arguments=PROPOSED_CHANGE,
+        confirmed_params_sha=None,
+        prompt_version="completely_malformed_no_version_here",  # Corrupt
+        prompt_sha256="1234567890abcdef" * 4,  # 64 chars, but based on bad version
+    )
+
+    spy = _SpyToolExecutor(result={"title": "New improved title", "image_attached": False})
+    llm = FakeLLMService(script=[])  # must never be called — should fail before dispatch
+    runner = _build_runner(session, spy, llm)
+
+    result = await runner.resume(run_id, approved=True)
+
+    # The resume should fail with the specific stop reason
+    assert result.stop_reason == StopReason.PROMPT_VERSION_UNRECOVERABLE, (
+        "Unparseable prompt_version must fail with PROMPT_VERSION_UNRECOVERABLE"
+    )
+    assert result.status == WorkflowRunStatus.FAILED
+    assert spy.calls == [], "Tool must never execute when prompt version is unparseable"
+    assert len(llm.recorded_calls) == 0, (
+        "LLM must never be called when prompt version is unparseable"
+    )
+
+    # Verify the row was persisted with the terminal status
+    await session.refresh(run := await session.get(WorkflowRunRow, run_id))
+    assert run.status == "failed"
+    assert run.stop_reason == "prompt_version_unrecoverable"
 
 
 if __name__ == "__main__":  # pragma: no cover

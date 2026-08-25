@@ -114,7 +114,15 @@ class _InMemoryConversationStore:
         self._store[workflow_run_id] = state if state is not None else RunState()
 
     async def load(self, workflow_run_id: uuid.UUID) -> RunState:
-        return self._store[workflow_run_id]
+        state = self._store[workflow_run_id]
+        # Simulate JsonbConversationStore.load() populating prompt_version/
+        # prompt_sha256 from the row (issue #1359). In-memory tests don't have
+        # a database row, so default to reasonable values if not already set.
+        if state.prompt_version is None:
+            state.prompt_version = "optimize_product.v1"
+        if state.prompt_sha256 is None:
+            state.prompt_sha256 = "0" * 64
+        return state
 
     async def persist(
         self,

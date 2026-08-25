@@ -208,6 +208,7 @@ accumulator either before or after this issue's fix.
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from collections.abc import Callable
@@ -284,6 +285,8 @@ from juli_backend.services.agent.sanitize import (
 from juli_backend.services.agent.status import StopReason, WorkflowRunStatus, status_for
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry, ToolSpec, UnknownToolError
 from juli_backend.services.execution.types import ExecutionErrorCategory
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -629,21 +632,58 @@ class WorkflowRunner:
         # resume must not switch prompts mid-run — the seller consented to the
         # original prompt, not a newer one. state.prompt_version is loaded from
         # the workflow_runs row by ConversationStore.load().
+        # Fail-closed (ADR-072 d.4): do not execute if the version is unrecoverable,
+        # to preserve "what runs is what was reviewed".
         if state.prompt_version is None or state.prompt_sha256 is None:
-            # Fallback for runs paused before this fix (or edge case missing data):
-            # recompose from current production version. This is not ideal but
-            # allows graceful degradation for existing paused runs.
-            system_prompt, version_str, sha256 = self._compose_prompt()
-        else:
-            try:
-                system_prompt, version_str, sha256 = self._compose_prompt_at_version(
-                    state.prompt_version
-                )
-            except (ValueError, IndexError):
-                # Malformed or unexpected prompt_version format (possibly from old
-                # test fixtures or edge cases). Fall back to production version
-                # rather than crashing mid-resume.
-                system_prompt, version_str, sha256 = self._compose_prompt()
+            logger.warning(
+                "prompt_version_missing_on_resume: run_id=%s reason=pre_fix_run_or_missing_data",
+                workflow_run_id,
+            )
+            stop = await self._terminate(
+                workflow_run_id,
+                state,
+                StopReason.PROMPT_VERSION_UNRECOVERABLE,
+                version_str="",
+                sha256="",
+            )
+            await self._conversation_store.persist(
+                workflow_run_id,
+                state,
+                status=stop.status,
+                stop_reason=stop.stop_reason,
+                required_steps_completed=self._required_steps_completed(state),
+                running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+            )
+            return stop
+
+        try:
+            system_prompt, version_str, sha256 = self._compose_prompt_at_version(
+                state.prompt_version
+            )
+        except (ValueError, IndexError) as exc:
+            logger.warning(
+                "prompt_version_unparseable_on_resume: run_id=%s "
+                "reason=corrupt_or_malformed_version prompt_version=%s error=%s",
+                workflow_run_id,
+                state.prompt_version,
+                str(exc),
+            )
+            stop = await self._terminate(
+                workflow_run_id,
+                state,
+                StopReason.PROMPT_VERSION_UNRECOVERABLE,
+                version_str="",
+                sha256="",
+            )
+            await self._conversation_store.persist(
+                workflow_run_id,
+                state,
+                status=stop.status,
+                stop_reason=stop.stop_reason,
+                required_steps_completed=self._required_steps_completed(state),
+                running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+            )
+            return stop
         tool_definitions = self._tool_definitions()
 
         pending = state.pending_confirmation

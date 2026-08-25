@@ -177,7 +177,7 @@ async def _seed_workflow_run(session: AsyncSession) -> uuid.UUID:
         product_id=product.id,
         state=RunState().to_dict(),
         status="running",
-        prompt_version="v1",
+        prompt_version="optimize_product.v1",
         prompt_sha256="0" * 64,
     )
     session.add_all([user, shop, product, run])
