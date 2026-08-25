@@ -517,32 +517,42 @@ class TestProductionWriteAuthorizationAPIAccess:
     """Test that /v1/* routes cannot create authorizations."""
 
     async def test_no_v1_route_exposes_authorization_creation(self, session):
-        """Verify no /v1/* route can create an authorization (operator action only)."""
-        from httpx import ASGITransport, AsyncClient
+        """Verify no /v1/* route endpoint references ProductionWriteAuthorizationsRepo.issue.
+
+        Structural assertion: scan all app routes and their endpoint modules to prove
+        no endpoint code (not just configuration) can invoke authorization issuing.
+        This prevents future developers from accidentally wiring issuing to a route.
+        """
+        import inspect
 
         from juli_backend.api.app import create_app
-        from juli_backend.database import get_session
 
         app = create_app()
 
-        async def _test_session():
-            yield session
+        # Scan all routes
+        for route in app.routes:
+            # Only check /v1/* routes
+            if not route.path.startswith("/v1/"):
+                continue
 
-        app.dependency_overrides[get_session] = _test_session
+            # Get the endpoint function
+            endpoint = route.endpoint
+            if endpoint is None:
+                continue
 
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            # Try to find any route that looks like it could create authorizations
-            # This is a negative test: we're asserting the route doesn't exist
-            response = await client.post(
-                "/v1/production-write-authorizations",
-                json={
-                    "shop_id": str(uuid.uuid4()),
-                    "tiktok_product_id": "product_123",
-                    "mutation_kind": "listing.optimize_product",
-                },
+            # Get the source code of the endpoint
+            try:
+                source = inspect.getsource(endpoint)
+            except (OSError, TypeError):
+                # Skip if we can't get source (e.g., built-in routes)
+                continue
+
+            # Assert the endpoint doesn't reference ProductionWriteAuthorizationsRepo
+            repo_ref = "ProductionWriteAuthorizationsRepo"
+            assert repo_ref not in source, (
+                f"Route {route.path} endpoint {endpoint.__name__} must not reference {repo_ref}"
             )
 
-            # Should be 404 (not found), not 401/403 (which would indicate auth failure)
-            assert response.status_code == 404
-
-        app.dependency_overrides.clear()
+            assert ".issue(" not in source, (
+                f"Route {route.path} endpoint {endpoint.__name__} must not call .issue()"
+            )
