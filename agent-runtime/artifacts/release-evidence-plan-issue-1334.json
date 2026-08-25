@@ -1,0 +1,85 @@
+{
+  "planId": "abuse-limits-verified-deployed-behaviour-2026-08-25",
+  "affectedPublicSurfaces": [
+    "api.app-juli.com rate-limiting behaviour on the four agent-run operations: approve (5/hour, burst 2), confirmations (30/hour), SSE streams (10 concurrent), and cancel — which is never throttled, structurally: cancel never calls `services/agent/abuse_limits.py` at all. This slice verifies the deployed mechanism shipped by #1223 (ADR-075 decision 4); it adds tests and at most an Nginx lint, it does not change limit values.",
+    "The exhaustion contract per limited operation: 429 with `Retry-After` and an `agent_abuse_limit_exceeded` security event carrying shop id and operation — asserted from the emitted log record, not from the limiter function's return value.",
+    "The fail-closed asymmetry under a Redis outage: approve, confirmations and SSE are refused while the backend is unavailable, and cancel is unaffected — proven by exercising cancel through the HTTP route DURING the simulated outage, not by reading the module docstring that says cancel was never wired.",
+    "Bucket keying: limits are per shop after authentication, not per IP — two shops behind one caller do not share a bucket, and one shop across two callers does.",
+    "The Nginx vhost config under `infra/nginx/` (ADR-061 §2b step 8): `limit_req` present on the `/webhooks/tiktok` and `/v1/demo/*` locations, and a generous zone (rather than none) on the authenticated catch-all, enforced by a committed config lint that fails when a zone is removed."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest with `PYTHONPATH` pinned to the worktree's `backend/src`; the limiter backend is a test Redis (or a simulated outage double bound to the real client signature) — no live TikTok call, no VPS contact, no production shop. Post-deploy: the candidate port only, using a test shop; no public traffic is routed to a candidate task set (the single-VPS lane has none), and no write against any production or customer shop — writes stay sandbox-bound for the entire wave per the owner decision of 2026-08-21.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "The journey's side effects are rate-limiter counter state in Redis for a test shop and, for the cancel half, a cancelled test run — no seller-visible or vendor-side effect. workersDisabledOnCandidate is FALSE because cancel's success path may touch the worker lane; nothing in this journey requires a production write and none is permitted. The Nginx half is config-lint plus `nginx -t` evidence, not traffic.",
+    "journeys": [
+      {
+        "name": "abuse-limits-exhaust-then-cancel-unthrottled",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1334",
+        "assertions": [
+          "pre-merge: each of the three limited operations (approve, confirmations, SSE), exhausted, returns 429 with `Retry-After` and emits the `agent_abuse_limit_exceeded` security event carrying shop id and operation — asserted from captured log records, not from the limiter's return value",
+          "pre-merge: cancel succeeds while every other limit for that shop is exhausted, exercised through the HTTP route — so a future wiring of cancel into the limiter breaks this test",
+          "pre-merge: with the limiter backend unavailable, approve, confirmation and SSE are refused (fail closed) and cancel succeeds — the cancel half exercised DURING the outage, through the route",
+          "pre-merge: buckets are keyed by shop after authentication — two shops behind one caller do not share a bucket, and one shop across two callers does",
+          "pre-merge: limits are read from the documented env vars; an unset var uses the documented default, and a malformed value fails loudly rather than silently defaulting",
+          "pre-merge: SSE concurrency is asserted by holding N streams open and opening stream N+1 — not by unit-testing the counter",
+          "pre-merge: the Nginx config lint asserts `limit_req` on `/webhooks/tiktok` and `/v1/demo/*` and a generous zone on the authenticated catch-all, and fails when a zone is removed from either",
+          "post-deploy: on the candidate port, exhaust the approve limit for a test shop and observe 429 + `Retry-After` and the `agent_abuse_limit_exceeded` event in the journal; then cancel a run for the same shop and observe success",
+          "post-deploy: the candidate's Nginx config carries the `limit_req` zones (`nginx -t` passes with every referenced zone defined)"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — the diff is backend tests, fixtures, and Nginx config lint under `infra/nginx/`; any operator-facing surface is a log record or an HTTP status, not a rendered page."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "nginx-config-test",
+      "api-log-records"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration and no schema change. The diff is tests, fixtures, and possibly the Nginx config lint (plus the lint's target zones if a zone is genuinely missing). If implementation concludes any schema or limit-value change is required, that is a scope change: report it and revise this plan BEFORE merge — never a silent widening."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. The deployed limiter keeps its current, untested-end-to-end behaviour — the pre-existing state this slice exists to verify. No new exposure: the slice changes mechanism verification, not mechanism.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and reload the previous Nginx config. If this slice tightened any Nginx zone, reverting loosens it back — acceptable, it is today's behaviour. The revert MUST NOT leave a `limit_req` directive referencing an undefined zone: that fails `nginx -t` and would take the site down on reload — assert config-test passes on the reverted config before reload. Code rollback is test-and-config only; no data state to unwind.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'abuse_limit or abuse_limits' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/integration -k 'abuse or cancel' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'nginx' -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "Changing the limit VALUES is out of scope unless a value is provably wrong — this slice verifies the mechanism as deployed. If the manual red-team pass later argues a value is too generous, that is a follow-up issue, not this diff.",
+    "Cancel must never be wired into the limiter. Its exemption is structural (cancel never calls abuse_limits at all) and the test exists precisely so a future wiring breaks it. Do not 'fix' the exemption.",
+    "The Nginx config under `infra/nginx/` is not a W6 surface, but everything W6 owns is out of bounds: `services/agent/approval.py`, `services/agent/runner/core.py`, `api/routes/demo_decisions.py`, and `core/security/dependencies.py` must not appear in this diff. If a limit test appears to require editing one of them, stop and report.",
+    "SSE concurrency is asserted by holding N streams open and opening stream N+1 — never by unit-testing the counter in isolation.",
+    "Redis-outage fail-closed is proven by exercising the routes during a simulated outage bound to the real client signature — not by reading the docstring, and not with a **kwargs double.",
+    "No production write, no production credential, and nothing targeting Fujiwa Vietnam Store (`2b1da87b`) anywhere in this slice's tests or journeys — writes stay sandbox-bound for the entire wave."
+  ]
+}

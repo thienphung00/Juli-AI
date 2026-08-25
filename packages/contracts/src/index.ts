@@ -59,3 +59,8 @@ export {
   WORKFLOW_RUN_STATUSES,
   validateAgentEvent,
 } from "./agent-events";
+export type {
+  PendingDecisionSummary,
+  WorkflowRunListItem,
+  WorkflowRunListResponse,
+} from "./agent-runs";

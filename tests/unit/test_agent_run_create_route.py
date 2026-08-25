@@ -51,10 +51,12 @@ async def app(engine, session):
 
 
 async def test_post_demo_runs_no_longer_exists(app):
-    """404, not 405 -- the route is gone from the router entirely, not just
-    disabled for this method. A 405 would mean some other verb is still
-    registered at this path; FastAPI/Starlette return 404 for a path with
-    zero matching routes at all, which is what an outright removal produces."""
+    """405, not 2xx -- direct POST run-creation stays removed; approve is the
+    only run-creation path (ADR-075 decision 1). Until #1310 this asserted
+    404 because NO verb lived at /v1/demo/runs; the polled run-list read
+    model now registers GET there, so Starlette correctly answers 405 for
+    POST (path exists, method doesn't). The guard's intent is unchanged:
+    a 2xx here would mean run-creation-by-POST came back."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.post("/v1/demo/runs", json={"product_id": "not-even-checked"})
-    assert resp.status_code == 404
+    assert resp.status_code == 405
