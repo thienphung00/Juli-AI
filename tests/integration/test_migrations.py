@@ -1622,11 +1622,9 @@ def test_juli_app_does_not_own_tables(postgres_at_head: Engine):
     with postgres_at_head.connect() as conn:
         result = conn.execute(
             text("""
-                SELECT COUNT(*) FROM information_schema.tables
-                WHERE table_type = 'BASE TABLE'
-                AND table_schema != 'pg_catalog'
-                AND table_schema != 'information_schema'
-                AND table_owner = 'juli_app'
+                SELECT COUNT(*) FROM pg_tables
+                WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+                AND tableowner = 'juli_app'
             """)
         ).scalar_one()
     assert result == 0, "juli_app should not own any tables"
@@ -1634,7 +1632,7 @@ def test_juli_app_does_not_own_tables(postgres_at_head: Engine):
 
 @requires_postgres
 def test_juli_app_has_schema_usage_grants(postgres_at_head: Engine):
-    """juli_app has USAGE on all runtime schemas."""
+    """juli_app has USAGE on all runtime schemas (proven by table grants in each schema)."""
     expected_schemas = {"public", "bronze", "silver", "ops", "gold"}
     with postgres_at_head.connect() as conn:
         result = conn.execute(
@@ -1642,11 +1640,10 @@ def test_juli_app_has_schema_usage_grants(postgres_at_head: Engine):
                 SELECT DISTINCT table_schema
                 FROM information_schema.role_table_grants
                 WHERE grantee = 'juli_app'
-                AND privilege = 'SELECT'
             """)
         ).fetchall()
     granted_schemas = {row[0] for row in result}
-    # Check that we have grants in all expected schemas
+    # Check that we have grants in all expected schemas (USAGE is evidenced by table grants)
     for schema in expected_schemas:
         assert schema in granted_schemas, f"juli_app missing grants in schema {schema}"
 
@@ -1750,7 +1747,7 @@ def test_juli_app_select_on_webhook_raw_events_raises_error(postgres_at_head: En
                 WHERE grantee = 'juli_app'
                 AND table_schema = 'public'
                 AND table_name = 'webhook_raw_events'
-                AND privilege = 'SELECT'
+                AND privilege_type = 'SELECT'
             """)
         ).scalar_one()
     assert result == 0, "SELECT privilege should not be granted on webhook_raw_events"

@@ -194,22 +194,14 @@ def downgrade() -> None:
     to 'postgres' before downgrading.
     """
     # Drop the role; fails loudly if sessions are connected as juli_app.
-    # Revoke all privileges from the role on all objects in all schemas,
-    # then drop the role. Use comprehensive revoke pattern to handle any privilege grants.
+    # DROP OWNED BY removes all privileges the role has on objects (the actual grants).
     sql = f"""
 DO $drop_role$
-DECLARE
-  r RECORD;
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{ROLE_NAME}') THEN
-    -- Revoke all privileges on all tables in all schemas (for each schema that exists)
-    FOR r IN
-      SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ('public', 'bronze', 'silver', 'ops', 'gold')
-    LOOP
-      EXECUTE 'REVOKE ALL ON ALL TABLES IN SCHEMA ' || r.schema_name || ' FROM {ROLE_NAME}';
-      EXECUTE 'REVOKE USAGE ON SCHEMA ' || r.schema_name || ' FROM {ROLE_NAME}';
-    END LOOP;
-    -- Drop the role itself
+    -- DROP OWNED BY removes all privileges/grants this role has on all objects
+    EXECUTE 'DROP OWNED BY {ROLE_NAME}';
+    -- Now drop the role itself
     DROP ROLE {ROLE_NAME};
   END IF;
 END
