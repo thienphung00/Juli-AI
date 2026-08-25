@@ -31,22 +31,26 @@ SELLER_CONNECT_MERCHANT_ID = "123456789"
 
 @pytest.fixture
 def mock_sandbox_write_products_resource():
-    """Mock resource returning products from sandbox_write seller's catalog."""
+    """Mock resource returning products from sandbox_write seller's catalog.
+
+    Mirrors TikTok's REAL search payload shape: the id key is "id" (not
+    "product_id") and there is no "name" — normalize_product derives both.
+    A fixture shaped like the code's own kwargs instead of the vendor's
+    payload is what let the empty-tiktok_product_id bug ship (2026-08-25).
+    """
     resource = MagicMock()
     resource.search_all.return_value = [
         {
-            "product_id": "sandbox_p1",
+            "id": "sandbox_p1",
             "title": "Sandbox Product 1",
-            "name": "Sandbox Product 1",
             "status": "active",
-            "updated_at": 1700000100,
+            "update_time": 1700000100,
         },
         {
-            "product_id": "sandbox_p2",
+            "id": "sandbox_p2",
             "title": "Sandbox Product 2",
-            "name": "Sandbox Product 2",
             "status": "active",
-            "updated_at": 1700000200,
+            "update_time": 1700000200,
         },
     ]
     return resource
