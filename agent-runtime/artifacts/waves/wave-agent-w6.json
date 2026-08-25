@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "wave_manifest",
+  "waveId": "wave-agent-w6",
+  "branch": "feature/agent-w6-wave",
+  "issues": [
+    1309,
+    1313,
+    1314
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "planId": "agent-run-list-polled-read-model-2026-08-25",
+  "affectedPublicSurfaces": [
+    "New `GET /v1/demo/runs` on `api.app-juli.com` (`backend/src/juli_backend/api/routes/...`) — the polled Postgres read model over the same `workflow_runs` / `workflow_run_events` rows the event stream persists, tenant-scoped through `get_active_shop`.",
+    "`packages/contracts` — the TypeScript mirror of the run-list response shape, golden-tested in both languages in the same PR (cross-language contract test)."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest against a real Postgres test database (never SQLite — status/stop_reason/expiry fidelity requires it), with PYTHONPATH pinned to the worktree's backend/src. Runs are seeded directly into `workflow_runs`/`workflow_run_events` — a `queued` run with zero events, a `waiting_approval` run with a persisted pending-decision/expiry row, and one run per each of the seven terminal `stop_reason` values (completed, completed-after-decline, cancelled, expired, timed out, failed, worker-lost) — plus a second shop's run to assert cross-tenant absence and a 404 (never 403) on fetch-by-id. Post-deploy: on the candidate port, an authenticated request scoped to the sandbox-write shop (`1862f13b-de2c-4fae-a4ad-70298cead913`) — never Fujiwa (`2b1da87b-d0a8-46a6-b3c6-2132be0b5f4f`) — returns that shop's runs including a queued one; the request performs no write and executes no approval.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is false because the endpoint is a read-only poll over already-persisted rows — no worker/Celery path participates in serving or verifying it. apiSideEffectsInScope is false: the verification request is a GET with no mutation. The actual auth mechanism used for the authenticated candidate request is whatever real identity-provider path is live at deploy time (sibling slice #1313 governs it) — this plan does not prescribe or substitute a self-signed test token as proof against the live candidate.",
+    "journeys": [
+      {
+        "name": "seller-lists-own-runs-including-queued",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1310",
+        "assertions": [
+          "pre-merge: a test asserts the response contains only the authenticated caller's shop's runs; another shop's run is absent from the list, and fetching it by id returns 404, never 403",
+          "pre-merge: a test asserts a `queued` run — which has emitted no events — appears in the list (the case a stream cannot cover)",
+          "pre-merge: a test asserts a `waiting_approval` run's pending-decision summary and expiry are read from the persisted confirmation row, not computed client-side or re-derived at response time",
+          "pre-merge: a test asserts the latest narration line is read from persisted event rows, and a run whose narration was never emitted returns null rather than an invented string",
+          "pre-merge: a test asserts all seven terminal `stop_reason` values (completed, completed-after-decline, cancelled, expired, timed out, failed, worker-lost) render as seven distinguishable values, asserted per value, not by key presence",
+          "pre-merge: a test asserts against the real serializer output that no tool name, playbook key, or internal identifier appears anywhere in the response",
+          "pre-merge: a golden test in both `packages/contracts` (TypeScript) and the Python serializer asserts the same shape for the same fixture payload",
+          "pre-merge: a test asserts the endpoint is paginated or bounded — an unbounded list over a shop with many runs is a defect",
+          "post-deploy: `/root/releases/current` resolves to the release containing this route, and `systemctl show -p InvocationID --value juli-api` changed across the deploy, proving the API process restarted onto that release",
+          "post-deploy: an authenticated `GET /v1/demo/runs` scoped to the sandbox-write shop (`1862f13b-…`) returns 200 with that shop's runs including a queued one, and never returns Fujiwa's (`2b1da87b-…`) runs"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — the diff is a new FastAPI route, its serializer/read-model query, and the packages/contracts TypeScript mirror. apps/demo is not a consumer in this slice (the ledger UI is a later slice per the epic)."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "api-json-response",
+      "contracts-golden-test"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration — read-only over the existing `workflow_runs` / `workflow_run_events` tables per the issue's own release-evidence note and the epic lock reserving migration authorship in this wave to #1312 only (AGT-W6B-DP). If a field this list genuinely needs is absent from the schema, the Executor reports it rather than adding a migration in this slice."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without this slice, no `GET /v1/demo/runs` route exists; the In-Progress ledger (a later slice's consumer) has nothing to poll yet — the pre-existing state, no new exposure introduced by this plan.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart juli-api — route removal only, no migration to reverse. Per the issue's own rollback note: the demo lane must degrade to an empty ledger rather than erroring, since the ledger UI consumer ships in a later slice; assert that a client polling a now-absent or emptied route never surfaces an unhandled error state.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'run_list or demo_runs or runs_read_model' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/integration -k 'run_list or demo_runs' -q",
+    "pnpm --filter @juli/contracts test",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "This is a poll only, never a multiplexed per-shop event stream — that stays deferred behind ADR-083 T4's own trigger (epic lock).",
+    "Do not add a migration or column. A pure read model over existing tables is the goal; if the acceptance criteria are provably unreachable without a schema change, report it rather than adding one in this slice — only #1312 (AGT-W6B-DP) is authorized to migrate in this wave.",
+    "Do not compute the pending-decision expiry client-side or independently of the persisted confirmation row — they must match exactly.",
+    "Do not invent or substitute the authentication mechanism for the candidate verification request; use whatever real identity-provider path is live (sibling slice #1313), never a self-signed test token as proof against the live candidate.",
+    "Cross-tenant and nonexistent runs both return 404, never 403 — no existence oracle, anywhere (epic lock, all lanes).",
+    "Nothing in the response may reveal a tool name, playbook key, or internal identifier — assert against the real serializer output, not a hand-constructed fixture."
+  ]
+}
