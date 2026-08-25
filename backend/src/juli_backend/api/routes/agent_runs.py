@@ -124,7 +124,8 @@ from sqlalchemy import CursorResult, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from juli_backend.api.dependencies import get_active_shop
-from juli_backend.database import Shop, get_session
+from juli_backend.core.security import get_current_user
+from juli_backend.database import Shop, User, get_session
 from juli_backend.models.models import Product, RunConfirmation
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
@@ -543,11 +544,12 @@ async def _sse_stream_with_concurrency_slot(
     generator: AsyncIterator[str],
     *,
     gate: agent_abuse_limits.AbuseLimitGate,
-    shop_id: str,
+    user_id: str,
 ) -> AsyncIterator[str]:
     """Wraps `event_stream`'s generator so the SSE concurrency slot
     `stream_run_events` already acquired is always released -- ADR-075
-    decision 4 / #1223: "SSE is concurrency, not rate."
+    decision 4 / #1223 / #1313: "SSE is concurrency, not rate" keyed
+    per-user-session, not per-shop.
 
     The `finally` below runs on every exit path a Python generator can
     take, which covers two of the three ways this slot needs to be
@@ -606,7 +608,7 @@ async def _sse_stream_with_concurrency_slot(
         async for chunk in generator:
             yield chunk
     finally:
-        await gate.release_stream(shop_id)
+        await gate.release_stream(user_id)
 
 
 @router.get("/{run_id}/events")
@@ -614,6 +616,7 @@ async def stream_run_events(
     run_id: uuid.UUID,
     request: Request,
     after: int | None = Query(default=None, ge=0),
+    user: User = Depends(get_current_user),
     shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
     session_factory: async_sessionmaker[AsyncSession] = Depends(get_run_events_session_factory),
@@ -623,25 +626,25 @@ async def stream_run_events(
 ) -> StreamingResponse:
     run = await _resolve_owned_run(run_id, shop, session)
 
-    # ADR-075 decision 4 / #1223: SSE is a concurrency limit, not a rate
-    # window -- 10 concurrent streams per shop. Acquired AFTER tenant
-    # scoping above (a 404 for someone else's run must never consume a
-    # slot) and released in `_sse_stream_with_concurrency_slot` below on
-    # every exit path -- clean end, run termination, and client disconnect
-    # alike (see that helper's own docstring for the disconnect proof).
+    # ADR-075 decision 4 / #1223 / #1313: SSE is a concurrency limit, not a
+    # rate window -- 10 concurrent streams per user-session (not per shop).
+    # Acquired AFTER tenant scoping above (a 404 for someone else's run must
+    # never consume a slot) and released in `_sse_stream_with_concurrency_slot`
+    # below on every exit path -- clean end, run termination, and client
+    # disconnect alike (see that helper's own docstring for the disconnect proof).
     stream_gate = agent_abuse_limits.get_agent_abuse_limit_gate()
-    stream_limit_decision = await stream_gate.try_acquire_stream(str(shop.id))
+    stream_limit_decision = await stream_gate.try_acquire_stream(str(user.id))
     if not stream_limit_decision.allowed:
         agent_abuse_limits.log_abuse_limit_exceeded(
             logger,
-            shop_id=str(shop.id),
+            user_id=str(user.id),
             operation=agent_abuse_limits.OPERATION_SSE,
             retry_after_seconds=stream_limit_decision.retry_after_seconds,
         )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=(
-                "Too many concurrent event streams for this shop; "
+                "Too many concurrent event streams for this session; "
                 f"retry in {stream_limit_decision.retry_after_seconds}s"
             ),
             headers={"Retry-After": str(stream_limit_decision.retry_after_seconds)},
@@ -687,7 +690,7 @@ async def stream_run_events(
         poll_interval_s=poll_interval_s,
     )
     released_generator = _sse_stream_with_concurrency_slot(
-        generator, gate=stream_gate, shop_id=str(shop.id)
+        generator, gate=stream_gate, user_id=str(user.id)
     )
     # Issue #1292: belt-and-braces edge buffering fix -- the first byte
     # (connected comment) is emitted before subscribe in event_stream above,
@@ -881,6 +884,7 @@ async def submit_confirmation_decision(
     run_id: uuid.UUID,
     tool_call_id: str,
     body: ConfirmationDecisionRequest,
+    user: User = Depends(get_current_user),
     shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
 ) -> ConfirmationDecisionResponse:
@@ -889,26 +893,26 @@ async def submit_confirmation_decision(
     for the full ladder, the consent-binding contract, and the single-use
     race guarantee -- this body is the implementation of exactly that.
     """
-    # ADR-075 decision 4 / #1223: the "confirmations" bucket -- 30/hour, per
-    # shop, checked before the run is even resolved (a caller probing
-    # tool_call_ids on runs it does not own must still be throttled, not
-    # just successful decisions). See `services.agent.abuse_limits`'s
-    # docstring for the fail-closed-on-backend-outage decision and why
-    # cancel is structurally exempt from this whole module.
+    # ADR-075 decision 4 / #1223 / #1313: the "confirmations" bucket -- 30/hour,
+    # per user-session (not per shop), checked before the run is even resolved
+    # (a caller probing tool_call_ids on runs it does not own must still be
+    # throttled, not just successful decisions). See `services.agent.abuse_limits`'s
+    # docstring for the fail-closed-on-backend-outage decision and why cancel is
+    # structurally exempt from this whole module.
     limit_decision = await agent_abuse_limits.get_agent_abuse_limit_gate().try_acquire_confirmation(
-        str(shop.id)
+        str(user.id)
     )
     if not limit_decision.allowed:
         agent_abuse_limits.log_abuse_limit_exceeded(
             logger,
-            shop_id=str(shop.id),
+            user_id=str(user.id),
             operation=agent_abuse_limits.OPERATION_CONFIRMATION,
             retry_after_seconds=limit_decision.retry_after_seconds,
         )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=(
-                "Too many confirmation decisions for this shop; "
+                "Too many confirmation decisions for this session; "
                 f"retry in {limit_decision.retry_after_seconds}s"
             ),
             headers={"Retry-After": str(limit_decision.retry_after_seconds)},

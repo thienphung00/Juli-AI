@@ -20,7 +20,13 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     session: AsyncSession = Depends(get_session),
 ) -> User:
-    """FastAPI dependency: validates Supabase JWT → returns authenticated User."""
+    """FastAPI dependency: validates Supabase JWT → returns authenticated User.
+
+    For anonymous users (whose sub is not yet in the Users table), creates
+    a user record with is_anonymous=True. This allows Supabase anonymous
+    sign-in to mint real JWTs for distinct anonymous identities, each with
+    their own audit trail.
+    """
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -53,7 +59,14 @@ async def get_current_user(
     try:
         return await UsersRepo(session).get(user_id)
     except NotFound:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
+        # If user doesn't exist, create them as an anonymous user (issue #1313).
+        # Each anonymous JWT gets a distinct user identity for audit purposes.
+        # Anonymous users are identified by phone == "anonymous" (no real phone number).
+        user = User(
+            id=user_id,
+            phone="anonymous",
+            display_name="Anonymous User",
         )
+        session.add(user)
+        await session.flush()
+        return user

@@ -1,0 +1,86 @@
+{
+  "planId": "anonymous-demo-session-2026-08-25",
+  "affectedPublicSurfaces": [
+    "`api.app-juli.com` auth path — Supabase anonymous sign-in now mints the session behind *Dùng thử Demo*, verified through the same `get_current_user` → `verify_supabase_jwt` path (HS256/ES256 dispatch on `alg`, ES256 via JWKS) every other Supabase-issued token already uses. No second, anonymous-only verification branch.",
+    "`demo.app-juli.com`'s entry — the *Dùng thử Demo* button/flow now calls real Supabase anonymous sign-in instead of a client-side mock; a visitor's browser holds a genuine JWT for a distinct anonymous user.",
+    "Every route reachable with that anonymous session's token: `GET /v1/demo/decisions`, `GET /v1/demo/decisions/{id}`, `GET /v1/demo/runs`, run-scoped routes, and any route `get_active_shop`/route-dependency wiring could resolve to a non-demo shop — the acceptance criteria require the marketplace-write surface to be structurally unreachable from this session, not merely untested.",
+    "Inbound rate limiting (`services/agent/abuse_limits.py`) — bucket keying changes from shop-only to per-user-session (config-driven), on the same Redis-backed inbound limiter; no second rate-limit mechanism is introduced."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest exercises the real Supabase JWT verification path end-to-end — a token minted through the actual anonymous-sign-in provider path (or a token whose signature is verified against a real JWKS/ES256 fixture equivalent to it), never a self-signed test token asserted against the app's own assumption of what a valid token looks like. Structural route-dependency assertions (not single-route probes) prove no marketplace-write route is reachable from the anonymous session's shop scope. Post-deploy: on the candidate port, real anonymous sign-in against the deployed Supabase project → `GET /v1/demo/decisions` returns the demo tenant's (`DEMO_SHOP_ID`) cards; the same token against the reference shop's id (`2b1da87b-…`, Fujiwa) returns 404, never 403. No approval, no confirmation, no write is exercised against a live merchant shop.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is false — this slice touches only the auth/session-resolution and rate-limit-keying path on the API process; no worker/Celery path participates in minting or verifying a session. apiSideEffectsInScope is false — the candidate journey is unauthenticated-visitor sign-in followed by GET-only reads against the seeded demo tenant (#1312); no approve/confirm/write is exercised as part of proving this slice. KNOWN ENVIRONMENT DEPENDENCY, carried from the issue's own Notes: Supabase anonymous sign-in must be enabled on the Supabase project for the candidate journey above to be executable at all. If it is not enabled when this slice reaches candidate verification, that is an owner action on the Supabase dashboard, not something the Executor works around with a shared account or a synthetic token standing in for the real provider path — the Executor is expected to build and pre-merge-test everything that does not require the toggle (JWT verification dispatch reuse, shop-scoping, 404-vs-403 behavior, structural write-route exclusion, per-session rate-bucket keying, identity-linking preservation of runs) and flag the toggle as a blocking environment dependency for the post-deploy leg of this journey specifically.",
+    "journeys": [
+      {
+        "name": "visitor-mints-real-anonymous-session-scoped-to-demo-tenant",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1313",
+        "assertions": [
+          "pre-merge: a test mints a token through the real anonymous-sign-in provider path (or an equivalent real ES256/JWKS fixture, never a self-signed test token) and asserts the API verifies it through the identical `verify_supabase_jwt` path a password-grant HS256/ES256 token uses",
+          "pre-merge: a test asserts the anonymous session's active shop resolves to the demo tenant (`DEMO_SHOP_ID`, seeded by #1312), never to `DEMO_REFERENCE_SHOP_ID`/Fujiwa (`2b1da87b-…`) and never to the sandbox-write shop (`1862f13b-…`)",
+          "pre-merge: a test asserts reading another shop's decisions or runs with the anonymous token returns 404, never 403 — asserted per case, not by generic error-code matching",
+          "pre-merge: a structural test enumerates route dependencies and asserts no marketplace-write-capable route is reachable from the anonymous session's shop scope, not a single-route probe",
+          "pre-merge: a test asserts rate buckets are keyed per user-session (config-driven, reusing `services/agent/abuse_limits.py`) — two visitors' independent exhaustion tests never cross-throttle, and `cancel` stays unthrottled",
+          "pre-merge: a test asserts two anonymous sign-ins are two distinct users with two distinct audit rows (never a shared account)",
+          "pre-merge: a test proves linking an anonymous identity to a signed-in identity preserves the visitor's runs — the runs remain readable under the new (signed-in) identity after linking",
+          "pre-merge: a test asserts that with `DEMO_SHOP_ID` (or whatever the demo-tenant setting is named) unset, the anonymous path fails loudly — raises/boots-fails — and never silently falls back to `DEMO_REFERENCE_SHOP_ID`, the exact #1283 hazard ADR-084 forbids",
+          "post-deploy (gated on Supabase anonymous sign-in being enabled on the project — see notes): `/root/releases/current` resolves to the release containing this fix, and `systemctl show -p InvocationID --value juli-api` changed across the deploy, proving the API process restarted onto that release",
+          "post-deploy (same gate): a real anonymous sign-in against the deployed Supabase project, followed by `GET /v1/demo/decisions`, returns the demo tenant's seeded cards; the same token against the reference shop's id returns 404",
+          "if the Supabase anonymous-sign-in toggle is not enabled at verification time: the post-deploy assertions above are explicitly reported as blocked-by-environment-dependency, not silently skipped or worked around"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No new HTML route, page, bundle, or static asset — the diff is backend auth/session-resolution wiring (`core/security/`, `api/dependencies.py`, agent route dependencies), rate-limit keying (`services/agent/abuse_limits.py`), and identity-linking. `apps/demo`'s existing *Dùng thử Demo* entry point is an unchanged consumer of the session it receives back from Supabase; any client-side call-site change to invoke real anonymous sign-in instead of a mock is in scope for wiring but not a new page/bundle."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "api-json-response",
+      "route-dependency-audit"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration per the issue's own release-evidence note and the epic lock reserving migration authorship in this wave to #1312 (AGT-W6B-DP) only. This slice is auth/session-resolution/rate-limit-keying wiring over existing tables (Users, Shops, workflow_runs). If a field genuinely requires a schema change, report it rather than adding one in this slice."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without this slice, *Dùng thử Demo* stays on whatever pre-existing session mechanism is live (the localStorage mock, or an unauthenticated/incompletely-scoped path per prior ADR-076 amendments) — the pre-existing state, no new exposure introduced by this plan.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart juli-api — no migration to reverse. Per the issue's own rollback note: reverting must not leave anonymous tokens accepted with an unscoped shop — assert the pre-change behaviour is the *stricter* one, i.e. a rollback must never leave a wider-scoped anonymous session accepted than existed before this slice landed.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'anonymous or demo_session or abuse_limit' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/integration -k 'anonymous or demo_session or identity_link' -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "Do not build or accept a shared demo account as a substitute for anonymous sign-in — explicitly forbidden by ADR-084 decision 1 and the W6 plan; two visitors must be two distinct users with distinct audit rows.",
+    "Do not verify the anonymous token through a special-cased or self-signed path — it must go through the same `verify_supabase_jwt` ES256/JWKS dispatch every other Supabase token uses (the W5 gate's HS256-hardcoded-verifier defect is the regression this AC exists to prevent).",
+    "Do not introduce a second rate-limiting mechanism — per-user-session buckets are config-driven keying added to the existing `services/agent/abuse_limits.py` inbound limiter, not a new module.",
+    "Do not touch `backend/src/juli_backend/database/migrations/` — no migration is authorized for this slice.",
+    "If Supabase anonymous sign-in cannot be enabled on the project (owner action, outside code), do not work around it with a shared account, a synthetic bypass, or a self-signed token standing in for the real provider — build and pre-merge-test everything that does not require the toggle, and report the environment dependency as a blocker for the post-deploy leg rather than silently marking the slice done.",
+    "This slice does not implement RLS, the production-write capability flip, or any real impact reading — all deferred per the epic's deferrals list.",
+    "W6 PRs target `feature/agent-w6-wave`, not `main` — the base branch for this issue's PR and for Review's diff-since-fixed-point is the wave branch, not main."
+  ]
+}
