@@ -1650,14 +1650,34 @@ class ProductionWriteAuthorizationsRepo(ShopScopedRepo):
     ) -> ProductionWriteAuthorization:
         """Atomically consume an authorization by setting consumed_at and run_id.
 
-        In a single transaction, this claims the authorization and prevents any
-        other consumer from seeing it. Two concurrent claims against the same
-        authorization succeed exactly once; the loser observes the consumed state.
+        Uses SELECT FOR UPDATE to claim the row: first session to acquire the
+        lock wins, sets consumed_at + consumed_by_run_id, and commits. Second
+        session waits for the lock, then sees consumed_at is already set and
+        raises NotFound to signal it lost the race. Caller observes consumed
+        state via lookup returning None, not an error.
         """
-        auth = await self._session.get(ProductionWriteAuthorization, authorization_id)
+        # Lock the row: blocks concurrent transactions until this one commits
+        stmt = (
+            select(ProductionWriteAuthorization)
+            .where(ProductionWriteAuthorization.id == authorization_id)
+            .with_for_update()
+        )  # SELECT ... FOR UPDATE (blocking lock)
+
+        result = await self._session.execute(stmt)
+        auth = result.scalar_one_or_none()
         if auth is None:
             raise NotFound(f"Authorization {authorization_id} not found")
 
+        # Check if already consumed (loser of the race will see this)
+        if auth.consumed_at is not None:
+            # Another transaction beat us; it now holds the lock
+            # Raise to signal this authorization was already claimed
+            raise NotFound(
+                f"Authorization {authorization_id} already consumed "
+                f"by run {auth.consumed_by_run_id}"
+            )
+
+        # We won the lock; claim it
         auth.consumed_at = datetime.now(UTC).replace(tzinfo=None)
         auth.consumed_by_run_id = run_id
         await self._session.flush()

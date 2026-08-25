@@ -5,25 +5,48 @@ Integration tests require:
 - Database DATABASE_URL environment variable pointing to a scratch DB
 - Alembic migrations including 043_juli_app_role and 044_prod_write_authorizations
 
-These tests verify Alembic migration and downgrade work against real Postgres.
-Concurrent consumption behavior is unit-tested in
-tests/unit/test_production_write_authorizations.py.
+These tests verify:
+1. Atomic consumption under real concurrent access (two sessions, one winner)
+2. Alembic migration and downgrade correctness against real Postgres
 """
 
 from __future__ import annotations
 
+import asyncio
 import os
+import uuid
+from unittest.mock import AsyncMock, patch
 
 import pytest
+import pytest_asyncio
 from alembic import command
 from alembic.config import Config as AlembicConfig
 from sqlalchemy import create_engine, inspect
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+from juli_backend.database.exceptions import NotFound
+from juli_backend.models.models import Product, Shop, User, WorkflowRun
+from juli_backend.repositories.repos import ProductionWriteAuthorizationsRepo
 
 # Skip all tests in this module if DATABASE_URL is not set
 DATABASE_URL = os.environ.get("DATABASE_URL")
 pytestdb = pytest.importorskip("psycopg2", minversion=None) if DATABASE_URL else None
 
 ALEMBIC_INI = "/Users/macos/Juli-AI-v2/alembic.ini"
+
+
+@pytest_asyncio.fixture
+async def postgres_engine():
+    """Async engine for real Postgres if DATABASE_URL is set."""
+    if not DATABASE_URL:
+        pytest.skip("DATABASE_URL not set")
+
+    engine = create_async_engine(
+        DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"),
+        echo=False,
+    )
+    yield engine
+    await engine.dispose()
 
 
 @pytest.fixture(scope="session")
@@ -40,6 +63,125 @@ def alembic_config():
         "/Users/macos/Juli-AI-v2/.worktrees/issue-1335/backend/src/juli_backend/database/migrations",
     )
     return config
+
+
+@pytest.fixture(scope="session", autouse=True)
+def ensure_migrations_run(alembic_config):
+    """Run migrations once per test session."""
+    if not DATABASE_URL:
+        return  # Skip if no DB
+    try:
+        command.upgrade(alembic_config, "head")
+    except Exception:
+        pass  # Migration may have already run
+
+
+@pytest.mark.asyncio
+class TestProductionWriteAuthorizationsConcurrency:
+    """Test atomic consumption under real concurrent access."""
+
+    async def test_concurrent_consumption_exactly_once(self, postgres_engine):
+        """Two concurrent consumers claim exactly once; loser observes consumed state."""
+        if not DATABASE_URL:
+            pytest.skip("DATABASE_URL not set")
+
+        factory = async_sessionmaker(postgres_engine, expire_on_commit=False)
+
+        # Setup: create auth to consume
+        async with factory() as sess:
+            user = User(phone=f"+1555{uuid.uuid4().int % 10_000_000:07d}")
+            sess.add(user)
+            await sess.flush()
+
+            shop = Shop(user_id=user.id, shop_name="Concurrent Test Shop")
+            sess.add(shop)
+            await sess.flush()
+
+            from datetime import UTC, datetime
+
+            product = Product(
+                shop_id=shop.id,
+                tiktok_product_id="concurrent_product",
+                name="Test Product",
+                status="active",
+                update_time=datetime.now(UTC).replace(tzinfo=None),
+            )
+            sess.add(product)
+            await sess.flush()
+
+            run = WorkflowRun(
+                shop_id=shop.id,
+                product_id=product.id,
+                status="running",
+                prompt_version="test",
+                prompt_sha256="test",
+            )
+            sess.add(run)
+            await sess.flush()
+
+            repo = ProductionWriteAuthorizationsRepo(sess)
+            with patch(
+                "juli_backend.services.tiktok.credential_binding.verify_capability_binding",
+                new_callable=AsyncMock,
+            ):
+                auth = await repo.issue(
+                    shop_id=shop.id,
+                    tiktok_product_id="concurrent_product",
+                    mutation_kind="listing.optimize_product",
+                    capability="sandbox_write",
+                    shop_cipher="ROW_test_cipher",
+                    authorized_by="concurrency_test",
+                    reason="Testing concurrent consumption",
+                    ttl_hours=1,
+                )
+
+            auth_id = auth.id
+            shop_id = shop.id
+            run_id = run.id
+            await sess.commit()
+
+        # Concurrent consumption: two independent sessions claim simultaneously
+        results = []
+
+        async def consume_concurrently(consumer_id):
+            try:
+                async with factory() as sess:
+                    repo_copy = ProductionWriteAuthorizationsRepo(sess)
+                    consumed = await repo_copy.consume(auth_id, run_id=run_id)
+                    await sess.commit()
+                    results.append(("success", consumer_id, consumed.consumed_by_run_id))
+            except NotFound:
+                # Loser of the race: sees the consumed state
+                results.append(("lost_race", consumer_id, "NotFound"))
+            except Exception as e:
+                results.append(("error", consumer_id, str(type(e).__name__)))
+
+        # Run both consumers concurrently
+        await asyncio.gather(
+            consume_concurrently("consumer_1"),
+            consume_concurrently("consumer_2"),
+        )
+
+        # Exactly one winner, one loser observing consumed state
+        successes = [r for r in results if r[0] == "success"]
+        losers = [r for r in results if r[0] == "lost_race"]
+        assert len(successes) == 1, (
+            f"Expected exactly 1 concurrent claim to succeed, got {len(successes)}. "
+            f"Results: {results}"
+        )
+        assert len(losers) == 1, (
+            f"Expected 1 loser to observe consumed state, got {len(losers)}. Results: {results}"
+        )
+
+        # Verify: loser now sees consumed state via lookup
+        async with factory() as sess:
+            repo_verify = ProductionWriteAuthorizationsRepo(sess)
+            found = await repo_verify.lookup(
+                shop_id=shop_id,
+                tiktok_product_id="concurrent_product",
+                mutation_kind="listing.optimize_product",
+            )
+            assert found is None, "Lookup should return None for consumed authorization"
 
 
 class TestAlembicRoundTrip:
