@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 
 import pytest
-from fastapi import APIRouter
+from fastapi import APIRouter, FastAPI
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
 
@@ -210,8 +210,8 @@ class TestSurfaceInventoryGeneration:
         Negative test: creates a test app with an extra unauthenticated route,
         then asserts the inventory check would fail, naming the route.
         """
-        # Create a test app and add a fixture route
-        app = create_app()
+        # Create a fresh app and add a fixture route (ensures isolated environment)
+        test_app = FastAPI()
         test_router = APIRouter(prefix="/v1/test")
 
         @test_router.get("/unauthorized-endpoint")
@@ -219,10 +219,15 @@ class TestSurfaceInventoryGeneration:
             """This is intentionally unauthenticated."""
             return {"message": "test"}
 
-        app.include_router(test_router)
+        test_app.include_router(test_router)
+        # Also include the real app's /v1 routes so we can compare
+        app = create_app()
+        for route in app.routes:
+            if isinstance(route, APIRoute) and route.path.startswith("/v1/"):
+                test_app.routes.append(route)
 
-        # Generate inventory with the extra route
-        generated = generate_surface_inventory(app)
+        # Generate inventory with the extra route (using the test app)
+        generated = generate_surface_inventory(test_app)
         committed = load_committed_inventory()
 
         # Verify that the extra route appears in generated
