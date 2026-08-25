@@ -28,7 +28,7 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 **W6 — planned and filed 2026-08-25.** Design grilled 2026-08-12 ([ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md)), amended by [ADR-084](../../adr/084-agent-demo-surface-tenancy-and-replay.md) after the W5 gate walk contradicted four of its premises. PRD [#1308](https://github.com/thienphung00/Juli-AI/issues/1308); fourteen slices + gate [#1322](https://github.com/thienphung00/Juli-AI/issues/1322) — see [Wave 6](#wave-6--sellers-can-watch-juli-work-and-choose-what-it-does-2026-08-25) | ⬜ |
 | 11b | P-IM — Incremental impact measurement (NEW) | ✅ implemented, gate reopened in **W4** — [ADR-077](../../adr/077-incremental-impact-measurement.md); re-run wave merged to `main` (#1113, 2026-08-14), #1040–#1045 + #1068 all with status records, after the [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B refusal of the first attempt | 🟨 2026-08-21 — **reachable, still un-run.** W4 fixed all three broken reads (#1215 payload, #1216 duration, #1219 measurable set). The reading itself needs a production-shop write, because the sandbox shop has no analytics series — that is W5's gate, not a code gap |
 | 11c | P-CRED — TikTok credential lifecycle / refresh-token rotation (NEW) | ✅ **W4 closed 2026-08-21** — deployed on release `14807670` and verified against the vendor: sandbox credential refreshed through the real `refresh_credential` path, `refresh_count` 0→1, expiry moved 2026-08-27→2026-08-28. Beat and lazy layers live; **reactive layer built but wired to nothing** (#1233), so a token that dies before its recorded expiry is not self-healed. `/root/refresh_credentials.py` retired. [ADR-081](../../adr/081-refresh-token-rotation.md) | ✅ 2026-08-21 — full matrix green + one real sandbox-token refresh |
-| 11d | P-PROD — Production-write unlock (NEW) | ⬜ **W7** — RLS across 13 tables, manual red-team pass, the ADR-068 capability flip, and the ADR-050 C2 data dependencies. Gates P-IM's real reading and P10's business-impact metric | ⬜ |
+| 11d | P-PROD — Production-write unlock (NEW) | 🟨 **W7 — planned and filed 2026-08-25**, in parallel with W6. Design [ADR-085](../../adr/085-production-write-preconditions.md), amending ADR-061 d.1 (its RLS deferral's trigger has fired). PRD [#1325](https://github.com/thienphung00/Juli-AI/issues/1325); thirteen slices + gate [#1339](https://github.com/thienphung00/Juli-AI/issues/1339) — see [Wave 7](#wave-7--the-owner-can-authorize-one-real-change-and-prove-it-was-safe-2026-08-25). **Scope corrected:** RLS is absent-not-deferred (policies key off a GUC nothing sets, and the app connects as the table *owner*, which Postgres exempts); the table count is 37, not 13; ADR-050 C2 is removed from this wave. Gates P-IM's real reading and P10's business-impact metric | ⬜ |
 | 12 | P10 — Observability baseline | ⬜ **W8** | ⬜ |
 | 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ **W9** (with P7) | ⬜ |
 | 14 | P13 — Edge cases + rollout to remaining 10 workflows | ⬜ **W10** | ⬜ |
@@ -512,6 +512,142 @@ W5 parent cache; the concurrency one from two documents. The concurrency ADR is 
 **[ADR-083](../../adr/083-agent-concurrency-target-nfrs.md)**. An issue body saying "ADR-082"
 was otherwise ambiguous to an executor with no way to ask.
 
+## Wave 7 — the owner can authorize one real change, and prove it was safe (2026-08-25)
+
+Phase 11d / P-PROD. **PRD [#1325](https://github.com/thienphung00/Juli-AI/issues/1325)**;
+design authority [ADR-085](../../adr/085-production-write-preconditions.md), which amends
+[ADR-061](../../adr/061-first-user-security-baseline.md) decision 1 — the RLS deferral's
+own trigger has fired. **Planned in parallel with W6 and started at the same time**; W7 is
+not blocked by W6's gate.
+
+### The objection, and the answer
+
+W6's design record states it plainly: *"A wave scoped to blockers whose clearance is an owner
+decision is a wave whose deliverable is somebody else's signature."* That was correct about the
+framing, and this wave is scoped the other way. **All thirteen implementation slices are AFK
+engineering that stands on its own** — tenant isolation is worth having whether or not a
+production write ever happens, and so is a threat model, an adversarial behaviour suite, a
+cross-tenant probe, and a single-use authorization primitive. The three owner acts appear
+**only** as gate observations, each with an explicit legitimate-result clause, exactly as #1226
+and #1322 handle theirs.
+
+### What the codebase actually says about the two blockers
+
+Both are larger and differently shaped than "RLS across the 13 tables" implies. The findings,
+all verified against the tree rather than inferred:
+
+| Claim on record | What the code says |
+| --- | --- |
+| RLS is *deferred* | It is **absent in a way that looks present.** Ten policies across migrations 001/002/017/019/020/022/024 compare against `current_setting('app.current_user_id')`. There is **no `set_config` and no `SET LOCAL app.current_user_id` anywhere in `backend/src`** — the only `SET LOCAL`s in the tree are `lock_timeout`/`statement_timeout` in `runner/ledger.py`. The GUC has never been set |
+| Adding policies would fix it | It would not. Migration `032`'s own docstring: *"it authenticates as the Supabase pooler `postgres` role"* — **the table owner**, which Postgres exempts from row policies. A correct policy would still be bypassed by the only connection that matters |
+| "13 tables" | `models.py` declares **37** across five schemas; migrations 033–041 added six after ADR-061's audit. A scope expressed as a number rots exactly the way the convention did |
+| RLS is expressible per table | **Five tables have no tenant column.** `workflow_run_events`, `run_confirmations`, `impact_readings`, `action_card_approvals` reach a shop only through a parent; `webhook_raw_events` has no shop lineage at all |
+| The flip is "a capability grant" | There is **no artifact** representing *"the owner authorized this mutation, on this listing, once."* A path allow-list and an env var cannot express it, and an authorization living in a GitHub comment is not something a program can fail closed on |
+| The impact reader is missing something | It is not. It is scheduled, computes both kinds, and maps `below_floor` → `suppressed` honestly. What is missing is knowing **before** a write whether a listing can yield a non-suppressed reading, and a read-side rule that never counts one as a reading |
+
+### The shape of the fix
+
+A **`juli_app` runtime role that owns nothing** becomes the role the API and workers connect
+as. Policies apply because it is not the owner — no `FORCE ROW LEVEL SECURITY`, no broken
+migrations, no owner exemptions to keep right forever. Tenant identity travels as `SET LOCAL
+app.current_shop_id` / `app.current_user_id` applied at the unit-of-work seam, denying twice:
+`missing_ok = true` so an unset GUC returns no rows, **and** a named Python error raised before
+the query is issued — because SQL-side denial alone makes a missing tenant context read as
+"this seller has no data." Coverage is enumerated from `pg_catalog` at test time, so a table
+that lands unprotected lands failing.
+
+Isolation becomes real at one moment: when `DATABASE_URL` names `juli_app`. That is deliberate —
+the one step CI cannot derisk is also the cheapest to undo, and everything before it is AFK.
+To stop the two changes being made in the wrong order, `assert_agent_runtime_config()` gains a
+**seventh check**: with the production-write capability enabled, the process verifies at boot
+that its own connection is not a table owner and that RLS is on for every catalog-classified
+tenant table — or it refuses to start, naming the check.
+
+### Four lanes, and where they touch W6
+
+| Lane | Slices | Domain | Write paths |
+| --- | --- | --- | --- |
+| **W7-A — isolation** | #1326 #1327 #1328 #1329 #1330 | data-platform (#1327, #1330 backend) | new migrations · `database/database.py` · `workers/agent_runtime_boot.py` · `pr.yml` (appended jobs) · runbooks |
+| **W7-B — the red-team harness** | #1331 #1332 #1333 #1334 | backend | `docs/security/**` · new test trees · `infra/nginx/**` |
+| **W7-C — production-write machinery** | #1335 #1336 #1337 | backend | new migrations · `services/execution/**` · `integrations/tiktok/capabilities.py`, `guards.py` |
+| **W7-D — measurement honesty** | #1338 | backend | impact read path · `services/impact` reuse (no reader changes) |
+
+**Six slices are unblocked on day one** — #1326, #1331, #1332, #1334, #1335, #1338.
+
+| Slice | Issue | Depends on |
+| --- | --- | --- |
+| W7-A/P-PROD-1 the `juli_app` runtime role and its grants | #1326 | — |
+| W7-A/P-PROD-2 tenant identity set on every transaction, fail-closed | #1327 | #1326 |
+| W7-A/P-PROD-3 RLS that denies — the ten dead policies rewritten | #1328 | #1327 |
+| W7-A/P-PROD-4 the two-tenant proof, enumerated from the catalog | #1329 | #1328 |
+| W7-A/P-PROD-5 the boot check that outranks the capability flip | #1330 | #1329 |
+| W7-B/P-PROD-6 threat model + an inventory CI keeps honest | #1331 | — |
+| W7-B/P-PROD-7 adversarial corpus asserts loop behaviour | #1332 | — |
+| W7-B/P-PROD-8 generated cross-tenant probe — 404, never 403 | #1333 | #1331 |
+| W7-B/P-PROD-9 abuse limits verified, including cancel's exemption | #1334 | — |
+| W7-C/P-PROD-10 owner authorization becomes a single-use row | #1335 | — |
+| W7-C/P-PROD-11 four preconditions with four names, default off | #1336 | #1335, #1330 |
+| W7-C/P-PROD-12 no-deploy kill switch + audit of every attempt | #1337 | #1336 |
+| W7-D/P-PROD-13 measurable before the write, unfabricated after | #1338 | — |
+| **W7 gate** **HITL** — isolation real, surface red-teamed, one change measured | #1339 | #1330, #1332, #1333, #1334, #1336, #1337, #1338 |
+
+### Disjointness with W6, and three declared serialization points
+
+W6 owns `apps/demo/**`, `packages/theme`, `packages/contracts`, `api/routes/demo_decisions.py`,
+the new run-list route, `services/agent/approval.py`, `services/agent/runner/core.py`, the
+scenario capture/replay module, and the demo-tenant seed. W7 touches **none** of them. Three
+places need coordination rather than a claim of disjointness, and each is declared on the issue
+that touches it:
+
+1. **Alembic's linear head.** W6's #1312 may add at most one migration; W7 adds several.
+   Numbers are **reserved, not read from head — #1312 takes 042 if it needs one; W7 starts at
+   043 and never reuses.** An unissued 042 is a gap; two waves computing `down_revision` from
+   head is a branched head and an outage.
+2. **`core/security/`.** W6's #1313 owns `dependencies.py` and the anonymous-session path. W7
+   reads the already-resolved active shop at the unit-of-work seam and **does not edit that
+   module** — declared as a lock on #1327 and #1330.
+3. **CI workflow files.** Both waves add jobs. W7 **appends** jobs and never string-replaces
+   into an existing `needs:` block without running the validator; duplicate `- <job>` entries
+   make a replace hit the wrong job, and an empty `needs.X.result` is the silent symptom.
+
+One more coordination note that is not a conflict: #1333's cross-tenant probe is generated from
+the live route table, so it covers W6's new routes automatically when they land. W6's parent
+scope already requires 404-not-403 for cross-tenant and nonexistent, so the waves agree by
+construction. **If a W6 route fails the probe, that is a real defect and gets reported against
+the owning W6 issue — not silenced with an exclusion.**
+
+Likewise #1332 adds fixtures and tests only. If a case reveals a defect needing a change in
+`runner/core.py` or the sanitizer, it is reported and coordinated with #1272, never fixed
+across the wave boundary.
+
+### The gate, and what it supersedes
+
+#1339 carries four observations, each with a legitimate result that is not "success":
+the role cutover on the deployed host (revert cleanly and diagnose is a pass); the manual
+red-team pass (open findings is the pass working); an explicit owner authorization for a
+single production mutation (declining is the default, and the standing 2026-08-21 decision
+holds); and the first real impact reading at T+7.
+
+**#1339 supersedes #1226's observation 2**, which #1226's 2026-08-25 comment recorded as
+blocked by owner decision. #1226 stays open for observation 1 only — the confirm→write step,
+pending realistic sandbox product data, an owner action in the sandbox Seller Center as
+merchant `7658096633384781588`.
+
+Neither this gate nor any slice may close by disabling a control, waiving a precondition, or
+recording a `suppressed` reading as a reading.
+
+### Explicitly not in W7
+
+- **The manual red-team pass itself** and any finding it produces — gate observation 2; findings become new issues.
+- **The production mutation**, and the `DATABASE_URL` cutover — gate observations 3 and 1, owner acts.
+- **[ADR-050](../../adr/050-cdp-slice-3-5-c-two-gated-exits.md) C2** — the cold-start fleet engine (fleet-wide analytics top-up, OAuth→signals cold start, 7D bootstrap) is **removed from W7**: it is a many-shop onboarding engine, it is nowhere on #1226's chain, and it roughly doubles the wave. The one C2-adjacent fact that *is* on the chain — the production shop's analytics depth — is already served by the existing single-shop `analytics-backfill-topup` beat and is verified empirically by #1338. *Trigger:* a second live merchant connects, or W8's business-impact metric needs readings from more than one shop.
+- **The GA per-shop credential model.** ADR-081 shipped lazy + beat refresh and #1290's binding verifier landed; per-shop scoping of `seller_connect` is an architecture, not a hardening pass. *Trigger:* the first non-owner merchant completes OAuth, or the first write credential is minted from a `seller_connect` capability.
+- **Generalizing production writes beyond one allow-listed listing.** *Trigger:* observation 3 completes and a second authorization is requested.
+- **A tenant column on `webhook_raw_events`** (it gets `INSERT` only). *Trigger:* a tenant-scoped surface needs to read it.
+- **`gold` RLS keyed to `auth.uid()`** for client-direct reads — ADR-061's 3.5-C deferral is untouched; migration 032 revoked `anon`/`authenticated` from `public` entirely and this wave does not re-open the Data API.
+- **Automated or continuous red-teaming.** *Trigger:* the manual pass finds a class the fixture suite could not have caught.
+- W8's observability rollups · the remaining ten workflows (P13/W10) · `apps/demo` and everything else W6 owns.
+
 ## Wave roadmap — W4 to W10 (2026-08-20)
 
 Every remaining phase, assigned to a wave, in the order the constraints allow. Waves are
@@ -542,7 +678,7 @@ named for the phases they implement.
 | **W4 — P-CRED + P-IM** | 11c, 11b gate | ✅ **CLOSED 2026-08-21**, deployed `14807670` · #1215 #1216 #1219 #1230 #1231 #1232 #1233 #1234 #1246 | ✅ |
 | **W5 — P9+P14** | 10 | ✅ **CODE MERGED 2026-08-24**, deployed `4cce75a7` · #1214 #1217 #1218 #1221 #1222 #1224 #1225 #1181 #1223 #1269 #1274 #1140 · **gate #1226 blocked** — see [W5 live verification](#w5-live-verification-2026-08-24) | — |
 | **W6 — P-UI** | 11 | 🟨 **PLANNED AND FILED 2026-08-25** · PRD #1308, ADR-084 · W6-B contract lane #1309 #1310 #1272 #1311 #1312 #1313 · W6-A interface lane #1314–#1321 · gate #1322 · rider #1077 (seller-copy TS half) — see [Wave 6](#wave-6--sellers-can-watch-juli-work-and-choose-what-it-does-2026-08-25) | **W7** |
-| **W7 — P-PROD** | 11d (NEW) | Production-write unlock: RLS across the 13 tables · manual red-team pass · the ADR-068 capability flip · the ADR-050 C2 data dependencies (per-shop analytics topup, OAuth→signals cold start, 7D bootstrap) | **W6** |
+| **W7 — P-PROD** | 11d (NEW) | 🟨 **PLANNED AND FILED 2026-08-25** · PRD #1325, ADR-085 · W7-A isolation #1326–#1330 · W7-B red-team harness #1331–#1334 · W7-C write machinery #1335–#1337 · W7-D measurement #1338 · gate #1339 — see [Wave 7](#wave-7--the-owner-can-authorize-one-real-change-and-prove-it-was-safe-2026-08-25). **ADR-050 C2 removed from this wave** and deferred with its own trigger | **W6** |
 | **W8 — P10** | 12 | Logging baseline re-verification, per-run rollup, the five-link outcome chain, the four unconflated metrics · closes #1226's second half | — |
 | **W9 — P15 + P7** | 13, 9 | Hardening pass over the whole Optimize Product path; extract the per-workflow config template (prompt + allowlist + **output schema**) · P7 structured output contract | — |
 | **W10 — P13** | 14 | Edge-case matrix; register the 4 unregistered tool handlers; onboard the remaining ten workflows via the template | — |
