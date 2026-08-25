@@ -1,0 +1,182 @@
+# Handoff: owner-only actions (HITL queue), 2026-08-25
+
+Five things only the owner can do. Nothing here is blocked on an agent; every item is
+either a human decision, a console/dashboard action, or a merge. Written to be picked up
+by a session with **no prior context** — ids, commands, and the reasoning are inline.
+
+Ordering matters in exactly one place: **§1 before merging PR #1350** (see §2).
+
+---
+
+## 1. HITL — gate #1226 observation 1: fix the sandbox product, then walk
+
+**Status:** six of seven walk steps proven live on the deployed host (see the two
+2026-08-25 comments on issue #1226). The last step — confirm → sandbox write — has never
+run, and it is not blocked by code.
+
+**Why it's stuck.** Two clean runs (`17dab3b5`, `3c504cf2`) completed end to end and the
+agent chose to *report* rather than propose a write. Its reasoning was sound for the data:
+the bound sandbox product's title is "Hinh ảnh Juli Mới Nhất trên thị trường", its
+description is literally `23432432`, and its main image is a JULI AI infographic banner —
+the vision tool flagged `mismatch: high`. An optimize-product playbook has nothing
+concrete to propose on a listing like that.
+
+**The action (owner, ~15 min).** In the **TikTok sandbox Seller Center**, signed in as the
+sandbox-write merchant **`7658096633384781588`**, edit product **`1736363193934775939`**
+("Hinh ảnh Juli Mới Nhất trên thị trường"):
+
+- a plausible product title (any real-sounding item),
+- a genuine description (not a number string),
+- a real product photo that matches the title.
+
+**Then walk it.** All on the VPS (`ssh -i ~/.ssh/juli_vps_tool root@5.223.68.27`):
+
+```bash
+# 0. env + token (password grant; the call itself re-proves ES256/JWKS verification)
+set -a; source /etc/juli/api.env; set +a
+RESP=$(curl -s "$SUPABASE_URL/auth/v1/token?grant_type=password" \
+  -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Content-Type: application/json" \
+  -d '{"email":"gate-1226@app-juli.com","password":"PASTE_PASSWORD"}')
+TOKEN=$(printf '%s' "$RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("access_token",""))')
+if [ -z "$TOKEN" ]; then echo "LOGIN FAILED: $RESP"; else echo "token_len=${#TOKEN}"; fi
+API=https://api.app-juli.com
+SHOP=1862f13b-de2c-4fae-a4ad-70298cead913
+
+# 1. refresh (per-shop cooldown — if it 429s, wait a few minutes), then list
+curl -s -X POST "$API/v1/action-cards/refresh" \
+  -H "Authorization: Bearer $TOKEN" -H "X-Shop-Id: $SHOP"
+sleep 30
+curl -s "$API/v1/demo/decisions" \
+  -H "Authorization: Bearer $TOKEN" -H "X-Shop-Id: $SHOP" | python3 -m json.tool
+
+# 2. approve a card from that list
+CARD=<action_card_id from step 1>
+curl -s -X POST "$API/v1/demo/decisions/$CARD/approve" \
+  -H "Authorization: Bearer $TOKEN" -H "X-Shop-Id: $SHOP" | python3 -m json.tool
+
+# 3. stream — RUN **must** be the run_id from the approve you just did
+RUN=<run_id from step 2>
+curl -sN "$API/v1/demo/runs/$RUN/events" \
+  -H "Authorization: Bearer $TOKEN" -H "X-Shop-Id: $SHOP" \
+  | tee /root/gate-1226-obs1-events.log
+
+# 4. when the stream shows the confirmation event, in a SECOND ssh window re-set
+#    TOKEN/API/SHOP/RUN, then:
+TCID=<tool_call_id from the confirmation event>
+OPT=<option_id from the confirmation event>
+curl -s -X POST "$API/v1/demo/runs/$RUN/confirmations/$TCID" \
+  -H "Authorization: Bearer $TOKEN" -H "X-Shop-Id: $SHOP" \
+  -H "Content-Type: application/json" \
+  -d "{\"decision\":\"approve\",\"option_id\":\"$OPT\"}" | python3 -m json.tool
+```
+
+**Traps that already cost time in the last session:**
+- Streaming with a **stale `$RUN`** replays an old run's events and looks like a fresh
+  failure. Check the first event's `workflow_run_id` and timestamp match the approve you
+  just did.
+- `read`-based prompts eat pasted input; paste values inline instead.
+- Never name a shell variable `UID` — bash reserves it (silent failure).
+- Tokens last ~1h; re-mint on a 401.
+- Completed runs consume their card permanently (by design). Failed runs auto-revert since
+  #1306, so no manual `UPDATE` is needed any more.
+
+**Definition of done:** the write lands in the sandbox, the run reaches a success terminal
+event, `/root/gate-1226-obs1-events.log` is the golden-scenario record, and the outcome is
+posted on issue #1226. Observation 2 is already recorded as blocked by owner decision
+(2026-08-25 comment) — that half of the gate is closed honestly and needs nothing further.
+
+---
+
+## 2. Merge queue
+
+| PR | What | Base | Note |
+|---|---|---|---|
+| **#1350** | #1309 executability discriminator + named 409 refusal | `feature/agent-w6-wave` | **Merge only after §1's walk.** |
+| (Cursor session's) | #1326, #1331, #1332, #1334, #1335, #1338 | — | Owned by the other session; review status unknown here. |
+
+**Why #1350 waits for the walk.** It ends silent playbook substitution: approve will
+honestly 409-refuse any card whose `workflow_key` has no registered playbook. Scoring emits
+**11 distinct workflow_keys and only `optimize_product_2` is registered** — the gate walk's
+cards (`create_hero_product_1`, `process_order_5`) are among the ten that stop being
+approvable. Merging first doesn't break anything real, but it removes the walk's approvable
+cards and forces observation 1 to re-scope onto the seeded demo tenant's card.
+
+Already merged this session (no action): #1343 (#1312 demo seed), #1345 (#1310 run list),
+#1340/#1341/#1342 (W7 planning + handoff), #1323/#1324 (W6 planning).
+
+---
+
+## 3. HITL — gate #1339 (W7 exit gate), four observations
+
+Not startable until the W7-A/W7-B implementation issues land. Each has a recorded
+"legitimate result" that is **not** success, so an honest negative closes the observation:
+
+1. **Role cutover** on the deployed host (connect as the non-owner `juli_app` role) — a
+   clean revert plus a diagnosis is a pass.
+2. **Manual red-team pass** — open findings are the pass *working*; produces an attestation
+   bound to the deployed release sha, which #1336's precondition 4 reads.
+3. **Authorization for one production mutation** — **declining is the default and a pass.**
+   Requires functional RLS and the red-team pass first; the mutation is a single listing of
+   the owner's choosing. Standing rule until then: sandbox-only writes, never Fujiwa
+   (`2b1da87b-d0a8-46a6-b3c6-2132be0b5f4f`).
+4. **T+7 impact reading** — a real `impact_readings` row with a value and confidence tier.
+   Recording a `suppressed` reading as a reading is forbidden by name (ADR-077's gate stays
+   open until a real one exists).
+
+#1339 **supersedes #1226 observation 2**; #1226 stays open for observation 1 only (§1).
+
+---
+
+## 4. Four W7 decisions
+
+From `docs/handoffs/w7-production-readiness.md`. Answers change scope, not correctness —
+the implementation verifies at runtime either way.
+
+1. **Does `postgres` actually own the tables** on the deployed Supabase project? Repo
+   evidence (migration `032`'s docstring, `api.env.example`) says the runtime connects as
+   the pooler `postgres` role — which owns the tables and is therefore **exempt from row
+   policies**, the reason the existing 10 RLS policies are dead. If ownership differs,
+   #1326's grant map narrows.
+2. **`juli_app` login provisioning** — deliberately out of git (NOLOGIN role + grants
+   in-repo; membership granted out of band). Confirm, or switch to a Supabase
+   console-managed role.
+3. **ADR-050 C2 (fleet cold-start engine)** — removed from W7 with a recorded trigger
+   because it roughly doubles the wave. Confirm it stays deferred, or make it W7-bis.
+4. **GA per-shop credential model** — assessed and deferred; what remains is per-shop
+   `seller_connect` scoping, which is an architecture change, not a fix. Confirm or pull
+   forward.
+
+Context for #1: the capability taxonomy (`production_read` / `sandbox_write` /
+`seller_connect`) is test-era scaffolding — two env-configured merchant ids plus a
+least-privilege residual bucket. At GA the axis rotates from "which of our tokens may do
+what" to per-shop tenant isolation.
+
+---
+
+## 5. Config toggle that will block W6
+
+**Enable anonymous sign-in on the Supabase project.**
+
+Issue #1313 ("Dùng thử Demo mints a real anonymous session scoped to the demo tenant")
+needs it for its post-deploy journey. ADR-084 **forbids a shared demo account**, so there
+is no workaround: without the toggle the executor can build and pre-merge-test everything
+except the live journey, and the issue cannot be fully verified.
+
+Do it in the Supabase dashboard: Authentication → Providers/Sign-in methods → enable
+**Anonymous sign-ins** for the project behind `SUPABASE_URL` in `/etc/juli/api.env`.
+
+---
+
+## Quick reference
+
+| Thing | Value |
+|---|---|
+| VPS | `ssh -i ~/.ssh/juli_vps_tool root@5.223.68.27` (env at `/etc/juli/api.env`) |
+| API | `https://api.app-juli.com` (behind Cloudflare; zero-byte streams die at ~100s with 524) |
+| Gate test seller | `gate-1226@app-juli.com`, auth id `00000000-0000-4000-8000-000000000001` |
+| Sandbox shop (walks) | `1862f13b-de2c-4fae-a4ad-70298cead913` |
+| Sandbox-write merchant | `7658096633384781588` |
+| Sandbox product to fix | `1736363193934775939` |
+| Fujiwa production shop | `2b1da87b-d0a8-46a6-b3c6-2132be0b5f4f` — **never write to it** |
+| W6 wave branch | `feature/agent-w6-wave` (manifest `agent-runtime/artifacts/waves/wave-agent-w6.json`) |
+| API is blue/green | candidates on ports 8000/8020 — grep BOTH journals when checking what's live |
