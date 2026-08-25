@@ -59,7 +59,23 @@ def ensure_worker_session_factory(database_url: str) -> async_sessionmaker[Async
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
-    """FastAPI dependency that yields an async database session."""
+    """FastAPI dependency that yields an async database session.
+
+    Tenant context (app.current_shop_id, app.current_user_id) should be set
+    by the caller via set_tenant_context() before using this session. The
+    context is applied via SET LOCAL when the session is used (issue #1327,
+    ADR-085 decision 2).
+
+    Routes should follow this pattern:
+        @router.get("/path")
+        async def handler(
+            shop: Shop = Depends(get_active_shop),
+            user: User = Depends(get_current_user),
+            session: AsyncSession = Depends(get_session),
+        ):
+            set_tenant_context(shop.id, user.id)
+            # Now session operations are tenant-scoped
+    """
     if _session_factory is None:
         raise RuntimeError(
             "Session factory not configured. Call init_session_factory() at app startup."

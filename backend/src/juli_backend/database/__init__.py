@@ -24,6 +24,14 @@ from typing import TYPE_CHECKING
 
 from juli_backend.database.database import Base, get_session, init_session_factory
 from juli_backend.database.exceptions import NotFound
+from juli_backend.database.tenant_context import (
+    TenantContextRequiredError,
+    clear_tenant_context,
+    get_tenant_context,
+    set_tenant_context,
+    system_scope,
+    with_tenant_scope,
+)
 
 if TYPE_CHECKING:
     from juli_backend.models.models import (
@@ -153,10 +161,16 @@ __all__ = [
     "Shop",
     "ShopScopedRepo",
     "ShopsRepo",
+    "TenantContextRequiredError",
     "TikTokCredential",
     "TikTokCredentialRepo",
     "User",
     "UsersRepo",
+    "clear_tenant_context",
     "get_session",
+    "get_tenant_context",
     "init_session_factory",
+    "set_tenant_context",
+    "system_scope",
+    "with_tenant_scope",
 ]
