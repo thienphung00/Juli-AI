@@ -7,9 +7,11 @@ app.current_user_id via SET LOCAL (transaction-scoped), failing closed in
 Python before any SQL when tenant context is unavailable and system_scope()
 is not active.
 
-Two ways to acquire tenant context:
-1. HTTP requests: resolved via X-Shop-Id header and authenticated user
-2. Celery tasks: resolved from the WorkflowRun's shop_id
+Two paths apply context:
+1. HTTP requests: middleware calls _apply_tenant_context_to_session() directly
+   on the request's session after resolving the shop and user via X-Shop-Id header
+2. Celery tasks: set_tenant_context() sets contextvars; with_tenant_scope()
+   applies context when the task opens a session
 
 Fleet-wide work (reconcile, backfill, credential refresh, reaper) uses
 system_scope() to opt out of tenant requirement, with logging.
@@ -18,10 +20,11 @@ The setter and fail-closed assertion are paired in the same module so they
 cannot be separated by a revert.
 
 Implementation:
-- contextvars store shop_id and user_id for the current context (request/task)
-- SQLAlchemy after_begin event listener automatically applies SET LOCAL on every transaction
-- set_tenant_context() is called by routes/tasks to set contextvars
-- system_scope() sets a flag to bypass the assertion for fleet-wide work
+- contextvars store shop_id and user_id for internal use (task paths)
+- _apply_tenant_context_to_session() directly applies SET LOCAL to a session
+  via parameterized set_config(name, val, is_local=true) to avoid SQL injection
+- set_tenant_context() sets contextvars (used by Celery paths)
+- system_scope() sets a flag to bypass the fail-closed assertion for fleet-wide work
 """
 
 import contextvars
