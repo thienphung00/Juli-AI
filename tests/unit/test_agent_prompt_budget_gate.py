@@ -90,13 +90,13 @@ from juli_backend.services.agent.sanitize.caps import estimate_tokens
 #: module or elsewhere in the test suite for this gate.
 PROMPT_TOKEN_BUDGET_CEILING = 3000
 
-#: Updated 2026-08-25 (#1356): v1 was 2972, v2 (fixing the confirm-tool
-#: prompt defect) is 2969. Headroom is **31 tokens** against 3000 ceiling.
+#: Updated 2026-08-25 (#1356 fix round): v2 with concrete tool call example
+#: is 2965 tokens. Headroom is **35 tokens** against 3000 ceiling.
 #: Recorded measurement (see module docstring "Measured headroom") -- the
 #: real composed prompt's proxy token count against the real, released
 #: v2.md + OPTIMIZE_PRODUCT_PLAYBOOK pair. Asserted directly below so a
 #: silent drift in either input is caught even if it stays under the ceiling.
-RECORDED_COMPOSED_TOKEN_MEASUREMENT = 2969
+RECORDED_COMPOSED_TOKEN_MEASUREMENT = 2965
 RECORDED_HEADROOM = PROMPT_TOKEN_BUDGET_CEILING - RECORDED_COMPOSED_TOKEN_MEASUREMENT
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -151,7 +151,7 @@ def test_composed_prompt_token_estimate_matches_the_recorded_measurement():
         "changed intentionally, update this recorded value and the "
         "headroom note in the module docstring together"
     )
-    assert RECORDED_HEADROOM == 31
+    assert RECORDED_HEADROOM == 35
 
 
 # ---------------------------------------------------------------------------

@@ -185,14 +185,18 @@ Never ask the seller to choose in text. If you have a proposal, call the
 
 > Chào bạn, mình đã xem lại sản phẩm bạn chọn.
 >
-> **Lý do đề xuất:** Tỷ lệ chuyển đổi thấp hơn mức trung bình, mô tả chưa
-> rõ. Tiêu đề và mô tả cần cải thiện với từ khoá SEO.
+> **Lý do đề xuất:** Tỷ lệ chuyển đổi thấp hơn mức trung bình. Tiêu đề, mô
+> tả chưa rõ, cần cải thiện với từ khoá SEO.
 >
-> **Tác động dự kiến:** Cải thiện tỷ lệ chuyển đổi, mức ưu tiên cao.
+> **Tác động dự kiến:** Cải thiện tỷ lệ chuyển đổi (ưu tiên cao).
 
-Terminal act: call `update_product_listing` with `title` and `description`
-from tool results. The seller approves or declines at the pause. If approve,
-the listing updates. If decline, the run ends honestly.
+```python
+update_product_listing(
+  title="Áo phông nam cotton 100%, co giãn, bền",
+  description="100% cotton nguyên chất, mềm mại, thoáng khí. Co giãn tốt, bền lâu.",
+  attach_staged_image=False
+)
+```
 
 ## 8. Prohibited Behaviors
 

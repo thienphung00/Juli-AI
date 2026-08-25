@@ -185,19 +185,42 @@ def test_playbook_slot_is_the_only_template_slot(prompt_text):
 
 
 def test_worked_example_contains_a_confirm_tool_call(prompt_text):
-    """The worked example's terminal act must be calling update_product_listing
-    with concrete arguments, showing the seller narration as the tool call's
-    rationale rather than as a substitute for it.
+    """The worked example's terminal element must be a concrete
+    `update_product_listing` function call with realistic argument values,
+    not prose narration about calling the tool. The tool call is the
+    example's FINAL element, delivered after the seller-facing reasoning
+    and expected-impact narration.
     """
     example = _worked_example_section(prompt_text)
 
-    # The example should reference calling update_product_listing as a tool call.
-    # It could be represented as a code block, or as a description of calling it.
-    # The key is: the example shows how to *call* the tool, not just how to
-    # narrate about it.
+    # 1. Tool name must appear in the example
     assert "update_product_listing" in example.lower()
-    # Ensure it's not just the abstract description — it shows a concrete scenario
-    assert len(example) > 500
+
+    # 2. The example must contain a concrete function call signature with
+    #    parameters — not just naming the tool. Look for the pattern that
+    #    indicates an actual invocation with arguments (Python-style function
+    #    call format or JSON).
+    has_function_call = (
+        "update_product_listing(" in example and "title=" in example and "description=" in example
+    )
+    assert has_function_call, (
+        "worked example must show a concrete tool call with title and "
+        "description arguments, not just reference the tool name"
+    )
+
+    # 3. The tool call must be the TERMINAL element: verify that after the
+    #    Vietnamese blockquote (lines starting with >) the example shows a
+    #    code block containing the function call, and nothing substantive
+    #    comes after it.
+    # Find the last occurrence of "> " (end of Vietnamese blockquote) and
+    # ensure the tool call appears after that final blockquote line.
+    last_blockquote_marker = example.rfind("> ")
+    first_tool_call = example.find("update_product_listing(")
+    assert (
+        first_tool_call > -1
+        and last_blockquote_marker > -1
+        and first_tool_call > last_blockquote_marker
+    ), "tool call must appear after the seller-facing blockquote, as the example's terminal element"
 
 
 def test_prompt_states_seller_cannot_answer_prose(prompt_text):
