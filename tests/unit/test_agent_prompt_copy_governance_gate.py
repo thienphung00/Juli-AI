@@ -47,13 +47,13 @@ from pathlib import Path
 import pytest
 
 from juli_backend.services.agent.playbooks.optimize_product import WORKFLOW_KEY
-from juli_backend.services.agent.prompts.composer import compose
+from juli_backend.services.agent.prompts.composer import compose, production_version
 from juli_backend.services.agent.sanitize import load_banned_patterns
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DICTIONARY_PATH = REPO_ROOT / "dictionary.md"
 
-_WORKED_EXAMPLE_MARKER = "**Worked example — final seller-facing response (Vietnamese):**"
+_WORKED_EXAMPLE_MARKER = "**Worked example"  # v1 and v2 both have this
 _SECTION_8_HEADING = "## 8. Prohibited Behaviors"
 
 
@@ -133,19 +133,19 @@ def _assert_no_avoid_aliases(
 
 
 def test_worked_example_extraction_is_non_empty():
-    composed = compose(WORKFLOW_KEY, 1)
+    composed = compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY))
     exemplar = _extract_worked_example(composed)
     assert exemplar.strip(), "worked example extracted empty from composed prompt"
 
 
 def test_composed_prompt_worked_example_has_zero_banned_pattern_hits():
-    composed = compose(WORKFLOW_KEY, 1)
+    composed = compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY))
     exemplar = _extract_worked_example(composed)
     _assert_no_banned_pattern_hits(exemplar)
 
 
 def test_composed_prompt_worked_example_has_zero_avoid_aliases(dictionary_entries):
-    composed = compose(WORKFLOW_KEY, 1)
+    composed = compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY))
     exemplar = _extract_worked_example(composed)
     _assert_no_avoid_aliases(exemplar, dictionary_entries)
 
@@ -159,7 +159,7 @@ def test_composed_prompt_worked_example_has_zero_avoid_aliases(dictionary_entrie
 
 
 def test_the_whole_composed_prompt_would_false_positive_on_banned_patterns_if_unscoped():
-    composed = compose(WORKFLOW_KEY, 1)
+    composed = compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY))
     compiled = load_banned_patterns()
     hits = [pattern.pattern for pattern in compiled if pattern.search(composed)]
     assert hits, (
@@ -224,7 +224,7 @@ class TestSyntheticDriftDetection:
         gate would catch a regression in the actual artifact it protects,
         not just an isolated helper call on unrelated text.
         """
-        composed = compose(WORKFLOW_KEY, 1)
+        composed = compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY))
         real_exemplar = _extract_worked_example(composed)
         _assert_no_avoid_aliases(real_exemplar, dictionary_entries)  # sanity: clean today
 
@@ -235,7 +235,10 @@ class TestSyntheticDriftDetection:
             _assert_no_avoid_aliases(mutated_exemplar, dictionary_entries)
 
         # The real composed prompt itself is untouched by building a copy.
-        assert _extract_worked_example(compose(WORKFLOW_KEY, 1)) == real_exemplar
+        assert (
+            _extract_worked_example(compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY)))
+            == real_exemplar
+        )
 
     def test_text_with_no_avoid_aliases_does_not_fail(self, dictionary_entries):
         synthetic_text = "Chào bạn, đây là một câu ví dụ hoàn toàn hợp lệ."

@@ -224,10 +224,10 @@ class TestNoEnvironmentConfiguration:
 
     def test_production_prompt_version_is_a_plain_module_level_dict(self):
         assert isinstance(compose_module.PRODUCTION_PROMPT_VERSION, dict)
-        assert compose_module.PRODUCTION_PROMPT_VERSION[WORKFLOW_KEY] == 1
+        assert compose_module.PRODUCTION_PROMPT_VERSION[WORKFLOW_KEY] == 2
 
     def test_production_version_helper_returns_the_pinned_constant(self):
-        assert production_version(WORKFLOW_KEY) == 1
+        assert production_version(WORKFLOW_KEY) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -275,9 +275,9 @@ class TestUnreleasedVersionRaisesLoudly:
         with pytest.raises(UnreleasedPromptVersionError, match="999"):
             compose(WORKFLOW_KEY, 999)
 
-    def test_unreleased_version_never_silently_falls_back_to_v1(self):
+    def test_unreleased_version_never_silently_falls_back_to_production_version(self):
         with pytest.raises(UnreleasedPromptVersionError):
-            compose(WORKFLOW_KEY, 2)
+            compose(WORKFLOW_KEY, 3)
 
     def test_invalid_version_type_or_value_raises(self):
         with pytest.raises(ValueError):

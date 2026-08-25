@@ -112,7 +112,7 @@ _WORKFLOW_BINDINGS: dict[str, _WorkflowPromptBinding] = {
 # reviewed"). Bump a value here, in a reviewed commit, to promote a new
 # released version to production; never redirect this via configuration.
 PRODUCTION_PROMPT_VERSION: dict[str, int] = {
-    OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key: 1,
+    OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key: 2,
 }
 
 

@@ -89,7 +89,7 @@ from juli_backend.services.agent.playbooks.optimize_product import (
     OPTIMIZE_PRODUCT_PLAYBOOK,
     WORKFLOW_KEY,
 )
-from juli_backend.services.agent.prompts.composer import compose
+from juli_backend.services.agent.prompts.composer import compose, production_version
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
 from juli_backend.services.agent.tools.registry import (
@@ -173,7 +173,7 @@ def _assert_every_tool_name_shaped_token_is_a_real_playbook_tool(
 
 
 def test_every_tool_name_shaped_token_in_the_real_composed_prompt_is_in_the_playbook():
-    composed = compose(WORKFLOW_KEY, 1)
+    composed = compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY))
     _assert_every_tool_name_shaped_token_is_a_real_playbook_tool(
         composed, _playbook_tool_names(OPTIMIZE_PRODUCT_PLAYBOOK)
     )
@@ -181,7 +181,7 @@ def test_every_tool_name_shaped_token_in_the_real_composed_prompt_is_in_the_play
 
 def test_the_real_composed_prompt_actually_contains_tool_name_shaped_tokens():
     """Sanity check the extraction isn't vacuously finding zero tokens."""
-    composed = compose(WORKFLOW_KEY, 1)
+    composed = compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY))
     found = _tool_name_shaped_tokens(composed)
     assert found == _playbook_tool_names(OPTIMIZE_PRODUCT_PLAYBOOK)
 

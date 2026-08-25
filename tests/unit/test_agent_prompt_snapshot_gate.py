@@ -35,12 +35,19 @@ from juli_backend.services.agent.playbooks.optimize_product import WORKFLOW_KEY
 from juli_backend.services.agent.prompts.composer import compose
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-GOLDEN_PATH = (
+GOLDEN_PATH_V1 = (
     REPO_ROOT
     / "tests"
     / "fixtures"
     / "agent_prompt_gates"
     / "optimize_product_v1_composed.golden.md"
+)
+GOLDEN_PATH_V2 = (
+    REPO_ROOT
+    / "tests"
+    / "fixtures"
+    / "agent_prompt_gates"
+    / "optimize_product_v2_composed.golden.md"
 )
 
 #: The real `prompts/` directory `compose()` reads from in production --
@@ -50,18 +57,21 @@ GOLDEN_PATH = (
 _REAL_PROMPTS_ROOT = compose_module._PROMPTS_ROOT
 
 
-def _regenerate_golden_fixture() -> None:
-    """Regenerate the committed golden snapshot. Run directly, never
+def _regenerate_golden_fixtures() -> None:
+    """Regenerate the committed golden snapshots. Run directly, never
     imported/called by pytest:
 
         PYTHONPATH=$PWD/backend/src python3 tests/unit/test_agent_prompt_snapshot_gate.py
 
     Deterministic and idempotent: with no source change, running it again
-    produces a byte-identical file.
+    produces byte-identical files.
     """
-    GOLDEN_PATH.parent.mkdir(parents=True, exist_ok=True)
-    composed = compose(WORKFLOW_KEY, 1)
-    GOLDEN_PATH.write_bytes(composed.encode("utf-8"))
+    GOLDEN_PATH_V1.parent.mkdir(parents=True, exist_ok=True)
+    GOLDEN_PATH_V2.parent.mkdir(parents=True, exist_ok=True)
+    composed_v1 = compose(WORKFLOW_KEY, 1)
+    GOLDEN_PATH_V1.write_bytes(composed_v1.encode("utf-8"))
+    composed_v2 = compose(WORKFLOW_KEY, 2)
+    GOLDEN_PATH_V2.write_bytes(composed_v2.encode("utf-8"))
 
 
 def _assert_matches_golden_snapshot(composed: str, golden_bytes: bytes) -> None:
@@ -84,22 +94,45 @@ def _assert_matches_golden_snapshot(composed: str, golden_bytes: bytes) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_golden_fixture_is_present_and_non_empty():
-    assert GOLDEN_PATH.is_file(), f"missing golden snapshot fixture at {GOLDEN_PATH}"
-    assert GOLDEN_PATH.stat().st_size > 0
+def test_golden_fixture_v1_is_present_and_non_empty():
+    assert GOLDEN_PATH_V1.is_file(), f"missing golden snapshot fixture at {GOLDEN_PATH_V1}"
+    assert GOLDEN_PATH_V1.stat().st_size > 0
 
 
-def test_composed_prompt_matches_golden_snapshot_byte_for_byte():
+def test_composed_prompt_v1_matches_golden_snapshot_byte_for_byte():
     composed = compose(WORKFLOW_KEY, 1)
-    golden_bytes = GOLDEN_PATH.read_bytes()
+    golden_bytes = GOLDEN_PATH_V1.read_bytes()
     _assert_matches_golden_snapshot(composed, golden_bytes)
 
 
-def test_golden_fixture_matches_the_deterministic_regeneration_byte_for_byte():
+def test_golden_fixture_v1_matches_the_deterministic_regeneration_byte_for_byte():
     """The committed golden file is not hand-edited -- it is exactly what
-    `_regenerate_golden_fixture` would (re)write."""
+    `_regenerate_golden_fixtures` would (re)write."""
     composed = compose(WORKFLOW_KEY, 1)
-    assert composed.encode("utf-8") == GOLDEN_PATH.read_bytes()
+    assert composed.encode("utf-8") == GOLDEN_PATH_V1.read_bytes()
+
+
+# ---------------------------------------------------------------------------
+# The real gate for v2: compose(WORKFLOW_KEY, 2) matches the committed golden bytes.
+# ---------------------------------------------------------------------------
+
+
+def test_golden_fixture_v2_is_present_and_non_empty():
+    assert GOLDEN_PATH_V2.is_file(), f"missing golden snapshot fixture at {GOLDEN_PATH_V2}"
+    assert GOLDEN_PATH_V2.stat().st_size > 0
+
+
+def test_composed_prompt_v2_matches_golden_snapshot_byte_for_byte():
+    composed = compose(WORKFLOW_KEY, 2)
+    golden_bytes = GOLDEN_PATH_V2.read_bytes()
+    _assert_matches_golden_snapshot(composed, golden_bytes)
+
+
+def test_golden_fixture_v2_matches_the_deterministic_regeneration_byte_for_byte():
+    """The committed golden file is not hand-edited -- it is exactly what
+    `_regenerate_golden_fixtures` would (re)write."""
+    composed = compose(WORKFLOW_KEY, 2)
+    assert composed.encode("utf-8") == GOLDEN_PATH_V2.read_bytes()
 
 
 # ---------------------------------------------------------------------------
@@ -148,7 +181,7 @@ class TestSnapshotCatchesAOneByteMutation:
         # 6. The mutated compose() output must differ from the committed
         #    golden bytes -- read from the static fixture file, so this
         #    comparison is unaffected by the _PROMPTS_ROOT monkeypatch above.
-        golden_bytes = GOLDEN_PATH.read_bytes()
+        golden_bytes = GOLDEN_PATH_V1.read_bytes()
         assert mutated_composed.encode("utf-8") != golden_bytes
 
         # 7. The actual assertion this whole gate exists to make: running
@@ -161,6 +194,38 @@ class TestSnapshotCatchesAOneByteMutation:
         #    after the whole test ran.
         assert real_v1.read_bytes() == original_bytes
 
+    def test_mutating_a_copy_of_v2_md_by_one_byte_fails_the_snapshot(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        # Same logic as v1 test, but for v2.md
+        copied_root = tmp_path / "prompts_copy_v2"
+        shutil.copytree(_REAL_PROMPTS_ROOT, copied_root)
+
+        binding = compose_module._binding_for(WORKFLOW_KEY)
+        copied_v2 = copied_root / binding.prompt_dir / "v2.md"
+        assert copied_v2.is_file()
+
+        real_v2 = _REAL_PROMPTS_ROOT / binding.prompt_dir / "v2.md"
+        original_bytes = real_v2.read_bytes()
+        assert copied_v2.read_bytes() == original_bytes
+
+        mutated_bytes = original_bytes + b"."
+        copied_v2.write_bytes(mutated_bytes)
+        assert len(mutated_bytes) == len(original_bytes) + 1
+
+        assert real_v2.read_bytes() == original_bytes
+
+        monkeypatch.setattr(compose_module, "_PROMPTS_ROOT", copied_root)
+        mutated_composed = compose(WORKFLOW_KEY, 2)
+
+        golden_bytes = GOLDEN_PATH_V2.read_bytes()
+        assert mutated_composed.encode("utf-8") != golden_bytes
+
+        with pytest.raises(AssertionError, match="no longer matches"):
+            _assert_matches_golden_snapshot(mutated_composed, golden_bytes)
+
+        assert real_v2.read_bytes() == original_bytes
+
 
 if __name__ == "__main__":
-    _regenerate_golden_fixture()
+    _regenerate_golden_fixtures()
