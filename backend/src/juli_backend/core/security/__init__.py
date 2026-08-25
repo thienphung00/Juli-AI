@@ -1,6 +1,9 @@
 """Authentication and authorization."""
 
 from juli_backend.core.security.credential_resolver import *  # noqa: F403
+from juli_backend.core.security.credential_resolver import (
+    resolve_production_read_credential,
+)
 from juli_backend.core.security.dependencies import get_current_user
 from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.core.security.jwks import JwksUnavailableError, supabase_jwks_url
@@ -19,6 +22,10 @@ __all__ = [
     "TikTokOAuthService",
     "Unauthorized",
     "get_current_user",
+    # #1293: exported at the package root so services/action_cards/refresh.py --
+    # capped at cross-package depth 2 by `.importlinter.toml` -- can resolve the
+    # production-read shop before deciding whether to poll.
+    "resolve_production_read_credential",
     "supabase_jwks_url",
     "verify_supabase_jwt",
 ]
