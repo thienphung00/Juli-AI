@@ -33,6 +33,8 @@ NODE_BIN = shutil.which("node")
 
 # Original hand-written TypeScript array (packages/contracts/src/seller-copy.ts as of
 # #990) — (source, flags) pairs. Used to prove the JSON extraction changed nothing.
+# Issue #1304: listing_dot pattern narrowed to listing\.(?=[A-Za-z_]) to allow
+# sentence-final "listing." while still catching jargon like "listing.title".
 _ORIGINAL_TS_PATTERNS: tuple[tuple[str, str], ...] = (
     ("tool_name", "i"),
     ("workflow_key", "i"),
@@ -46,7 +48,7 @@ _ORIGINAL_TS_PATTERNS: tuple[tuple[str, str], ...] = (
     ("Khả năng:", ""),
     ("Get Product", "i"),
     (r"Unresolved\/Unfilled", "i"),
-    (r"listing\.", ""),
+    (r"listing\.(?=[A-Za-z_])", ""),
     (r"inventory\.", ""),
     (r"fulfillment\.", ""),
     (r"returns\.", ""),
