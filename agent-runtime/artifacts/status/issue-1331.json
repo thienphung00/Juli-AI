@@ -1,0 +1,26 @@
+{
+  "artifactType": "status",
+  "id": "status-issue-1331",
+  "issue": 1331,
+  "status": "PASS",
+  "timestamp": "2026-08-25T16:00:00Z",
+  "review": {
+    "status": "PASS",
+    "path": "agent-runtime/artifacts/reviews/review-issue-1331.json"
+  },
+  "validation": {
+    "status": "PASS",
+    "path": "agent-runtime/artifacts/validation/validation-issue-1331.json",
+    "readyForShip": true
+  },
+  "summaryByPhase": {
+    "intent-review": {
+      "status": "PASS",
+      "path": "agent-runtime/artifacts/intent-reviews/intent-review-issue-1331.json"
+    },
+    "implementation": {
+      "status": "complete",
+      "path": "agent-runtime/artifacts/implementations/implementation-issue-1331.json"
+    }
+  }
+}

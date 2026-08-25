@@ -350,6 +350,101 @@ class TestSurfaceInventoryGeneration:
             + "section with owner and trigger, or delete it."
         )
 
+    def test_residual_risks_have_owner_and_trigger(self):
+        """All residual risks in threat model have owner and trigger.
+
+        Parses threat-model.md, extracts residual risk tables from each boundary,
+        and asserts every risk entry includes both an owner (Backend/Analytics/ML/UI)
+        and a trigger for remediation. AC #6: Residual risks must have owner + trigger,
+        preventing documentation rot as threat model evolves.
+        """
+        threat_model_path = (
+            Path(__file__).parent.parent.parent / "docs" / "security" / "threat-model.md"
+        )
+        if not threat_model_path.exists():
+            pytest.fail("threat-model.md not found at " + str(threat_model_path))
+
+        content = threat_model_path.read_text()
+
+        # For each of the six boundaries, find and validate residual risk sections
+        for boundary_num in range(1, 7):
+            # Find the boundary section
+            boundary_header = f"### Boundary {boundary_num}:"
+            if boundary_header not in content:
+                pytest.fail(f"Boundary {boundary_num} header not found in threat model")
+
+            # Find the start and end of this boundary section
+            start_idx = content.find(boundary_header)
+            next_boundary_idx = content.find(f"### Boundary {boundary_num + 1}:", start_idx + 1)
+            if next_boundary_idx == -1:
+                next_boundary_idx = len(content)
+
+            boundary_text = content[start_idx:next_boundary_idx]
+
+            # Find residual risk table header
+            if "**Residual risks:**" not in boundary_text:
+                pytest.fail(f"Boundary {boundary_num}: No residual risks section found")
+
+            # Extract the residual risks table
+            risk_section_start = boundary_text.find("**Residual risks:**")
+            risk_section = boundary_text[risk_section_start:]
+
+            # Find the risk table rows (start from the | Risk | line)
+            risk_table_start = risk_section.find("| Risk |")
+            if risk_table_start == -1:
+                pytest.fail(f"Boundary {boundary_num}: No residual risk table found")
+
+            risk_table = risk_section[risk_table_start:]
+
+            # Split into lines and extract data rows (skip header and separator)
+            lines = risk_table.split("\n")
+            risk_rows = []
+            for line in lines:
+                line = line.strip()
+                # Skip header, separator, and empty lines
+                if (
+                    line.startswith("| Risk |")
+                    or "---" in line
+                    or not line.startswith("|")
+                    or not line.endswith("|")
+                ):
+                    continue
+                risk_rows.append(line)
+
+            if not risk_rows:
+                pytest.fail(
+                    f"Boundary {boundary_num}: Empty residual-risk section "
+                    "(AC #6 requires at least one risk per boundary)"
+                )
+
+            # Validate each risk row has owner and trigger (typically columns 4 and 5)
+            for row_idx, row in enumerate(risk_rows):
+                # Split by | and filter out empty strings from start/end
+                cells = [cell.strip() for cell in row.split("|")[1:-1]]
+
+                # Expected: Risk | Likelihood | Impact | Accepted because | Owner | Trigger
+                # So 6 columns total
+                if len(cells) < 6:
+                    pytest.fail(
+                        f"Boundary {boundary_num}, risk {row_idx + 1}: "
+                        f"Expected 6 columns, got {len(cells)}: {row}"
+                    )
+
+                owner = cells[4].strip()
+                trigger = cells[5].strip()
+
+                if not owner or owner == "" or owner.lower() == "none":
+                    pytest.fail(
+                        f"Boundary {boundary_num}, risk {row_idx + 1}: "
+                        "Missing or empty Owner column"
+                    )
+
+                if not trigger or trigger == "" or trigger.lower() == "none":
+                    pytest.fail(
+                        f"Boundary {boundary_num}, risk {row_idx + 1}: "
+                        "Missing or empty Trigger column"
+                    )
+
 
 def _verify_reference(file_path: str, symbol_name: str) -> None:
     """Verify a file|symbol reference resolves to a live object in the codebase.
