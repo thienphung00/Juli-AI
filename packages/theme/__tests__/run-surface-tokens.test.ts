@@ -28,7 +28,7 @@ const runSurfaceCss = readFileSync(runSurfaceCssPath, "utf8");
  *  however small, changes this hash and fails this test: that is the
  *  point (AC 1's "byte-identical before and after"). */
 const APP_WIDE_TOKENS_SHA256 =
-  "c479c8b04768a632790b5047808b6c5bd913d641d003ea3435a1533eca30c884";
+  "c479c8b04768a632790b5047808b6c5bd913d641d003ea3435a1533eca30c884"; // gitleaks:allow -- SHA-256 pin of tokens.css, not a credential
 
 /** The complete `--juli-*` key set inside `tokens.css`'s `:root` block,
  *  hand-captured alongside the hash above -- a second, independent
