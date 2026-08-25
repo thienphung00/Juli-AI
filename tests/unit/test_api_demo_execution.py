@@ -324,6 +324,20 @@ async def test_approve_with_zero_products_returns_409_not_500(app, user, shop, c
 # ---------------------------------------------------------------------------
 
 
+def _also_executable(*extra_keys: str):
+    """Patch the registry check so a test can hold two approvable cards on one
+    shop despite the (shop_id, workflow_key) unique constraint: post-#1309 only
+    registered keys approve, and only one playbook is registered this wave."""
+    from juli_backend.services.agent import playbooks as playbooks_module
+
+    real = playbooks_module.is_workflow_executable
+    return patch.object(
+        playbooks_module,
+        "is_workflow_executable",
+        lambda key: real(key) or key in extra_keys,
+    )
+
+
 async def test_second_active_run_for_the_same_derived_product_returns_409_not_500(
     app, session, user, shop, product
 ):
@@ -365,7 +379,10 @@ async def test_second_active_run_for_the_same_derived_product_returns_409_not_50
     product_id = product.id
 
     mock_task = _mock_run_agent_workflow_task()
-    with patch("juli_backend.workers.tasks.agent_workflow.run_agent_workflow", mock_task):
+    with (
+        _also_executable("optimize_product_2_alt"),
+        patch("juli_backend.workers.tasks.agent_workflow.run_agent_workflow", mock_task),
+    ):
         async with _client_for(app, user, shop) as client:
             first = await client.post(f"/v1/demo/decisions/{card_one.id}/approve")
             second = await client.post(f"/v1/demo/decisions/{card_two.id}/approve")
@@ -416,6 +433,7 @@ async def test_approve_conflict_is_logged(app, session, user, shop, card, produc
     mock_task = _mock_run_agent_workflow_task()
     with (
         caplog.at_level("WARNING", logger="juli_backend.api.routes.demo_execution"),
+        _also_executable("optimize_product_2_alt"),
         patch("juli_backend.workers.tasks.agent_workflow.run_agent_workflow", mock_task),
     ):
         async with _client_for(app, user, shop) as client:
