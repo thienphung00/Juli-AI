@@ -1,4 +1,4 @@
-# ADR-082: Agent concurrency and progress target NFRs — bounded queue, per-(category, product) exclusion, polled overview
+# ADR-083: Agent concurrency and progress target NFRs — bounded queue, per-(category, product) exclusion, polled overview
 
 **Status:** Proposed (target design — **out of scope for current implementation**; no current W-slice is gated on this ADR, and no code change ships with it)
 **Date:** 2026-08-22
