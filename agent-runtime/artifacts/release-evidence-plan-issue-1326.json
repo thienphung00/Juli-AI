@@ -1,0 +1,83 @@
+{
+  "planId": "juli-app-nonowner-role-grant-map-2026-08-25",
+  "affectedPublicSurfaces": [
+    "The production database's role model: migration 043_juli_app_role (down_revision \"041_stop_reason_diverged\"; 042 is W6 #1312's reserved gap, left unissued — #1312 shipped a pure seed) creates a NOLOGIN `juli_app` role owning nothing, granted exactly the privileges the application needs from an explicit per-table map. No HTTP surface changes.",
+    "The grant surface itself: USAGE on only the schemas the runtime actually touches (derived from the repositories, not granted broadly), table-level SELECT/INSERT/UPDATE/DELETE per table from the explicit map, and `webhook_raw_events` INSERT-only because it has no tenant lineage (ADR-085 decision 3).",
+    "The deployed runtime is deliberately UNAFFECTED: it still authenticates as the Supabase pooler `postgres` role. This migration makes the destination role exist ahead of the gate #1339 observation-1 cutover; it must be a no-op for the running process.",
+    "The out-of-band membership runbook stub this slice adds: the login role is granted membership to `juli_app` outside git, so no credential enters the repository and no migration can mint one."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest against a real Postgres 16 (never SQLite — roles and grants cannot be expressed there), with PYTHONPATH pinned to the worktree's backend/src; the grant-surface tests connect AS `juli_app` and assert from information_schema.role_table_grants. Post-deploy: `alembic upgrade head` on the candidate creates the role while the API continues to serve as `postgres`; no public traffic is routed to any candidate task set and no production credential or write is involved anywhere.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "The journey's entire point is proving a no-op for the running process: the deployed system still connects as `postgres`, so after the migration the candidate's /health and one authenticated read must be byte-for-byte unchanged. The DATABASE_URL cutover to `juli_app` is gate #1339 observation 1 — an owner act, never performed by this slice or this journey.",
+    "journeys": [
+      {
+        "name": "role-exists-grants-exact-runtime-unmoved",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1326",
+        "assertions": [
+          "pre-merge: `alembic upgrade head` on a clean Postgres 16 creates `juli_app` with rolcanlogin = false, and `alembic downgrade -1 && alembic upgrade head` round-trips cleanly",
+          "pre-merge: the migration is idempotent against a database where the role already exists, mirroring the IF EXISTS pg_roles guard pattern of migrations 021 and 032",
+          "pre-merge: connected AS `juli_app` on real Postgres, for every table in the map the granted verbs match the map and the ungranted verbs raise insufficient_privilege — asserted from information_schema.role_table_grants, not from the migration source",
+          "pre-merge: SELECT on `webhook_raw_events` as `juli_app` raises insufficient_privilege; INSERT succeeds",
+          "pre-merge: a table created inside the test transaction and not added to the map is NOT reachable by `juli_app` — proving no default privilege is silently granting",
+          "pre-merge: `juli_app` is not a member of, and does not inherit from, any role that owns a table in the runtime's schemas — asserted from pg_auth_members",
+          "pre-merge: the existing suite passes unchanged as `postgres` — the default connection path does not move in this slice",
+          "post-deploy: `alembic upgrade head` on the candidate applies 043_juli_app_role, and the candidate's /health and one authenticated read return exactly what they did before the upgrade — the migration is a no-op for the running `postgres`-connected process"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — the diff is one Alembic migration, its tests, and a runbook stub documenting the out-of-band membership grant."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "alembic-history",
+      "runbook-markdown"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Migration 043_juli_app_role, number RESERVED by Meta (never read from head): down_revision is \"041_stop_reason_diverged\"; 042 is W6 #1312's reserved gap and stays unissued because #1312 shipped a pure seed. Additive only — a new NOLOGIN role and its explicit grants; no table, column, or data change. The running release neither knows nor needs the role, so old and new code coexist trivially. The migration must NOT create a login, a password, or a GRANT juli_app TO <login> — membership is granted out of band so no credential enters git. No ALL TABLES IN SCHEMA grants and no ALTER DEFAULT PRIVILEGES to juli_app: a future table must be granted deliberately."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed system changes until the migration lands — it still connects as `postgres` and every policy remains owner-bypassed exactly as today. No new exposure and no data hazard.",
+    "postCutoverFailureBehavior": "`alembic downgrade -1` drops the role and its grants. The runbook must say to cut DATABASE_URL back to `postgres` BEFORE downgrading, and the drop must fail loudly — never silently — if any session is still connected as `juli_app` (Postgres refuses to drop a role with active sessions or remaining grants; assert that refusal is surfaced, not swallowed). The deployed process, still on `postgres`, is unaffected by the downgrade. Note: performing or reverting the DATABASE_URL cutover itself is gate #1339 observation 1, an owner act outside this slice.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/integration -k 'juli_app or role_grant or 043' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'migration or alembic' -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "The migration creates a NOLOGIN role and its grants ONLY — no login, no password, no GRANT juli_app TO <login>. Membership is granted out of band; no credential enters git and no migration can mint one.",
+    "No policy is added in this slice. Policies are #1328's and would be inert without #1327's setter — the role comes first precisely because the current `postgres` owner bypasses every policy.",
+    "Grant from the explicit per-table map, never ALL TABLES IN SCHEMA, and never ALTER DEFAULT PRIVILEGES to juli_app. A future table must be granted deliberately — that is the entire point.",
+    "`webhook_raw_events` gets INSERT only. It has no tenant lineage (nullable, un-keyed tiktok_shop_id, no FK), so it gets no tenant-scoped read grant (ADR-085 decision 3).",
+    "The DATABASE_URL cutover to `juli_app` is gate #1339 observation 1 — an owner act. This slice makes the destination exist; it must not perform, schedule, or partially apply the cutover, and the deployed system continues to connect as `postgres`.",
+    "Grant-surface and role tests run connected as `juli_app` against real Postgres 16 — never SQLite, which cannot express roles or grants, and never as the owner, which would prove nothing.",
+    "Migration number 043 is Meta-assigned and reserved; never compute down_revision from head. W6's #1312 reserved 042 and left it unissued — that gap is correct and cheap; reusing it would branch the Alembic head across two in-flight waves."
+  ]
+}
