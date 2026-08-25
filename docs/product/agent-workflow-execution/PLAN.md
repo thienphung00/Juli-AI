@@ -24,8 +24,8 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 7 | P-CS — Conversation & state storage (NEW) | ⏸ deferred (user, 2026-08-11) until real users exist — stand-in: `workflow_runs.state` JSONB blob behind the `ConversationStore` protocol (ADR-073 d.5) | ⬜ |
 | 8 | P8 — Streaming (SSE + Celery relay) | ✅ **implemented and live-verified** — [ADR-074](../../adr/074-agent-event-streaming-and-relay.md); PRD #1116, slices #1125–#1133 merged via #1183. Live SSE, gapless duplicate-free `Last-Event-ID` reconnect, mid-run cancel, and the fail-closed `memory://` boot assertion all proven on the deployed host — see [Wave 3 live verification](#wave-3-live-verification-2026-08-19--2026-08-20) | ✅ 2026-08-20 |
 | 9 | P7 — Structured output contract | ⏸ deferred (user, 2026-08-11) — scheduled **W9** with P15 (see the wave roadmap) — loop runs on ADR-072 prose output; wires in via `FinalResponse` block + prompt v2 bump (ADR-073 d.5) | ⬜ |
-| 10 | P9+P14 — Approval, safety & security prerequisites | ✅ **implemented, W5 merged 2026-08-24** — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) + [ADR-082](../../adr/082-agent-run-product-binding.md); eleven slices deployed on release `4cce75a7`. The confirmation endpoint no longer returns 501; approve-is-run-creation is the only path to a run; `POST /v1/demo/runs` is removed | 🟥 **2026-08-24 — gate blocked, not passed.** #1226's seller-path approval could not be walked on the deployed host: the API verifies HS256 only while Supabase issues ES256, so **every authenticated route 401s** ([#1282](https://github.com/thienphung00/Juli-AI/issues/1282)). Separately, the sandbox shop has zero action cards and the demo surface is bound to the *production* shop ([#1283](https://github.com/thienphung00/Juli-AI/issues/1283)) |
-| 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 **W6** — design grilled 2026-08-12 — [ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md) drafted; implementation pending | ⬜ |
+| 10 | P9+P14 — Approval, safety & security prerequisites | ✅ **implemented, W5 merged 2026-08-24** — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) + [ADR-082](../../adr/082-agent-run-product-binding.md); eleven slices deployed on release `4cce75a7`. The confirmation endpoint no longer returns 501; approve-is-run-creation is the only path to a run; `POST /v1/demo/runs` is removed | 🟨 **2026-08-25 — observation 1 at six of seven steps; observation 2 blocked by owner decision.** Ten defects were found and fixed by walking it (#1287, #1289–#1293, #1299–#1301, #1302, #1304, #1305). Auth (ES256/JWKS), fast refresh + sandbox catalog sync, card surfacing, approve→run creation, SSE with replay and heartbeats, all three read tools via shop-aware credential routing, copy-guard-clean completion, and crash/clean-failure card recovery are all proven live. The final step — confirm → sandbox write lands — waits on **realistic sandbox product data (owner action)**, not on code. Observation 2 is recorded BLOCKED: no production write authorized; unblock chain is functional RLS → manual red-team pass → explicit owner authorization for a single production mutation → T+7 → a real `impact_readings` row. See [W5 live verification](#w5-live-verification-2026-08-24) and #1226's 2026-08-25 comments |
+| 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 **W6 — planned and filed 2026-08-25.** Design grilled 2026-08-12 ([ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md)), amended by [ADR-084](../../adr/084-agent-demo-surface-tenancy-and-replay.md) after the W5 gate walk contradicted four of its premises. PRD [#1308](https://github.com/thienphung00/Juli-AI/issues/1308); fourteen slices + gate [#1322](https://github.com/thienphung00/Juli-AI/issues/1322) — see [Wave 6](#wave-6--sellers-can-watch-juli-work-and-choose-what-it-does-2026-08-25) | ⬜ |
 | 11b | P-IM — Incremental impact measurement (NEW) | ✅ implemented, gate reopened in **W4** — [ADR-077](../../adr/077-incremental-impact-measurement.md); re-run wave merged to `main` (#1113, 2026-08-14), #1040–#1045 + #1068 all with status records, after the [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B refusal of the first attempt | 🟨 2026-08-21 — **reachable, still un-run.** W4 fixed all three broken reads (#1215 payload, #1216 duration, #1219 measurable set). The reading itself needs a production-shop write, because the sandbox shop has no analytics series — that is W5's gate, not a code gap |
 | 11c | P-CRED — TikTok credential lifecycle / refresh-token rotation (NEW) | ✅ **W4 closed 2026-08-21** — deployed on release `14807670` and verified against the vendor: sandbox credential refreshed through the real `refresh_credential` path, `refresh_count` 0→1, expiry moved 2026-08-27→2026-08-28. Beat and lazy layers live; **reactive layer built but wired to nothing** (#1233), so a token that dies before its recorded expiry is not self-healed. `/root/refresh_credentials.py` retired. [ADR-081](../../adr/081-refresh-token-rotation.md) | ✅ 2026-08-21 — full matrix green + one real sandbox-token refresh |
 | 11d | P-PROD — Production-write unlock (NEW) | ⬜ **W7** — RLS across 13 tables, manual red-team pass, the ADR-068 capability flip, and the ADR-050 C2 data dependencies. Gates P-IM's real reading and P10's business-impact metric | ⬜ |
@@ -401,6 +401,117 @@ reasons are recorded rather than worked around. That is the outcome #1226 explic
 the finding the HITL gate existed to produce — the fourth time in this wave a check passed for a reason
 unrelated to its claim, and the first to reach production.
 
+## Wave 6 — sellers can watch Juli work and choose what it does (2026-08-25)
+
+Phase 11 / P-UI. **PRD [#1308](https://github.com/thienphung00/Juli-AI/issues/1308)**;
+design authority [ADR-076](../../adr/076-agent-demo-execution-experience.md) +
+[`PUI-DESIGN.md`](PUI-DESIGN.md), amended by
+[ADR-084](../../adr/084-agent-demo-surface-tenancy-and-replay.md).
+
+### Why this wave and not the blockers
+
+W7's contents — functional RLS, a manual red-team pass, the ADR-068 capability flip — are on
+record as **hard blockers whose clearance is an owner decision**, and the first production
+mutation additionally requires explicit per-mutation owner authorization after both clear
+(#1226's 2026-08-25 observation-2 record). A wave scoped to them would be a wave whose
+deliverable is somebody else's signature. W6 is the largest wholly-AFK body of remaining work,
+it is write-path-disjoint from W7 (`apps/demo` + `packages/contracts` + a read-only server
+surface, against security/infra/data-platform), and the roadmap already names W6 ∥ W7 as the
+one real parallelism gain.
+
+There is also a product argument. Six of seven steps of a seller-path approval are now proven
+live — every one of them a `curl` typed over SSH. `apps/demo` still runs on a localStorage
+mock whose recommendations fetcher points at a route that does not exist and silently falls
+back to fixtures. **The event stream that took two waves to build has no consumer.**
+
+### What the W5 gate walk changed about the plan
+
+ADR-076 was settled 2026-08-12, before any of it had run. Four of its premises were
+contradicted by reality and are corrected in ADR-084:
+
+| ADR-076 said | Reality | ADR-084 |
+| --- | --- | --- |
+| Anonymous session's active shop is "structurally pinned to the reference shop" | That setting resolves to **Fujiwa Vietnam Store** — a live merchant. It is how #1283 served a real seller's recommendations unauthenticated | d.1 — a **seeded demo tenant**, idempotent, no write credential, loud failure when unset |
+| Golden scenarios "replayed through the identical SSE endpoint" | No replay mechanism, no scenario format; the gate's event logs are raw files on a host | d.2 — a **capture tool** + a schema validated against the shared event union + **server-side** replay through the real handler |
+| The option picker renders each option's rationale | `rationale` is `ToolSpec.description` — English tool-schema prose written for a model (#1272) | d.5 — seller-facing reason codes, Vietnamese copy, nothing internal in `workflow_run_events.payload` |
+| — | `approval.py` runs Optimize Product for **every** card regardless of `workflow_key`, and the Decisions envelope hides `workflow_key`, so the client cannot tell | d.3 — a non-leaking executability discriminator + approve **refusing** unregistered playbooks |
+
+#1283 is settled (ADR-076 carries its amendment), so the earlier note that it "must be settled
+before W6 builds its option picker" is discharged.
+
+### Two lanes, disjoint write paths
+
+| Lane | Slices | Domain | Write paths |
+| --- | --- | --- | --- |
+| **W6-B — the server contract** | #1309 #1310 #1272 #1311 #1312 #1313 | backend, except #1312 (**data-platform**, the wave's only seed/schema slice) | `api/routes/demo_decisions.py` · new `api/routes` run list · `services/agent/approval.py` · `services/agent/runner/core.py` · a scenario capture/replay module · the demo seed |
+| **W6-A — the interface** | #1314 #1315 #1316 #1317 #1318 #1319 #1320 #1321 | ui-ux | `apps/demo/**`, `packages/theme` (scoped layer), `packages/contracts` TS mirrors |
+
+Five of W6-B's six slices are unblocked and open in parallel. W6-A's #1314 lands first so no
+view slice invents its own tokens; the rest is a real dependency chain through the reducer.
+
+| Slice | Issue | Depends on |
+| --- | --- | --- |
+| W6-B/P-UI-1 executability discriminator + approve refuses unregistered playbooks | #1309 | — |
+| W6-B/P-UI-2 `GET /v1/demo/runs` polled read model | #1310 | — |
+| W6-B/P-UI-3 nothing internal on the seller's stream *(adopted, filed 2026-08-21)* | #1272 | — |
+| W6-B/P-UI-4 scenario capture tool + server-side replay | #1311 | — |
+| W6-B/P-UI-5 the seeded demo tenant | #1312 | — |
+| W6-B/P-UI-6 anonymous session scoped to that tenant | #1313 | #1312 |
+| W6-A/P-UI-1 scoped tokens + motion primitives | #1314 | — |
+| W6-A/P-UI-2 `useRunStream` + the pure reducer | #1315 | #1311 |
+| W6-A/P-UI-3 the staged run view | #1316 | #1314, #1315 |
+| W6-A/P-UI-4 the consent-grade option picker | #1317 | #1316, #1272 |
+| W6-A/P-UI-5 In-Progress becomes the run ledger | #1318 | #1310, #1314 |
+| W6-A/P-UI-6 dual entry + connect-shop screen | #1319 | #1313 |
+| W6-A/P-UI-7 the mock layer is deleted | #1320 | #1309, #1318 |
+| W6-A/P-UI-8 replay journey in CI, dictionary, MODULE.md | #1321 | #1317, #1319, #1320 |
+| **W6 gate** **HITL** — a seller steers a run in a browser | #1322 | #1317, #1319, #1321 |
+
+### Public release
+
+`apps/demo` is a deployed lane (`demo.app-juli.com`, `infra/scripts/deploy.sh` lane order
+`api → demo → landing`) with its own Playwright suite in `release.yml`. **Every W6-A slice and
+several W6-B slices are public-release work and carry a release-evidence plan** (ADR-035) in
+their issue body. Meta halts any Executor whose slice lacks one.
+
+### The gate, and the one thing it inherits
+
+#1322 mirrors #1226's two-observation shape. Observation 1 — a visitor steers a replayed run
+to completion in a browser, twice, once confirming and once declining, with a forced mid-run
+reconnect and **no `curl`, no SSH, no database access**. Observation 2 — one observed live-mode
+run reaching a real sandbox write.
+
+Observation 2 inherits #1226's remaining blocker verbatim: the sandbox-write seller's product
+(merchant `7658096633384781588`) carries placeholder data — title "Hinh ảnh Juli Mới Nhất trên
+thị trường", description `23432432`, an infographic banner for a photo — so two consecutive
+clean live runs on 2026-08-25 correctly ended with a report rather than a write proposal. Until
+an owner edits that listing in the sandbox Seller Center, neither #1226's step 7 nor #1322's
+observation 2 can be walked. **Nothing else in W6 is blocked**, because every artifact the wave
+builds — the scenario schema, the capture tool, the replay path, the reducer, the picker, the
+browser suite — is exercised by a scenario the same tool captures from the real runner driven
+through the scripted-fake integration path.
+
+**Writes stay sandbox-bound for the whole wave.** The owner's sandbox-only decision of
+2026-08-21 holds; no approval or write against Fujiwa Vietnam Store (`2b1da87b`).
+
+### Explicitly not in W6
+
+Functional RLS and the red-team pass (W7) · any production write or the first real impact
+reading (W7/W8, and per-mutation owner authorization) · onboarding the remaining ten workflows
+(W10) · **product-scoped action cards** — ADR-082 named them "a real W6 item"; they reach
+scoring, the emission budget, the dashboard and the fixtures, so W6 *discloses* the bound
+product at the product-snapshot stage instead and the change stays scheduled-but-unscheduled ·
+structured output (W9) · the live merchant OAuth exchange for arbitrary shops · a multiplexed
+per-shop event stream (deferred behind ADR-083 T4's own trigger) · the dashboard and iOS.
+
+### One numbering correction landed with this wave
+
+`082-agent-concurrency-target-nfrs.md` and `082-agent-run-product-binding.md` were both filed
+as ADR-082, four days apart. The product-binding number is cited from code, migrations and the
+W5 parent cache; the concurrency one from two documents. The concurrency ADR is renumbered to
+**[ADR-083](../../adr/083-agent-concurrency-target-nfrs.md)**. An issue body saying "ADR-082"
+was otherwise ambiguous to an executor with no way to ask.
+
 ## Wave roadmap — W4 to W10 (2026-08-20)
 
 Every remaining phase, assigned to a wave, in the order the constraints allow. Waves are
@@ -430,7 +541,7 @@ named for the phases they implement.
 | --- | --- | --- | --- |
 | **W4 — P-CRED + P-IM** | 11c, 11b gate | ✅ **CLOSED 2026-08-21**, deployed `14807670` · #1215 #1216 #1219 #1230 #1231 #1232 #1233 #1234 #1246 | ✅ |
 | **W5 — P9+P14** | 10 | ✅ **CODE MERGED 2026-08-24**, deployed `4cce75a7` · #1214 #1217 #1218 #1221 #1222 #1224 #1225 #1181 #1223 #1269 #1274 #1140 · **gate #1226 blocked** — see [W5 live verification](#w5-live-verification-2026-08-24) | — |
-| **W6 — P-UI** | 11 | ADR-076 + PUI-DESIGN.md in full — dual entry, recorded-replay + live flag, staged run view, consent-grade option picker, run ledger, `useRunStream`, localStorage mock deleted · #1077 (seller-copy TS half) | **W7** |
+| **W6 — P-UI** | 11 | 🟨 **PLANNED AND FILED 2026-08-25** · PRD #1308, ADR-084 · W6-B contract lane #1309 #1310 #1272 #1311 #1312 #1313 · W6-A interface lane #1314–#1321 · gate #1322 · rider #1077 (seller-copy TS half) — see [Wave 6](#wave-6--sellers-can-watch-juli-work-and-choose-what-it-does-2026-08-25) | **W7** |
 | **W7 — P-PROD** | 11d (NEW) | Production-write unlock: RLS across the 13 tables · manual red-team pass · the ADR-068 capability flip · the ADR-050 C2 data dependencies (per-shop analytics topup, OAuth→signals cold start, 7D bootstrap) | **W6** |
 | **W8 — P10** | 12 | Logging baseline re-verification, per-run rollup, the five-link outcome chain, the four unconflated metrics · closes #1226's second half | — |
 | **W9 — P15 + P7** | 13, 9 | Hardening pass over the whole Optimize Product path; extract the per-workflow config template (prompt + allowlist + **output schema**) · P7 structured output contract | — |

@@ -599,7 +599,7 @@ env only (`ANTHROPIC_API_KEY`); rules fallback when unavailable or budget exceed
 ## Agent concurrency & scale envelopes (target — not a current-phase gate)
 
 > **Out of scope for current implementation.** These are agreed **target NFRs** for the
-> seller-facing agent runtime ([ADR-082](../adr/082-agent-concurrency-target-nfrs.md));
+> seller-facing agent runtime ([ADR-083](../adr/083-agent-concurrency-target-nfrs.md));
 > no current W-slice is gated on them. Current work must merely avoid foreclosing them.
 > Vocabulary: `CONTEXT.md` → **Run queue**, **Agent concurrency key**, **Agent progress surface**.
 
