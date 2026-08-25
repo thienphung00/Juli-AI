@@ -1,0 +1,87 @@
+{
+  "planId": "agent-run-crash-terminal-failure-and-reaper-2026-08-24",
+  "affectedPublicSurfaces": [
+    "Celery task `juli_backend.run_agent_workflow` (`workers/tasks/agent_workflow.py`) and its failure path. On release `b44b33b7`, run `8a0bdd48-…` raised (`TikTokAPIError` → `UnpickleableExceptionWrapper`) after emitting only `workflow.started` and `tool.started`; `workflow_runs.status` stayed `queued`, `updated_at` frozen at creation, and no `tool.failed` / `workflow.failed` was ever appended.",
+    "`GET /v1/demo/runs/{run_id}/events` — a seller watching the stream waits forever because no terminal event is ever appended. This slice changes what the ledger contains, not the transport (transport is #1292).",
+    "`POST /v1/demo/runs/{run_id}/confirmations/{tool_call_id}` — today it correctly rejects with `run_not_awaiting_confirmation (status='queued')`; that honest rejection must survive, while the underlying run stops being stranded in the first place.",
+    "`workers/tasks/reaper.py::reap_abandoned_workflow_runs` (beat entry in `workers/celery_app.py`) — its criteria must cover a `queued`/`running` run whose Celery task has died, which the current criteria skip. This is the surface most at risk of over-reach: it must not terminate genuinely in-flight runs.",
+    "`POST /v1/demo/decisions/{id}/approve` and the `action_cards` lifecycle — the card is transitioned to `approved` at run creation, so a crashed run consumes it with nothing to show. Recoverability (re-approvable or auto-reverted) changes what a seller can do after a failure.",
+    "Mixed-version hazard: terminal-state handling and the reaper both run in the Celery worker on the single-VPS lane (ADR-057). `systemctl restart juli-celery-worker` off the new `/root/releases/current` is part of the release; an API-only cutover changes nothing observable."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest with `PYTHONPATH` pinned to the worktree's `backend/src`, simulating a task that raises between `tool.started` and completion — no VPS contact, no vendor call. Post-deploy: the SANDBOX shop (`1862f13b-…`) only, using a run that is expected to FAIL; no customer shop is touched and no public traffic is routed to a candidate task set (the single-VPS lane has none).",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is deliberately FALSE and is the whole point: the defect is a worker-side crash path, so a verification run with workers disabled proves nothing. apiSideEffectsInScope is FALSE in the sense the pairing rule protects — the side effects are the sandbox shop's own `workflow_runs`, `workflow_run_events`, and `action_cards` rows; no customer-shop mutation. ORDERING DEPENDENCY, stated rather than hidden: today the credential mismatch (#1290) supplies a natural failing write, so a live failing run is free to obtain. Once #1290 lands, that natural failure disappears — the post-deploy journey must then use a FORCED failure instead: approve a card bound to a product the sandbox-write seller does not own (for example a legacy `seller_connect`-sourced product row), which still fails 12052048 at the vendor boundary without touching production. Do not weaken a guard or point at a customer shop to manufacture a failure, and do not skip the live journey on the grounds that 'nothing fails any more'.",
+    "journeys": [
+      {
+        "name": "worker-crash-yields-terminal-failed-plus-terminal-event",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1291",
+        "assertions": [
+          "pre-merge: a test simulates a raise between `tool.started` and completion and asserts the run ends at `failed` WITH a terminal ledger event appended; it fails against pre-#1291 code, proving it exercises the real defect",
+          "pre-merge: the terminal state is reached from `queued` too, not only from `running` — the observed run never reached `running`, so a fix that only handles `running → failed` reproduces the bug",
+          "pre-merge: the exception crossing the Celery boundary is pickleable or wrapped, so the failure is recorded as itself rather than as `UnpickleableExceptionWrapper`",
+          "pre-merge: the reaper's widened criteria terminate a `queued`/`running` run whose task has died, and a test proves a genuinely in-flight run within its liveness window is NOT reaped — over-reach here would kill live seller runs, which is worse than the bug being fixed",
+          "pre-merge: a card consumed by a failed run is recoverable (re-approvable or auto-reverted), asserted through the same public surface a seller would use, not by direct row edits",
+          "post-deploy: `/root/releases/current` resolves to the release containing the fix and `systemctl show -p InvocationID --value juli-celery-worker` changed across the deploy — proving the worker restarted onto that release",
+          "post-deploy: trigger a run on the sandbox shop that is expected to fail (natural 12052048 before #1290 lands; forced product-ownership mismatch after) and observe `workflow_runs.status = 'failed'` with `updated_at` advanced past creation",
+          "post-deploy: the run's ledger holds a terminal event (`workflow.failed`, plus `tool.failed` where a tool raised) after `workflow.started` / `tool.started` — read through `GET /v1/demo/runs/{run_id}/events` where #1292 permits, otherwise from the ledger, and say which was used",
+          "post-deploy: the worker journal window for that run contains ZERO `UnpickleableExceptionWrapper` occurrences and zero un-handled task tracebacks — asserted by absence over the window, never by grepping for a success marker",
+          "post-deploy: after the failure, the consumed card is recoverable through the public surface (it can be approved again, or it has reverted to its pre-approval state) — checked via `GET /v1/demo/decisions`, not via a database read",
+          "post-deploy: the next scheduled reaper pass leaves healthy runs alone — assert no run that was legitimately in flight during the window was moved to a terminal state"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — the diff is backend Python under `backend/src/juli_backend/workers/` and the agent run services, plus tests."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "worker-journal",
+      "api-json-response"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration anticipated. `workflow_runs.status`, `updated_at`, `workflow_run_events`, and the `action_cards` status column already exist; `failed` is an already-modelled terminal state (ADR-068 gives the frontend lifecycle a terminal `failed`), and the reaper can key liveness off existing timestamps. An old worker beside a new API keeps stranding runs (today's behavior); a new worker beside an old API is strictly better — it writes only values the old readers already understand. If the reaper genuinely needs a liveness/lease column, it must be additive and nullable, expand-contract only, backfill-free, and this plan must be revised to `schemaChangeInScope: true` BEFORE merge."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without the fix, a crashed run stays `queued` with no terminal event, the reaper skips it, and the consumed card is unrecoverable — the pre-existing #1291 defect. No new exposure; the failure is already the status quo.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart `juli-api` and `juli-celery-worker`. Runs the new release already moved to `failed` STAY failed and remain readable by the old code (`failed` is a pre-existing status value), and terminal ledger events are ordinary appended rows — so rollback leaves no unreadable or partially-applied state and claims no schema downgrade. The specific hazard to check before rollback: if the widened reaper terminated runs it should not have, rollback stops further reaping but does NOT resurrect those runs; the affected cards must be recoverable by the same re-approve path this slice adds, which is why that path is an acceptance assertion and not a nice-to-have.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_workflow_run_reaper.py tests/unit/test_workflow_run_status_mapping.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_workflow_run_event_sink.py tests/unit/test_workflow_run_event_envelope.py tests/unit/test_agent_events_contract.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'agent_workflow or workflow_run' -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "This makes the crash path terminal and the card recoverable. It does NOT fix the cause of the observed crash — that is #1290 — and it must not be 'verified' by removing the failure instead of handling it.",
+    "It does not change the SSE transport: replay and heartbeat are #1292. This slice only guarantees a terminal event EXISTS to be streamed.",
+    "The reaper's widened criteria must not terminate live runs. When in doubt, err toward under-reaping and say so in the artifact; a false-positive reap silently kills a seller's in-flight work.",
+    "Do not fabricate a live failure by disabling a capability guard, editing rows directly, or pointing the journey at a production or customer shop.",
+    "This closes gate #1226 observation 1's failure-path honesty only; it does not close #1226."
+  ]
+}

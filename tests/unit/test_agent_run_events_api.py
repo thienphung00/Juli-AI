@@ -51,6 +51,10 @@ async def app(engine, session):
         get_run_events_session_factory,
     )
     from juli_backend.database import get_session
+    from juli_backend.services.agent.abuse_limits import (
+        InMemoryAbuseLimitGate,
+        set_agent_abuse_limit_gate,
+    )
 
     application = create_app()
     stream_session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -61,6 +65,16 @@ async def app(engine, session):
     async def _stream_session_factory():
         return stream_session_factory
 
+    # Mock the abuse limit gate to avoid timing issues in tests
+    set_agent_abuse_limit_gate(
+        InMemoryAbuseLimitGate(
+            approve_max_requests=100_000,
+            approve_burst_max_requests=100_000,
+            confirmation_max_requests=100_000,
+            sse_max_concurrent=100_000,
+        )
+    )
+
     application.dependency_overrides[get_session] = _test_session
     application.dependency_overrides[get_run_events_session_factory] = _stream_session_factory
     application.dependency_overrides[get_run_event_subscriber] = lambda: None
@@ -68,6 +82,7 @@ async def app(engine, session):
     application.dependency_overrides[get_poll_interval_s] = lambda: 0.02
     yield application
     application.dependency_overrides.clear()
+    set_agent_abuse_limit_gate(None)
 
 
 @pytest_asyncio.fixture
@@ -395,3 +410,36 @@ async def test_confirmations_route_requires_decision_field(app, session, user, s
         )
 
     assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# AC (issue #1292) -- SSE response carries X-Accel-Buffering: no header
+# ---------------------------------------------------------------------------
+
+
+async def test_events_response_carries_x_accel_buffering_no_header(app, session, user, shop):
+    """The events endpoint must set X-Accel-Buffering: no to prevent
+    edge/nginx buffering from delaying the first byte indefinitely
+    (issue #1292). Use a terminal run so the response finishes quickly."""
+    run = await _make_run(session, shop, status="completed")
+
+    async with _client_for(app, user, shop) as client:
+        resp = await client.get(f"/v1/demo/runs/{run.id}/events")
+
+    assert resp.status_code == 200
+    assert resp.headers.get("x-accel-buffering") == "no", (
+        "SSE response must carry X-Accel-Buffering: no to prevent edge buffering"
+    )
+
+
+async def test_events_response_has_sse_content_type(app, session, user, shop):
+    """The events endpoint must declare content-type as text/event-stream."""
+    run = await _make_run(session, shop, status="completed")
+
+    async with _client_for(app, user, shop) as client:
+        resp = await client.get(f"/v1/demo/runs/{run.id}/events")
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/event-stream"), (
+        "SSE response must have text/event-stream content-type"
+    )

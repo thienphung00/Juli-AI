@@ -364,10 +364,14 @@ async def test_heartbeat_emitted_on_idle_stream_within_injected_interval(session
         heartbeat_interval_s=0.05,
     )
 
+    # First byte is the connected comment (issue #1292)
     first = await asyncio.wait_for(gen.__anext__(), timeout=1.0)
+    assert first == ": connected\n\n"
+    # Then heartbeats on an idle stream
     second = await asyncio.wait_for(gen.__anext__(), timeout=1.0)
-    assert first == ": heartbeat\n\n"
+    third = await asyncio.wait_for(gen.__anext__(), timeout=1.0)
     assert second == ": heartbeat\n\n"
+    assert third == ": heartbeat\n\n"
     await gen.aclose()
 
 
@@ -473,8 +477,10 @@ async def test_subscribe_failure_degrades_to_postgres_polling(session_factory):
     finally:
         await insert_task
 
-    assert _chunk_ids(chunks) == [1]
-    assert "workflow.completed" in chunks[0]
+    # First chunk is the connected comment (issue #1292), then the event
+    assert chunks[0] == ": connected\n\n"
+    assert _chunk_ids(chunks[1:]) == [1]
+    assert "workflow.completed" in chunks[1]
 
 
 # ---------------------------------------------------------------------------
@@ -493,3 +499,46 @@ async def session_factory(engine) -> async_sessionmaker[AsyncSession]:
 async def _seed_run_via_factory(session_factory: async_sessionmaker[AsyncSession]) -> uuid.UUID:
     async with session_factory() as session:
         return await _seed_run(session)
+
+
+# ---------------------------------------------------------------------------
+# AC8 (issue #1292) -- first byte emitted immediately before subscribe blocks
+# ---------------------------------------------------------------------------
+
+
+class HangingSubscriber:
+    """A subscriber whose subscribe() never completes -- simulates Redis
+    being slow or hung. If the stream emits the connection comment BEFORE
+    subscribing, it will not block. If it subscribes first, the first byte
+    never arrives."""
+
+    async def subscribe(self, channel: str):
+        # Never actually resolve: just hang forever
+        await asyncio.sleep(1000)
+
+
+async def test_first_byte_emitted_before_subscribe_blocks(session_factory):
+    """Proves that when the subscriber is slow/hung, the first byte (the
+    connected comment) is emitted immediately without waiting for subscribe
+    to complete. This is the regression guard for issue #1292 hypothesis 2:
+    origin blocking before first yield."""
+    run_id = await _seed_run_via_factory(session_factory)
+
+    subscriber = HangingSubscriber()
+    gen = event_stream(
+        run_id=run_id,
+        after_seq=0,
+        run_is_terminal=False,
+        session_factory=session_factory,
+        subscriber=subscriber,
+        heartbeat_interval_s=0.05,
+    )
+
+    # The first chunk must be the connected comment, fetched immediately
+    # without waiting on the subscribe call to complete.
+    first = await asyncio.wait_for(gen.__anext__(), timeout=0.5)
+    assert first == ": connected\n\n", (
+        "first byte must be the connected comment, emitted before subscribe"
+    )
+
+    await gen.aclose()

@@ -399,6 +399,16 @@ async def event_stream(
             yield _format_sse(row.sequence_number, row.event_type, _row_to_envelope_json(row))
         return
 
+    # Issue #1292: emit the connected comment immediately BEFORE subscribing,
+    # so that if the subscriber hangs or blocks, the first byte reaches the
+    # client immediately, preventing the edge (nginx/Cloudflare) from buffering
+    # indefinitely and timing out. This is safe because the comment is not an
+    # event (does not increment sequence numbering) and does not disturb
+    # ADR-074 decision 3's ordering guarantees (subscribe-before-replay still
+    # happens for capturing live events; the comment just precedes the subscribe
+    # call itself, not the actual subscribe completion that starts receiving).
+    yield ": connected\n\n"
+
     channel = _run_events_channel(run_id)
     subscription: EventSubscription | None = None
     if subscriber is not None:
@@ -679,7 +689,15 @@ async def stream_run_events(
     released_generator = _sse_stream_with_concurrency_slot(
         generator, gate=stream_gate, shop_id=str(shop.id)
     )
-    return StreamingResponse(released_generator, media_type="text/event-stream")
+    # Issue #1292: belt-and-braces edge buffering fix -- the first byte
+    # (connected comment) is emitted before subscribe in event_stream above,
+    # and this header tells nginx/Cloudflare not to buffer the response at all.
+    # Both together ensure first byte reaches the client immediately.
+    return StreamingResponse(
+        released_generator,
+        media_type="text/event-stream",
+        headers={"X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/{run_id}/cancel", status_code=status.HTTP_202_ACCEPTED)
