@@ -22,10 +22,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database import ActionCard, Product, Shop, TikTokCredential, User
-from juli_backend.database.seeds.demo_tenant import seed_demo_tenant
 from juli_backend.services.agent.playbooks.optimize_product import (
     OPTIMIZE_PRODUCT_PLAYBOOK,
 )
+from juli_backend.services.seeds.demo_tenant import seed_demo_tenant
 
 
 @pytest_asyncio.fixture
