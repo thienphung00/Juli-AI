@@ -1,0 +1,84 @@
+{
+  "planId": "manual-refresh-poll-scoped-to-requested-shop-2026-08-24",
+  "affectedPublicSurfaces": [
+    "`POST /v1/action-cards/refresh` (authenticated) → Celery `juli_backend.refresh_action_cards` → `services/action_cards/refresh.py::maybe_poll_tiktok_data`. That function takes `shop_id` and ignores it: it always runs `run_fujiwa_poll_cycle`, resolving the PRODUCTION-read credential and paging the real store's orders/products/returns/inventory/analytics at the TikTok rate limit (~1 event per 5s) before `run_daily_scoring_for_shop` executes for the requested shop. Measured on release `b44b33b7`: 1495s (~25 min) for a sandbox-shop refresh.",
+    "The production TikTok ingest wire itself (`workers/services/polling/orchestrate.py::run_fujiwa_poll_cycle` and its scheduled beat entry). This slice REMOVES an unscheduled caller of that wire. The risk that matters is the mirror image of the bug: silently reducing or disabling the SCHEDULED production ingest, which would starve analytics without any error appearing anywhere.",
+    "Worker capacity on the single-VPS lane (ADR-057): one seller-triggered refresh currently occupies a worker slot for ~25 minutes doing another shop's ingest, serializing concurrent refreshes behind each other and behind the hourly reconcile (~37 min per run). Freeing that slot changes the contention profile for every other queued task, including the reaper and credential refresh beats.",
+    "TikTok rate-limit budget: today every manual refresh spends production API quota on the production shop. After this change the quota is consumed only by the scheduled cadence, which is the intended consumer.",
+    "Mixed-version hazard: the poll decision lives in the worker. `systemctl restart juli-celery-worker` off the new `/root/releases/current` is part of the release; an API-only cutover leaves the ~25-minute refresh live."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest with `PYTHONPATH` pinned to the worktree's `backend/src` and the poll runner injected as a fake bound to the real signature (`run_action_card_refresh` already accepts a `poll_hook`) — no vendor call, no VPS contact. Post-deploy: an authenticated `POST /v1/action-cards/refresh` with a real seller token and the SANDBOX `X-Shop-Id` (`1862f13b-…`) only. No customer shop is refreshed, and no public traffic is routed to a candidate task set (the single-VPS lane has none).",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is deliberately FALSE: the behavior under test is what the Celery refresh task does with the shop's credential, and the headline acceptance criterion is wall-clock duration of a real worker run — with workers disabled there is nothing to time. apiSideEffectsInScope is FALSE in the sense the pairing rule protects: the live journey's effects are the sandbox shop's own scoring/card rows, and the change strictly REDUCES outbound vendor calls (it removes a production poll, it does not add one). The asymmetric risk to verify is the negative one: this must not quietly stop the SCHEDULED production poll, so the journey asserts the scheduled wire still runs at its cadence AFTER the deploy, not merely that the refresh got fast. Relationship to #1289: the same refresh path also never surfaces the cards it persists. This slice makes the refresh fast; #1289 makes its output visible. Neither substitutes for the other, and a fast refresh that still yields nothing in `/v1/demo/decisions` is this issue passing and #1289 still open — say which when reporting.",
+    "journeys": [
+      {
+        "name": "sandbox-refresh-is-fast-and-production-wire-stays-scheduled",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1293",
+        "assertions": [
+          "pre-merge: a test asserts a refresh for a shop with no pollable credential of its own does NOT invoke `run_fujiwa_poll_cycle` and still reaches `run_daily_scoring_for_shop`; it fails against pre-#1293 `maybe_poll_tiktok_data`, proving it exercises the real defect rather than passing vacuously",
+          "pre-merge: a test asserts that when a poll DOES run for a refresh, it is resolved from the REQUESTED shop's own credential — never the production-read credential of a different shop",
+          "pre-merge: a test asserts the scheduled production poll path is unchanged — the beat entry still exists and still calls `run_fujiwa_poll_cycle` with the production credential; `tests/unit/test_fujiwa_polling_orchestration.py` and `tests/unit/test_polling.py` pass unmodified",
+          "pre-merge: the skip path logs a named, greppable reason (the existing `action_card_refresh_poll_skipped` idiom) so an operator can tell 'skipped by design' from 'silently did nothing'",
+          "post-deploy: `/root/releases/current` resolves to the release containing the fix and `systemctl show -p InvocationID --value juli-celery-worker` changed across the deploy — proving the worker restarted onto that release",
+          "post-deploy: `POST /v1/action-cards/refresh` for the sandbox shop completes in SECONDS — timed from the worker journal's task-received to task-returned lines for that specific task id, not from the API response, which returns before the work finishes",
+          "post-deploy: that refresh still performed scoring for the requested shop (scoring ran and persisted for the sandbox shop) — a fast refresh that skipped the work is a regression, not a fix",
+          "post-deploy: the worker journal window for that task contains ZERO production-credential poll activity and zero tracebacks — asserted by absence over the window, not by grepping for a success marker",
+          "post-deploy: the SCHEDULED production poll still runs at its cadence after the deploy — evidenced by a subsequent scheduled `run_fujiwa_poll_cycle` appearing in the journal and by the medallion/ingest freshness for the production shop advancing; verify from the ingest artifact's OWN timestamp rather than from a success-marker grep, since a task that raises before logging success leaves no failure marker to find"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — the diff is backend Python under `backend/src/juli_backend/services/action_cards/` (and, if needed, credential resolution for the requested shop) plus tests."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "worker-journal",
+      "task-duration-measurement"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration, no schema change, and no change to the `refresh_action_cards` task name or signature, so refresh messages queued by an old API and consumed by a new worker (or the reverse) still resolve. An old worker beside a new API keeps doing the ~25-minute production poll (today's behavior); a new worker beside an old API is strictly better. The one compatibility surface to respect is the poll's own `sync_state` cursors (`orders_last_update_time`, `products_last_update_time`): the scheduled production poll must keep advancing exactly the cursors it advances today — a refresh that stops touching them must not reset, skip, or fork them. If implementation finds it needs a schema change, it must be additive, expand-contract only, and this plan revised to `schemaChangeInScope: true` BEFORE merge."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without the fix, every seller-triggered refresh keeps occupying a worker slot for ~25 minutes polling another shop's data — the pre-existing #1293 defect. Slow and wasteful, but no data hazard and no new exposure.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart `juli-api` and `juli-celery-worker`; refresh returns to running the full production poll first. The change is control-flow only — no schema downgrade, no data migration, no partially-applied state. The one thing to check on rollback is ingest continuity: confirm the scheduled production poll is still advancing its cursors afterwards, because the failure mode worth fearing in BOTH directions is a production wire that quietly stopped, and neither deploy nor rollback surfaces that on its own.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_action_card_refresh_cooldown.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_fujiwa_polling_orchestration.py tests/unit/test_polling.py tests/unit/test_analytics_poll_cycle.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'refresh or poll' -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "This scopes the REFRESH path's poll to the requested shop (or skips it). It must not change, slow, or disable the SCHEDULED production poll cadence — that wire is how production analytics stay fresh, and breaking it is far worse than the bug being fixed.",
+    "Do not 'fix' the latency by deleting the poll step wholesale without checking whether a shop with its own pollable credential should still poll. Scoped-or-skipped, with a named reason logged either way.",
+    "Do not raise the TikTok rate limiter's ceiling, add concurrency to the poll, or parallelize the poll cycle to make it faster. The fix is not polling the wrong shop, not polling it quicker.",
+    "This does not surface refreshed cards (#1289), fix the write credential (#1290), the crash path (#1291), or SSE streaming (#1292). A refresh that is fast and still yields an empty `/v1/demo/decisions` is #1289, not a failure of this slice.",
+    "Timing evidence must come from the worker journal for the specific task id. The API response returns before the task finishes, so an API-side stopwatch proves nothing."
+  ]
+}

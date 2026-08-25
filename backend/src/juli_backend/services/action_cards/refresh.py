@@ -39,7 +39,8 @@ def _poll_env_ready() -> dict[str, str] | None:
 
 
 async def maybe_poll_tiktok_data(session: AsyncSession, shop_id: uuid.UUID) -> None:
-    """Run Fujiwa poll when TikTok + Redis credentials are configured; otherwise skip."""
+    """Run Fujiwa poll when TikTok + Redis credentials are configured AND the shop
+    owns the production-read credential; otherwise skip."""
     env = _poll_env_ready()
     if env is None:
         logger.info(
@@ -47,6 +48,34 @@ async def maybe_poll_tiktok_data(session: AsyncSession, shop_id: uuid.UUID) -> N
             extra={
                 "shop_id": str(shop_id),
                 "reason": "missing_tiktok_or_redis_env",
+            },
+        )
+        return
+
+    # Resolve the production-read credential and check if this shop owns it.
+    # Only the production-read shop should poll; other refreshes skip polling.
+    from juli_backend.core.security import resolve_production_read_credential
+
+    try:
+        production_credential = await resolve_production_read_credential(session)
+    except Exception:
+        # If resolution fails (e.g., no production credential exists), skip polling.
+        logger.info(
+            "action_card_refresh_poll_skipped",
+            extra={
+                "shop_id": str(shop_id),
+                "reason": "shop_has_no_pollable_credential",
+            },
+        )
+        return
+
+    # Only poll if the requested shop owns the production-read credential.
+    if production_credential.shop_id != shop_id:
+        logger.info(
+            "action_card_refresh_poll_skipped",
+            extra={
+                "shop_id": str(shop_id),
+                "reason": "not_production_read_shop",
             },
         )
         return
