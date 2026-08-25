@@ -175,7 +175,7 @@ class ProductToolExecutor:
         self,
         *,
         registry: ToolRegistry,
-        read_resources: ProductionReadResources | None = None,
+        read_resources: ProductionReadResources | SandboxWriteResources | None = None,
         write_resources: SandboxWriteResources | None = None,
         product_id: str,
         sku_refs: Mapping[str, str] | None = None,

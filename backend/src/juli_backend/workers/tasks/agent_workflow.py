@@ -156,6 +156,7 @@ import os
 import uuid
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import create_engine as create_sync_engine
 from sqlalchemy import func, select
@@ -168,6 +169,12 @@ from juli_backend.services.agent import events as events_module
 from juli_backend.services.agent import runner as runner_module
 from juli_backend.workers.celery_app import celery_app
 from juli_backend.workers.tasks.database import get_async_database_url
+
+if TYPE_CHECKING:
+    from juli_backend.integrations.tiktok import (
+        ProductionReadResources,
+        SandboxWriteResources,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -284,7 +291,9 @@ def _default_playbook():
     return playbooks_module.OPTIMIZE_PRODUCT_PLAYBOOK
 
 
-async def _default_read_resources(session: AsyncSession, shop_id: uuid.UUID | None = None):
+async def _default_read_resources(
+    session: AsyncSession, shop_id: uuid.UUID | None = None
+) -> ProductionReadResources | SandboxWriteResources:
     """The real ADR-069 guarded read resources (issue #1173 review-round-1
     rework, amended by issue #1302) -- `composition.py`'s `build_read_resources`,
     reached the same depth-2-facade way as `_default_llm_service` above.

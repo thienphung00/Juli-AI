@@ -85,6 +85,7 @@ work; `build_read_resources`/`build_write_resources` below close it.
 
 from __future__ import annotations
 
+import logging
 import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -104,6 +105,8 @@ from juli_backend.services.agent.tools import ToolClassification, ToolRegistry
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
 from juli_backend.services.execution.sandbox_guard import load_sandbox_write_resources
+
+logger = logging.getLogger(__name__)
 
 
 def build_llm_service() -> LLMService:
@@ -230,9 +233,16 @@ async def build_read_resources(
                     session, app_key=app_key, app_secret=app_secret
                 )
         except Exception:
-            # If sandbox-write credential resolution fails for any reason,
-            # fall through to production-read below
-            pass
+            # If sandbox-write credential resolution fails (e.g., NotFound),
+            # log a named warning before falling back to production-read.
+            # This is a fallback-worthy anomaly because we expected to resolve
+            # a sandbox credential but failed; shop mismatch (resolved but
+            # different shop) is not a warning, just the normal production path.
+            logger.warning(
+                "agent_read_resources_sandbox_fallback",
+                extra={"shop_id": str(shop_id), "reason": "sandbox_resolution_failed"},
+                exc_info=True,
+            )
 
     # Fall back to production-read for non-sandbox shops or if shop_id is None
     credential = await resolve_production_read_credential(session)
