@@ -57,12 +57,14 @@ This model assumes a threat actor with network access to the public API, ability
 - Valid JWT signed by the same server that issued it (symmetric key)
 - User ID embedded in JWT payload
 - Shop ID in `X-Shop-Id` header matches a shop the authenticated user owns
+- Verified anonymous principal claim → auto-provisioned User without prior account (W6 #1313, in flight)
 
 **Controls in force:**
 
 | Control | File | Symbol | Notes |
 |---------|------|--------|-------|
 | User authentication | `juli_backend/core/security/dependencies.py` | `get_current_user()` | Verifies JWT and looks up user by ID; missing user → 401 |
+| Anonymous principal auto-provisioning | `juli_backend/core/security/dependencies.py` | `get_current_user()` | Verified is_anonymous claim auto-provisions User; unknown subject → 401 (W6 #1313, in flight) |
 | Shop authorization | `juli_backend/api/dependencies.py` | `get_active_shop()` | Verifies `X-Shop-Id` header matches a shop in `User.shops`; mismatch → 403 |
 | OAuth credential exchange | `juli_backend/api/routes/auth_tiktok.py` | `tiktok_oauth_callback()` | User identity verified via TikTok OAuth before JWT issued; code exchanged server-side only |
 
@@ -74,6 +76,7 @@ This model assumes a threat actor with network access to the public API, ability
 | Cross-tenant access via header tampering | Medium | Critical — attacker reads/modifies another user's shop | Relationship to user verified on every request; admin cannot change user←→shop ownership mid-request | Backend | Failure in `get_active_shop()` auth check; audit log shows access denial |
 | Privilege escalation via user lookup race | Low | High — attacker modifies their own user record mid-request | User record is immutable after sign-in except for shop membership (read-only during request); mutation requires logout+re-auth | Backend | User record read shows mutation; audit trail shows two different user states in same request |
 | Token replay (CSRF) | Low | Medium — attacker tricks user into visiting attacker-controlled form | Tokens are bearer-only (no cookie); CORS headers restrict cross-origin requests; SameSite cookie policies enforced by browsers (if session cookies added) | Backend | CORS preflight fails on `/v1/` routes from non-origin |
+| Anonymous visitor abuse amplification via per-shop budgets | Medium | Medium — N anonymous visitors each get N× budget on shared demo shop with no aggregate ceiling | Per-(shop,user) abuse buckets without aggregate per-shop limit; demo shop deliberately shared; mitigation requires aggregate rate-limiting across all visitors | Backend | Abuse-limit gate exhausted; rate-limit logs show N anonymous sources consuming budget within monitoring window (#1355) |
 
 ---
 
