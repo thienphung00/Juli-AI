@@ -1,0 +1,270 @@
+{
+  "routes": [
+    {
+      "path": "/v1/action-cards",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/action-cards/refresh",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/action-cards/{workflow_key}/inputs",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/auth/tiktok/business/account-holder/callback",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": false,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/auth/tiktok/business/callback",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": false,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/auth/tiktok/callback",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": false,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/creators",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/creators/{creator_id}/content",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/analytics",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": false,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/demo/decisions",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/decisions/{action_card_id}",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/decisions/{action_card_id}/approve",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/runs",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/runs/{run_id}/cancel",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/runs/{run_id}/confirmations/{tool_call_id}",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/runs/{run_id}/events",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/executions",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/executions/{execution_id}",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/orders",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/orders/{order_id}/confirm-shipment",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/outcomes",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/products",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/recommendations",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/shops",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/shops/me",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/workflow-outcomes/{approval_id}",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    }
+  ],
+  "tools": [
+    {
+      "name": "check_product_status",
+      "classification": "read",
+      "policy": "auto",
+      "playbooks": [
+        "optimize_product"
+      ]
+    },
+    {
+      "name": "get_product_information",
+      "classification": "read",
+      "policy": "auto",
+      "playbooks": [
+        "optimize_product"
+      ]
+    },
+    {
+      "name": "get_seo_keywords",
+      "classification": "read",
+      "policy": "auto",
+      "playbooks": [
+        "optimize_product"
+      ]
+    },
+    {
+      "name": "inspect_product_image",
+      "classification": "read",
+      "policy": "auto",
+      "playbooks": [
+        "optimize_product"
+      ]
+    },
+    {
+      "name": "update_product_listing",
+      "classification": "write",
+      "policy": "confirm",
+      "playbooks": [
+        "optimize_product"
+      ]
+    },
+    {
+      "name": "update_product_price",
+      "classification": "write",
+      "policy": "confirm",
+      "playbooks": [
+        "optimize_product"
+      ]
+    },
+    {
+      "name": "upload_product_image",
+      "classification": "write",
+      "policy": "auto",
+      "playbooks": [
+        "optimize_product"
+      ]
+    }
+  ]
+}

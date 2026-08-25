@@ -1,0 +1,80 @@
+{
+  "planId": "threat-model-generated-surface-inventory-2026-08-25",
+  "affectedPublicSurfaces": [
+    "No runtime code changes: this slice ships documentation (`docs/security/threat-model.md`), a committed machine-readable surface inventory, and a CI test — the deployed API's behaviour is byte-identical before and after. The 'surface' this slice affects is the *description* of every public surface: one threat-model section per trust boundary the system actually has — the unauthenticated edge (webhooks, health), the authenticated `/v1/*` API, the agent's inbound content boundary (vendor product text → prompt), the agent's tool boundary (playbook allow-list → WRITE), the credential boundary (TikTok tokens, JWT verification), and the data boundary (tenant isolation, PostgREST roles).",
+    "The machine-readable surface inventory committed beside the threat model: every `/v1/*` route (method, path, auth dependency, whether it takes a tenant-scoped id) and every registered agent tool (name, capability, playbooks that may call it, WRITE or READ) — generated from the live route table (`app.routes`) and the real tool registry, never hand-written.",
+    "The CI check surface: a new test that regenerates the inventory from the live route table and tool registry and fails on any difference, naming the missing or extra route/tool. A route added anywhere in the codebase — including W6's routes landing in parallel — appears in the regenerated inventory automatically, and an unregenerated committed file fails the build. The explicit allowlist of intentionally unauthenticated routes (webhooks, health, and anything W6 legitimately adds) is defined once in this slice and is the single source #1333's cross-tenant probe reuses.",
+    "The red-team aiming surface: the 'how to run a pass against this' section — boundaries in priority order, what previous passes cleared, where findings get filed. This is what gate #1339 observation 2's manual pass is aimed at; the pass itself is an owner act and not part of this slice."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "No host interaction is needed and none is performed: the verification IS the CI check running against the same commit the candidate serves. The inventory-regeneration test walks `app.routes` and the tool registry in-process and asserts byte-equality with the committed inventory file — if the deployed release's route table differed from the committed inventory, the same commit could not have passed CI. Pre-merge pytest runs with `PYTHONPATH` pinned to the worktree's `backend/src`; no live TikTok call, no VPS contact, no traffic routed to any candidate task set.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "This journey deliberately has no deployed-host step. The slice adds no runtime code, so there is nothing on the host to observe that CI has not already proven: the generated-inventory check binds the committed threat-model surface to the actual route table and tool registry of the exact commit being released. workersDisabledOnCandidate is FALSE only in the sense that no worker interaction exists at all; no worker, queue, or database side effect is in scope. The only side effects anywhere in this slice are files in git and a CI job outcome.",
+    "journeys": [
+      {
+        "name": "surface-inventory-cannot-go-stale",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1331",
+        "assertions": [
+          "pre-merge: the inventory-regeneration test walks the live `app.routes` and the real tool registry and asserts byte-equality with the committed inventory file, with a documented regeneration command — proving the inventory is generated, not hand-written",
+          "pre-merge: adding a route inside the test (and not regenerating) fails the check naming the missing route; adding a tool does the same for tools — proving the check detects staleness in both directions",
+          "pre-merge: every route in the inventory records its auth dependency; an unauthenticated route not on the explicit allowlist (webhooks, health, and anything W6 legitimately adds) fails the check",
+          "pre-merge: every registered agent tool records READ or WRITE and the playbooks permitted to call it, read from the real registry rather than a second literal",
+          "pre-merge: each of the six trust boundaries in `docs/security/threat-model.md` has at least one control with a file-and-symbol reference, and a test asserts every such reference resolves — the model cannot drift into fiction as code moves",
+          "pre-merge: the residual-risk section is non-empty and each accepted risk names an owner and a trigger — an empty residual-risk section fails review",
+          "post-merge: the CI job carrying the regeneration check appears in the required-checks surface for the repo, so removing the check is a visible act rather than a silent decay (per this plan's rollbackAssertion)"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — the diff is `docs/security/**`, a committed inventory file, and test code. Nothing user-facing renders differently."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "committed-inventory-file",
+      "threat-model-markdown"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration and no schema surface of any kind. The slice writes documentation, one committed generated inventory file, and tests. Stable and candidate releases are trivially compatible because runtime behaviour is unchanged; the only cross-version consideration is that the inventory file is bound to its own commit's route table by the CI check, which is exactly the property being shipped. If implementation concludes any runtime code change is needed (it must not be — this lane is TESTS AND DOCS ONLY per the W7 parent scope), that is a stop-and-report against the owning lane, never a quiet widening of this plan."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without this slice the repo simply continues to lack a threat model and surface inventory — today's deployed state. There is no exposure created by not merging; the cost is that gate #1339 observation 2's manual red-team pass has nothing durable to aim at.",
+    "postCutoverFailureBehavior": "Reverting removes a guard, not a behaviour: the API serves identically with or without this slice. If the regeneration check itself proves flaky or wrong, revert the commit and the previous CI surface returns. The one thing a revert must not do silently is remove the staleness guard while the threat model stays committed — a threat model without its CI check is a document that will rot, which is the exact decay ADR-061 diagnosed. Therefore: the check is noted in the repository's required-checks list so its removal is visible, and a revert PR must say it is removing the guard, not just 'reverting docs'.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'surface_inventory or threat_model' -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "The inventory is GENERATED from the live route table and tool registry, never hand-written. A hand-edited inventory that happens to match today is the decay this slice exists to prevent.",
+    "Do not hand-edit the inventory to pre-empt W6's routes (`GET /v1/demo/runs`, the changed decisions envelope). The generator reads the live table, so W6's routes appear automatically once they land. Do not edit any W6-owned route file for any reason — that boundary is not negotiable while both waves are in flight.",
+    "The allowlist of intentionally unauthenticated routes is defined ONCE in this slice and reused by #1333's cross-tenant probe. Two allowlists is one too many; do not let #1333 grow its own.",
+    "The manual red-team pass itself is gate #1339 observation 2 — an owner act, never this slice's deliverable. This slice builds what the pass is aimed at; it does not perform, schedule, or simulate the pass, and it does not pre-file findings.",
+    "Residual risks are stated as accepted risks with an owner and a trigger, not omitted. An empty residual-risk section fails review — do not 'clean up' the section to make the model look finished.",
+    "TESTS AND DOCS ONLY. If building the generator reveals a defect in a route's auth dependency or a tool's registration, report it against the owning issue — do not fix runtime code in this PR."
+  ]
+}
