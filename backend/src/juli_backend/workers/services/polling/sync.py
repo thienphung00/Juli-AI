@@ -262,26 +262,39 @@ async def sync_products_with_local_upsert(
             json.dumps(normalized).encode(),
         )
 
-        # Upsert to local products table (new for sandbox sync)
-        try:
-            await products_repo.upsert(
-                shop_id=shop_uuid,
-                tiktok_product_id=product.get("product_id", ""),
-                name=product.get("name", "") or product.get("title", ""),
-                status=product.get("status", "unknown"),
-                title=product.get("title", "") or product.get("name", ""),
-                # products.update_time is TIMESTAMP WITHOUT TIME ZONE —
-                # asyncpg rejects aware datetimes (naive-UTC convention,
-                # same as OrdersRepo at repos.py).
-                update_time=datetime.now(UTC).replace(tzinfo=None),
-            )
-        except Exception:
+        # Upsert to local products table (new for sandbox sync). Field
+        # names must come from the NORMALIZED dict: TikTok's raw payload
+        # keys the product id as "id" and has no "name"; normalize_product
+        # maps id -> product_id and title -> name. Upserting from the raw
+        # dict stored empty tiktok_product_ids that deduped every product
+        # into one unusable row (seen live 2026-08-25, run e79b4c8d).
+        tiktok_product_id = str(normalized.get("product_id") or "")
+        if not tiktok_product_id:
             upsert_failures += 1
             logger.warning(
-                "sync_products_local_upsert_failed",
-                extra={"shop_id": shop_id, "product_id": product.get("product_id")},
-                exc_info=True,
+                "sync_products_local_upsert_skipped_no_product_id",
+                extra={"shop_id": shop_id},
             )
+        else:
+            try:
+                await products_repo.upsert(
+                    shop_id=shop_uuid,
+                    tiktok_product_id=tiktok_product_id,
+                    name=normalized.get("name", "") or normalized.get("title", ""),
+                    status=normalized.get("status", "unknown"),
+                    title=normalized.get("title", "") or normalized.get("name", ""),
+                    # products.update_time is TIMESTAMP WITHOUT TIME ZONE —
+                    # asyncpg rejects aware datetimes (naive-UTC convention,
+                    # same as OrdersRepo at repos.py).
+                    update_time=datetime.now(UTC).replace(tzinfo=None),
+                )
+            except Exception:
+                upsert_failures += 1
+                logger.warning(
+                    "sync_products_local_upsert_failed",
+                    extra={"shop_id": shop_id, "product_id": tiktok_product_id},
+                    exc_info=True,
+                )
 
         max_update_time = max(
             max_update_time,
