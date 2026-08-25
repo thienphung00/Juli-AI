@@ -25,7 +25,7 @@ from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.dependencies import get_active_shop
+from juli_backend.api.tenant_context_middleware import get_active_shop_with_context
 from juli_backend.core.config.runtime import require_env
 from juli_backend.database import TikTokCredentialRepo, get_session
 from juli_backend.database.exceptions import NotFound
@@ -76,7 +76,7 @@ def get_verify_connection_service() -> TikTokVerifyConnectionService:
 @router.get("/verify-connection", response_model=TikTokVerifyConnectionResponse)
 async def verify_tiktok_connection(
     _: None = Depends(_require_debug_enabled),
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(get_active_shop_with_context),
     session: AsyncSession = Depends(get_session),
     verify_service: TikTokVerifyConnectionService = Depends(get_verify_connection_service),
 ) -> TikTokVerifyConnectionResponse:

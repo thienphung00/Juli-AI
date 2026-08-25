@@ -75,7 +75,6 @@ async def test_unscoped_transaction_raises_before_sql():
 
 
 @pytest.mark.asyncio
-@pytest.mark.requires_postgres
 async def test_set_local_semantics_real_postgres():
     """AC2: Settings are SET LOCAL (transaction-scoped).
 
@@ -87,19 +86,12 @@ async def test_set_local_semantics_real_postgres():
     """
     import os
 
-    import pytest
-
     database_url = os.getenv(
-        "TEST_DATABASE_URL", "postgresql://postgres@localhost:5432/juli_exec_1327"
+        "TEST_DATABASE_URL", "postgresql+asyncpg://postgres@localhost:5432/juli_exec_1327"
     )
 
     # Create engine with real connection pooling
-    try:
-        engine = create_async_engine(database_url, echo=False)
-    except Exception as e:
-        if "psycopg2" in str(e):
-            pytest.skip("PostgreSQL not available for test (requires asyncpg)")
-        raise
+    engine = create_async_engine(database_url, echo=False)
 
     try:
         async with engine.begin() as conn:
@@ -139,7 +131,6 @@ async def test_set_local_semantics_real_postgres():
 
 
 @pytest.mark.asyncio
-@pytest.mark.requires_postgres
 async def test_different_tenants_same_connection():
     """AC2+AC3: Two sequential units of work for different tenants on the same
     pooled connection each observe only their own value — the leak this
@@ -147,18 +138,11 @@ async def test_different_tenants_same_connection():
     """
     import os
 
-    import pytest
-
     database_url = os.getenv(
-        "TEST_DATABASE_URL", "postgresql://postgres@localhost:5432/juli_exec_1327"
+        "TEST_DATABASE_URL", "postgresql+asyncpg://postgres@localhost:5432/juli_exec_1327"
     )
 
-    try:
-        engine = create_async_engine(database_url, echo=False)
-    except Exception as e:
-        if "psycopg2" in str(e):
-            pytest.skip("PostgreSQL not available for test (requires asyncpg)")
-        raise
+    engine = create_async_engine(database_url, echo=False)
 
     try:
         async with engine.begin() as conn:

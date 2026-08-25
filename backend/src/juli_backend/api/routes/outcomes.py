@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.dependencies import get_active_shop
+from juli_backend.api.tenant_context_middleware import get_active_shop_with_context
 from juli_backend.database import Shop, get_session
 from juli_backend.services.feedback import ingest_campaign_outcome
 
@@ -45,7 +45,7 @@ class OutcomeIngestResponse(BaseModel):
 @router.post("", response_model=OutcomeIngestResponse)
 async def record_outcome(
     body: OutcomeIngestRequest,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(get_active_shop_with_context),
     session: AsyncSession = Depends(get_session),
 ) -> OutcomeIngestResponse:
     """Record realized campaign outcomes for calibration (P1-3)."""

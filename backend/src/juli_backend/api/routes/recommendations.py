@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.dependencies import get_active_shop
+from juli_backend.api.tenant_context_middleware import get_active_shop_with_context
 from juli_backend.database import Shop, get_session
 from juli_backend.models.models import Recommendation
 from juli_backend.services.action_cards import persist_legacy_recommendations
@@ -44,7 +44,7 @@ class RecommendationsResponse(BaseModel):
 
 @router.get("", response_model=RecommendationsResponse)
 async def list_recommendations(
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(get_active_shop_with_context),
     session: AsyncSession = Depends(get_session),
 ) -> RecommendationsResponse:
     """Return current active recommendations with CTAs for the shop."""
