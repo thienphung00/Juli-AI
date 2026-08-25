@@ -125,7 +125,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from juli_backend.api.dependencies import get_active_shop
 from juli_backend.database import Shop, get_session
-from juli_backend.models.models import RunConfirmation
+from juli_backend.models.models import Product, RunConfirmation
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 from juli_backend.services.agent import abuse_limits as agent_abuse_limits
@@ -1103,3 +1103,134 @@ async def submit_confirmation_decision(
         status=new_status,
         celery_task_id=celery_task_id,
     )
+
+
+# ---------------------------------------------------------------------------
+# Run list (issue #1310) -- polled read model over persisted workflow_runs
+# ---------------------------------------------------------------------------
+
+
+class PendingDecisionSummary(BaseModel):
+    """Summary of a pending decision for a waiting_approval run."""
+
+    tool_call_id: str
+    expires_at: str
+
+
+class WorkflowRunListItem(BaseModel):
+    """One run in the seller's polled read model."""
+
+    id: uuid.UUID
+    status: str
+    stop_reason: str | None = None
+    product_name: str
+    created_at: str
+    completed_at: str | None = None
+    running_seconds_elapsed: int
+    latest_narration: str | None = None
+    decision_summary: PendingDecisionSummary | None = None
+
+
+class WorkflowRunListResponse(BaseModel):
+    """Polled read model response for GET /v1/demo/runs."""
+
+    success: bool = True
+    data: list[WorkflowRunListItem]
+
+
+@router.get("", response_model=WorkflowRunListResponse)
+async def list_demo_runs(
+    shop: Shop = Depends(get_active_shop),
+    session: AsyncSession = Depends(get_session),
+    limit: int = Query(default=100, ge=1, le=1000),
+) -> WorkflowRunListResponse:
+    """Polled read model over the seller's workflow runs (ADR-083 T4, #1310).
+
+    Returns the authenticated caller's shop's runs in order (newest first),
+    paginated. Each run carries status, stop_reason (for terminal runs),
+    bound product name, timestamps, running-time accounting, the latest
+    persisted narration line (null if never emitted), and for waiting_approval
+    runs, the pending decision summary and expiry read from the persisted
+    confirmation row.
+
+    A queued run (zero events) is visible. Terminal runs carry one of seven
+    stop_reason values, all distinct. No tool names, playbook keys, or
+    internal identifiers appear anywhere in the response.
+    """
+    shop_id = shop.id
+
+    try:
+        # Get all runs for this shop, ordered newest first
+        result = await session.execute(
+            select(WorkflowRunRow, Product)
+            .where(WorkflowRunRow.shop_id == shop_id)
+            .join(Product, WorkflowRunRow.product_id == Product.id)
+            .order_by(WorkflowRunRow.created_at.desc())
+            .limit(limit)
+        )
+        rows = result.all()
+
+        items: list[WorkflowRunListItem] = []
+        for run, product in rows:
+            # Get latest narration from workflow.status events
+            latest_narration = None
+            narration_result = await session.execute(
+                select(WorkflowRunEventRow.payload)
+                .where(
+                    WorkflowRunEventRow.workflow_run_id == run.id,
+                    WorkflowRunEventRow.event_type == "workflow.status",
+                )
+                .order_by(WorkflowRunEventRow.sequence_number.desc())
+                .limit(1)
+            )
+            narration_row = narration_result.scalars().first()
+            if narration_row and isinstance(narration_row, dict):
+                latest_narration = narration_row.get("phase_narration")
+
+            # For waiting_approval runs, fetch the pending decision
+            decision_summary = None
+            if run.status == WAITING_APPROVAL_RUN_STATUS:
+                confirmation_result = await session.execute(
+                    select(RunConfirmation)
+                    .where(
+                        RunConfirmation.workflow_run_id == run.id,
+                        RunConfirmation.status == PENDING_CONFIRMATION_STATUS,
+                    )
+                    .limit(1)
+                )
+                confirmation = confirmation_result.scalars().first()
+                if confirmation:
+                    decision_summary = PendingDecisionSummary(
+                        tool_call_id=confirmation.tool_call_id,
+                        expires_at=confirmation.expires_at.isoformat()
+                        if isinstance(confirmation.expires_at, datetime)
+                        else str(confirmation.expires_at),
+                    )
+
+            # Build the item
+            item = WorkflowRunListItem(
+                id=run.id,
+                status=run.status,
+                stop_reason=run.stop_reason,
+                product_name=product.name,
+                created_at=run.created_at.isoformat() if run.created_at else "",
+                completed_at=run.completed_at.isoformat() if run.completed_at else None,
+                running_seconds_elapsed=run.running_seconds_elapsed,
+                latest_narration=latest_narration,
+                decision_summary=decision_summary,
+            )
+            items.append(item)
+
+        logger.info(
+            "agent_runs_list_read",
+            extra={"shop_id": str(shop_id), "count": len(items)},
+        )
+        return WorkflowRunListResponse(data=items)
+
+    except Exception:
+        logger.exception(
+            "agent_runs_list_failed",
+            extra={"shop_id": str(shop_id)},
+        )
+        # Degrade to empty list rather than error (rollback honesty per #1310)
+        return WorkflowRunListResponse(data=[])

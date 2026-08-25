@@ -1,0 +1,85 @@
+{
+  "planId": "seeded-demo-tenant-2026-08-25",
+  "affectedPublicSurfaces": [
+    "`GET /v1/demo/decisions` (`backend/src/juli_backend/api/routes/demo_decisions.py`) — the anonymous *Dùng thử Demo* session's active-shop resolution changes from the ADR-076 d.1 pin at `DEMO_REFERENCE_SHOP_ID` (Fujiwa Vietnam Store, `2b1da87b-d0a8-46a6-b3c6-2132be0b5f4f`, a live merchant — #1283) to a newly seeded, named demo-tenant shop. This is the surface #1283 authenticated but did not re-point, and the reason #1312 exists.",
+    "Whatever named setting the demo entry path reads to find the demo tenant (introduced by this slice, documented default, fail-loud when unset per ADR-084 decision 1) — a new piece of server-bound configuration on a public read path.",
+    "The seed itself is not a route, but it is what a real unauthenticated visitor's browser renders: seed correctness (active + surfaced cards, executable workflow_key, no real merchant strings) is directly what `GET /v1/demo/decisions` serves to the public internet.",
+    "Mixed-version hazard: ADR-057 single-VPS lane. The seed must run to completion against the deployed database BEFORE (or as part of) the release that flips the config setting to the demo tenant, or the API process serves the new setting against a still-empty/absent demo shop. Stable and candidate must never disagree about whether the demo tenant exists."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest against a real Postgres test database (never SQLite — the acceptance criteria require it) creates the demo tenant from an empty database and runs the seed twice in one test, asserting exactly one shop/card-set/product-set survives. No VPS contact. Post-deploy: run the committed seed against the deployed database (idempotent — safe to run even if already seeded), then an UNAUTHENTICATED `GET /v1/demo/decisions` scoped to the demo tenant's shop — read-only, no approval, no write, and never against the sandbox-write shop (`1862f13b-de2c-4fae-a4ad-70298cead913`) or Fujiwa (`2b1da87b-d0a8-46a6-b3c6-2132be0b5f4f`).",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because no worker/Celery path participates — the seed is a synchronous, idempotent script/migration-adjacent step, and the verification read (`GET /v1/demo/decisions`) touches no worker. apiSideEffectsInScope is FALSE: the post-deploy journey is a read against the newly seeded, isolated demo shop; the seed's own writes happen at deploy time as a provisioning step, not as public candidate traffic, and they land on a shop that belongs to no live business and holds no write-capable credential, so they carry no live-business risk. Never approve or execute a workflow against the demo tenant as part of this journey — the acceptance criteria require the card's workflow_key to RESOLVE to a registered playbook (i.e. be executable in principle), not that this journey execute it; approving a demo-tenant card is out of scope for #1312 and stays sandbox-shop-only per the wave's owner decision.",
+    "journeys": [
+      {
+        "name": "demo-tenant-seeded-and-decisions-serves-it",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1312",
+        "assertions": [
+          "pre-merge: a test creates the demo tenant from an empty database (no fixture snapshot of a host) and asserts the shop, its products, and its action cards exist",
+          "pre-merge: a test runs the seed twice against a real database and asserts exactly one demo shop, one card set, one product set survive — no duplicates, no drift",
+          "pre-merge: a test asserts the demo shop id, the reference merchant shop id (`2b1da87b-…`), and the sandbox-write shop id (`1862f13b-…`) are pairwise different, and that the demo shop has no `tiktok_credentials` row granting any write capability",
+          "pre-merge: a test asserts every seeded action card is `active` with `surfaced_at` set (not null) — the #1289 defect class, on a different shop, must not recur here",
+          "pre-merge: a test asserts every seeded card's `workflow_key` resolves against the real playbook registry (never a hand-maintained literal)",
+          "pre-merge: a test asserts none of the seeded strings (product titles, descriptions, card copy) appear anywhere in the reference shop's rows",
+          "pre-merge: a test asserts the named demo-tenant setting fails loudly (raises / boots-fails) when unset, and never silently falls back to `DEMO_REFERENCE_SHOP_ID` — the exact #1283 hazard ADR-084 decision 1 forbids",
+          "post-deploy: `/root/releases/current` resolves to the release containing the fix, and `systemctl show -p InvocationID --value juli-api` changed across the deploy, proving the API process restarted onto that release",
+          "post-deploy: the seed has been run against the deployed database (idempotent, so re-running it is safe) and the demo-tenant setting is confirmed set in the deployed environment",
+          "post-deploy: an unauthenticated `GET /v1/demo/decisions` returns the seeded demo-tenant cards, with no title/description/rationale/figure matching any known Fujiwa product or card",
+          "post-deploy: the response's active shop is NOT `2b1da87b-…` (Fujiwa) and NOT `1862f13b-…` (sandbox-write) — confirmed from the response body / logs, never by reading the database directly to \"prove\" the journey"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — the diff is a seed module (plus, only if a pure seed genuinely cannot work, one additive migration) under backend/src/juli_backend, models/repositories, and tests. apps/demo is an unchanged consumer of GET /v1/demo/decisions and is out of this slice's write paths."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "seed-run-log",
+      "api-json-response"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Prefer a pure seed with no schema change — the epic lock says so explicitly and calls that the better outcome, not a shortfall. schemaChangeInScope is set true only as a ceiling: IF the Executor determines a pure seed genuinely cannot satisfy the acceptance criteria, the epic lock reserves revision 042 for #1312 (main is at 041_stop_reason_diverged as of 2026-08-25; migration numbering is assigned by Meta, never read from head at implementation time). Any such migration must be additive/nullable only, reversible with alembic downgrade, and idempotent across up/down exactly like the seed itself. Deploy path is infra/scripts/safe-alembic-upgrade.sh. If the Executor needs no migration, this field's schemaChangeInScope should be reported false in the implementation artifact and this plan is over-scoped in the safe direction, not under-scoped."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without this slice, the anonymous demo session stays pinned at DEMO_REFERENCE_SHOP_ID (Fujiwa) on hosts where that pin is still configured, or fails loudly if #1283's auth-only fix left no active-shop resolution — either way, the pre-existing state, no new exposure introduced by this plan.",
+  "postCutoverFailureBehavior": "Redeploy the previous release and restart juli-api. If a migration was added, alembic downgrade -1 must leave the database in a state the previous release's code already understands (additive/nullable columns only, per migrationCompatibility). The seeded demo-tenant shop, its products and its cards are asserted to SURVIVE a rollback (not be dropped) — rollback reverts CODE and (if present) the migration, never the demo tenant's data — and no rollback path may re-point the demo entry path at the reference merchant shop; that structural prohibition (ADR-084 decision 1) holds through rollback, not only through forward deploy.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'demo_tenant or demo_seed' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/integration -k 'demo_tenant or demo_seed' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/integration/test_schema_parity.py tests/integration/test_migrations.py -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "Do not assume a migration is required. A pure seed is the preferred and better outcome per the epic lock; only add one (revision 042, chained off 041_stop_reason_diverged) if the acceptance criteria are provably unreachable without a schema change, and say so explicitly in the implementation artifact.",
+    "Do not touch apps/, ios/, packages/, services/agent/, api/routes/, or workers/ — the AGT-W6B-DP doNotLoad list. This slice's write surface is the seed plus at most one additive migration, models/models.py and repositories/repos.py.",
+    "Do not approve or execute a workflow run against the demo tenant as part of proving this slice — the acceptance criterion is that workflow_key RESOLVES to a registered playbook, not that a run against the demo tenant actually executes. Any live approve/execute verification stays scoped to the sandbox shop (1862f13b-…) per the wave's owner decision, never the demo tenant and never Fujiwa.",
+    "Do not invent the name of the demo-tenant configuration setting before implementation decides it — this plan requires only that it be named, documented with a default, and fail loudly when unset; it does not prescribe the literal env var name.",
+    "This slice does not implement RLS, the production-write capability flip, or any real impact reading — all deferred to W7/W8 per the epic's deferrals list."
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 1310,
+  "metrics": {
+    "acceptanceMapped": 8,
+    "acceptanceTotal": 8,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "backend/src/juli_backend/api/routes/agent_runs.py",
+      "packages/contracts/src/agent-runs.ts",
+      "packages/contracts/src/index.ts",
+      "tests/unit/test_agent_runs_list.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1310.json",
+    "ownerSignoffPresent": true,
+    "sha256": "4300d2be42b8afa70881a389ed6afe9373cfa2d43ae98cd00ac3d4125c4af712",
+    "signoffRequired": true,
+    "status": "PASS_WITH_WARNINGS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-25T09:10:07Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1310.json",
+    "sha256": "13ab87ce01a596c9705fd8356355621c3cff4d42bae73e586f9ddfeca2cb2642",
+    "status": "PASS"
+  },
+  "wave": null
+}
