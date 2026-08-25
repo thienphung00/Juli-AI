@@ -233,24 +233,28 @@ File findings as issues in the GitHub repository with the label `sec-finding` an
 
 This threat model is a code artifact. The surface inventory (`docs/security/surface_inventory.json`) is machine-generated from the live route table and tool registry; the CI check in `tests/unit/test_threat_model_inventory.py` fails if the inventory goes stale.
 
+**Inventory normalization (cross-version determinism):** To ensure byte-equality across FastAPI/Starlette versions (0.50 → 1.6 auto-method handling differs), the generator normalizes routes by excluding auto-generated HEAD and OPTIONS methods. Only developer-declared methods are recorded. Route paths are reconstructed to include router prefixes, and both routes and tools are stably sorted.
+
 **To regenerate the surface inventory after adding a route or tool:**
 
-```bash
-PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_threat_model_inventory.py::TestSurfaceInventoryGeneration::test_surface_inventory_matches_committed_file -xvs
-```
-
-The test will fail with a structured diff naming missing routes/tools. To update the inventory, run:
+The surface inventory is generated with PYTHONPATH pinned to ensure correct module resolution across environments:
 
 ```bash
-python -c "
+PYTHONPATH=$PWD/backend/src python -c "
 import sys
 sys.path.insert(0, 'backend/src')
 from tests.unit.test_threat_model_inventory import generate_surface_inventory
 import json
 from pathlib import Path
 inv = generate_surface_inventory()
-Path('docs/security/surface_inventory.json').write_text(json.dumps(inv, indent=2))
+Path('docs/security/surface_inventory.json').write_text(json.dumps(inv, indent=2) + '\n')
 "
+```
+
+Then run the byte-equality test to verify:
+
+```bash
+PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_threat_model_inventory.py::TestSurfaceInventoryGeneration::test_surface_inventory_matches_committed_file -xvs
 ```
 
 Then commit both the updated inventory and any threat-model.md changes together.

@@ -59,6 +59,10 @@ def _is_tenant_scoped(route: APIRoute) -> bool:
 def generate_surface_inventory(app=None) -> dict:
     """Generate the surface inventory from the live app and tool registry.
 
+    Normalizes routes to exclude auto-generated HEAD/OPTIONS methods for
+    cross-version determinism (Starlette <1.6 vs 1.6+ differ in auto-method
+    registration). Only records developer-declared methods.
+
     Args:
         app: Optional FastAPI app; if None, creates default app.
 
@@ -68,15 +72,28 @@ def generate_surface_inventory(app=None) -> dict:
     if app is None:
         app = create_app()
 
-    # Extract routes from app.routes
+    # Extract routes from app.routes, handling Starlette 1.6's _IncludedRouter wrapping.
+    # Recursively walk routers to reconstruct full paths with prefixes.
+    def walk_routes(container, prefix=""):
+        """Recursively yield (full_path, route) from app/routers."""
+        for route in container.routes:
+            if type(route).__name__ == "_IncludedRouter":
+                # Route wrapped in Starlette 1.6; access original router
+                original = route.include_context.included_router
+                router_prefix = route.include_context.prefix
+                yield from walk_routes(original, prefix + router_prefix)
+            elif isinstance(route, APIRoute):
+                full_path = prefix + route.path
+                yield (full_path, route)
+
     routes = []
-    for route in app.routes:
-        # Skip non-v1 routes and internal FastAPI routes
-        if not isinstance(route, APIRoute) or not route.path.startswith("/v1/"):
+    for full_path, route in walk_routes(app):
+        # Skip non-v1 routes
+        if not full_path.startswith("/v1/"):
             continue
 
         route_info = {
-            "path": route.path,
+            "path": full_path,
             "methods": sorted(list(route.methods - {"HEAD", "OPTIONS"}))
             if hasattr(route, "methods")
             else [],
@@ -86,8 +103,8 @@ def generate_surface_inventory(app=None) -> dict:
 
         routes.append(route_info)
 
-    # Sort routes for consistent output
-    routes = sorted(routes, key=lambda r: (r["path"], sorted(r["methods"])))
+    # Sort routes for consistent output (stable sort by path + methods)
+    routes = sorted(routes, key=lambda r: (r["path"], tuple(r["methods"])))
 
     # Extract tools from the registry
     registry = build_product_tool_registry()
