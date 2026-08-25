@@ -1,0 +1,112 @@
+{
+  "issue": 1334,
+  "title": "W7-B/P-PROD-9: Abuse limits verified as deployed behaviour, including cancel's exemption",
+  "parent_prd": 1325,
+  "design_authority": "ADR-085",
+  "releaseEvidencePlanId": "abuse-limits-verified-deployed-behaviour-2026-08-25",
+  "acceptance_criteria": [
+    {
+      "criterion": "Exhaustion per operation — approve (5/hour burst 2), confirmations (30/hour), SSE (10 concurrent): 429 with Retry-After and agent_abuse_limit_exceeded security event from captured log records",
+      "test_file": "tests/unit/test_agent_abuse_limits_routes.py",
+      "test_names": [
+        "test_approve_exhaustion_returns_429_with_retry_after",
+        "test_approve_exhaustion_emits_security_event",
+        "test_confirmation_exhaustion_returns_429_with_retry_after",
+        "test_confirmation_exhaustion_emits_security_event",
+        "test_sse_stream_exhaustion_returns_429_with_retry_after",
+        "test_sse_stream_exhaustion_emits_security_event"
+      ],
+      "evidence": "Tests verify 429 responses with Retry-After headers and caplog assertions on security event records with shop_id and operation fields"
+    },
+    {
+      "criterion": "Cancel unthrottled mid-storm: exhaust every other limit for a shop, then cancel a run and assert success through HTTP route",
+      "test_file": "tests/unit/test_agent_abuse_limits_routes.py",
+      "test_names": [
+        "TestCancelSurvivesTheStorm::test_cancel_succeeds_while_approve_confirmation_and_sse_are_all_exhausted",
+        "TestCancelSurvivesTheStorm::test_cancel_succeeds_even_when_the_abuse_limit_gate_is_entirely_unbound"
+      ],
+      "evidence": "Tests exhaust all three limits (approve, confirmation, SSE) for a shop, then verify POST /v1/demo/runs/{run_id}/cancel returns 202. Structural proof: cancel route never calls get_agent_abuse_limit_gate()"
+    },
+    {
+      "criterion": "Redis outage: approve/confirmation/SSE fail CLOSED and cancel succeeds DURING the simulated outage",
+      "test_file": "tests/unit/test_agent_abuse_limits_routes.py",
+      "test_names": [
+        "TestRedisOutageScenario::test_approve_fails_closed_when_redis_is_unavailable",
+        "TestRedisOutageScenario::test_confirmation_fails_closed_when_redis_is_unavailable",
+        "TestRedisOutageScenario::test_sse_fails_closed_when_redis_is_unavailable",
+        "TestRedisOutageScenario::test_cancel_succeeds_during_redis_outage"
+      ],
+      "evidence": "Tests bind UnavailableAbuseLimitGate (simulating Redis outage), verify 429 on rate-limited operations, and 202 on cancel"
+    },
+    {
+      "criterion": "Buckets keyed per shop after auth, not per IP: two shops behind one caller do not share a bucket; one shop across two callers does",
+      "test_file": "tests/unit/test_agent_abuse_limits_routes.py",
+      "test_names": [
+        "test_approve_cross_tenant_isolation_over_http",
+        "test_confirmation_cross_tenant_isolation_over_http",
+        "test_sse_cross_tenant_isolation_over_http",
+        "TestSSEConcurrencyWithRealStreams::test_sse_concurrency_correctly_counts_across_multiple_shops"
+      ],
+      "evidence": "Tests use get_active_shop dependency override to test multiple shops sharing same HTTP client, verifying buckets are keyed by shop_id"
+    },
+    {
+      "criterion": "Limits read from documented env vars; unset uses documented default; malformed value fails loudly, never silently defaults",
+      "test_file": "tests/unit/test_agent_abuse_limits_gate.py",
+      "test_names": [
+        "test_approve_rate_limit_defaults_match_adr_075_decision_4",
+        "test_confirmation_rate_limit_defaults_match_adr_075_decision_4",
+        "test_sse_max_concurrent_streams_default_matches_adr_075_decision_4",
+        "test_approve_rate_limit_max_requests_reads_env_var",
+        "test_approve_rate_limit_max_requests_fails_on_malformed_value",
+        "test_approve_rate_limit_max_requests_fails_on_non_positive_value",
+        "test_confirmation_rate_limit_max_requests_fails_on_malformed_value",
+        "test_sse_max_concurrent_streams_fails_on_malformed_value"
+      ],
+      "evidence": "Tests verify defaults match ADR-075 decision 4, env vars are read correctly, and ValueError is raised on malformed/non-positive values"
+    },
+    {
+      "criterion": "SSE concurrency asserted by holding N streams open and opening N+1 — not by unit-testing the counter alone",
+      "test_file": "tests/unit/test_agent_abuse_limits_routes.py",
+      "test_names": [
+        "TestSSEConcurrencyWithRealStreams::test_sse_concurrency_limit_with_concurrent_requests",
+        "TestSSEConcurrencyWithRealStreams::test_sse_concurrency_correctly_counts_across_multiple_shops"
+      ],
+      "evidence": "Tests acquire N slots directly, then verify HTTP GET /v1/demo/runs/{run_id}/events on (N+1)th returns 429"
+    },
+    {
+      "criterion": "Nginx limit_req lint: assert limit_req on /webhooks/tiktok and /v1/demo/*, authenticated catch-all has generous zone. Must fail when zone removed, revert cannot leave zone referenced-but-undefined",
+      "test_file": "tests/unit/test_nginx_limit_req_lint.py",
+      "test_names": [
+        "test_nginx_rate_limits_conf_defines_required_zones",
+        "test_nginx_api_conf_webhook_has_limit_req",
+        "test_nginx_api_conf_demo_has_limit_req",
+        "test_nginx_api_conf_authenticated_catchall_has_generous_zone",
+        "test_nginx_no_undefined_zone_references",
+        "test_nginx_zone_removal_detection"
+      ],
+      "evidence": "Tests parse Nginx config, verify zones defined and referenced correctly, detect undefined references, and demonstrate zone removal detection"
+    }
+  ],
+  "candidate_verification_journey": {
+    "description": "On the candidate port, exhaust the approve limit for a test shop and observe 429 + Retry-After; then cancel a run for the same shop and observe success. Confirm the Nginx candidate config carries the limit_req zones.",
+    "steps": [
+      "Deploy this slice to the candidate environment",
+      "Exhaust AGENT_APPROVE_RATE_LIMIT_BURST_MAX_REQUESTS (default 2) for a test shop by POSTing to /v1/demo/decisions/{action_card_id}/approve twice",
+      "Verify third approve returns 429 with Retry-After header",
+      "Verify cancel POST /v1/demo/runs/{run_id}/cancel still returns 202",
+      "Verify /etc/nginx/conf.d/rate-limits.conf defines webhook_tiktok, demo_public, auth_callback, api_authenticated zones",
+      "Verify /etc/nginx/sites-enabled/api.app-juli.com.conf references these zones on appropriate locations"
+    ]
+  },
+  "rollback_plan": "If a limit is tightened by this slice, reverting loosens it. Assert the revert cannot leave a zone referenced but undefined—this would fail Nginx config validation and take the site down on reload.",
+  "scope_notes": {
+    "out_of_scope": "Changing limit VALUES is out of scope unless a value is provably wrong. This slice verifies the mechanism.",
+    "implementation_changes": [
+      {
+        "file": "backend/src/juli_backend/services/agent/abuse_limits.py",
+        "change": "Updated _int_env() to fail loudly on malformed/non-positive values instead of silently defaulting. This is a mechanism change to detect config errors immediately.",
+        "reason": "Acceptance criterion requires malformed env vars to fail loudly, not silently default."
+      }
+    ]
+  }
+}

@@ -63,14 +63,32 @@ def test_approve_rate_limit_max_requests_reads_env_var(monkeypatch):
     assert approve_rate_limit_max_requests() == 9
 
 
-def test_approve_rate_limit_max_requests_ignores_garbage_value(monkeypatch):
+def test_confirmation_rate_limit_max_requests_fails_on_malformed_value(monkeypatch):
+    monkeypatch.setenv("AGENT_CONFIRMATION_RATE_LIMIT_MAX_REQUESTS", "not-a-number")
+    with pytest.raises(ValueError):
+        confirmation_rate_limit_max_requests()
+
+
+def test_sse_max_concurrent_streams_fails_on_malformed_value(monkeypatch):
+    monkeypatch.setenv("AGENT_SSE_MAX_CONCURRENT_STREAMS", "invalid")
+    with pytest.raises(ValueError):
+        sse_max_concurrent_streams()
+
+
+def test_approve_rate_limit_max_requests_fails_on_malformed_value(monkeypatch):
+    """A malformed env var value must fail loudly, not silently default.
+    This ensures configuration errors are caught immediately rather than
+    producing silent behavior changes."""
     monkeypatch.setenv("AGENT_APPROVE_RATE_LIMIT_MAX_REQUESTS", "not-a-number")
-    assert approve_rate_limit_max_requests() == 5
+    with pytest.raises(ValueError):
+        approve_rate_limit_max_requests()
 
 
-def test_approve_rate_limit_max_requests_ignores_non_positive_value(monkeypatch):
+def test_approve_rate_limit_max_requests_fails_on_non_positive_value(monkeypatch):
+    """A non-positive env var value must fail loudly, not silently default."""
     monkeypatch.setenv("AGENT_APPROVE_RATE_LIMIT_MAX_REQUESTS", "0")
-    assert approve_rate_limit_max_requests() == 5
+    with pytest.raises(ValueError):
+        approve_rate_limit_max_requests()
 
 
 # ---------------------------------------------------------------------------
