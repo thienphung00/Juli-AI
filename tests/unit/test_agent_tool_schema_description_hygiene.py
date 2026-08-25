@@ -180,16 +180,20 @@ class TestBannedPatternListDeliberatelyNotWiredToSchemaText:
     """
 
     def test_known_false_positive_trips_match_the_documented_set(self):
+        # Issue #1304 narrowed `listing_dot` to `listing\.(?=[A-Za-z_])`,
+        # which was exactly the "second look" the class docstring invited:
+        # sentence-final "listing." in the update_product_listing /
+        # update_product_price descriptions no longer trips, so the
+        # documented false-positive set is now empty. Any entry appearing
+        # here again means a tool description picked up real jargon-shaped
+        # vocabulary (e.g. `listing.title`) and deserves a look.
         registry = _build_registry()
         trips: dict[str, list[str]] = {}
         for spec in registry.list_all():
             hits = _banned_pattern_hits(spec.description)
             if hits:
                 trips[spec.name] = hits
-        assert trips == {
-            "update_product_listing": ["listing_dot"],
-            "update_product_price": ["listing_dot"],
-        }
+        assert trips == {}
 
     def test_check_product_status_no_longer_leaks_the_webhook_mechanism(self):
         registry = _build_registry()

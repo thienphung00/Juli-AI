@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 1304,
+  "metrics": {
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/agent/sanitize",
+      "packages/contracts",
+      "tests/unit"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1304.json",
+    "ownerSignoffPresent": true,
+    "sha256": "a743d8b02de5ec9ca24433c6effed2a2882dc72f2a0544a8aea8619dcbf08802",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-25T06:04:39Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1304.json",
+    "sha256": "ab8a7b0d8168f58217d59969bcbb7b290b3175b6daa3f96112932b4c96883060",
+    "status": "PASS"
+  },
+  "wave": null
+}

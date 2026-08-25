@@ -49,7 +49,17 @@ INTERNAL_LEAKS = [
     "the webhook did not fire",
     "check the endpoint response",
     "listing.update_product_listing returned",
+    "listing.title cannot be empty",
+    "listing.description is required",
     "the executor raised",
+]
+
+#: Issue #1304: sentence-final "listing." should pass only on the agent surface.
+#: These sentences are legitimate agent output but are scoped to agent_output only.
+AGENT_SURFACE_ONLY_SENTENCES = [
+    "Optimize your listing.",
+    "Tối ưu listing.",
+    "Next step is to improve your listing. You should add more details.",
 ]
 
 
@@ -81,6 +91,16 @@ class TestTheAgentSurfaceAllowsOrdinaryLanguage:
 
     @pytest.mark.parametrize("text", LEGITIMATE_AGENT_SENTENCES)
     def test_the_outbound_guard_lets_it_through(self, text):
+        guard_outbound_agent_output({"content": text})
+
+    @pytest.mark.parametrize("text", AGENT_SURFACE_ONLY_SENTENCES)
+    def test_agent_surface_only_sentences_pass(self, text):
+        """Issue #1304: sentence-final 'listing.' passes on agent surface but
+        would fail on copy layer (scoped to agent_output only)."""
+        assert find_banned_pattern_hits(text, scope=AGENT_OUTPUT_SCOPE) == ()
+
+    @pytest.mark.parametrize("text", AGENT_SURFACE_ONLY_SENTENCES)
+    def test_agent_surface_only_outbound_guard_lets_it_through(self, text):
         guard_outbound_agent_output({"content": text})
 
 

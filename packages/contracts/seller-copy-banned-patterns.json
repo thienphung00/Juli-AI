@@ -119,7 +119,7 @@
     },
     {
       "id": "listing_dot",
-      "source": "listing\\.",
+      "source": "listing\\.(?=[A-Za-z_])",
       "flags": "",
       "note": "internal implementation detail",
       "scopes": [

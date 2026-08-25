@@ -433,3 +433,109 @@ class TestInboundStripsHiddenTextFromVendorTextBeforeScanning:
         result = guard_inbound_tool_result(clean, tool_name="get_product_reviews")
 
         assert result is clean
+
+
+# ---------------------------------------------------------------------------
+# Issue #1304: listing_dot pattern narrowing — sentence-final "listing." passes
+# ---------------------------------------------------------------------------
+
+
+class TestListingDotPatternNarrowing:
+    r"""The listing_dot pattern (issue #1304) was narrowed to `listing\.(?=[A-Za-z_])`
+    to require an identifier character after the dot, so `listing.title` and
+    `listing.update` trip the guard but sentence-final "listing." does not.
+    """
+
+    def test_sentence_final_listing_dot_passes_on_agent_surface(self):
+        """Natural language "optimize your listing." should not trigger the guard."""
+        guard_outbound_agent_output({"content": "Optimize your listing."})
+        # If we get here without raising, the test passes.
+
+    def test_sentence_final_listing_dot_with_space_passes(self):
+        """Natural language with "listing. " (space after) should not trigger."""
+        guard_outbound_agent_output(
+            {"content": "Next is to review your listing. You should add details."}
+        )
+
+    def test_vietnamese_sentence_final_listing_dot_passes(self):
+        """Vietnamese text ending with "listing." should not trigger."""
+        guard_outbound_agent_output({"content": "Tối ưu listing."})
+
+    def test_listing_dot_jargon_still_banned(self):
+        """But jargon like `listing.title` or `listing.update` must still be caught."""
+        with pytest.raises(BannedPatternGuardFailure):
+            guard_outbound_agent_output({"content": "listing.title cannot be empty"})
+
+        with pytest.raises(BannedPatternGuardFailure):
+            guard_outbound_agent_output({"content": "listing.update_product_listing returned"})
+
+        with pytest.raises(BannedPatternGuardFailure):
+            guard_outbound_agent_output({"content": "listing.description is required"})
+
+
+# ---------------------------------------------------------------------------
+# Issue #1304: forensics logging with redacted context (offset, length, mask)
+# ---------------------------------------------------------------------------
+
+
+class TestBannedPatternForensicsLogging:
+    """When a banned pattern hits, the log includes redaction-safe forensics:
+    match offset, total text length, and a masked snippet (letters replaced,
+    punctuation and spacing preserved) so a future hit can be classified
+    as jargon vs natural language without exposing seller copy (ADR-070).
+    """
+
+    def test_outbound_hit_logs_forensic_context(self, caplog):
+        """A hit includes offset, length, and masked_snippet in extra fields."""
+        with caplog.at_level(logging.WARNING, logger=_CHOKEPOINTS_LOGGER):
+            with pytest.raises(BannedPatternGuardFailure):
+                guard_outbound_agent_output({"content": "Please retry the webhook delivery."})
+
+        records = [r for r in caplog.records if r.name == _CHOKEPOINTS_LOGGER]
+        assert records, "expected a banned-pattern hit to be logged"
+        record = records[0]
+
+        # The new forensics fields must be present
+        assert hasattr(record, "match_offsets"), "missing match_offsets in log extra"
+        assert hasattr(record, "text_length"), "missing text_length in log extra"
+        assert hasattr(record, "masked_snippets"), "missing masked_snippets in log extra"
+
+        # They must contain data
+        assert record.match_offsets, "match_offsets must be non-empty"
+        assert record.text_length > 0, "text_length must be positive"
+        assert record.masked_snippets, "masked_snippets must be non-empty"
+
+    def test_inbound_hit_logs_forensic_context(self, caplog):
+        """Inbound hits also log forensics (offset, length, masked snippet)."""
+        planted = {"description": {"source": "vendor", "text": "Check the webhook response now"}}
+
+        with caplog.at_level(logging.WARNING, logger=_CHOKEPOINTS_LOGGER):
+            guard_inbound_tool_result(planted, tool_name="get_product_info")
+
+        records = [r for r in caplog.records if r.name == _CHOKEPOINTS_LOGGER]
+        assert records, "expected a banned-pattern hit to be logged"
+        record = records[0]
+
+        # Forensics fields must be present
+        assert hasattr(record, "match_offsets"), "inbound missing match_offsets"
+        assert hasattr(record, "text_length"), "inbound missing text_length"
+        assert hasattr(record, "masked_snippets"), "inbound missing masked_snippets"
+
+    def test_masked_snippet_redacts_letters_not_punctuation(self, caplog):
+        """The masked snippet replaces all letters and digits but preserves
+        punctuation, whitespace, and the banned pattern itself."""
+        with caplog.at_level(logging.WARNING, logger=_CHOKEPOINTS_LOGGER):
+            with pytest.raises(BannedPatternGuardFailure):
+                guard_outbound_agent_output({"content": "Test webhook here."})
+
+        records = [r for r in caplog.records if r.name == _CHOKEPOINTS_LOGGER]
+        assert records
+        record = records[0]
+        masked = record.masked_snippets[0] if record.masked_snippets else ""
+
+        # The masked snippet must contain the banned pattern (it's referenced for context)
+        # and NOT contain the surrounding letters
+        assert "webhook" in masked.lower(), "banned pattern should be visible in masked snippet"
+        # "Test" and "here" should be redacted (letters replaced with x or similar)
+        assert "Test" not in masked, "surrounding words should be masked"
+        assert "here" not in masked, "surrounding words should be masked"
