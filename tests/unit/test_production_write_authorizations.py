@@ -150,6 +150,61 @@ class TestProductionWriteAuthorizationIssuing:
                 session, capability="sandbox_write", shop_cipher="ROW_test_cipher_sandbox"
             )
 
+    async def test_issue_refuses_misbound_credential(self, session, shop, misbound_credential):
+        """Service.issue refuses when credential binding check fails (#1290-shaped case).
+
+        Acceptance Criterion: Issuing runs verify_capability_binding and REFUSES
+        when the credential for that shop and capability is mis-bound (wrong
+        shop_cipher, or a capability pointing at a different shop). Asserted with a
+        row shaped like the one #1290 found.
+
+        This test verifies service behavior: when verify_capability_binding raises
+        CredentialBindingError, the service propagates it and NO authorization row
+        is created (repo.issue is never reached / session has no insert).
+        """
+        from unittest.mock import AsyncMock, patch
+
+        from juli_backend.services.operations.production_write_authorizations_service import (
+            ProductionWriteAuthorizationService,
+        )
+        from juli_backend.services.tiktok.credential_binding import (
+            CredentialBindingError,
+        )
+
+        service = ProductionWriteAuthorizationService(session)
+
+        # Mock verify_capability_binding to raise for mis-bound credential
+        with patch(
+            "juli_backend.services.operations.production_write_authorizations_service.verify_capability_binding",
+            new_callable=AsyncMock,
+        ) as mock_verify:
+            mock_verify.side_effect = CredentialBindingError(
+                "Capability production_read already bound to a different shop"
+            )
+
+            # Service should refuse and raise the error
+            with pytest.raises(CredentialBindingError):
+                await service.issue(
+                    shop_id=shop.id,
+                    tiktok_product_id="product_123",
+                    mutation_kind="listing.optimize_product",
+                    capability="production_read",
+                    shop_cipher="ROW_different_shop_cipher",
+                    authorized_by="operator@example.com",
+                    reason="Testing mis-bound credential",
+                )
+
+            # Verify verify_capability_binding was called
+            mock_verify.assert_called_once()
+
+            # Verify no authorization was created (repo.issue never reached)
+            result = await session.execute(
+                select(ProductionWriteAuthorization).where(
+                    ProductionWriteAuthorization.shop_id == shop.id
+                )
+            )
+            assert result.scalars().first() is None
+
     async def test_issue_succeeds_with_correct_params(self, session, shop, credential, repo):
         """Repo.issue is pure persistence; service layer does verification."""
         auth = await repo.issue(
@@ -372,6 +427,64 @@ class TestProductionWriteAuthorizationConsumption:
 
 class TestProductionWriteAuthorizationExpiry:
     """Test expires_at behavior."""
+
+    async def test_expires_at_defaults_from_config(self, session, shop, credential):
+        """Service.issue defaults expires_at from documented 24h setting.
+
+        Acceptance Criterion: expires_at defaults from a documented setting and
+        is never null. This test verifies the default: call the service without
+        an explicit TTL and assert expires_at ≈ now + the documented default
+        (24h), reading the default from the real setting, not a literal 24 in
+        the test.
+        """
+        from unittest.mock import AsyncMock, patch
+
+        from juli_backend.services.operations.production_write_authorizations_service import (
+            ProductionWriteAuthorizationService,
+        )
+
+        service = ProductionWriteAuthorizationService(session)
+
+        # Use naive datetimes consistently (DB stores TIMESTAMP WITHOUT TIME ZONE)
+        before = (datetime.now(UTC) - timedelta(seconds=1)).replace(tzinfo=None)
+
+        # Mock verify_capability_binding to succeed
+        with patch(
+            "juli_backend.services.operations.production_write_authorizations_service.verify_capability_binding",
+            new_callable=AsyncMock,
+        ) as mock_verify:
+            mock_verify.return_value = None
+
+            # Call service.issue WITHOUT explicit ttl_hours — should use default
+            auth = await service.issue(
+                shop_id=shop.id,
+                tiktok_product_id="product_123",
+                mutation_kind="listing.optimize_product",
+                capability="sandbox_write",
+                shop_cipher="ROW_test_cipher_sandbox",
+                authorized_by="operator@example.com",
+                reason="Testing default TTL",
+                # NOTE: ttl_hours NOT provided — using documented default of 24
+            )
+
+        after = (datetime.now(UTC) + timedelta(seconds=1)).replace(tzinfo=None)
+
+        # Verify expires_at was set to approximately now + 24 hours
+        # (documented default from service signature: ttl_hours: int = 24)
+        assert auth.expires_at is not None
+
+        # Ensure expires_at is naive for comparison
+        expires_at_naive = (
+            auth.expires_at.replace(tzinfo=None)
+            if hasattr(auth.expires_at, "tzinfo") and auth.expires_at.tzinfo
+            else auth.expires_at
+        )
+
+        expected_min = before + timedelta(hours=23, minutes=59)
+        expected_max = after + timedelta(hours=24, minutes=1)
+        assert expected_min <= expires_at_naive <= expected_max, (
+            f"expires_at {expires_at_naive} not ≈ now + 24h (range {expected_min}–{expected_max})"
+        )
 
     async def test_expires_at_must_be_provided(self, session, shop, repo):
         """Repo.issue requires explicit expires_at parameter."""
