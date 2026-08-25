@@ -840,10 +840,12 @@ async def sync_sandbox_write_products(session: AsyncSession, shop_id: uuid.UUID)
         return
 
     try:
-        # Create real rate limiter with Redis
-        import redis.asyncio
+        # RateLimiter is synchronous (incr/expire return values, not
+        # coroutines) — it needs the sync redis client, same as the
+        # constructions in refresh.py and targeted_fetch_executor.py.
+        import redis
 
-        rate_limiter = RateLimiter(redis.asyncio.from_url(redis_url))
+        rate_limiter = RateLimiter(redis.from_url(redis_url))
 
         # Create client config and resources
         config = ClientFactoryConfig(
