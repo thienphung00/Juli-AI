@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@juli/theme/tokens.css";
+@import "@juli/theme/run-surface-tokens.css";
 @import "@juli/ui/styles.css";
 
 * {
