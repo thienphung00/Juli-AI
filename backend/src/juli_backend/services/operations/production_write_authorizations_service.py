@@ -48,12 +48,12 @@ class ProductionWriteAuthorizationService:
         expires_at = datetime.now(UTC) + timedelta(hours=ttl_hours)
 
         # Delegate persistence to repo (repository layer responsibility)
+        # Note: capability and shop_cipher are NOT passed to repo—verification
+        # already succeeded, so repo only needs persistence parameters
         return await self._repo.issue(
             shop_id=shop_id,
             tiktok_product_id=tiktok_product_id,
             mutation_kind=mutation_kind,
-            capability=capability,
-            shop_cipher=shop_cipher,
             authorized_by=authorized_by,
             reason=reason,
             expires_at=expires_at,

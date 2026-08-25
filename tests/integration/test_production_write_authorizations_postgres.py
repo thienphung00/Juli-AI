@@ -17,7 +17,6 @@ import os
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
@@ -122,21 +121,16 @@ class TestProductionWriteAuthorizationsConcurrency:
             await sess.flush()
 
             repo = ProductionWriteAuthorizationsRepo(sess)
-            expires_at = datetime.now(UTC) + timedelta(hours=1)
-            with patch(
-                "juli_backend.services.tiktok.credential_binding.verify_capability_binding",
-                new_callable=AsyncMock,
-            ):
-                auth = await repo.issue(
-                    shop_id=shop.id,
-                    tiktok_product_id="concurrent_product",
-                    mutation_kind="listing.optimize_product",
-                    capability="sandbox_write",
-                    shop_cipher="ROW_test_cipher",
-                    authorized_by="concurrency_test",
-                    reason="Testing concurrent consumption",
-                    expires_at=expires_at,
-                )
+            # expires_at must be naive (TIMESTAMP WITHOUT TIME ZONE in DB)
+            expires_at = datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=1)
+            auth = await repo.issue(
+                shop_id=shop.id,
+                tiktok_product_id="concurrent_product",
+                mutation_kind="listing.optimize_product",
+                authorized_by="concurrency_test",
+                reason="Testing concurrent consumption",
+                expires_at=expires_at,
+            )
 
             auth_id = auth.id
             shop_id = shop.id

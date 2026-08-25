@@ -97,6 +97,59 @@ def repo(session):
 class TestProductionWriteAuthorizationIssuing:
     """Test authorization issuing with credential binding verification."""
 
+    async def test_service_issue_invokes_repo_with_correct_signature(
+        self, session, shop, credential
+    ):
+        """REAL service→repo call integration: verifies actual signature compatibility.
+
+        This test exercises the REAL ProductionWriteAuthorizationService and REAL repo
+        through a real session. It mocks only verify_capability_binding at its actual
+        signature. This is NOT a unit test of the repo in isolation — it ensures the
+        service→repo call matches the real signature (mypy + runtime proof).
+        Fake-collaborator tests that mock the repo hide signature drift; this catches it.
+        """
+        from unittest.mock import AsyncMock, patch
+
+        from juli_backend.services.operations.production_write_authorizations_service import (
+            ProductionWriteAuthorizationService,
+        )
+
+        service = ProductionWriteAuthorizationService(session)
+
+        # Mock verify_capability_binding at its REAL signature
+        with patch(
+            "juli_backend.services.operations.production_write_authorizations_service.verify_capability_binding",
+            new_callable=AsyncMock,
+        ) as mock_verify:
+            mock_verify.return_value = None
+
+            # Call the REAL service.issue() → REAL repo.issue()
+            auth = await service.issue(
+                shop_id=shop.id,
+                tiktok_product_id="product_123",
+                mutation_kind="listing.optimize_product",
+                capability="sandbox_write",
+                shop_cipher="ROW_test_cipher_sandbox",
+                authorized_by="operator@example.com",
+                reason="Testing real service→repo call",
+                ttl_hours=24,
+            )
+
+            # Verify the result
+            assert auth is not None
+            assert auth.shop_id == shop.id
+            assert auth.tiktok_product_id == "product_123"
+            assert auth.mutation_kind == "listing.optimize_product"
+            assert auth.authorized_by == "operator@example.com"
+            assert auth.reason == "Testing real service→repo call"
+            assert auth.consumed_at is None
+            assert auth.expires_at is not None
+
+            # Verify verify_capability_binding was called (service responsibility)
+            mock_verify.assert_called_once_with(
+                session, capability="sandbox_write", shop_cipher="ROW_test_cipher_sandbox"
+            )
+
     async def test_issue_succeeds_with_correct_params(self, session, shop, credential, repo):
         """Repo.issue is pure persistence; service layer does verification."""
         auth = await repo.issue(
