@@ -1,0 +1,85 @@
+{
+  "planId": "production-write-authorization-row-2026-08-25",
+  "affectedPublicSurfaces": [
+    "A new table `production_write_authorizations` `{id, shop_id, tiktok_product_id, mutation_kind, authorized_by, reason, created_at, expires_at, consumed_at, consumed_by_run_id}` plus an explicit revoked state — the first artifact in the system that can represent \"the owner authorized this mutation, on this listing, once\" (ADR-085 decision 6, the chain recorded at #1226). Single-use, expiring (default 24h from a documented setting, never null), scoped to exactly one shop, one product and one mutation kind.",
+    "The issuing path: an operator entry point that runs `services/tiktok/credential_binding.verify_capability_binding` FIRST and refuses to issue when the credential for that shop and capability is mis-bound (wrong `shop_cipher`, or a capability pointing at a different shop) — the #1290 \"the product belongs to another seller\" failure becomes impossible to AUTHORIZE, not merely impossible to execute. An authorization issued against a mis-provisioned credential is worse than none, because it looks like a green light.",
+    "The lookup the write path will use in #1336: given shop, product and mutation kind, return the matching unconsumed, unexpired, unrevoked row or nothing. Consumption is atomic — `consumed_at` and `consumed_by_run_id` set in the same transaction that claims the row, so two concurrent runs consume it exactly once and the loser observes the consumed state rather than a retryable error.",
+    "An operator revoke entry point that sets an explicit revoked state and preserves the row and its history — the audit is the point; revoke never deletes.",
+    "No seller-facing HTTP surface: no `/v1/*` route can create an authorization, asserted by test. Authorization is an operator action only. This slice builds the artifact and its lifecycle and does NOT wire it into the write path — that is #1336, so the resolver's four preconditions can be tested one at a time against a primitive that already works."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest with `PYTHONPATH` pinned to the worktree's `backend/src`; the concurrency and lookup cases run against real Postgres 16, never SQLite. Post-deploy: the sandbox shop and sandbox product only, via the operator entry point — no seller-facing route exists for issuing. The standing owner decision of 2026-08-21 forbids anything targeting Fujiwa Vietnam Store (`2b1da87b`), and this slice must not be the first thing to test that boundary. No production write is possible anywhere in the journey: the write path is not wired to this table until #1336, and the production-write capability remains default off.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "Side effects stated plainly: the journey (a) inserts one row into `production_write_authorizations` for the sandbox shop, (b) marks it consumed via the lookup's atomic claim, and (c) touches nothing else — no TikTok call of any kind, no `workflow_runs`, no production credential resolved. The table is inert to the running release: no code path outside this wave references it until #1336 wires the resolver. apiSideEffectsInScope is FALSE in the sense the pairing rule protects — no public or production side effect — and the sandbox-scoped row inserts above are the complete list.",
+    "journeys": [
+      {
+        "name": "authorization-row-lifecycle-on-sandbox-shop",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1335",
+        "assertions": [
+          "pre-merge: issuing runs `verify_capability_binding` and REFUSES when the credential for that shop and capability is mis-bound, asserted with a row shaped like the one #1290 found (wrong `shop_cipher` / capability pointing at a different shop) — the refusal is at issue time, before any row exists",
+          "pre-merge: the lookup returns nothing for an expired row, a consumed row, a revoked row, a different product, a different mutation kind, and a different shop — six separate cases, each asserting the specific miss",
+          "pre-merge: consumption is atomic under concurrency on real Postgres — two concurrent claims against one authorization succeed exactly once, `consumed_at` and `consumed_by_run_id` are set in the claiming transaction, and the loser observes the consumed state rather than an error that could be retried into a second write",
+          "pre-merge: `expires_at` defaults from a documented setting and is never null — a row cannot be created without one; revoke sets the explicit revoked state and the row remains readable for audit",
+          "pre-merge: no `/v1/*` route can create an authorization — asserted by scanning the live route table, not by testing the happy path; the table carries direct `shop_id` tenant treatment so #1328's isolation proof covers it rather than excepting it",
+          "pre-merge: `alembic upgrade head` then `alembic downgrade -1 && alembic upgrade head` round-trips migration 044 cleanly on Postgres 16, alongside W6's demo-tenant seed",
+          "post-deploy: on the candidate, issue an authorization for the sandbox shop and sandbox product through the operator entry point, observe the row, observe the lookup finding it, consume it, and observe a second lookup finding nothing",
+          "post-deploy: the existing API continues to serve unchanged — `/health` and one authenticated read behave identically, because the running release neither reads nor writes the new table"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — the diff is backend Python (services + one additive migration + tests) and an operator entry point; nothing seller-facing renders."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "alembic-history",
+      "api-json-response"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "One additive migration: number 044 is META-ASSIGNED, slug `044_production_write_authorizations`, down_revision `043_juli_app_role` (#1326's reserved migration) — NEVER read from head. 042 is W6 #1312's reserved gap and stays unissued; two waves computing down_revision from head is a branched Alembic head and an outage. MERGE-ORDER CONSTRAINT: this PR merges AFTER #1326's so the chain stays linear — state the dependency in the PR body. The table is new and nullable where the lifecycle requires (`consumed_at`, `consumed_by_run_id`); the previous release neither reads nor writes it, so old and new code coexist trivially. No existing table is altered, no backfill, nothing destructive."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without this slice there is still no authorization primitive — the pre-existing state #1325 documents — and nothing depends on it, so there is no exposure and no data hazard.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart `juli-api` and `juli-celery-worker`; if the schema itself must go, `alembic downgrade -1` drops the table. A test asserts no code path outside this wave references the table, so a rollback cannot strand the write path — it is not wired in until #1336. Rows issued while the new release was live are dropped with the table on downgrade; that is acceptable because no write was ever gated on them yet, but say so rather than claiming rollback is lossless.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'production_write_authorization' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/integration -k 'production_write_authorization or authorization_concurrency' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_credential_binding.py -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "This slice builds the authorization artifact and its lifecycle ONLY. Wiring it into the write path — the four-precondition resolver, the kill switch, the audit of attempts — is #1336's and #1337's; do not reach ahead.",
+    "NO PRODUCTION WRITE IS POSSIBLE IN ANY TEST. Assert the transport guard is never handed production credentials. Nothing in this slice's tests or candidate journey targets Fujiwa Vietnam Store (`2b1da87b`) — the standing owner decision of 2026-08-21 holds for the entire wave.",
+    "Migration 044 chains off `043_juli_app_role` by Meta assignment and this PR merges after #1326's. Do not read the migration number or down_revision from head, and do not renumber if head looks different — an unissued 042 is a cheap gap, a branched head is an outage.",
+    "The mutation-kind vocabulary reuses whatever `services/execution` already names its write operations rather than inventing a parallel taxonomy. If no such vocabulary exists, say so in the PR and propose the smallest one that covers the Optimize Product write — do not silently mint a new namespace.",
+    "Issuing verifies the credential binding via `services/tiktok/credential_binding.verify_capability_binding` — reuse the real verifier, never a re-implementation or a `**kwargs` double; bind fakes to the real signature.",
+    "No W6-owned file appears in this diff: apps/**, packages/**, api/routes/demo_decisions.py, services/agent/approval.py, services/agent/runner/core.py, services/agent/sanitize/** source, the scenario module, the demo-tenant seed, core/security/dependencies.py. If an acceptance criterion appears to require one of them, STOP AND REPORT — do not edit across the wave boundary.",
+    "Revoke preserves the row. Deleting an authorization row in any code path — including test cleanup helpers that could leak into production code — defeats the audit that is the point of the artifact."
+  ]
+}
