@@ -3564,3 +3564,115 @@ AGT-W5B-LIM:
     - backend/src/juli_backend/workers/impact_reader/
     - docs/integrations/tiktok_corpora/
     - Sibling issue context caches
+
+# ---------------------------------------------------------------------------
+# W6 / P-UI — PRD #1308, design authority ADR-084 (amends ADR-076) +
+# docs/product/agent-workflow-execution/PUI-DESIGN.md. Three lanes with disjoint
+# write paths: the interface (AGT-W6A), the server contract it reads (AGT-W6B),
+# and the wave's one seed slice (AGT-W6B-DP).
+# ---------------------------------------------------------------------------
+
+# AGT-W6A — #1308 W6 interface lane, ui-ux domain (#1314, #1315, #1316, #1317,
+# #1318, #1319, #1320, #1321). apps/demo's run surfaces: scoped tokens + motion,
+# useRunStream + the pure reducer, the staged run view, the consent-grade option
+# picker, the run ledger, dual entry, the mock deletion, and the replay journey.
+# PUBLIC RELEASE: apps/demo is a deployed lane (demo.app-juli.com) with a
+# Playwright suite in release.yml — every slice here needs a releaseEvidencePlan.
+# packages/contracts is a REQUIRED module: the TS event mirror is what the
+# reducer types against, and drift from the Python payloads fails CI.
+AGT-W6A:
+  executorDomain: ui-ux
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/product/agent-workflow-execution/PUI-DESIGN.md
+    - docs/adr/076-agent-demo-execution-experience.md
+  requiredModules:
+    - apps/demo/MODULE.md
+    - apps/demo/src/lib/agent-event-stream.ts
+    - packages/contracts/src/agent-events.ts
+  loadWhenNeeded:
+    - apps/demo/src/components/recommendations-view.tsx
+    - apps/demo/src/components/in-progress-panel.tsx
+    - apps/demo/src/components/decisions-page-client.tsx
+    - apps/demo/src/components/demo-state.tsx
+    - apps/demo/src/lib/recommendations.ts
+    - apps/demo/src/lib/executions.ts
+    - packages/contracts/seller-copy-banned-patterns.json
+    - dictionary.md
+    - .github/workflows/release.yml
+  doNotLoad:
+    - apps/dashboard/
+    - ios/
+    - backend/src/juli_backend/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
+# AGT-W6B — #1308 W6 server-contract lane, backend domain (#1309, #1310, #1272,
+# #1311, #1313). The executability discriminator + approve refusing unregistered
+# playbooks, the polled run-list read model, the outbound-copy fix, the scenario
+# capture tool and server-side replay, and the anonymous session. packages/
+# contracts is required for the same reason as AGT-W5A: payload changes and their
+# TS mirror move in one PR or the cross-language contract test fails.
+AGT-W6B:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/074-agent-event-streaming-and-relay.md
+    - docs/adr/075-agent-approval-gate-and-security-prerequisites.md
+  requiredModules:
+    - backend/src/juli_backend/api/routes/demo_decisions.py
+    - backend/src/juli_backend/api/routes/agent_runs.py
+    - backend/src/juli_backend/services/agent/approval.py
+    - packages/contracts/src/agent-events.ts
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/agent/runner/core.py
+    - backend/src/juli_backend/services/agent/events/persisting_sink.py
+    - backend/src/juli_backend/services/agent/events/payloads.py
+    - backend/src/juli_backend/services/agent/playbooks/optimize_product.py
+    - backend/src/juli_backend/services/agent/composition.py
+    - backend/src/juli_backend/core/security/dependencies.py
+    - backend/src/juli_backend/models/models.py
+    - docs/adr/083-agent-concurrency-target-nfrs.md
+    - docs/product/agent-workflow-execution/PLAN.md
+  doNotLoad:
+    - apps/dashboard/
+    - apps/demo/src/components/
+    - ios/
+    - backend/src/juli_backend/ai/
+    - backend/src/juli_backend/database/migrations/
+    - backend/src/juli_backend/workers/impact_reader/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
+# AGT-W6B-DP — #1308 W6 seeded demo tenant, data-platform domain (#1312). The
+# wave's ONLY seed/schema slice, split for the same reason as AGT-W5A-DP: a seed
+# plus (at most) one additive migration is data-platform work, and inheriting
+# AGT-W6B's backend routing briefs the Executor with the wrong domain skill.
+# Prefer a pure seed; a migration is a fallback, not a goal, and its number is
+# assigned by Meta rather than read from head.
+AGT-W6B-DP:
+  executorDomain: data-platform
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+  requiredModules:
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/repositories/repos.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/action_cards/persist.py
+    - backend/src/juli_backend/services/action_cards/emission_budget.py
+    - tests/integration/test_schema_parity.py
+    - tests/integration/test_migrations.py
+    - infra/scripts/safe-alembic-upgrade.sh
+    - docs/product/agent-workflow-execution/PLAN.md
+  doNotLoad:
+    - apps/
+    - ios/
+    - packages/
+    - backend/src/juli_backend/services/agent/
+    - backend/src/juli_backend/api/routes/
+    - backend/src/juli_backend/workers/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
