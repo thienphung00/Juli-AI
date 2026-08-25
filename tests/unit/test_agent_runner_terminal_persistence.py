@@ -451,3 +451,189 @@ class TestRunningSecondsColumnMirror:
                 "running_seconds_elapsed= -- issue #1216 requires it at every "
                 "call site, not only terminal ones."
             )
+
+
+class TestActionCardRevertOnTerminalFailure:
+    """Issue #1305: when a run reaches terminal FAILED status (cleanly through
+    the runner, not just in the crash handler), any consumed action card must
+    revert from 'approved' back to 'active' so the seller can retry.
+
+    AC:
+    - FAILED status reverts an approved card to active
+    - COMPLETED status does NOT revert the card
+    - CANCELLED status does NOT revert the card
+    - TIMED_OUT status does NOT revert the card
+    - WAITING_APPROVAL status does NOT revert the card
+    - Non-approved card is not touched even on FAILED
+    - Run with no action_card_id does not error on FAILED
+    """
+
+    async def test_failed_run_cleanly_reverts_approved_card_to_active(self, session: AsyncSession):
+        """FAILED status cleanly (not crash) reverts consumed action card."""
+        from juli_backend.models.models import ActionCard
+
+        run_id = await _seed_workflow_run(session)
+
+        # Create and attach an approved card
+        card = ActionCard(
+            id=uuid.uuid4(),
+            shop_id=(await _reload_row(session, run_id)).shop_id,
+            workflow_key="optimize_product",
+            priority=1,
+            severity="info",
+            title="Test Card",
+            description="A test decision card",
+            recommendation_payload="{}",
+            status="approved",
+            approved_at=datetime.now(UTC),
+        )
+        session.add(card)
+        await session.flush()
+
+        # Link card to run
+        run = await _reload_row(session, run_id)
+        run.action_card_id = card.id
+        await session.flush()
+
+        # Run fails cleanly (LLM error)
+        store = JsonbConversationStore(session)
+        playbook = _minimal_playbook((_step("get_product_information"),))
+        runner = WorkflowRunner(
+            llm_service=_RaisingLLMService(LLMProviderError("HTTP 500")),
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            registry=_full_registry(),
+            playbook=playbook,
+        )
+
+        result = await runner.run(run_id, product_ref="prod-1")
+        assert result.status == WorkflowRunStatus.FAILED
+
+        # Verify card was reverted to active
+        loaded_card = await session.get(ActionCard, card.id)
+        assert loaded_card.status == "active", (
+            f"Card should revert to active on clean FAILED, got {loaded_card.status}"
+        )
+        assert loaded_card.approved_at is None, "Card approved_at should be cleared on revert"
+
+    async def test_completed_run_does_not_revert_approved_card(self, session: AsyncSession):
+        """COMPLETED status does NOT revert the card."""
+        from juli_backend.models.models import ActionCard
+
+        run_id = await _seed_workflow_run(session)
+
+        # Create and attach an approved card
+        card = ActionCard(
+            id=uuid.uuid4(),
+            shop_id=(await _reload_row(session, run_id)).shop_id,
+            workflow_key="optimize_product",
+            priority=1,
+            severity="info",
+            title="Test Card",
+            description="A test decision card",
+            recommendation_payload="{}",
+            status="approved",
+            approved_at=datetime.now(UTC),
+        )
+        session.add(card)
+        await session.flush()
+
+        # Link card to run
+        run = await _reload_row(session, run_id)
+        run.action_card_id = card.id
+        await session.flush()
+
+        # Run completes successfully
+        store = JsonbConversationStore(session)
+        playbook = _minimal_playbook((_step("get_product_information"),))
+        runner = WorkflowRunner(
+            llm_service=FakeLLMService(script=[_turn(FinalResponse(content="Done."))]),
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            registry=_full_registry(),
+            playbook=playbook,
+        )
+
+        result = await runner.run(run_id, product_ref="prod-1")
+        assert result.status == WorkflowRunStatus.COMPLETED
+
+        # Verify card stayed approved (consumed)
+        loaded_card = await session.get(ActionCard, card.id)
+        assert loaded_card.status == "approved", (
+            f"Card should stay approved on COMPLETED, got {loaded_card.status}"
+        )
+        assert loaded_card.approved_at is not None, "Card approved_at should remain on COMPLETED"
+
+    async def test_failed_run_with_non_approved_card_is_not_reverted(self, session: AsyncSession):
+        """FAILED status with a card not in 'approved' state does not touch it."""
+        from juli_backend.models.models import ActionCard
+
+        run_id = await _seed_workflow_run(session)
+
+        # Create and attach a card in 'active' state
+        card = ActionCard(
+            id=uuid.uuid4(),
+            shop_id=(await _reload_row(session, run_id)).shop_id,
+            workflow_key="optimize_product",
+            priority=1,
+            severity="info",
+            title="Test Card",
+            description="A test decision card",
+            recommendation_payload="{}",
+            status="active",
+            approved_at=None,
+        )
+        session.add(card)
+        await session.flush()
+
+        # Link card to run
+        run = await _reload_row(session, run_id)
+        run.action_card_id = card.id
+        await session.flush()
+
+        # Run fails cleanly
+        store = JsonbConversationStore(session)
+        playbook = _minimal_playbook((_step("get_product_information"),))
+        runner = WorkflowRunner(
+            llm_service=_RaisingLLMService(LLMProviderError("HTTP 500")),
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            registry=_full_registry(),
+            playbook=playbook,
+        )
+
+        result = await runner.run(run_id, product_ref="prod-1")
+        assert result.status == WorkflowRunStatus.FAILED
+
+        # Verify card was NOT modified
+        loaded_card = await session.get(ActionCard, card.id)
+        assert loaded_card.status == "active", (
+            "Card in active state should not be touched on FAILED"
+        )
+
+    async def test_failed_run_without_action_card_does_not_error(self, session: AsyncSession):
+        """FAILED status on a run with no action_card_id does not error."""
+        run_id = await _seed_workflow_run(session)
+
+        # Ensure run has no action_card_id
+        run = await _reload_row(session, run_id)
+        assert run.action_card_id is None
+
+        # Run fails cleanly
+        store = JsonbConversationStore(session)
+        playbook = _minimal_playbook((_step("get_product_information"),))
+        runner = WorkflowRunner(
+            llm_service=_RaisingLLMService(LLMProviderError("HTTP 500")),
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            registry=_full_registry(),
+            playbook=playbook,
+        )
+
+        # Should not raise
+        result = await runner.run(run_id, product_ref="prod-1")
+        assert result.status == WorkflowRunStatus.FAILED
