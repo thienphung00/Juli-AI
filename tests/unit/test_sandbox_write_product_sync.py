@@ -178,6 +178,80 @@ class TestSandboxWriteProductSync:
         assert "sandbox_p2" in product_ids
 
     @pytest.mark.asyncio
+    async def test_upsert_receives_naive_utc_update_time(
+        self,
+        mock_sandbox_write_products_resource,
+        mock_rate_limiter,
+        handoff_fn,
+        sync_state,
+        sandbox_shop,
+        session: AsyncSession,
+    ):
+        """products.update_time is TIMESTAMP WITHOUT TIME ZONE; asyncpg rejects
+        aware datetimes (seen live 2026-08-25: every upsert failed with DataError
+        and the catalog stayed empty). SQLite in tests accepts both, so pin the
+        kwarg itself."""
+        products_repo = ProductsRepo(session)
+        captured_kwargs = []
+        real_upsert = products_repo.upsert
+
+        async def spy_upsert(**kwargs):
+            captured_kwargs.append(kwargs)
+            return await real_upsert(**kwargs)
+
+        products_repo.upsert = spy_upsert  # type: ignore[method-assign]
+
+        await sync_products_with_local_upsert(
+            resource=mock_sandbox_write_products_resource,
+            rate_limiter=mock_rate_limiter,
+            handoff_fn=handoff_fn,
+            products_repo=products_repo,
+            app_id="app1",
+            shop_id=str(sandbox_shop.id),
+            sync_state=sync_state,
+        )
+
+        assert captured_kwargs, "sync never called upsert"
+        for kwargs in captured_kwargs:
+            assert kwargs["update_time"].tzinfo is None, (
+                "update_time must be naive UTC for the asyncpg bind"
+            )
+        assert sync_state["products_upserted"] == len(captured_kwargs)
+        assert sync_state["products_upsert_failed"] == 0
+
+    @pytest.mark.asyncio
+    async def test_upsert_failures_are_counted_in_sync_state(
+        self,
+        mock_sandbox_write_products_resource,
+        mock_rate_limiter,
+        handoff_fn,
+        sync_state,
+        sandbox_shop,
+        session: AsyncSession,
+    ):
+        """A sync where every upsert fails must not look like a success —
+        the counters in sync_state are what the completion log reports."""
+        products_repo = ProductsRepo(session)
+
+        async def failing_upsert(**kwargs):
+            raise RuntimeError("simulated bind failure")
+
+        products_repo.upsert = failing_upsert  # type: ignore[method-assign]
+
+        await sync_products_with_local_upsert(
+            resource=mock_sandbox_write_products_resource,
+            rate_limiter=mock_rate_limiter,
+            handoff_fn=handoff_fn,
+            products_repo=products_repo,
+            app_id="app1",
+            shop_id=str(sandbox_shop.id),
+            sync_state=sync_state,
+        )
+
+        assert sync_state["products_upsert_failed"] == 2
+        assert sync_state["products_upserted"] == 0
+
+    @pytest.mark.asyncio
     async def test_sync_sandbox_write_products_is_idempotent(
         self,
         mock_sandbox_write_products_resource,
