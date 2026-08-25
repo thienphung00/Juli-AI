@@ -3676,3 +3676,194 @@ AGT-W6B-DP:
     - backend/src/juli_backend/workers/
     - docs/integrations/tiktok_corpora/
     - Sibling issue context caches
+
+# ---------------------------------------------------------------------------
+# W7 / P-PROD — PRD #1325, design authority ADR-085 (amends ADR-061 d.1, whose
+# RLS deferral trigger has fired). Five lanes with disjoint write paths, planned
+# in parallel with W6 and NOT blocked by W6's gate. Every lane is public-release
+# (ADR-035): migrations, the connection role, boot assertions, capability guards,
+# rate limiting and the audit trail all reach production behaviour directly.
+# ---------------------------------------------------------------------------
+
+# AGT-W7A-DP — #1325 W7 isolation lane, data-platform domain (#1326, #1328,
+# #1329). The database's own tenancy: a non-owner juli_app role and its explicit
+# grant map, RLS policies that actually deny, and a two-tenant proof enumerated
+# from pg_catalog. The role lands BEFORE any policy, because the runtime connects
+# as the pooler `postgres` role — the table owner, which Postgres exempts from row
+# policies — so policies written first would be inert (migration 032's docstring).
+# Real Postgres 16 only: SQLite cannot express roles, RLS or row locks.
+AGT-W7A-DP:
+  executorDomain: data-platform
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/061-first-user-security-baseline.md
+    - backend/src/juli_backend/database/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/database/migrations/versions/032_close_public_schema_defaults.py
+    - backend/src/juli_backend/database/migrations/versions/021_medallion_schemas.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/database/migrations/versions/001_create_users_shops_tiktok_credentials.py
+    - backend/src/juli_backend/database/migrations/versions/002_add_commerce_analytics_tables.py
+    - backend/src/juli_backend/database/database.py
+    - tests/integration/test_migrations.py
+    - tests/integration/test_schema_parity.py
+    - agent-runtime/scripts/ci/ensure_postgrest_client_roles.py
+    - agent-runtime/scripts/ci/check_public_schema_privileges.py
+    - .github/workflows/pr.yml
+    - infra/scripts/safe-alembic-upgrade.sh
+  doNotLoad:
+    - apps/
+    - ios/
+    - packages/
+    - backend/src/juli_backend/services/agent/
+    - backend/src/juli_backend/api/routes/
+    - backend/src/juli_backend/ai/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
+# AGT-W7A-BE — #1325 W7 runtime-seam lane, backend domain (#1327, #1330). The
+# tenant GUC set with SET LOCAL at the unit-of-work seam (never SET — session
+# scope leaks across pool checkouts), fail-closed in Python before any SQL is
+# emitted, plus the seventh boot check that makes the production-write capability
+# refuse to start against a database it can bypass. Split from AGT-W7A-DP because
+# this is application plumbing, not schema work, and dual-loading backend +
+# data-platform is forbidden. core/security/dependencies.py is W6 #1313's file.
+AGT-W7A-BE:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/075-agent-approval-gate-and-security-prerequisites.md
+  requiredModules:
+    - backend/src/juli_backend/database/database.py
+    - backend/src/juli_backend/workers/agent_runtime_boot.py
+    - backend/src/juli_backend/core/security/MODULE.md
+  loadWhenNeeded:
+    - backend/src/juli_backend/workers/celery_app.py
+    - backend/src/juli_backend/api/main.py
+    - backend/src/juli_backend/repositories/repos.py
+    - backend/src/juli_backend/services/agent/runner/ledger.py
+    - docs/runbooks/backend-deploy-runbook.md
+    - infra/systemd/juli-api.service
+  doNotLoad:
+    - apps/
+    - ios/
+    - packages/
+    - backend/src/juli_backend/core/security/dependencies.py
+    - backend/src/juli_backend/services/agent/approval.py
+    - backend/src/juli_backend/services/agent/runner/core.py
+    - backend/src/juli_backend/ai/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
+# AGT-W7B — #1325 W7 red-team harness lane, backend domain (#1331, #1332, #1333,
+# #1334). TESTS AND DOCS ONLY — a threat model with a generated surface inventory,
+# adversarial cases asserting loop BEHAVIOUR rather than sanitizer return values,
+# a cross-tenant probe generated from the live route table (404, never 403), and
+# abuse-limit verification including cancel's structural exemption. Product code
+# in services/agent is read-only context here; a defect found is reported and
+# coordinated with W6 #1272, never fixed across the wave boundary.
+AGT-W7B:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/070-agent-safe-sanitization-contract.md
+    - docs/adr/075-agent-approval-gate-and-security-prerequisites.md
+  requiredModules:
+    - backend/src/juli_backend/services/agent/abuse_limits.py
+    - backend/src/juli_backend/services/agent/sanitize/
+    - tests/unit/test_agent_sanitize_adversarial_fixtures.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/api/app.py
+    - backend/src/juli_backend/api/routes/agent_runs.py
+    - backend/src/juli_backend/services/agent/tools/
+    - backend/src/juli_backend/services/agent/playbooks/optimize_product.py
+    - backend/src/juli_backend/integrations/tiktok/rate_limiter.py
+    - infra/nginx/
+    - docs/adr/069-agent-tool-registry-and-write-path.md
+  doNotLoad:
+    - apps/
+    - ios/
+    - packages/
+    - backend/src/juli_backend/database/migrations/
+    - backend/src/juli_backend/workers/impact_reader/
+    - backend/src/juli_backend/ai/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
+# AGT-W7C — #1325 W7 production-write machinery lane, backend domain (#1335,
+# #1336, #1337). The owner's authorization as a single-use expiring row verified
+# against the credential binding at issue time, a capability resolver with four
+# separately-named preconditions (default OFF), a kill switch read per tool call
+# rather than at boot, and an append-only audit of every attempt including the
+# refused ones. Two additive migrations, numbers assigned by Meta.
+AGT-W7C:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/068-agent-workflow-execution-boundary.md
+    - backend/src/juli_backend/services/execution/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/services/execution/sandbox_guard.py
+    - backend/src/juli_backend/integrations/tiktok/capabilities.py
+    - backend/src/juli_backend/services/tiktok/credential_binding.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/integrations/tiktok/guards.py
+    - backend/src/juli_backend/services/execution/listing_handlers.py
+    - backend/src/juli_backend/services/execution/tool_routing.py
+    - backend/src/juli_backend/workers/agent_runtime_boot.py
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/repositories/repos.py
+    - docs/adr/069-agent-tool-registry-and-write-path.md
+  doNotLoad:
+    - apps/
+    - ios/
+    - packages/
+    - backend/src/juli_backend/services/agent/approval.py
+    - backend/src/juli_backend/services/agent/runner/core.py
+    - backend/src/juli_backend/api/routes/demo_decisions.py
+    - backend/src/juli_backend/ai/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
+# AGT-W7D — #1325 W7 measurement-honesty lane, backend domain (#1338). A pre-write
+# readiness check so the owner authorizes a listing that can actually be measured,
+# and a read-side rule that never counts a `suppressed` or `confounded` row as a
+# reading. The reader itself is COMPLETE, scheduled and correctly pessimistic —
+# workers/impact_reader/pipeline.py's computation and persistence are read-only
+# context here and must not change.
+AGT-W7D:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/077-incremental-impact-measurement.md
+  requiredModules:
+    - backend/src/juli_backend/workers/impact_reader/pipeline.py
+    - backend/src/juli_backend/services/impact/
+  loadWhenNeeded:
+    - backend/src/juli_backend/workers/impact_reader/classify.py
+    - backend/src/juli_backend/workers/tasks/impact_reader.py
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/repositories/repos.py
+    - backend/src/juli_backend/workers/celery_app.py
+    - tests/unit/test_worker_impact_reader_pipeline.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - packages/
+    - backend/src/juli_backend/services/agent/
+    - backend/src/juli_backend/services/execution/
+    - backend/src/juli_backend/database/migrations/
+    - backend/src/juli_backend/ai/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
