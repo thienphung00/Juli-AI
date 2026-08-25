@@ -1,0 +1,34 @@
+{
+  "gateVersion": 1,
+  "issue": 1290,
+  "metrics": {
+    "acceptanceMapped": 0,
+    "acceptanceTotal": 0,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      {
+        "module": "workers/services/polling",
+        "path": "backend/src/juli_backend/workers/services/polling/sync.py"
+      },
+      {
+        "module": "workers/tasks",
+        "path": "backend/src/juli_backend/workers/tasks/action_card_refresh.py"
+      }
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1290.json",
+    "ownerSignoffPresent": true,
+    "sha256": "ea1111d02563ad77d22b8b208dba1cfde364e904c49a0302a3fe3ee1621d0366",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-25T00:30:13Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1290.json",
+    "sha256": "abe44e075a7ac35e7b92ecf687638bcab92a3e2899628b75a3666c1000857341",
+    "status": "PASS"
+  },
+  "wave": null
+}
