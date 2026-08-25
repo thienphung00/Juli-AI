@@ -16,8 +16,12 @@ import hashlib
 import json
 import logging
 import time
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.integrations.tiktok import (
     ANALYTICS_BESTSELLING_PRODUCTS_PATH,
@@ -54,9 +58,13 @@ from juli_backend.integrations.tiktok import (
     normalize_return,
     promotion_activity_path,
 )
+from juli_backend.models.models import TikTokCredential
 from juli_backend.services.ingestion.handoff import HandoffFn
 
 logger = logging.getLogger(__name__)
+
+# Logger for structured warnings about credential mismatches
+mismatch_logger = logging.getLogger(__name__ + ".sandbox_write_catalog_identity_mismatch")
 
 
 def _inventory_snapshot_event_id(shop_id: str, payload: dict[str, Any]) -> str:
@@ -183,6 +191,93 @@ async def sync_products(
             shop_id,
             json.dumps(normalize_product(product)).encode(),
         )
+        max_update_time = max(
+            max_update_time,
+            product.get("update_time") or product.get("updated_at") or 0,
+        )
+
+    if products:
+        sync_state["products_last_update_time"] = max_update_time
+
+
+async def sync_products_with_local_upsert(
+    *,
+    resource: Any,
+    rate_limiter: RateLimiter,
+    handoff_fn: HandoffFn,
+    products_repo: Any,
+    app_id: str,
+    shop_id: str,
+    sync_state: dict[str, Any],
+) -> None:
+    """Fetch products and upsert to local shop products table (for sandbox catalog sync).
+
+    Unlike sync_products which only hands off to ETL, this function also
+    upserts products directly to the products table for immediate availability
+    in product binding. Used for sandbox_write catalog sync where products
+    must be immediately queryable by the approval path.
+
+    Idempotent: re-running produces no duplicates; pre-existing rows
+    (from other credentials) are preserved.
+    """
+    if not rate_limiter.acquire(
+        app_id, shop_id, PRODUCT_SEARCH_PATH, max_requests=10, window_seconds=60
+    ):
+        logger.info(
+            "rate_limited",
+            extra={"shop_id": shop_id, "resource": "products_with_upsert"},
+        )
+        return
+
+    update_from = sync_state.get("products_last_update_time")
+
+    try:
+        products = resource.search_all(update_time_from=update_from)
+    except TikTokAPIError:
+        logger.warning(
+            "sync_products_with_upsert_failed",
+            extra={"shop_id": shop_id},
+            exc_info=True,
+        )
+        return
+
+    try:
+        shop_uuid = uuid.UUID(shop_id)
+    except (ValueError, AttributeError):
+        logger.warning(
+            "sync_products_invalid_shop_id",
+            extra={"shop_id": shop_id},
+        )
+        return
+
+    max_update_time = update_from or 0
+    for product in products:
+        normalized = normalize_product(product)
+
+        # Hand off to ETL (existing pattern)
+        await handoff_fn(
+            "tiktok.products.raw",
+            shop_id,
+            json.dumps(normalized).encode(),
+        )
+
+        # Upsert to local products table (new for sandbox sync)
+        try:
+            await products_repo.upsert(
+                shop_id=shop_uuid,
+                tiktok_product_id=product.get("product_id", ""),
+                name=product.get("name", "") or product.get("title", ""),
+                status=product.get("status", "unknown"),
+                title=product.get("title", "") or product.get("name", ""),
+                update_time=datetime.now(UTC),
+            )
+        except Exception:
+            logger.warning(
+                "sync_products_local_upsert_failed",
+                extra={"shop_id": shop_id, "product_id": product.get("product_id")},
+                exc_info=True,
+            )
+
         max_update_time = max(
             max_update_time,
             product.get("update_time") or product.get("updated_at") or 0,
@@ -680,3 +775,160 @@ async def sync_analytics(
                 )
         if fetched_any:
             sync_state["promotion_activity_last_sync_at"] = synced_at
+
+
+async def sync_sandbox_write_products(session: AsyncSession, shop_id: uuid.UUID) -> None:
+    """Sync sandbox_write seller's products to shop with rate limiting.
+
+    Respects TikTok API rate limits via real RateLimiter backed by Redis.
+    Skips gracefully if Redis is unavailable (named log for operator).
+
+    This is the cohesive entry point for task-layer sandbox catalog sync;
+    it handles rate limiter creation, credential resolution, and client assembly.
+    """
+    import os
+
+    from juli_backend.integrations.tiktok import (
+        SANDBOX_AUTH_ID,
+        ClientFactoryConfig,
+        SandboxWriteClientFactory,
+    )
+    from juli_backend.repositories.repos import ProductsRepo
+
+    # Check for Redis (required for rate limiter)
+    redis_url = os.getenv("REDIS_URL", "").strip()
+    if not redis_url:
+        logger.info(
+            "sandbox_write_catalog_sync_skipped",
+            extra={"shop_id": str(shop_id), "reason": "redis_url_not_configured"},
+        )
+        return
+
+    # Check for TikTok app credentials
+    app_key = os.getenv("TIKTOK_APP_KEY", "").strip()
+    app_secret = os.getenv("TIKTOK_APP_SECRET", "").strip()
+
+    if not app_key or not app_secret:
+        logger.info(
+            "sandbox_write_catalog_sync_skipped",
+            extra={"shop_id": str(shop_id), "reason": "tiktok_app_credentials_missing"},
+        )
+        return
+
+    # Resolve the sandbox_write credential through the repo-backed resolver:
+    # the raw column is enc:v1 ciphertext, and only the repo path hydrates a
+    # decrypted, lazily-refreshed token the client can actually send.
+    from juli_backend.core.security import resolve_sandbox_write_credential
+
+    try:
+        sandbox_write_cred = await resolve_sandbox_write_credential(session)
+    except Exception:
+        logger.info(
+            "sandbox_write_catalog_sync_skipped",
+            extra={"shop_id": str(shop_id), "reason": "no_sandbox_write_credential"},
+        )
+        return
+
+    if sandbox_write_cred is None or sandbox_write_cred.shop_id != shop_id:
+        logger.info(
+            "sandbox_write_catalog_sync_skipped",
+            extra={
+                "shop_id": str(shop_id),
+                "reason": "shop_has_no_sandbox_write_credential",
+            },
+        )
+        return
+
+    try:
+        # Create real rate limiter with Redis
+        import redis.asyncio
+
+        rate_limiter = RateLimiter(redis.asyncio.from_url(redis_url))
+
+        # Create client config and resources
+        config = ClientFactoryConfig(
+            app_key=app_key,
+            app_secret=app_secret,
+            access_token=sandbox_write_cred.access_token,
+            merchant_auth_id=SANDBOX_AUTH_ID,
+            shop_cipher=sandbox_write_cred.shop_cipher,
+        )
+        resources = SandboxWriteClientFactory().create_resources(config)
+
+        # Create products repo and sync state
+        products_repo = ProductsRepo(session)
+        sync_state: dict[str, Any] = {}
+
+        # Empty handoff (we only care about local upsert in task)
+        async def noop_handoff(channel: str, shop_key: str, value: bytes) -> None:
+            pass
+
+        # Run the sync with local upsert
+        await sync_products_with_local_upsert(
+            resource=resources.products,
+            rate_limiter=rate_limiter,
+            handoff_fn=noop_handoff,
+            products_repo=products_repo,
+            app_id="refresh_task",
+            shop_id=str(shop_id),
+            sync_state=sync_state,
+        )
+
+        logger.info(
+            "sandbox_write_catalog_sync_completed",
+            extra={"shop_id": str(shop_id), "products_synced": len(sync_state)},
+        )
+
+    except Exception:
+        logger.warning(
+            "sandbox_write_catalog_sync_failed",
+            extra={"shop_id": str(shop_id)},
+            exc_info=True,
+        )
+
+
+async def check_sandbox_write_catalog_identity_mismatch(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+) -> None:
+    """Log a structured warning if sandbox_write and seller_connect have different merchant IDs.
+
+    When a shop has both sandbox_write (write capability) and seller_connect (read capability)
+    credentials with different merchant authorizations, product binding cannot succeed because
+    the write credential is scoped to a different seller than the catalog source.
+
+    Issues a named log event for operator visibility without aborting the flow.
+    """
+    # Get all credentials for this shop
+    stmt = select(TikTokCredential).where(TikTokCredential.shop_id == shop_id)
+    result = await session.execute(stmt)
+    credentials = result.scalars().all()
+
+    if not credentials:
+        return
+
+    # Find sandbox_write and seller_connect credentials
+    sandbox_write_cred = None
+    seller_connect_cred = None
+
+    for cred in credentials:
+        if cred.capability == "sandbox_write":
+            sandbox_write_cred = cred
+        elif cred.capability == "production_read":
+            # Seller_connect uses production_read capability
+            seller_connect_cred = cred
+
+    # Check if we have both and they differ
+    if sandbox_write_cred and seller_connect_cred:
+        if (
+            sandbox_write_cred.merchant_authorization_id
+            != seller_connect_cred.merchant_authorization_id
+        ):
+            mismatch_logger.warning(
+                "sandbox_write_catalog_identity_mismatch",
+                extra={
+                    "shop_id": str(shop_id),
+                    "sandbox_write_merchant_id": sandbox_write_cred.merchant_authorization_id,
+                    "catalog_source_merchant_id": seller_connect_cred.merchant_authorization_id,
+                },
+            )

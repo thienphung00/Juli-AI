@@ -1,0 +1,83 @@
+{
+  "planId": "sandbox-write-catalog-identity-alignment-2026-08-24",
+  "affectedPublicSurfaces": [
+    "The approved-write path end to end: `POST /v1/demo/decisions/{id}/approve` → `workflow_runs` (product bound server-side, ADR-082) → Celery `juli_backend.execute_approved_tool` / `run_agent_workflow` → TikTok product write via the `sandbox_write` credential. On release `b44b33b7` every such write fails `TikTokAPIError [12052048] Permission Denied … the product belongs to another seller`, because the sandbox shop's catalog came from the `seller_connect` authorization while writes are correctly forced onto the `sandbox_write` authorization `7658096633384781588` — a different sandbox seller.",
+    "The sandbox shop's `products` rows and their population path (`workers/services/polling/sync.py::sync_products` and its orchestration), since the code-side direction is to populate the sandbox shop's catalog FROM the sandbox-write seller's own catalog using that credential, so ADR-082's server-derived binding can only resolve to products the write identity actually owns.",
+    "Credential resolution and the capability guard surface (`core/security/credential_resolver.py::resolve_sandbox_write_credential`, `integrations/tiktok/guards.py`, `integrations/tiktok/capabilities.py`). ADR-068's PRODUCTION_READ / SANDBOX_WRITE hard-bound merchant IDs are the reason no production write was ever possible here, and that property must survive this change untouched.",
+    "A new operator-visible mismatch surface: when the shop's write credential authorization does not own the bound product's seller, the failure must be loud and named at the boundary (a specific, greppable error/log/health signal) instead of surfacing as a raw vendor error code deep inside a crashed run.",
+    "Mixed-version hazard: the write executes in the Celery worker on the single-VPS lane (ADR-057). Both `juli-api` and `juli-celery-worker` must be restarted off the new `/root/releases/current`; an API-only cutover leaves every approval still failing 12052048."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest with `PYTHONPATH` pinned to the worktree's `backend/src` and every vendor call bound to a fake built against the real client signature — no live TikTok call, no VPS contact. Post-deploy: the sandbox shop (`1862f13b-…`) and the TikTok SANDBOX seller `7658096633384781588` only, reached with the `sandbox_write` credential. No production credential is resolved for a write at any point, and no public traffic is routed to a candidate task set (the single-VPS lane has none).",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is deliberately FALSE and is the point of the slice: the write happens in the worker, so a run with workers disabled cannot prove a write succeeds. apiSideEffectsInScope is FALSE in the sense the pairing rule protects — PUBLIC/PRODUCTION side effects are out of scope — but state the real side effects plainly rather than hiding behind the boolean: this journey (a) writes to the TikTok SANDBOX seller's own catalog, (b) inserts/updates `products` rows for the sandbox shop, and (c) creates `workflow_runs` and ledger rows for the sandbox shop. None of these touches a customer shop or the production merchant: ADR-068's hard-bound SANDBOX_WRITE merchant id is the mechanism that makes a production write unreachable, and this change must not widen it. Production stays read-only. This journey is SELF-CONTAINED — the sync step it verifies is this issue's own deliverable — but a card to approve must exist first, which on today's host means #1289 (surfacing) is a practical prerequisite for reaching the approve step through the public API rather than by reading ids out of the database.",
+    "journeys": [
+      {
+        "name": "sandbox-write-identity-owns-the-bound-product",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1290",
+        "assertions": [
+          "pre-merge: a test asserts the sandbox product-population path resolves and uses the SANDBOX_WRITE credential (not `seller_connect`) when filling the sandbox shop's catalog; it fails against the pre-#1290 code, proving it exercises the real defect",
+          "pre-merge: a test asserts ADR-082 binding, given a shop whose products came from the write seller, selects a product whose seller matches the write credential's authorization — and that a product owned by a different seller is rejected at the boundary with the named mismatch error rather than being sent to TikTok to fail 12052048",
+          "pre-merge: the ADR-068 guard tests still pass unmodified — PRODUCTION_READ cannot write, SANDBOX_WRITE remains hard-bound to its merchant id, and no new code path can resolve a production credential for a write; the vendor fake is bound to the real client signature, not a `**kwargs` double",
+          "post-deploy: `/root/releases/current` resolves to the release containing the fix, and `systemctl show -p InvocationID --value juli-celery-worker` changed across the deploy — proving the worker restarted onto that release",
+          "post-deploy: run the sandbox catalog sync for the sandbox shop and observe `products` rows whose seller is the `sandbox_write` authorization `7658096633384781588`; record the product id used downstream",
+          "post-deploy: approve a card for the sandbox shop through the public API (`POST /v1/demo/decisions/{id}/approve`, id taken from the `GET /v1/demo/decisions` response body) and observe the resulting run's bound product is one of those synced, write-owned products",
+          "post-deploy: the resulting product write against the TikTok SANDBOX succeeds — evidenced by the run reaching a completed terminal state with a `tool` success event in the ledger AND by the worker journal window for that run containing ZERO `12052048` / `Permission Denied` lines, asserted by absence over the window rather than by grepping for a success marker",
+          "post-deploy: no production write is attempted anywhere in that window — assert absence of any production-merchant write in the worker journal, not merely presence of the sandbox one (ADR-068)"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — the diff is backend Python under `backend/src/juli_backend/` (integrations / polling / credential resolution) plus tests. Any operator-facing mismatch surface is a log or API error shape, not a rendered page."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "worker-journal",
+      "api-json-response"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration is anticipated: `products` and the credential tables already carry everything needed, and the change is which credential populates the sandbox shop's catalog plus a named mismatch error. Data effect, stated plainly: the sync INSERTs/updates product rows for the sandbox shop. It must be additive and idempotent — never delete or overwrite the pre-existing `seller_connect`-sourced rows to 'clean up', because an old release rolled back beside those rows must still read them. If implementation concludes it needs a column (for example to record the owning seller explicitly), it must be additive and nullable, expand-contract only, and this plan must be revised to `schemaChangeInScope: true` BEFORE merge — never a destructive or backfill-required migration."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without the fix, every approval on this host keeps failing 12052048 at the write step — the pre-existing #1290 defect. No production write was ever possible (ADR-068 guard held), so there is no new exposure and no data hazard.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart `juli-api` and `juli-celery-worker`. Code behavior returns to today's (writes fail 12052048). Product rows synced while the new release was live REMAIN — they are ordinary rows the old code reads without special handling — so rollback is code-only and leaves no partially-applied schema state. Anything already written to the TikTok sandbox seller's catalog is a vendor-side effect that a code rollback does NOT undo; that is acceptable because the target is a sandbox seller, but do not claim rollback reverses it.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_credential_binding.py tests/unit/test_credential_resolver_lazy_refresh.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_polling.py tests/unit/test_fujiwa_polling_orchestration.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'sandbox_write or capabilit or guard or product_binding' -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "This aligns the sandbox WRITE identity with the sandbox CATALOG identity and makes the mismatch loud. It does not widen the ADR-068 capability guard, does not make production writable, and must not add any path that resolves a production credential for a write.",
+    "The owner-side alternative in the issue — re-provisioning the `sandbox_write` credential for the seller that owns the existing catalog — is an ops/provisioning decision, NOT this Executor's to make or perform. Implement the code-side direction (populate the shop's products from the sandbox-write seller's catalog) and surface the mismatch; do not rotate, re-provision, or delete credentials.",
+    "The post-deploy write is a SANDBOX write only. Do not 'complete' the journey by approving anything on a production or customer shop, and do not disable a guard to make a write succeed.",
+    "This blocks gate #1226 observation 1 at the write step; it does not close #1226, and it does not fix card surfacing (#1289), crash-path terminal state (#1291), SSE replay (#1292), or refresh latency (#1293).",
+    "Do not delete or rewrite the existing `seller_connect`-sourced product rows as part of the sync. Additive and idempotent only."
+  ]
+}

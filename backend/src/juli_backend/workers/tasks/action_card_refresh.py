@@ -10,6 +10,10 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from juli_backend.services.action_cards.refresh import run_action_card_refresh
 from juli_backend.workers.celery_app import celery_app
+from juli_backend.workers.services.polling.sync import (
+    check_sandbox_write_catalog_identity_mismatch,
+    sync_sandbox_write_products,
+)
 from juli_backend.workers.tasks.database import get_async_database_url
 
 logger = logging.getLogger(__name__)
@@ -28,6 +32,13 @@ def _ensure_session_factory() -> async_sessionmaker:
 async def _refresh_async(shop_id: uuid.UUID) -> None:
     factory = _ensure_session_factory()
     async with factory() as session:
+        # Sync sandbox_write catalog before refresh if credential exists
+        await sync_sandbox_write_products(session, shop_id)
+
+        # Check for credential identity mismatch
+        await check_sandbox_write_catalog_identity_mismatch(session, shop_id)
+
+        # Run the standard refresh
         await run_action_card_refresh(session, shop_id)
         await session.commit()
 
