@@ -33,6 +33,9 @@ from collections.abc import Sequence
 
 from alembic import op
 
+# Type alias for grant map structure: schema -> {table -> (privileges...)}
+GrantMap = dict[str, dict[str, tuple[str, ...]]]
+
 revision: str = "043_juli_app_role"
 down_revision: str | None = "041_stop_reason_diverged"
 branch_labels: str | Sequence[str] | None = None
@@ -49,7 +52,7 @@ SCHEMAS = ("public", "bronze", "silver", "ops", "gold")
 #   #738 LivestreamsRepo, #743 AnalyticsPerformanceRepo, #914 ActionCardsRepo) or status updates
 #   (tiktok_credentials.update_tokens, tool_executions.update_status, workflow_runs status changes,
 #   action_cards status changes)
-GRANT_MAP = {
+GRANT_MAP: GrantMap = {
     "public": {
         # SELECT+INSERT+UPDATE on upsert tables (products may use ON CONFLICT DO UPDATE)
         "tiktok_credentials": ("SELECT", "INSERT", "UPDATE"),  # update_tokens() repos.py:228
@@ -118,9 +121,9 @@ GRANT_MAP = {
 }
 
 
-def _grant_table_privileges() -> None:
+def _grant_table_privileges(grant_map: GrantMap = GRANT_MAP) -> None:
     """Grant table-level privileges to juli_app from the explicit map."""
-    for schema, tables in GRANT_MAP.items():
+    for schema, tables in grant_map.items():
         for table, verbs in tables.items():
             verb_str = ", ".join(verbs)
             sql = f"""
@@ -135,9 +138,9 @@ $grant_table$;
             op.execute(sql)
 
 
-def _revoke_table_privileges() -> None:
+def _revoke_table_privileges(grant_map: GrantMap = GRANT_MAP) -> None:
     """Revoke all privileges from juli_app on all tables (downgrade path)."""
-    for schema, tables in GRANT_MAP.items():
+    for schema, tables in grant_map.items():
         for table in tables:
             sql = f"""
 DO $revoke_table$
