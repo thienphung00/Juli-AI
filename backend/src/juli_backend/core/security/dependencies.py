@@ -59,8 +59,20 @@ async def get_current_user(
     try:
         return await UsersRepo(session).get(user_id)
     except NotFound:
-        # If user doesn't exist, create them as an anonymous user (issue #1313).
-        # Each anonymous JWT gets a distinct user identity for audit purposes.
+        # If user doesn't exist, only auto-create if the JWT claims is_anonymous=true.
+        # This prevents unrecognized tokens (deleted users, replayed tokens, other projects'
+        # JWTs sharing the issuer) from being silently converted into new account creation.
+        # Issue #1313: each anonymous JWT gets a distinct user identity for audit purposes.
+        if not payload.get("is_anonymous"):
+            logger.warning(
+                "jwt_unrecognized_subject",
+                extra={"sub": str(user_id), "is_anonymous": payload.get("is_anonymous")},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired credentials",
+            )
+
         # Anonymous users are identified by phone == "anonymous" (no real phone number).
         user = User(
             id=user_id,

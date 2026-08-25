@@ -345,7 +345,7 @@ async def test_sse_stream_exhaustion_returns_429_with_retry_after(app, session, 
     # this via connect, but manipulating the same gate instance the route
     # resolves is equivalent and avoids needing two overlapping open
     # connections in this test.
-    await gate.try_acquire_stream(str(shop.id))
+    await gate.try_acquire_stream(str(shop.id), str(user.id))
 
     async with _client_for(app, user, shop) as client:
         resp = await client.get(f"/v1/demo/runs/{run.id}/events")
@@ -361,7 +361,7 @@ async def test_sse_stream_exhaustion_emits_security_event(app, session, user, sh
     gate = InMemoryAbuseLimitGate(sse_max_concurrent=1)
     set_agent_abuse_limit_gate(gate)
     run = await _make_run(session, shop, status="completed")
-    await gate.try_acquire_stream(str(shop.id))
+    await gate.try_acquire_stream(str(shop.id), str(user.id))
 
     with caplog.at_level(logging.WARNING, logger="juli_backend.api.routes.agent_runs"):
         async with _client_for(app, user, shop) as client:
@@ -380,7 +380,7 @@ async def test_sse_cross_tenant_isolation_over_http(app, session, user, shop, ot
     run_a = await _make_run(session, shop, status="completed")
     run_b = await _make_run(session, other_shop, status="completed")
 
-    await gate.try_acquire_stream(str(shop.id))  # exhaust shop A only
+    await gate.try_acquire_stream(str(shop.id), str(user.id))  # exhaust shop A only
 
     async with _client_for(app, user, shop) as client:
         shop_a_resp = await client.get(f"/v1/demo/runs/{run_a.id}/events")
@@ -433,14 +433,16 @@ async def test_sse_wrapper_releases_slot_when_explicitly_closed_by_its_consumer(
         while True:
             yield ": heartbeat\n\n"
 
-    await gate.try_acquire_stream("shop-explicit-close")
-    assert (await gate.try_acquire_stream("shop-explicit-close")).allowed is False  # sanity: full
+    shop_id = "shop-explicit-close"
+    user_id = "user-explicit-close"
+    await gate.try_acquire_stream(shop_id, user_id)
+    assert (await gate.try_acquire_stream(shop_id, user_id)).allowed is False  # sanity: full
 
-    await gate.release_stream("shop-explicit-close")  # back to a single real occupant
-    await gate.try_acquire_stream("shop-explicit-close")  # the "connection" this test simulates
+    await gate.release_stream(shop_id, user_id)  # back to a single real occupant
+    await gate.try_acquire_stream(shop_id, user_id)  # the "connection" this test simulates
 
     wrapped = _sse_stream_with_concurrency_slot(
-        _never_ending_stream(), gate=gate, shop_id="shop-explicit-close"
+        _never_ending_stream(), gate=gate, shop_id=shop_id, user_id=user_id
     )
     first_chunk = await wrapped.__anext__()
     assert first_chunk == ": heartbeat\n\n"
@@ -449,7 +451,7 @@ async def test_sse_wrapper_releases_slot_when_explicitly_closed_by_its_consumer(
 
     # The slot must be free again -- a fresh acquire for the same shop
     # succeeds.
-    decision = await gate.try_acquire_stream("shop-explicit-close")
+    decision = await gate.try_acquire_stream(shop_id, user_id)
     assert decision.allowed is True
 
 
@@ -479,7 +481,9 @@ async def test_sse_wrapper_releases_slot_when_the_consuming_task_is_cancelled():
     from juli_backend.api.routes.agent_runs import _sse_stream_with_concurrency_slot
 
     gate = InMemoryAbuseLimitGate(sse_max_concurrent=1)
-    await gate.try_acquire_stream("shop-cancel")
+    shop_id = "shop-cancel"
+    user_id = "user-cancel"
+    await gate.try_acquire_stream(shop_id, user_id)
 
     reached_suspension = asyncio.Event()
 
@@ -492,7 +496,7 @@ async def test_sse_wrapper_releases_slot_when_the_consuming_task_is_cancelled():
         yield ": unreachable\n\n"  # pragma: no cover -- cancelled before this
 
     wrapped = _sse_stream_with_concurrency_slot(
-        _never_ending_stream(), gate=gate, shop_id="shop-cancel"
+        _never_ending_stream(), gate=gate, shop_id=shop_id, user_id=user_id
     )
 
     async def _consume():
@@ -511,7 +515,7 @@ async def test_sse_wrapper_releases_slot_when_the_consuming_task_is_cancelled():
     with pytest.raises(asyncio.CancelledError):
         await task
 
-    decision = await gate.try_acquire_stream("shop-cancel")
+    decision = await gate.try_acquire_stream(shop_id, user_id)
     assert decision.allowed is True  # released synchronously via `finally` on cancellation
 
 
@@ -524,19 +528,21 @@ async def test_sse_wrapper_releases_slot_when_run_terminates_mid_stream():
     from juli_backend.api.routes.agent_runs import _sse_stream_with_concurrency_slot
 
     gate = InMemoryAbuseLimitGate(sse_max_concurrent=1)
-    await gate.try_acquire_stream("shop-terminate")
+    shop_id = "shop-terminate"
+    user_id = "user-terminate"
+    await gate.try_acquire_stream(shop_id, user_id)
 
     async def _terminating_stream():
         yield "event: workflow.status\ndata: {}\n\n"
         yield "event: workflow.completed\ndata: {}\n\n"
 
     wrapped = _sse_stream_with_concurrency_slot(
-        _terminating_stream(), gate=gate, shop_id="shop-terminate"
+        _terminating_stream(), gate=gate, shop_id=shop_id, user_id=user_id
     )
     chunks = [chunk async for chunk in wrapped]
 
     assert len(chunks) == 2
-    decision = await gate.try_acquire_stream("shop-terminate")
+    decision = await gate.try_acquire_stream(shop_id, user_id)
     assert decision.allowed is True  # slot was released on normal completion
 
 
@@ -583,14 +589,16 @@ class TestCancelSurvivesTheStorm:
                 # 3. Drive the SSE concurrency bucket to exhaustion (one slot,
                 #    filled directly against the same live gate instance the
                 #    route resolves).
-                await tight_gate.try_acquire_stream(str(shop.id))
+                await tight_gate.try_acquire_stream(str(shop.id), str(user.id))
 
                 # Sanity: the storm is real before we check the safety valve.
                 assert approve_first.status_code == 202
                 assert approve_second.status_code == 429
                 assert confirm_first.status_code != 429
                 assert confirm_second.status_code == 429
-                assert (await tight_gate.try_acquire_stream(str(shop.id))).allowed is False
+                assert (
+                    await tight_gate.try_acquire_stream(str(shop.id), str(user.id))
+                ).allowed is False
 
                 # 4. Cancel must still succeed -- it never asks the exhausted
                 #    gate anything.

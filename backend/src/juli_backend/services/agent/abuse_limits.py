@@ -193,18 +193,20 @@ OPERATION_SSE = "sse"
 def log_abuse_limit_exceeded(
     route_logger: logging.Logger,
     *,
+    shop_id: str,
     user_id: str,
     operation: str,
     retry_after_seconds: int,
 ) -> None:
     """The security event this module's exhaustion paths raise (ADR-075
-    decision 4, amended by #1313 for per-user-session keying). Called by
-    the route at the point it turns a denied `AbuseLimitDecision` into
-    the `429`. Keyed by user_id (not shop_id alone) so each user-session
-    gets independent rate buckets."""
+    decision 4, amended by #1313 for per-user-session keying on compound key).
+    Called by the route at the point it turns a denied `AbuseLimitDecision`
+    into the `429`. Keyed by compound (shop_id, user_id) to preserve per-shop
+    containment while allowing per-user-session isolation within each shop."""
     route_logger.warning(
         ABUSE_LIMIT_EXCEEDED_EVENT,
         extra={
+            "shop_id": shop_id,
             "user_id": user_id,
             "operation": operation,
             "retry_after_seconds": retry_after_seconds,
@@ -227,10 +229,10 @@ class AbuseLimitDecision:
 
 
 class AbuseLimitGate(Protocol):
-    async def try_acquire_approve(self, user_id: str) -> AbuseLimitDecision: ...
-    async def try_acquire_confirmation(self, user_id: str) -> AbuseLimitDecision: ...
-    async def try_acquire_stream(self, user_id: str) -> AbuseLimitDecision: ...
-    async def release_stream(self, user_id: str) -> None: ...
+    async def try_acquire_approve(self, shop_id: str, user_id: str) -> AbuseLimitDecision: ...
+    async def try_acquire_confirmation(self, shop_id: str, user_id: str) -> AbuseLimitDecision: ...
+    async def try_acquire_stream(self, shop_id: str, user_id: str) -> AbuseLimitDecision: ...
+    async def release_stream(self, shop_id: str, user_id: str) -> None: ...
 
 
 # ---------------------------------------------------------------------------
@@ -243,14 +245,16 @@ class UnavailableAbuseLimitGate:
     store is configured. An unset `REDIS_URL` is "the backing store is
     unavailable", read exactly like a live Redis failure, never "no limit
     configured" (mirrors `refresh_cooldown.UnavailableRefreshCooldownGate`).
-    Keyed by user_id (not shop_id alone) for per-user-session buckets (#1313).
+    Keyed by compound (shop_id, user_id) for per-shop/per-user-session buckets
+    (ADR-075 decision 4, issue #1313).
     """
 
-    async def try_acquire_approve(self, user_id: str) -> AbuseLimitDecision:
+    async def try_acquire_approve(self, shop_id: str, user_id: str) -> AbuseLimitDecision:
         window = approve_rate_limit_window_seconds()
         logger.warning(
             "agent_abuse_limit_store_unconfigured",
             extra={
+                "shop_id": shop_id,
                 "user_id": user_id,
                 "operation": OPERATION_APPROVE,
                 "retry_after_seconds": window,
@@ -258,11 +262,12 @@ class UnavailableAbuseLimitGate:
         )
         return AbuseLimitDecision(allowed=False, retry_after_seconds=window)
 
-    async def try_acquire_confirmation(self, user_id: str) -> AbuseLimitDecision:
+    async def try_acquire_confirmation(self, shop_id: str, user_id: str) -> AbuseLimitDecision:
         window = confirmation_rate_limit_window_seconds()
         logger.warning(
             "agent_abuse_limit_store_unconfigured",
             extra={
+                "shop_id": shop_id,
                 "user_id": user_id,
                 "operation": OPERATION_CONFIRMATION,
                 "retry_after_seconds": window,
@@ -270,15 +275,20 @@ class UnavailableAbuseLimitGate:
         )
         return AbuseLimitDecision(allowed=False, retry_after_seconds=window)
 
-    async def try_acquire_stream(self, user_id: str) -> AbuseLimitDecision:
+    async def try_acquire_stream(self, shop_id: str, user_id: str) -> AbuseLimitDecision:
         retry = sse_retry_after_seconds()
         logger.warning(
             "agent_abuse_limit_store_unconfigured",
-            extra={"user_id": user_id, "operation": OPERATION_SSE, "retry_after_seconds": retry},
+            extra={
+                "shop_id": shop_id,
+                "user_id": user_id,
+                "operation": OPERATION_SSE,
+                "retry_after_seconds": retry,
+            },
         )
         return AbuseLimitDecision(allowed=False, retry_after_seconds=retry)
 
-    async def release_stream(self, user_id: str) -> None:
+    async def release_stream(self, shop_id: str, user_id: str) -> None:
         # Nothing was ever acquired against this gate -- release is a
         # harmless no-op, same as it would be for a user that never opened
         # a stream.
@@ -292,24 +302,26 @@ class UnavailableAbuseLimitGate:
 _KEY_PREFIX = "juli:agent:abuse_limit:"
 
 
-def _window_key(operation: str, user_id: str) -> str:
-    """Per-user-session window key (issue #1313, #1223)."""
-    return f"{_KEY_PREFIX}{operation}:{user_id}"
+def _window_key(operation: str, shop_id: str, user_id: str) -> str:
+    """Compound-key window: (shop_id, user_id) preserves per-shop containment
+    while allowing per-user-session isolation within that shop (ADR-075 decision 4,
+    issue #1313 AC)."""
+    return f"{_KEY_PREFIX}{operation}:{shop_id}:{user_id}"
 
 
-def _concurrency_key(user_id: str) -> str:
-    """Per-user-session concurrency key (issue #1313)."""
-    return f"{_KEY_PREFIX}sse_concurrency:{user_id}"
+def _concurrency_key(shop_id: str, user_id: str) -> str:
+    """Compound-key concurrency counter: (shop_id, user_id)."""
+    return f"{_KEY_PREFIX}sse_concurrency:{shop_id}:{user_id}"
 
 
 class RedisAbuseLimitGate:
     """Production gate: one shared `redis.asyncio` client (#927 -- same
     process-lifetime client `services.analytics_kpi_cache` warms and
-    closes), fixed-window INCR+EXPIRE counters keyed by user_id (not shop_id
-    alone), fail-closed on any Redis error. Per-user-session keying ensures
-    anonymous visitors don't cross-throttle (#1313). See the module docstring
-    for why this reimplements `RateLimiter`'s algorithm async-native rather
-    than importing that class.
+    closes), fixed-window INCR+EXPIRE counters keyed by compound (shop_id, user_id),
+    fail-closed on any Redis error. Compound keying preserves per-shop containment
+    (ADR-075 decision 4) while allowing per-user-session isolation within each shop
+    (#1313). See the module docstring for why this reimplements `RateLimiter`'s
+    algorithm async-native rather than importing that class.
     """
 
     def __init__(self, redis_client: Any) -> None:
@@ -331,15 +343,15 @@ class RedisAbuseLimitGate:
         ttl = int(ttl_raw) if isinstance(ttl_raw, int) and ttl_raw > 0 else fallback_seconds
         return ttl
 
-    async def try_acquire_approve(self, user_id: str) -> AbuseLimitDecision:
+    async def try_acquire_approve(self, shop_id: str, user_id: str) -> AbuseLimitDecision:
         from redis.exceptions import RedisError
 
         max_requests = approve_rate_limit_max_requests()
         window_seconds = approve_rate_limit_window_seconds()
         burst_max = approve_rate_limit_burst_max_requests()
         burst_window = approve_rate_limit_burst_window_seconds()
-        sustained_key = _window_key(OPERATION_APPROVE, user_id)
-        burst_key = _window_key("approve_burst", user_id)
+        sustained_key = _window_key(OPERATION_APPROVE, shop_id, user_id)
+        burst_key = _window_key("approve_burst", shop_id, user_id)
 
         try:
             sustained_count = await self._increment_window(sustained_key, window_seconds)
@@ -347,7 +359,12 @@ class RedisAbuseLimitGate:
         except RedisError as exc:
             logger.warning(
                 "agent_abuse_limit_store_unavailable",
-                extra={"user_id": user_id, "operation": OPERATION_APPROVE, "error": str(exc)},
+                extra={
+                    "shop_id": shop_id,
+                    "user_id": user_id,
+                    "operation": OPERATION_APPROVE,
+                    "error": str(exc),
+                },
             )
             return AbuseLimitDecision(allowed=False, retry_after_seconds=window_seconds)
 
@@ -359,19 +376,24 @@ class RedisAbuseLimitGate:
             return AbuseLimitDecision(allowed=False, retry_after_seconds=ttl)
         return AbuseLimitDecision(allowed=True, retry_after_seconds=0)
 
-    async def try_acquire_confirmation(self, user_id: str) -> AbuseLimitDecision:
+    async def try_acquire_confirmation(self, shop_id: str, user_id: str) -> AbuseLimitDecision:
         from redis.exceptions import RedisError
 
         max_requests = confirmation_rate_limit_max_requests()
         window_seconds = confirmation_rate_limit_window_seconds()
-        key = _window_key(OPERATION_CONFIRMATION, user_id)
+        key = _window_key(OPERATION_CONFIRMATION, shop_id, user_id)
 
         try:
             count = await self._increment_window(key, window_seconds)
         except RedisError as exc:
             logger.warning(
                 "agent_abuse_limit_store_unavailable",
-                extra={"user_id": user_id, "operation": OPERATION_CONFIRMATION, "error": str(exc)},
+                extra={
+                    "shop_id": shop_id,
+                    "user_id": user_id,
+                    "operation": OPERATION_CONFIRMATION,
+                    "error": str(exc),
+                },
             )
             return AbuseLimitDecision(allowed=False, retry_after_seconds=window_seconds)
 
@@ -380,11 +402,11 @@ class RedisAbuseLimitGate:
             return AbuseLimitDecision(allowed=False, retry_after_seconds=ttl)
         return AbuseLimitDecision(allowed=True, retry_after_seconds=0)
 
-    async def try_acquire_stream(self, user_id: str) -> AbuseLimitDecision:
+    async def try_acquire_stream(self, shop_id: str, user_id: str) -> AbuseLimitDecision:
         from redis.exceptions import RedisError
 
         max_streams = sse_max_concurrent_streams()
-        key = _concurrency_key(user_id)
+        key = _concurrency_key(shop_id, user_id)
 
         try:
             count = await self._redis.incr(key)
@@ -392,7 +414,12 @@ class RedisAbuseLimitGate:
         except RedisError as exc:
             logger.warning(
                 "agent_abuse_limit_store_unavailable",
-                extra={"user_id": user_id, "operation": OPERATION_SSE, "error": str(exc)},
+                extra={
+                    "shop_id": shop_id,
+                    "user_id": user_id,
+                    "operation": OPERATION_SSE,
+                    "error": str(exc),
+                },
             )
             return AbuseLimitDecision(allowed=False, retry_after_seconds=sse_retry_after_seconds())
 
@@ -404,10 +431,10 @@ class RedisAbuseLimitGate:
             return AbuseLimitDecision(allowed=False, retry_after_seconds=sse_retry_after_seconds())
         return AbuseLimitDecision(allowed=True, retry_after_seconds=0)
 
-    async def release_stream(self, user_id: str) -> None:
+    async def release_stream(self, shop_id: str, user_id: str) -> None:
         from redis.exceptions import RedisError
 
-        key = _concurrency_key(user_id)
+        key = _concurrency_key(shop_id, user_id)
         try:
             new_value = await self._redis.decr(key)
             if isinstance(new_value, int) and new_value < 0:
@@ -418,7 +445,12 @@ class RedisAbuseLimitGate:
         except RedisError as exc:
             logger.warning(
                 "agent_abuse_limit_release_failed",
-                extra={"user_id": user_id, "operation": OPERATION_SSE, "error": str(exc)},
+                extra={
+                    "shop_id": shop_id,
+                    "user_id": user_id,
+                    "operation": OPERATION_SSE,
+                    "error": str(exc),
+                },
             )
 
 
@@ -433,7 +465,8 @@ class InMemoryAbuseLimitGate:
     limit can be overridden independently (falls back to the real config
     functions when not given), matching
     `refresh_cooldown.InMemoryRefreshCooldownGate`'s override pattern.
-    Keyed by user_id for per-user-session buckets (#1313).
+    Keyed by compound (shop_id, user_id) for per-shop/per-user-session buckets
+    (ADR-075 decision 4, issue #1313).
     """
 
     def __init__(
@@ -480,7 +513,7 @@ class InMemoryAbuseLimitGate:
         _, expires_at = self._windows.get(key, (0, now + fallback_seconds))
         return max(int(expires_at - now), 1)
 
-    async def try_acquire_approve(self, user_id: str) -> AbuseLimitDecision:
+    async def try_acquire_approve(self, shop_id: str, user_id: str) -> AbuseLimitDecision:
         max_requests = self._resolve(self._approve_max, approve_rate_limit_max_requests)
         window_seconds = self._resolve(self._approve_window, approve_rate_limit_window_seconds)
         burst_max = self._resolve(self._approve_burst_max, approve_rate_limit_burst_max_requests)
@@ -488,8 +521,8 @@ class InMemoryAbuseLimitGate:
             self._approve_burst_window, approve_rate_limit_burst_window_seconds
         )
 
-        sustained_key = f"approve:{user_id}"
-        burst_key = f"approve_burst:{user_id}"
+        sustained_key = f"approve:{shop_id}:{user_id}"
+        burst_key = f"approve_burst:{shop_id}:{user_id}"
         sustained_count = self._bump_window(sustained_key, window_seconds)
         burst_count = self._bump_window(burst_key, burst_window)
 
@@ -499,29 +532,31 @@ class InMemoryAbuseLimitGate:
             return AbuseLimitDecision(False, self._ttl(sustained_key, window_seconds))
         return AbuseLimitDecision(True, 0)
 
-    async def try_acquire_confirmation(self, user_id: str) -> AbuseLimitDecision:
+    async def try_acquire_confirmation(self, shop_id: str, user_id: str) -> AbuseLimitDecision:
         max_requests = self._resolve(self._confirmation_max, confirmation_rate_limit_max_requests)
         window_seconds = self._resolve(
             self._confirmation_window, confirmation_rate_limit_window_seconds
         )
-        key = f"confirmation:{user_id}"
+        key = f"confirmation:{shop_id}:{user_id}"
         count = self._bump_window(key, window_seconds)
         if count > max_requests:
             return AbuseLimitDecision(False, self._ttl(key, window_seconds))
         return AbuseLimitDecision(True, 0)
 
-    async def try_acquire_stream(self, user_id: str) -> AbuseLimitDecision:
+    async def try_acquire_stream(self, shop_id: str, user_id: str) -> AbuseLimitDecision:
         max_streams = self._resolve(self._sse_max, sse_max_concurrent_streams)
         retry_after = self._resolve(self._sse_retry_after, sse_retry_after_seconds)
-        current = self._concurrency.get(user_id, 0)
+        key = f"{shop_id}:{user_id}"
+        current = self._concurrency.get(key, 0)
         if current + 1 > max_streams:
             return AbuseLimitDecision(False, retry_after)
-        self._concurrency[user_id] = current + 1
+        self._concurrency[key] = current + 1
         return AbuseLimitDecision(True, 0)
 
-    async def release_stream(self, user_id: str) -> None:
-        current = self._concurrency.get(user_id, 0)
-        self._concurrency[user_id] = max(current - 1, 0)
+    async def release_stream(self, shop_id: str, user_id: str) -> None:
+        key = f"{shop_id}:{user_id}"
+        current = self._concurrency.get(key, 0)
+        self._concurrency[key] = max(current - 1, 0)
 
 
 # ---------------------------------------------------------------------------

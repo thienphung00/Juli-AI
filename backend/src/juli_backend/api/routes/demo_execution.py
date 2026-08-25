@@ -90,18 +90,20 @@ async def approve_demo_decision(
 
     # ADR-075 decision 4 / #1223 / #1313: approve is run creation, so it
     # carries the "approve / run creation" bucket -- 5/hour, burst 2,
-    # per user-session (not per shop), checked before the ActionCard is
+    # per user-session on that shop (compound key preserves per-shop containment
+    # while allowing per-user-session isolation), checked before the ActionCard is
     # even resolved (an attacker probing nonexistent card ids must still be
     # throttled, not just successful approvals). Cancel
     # (`api/routes/agent_runs.py::cancel_run`) never calls this module at
     # all -- see `services.agent.abuse_limits`'s own docstring for why that
     # exemption is structural, not a fail-open branch here.
     limit_decision = await agent_abuse_limits.get_agent_abuse_limit_gate().try_acquire_approve(
-        str(user.id)
+        str(shop_id), str(user.id)
     )
     if not limit_decision.allowed:
         agent_abuse_limits.log_abuse_limit_exceeded(
             logger,
+            shop_id=str(shop_id),
             user_id=str(user.id),
             operation=agent_abuse_limits.OPERATION_APPROVE,
             retry_after_seconds=limit_decision.retry_after_seconds,
