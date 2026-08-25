@@ -85,6 +85,28 @@ def test_migration_satisfies_additive_gate():
     assert result.accepted, result.report()
 
 
+def test_migration_includes_update_grants():
+    """Migration must grant UPDATE on upsert and status-update tables.
+
+    Upserts use ShopScopedRepo.upsert() which sets attributes (UPDATE). Status
+    updates modify workflow_runs, action_cards, tiktok_credentials, tool_executions.
+    """
+    text = MIGRATION_PATH.read_text(encoding="utf-8")
+    # Verify UPDATE is mentioned in the grant map for expected tables
+    assert '"orders": ("SELECT", "INSERT", "UPDATE")' in text
+    assert '"products": ("SELECT", "INSERT", "UPDATE")' in text
+    assert '"action_cards": ("SELECT", "INSERT", "UPDATE")' in text
+    assert '"workflow_runs": ("SELECT", "INSERT", "UPDATE")' in text
+    assert '"tool_executions": ("SELECT", "INSERT", "UPDATE")' in text
+    assert '"tiktok_credentials": ("SELECT", "INSERT", "UPDATE")' in text
+
+
+def test_migration_webhook_raw_events_still_insert_only():
+    """webhook_raw_events must remain INSERT-only (no tenant lineage)."""
+    text = MIGRATION_PATH.read_text(encoding="utf-8")
+    assert '"webhook_raw_events": ("INSERT",)' in text
+
+
 def test_migration_still_has_single_head():
     """Alembic revision chain has one head — this migration does not branch it."""
     from alembic.config import Config

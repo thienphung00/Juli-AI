@@ -1653,24 +1653,56 @@ def test_juli_app_has_schema_usage_grants(postgres_at_head: Engine):
 
 @requires_postgres
 def test_juli_app_public_tables_have_select_insert(postgres_at_head: Engine):
-    """All expected public tables grant SELECT and INSERT to juli_app.
+    """READ-ONLY tables grant SELECT and INSERT to juli_app.
 
     Proves the grant surface exactly: for each table in the explicit map,
     the granted verbs match and no other privileges are granted.
     """
-    # This is a subset check; the actual map is comprehensive
+    # This is a subset check of read-only tables; the actual map includes upsert tables
     expected_grants = {
         "users": {"SELECT", "INSERT"},
         "shops": {"SELECT", "INSERT"},
-        "orders": {"SELECT", "INSERT"},
-        "products": {"SELECT", "INSERT"},
     }
 
     with postgres_at_head.connect() as conn:
         for table, expected_verbs in expected_grants.items():
             result = conn.execute(
                 text("""
-                    SELECT privilege FROM information_schema.role_table_grants
+                    SELECT privilege_type FROM information_schema.role_table_grants
+                    WHERE grantee = 'juli_app'
+                    AND table_schema = 'public'
+                    AND table_name = :table_name
+                """),
+                {"table_name": table},
+            ).fetchall()
+            granted_verbs = {row[0] for row in result}
+            assert granted_verbs == expected_verbs, (
+                f"public.{table}: expected {expected_verbs}, got {granted_verbs}"
+            )
+
+
+@requires_postgres
+def test_juli_app_upsert_tables_have_update_grant(postgres_at_head: Engine):
+    """UPSERT and status-update tables grant SELECT, INSERT, and UPDATE to juli_app.
+
+    Upsert tables use ShopScopedRepo.upsert() (OrdersRepo, ProductsRepo, etc.) which
+    performs UPDATE. Status-update tables (workflow_runs, action_cards, tiktok_credentials,
+    tool_executions) modify rows via attribute setattr() and flush().
+    """
+    upsert_tables = {
+        "orders": {"SELECT", "INSERT", "UPDATE"},
+        "products": {"SELECT", "INSERT", "UPDATE"},
+        "action_cards": {"SELECT", "INSERT", "UPDATE"},
+        "workflow_runs": {"SELECT", "INSERT", "UPDATE"},
+        "tiktok_credentials": {"SELECT", "INSERT", "UPDATE"},
+        "tool_executions": {"SELECT", "INSERT", "UPDATE"},
+    }
+
+    with postgres_at_head.connect() as conn:
+        for table, expected_verbs in upsert_tables.items():
+            result = conn.execute(
+                text("""
+                    SELECT privilege_type FROM information_schema.role_table_grants
                     WHERE grantee = 'juli_app'
                     AND table_schema = 'public'
                     AND table_name = :table_name
@@ -1693,7 +1725,7 @@ def test_juli_app_webhook_raw_events_insert_only(postgres_at_head: Engine):
     with postgres_at_head.connect() as conn:
         result = conn.execute(
             text("""
-                SELECT privilege FROM information_schema.role_table_grants
+                SELECT privilege_type FROM information_schema.role_table_grants
                 WHERE grantee = 'juli_app'
                 AND table_schema = 'public'
                 AND table_name = 'webhook_raw_events'
@@ -1750,7 +1782,7 @@ def test_juli_app_bronze_tables_insert_only(postgres_at_head: Engine):
         for table in bronze_tables:
             result = conn.execute(
                 text("""
-                    SELECT privilege FROM information_schema.role_table_grants
+                    SELECT privilege_type FROM information_schema.role_table_grants
                     WHERE grantee = 'juli_app'
                     AND table_schema = 'bronze'
                     AND table_name = :table_name
@@ -1765,13 +1797,13 @@ def test_juli_app_bronze_tables_insert_only(postgres_at_head: Engine):
 
 @requires_postgres
 def test_juli_app_silver_tables_have_select_insert(postgres_at_head: Engine):
-    """Silver fact tables grant SELECT and INSERT to juli_app."""
+    """Silver fact tables grant SELECT, INSERT, and UPDATE to juli_app (upsert tables)."""
     silver_tables = ["orders", "returns"]
     with postgres_at_head.connect() as conn:
         for table in silver_tables:
             result = conn.execute(
                 text("""
-                    SELECT privilege FROM information_schema.role_table_grants
+                    SELECT privilege_type FROM information_schema.role_table_grants
                     WHERE grantee = 'juli_app'
                     AND table_schema = 'silver'
                     AND table_name = :table_name
@@ -1779,44 +1811,45 @@ def test_juli_app_silver_tables_have_select_insert(postgres_at_head: Engine):
                 {"table_name": table},
             ).fetchall()
             granted_verbs = {row[0] for row in result}
-            assert granted_verbs == {"SELECT", "INSERT"}, (
-                f"silver.{table}: expected {{'SELECT', 'INSERT'}}, got {granted_verbs}"
+            assert granted_verbs == {"SELECT", "INSERT", "UPDATE"}, (
+                f"silver.{table}: expected {{'SELECT', 'INSERT', 'UPDATE'}}, got {granted_verbs}"
             )
 
 
 @requires_postgres
 def test_juli_app_gold_tables_have_select_insert(postgres_at_head: Engine):
-    """Gold KPI tables grant SELECT and INSERT to juli_app."""
+    """Gold KPI tables grant SELECT, INSERT, and UPDATE to juli_app (upsert tables)."""
     with postgres_at_head.connect() as conn:
         result = conn.execute(
             text("""
-                SELECT privilege FROM information_schema.role_table_grants
+                SELECT privilege_type FROM information_schema.role_table_grants
                 WHERE grantee = 'juli_app'
                 AND table_schema = 'gold'
                 AND table_name = 'kpi_envelopes'
             """)
         ).fetchall()
     granted_verbs = {row[0] for row in result}
-    assert granted_verbs == {"SELECT", "INSERT"}, (
-        f"gold.kpi_envelopes: expected {{'SELECT', 'INSERT'}}, got {granted_verbs}"
+    assert granted_verbs == {"SELECT", "INSERT", "UPDATE"}, (
+        f"gold.kpi_envelopes: expected {{'SELECT', 'INSERT', 'UPDATE'}}, got {granted_verbs}"
     )
 
 
 @requires_postgres
 def test_juli_app_ops_tables_have_select_insert(postgres_at_head: Engine):
-    """Ops analytics_backfill_partitions grants SELECT and INSERT to juli_app."""
+    """Ops analytics_backfill_partitions grants SELECT, INSERT, and UPDATE to juli_app (upsert)."""
     with postgres_at_head.connect() as conn:
         result = conn.execute(
             text("""
-                SELECT privilege FROM information_schema.role_table_grants
+                SELECT privilege_type FROM information_schema.role_table_grants
                 WHERE grantee = 'juli_app'
                 AND table_schema = 'ops'
                 AND table_name = 'analytics_backfill_partitions'
             """)
         ).fetchall()
     granted_verbs = {row[0] for row in result}
-    assert granted_verbs == {"SELECT", "INSERT"}, (
-        f"ops.analytics_backfill_partitions: expected {{'SELECT', 'INSERT'}}, got {granted_verbs}"
+    expected = {"SELECT", "INSERT", "UPDATE"}
+    assert granted_verbs == expected, (
+        f"ops.analytics_backfill_partitions: expected {expected}, got {granted_verbs}"
     )
 
 

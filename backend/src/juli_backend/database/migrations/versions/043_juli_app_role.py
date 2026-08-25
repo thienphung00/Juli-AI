@@ -15,7 +15,9 @@ in this slice — the cutover to `juli_app` happens in gate #1339, after RLS is 
 
 The migration grants:
 - USAGE on the schemas the runtime reads (public, bronze, silver, ops, gold)
-- Table-level SELECT/INSERT/DELETE per table from an explicit map, never ALL TABLES IN SCHEMA
+- Table-level SELECT/INSERT/UPDATE per table from an explicit map, never ALL TABLES IN SCHEMA
+- Upsert tables (orders, products, inventory_items, etc.) receive UPDATE for row mutation
+- Status-update tables (workflow_runs, action_cards, tiktok_credentials, tool_executions) receive UPDATE
 - webhook_raw_events gets INSERT only (no tenant lineage, no read grant per ADR-085 decision 3)
 - No ALTER DEFAULT PRIVILEGES — a future table must be granted deliberately
 
@@ -39,34 +41,46 @@ depends_on: str | Sequence[str] | None = None
 ROLE_NAME = "juli_app"
 SCHEMAS = ("public", "bronze", "silver", "ops", "gold")
 
-# Explicit per-table grant map: table -> (SELECT?, INSERT?)
-# Derived from backend repositories; webhook_raw_events has INSERT only
+# Explicit per-table grant map: table -> verbs tuple
+# Derived from backend repositories; webhook_raw_events has INSERT only (no tenant lineage, ADR-085 decision 3)
+# SELECT+INSERT: read tables or insert audit/event rows
+# SELECT+INSERT+UPDATE: upsert tables (#517 OrdersRepo, #589 OrderItemsRepo, #626 ReturnsRepo,
+#   #631 ProductsRepo, #718 InventoryRepo, #723 SettlementsRepo, #733 CreatorsRepo,
+#   #738 LivestreamsRepo, #743 AnalyticsPerformanceRepo, #914 ActionCardsRepo) or status updates
+#   (tiktok_credentials.update_tokens, tool_executions.update_status, workflow_runs status changes,
+#   action_cards status changes)
 GRANT_MAP = {
     "public": {
-        # SELECT and INSERT on all public tables except webhook_raw_events
+        # SELECT+INSERT+UPDATE on upsert tables (products may use ON CONFLICT DO UPDATE)
+        "tiktok_credentials": ("SELECT", "INSERT", "UPDATE"),  # update_tokens() repos.py:228
+        "orders": ("SELECT", "INSERT", "UPDATE"),  # upsert() OrdersRepo repos.py:517
+        "products": ("SELECT", "INSERT", "UPDATE"),  # upsert() ProductsRepo repos.py:631
+        "order_items": ("SELECT", "INSERT", "UPDATE"),  # upsert() OrderItemsRepo repos.py:589
+        "inventory_items": ("SELECT", "INSERT", "UPDATE"),  # upsert() InventoryRepo repos.py:718
+        "settlements": ("SELECT", "INSERT", "UPDATE"),  # upsert() SettlementsRepo repos.py:723
+        "creators": ("SELECT", "INSERT", "UPDATE"),  # upsert() CreatorsRepo repos.py:733
+        "livestreams": ("SELECT", "INSERT", "UPDATE"),  # upsert() LivestreamsRepo repos.py:738
+        "analytics_performance_intervals": ("SELECT", "INSERT", "UPDATE"),  # upsert() repos.py:743
+        "action_cards": ("SELECT", "INSERT", "UPDATE"),  # upsert() ActionCardsRepo repos.py:914
+        "tool_executions": ("SELECT", "INSERT", "UPDATE"),  # update_status() repos.py:1322
+        "workflow_runs": (
+            "SELECT",
+            "INSERT",
+            "UPDATE",
+        ),  # status updates conversation_store.py:283-290
+        "returns": ("SELECT", "INSERT", "UPDATE"),  # upsert() ReturnsRepo repos.py:626
+        # SELECT+INSERT on other public tables
         "users": ("SELECT", "INSERT"),
         "shops": ("SELECT", "INSERT"),
-        "tiktok_credentials": ("SELECT", "INSERT"),
         "tiktok_sync_state": ("SELECT", "INSERT"),
-        "orders": ("SELECT", "INSERT"),
-        "products": ("SELECT", "INSERT"),
-        "order_items": ("SELECT", "INSERT"),
-        "inventory_items": ("SELECT", "INSERT"),
-        "settlements": ("SELECT", "INSERT"),
-        "creators": ("SELECT", "INSERT"),
-        "livestreams": ("SELECT", "INSERT"),
-        "analytics_performance_intervals": ("SELECT", "INSERT"),
-        "alert_configs": ("SELECT", "INSERT"),
-        "alert_history": ("SELECT", "INSERT"),
         "workflow_webhook_signals": ("SELECT", "INSERT"),
-        "workflow_runs": ("SELECT", "INSERT"),
         "workflow_run_events": ("SELECT", "INSERT"),
         "run_confirmations": ("SELECT", "INSERT"),
-        "tool_executions": ("SELECT", "INSERT"),
         "workflow_outcome_records": ("SELECT", "INSERT"),
         "impact_readings": ("SELECT", "INSERT"),
-        "action_cards": ("SELECT", "INSERT"),
         "action_card_approvals": ("SELECT", "INSERT"),
+        "alert_configs": ("SELECT", "INSERT"),
+        "alert_history": ("SELECT", "INSERT"),
         "recommendations": ("SELECT", "INSERT"),
         "campaigns": ("SELECT", "INSERT"),
         "graph_edges": ("SELECT", "INSERT"),
@@ -74,7 +88,6 @@ GRANT_MAP = {
         "demo_execution_records": ("SELECT", "INSERT"),
         "analytics_kpi_envelopes": ("SELECT", "INSERT"),
         "processed_events": ("SELECT", "INSERT"),
-        "returns": ("SELECT", "INSERT"),
         # INSERT only on webhook_raw_events (no tenant lineage, ADR-085 decision 3)
         "webhook_raw_events": ("INSERT",),
     },
@@ -86,17 +99,21 @@ GRANT_MAP = {
         "live_hours_raw_payloads": ("INSERT",),
     },
     "silver": {
-        # SELECT and INSERT on silver fact tables
-        "orders": ("SELECT", "INSERT"),
-        "returns": ("SELECT", "INSERT"),
+        # SELECT+INSERT+UPDATE on silver fact tables (upsert path)
+        "orders": ("SELECT", "INSERT", "UPDATE"),  # upsert() via OrdersRepo repos.py:517
+        "returns": ("SELECT", "INSERT", "UPDATE"),  # upsert() via ReturnsRepo repos.py:626
     },
     "ops": {
-        # SELECT and INSERT on analytics backfill state
-        "analytics_backfill_partitions": ("SELECT", "INSERT"),
+        # SELECT+INSERT+UPDATE on analytics_backfill_partitions (upsert path)
+        "analytics_backfill_partitions": ("SELECT", "INSERT", "UPDATE"),  # upsert() repos.py
     },
     "gold": {
-        # SELECT and INSERT on KPI envelopes
-        "kpi_envelopes": ("SELECT", "INSERT"),
+        # SELECT+INSERT on KPI envelopes (upsert path)
+        "kpi_envelopes": (
+            "SELECT",
+            "INSERT",
+            "UPDATE",
+        ),  # upsert() GoldKpiEnvelopesRepo repos.py:816
     },
 }
 
@@ -176,22 +193,26 @@ def downgrade() -> None:
     juli_app, which is correct — the runbook must say to cut DATABASE_URL back
     to 'postgres' before downgrading.
     """
-    # Revoke table-level privileges
-    _revoke_table_privileges()
-
-    # Revoke USAGE on all runtime schemas
-    for schema in SCHEMAS:
-        sql = f"""
-DO $revoke_schema_usage$
+    # Drop the role; fails loudly if sessions are connected as juli_app.
+    # Revoke all privileges from the role on all objects in all schemas,
+    # then drop the role. Use comprehensive revoke pattern to handle any privilege grants.
+    sql = f"""
+DO $drop_role$
+DECLARE
+  r RECORD;
 BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = '{schema}') THEN
-    REVOKE USAGE ON SCHEMA {schema} FROM {ROLE_NAME};
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{ROLE_NAME}') THEN
+    -- Revoke all privileges on all tables in all schemas (for each schema that exists)
+    FOR r IN
+      SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ('public', 'bronze', 'silver', 'ops', 'gold')
+    LOOP
+      EXECUTE 'REVOKE ALL ON ALL TABLES IN SCHEMA ' || r.schema_name || ' FROM {ROLE_NAME}';
+      EXECUTE 'REVOKE USAGE ON SCHEMA ' || r.schema_name || ' FROM {ROLE_NAME}';
+    END LOOP;
+    -- Drop the role itself
+    DROP ROLE {ROLE_NAME};
   END IF;
 END
-$revoke_schema_usage$;
-"""  # nosec B608 — schema/role are fixed module constants
-        op.execute(sql)
-
-    # Drop the role; fails loudly if sessions are connected as juli_app
-    sql = f"DROP ROLE IF EXISTS {ROLE_NAME};"  # nosec B608 — role is a fixed constant
+$drop_role$;
+"""  # nosec B608 — role is a fixed constant
     op.execute(sql)
