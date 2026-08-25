@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.ai.forecasting import compute_reorder_quantity, get_low_stock_risks
-from juli_backend.api.tenant_context_middleware import get_active_shop_and_set_context
+from juli_backend.api.dependencies import get_active_shop
 from juli_backend.database import Shop, get_session
 from juli_backend.repositories.repos import ActionCardsRepo
 from juli_backend.services.action_cards import (
@@ -87,7 +87,7 @@ class ActionCardInputsResponse(BaseModel):
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def refresh_action_cards(
-    shop: Shop = Depends(get_active_shop_and_set_context),
+    shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
 ) -> ActionCardRefreshResponse:
     """Enqueue manual refresh — never runs the pipeline inline.
@@ -127,7 +127,7 @@ async def refresh_action_cards(
 
 @router.get("", response_model=ActionCardsListResponse)
 async def list_action_cards(
-    shop: Shop = Depends(get_active_shop_and_set_context),
+    shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
 ) -> ActionCardsListResponse:
     """Return persisted action cards for the active shop — no regeneration."""
@@ -142,7 +142,7 @@ async def list_action_cards(
 )
 async def get_action_card_inputs(
     workflow_key: str,
-    shop: Shop = Depends(get_active_shop_and_set_context),
+    shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
 ) -> ActionCardInputsResponse:
     """Compute on-demand reorder inputs for a workflow.

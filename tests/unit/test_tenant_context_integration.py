@@ -13,11 +13,11 @@ from juli_backend.database import Shop, User, get_session
 
 @pytest.mark.asyncio
 async def test_real_route_sets_tenant_context_via_middleware():
-    """AC: Real route via TestClient with middleware proves GUC is set via direct apply.
+    """AC: Real route via TestClient proves GUC is set via get_active_shop resolver.
 
-    Drives an authenticated request through the middleware dependency
-    (get_active_shop_and_set_context) and verifies that SET LOCAL
-    app.current_shop_id is applied to the request's session.
+    Drives an authenticated request through get_active_shop dependency
+    and verifies that SET LOCAL app.current_shop_id is applied to the
+    request's session (issue #1327, ADR-085 decision 2).
     """
     import os
 
@@ -76,13 +76,11 @@ async def test_real_route_sets_tenant_context_via_middleware():
         from httpx import ASGITransport
         from sqlalchemy import text
 
-        from juli_backend.api.tenant_context_middleware import (
-            get_active_shop_and_set_context,
-        )
+        from juli_backend.api.dependencies import get_active_shop
 
         @app.get("/test-guc-check")
         async def test_guc_check(
-            shop: Shop = Depends(get_active_shop_and_set_context),
+            shop: Shop = Depends(get_active_shop),
             session: AsyncSession = Depends(get_session),
         ):
             """Test route that returns current_setting('app.current_shop_id')."""
@@ -103,12 +101,12 @@ async def test_real_route_sets_tenant_context_via_middleware():
             )
             data = response.json()
 
-            # Assert the GUC was set by the middleware
-            assert data["guc_value"] is not None, "GUC should be set by middleware"
+            # Assert the GUC was set by get_active_shop
+            assert data["guc_value"] is not None, "GUC should be set by get_active_shop"
             assert data["guc_is_set"], (
                 f"GUC value {data['guc_value']} does not match shop_id {data['shop_id']}"
             )
-            assert data["guc_value"] == data["shop_id"], "GUC was set correctly by middleware apply"
+            assert data["guc_value"] == data["shop_id"], "GUC was set correctly via get_active_shop"
 
     finally:
         async with engine.begin() as conn:
@@ -133,17 +131,30 @@ async def test_celery_task_wrapper_decorator_exists():
     assert "task_with_tenant_context" != None
 
 
-def test_system_scope_call_sites_exact_set():
-    """Enumeration test: system_scope() call sites are exactly these five beat families."""
+def test_get_active_shop_applies_tenant_context():
+    """Structural test: get_active_shop applies tenant context to session.
 
-    expected_call_sites = {
-        "credential_refresh_beat",  # workers/tasks/credential_refresh_beat.py
-        "cdp_batch_reconcile",  # workers/tasks/cdp_batch_reconcile.py
-        "analytics_backfill_topup",  # workers/tasks/analytics_backfill_topup.py
-        "impact_reader",  # workers/tasks/impact_reader.py
-        "reaper",  # workers/tasks/reaper.py
-    }
+    Enforces that api/dependencies.py::get_active_shop calls
+    _apply_tenant_context_to_session, so future edits that drop this call
+    fail the test. This ensures the seam is not opt-in and is correctly
+    invisible to all routes already depending on get_active_shop.
+    """
+    import inspect
 
-    # This is a placeholder for grep-based enumeration
-    # Real test: grep backend/src for system_scope( calls and assert set matches
-    assert len(expected_call_sites) == 5, "All five beat families must be represented"
+    from juli_backend.api.dependencies import get_active_shop
+
+    # Get the source code of get_active_shop
+    source = inspect.getsource(get_active_shop)
+
+    # Check that it references _apply_tenant_context_to_session
+    assert "_apply_tenant_context_to_session" in source, (
+        "get_active_shop must call _apply_tenant_context_to_session "
+        "(issue #1327, ADR-085 decision 2) to apply tenant context "
+        "transparently to all routes"
+    )
+
+    # Check that it also calls set_tenant_context for the contextvar path
+    assert "set_tenant_context" in source, (
+        "get_active_shop must call set_tenant_context for Celery task paths "
+        "(issue #1327, ADR-085 decision 2)"
+    )

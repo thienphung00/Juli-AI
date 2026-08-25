@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.tenant_context_middleware import get_active_shop_and_set_context
+from juli_backend.api.dependencies import get_active_shop
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, ShopsRepo, User, get_session
 
@@ -36,7 +36,7 @@ async def list_shops(
 
 @router.get("/me", response_model=ShopResponse)
 async def get_current_shop(
-    shop: Shop = Depends(get_active_shop_and_set_context),
+    shop: Shop = Depends(get_active_shop),
 ) -> Shop:
     """Return the shop identified by the X-Shop-Id header."""
     return shop

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.tenant_context_middleware import get_active_shop_and_set_context
+from juli_backend.api.dependencies import get_active_shop
 from juli_backend.database import NotFound, Shop, get_session
 from juli_backend.repositories.repos import ToolExecutionsRepo
 from juli_backend.services.execution.dispatch import enqueue_approved_tool
@@ -60,7 +60,7 @@ class ExecutionStatusResponse(BaseModel):
 @router.post("", response_model=ExecutionEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
 async def enqueue_execution(
     body: ExecutionEnqueueRequest,
-    shop: Shop = Depends(get_active_shop_and_set_context),
+    shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
 ) -> ExecutionEnqueueResponse:
     """Enqueue an approved tool call — never executes inline in the HTTP handler."""
@@ -105,7 +105,7 @@ async def enqueue_execution(
 @router.get("/{execution_id}", response_model=ExecutionStatusResponse)
 async def get_execution_status(
     execution_id: uuid.UUID,
-    shop: Shop = Depends(get_active_shop_and_set_context),
+    shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
 ) -> ExecutionStatusResponse:
     """Return persisted execution status and outcome."""

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.tenant_context_middleware import get_active_shop_and_set_context
+from juli_backend.api.dependencies import get_active_shop
 from juli_backend.database import NotFound, Shop, get_session
 from juli_backend.services.operations.outcome_tracking import load_workflow_outcome_metrics
 
@@ -26,7 +26,7 @@ class WorkflowOutcomeMetricsResponse(BaseModel):
 @router.get("/{approval_id}", response_model=WorkflowOutcomeMetricsResponse)
 async def get_workflow_outcome_metrics(
     approval_id: str,
-    shop: Shop = Depends(get_active_shop_and_set_context),
+    shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
 ) -> WorkflowOutcomeMetricsResponse:
     """Return persisted workflow_outcome_metrics for internal validation."""
