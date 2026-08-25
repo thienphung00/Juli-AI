@@ -97,6 +97,14 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/runs",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/demo/runs/{run_id}/cancel",
       "methods": [
         "POST"

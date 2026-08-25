@@ -1,26 +1,28 @@
 {
-  "artifactType": "status",
-  "id": "status-issue-1331",
+  "gateVersion": 1,
   "issue": 1331,
-  "status": "PASS",
-  "timestamp": "2026-08-25T16:00:00Z",
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend",
+      "docs"
+    ]
+  },
   "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1331.json",
+    "ownerSignoffPresent": true,
+    "sha256": "57d494d56d197f65c0218665523f8cb3e7dee3e5127d250ebd2b97f775960002",
+    "signoffRequired": false,
     "status": "PASS",
-    "path": "agent-runtime/artifacts/reviews/review-issue-1331.json"
+    "warningsAcknowledged": true
   },
+  "timestamp": "2026-08-25T09:18:02Z",
   "validation": {
-    "status": "PASS",
-    "path": "agent-runtime/artifacts/validation/validation-issue-1331.json",
-    "readyForShip": true
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1331.json",
+    "sha256": "8632b31730feec027a81183ec9aa4666e89173a450c6c38b22750548c4ce7f9c",
+    "status": "PASS"
   },
-  "summaryByPhase": {
-    "intent-review": {
-      "status": "PASS",
-      "path": "agent-runtime/artifacts/intent-reviews/intent-review-issue-1331.json"
-    },
-    "implementation": {
-      "status": "complete",
-      "path": "agent-runtime/artifacts/implementations/implementation-issue-1331.json"
-    }
-  }
+  "wave": "wave-w7"
 }
