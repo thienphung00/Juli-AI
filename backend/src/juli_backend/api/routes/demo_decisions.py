@@ -110,6 +110,7 @@ class DemoDecisionItem(BaseModel):
     priority: int
     computed_at: str | None = None
     surfaced_at: str | None = None
+    is_executable: bool
     recommendation: DemoDecisionRecommendation
 
 
