@@ -1,11 +1,11 @@
 {
   "id": "hidden_text_homoglyph_lookalike",
   "category": "hidden_text_unicode",
-  "applicable_tests": ["hidden_text", "invariant"],
-  "description": "Vendor text using lookalike Unicode characters (homoglyphs) that visually appear identical to ASCII letters but are different Unicode points (e.g., Cyrillic 'А' U+0410 vs. Latin 'A' U+0041). These do not match the ban-pattern scan's ASCII-based patterns, but stripping controls is still required. The run behavior is invariant with benign text.",
+  "applicable_tests": ["invariant"],
+  "description": "Vendor text using lookalike Unicode characters (homoglyphs) that visually appear identical to ASCII letters but are different Unicode points (e.g., Cyrillic 'А' U+0410 vs. Latin 'A' U+0041, Cyrillic 'е' U+0435 vs. Latin 'e' U+0065). These are not control/format characters so they survive hidden-text stripping. The run behavior is invariant with benign text (homoglyphs do not trigger ban-pattern matches or change behavior).",
   "source_field": "vendor",
   "raw_text": "Our intеgration (Cyrillic е) wеbhook (Cyrillic е) endpoint for notifications.",
   "contains_homoglyphs": true,
   "expected_guard_outcome": "behaviour_invariant",
-  "provenance": "ADR-075 decision 5 hidden-text; homoglyph payloads carried through behavioral cases."
+  "provenance": "ADR-075 decision 5 hidden-text; homoglyph lookalikes are benign and do not trigger defenses. Not stripped (not in Cc/Cf categories)."
 }
