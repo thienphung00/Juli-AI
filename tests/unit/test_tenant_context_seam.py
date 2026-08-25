@@ -252,14 +252,71 @@ async def test_system_scope_exempts_from_fail_closed():
 
 
 @pytest.mark.asyncio
-async def test_celery_task_tenant_resolution():
+async def test_celery_task_tenant_resolution(monkeypatch):
     """AC5: Celery task resolves its tenant from the run's shop and fails
     closed when the run cannot be resolved — it does not fall back to any
-    default or reference shop."""
-    # This test is covered by task-specific tests in test_agent_workflow_task_wiring.py
-    # and test_worker_tasks.py — it verifies that a task that cannot resolve
-    # its run fails before any SQL.
-    pytest.skip("Covered by task-specific integration tests")
+    default or reference shop.
+
+    Proves:
+    1. @task_with_tenant_context() decorator sets the context from resolved run
+    2. Fail-closed: if the run cannot be resolved, raises TenantContextTaskError
+       BEFORE executing the task body
+    """
+    from juli_backend.database.tenant_context import (
+        get_tenant_context,
+    )
+    from juli_backend.workers.tenant_context_wrapper import (
+        TenantContextTaskError,
+        task_with_tenant_context,
+    )
+
+    shop_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    run_id = uuid.uuid4()
+
+    # Test 1: task_with_tenant_context decorator sets context when resolution succeeds
+    async def mock_resolve_success(run_id_arg):
+        if run_id_arg == run_id:
+            return shop_id, user_id
+        raise TenantContextTaskError(
+            f"Cannot resolve tenant context: run_id={run_id_arg} not found"
+        )
+
+    monkeypatch.setattr(
+        "juli_backend.workers.tenant_context_wrapper.resolve_task_tenant_context",
+        mock_resolve_success,
+    )
+
+    @task_with_tenant_context()
+    async def sample_task(run_id_arg):
+        # Inside the task, context should be set
+        stored_shop, stored_user = get_tenant_context()
+        assert stored_shop == shop_id, f"Expected shop_id={shop_id}, got {stored_shop}"
+        assert stored_user == user_id, f"Expected user_id={user_id}, got {stored_user}"
+        # Task body executes with context set
+        return "success"
+
+    # Call the task function synchronously
+    result = await sample_task(run_id)
+    assert result == "success"
+
+    # Test 2: Fail-closed when run doesn't exist
+    fake_run_id = uuid.uuid4()
+    task_body_executed = False
+
+    @task_with_tenant_context()
+    async def failing_task(run_id_arg):
+        # This should never be reached when context resolution fails
+        nonlocal task_body_executed
+        task_body_executed = True
+        return "should not reach"
+
+    # Task should raise TenantContextTaskError before executing task body
+    with pytest.raises(TenantContextTaskError) as exc_info:
+        await failing_task(fake_run_id)
+
+    assert "Cannot resolve tenant context" in str(exc_info.value)
+    assert task_body_executed is False, "Task body should not execute when context resolution fails"
 
 
 # ============================================================================
@@ -269,7 +326,12 @@ async def test_celery_task_tenant_resolution():
 
 def test_system_scope_call_sites_enumerated():
     """AC6: A test enumerates the system_scope() call sites so the
-    exemption list cannot grow silently."""
+    exemption list cannot grow silently.
+
+    Walks backend/src recursively to find all files containing system_scope(
+    calls and asserts they match the expected set of beat tasks."""
+    import re
+    from pathlib import Path
 
     # These are the system_scope() call sites at the time of issue #1327
     # Any new call site must be added here explicitly.
@@ -277,13 +339,48 @@ def test_system_scope_call_sites_enumerated():
         "workers/tasks/impact_reader.py",
         "workers/tasks/credential_refresh_beat.py",
         "workers/tasks/reaper.py",
-        # Future: backfill top-up, reconcile, other fleet-wide beats
+        "workers/tasks/analytics_backfill_topup.py",
+        "workers/tasks/mock_analytics_reconcile.py",
     }
 
-    # This test is a placeholder that will be filled in after the
-    # actual system_scope() implementation is created.
-    # For now, it documents what the enumeration should track.
-    assert isinstance(expected_call_sites, set)
+    # Walk backend/src/juli_backend and find all files with system_scope( calls
+    # But exclude database/tenant_context.py which defines system_scope
+    actual_call_sites = set()
+    backend_src = Path(__file__).parent.parent.parent / "backend" / "src" / "juli_backend"
+
+    for filepath in backend_src.rglob("*.py"):
+        try:
+            content = filepath.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+
+        # Skip the definition file
+        if str(filepath).endswith("database/tenant_context.py"):
+            continue
+
+        # Look for "system_scope(" pattern (call site, not definition)
+        if re.search(r"system_scope\s*\(", content):
+            # Make path relative to backend/src/juli_backend
+            rel_path = filepath.relative_to(backend_src)
+            # Construct path as it would appear in module structure
+            # Convert to posix-style path relative to workers/tasks if applicable
+            full_rel = str(rel_path).replace("\\", "/")
+            if "workers/tasks" in full_rel:
+                # Extract just the workers/tasks/... part
+                idx = full_rel.index("workers/tasks")
+                actual_call_sites.add(full_rel[idx:])
+            else:
+                # For any other files using system_scope (database.py, etc)
+                actual_call_sites.add(full_rel)
+
+    # Assert the actual call sites match expected
+    assert actual_call_sites == expected_call_sites, (
+        f"system_scope() call sites mismatch.\n"
+        f"Expected: {sorted(expected_call_sites)}\n"
+        f"Actual:   {sorted(actual_call_sites)}\n"
+        f"Missing:  {sorted(expected_call_sites - actual_call_sites)}\n"
+        f"Extra:    {sorted(actual_call_sites - expected_call_sites)}"
+    )
 
 
 # ============================================================================
@@ -296,8 +393,43 @@ def test_dependencies_not_edited():
 
     Verified by review, declared here as a lock.
     """
-    # This is a documentation constraint checked by review, not a code assertion
-    pass
+    import subprocess
+    from pathlib import Path
+
+    # Get the merge base with the parent branch (feature/w7-wave)
+    try:
+        merge_base = subprocess.check_output(
+            ["git", "merge-base", "HEAD", "origin/feature/w7-wave"],
+            cwd=str(Path(__file__).parent.parent.parent.parent),
+            text=True,
+        ).strip()
+    except subprocess.CalledProcessError:
+        # If merge-base fails, just check the full diff from origin/feature/w7-wave
+        merge_base = "origin/feature/w7-wave"
+
+    # Get list of changed files
+    try:
+        changed_files = (
+            subprocess.check_output(
+                ["git", "diff", "--name-only", f"{merge_base}..HEAD"],
+                cwd=str(Path(__file__).parent.parent.parent.parent),
+                text=True,
+            )
+            .strip()
+            .split("\n")
+        )
+    except subprocess.CalledProcessError as e:
+        raise AssertionError(f"Failed to get git diff: {e}")
+
+    # Filter out empty strings
+    changed_files = [f for f in changed_files if f.strip()]
+
+    # Assert that core/security/dependencies.py is NOT in the changed files
+    dependencies_path = "backend/src/juli_backend/core/security/dependencies.py"
+    assert dependencies_path not in changed_files, (
+        f"core/security/dependencies.py must not be edited in this PR. "
+        f"Changed files: {changed_files}"
+    )
 
 
 # ============================================================================
