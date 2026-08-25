@@ -19,9 +19,9 @@ cannot be separated by a revert.
 
 Implementation:
 - contextvars store shop_id and user_id for the current context (request/task)
-- get_session() reads contextvars and applies SET LOCAL
+- SQLAlchemy after_begin event listener automatically applies SET LOCAL on every transaction
 - set_tenant_context() is called by routes/tasks to set contextvars
-- system_scope() sets contextvars to special values that bypass the assertion
+- system_scope() sets a flag to bypass the assertion for fleet-wide work
 """
 
 import contextvars
@@ -92,6 +92,63 @@ def clear_tenant_context() -> None:
     _current_user_id.set(None)
 
 
+async def _apply_tenant_context_to_session(
+    session: AsyncSession,
+    shop_id: uuid.UUID | None,
+    user_id: uuid.UUID | None,
+) -> None:
+    """Apply tenant context to a session by setting GUCs via set_config().
+
+    Used internally by the after_begin listener and by with_tenant_scope.
+    Uses parameterized set_config() to avoid SQL injection.
+
+    Args:
+        session: AsyncSession to apply context to
+        shop_id: The shop ID (from contextvars)
+        user_id: The user ID (from contextvars)
+
+    Raises:
+        TenantContextRequiredError: If context is required but not available.
+    """
+    global _system_scope_active
+
+    # Fail-closed in Python before any SQL
+    if not _system_scope_active and (shop_id is None or user_id is None):
+        raise TenantContextRequiredError(
+            f"Tenant context required: shop_id={shop_id}, user_id={user_id}, "
+            f"system_scope_active={_system_scope_active}"
+        )
+
+    # Use set_config() with parameterized queries to avoid SQL injection.
+    # set_config(name, value, is_local) with is_local=true == SET LOCAL.
+    try:
+        bind = session.get_bind()
+        dialect_name = bind.dialect.name if hasattr(bind, "dialect") else "postgresql"
+
+        # Skip GUC setting on SQLite (no support for set_config)
+        if dialect_name == "sqlite":
+            return
+
+        if shop_id is not None:
+            await session.execute(
+                text("SELECT set_config('app.current_shop_id', :val, true)").bindparams(
+                    val=str(shop_id)
+                )
+            )
+        if user_id is not None:
+            await session.execute(
+                text("SELECT set_config('app.current_user_id', :val, true)").bindparams(
+                    val=str(user_id)
+                )
+            )
+    except TenantContextRequiredError:
+        raise
+    except Exception:
+        # Unexpected errors should propagate (not swallowed)
+        logger.error("Failed to apply tenant context", exc_info=True)
+        raise
+
+
 @asynccontextmanager
 async def with_tenant_scope(
     session: AsyncSession,
@@ -111,86 +168,11 @@ async def with_tenant_scope(
             is available, raised BEFORE any SQL is executed.
 
     Note:
-        SET LOCAL is a PostgreSQL feature. On SQLite (testing), GUCs are
-        silently skipped since SQLite has no such mechanism, but the
-        fail-closed assertion still applies.
+        This is typically used explicitly in system_scope() to wrap
+        fleet-wide work. For most transactions, the automatic seam
+        (SQLAlchemy after_begin listener) applies context automatically.
     """
-    global _system_scope_active
-
-    # Fail-closed in Python before any SQL
-    if not _system_scope_active and (shop_id is None or user_id is None):
-        raise TenantContextRequiredError(
-            f"Tenant context required: shop_id={shop_id}, user_id={user_id}, "
-            f"system_scope_active={_system_scope_active}"
-        )
-
-    # Set the GUCs using SET LOCAL (transaction-scoped) on Postgres only
-    # SQLite doesn't support SET LOCAL, so we skip it for testing
-    try:
-        if shop_id is not None:
-            await session.execute(text(f"SET LOCAL app.current_shop_id = '{shop_id}'"))
-        if user_id is not None:
-            await session.execute(text(f"SET LOCAL app.current_user_id = '{user_id}'"))
-    except Exception:
-        # On SQLite, SET LOCAL will fail with a syntax error, which is expected
-        # Production will use Postgres, so this is only a testing concern
-        bind = session.get_bind()
-        db_url = str(getattr(bind, "url", ""))
-        if "sqlite" not in db_url.lower():
-            raise
-        # Silently skip GUC setting on SQLite
-
-    try:
-        yield
-    finally:
-        # GUCs are automatically cleared when the transaction ends due to SET LOCAL
-        pass
-
-
-@asynccontextmanager
-async def _apply_tenant_context(
-    session: AsyncSession,
-    shop_id: uuid.UUID | None,
-    user_id: uuid.UUID | None,
-) -> AsyncIterator[None]:
-    """Internal context manager that applies tenant context to a session.
-
-    This is called from get_session() to set GUCs and validate tenant context
-    before any query is executed.
-
-    Args:
-        session: AsyncSession to apply context to
-        shop_id: The shop ID (from contextvars)
-        user_id: The user ID (from contextvars)
-
-    Raises:
-        TenantContextRequiredError: If neither tenant context nor system_scope
-            is available, raised BEFORE any SQL is executed.
-    """
-    global _system_scope_active
-
-    # Fail-closed in Python before any SQL
-    if not _system_scope_active and (shop_id is None or user_id is None):
-        raise TenantContextRequiredError(
-            f"Tenant context required: shop_id={shop_id}, user_id={user_id}, "
-            f"system_scope_active={_system_scope_active}"
-        )
-
-    # Set the GUCs using SET LOCAL (transaction-scoped) on Postgres only
-    # SQLite doesn't support SET LOCAL, so we skip it for testing
-    try:
-        if shop_id is not None:
-            await session.execute(text(f"SET LOCAL app.current_shop_id = '{shop_id}'"))
-        if user_id is not None:
-            await session.execute(text(f"SET LOCAL app.current_user_id = '{user_id}'"))
-    except Exception:
-        # On SQLite, SET LOCAL will fail with a syntax error, which is expected
-        bind = session.get_bind()
-        db_url = str(getattr(bind, "url", ""))
-        if "sqlite" not in db_url.lower():
-            raise
-        # Silently skip GUC setting on SQLite
-
+    await _apply_tenant_context_to_session(session, shop_id, user_id)
     try:
         yield
     finally:
