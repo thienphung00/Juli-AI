@@ -102,8 +102,9 @@ async def _apply_tenant_context_to_session(
 ) -> None:
     """Apply tenant context to a session by setting GUCs via set_config().
 
-    Used internally by the after_begin listener and by with_tenant_scope.
-    Uses parameterized set_config() to avoid SQL injection.
+    Called on the HTTP path by the get_active_shop_and_set_context middleware
+    dependency (applied directly to the request's session), and by
+    with_tenant_scope. Uses parameterized set_config() to avoid SQL injection.
 
     Args:
         session: AsyncSession to apply context to
@@ -171,9 +172,10 @@ async def with_tenant_scope(
             is available, raised BEFORE any SQL is executed.
 
     Note:
-        This is typically used explicitly in system_scope() to wrap
-        fleet-wide work. For most transactions, the automatic seam
-        (SQLAlchemy after_begin listener) applies context automatically.
+        On the HTTP path, tenant context is applied automatically without
+        per-route opt-in: the get_active_shop_and_set_context middleware
+        dependency calls _apply_tenant_context_to_session on the request's
+        own session. Celery/fleet paths use system_scope() explicitly.
     """
     await _apply_tenant_context_to_session(session, shop_id, user_id)
     try:
