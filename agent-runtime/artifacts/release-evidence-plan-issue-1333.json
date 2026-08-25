@@ -1,0 +1,83 @@
+{
+  "planId": "generated-cross-tenant-probe-404-2026-08-25",
+  "affectedPublicSurfaces": [
+    "The entire authenticated `/v1/*` API is the SUBJECT of this slice, but no runtime code changes: the deliverable is a generated cross-tenant probe suite (tests only) that reads the committed surface inventory from #1331 (`docs/security/surface_inventory.json`, itself generated from the live route table) and, for every `/v1/*` route that takes a tenant-scoped id, seeds tenants A and B on real Postgres, authenticates as A, requests B's id, and asserts 404 — never 403 (an existence oracle: it confirms the id is real, the reconnaissance step before anything else), never 200.",
+    "The 404-indistinguishability contract: for every probed route, the nonexistent-id response must be byte-identical to the cross-tenant response, so the two cases cannot be told apart by a caller. This hardens the contract W6's parent scope already requires (404-not-403 for cross-tenant and nonexistent), so the two in-flight waves agree by construction.",
+    "Coverage completeness as a control: the probe covers every method each id-taking route exposes (a read-protected route with an open POST is the defect class this suite exists to find), asserts covered-route count equals id-taking-route count so nothing is skipped by omission, and FAILS THE BUILD on any route the generator cannot classify — unclassifiable is a red build, never a skip.",
+    "CI wiring: the probe runs as part of the existing integration job with a stated runtime budget, so a route added next month is covered by default rather than by someone remembering."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Not applicable to the running host — this slice ships tests, not runtime code. The probe runs in CI against the same commit the candidate serves: two tenants seeded on the CI Postgres service, requests driven through the app's own route table in-process. No live host interaction, no production or sandbox credential is resolved, and no vendor call is made at any point.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "The verification IS the CI run: the probe is generated from #1331's committed inventory (byte-equal to the live route table by #1331's own gate), so a green probe on the merge commit is exactly the claim this slice makes about the deployed API. syntheticShopRequired is TRUE in the CI sense — tenants A and B are seeded synthetic shops on the CI Postgres service; no real merchant's shop or data is touched. If the probe finds a real defect on an existing route (a 403, a 200, or a distinguishable 404 body), that defect is FILED AND FIXED IN ITS OWN ISSUE with its own release evidence — it is never folded into this slice, and the probe is never weakened to keep the build green.",
+    "journeys": [
+      {
+        "name": "cross-tenant-probe-generated-and-denying",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1333",
+        "assertions": [
+          "pre-merge: the probe's cases are generated from #1331's committed inventory (which #1331's own gate holds byte-equal to the live route table) — no hand-written route list exists anywhere in the suite",
+          "pre-merge: the count of probed routes is asserted equal to the count of id-taking routes in the inventory, so omission is a test failure rather than silence",
+          "pre-merge: for every id-taking route and every method it exposes, authenticated-as-A requesting B's id returns 404 — never 403, never 200 — on real Postgres with two seeded tenants",
+          "pre-merge: for every probed route, the nonexistent-id 404 body is byte-identical to the cross-tenant 404 body",
+          "pre-merge: a fixture route added in the test and left unclassified fails the probe, naming the route — proving the generator cannot silently skip",
+          "pre-merge: a deliberately-weakened handler (one route patched test-locally to return 403) makes its case FAIL — proving the probe asserts what it claims",
+          "pre-merge: the unauthenticated allowlist is imported from #1331's single source, not redefined — one allowlist in the repo, asserted by the suite",
+          "pre-merge: the probe completes inside its stated runtime budget in the existing integration job"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — the diff is a generated pytest suite under tests/ plus any generator helper it needs. No file under apps/ or packages/ is touched."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration and no schema change. The probe seeds tenants A and B through the existing ORM/fixtures on the CI Postgres service inside test transactions/databases; it leaves no persistent state. If implementation concludes it needs any schema support, that is a scope error — stop and report, per the W7 lock that only Meta assigns migration numbers."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. A red probe before merge is the control doing its job: either the generator or a case is wrong (fix it in this slice), or a real cross-tenant defect exists on a live route (file and fix it in its own issue with its own release evidence — this slice does not carry runtime fixes). Never add an exclusion to get green.",
+    "postCutoverFailureBehavior": "Reverting this slice removes coverage and nothing else — no runtime behaviour changes, so rollback is deleting tests. The visible record of what was lost is the probe suite and its inventory-count assertion. A rollback must never be used to silence a probe failure caused by a runtime defect; the defect outlives the revert.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/integration -k 'cross_tenant_probe' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_threat_model_inventory.py -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "Cases are GENERATED from #1331's committed inventory (docs/security/surface_inventory.json), never from a hand-written route list. A second list is the decay mode this control exists to prevent.",
+    "The covered-route count is asserted equal to the id-taking-route count from the inventory. A route the generator cannot classify FAILS the build, naming the route — it is never skipped.",
+    "A 403 anywhere in the probe is a FAILURE, not a pass: 403 is an existence oracle. 404 only, and the cross-tenant body must be byte-identical to the nonexistent body.",
+    "NO EXCLUSIONS may be added to keep the build green. A W6 route failing the probe is a real defect: REPORT it against the owning W6 issue; do not edit any W6-owned file (apps/**, packages/**, api/routes/demo_decisions.py, services/agent/approval.py, services/agent/runner/core.py, services/agent/sanitize/** source, core/security/dependencies.py) and do not exclude the route.",
+    "The unauthenticated allowlist is REUSED from #1331's single source — never redefined. Two allowlists is one too many.",
+    "The deliberately-weakened-handler check (a test-local 403 patch making its case fail) is part of the deliverable, not optional hardening.",
+    "Tenant-isolation claims run on real Postgres with two seeded tenants — never SQLite (it cannot express the claim), never a single-tenant shortcut.",
+    "A real defect found by the probe on an existing route is filed and fixed in its OWN issue with its own release evidence — never folded into this slice, and never 'fixed' by weakening the probe.",
+    "This slice ships tests only: no runtime code, no migration, no CI-workflow needs-block rewrites (appends only, per the W7 lock)."
+  ]
+}
