@@ -148,7 +148,7 @@ function resolveRunToken(name: string): string {
 }
 
 describe("app-wide tokens are untouched (AC 1 + rollback safety)", () => {
-  it("tokens.css is byte-identical to its pre-change content", () => {
+  it("app-wide tokens are byte-identical to their pre-change content", () => {
     const actualHash = createHash("sha256").update(tokensCss).digest("hex");
     expect(actualHash).toBe(APP_WIDE_TOKENS_SHA256);
   });
@@ -207,6 +207,35 @@ describe("the live-edge accent is reserved for the live edge only (AC 2)", () =>
 });
 
 describe("contrast passes WCAG AA for every new text-carrying token pairing (AC 4)", () => {
+  it("contrast passes WCAG AA 4.5:1 minimum for all text-carrying token pairings on new ground", () => {
+    const bg = resolveRunToken("--juli-run-bg");
+    const surface = resolveRunToken("--juli-run-surface");
+
+    const textPairings: Array<[label: string, fg: string, ground: string]> = [
+      ["foreground on bg", resolveRunToken("--juli-run-foreground"), bg],
+      ["foreground on surface", resolveRunToken("--juli-run-foreground"), surface],
+      ["muted-foreground on bg", resolveRunToken("--juli-run-muted-foreground"), bg],
+      ["muted-foreground on surface", resolveRunToken("--juli-run-muted-foreground"), surface],
+      ["success on bg", resolveRunToken("--juli-run-success"), bg],
+      ["success on surface", resolveRunToken("--juli-run-success"), surface],
+      ["warning on bg", resolveRunToken("--juli-run-warning"), bg],
+      ["warning on surface", resolveRunToken("--juli-run-warning"), surface],
+      ["destructive on bg", resolveRunToken("--juli-run-destructive"), bg],
+      ["destructive on surface", resolveRunToken("--juli-run-destructive"), surface],
+      ["info on bg", resolveRunToken("--juli-run-info"), bg],
+      ["info on surface", resolveRunToken("--juli-run-info"), surface],
+      [
+        "live-edge-foreground on live-edge (armed CTA label)",
+        resolveRunToken("--juli-run-live-edge-foreground"),
+        resolveRunToken("--juli-run-live-edge"),
+      ],
+    ];
+
+    for (const [_label, fg, ground] of textPairings) {
+      expect(contrastRatio(fg, ground)).toBeGreaterThanOrEqual(WCAG_AA_TEXT_MIN);
+    }
+  });
+
   const bg = resolveRunToken("--juli-run-bg");
   const surface = resolveRunToken("--juli-run-surface");
 
@@ -230,7 +259,7 @@ describe("contrast passes WCAG AA for every new text-carrying token pairing (AC 
     ],
   ];
 
-  it.each(textPairings)("%s clears %s:1", (_label, fg, ground) => {
+  it.each(textPairings)("%s clears WCAG AA 4.5:1 contrast minimum", (_label, fg, ground) => {
     expect(contrastRatio(fg, ground)).toBeGreaterThanOrEqual(WCAG_AA_TEXT_MIN);
   });
 });

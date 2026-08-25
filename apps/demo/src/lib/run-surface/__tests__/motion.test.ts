@@ -75,6 +75,23 @@ const EXPECTED_MOTION_TABLE: Record<
 };
 
 describe("all eight PUI-DESIGN.md §5 motion-table entries exist (AC 3)", () => {
+  it("all eight motion primitives exist with stated durations, easings, and prefers-reduced-motion paths", () => {
+    expect(RUN_SURFACE_MOTION_PRIMITIVE_IDS).toHaveLength(8);
+    expect([...RUN_SURFACE_MOTION_PRIMITIVE_IDS].sort()).toEqual(
+      Object.keys(EXPECTED_MOTION_TABLE).sort(),
+    );
+
+    for (const id of RUN_SURFACE_MOTION_PRIMITIVE_IDS) {
+      const entry = RUN_SURFACE_MOTION_TABLE[id];
+      const expected = EXPECTED_MOTION_TABLE[id];
+      expect(entry.full.durationMs).toBe(expected.full.durationMs);
+      expect(entry.full.easing).toBe(expected.full.easing);
+      expect(entry.reducedMotion.durationMs).toBe(expected.reducedMotion.durationMs);
+      expect(entry.reducedMotion.easing).toBe(expected.reducedMotion.easing);
+      expect(entry.reducedMotion.description).toBe(expected.reducedMotion.description);
+    }
+  });
+
   it("exposes exactly the 8 primitive ids the design table names", () => {
     expect(RUN_SURFACE_MOTION_PRIMITIVE_IDS).toHaveLength(8);
     expect([...RUN_SURFACE_MOTION_PRIMITIVE_IDS].sort()).toEqual(
@@ -159,7 +176,7 @@ describe("resolveRunSurfaceMotion requires a real trigger (AC 6)", () => {
     );
   });
 
-  it("cannot be called without a trigger argument -- compile-time enforcement", () => {
+  it("no timer-only overload -- motion primitives require a real trigger argument", () => {
     const callWithMissingTrigger = () => {
       // @ts-expect-error -- resolveRunSurfaceMotion has no 2-argument
       // overload; omitting `trigger` is a type error, checked by
