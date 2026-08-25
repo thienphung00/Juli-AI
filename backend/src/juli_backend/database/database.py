@@ -61,7 +61,7 @@ def ensure_worker_session_factory(database_url: str) -> async_sessionmaker[Async
 async def get_session() -> AsyncIterator[AsyncSession]:
     """FastAPI dependency that yields an async database session.
 
-    Tenant context is set by route dependencies (get_active_shop_and_set_context)
+    Tenant context is set by route dependencies (get_active_shop)
     or task wrappers (@task_with_tenant_context) via contextvars.
     Issue #1327, ADR-085 decision 2.
     """
