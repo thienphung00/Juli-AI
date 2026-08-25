@@ -9,11 +9,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import ImpactReading, ToolExecution
 from juli_backend.repositories.repos import WorkflowOutcomeRecordsRepo
+from juli_backend.services.operations.impact_honesty import list_impact_readings_honest
 
 logger = logging.getLogger(__name__)
 
@@ -291,6 +291,12 @@ async def _fill_cadences_from_impact_readings(
     to, so a cadence with no matching reading yet is left exactly as
     ``build_workflow_outcome_metrics`` built it (the "pending" placeholder).
 
+    ADR-085 decision 8 (#1338): this surface uses the honesty rule —
+    only real confidence tiers (cao/trung_binh/thap) are counted as readings.
+    Suppressed and confounded rows are never shown here (gate-closing query
+    returns zero when only suppressed present). For audit views showing
+    suppressed/confounded, those must be labelled as their own outcome.
+
     A run can classify multiple mutation kinds (price + image + title +
     description, say), each with its own metric — so one ``kind`` can have
     several ``impact_readings`` rows. This lists every one of them rather
@@ -300,14 +306,13 @@ async def _fill_cadences_from_impact_readings(
     rollup_metric_for`` at write time, not persisted), so showing the full
     per-metric breakdown here is the honest option that never guesses.
     """
-    stmt = select(ImpactReading).where(ImpactReading.tool_execution_id == tool_execution_id)
-    result = await session.execute(stmt)
-    rows = result.scalars().all()
-    if not rows:
+    # Use the honest read model — exclude suppressed/confounded
+    honest_rows = await list_impact_readings_honest(session, tool_execution_id)
+    if not honest_rows:
         return cadences
 
     by_kind: dict[str, list[ImpactReading]] = {}
-    for row in rows:
+    for row in honest_rows:
         by_kind.setdefault(row.kind, []).append(row)
 
     filled: list[dict[str, Any]] = []

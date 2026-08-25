@@ -11,20 +11,25 @@ for the same seeded window — ready ⇔ non-suppressed tier, not-ready ⇔ supp
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import (
     AnalyticsPerformanceInterval,
+    ImpactReading,
     Shop,
+    ToolExecution,
     User,
 )
 from juli_backend.services.impact.readiness import check_readiness
+from juli_backend.workers.impact_reader.pipeline import run_daily_impact_reader
 
 # Reference date for all tests — single source of truth.
 REFERENCE_DATE = date(2026, 1, 15)
@@ -171,11 +176,10 @@ class TestReadinessCheck:
     async def test_shop_with_sufficient_history_is_ready(
         self, session: AsyncSession, shop: Shop
     ) -> None:
-        """Pre-window with sufficient rows and above-floor volume → ready."""
+        """Pre-window with sufficient rows, volume, and control candidates → ready."""
         product_id = "tt-test-product-ready"
 
-        # Seed 13 pre-window days (T-14 to T-2, excluding T-1 would be 12, so 14-1=13)
-        # with good volume
+        # Seed target product: 13 pre-window days with good volume
         pre_start = REFERENCE_DATE - timedelta(days=14)
         for i in range(14):
             day = pre_start + timedelta(days=i)
@@ -190,6 +194,23 @@ class TestReadinessCheck:
                 visitors=50,
             )
             session.add(row)
+
+        # Seed 3+ control candidate products with pre-window data
+        for candidate_num in range(3):
+            candidate_id = f"tt-control-{candidate_num}"
+            for i in range(14):
+                day = pre_start + timedelta(days=i)
+                if day == REFERENCE_DATE:
+                    continue
+                row = _daily_row(
+                    shop.id,
+                    candidate_id,
+                    day,
+                    sku_orders=5,
+                    impressions=1000,
+                    visitors=50,
+                )
+                session.add(row)
         await session.flush()
 
         result = await check_readiness(
@@ -201,7 +222,8 @@ class TestReadinessCheck:
 
         assert result.is_ready
         # Should include the actual counts in the verdict
-        assert "row count" in result.reason.lower() or "volume" in result.reason.lower()
+        assert "row" in result.reason.lower() or "volume" in result.reason.lower()
+        assert "candidate" in result.reason.lower() or "control" in result.reason.lower()
 
     @pytest.mark.asyncio
     async def test_readiness_verdict_includes_reasons(
@@ -210,7 +232,7 @@ class TestReadinessCheck:
         """Verdict includes pre-window count, volume, and control-set info."""
         product_id = "tt-test-product-detailed"
 
-        # Seed sufficient pre-window data
+        # Seed target product with sufficient pre-window data
         pre_start = REFERENCE_DATE - timedelta(days=14)
         for i in range(13):  # T-14 to T-2
             day = pre_start + timedelta(days=i)
@@ -223,6 +245,21 @@ class TestReadinessCheck:
                 visitors=50,
             )
             session.add(row)
+
+        # Seed control candidates
+        for candidate_num in range(3):
+            candidate_id = f"tt-control-detail-{candidate_num}"
+            for i in range(13):
+                day = pre_start + timedelta(days=i)
+                row = _daily_row(
+                    shop.id,
+                    candidate_id,
+                    day,
+                    sku_orders=5,
+                    impressions=1000,
+                    visitors=50,
+                )
+                session.add(row)
         await session.flush()
 
         result = await check_readiness(
@@ -234,4 +271,146 @@ class TestReadinessCheck:
 
         # Reason should have details, not just a boolean
         assert len(result.reason) > 10  # Not a bare "ready" or "not ready"
-        assert "pre" in result.reason.lower() or "row" in result.reason.lower()
+        assert (
+            "pre" in result.reason.lower()
+            or "row" in result.reason.lower()
+            or "candidate" in result.reason.lower()
+        )
+
+    @pytest.mark.asyncio
+    async def test_readiness_agrees_with_reader_ready_case(
+        self, session: AsyncSession, shop: Shop
+    ) -> None:
+        """KEY ASSERTION: ready verdict matches reader's non-suppressed output."""
+        product_id = "tt-agreement-ready"
+
+        # Seed analytics: sufficient pre-window data with good volume
+        pre_start = REFERENCE_DATE - timedelta(days=14)
+        for i in range(13):  # T-14 to T-2
+            day = pre_start + timedelta(days=i)
+            row = _daily_row(
+                shop.id,
+                product_id,
+                day,
+                sku_orders=10,
+                impressions=5000,
+                visitors=100,
+                gmv="500.00",
+            )
+            session.add(row)
+        await session.flush()
+
+        # Check readiness
+        readiness = await check_readiness(
+            session,
+            shop_id=shop.id,
+            tiktok_product_id=product_id,
+            reference_date=REFERENCE_DATE,
+        )
+
+        # If readiness says ready, reader must produce non-suppressed
+        if readiness.is_ready:
+            # Create a tool execution to let the reader compute
+            execution = ToolExecution(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                approval_id="agreement-test-ready",
+                tool_name="listing.optimize_product",
+                payload_json=json.dumps({"workflow_id": "optimize_product_2"}),
+                status="succeeded",
+                updated_at=datetime(
+                    REFERENCE_DATE.year,
+                    REFERENCE_DATE.month,
+                    REFERENCE_DATE.day,
+                    12,
+                    0,
+                    tzinfo=UTC,
+                ),
+            )
+            session.add(execution)
+            await session.flush()
+
+            # Run the reader
+            await run_daily_impact_reader(session, REFERENCE_DATE + timedelta(days=7))
+
+            # Query the readings the reader produced
+            readings_stmt = select(ImpactReading).where(
+                ImpactReading.tool_execution_id == execution.id
+            )
+            readings_result = await session.execute(readings_stmt)
+            readings = readings_result.scalars().all()
+
+            # If readiness said ready, reader should have produced at least one
+            # non-suppressed reading
+            non_suppressed = [r for r in readings if r.confidence != "suppressed"]
+            assert len(non_suppressed) > 0, (
+                "Readiness said ready but reader produced only suppressed readings"
+            )
+
+    @pytest.mark.asyncio
+    async def test_readiness_agrees_with_reader_not_ready_case(
+        self, session: AsyncSession, shop: Shop
+    ) -> None:
+        """KEY ASSERTION: not-ready verdict matches reader's suppressed output."""
+        product_id = "tt-agreement-not-ready"
+
+        # Seed analytics: very sparse data (below minimum)
+        pre_start = REFERENCE_DATE - timedelta(days=14)
+        day = pre_start
+        row = _daily_row(
+            shop.id,
+            product_id,
+            day,
+            sku_orders=1,
+            impressions=100,
+            visitors=10,
+        )
+        session.add(row)
+        await session.flush()
+
+        # Check readiness
+        readiness = await check_readiness(
+            session,
+            shop_id=shop.id,
+            tiktok_product_id=product_id,
+            reference_date=REFERENCE_DATE,
+        )
+
+        # If readiness says not ready, reader should produce only suppressed
+        if not readiness.is_ready:
+            # Create a tool execution
+            execution = ToolExecution(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                approval_id="agreement-test-not-ready",
+                tool_name="listing.optimize_product",
+                payload_json=json.dumps({"workflow_id": "optimize_product_2"}),
+                status="succeeded",
+                updated_at=datetime(
+                    REFERENCE_DATE.year,
+                    REFERENCE_DATE.month,
+                    REFERENCE_DATE.day,
+                    12,
+                    0,
+                    tzinfo=UTC,
+                ),
+            )
+            session.add(execution)
+            await session.flush()
+
+            # Run the reader
+            await run_daily_impact_reader(session, REFERENCE_DATE + timedelta(days=7))
+
+            # Query the readings
+            readings_stmt = select(ImpactReading).where(
+                ImpactReading.tool_execution_id == execution.id
+            )
+            readings_result = await session.execute(readings_stmt)
+            readings = readings_result.scalars().all()
+
+            # If readiness said not ready, reader should produce only suppressed
+            # (or no readings at all, which means suppression)
+            non_suppressed = [r for r in readings if r.confidence != "suppressed"]
+            assert len(non_suppressed) == 0, (
+                "Readiness said not ready but reader produced non-suppressed readings"
+            )

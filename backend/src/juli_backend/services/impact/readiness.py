@@ -30,6 +30,7 @@ from juli_backend.services.impact.confidence import (
     pre_period_volume,
     volume_floor_for,
 )
+from juli_backend.services.impact.control_pool import MIN_CANDIDATES
 from juli_backend.services.impact.metric_map import RawDailyRecord
 from juli_backend.services.impact.windows import pre_window
 
@@ -144,10 +145,42 @@ async def check_readiness(
             ),
         )
 
+    # Check 4: Is a viable control set available?
+    # Query for other products in the shop that could serve as controls.
+    # Minimum requirement: MIN_CANDIDATES (3) products with pre-window data.
+    control_product_count_stmt = (
+        select(AnalyticsPerformanceInterval.tiktok_product_id)
+        .where(
+            and_(
+                AnalyticsPerformanceInterval.shop_id == shop_id,
+                AnalyticsPerformanceInterval.tiktok_product_id != tiktok_product_id,
+                AnalyticsPerformanceInterval.start_date >= pre_start,
+                AnalyticsPerformanceInterval.start_date <= pre_end,
+            )
+        )
+        .distinct()
+    )
+    control_result = await session.execute(control_product_count_stmt)
+    control_candidates = control_result.scalars().all()
+    candidate_count = len(control_candidates)
+
+    if candidate_count < MIN_CANDIDATES:
+        return ReadinessResult(
+            is_ready=False,
+            reason=(
+                f"Not ready: Only {candidate_count} candidate control product(s), "
+                f"need at least {MIN_CANDIDATES}. "
+                f"Signal will fall back to simple pre/post comparison (capped at Thấp)."
+            ),
+        )
+
     # All checks passed: ready!
     return ReadinessResult(
         is_ready=True,
-        reason=f"Ready: Pre-window has {pre_days_available} data point(s). "
-        f"Volume {volume} clears floor ({floor}). "
-        f"T+7 reading should be measurable.",
+        reason=(
+            f"Ready: Pre-window has {pre_days_available} data point(s), "
+            f"volume {volume} clears floor ({floor}), "
+            f"and {candidate_count} control candidate(s) available. "
+            f"T+7 reading should be measurable."
+        ),
     )
