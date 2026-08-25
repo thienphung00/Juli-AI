@@ -225,6 +225,14 @@ databaseTables:
       decision 1) — the same transaction that flips action_cards.status and
       inserts the workflow_runs row — not the scoring pipeline that owns
       action_cards. Schema landed in #1214; written as of #1222.
+  production_write_authorizations:
+    owner: Agent Execution
+    access: write
+    notes: >
+      Single-use production mutation authorizations (#1335). Scoped to one shop,
+      product, and mutation kind. Issued via operator service after verifying
+      credential binding; consumed atomically by the write path. Revoke preserves
+      the row for audit.
   tool_executions:
     owner: Agent Execution
     access: write
