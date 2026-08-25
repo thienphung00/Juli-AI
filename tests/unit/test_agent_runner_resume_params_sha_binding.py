@@ -344,5 +344,76 @@ async def test_red_proof_the_check_actually_gates_dispatch(
     assert result.stop_reason == StopReason.FINAL_RESPONSE
 
 
+# ---------------------------------------------------------------------------
+# AC: resume executes the original prompt version, not a later production
+# bump (issue #1359, ADR-075 decision 2 consent binding)
+# ---------------------------------------------------------------------------
+
+
+async def test_resume_uses_stored_prompt_version_not_production_bump(
+    session: AsyncSession, shop_and_product, monkeypatch
+):
+    """Resume must execute the same prompt version the run was originally
+    stamped with (issue #1359), even if production_version has bumped
+    between pause and resume. Consent binding requires the seller's decision
+    to be honored against the exact context they saw, not a newer prompt.
+
+    Proof: seed a run at pause with prompt_version='optimize_product.v1'
+    (stored on the row), then monkeypatch production_version to return 2,
+    then resume — the runner should still compose from v1, and the
+    composed version/sha in RunResult should match the stored v1 values.
+    """
+    from juli_backend.services.agent.runner import core as core_module
+
+    shop, product = shop_and_product
+
+    # Seed a run that was paused while v1 was production
+    run_id = await _seed_run_at_pause(
+        session,
+        shop,
+        product,
+        arguments=PROPOSED_CHANGE,
+        confirmed_params_sha=None,  # no params_sha divergence here, testing prompt only
+    )
+
+    # Manually verify the stored prompt_version is v1
+    await session.refresh(run := await session.get(WorkflowRunRow, run_id))
+    assert run.prompt_version == "optimize_product_2/v1", (
+        "Test setup: run must be seeded with v1; check _seed_run_at_pause"
+    )
+
+    spy = _SpyToolExecutor(result={"title": "New improved title", "image_attached": False})
+    llm = FakeLLMService(script=[_turn(FinalResponse(content="All done."))])
+    runner = _build_runner(session, spy, llm)
+
+    # Monkeypatch production_version to return 2, simulating a production
+    # bump between pause and resume
+    def _mock_production_version(workflow_key: str) -> int:
+        return 2  # Bumped since this run was paused
+
+    monkeypatch.setattr(core_module, "production_version", _mock_production_version)
+
+    # Resume the run
+    result = await runner.resume(run_id, approved=True)
+
+    # The resumed run should have composed from v1 (the stored version),
+    # not v2 (today's production bump). Extract the version number to verify.
+    # prompt_version returns format "optimize_product.v1"
+    from juli_backend.services.agent.prompts.composer import prompt_version as pv_fn
+
+    expected_v1 = pv_fn("optimize_product_2", 1)
+    expected_v2 = pv_fn("optimize_product_2", 2)
+
+    assert result.prompt_version == expected_v1, (
+        f"Resume executed version {result.prompt_version}, expected {expected_v1}; "
+        "production bump incorrectly switched prompts mid-run (#1359 regression)"
+    )
+    assert result.prompt_version != expected_v2, (
+        "Resume incorrectly jumped to v2 instead of staying at original v1"
+    )
+    assert result.stop_reason == StopReason.FINAL_RESPONSE
+    assert result.status == WorkflowRunStatus.COMPLETED
+
+
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(pytest.main([__file__]))

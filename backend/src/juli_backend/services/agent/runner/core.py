@@ -247,7 +247,12 @@ from juli_backend.services.agent.llm import (
 )
 from juli_backend.services.agent.llm.openai_adapter import LLMProviderError
 from juli_backend.services.agent.playbooks.base import Playbook
-from juli_backend.services.agent.prompts.composer import compose, prompt_sha256, prompt_version
+from juli_backend.services.agent.prompts.composer import (
+    compose,
+    production_version,
+    prompt_sha256,
+    prompt_version,
+)
 from juli_backend.services.agent.runner.concurrency import ConcurrencyExhaustedError
 from juli_backend.services.agent.runner.confirmation import (
     build_confirmation_options,
@@ -392,6 +397,55 @@ class WorkflowRunner:
             tool_name for step in playbook.steps for tool_name in step.tools
         )
 
+    def _compose_prompt(self) -> tuple[str, str, str]:
+        """Compose the system prompt and its stamp from the PRODUCTION prompt
+        version, never the playbook's own `version`.
+
+        `approval.py::_resolve_prompt_pin` writes `workflow_runs.prompt_version`
+        from `production_version()`. Composing here from `self._playbook.version`
+        instead let the two diverge silently: run `ac992b92` was recorded as
+        `optimize_product.v2` while actually executing v1 (#1359), defeating
+        ADR-072 decision 4's "what runs is what was reviewed". A playbook's
+        `version` describes its steps and policies; it does not decide which
+        prompt text runs.
+        """
+        version = production_version(self._playbook.workflow_key)
+        return (
+            compose(self._playbook.workflow_key, version),
+            prompt_version(self._playbook.workflow_key, version),
+            prompt_sha256(self._playbook.workflow_key, version),
+        )
+
+    def _compose_prompt_at_version(self, prompt_version_str: str) -> tuple[str, str, str]:
+        """Compose the system prompt from a specific, already-stamped version
+        string (issue #1359, ADR-075 decision 2).
+
+        Used by `resume()` to ensure the resumed run executes the same prompt
+        version it was originally stamped with, even if production_version has
+        bumped between pause and resume — preserving consent binding.
+
+        `prompt_version_str` is in the format "workflow_key_binding.vN" (e.g.,
+        "optimize_product.v1"), from which we extract the version number N.
+        Supports both dot and slash separators for robustness in test/legacy data.
+        """
+        # Extract version number: find the rightmost 'v' followed by digits
+        # Format is typically "optimize_product.v1" or "optimize_product_2/v1"
+        if ".v" in prompt_version_str:
+            version_str = prompt_version_str.split(".v")[-1]
+        elif "/v" in prompt_version_str:
+            version_str = prompt_version_str.split("/v")[-1]
+        else:
+            raise ValueError(
+                f"Cannot parse version from prompt_version string {prompt_version_str!r}; "
+                "expected format 'workflow_key_binding.vN' or 'workflow_key_binding/vN'"
+            )
+        version = int(version_str)
+        return (
+            compose(self._playbook.workflow_key, version),
+            prompt_version(self._playbook.workflow_key, version),
+            prompt_sha256(self._playbook.workflow_key, version),
+        )
+
     async def run(self, workflow_run_id: uuid.UUID, *, product_ref: str) -> RunResult:
         """Run the loop for `workflow_run_id` to a terminal block.
 
@@ -411,9 +465,7 @@ class WorkflowRunner:
         """
         state = await self._conversation_store.load(workflow_run_id)
 
-        system_prompt = compose(self._playbook.workflow_key, self._playbook.version)
-        version_str = prompt_version(self._playbook.workflow_key, self._playbook.version)
-        sha256 = prompt_sha256(self._playbook.workflow_key, self._playbook.version)
+        system_prompt, version_str, sha256 = self._compose_prompt()
         tool_definitions = self._tool_definitions()
 
         await self._emit(
@@ -572,9 +624,26 @@ class WorkflowRunner:
             durable=True,
         )
 
-        system_prompt = compose(self._playbook.workflow_key, self._playbook.version)
-        version_str = prompt_version(self._playbook.workflow_key, self._playbook.version)
-        sha256 = prompt_sha256(self._playbook.workflow_key, self._playbook.version)
+        # Use the stored prompt version from when the run was originally created
+        # (issue #1359, ADR-075 decision 2). A production bump between pause and
+        # resume must not switch prompts mid-run — the seller consented to the
+        # original prompt, not a newer one. state.prompt_version is loaded from
+        # the workflow_runs row by ConversationStore.load().
+        if state.prompt_version is None or state.prompt_sha256 is None:
+            # Fallback for runs paused before this fix (or edge case missing data):
+            # recompose from current production version. This is not ideal but
+            # allows graceful degradation for existing paused runs.
+            system_prompt, version_str, sha256 = self._compose_prompt()
+        else:
+            try:
+                system_prompt, version_str, sha256 = self._compose_prompt_at_version(
+                    state.prompt_version
+                )
+            except (ValueError, IndexError):
+                # Malformed or unexpected prompt_version format (possibly from old
+                # test fixtures or edge cases). Fall back to production version
+                # rather than crashing mid-resume.
+                system_prompt, version_str, sha256 = self._compose_prompt()
         tool_definitions = self._tool_definitions()
 
         pending = state.pending_confirmation

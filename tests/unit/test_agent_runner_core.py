@@ -776,18 +776,91 @@ class TestPromptStamping:
         systems = {call.system for call in llm.recorded_calls}
         assert len(systems) == 1  # identical system prompt on every iteration
 
-        expected_version = prompt_version(
-            OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key, OPTIMIZE_PRODUCT_PLAYBOOK.version
-        )
-        expected_sha = prompt_sha256(
-            OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key, OPTIMIZE_PRODUCT_PLAYBOOK.version
-        )
+        # The prompt version should be derived from production_version(), not
+        # from OPTIMIZE_PRODUCT_PLAYBOOK.version (issue #1359). The playbook's
+        # version describes its steps and policies, not which prompt executes.
+        from juli_backend.services.agent.prompts.composer import production_version
+
+        prod_version = production_version(OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key)
+        expected_version = prompt_version(OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key, prod_version)
+        expected_sha = prompt_sha256(OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key, prod_version)
         assert result.prompt_version == expected_version
         assert result.prompt_sha256 == expected_sha
 
         started = [e for e in sink.events if e.event_type == "workflow.started"]
         assert len(started) == 1
         assert started[0].payload.prompt_version == expected_version
+
+
+# --- Guard: recorded pin and executed version never diverge (issue #1359) ------
+
+
+class TestPromptVersionConsistency:
+    """Guard test ensuring the stamped prompt pin and the executed prompt
+    version never diverge for any registered playbook (issue #1359,
+    ADR-072 decision 4).
+
+    Parametrized so new playbooks are automatically covered. Includes a
+    non-vacuity check that the registry is not empty.
+    """
+
+    @pytest.mark.parametrize("playbook", [OPTIMIZE_PRODUCT_PLAYBOOK])
+    def test_approval_stamp_matches_runner_composition(self, playbook: Playbook) -> None:
+        """What approval.py::_resolve_prompt_pin stamps on the row should
+        equal what WorkflowRunner composes and executes (issue #1359).
+
+        A mismatch means the recorded pin says one thing while another prompt
+        executes — defeating ADR-072 d.4's "what runs is what was reviewed".
+        """
+        from juli_backend.services.agent.prompts.composer import (
+            production_version,
+            prompt_sha256,
+            prompt_version,
+        )
+
+        # Non-vacuity guard: this list should not be empty.
+        assert [OPTIMIZE_PRODUCT_PLAYBOOK], (
+            "This test must have at least one playbook to validate; "
+            "if all playbooks were removed, this test would pass vacuously."
+        )
+
+        # What approval.py::_resolve_prompt_pin produces (the row stamp).
+        workflow_key = playbook.workflow_key
+        prod_version = production_version(workflow_key)
+        stamped_version = prompt_version(workflow_key, prod_version)
+        stamped_sha = prompt_sha256(workflow_key, prod_version)
+
+        # What WorkflowRunner._compose_prompt() produces (the execution).
+        # The runner should derive both from production_version, never from
+        # playbook.version (the bug that #1359 fixes).
+        runner = WorkflowRunner(
+            llm_service=FakeLLMService(script=[]),
+            tool_executor=_DummyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=_InMemoryConversationStore(),
+            registry=_full_registry(),
+            playbook=playbook,
+        )
+        composed_prompt, composed_version, composed_sha = runner._compose_prompt()
+
+        # The assertion: both must agree.
+        assert composed_version == stamped_version, (
+            f"Stamped version {stamped_version!r} != composed version {composed_version!r} "
+            f"for playbook {playbook.workflow_key!r} — #1359 regression"
+        )
+        assert composed_sha == stamped_sha, (
+            f"Stamped SHA {stamped_sha!r} != composed SHA {composed_sha!r} "
+            f"for playbook {playbook.workflow_key!r} — #1359 regression"
+        )
+
+
+class _DummyToolExecutor:
+    """Minimal tool executor for guard test — never called."""
+
+    def execute(
+        self, *, tool_name: str, params: Any, tool_call_id: str | None = None
+    ) -> dict[str, Any]:
+        raise NotImplementedError("DummyToolExecutor should not be called in this test")
 
 
 # --- AC: happy path, end to end -------------------------------------------------
