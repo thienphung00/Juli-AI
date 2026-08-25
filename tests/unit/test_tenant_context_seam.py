@@ -90,13 +90,10 @@ async def test_set_local_semantics_real_postgres():
         "TEST_DATABASE_URL", "postgresql+asyncpg://postgres@localhost:5432/juli_exec_1327"
     )
 
-    # Create engine with real connection pooling
+    # Create engine with real connection pooling (skip full metadata — just test GUCs)
     engine = create_async_engine(database_url, echo=False)
 
     try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-
         factory = async_sessionmaker(engine, expire_on_commit=False)
         shop_id = uuid.uuid4()
         user_id = uuid.uuid4()
@@ -145,9 +142,6 @@ async def test_different_tenants_same_connection():
     engine = create_async_engine(database_url, echo=False)
 
     try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-
         factory = async_sessionmaker(engine, expire_on_commit=False)
         shop_id_1 = uuid.uuid4()
         shop_id_2 = uuid.uuid4()

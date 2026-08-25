@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.tenant_context_middleware import get_active_shop_with_context
+from juli_backend.api.tenant_context_middleware import get_active_shop_and_set_context
 from juli_backend.database import ProductsRepo, Shop, get_session
 
 router = APIRouter(prefix="/products", tags=["products"])
@@ -30,7 +30,7 @@ class PaginatedProducts(BaseModel):
 
 @router.get("", response_model=PaginatedProducts)
 async def list_products(
-    shop: Shop = Depends(get_active_shop_with_context),
+    shop: Shop = Depends(get_active_shop_and_set_context),
     session: AsyncSession = Depends(get_session),
     limit: int = Query(default=50, ge=1, le=200),
     after: uuid.UUID | None = Query(default=None),

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.tenant_context_middleware import get_active_shop_with_context
+from juli_backend.api.tenant_context_middleware import get_active_shop_and_set_context
 from juli_backend.database import NotFound, Order, OrdersRepo, Shop, get_session
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -30,7 +30,7 @@ class PaginatedOrders(BaseModel):
 
 @router.get("", response_model=PaginatedOrders)
 async def list_orders(
-    shop: Shop = Depends(get_active_shop_with_context),
+    shop: Shop = Depends(get_active_shop_and_set_context),
     session: AsyncSession = Depends(get_session),
     status_filter: str | None = Query(default=None, alias="status"),
     date_from: datetime | None = Query(default=None),
@@ -62,7 +62,7 @@ async def list_orders(
 @router.post("/{order_id}/confirm-shipment", response_model=OrderResponse)
 async def confirm_shipment(
     order_id: uuid.UUID,
-    shop: Shop = Depends(get_active_shop_with_context),
+    shop: Shop = Depends(get_active_shop_and_set_context),
     session: AsyncSession = Depends(get_session),
 ) -> OrderResponse:
     """Mark an order as shipped."""

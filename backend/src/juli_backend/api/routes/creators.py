@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.tenant_context_middleware import get_active_shop_with_context
+from juli_backend.api.tenant_context_middleware import get_active_shop_and_set_context
 from juli_backend.database import CreatorsRepo, NotFound, Shop, get_session
 from juli_backend.models.models import Creator, Livestream
 
@@ -44,7 +44,7 @@ class CreatorContentResponse(BaseModel):
 
 @router.get("", response_model=PaginatedCreators)
 async def list_creators(
-    shop: Shop = Depends(get_active_shop_with_context),
+    shop: Shop = Depends(get_active_shop_and_set_context),
     session: AsyncSession = Depends(get_session),
     limit: int = Query(default=50, ge=1, le=200),
     after: uuid.UUID | None = Query(default=None),
@@ -66,7 +66,7 @@ async def list_creators(
 @router.get("/{creator_id}/content", response_model=CreatorContentResponse)
 async def get_creator_content(
     creator_id: uuid.UUID,
-    shop: Shop = Depends(get_active_shop_with_context),
+    shop: Shop = Depends(get_active_shop_and_set_context),
     session: AsyncSession = Depends(get_session),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> CreatorContentResponse:

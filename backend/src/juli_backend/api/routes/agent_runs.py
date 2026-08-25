@@ -123,7 +123,7 @@ from pydantic import BaseModel
 from sqlalchemy import CursorResult, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from juli_backend.api.tenant_context_middleware import get_active_shop_with_context
+from juli_backend.api.tenant_context_middleware import get_active_shop_and_set_context
 from juli_backend.database import Shop, get_session
 from juli_backend.models.models import Product, RunConfirmation
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
@@ -614,7 +614,7 @@ async def stream_run_events(
     run_id: uuid.UUID,
     request: Request,
     after: int | None = Query(default=None, ge=0),
-    shop: Shop = Depends(get_active_shop_with_context),
+    shop: Shop = Depends(get_active_shop_and_set_context),
     session: AsyncSession = Depends(get_session),
     session_factory: async_sessionmaker[AsyncSession] = Depends(get_run_events_session_factory),
     subscriber: EventSubscriber | None = Depends(get_run_event_subscriber),
@@ -703,7 +703,7 @@ async def stream_run_events(
 @router.post("/{run_id}/cancel", status_code=status.HTTP_202_ACCEPTED)
 async def cancel_run(
     run_id: uuid.UUID,
-    shop: Shop = Depends(get_active_shop_with_context),
+    shop: Shop = Depends(get_active_shop_and_set_context),
     session: AsyncSession = Depends(get_session),
 ) -> None:
     """`202`, idempotent: resolving the run (404 for another shop's run) is
@@ -731,7 +731,7 @@ async def cancel_run(
     # #1145 Review: the one state-mutating route in this module that
     # previously logged nothing -- run_id/shop_id are both server-resolved
     # identifiers (run_id is a path parameter, shop comes from
-    # get_active_shop_with_context), never request-body content.
+    # get_active_shop_and_set_context), never request-body content.
     logger.info(
         "agent_run_cancel_requested",
         extra={"shop_id": str(shop.id), "run_id": str(run_id)},
@@ -881,7 +881,7 @@ async def submit_confirmation_decision(
     run_id: uuid.UUID,
     tool_call_id: str,
     body: ConfirmationDecisionRequest,
-    shop: Shop = Depends(get_active_shop_with_context),
+    shop: Shop = Depends(get_active_shop_and_set_context),
     session: AsyncSession = Depends(get_session),
 ) -> ConfirmationDecisionResponse:
     """Authorize and resolve a seller's decision on a CONFIRM-policy pause
@@ -1140,7 +1140,7 @@ class WorkflowRunListResponse(BaseModel):
 
 @router.get("", response_model=WorkflowRunListResponse)
 async def list_demo_runs(
-    shop: Shop = Depends(get_active_shop_with_context),
+    shop: Shop = Depends(get_active_shop_and_set_context),
     session: AsyncSession = Depends(get_session),
     limit: int = Query(default=100, ge=1, le=1000),
 ) -> WorkflowRunListResponse:

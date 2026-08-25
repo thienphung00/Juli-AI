@@ -14,8 +14,9 @@ from collections.abc import Callable
 from typing import Any
 
 from juli_backend.database import set_tenant_context
-from juli_backend.database.database import ensure_worker_session_factory, get_async_database_url
+from juli_backend.database.database import ensure_worker_session_factory
 from juli_backend.models.models import WorkflowRun
+from juli_backend.workers.tasks.database import get_async_database_url
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,11 @@ async def resolve_task_tenant_context(run_id: uuid.UUID) -> tuple[uuid.UUID, uui
                 f"for run_id={run_id}. Task fails closed."
             )
 
-        return run.shop_id, run.user_id or uuid.uuid4()  # User ID might be None for anonymous
+        # User ID should be set; default to a generated UUID if missing (shouldn't happen)
+        user_id: uuid.UUID = (
+            run.user_id if hasattr(run, "user_id") and run.user_id else uuid.uuid4()
+        )
+        return run.shop_id, user_id
 
 
 def task_with_tenant_context(run_id_param: str = "run_id") -> Callable:

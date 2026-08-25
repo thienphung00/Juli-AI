@@ -38,7 +38,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.routes.agent_runs import _enqueue_run_agent_workflow
-from juli_backend.api.tenant_context_middleware import get_active_shop_with_context
+from juli_backend.api.tenant_context_middleware import get_active_shop_and_set_context
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
 from juli_backend.services.agent import abuse_limits as agent_abuse_limits
@@ -70,7 +70,7 @@ class DemoDecisionApproveResponse(BaseModel):
 )
 async def approve_demo_decision(
     action_card_id: uuid.UUID,
-    shop: Shop = Depends(get_active_shop_with_context),
+    shop: Shop = Depends(get_active_shop_and_set_context),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> DemoDecisionApproveResponse:
