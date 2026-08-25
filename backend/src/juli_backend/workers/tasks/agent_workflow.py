@@ -156,6 +156,7 @@ import os
 import uuid
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import create_engine as create_sync_engine
 from sqlalchemy import func, select
@@ -168,6 +169,13 @@ from juli_backend.services.agent import events as events_module
 from juli_backend.services.agent import runner as runner_module
 from juli_backend.workers.celery_app import celery_app
 from juli_backend.workers.tasks.database import get_async_database_url
+
+if TYPE_CHECKING:
+    # Annotation-only, and via the depth-2 services facade: `workers` has no
+    # allowed edge to `integrations` at any depth (module docstring above),
+    # so the read-resources union is referenced through `composition`'s
+    # public `AgentReadResources` alias instead.
+    from juli_backend.services.agent import composition as composition_module
 
 logger = logging.getLogger(__name__)
 
@@ -284,20 +292,28 @@ def _default_playbook():
     return playbooks_module.OPTIMIZE_PRODUCT_PLAYBOOK
 
 
-async def _default_read_resources(session: AsyncSession):
-    """The real ADR-069 guarded `ProductionReadResources` (issue #1173
-    review-round-1 rework) -- `composition.py`'s `build_read_resources`,
+async def _default_read_resources(
+    session: AsyncSession, shop_id: uuid.UUID | None = None
+) -> composition_module.AgentReadResources:
+    """The real ADR-069 guarded read resources (issue #1173 review-round-1
+    rework, amended by issue #1302) -- `composition.py`'s `build_read_resources`,
     reached the same depth-2-facade way as `_default_llm_service` above.
     `async` because credential resolution is a database read; awaited by
     `_construct_runner` below. Fails closed with a precise `RuntimeError`
     naming `TIKTOK_APP_KEY`/`TIKTOK_APP_SECRET` when either is absent, or
-    `NotFound` when no Fujiwa production-read credential row is provisioned
-    yet -- never a silent fake, and never `None` (unlike the pre-rework
-    `ProductToolExecutor` this replaced, which left `read_resources` unset
-    and crashed uncaught on the first tool call instead)."""
+    `NotFound` when no credential row is provisioned -- never a silent fake,
+    and never `None` (unlike the pre-rework `ProductToolExecutor` this
+    replaced, which left `read_resources` unset and crashed uncaught on the
+    first tool call instead).
+
+    Issue #1302 amendment: when shop_id is provided and matches the
+    sandbox-write credential's shop, returns SandboxWriteResources;
+    otherwise returns ProductionReadResources. Threading shop_id through
+    here (from `_construct_runner`) activates shop-aware routing without
+    changing pre-existing callers that don't pass it."""
     from juli_backend.services.agent import composition as composition_module
 
-    return await composition_module.build_read_resources(session)
+    return await composition_module.build_read_resources(session, shop_id=shop_id)
 
 
 async def _default_write_resources(session: AsyncSession):
@@ -431,7 +447,7 @@ async def _construct_runner(
     concurrency_guard = runner_module.ConcurrencyGuard(
         basis_snapshot=run.state.get("basis_snapshots", {})
     )
-    read_resources = await _default_read_resources(session)
+    read_resources = await _default_read_resources(session, shop_id=run.shop_id)
     write_resources = await _default_write_resources(session)
     tool_executor = runner_module.ProductToolExecutor(
         registry=registry,

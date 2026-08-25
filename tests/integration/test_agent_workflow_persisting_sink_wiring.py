@@ -290,7 +290,7 @@ async def test_run_agent_workflow_async_persists_events_via_the_constructed_pers
     monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
     monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
 
-    async def _fake_read_resources(session):
+    async def _fake_read_resources(session, shop_id=None):
         return "FAKE_READ_RESOURCES"
 
     async def _fake_write_resources(session):

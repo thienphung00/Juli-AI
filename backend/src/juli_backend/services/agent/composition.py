@@ -85,6 +85,9 @@ work; `build_read_resources`/`build_write_resources` below close it.
 
 from __future__ import annotations
 
+import logging
+import uuid
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.config import require_env
@@ -102,6 +105,14 @@ from juli_backend.services.agent.tools import ToolClassification, ToolRegistry
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
 from juli_backend.services.execution.sandbox_guard import load_sandbox_write_resources
+
+logger = logging.getLogger(__name__)
+
+# Public alias for callers in packages that may not import `integrations`
+# directly (the `workers` package has no allowed edge to `integrations` at
+# any depth — see `workers/tasks/agent_workflow.py`'s module docstring).
+# `services` -> `integrations` is an allowed edge, so the union lives here.
+AgentReadResources = ProductionReadResources | SandboxWriteResources
 
 
 def build_llm_service() -> LLMService:
@@ -188,18 +199,58 @@ def _tiktok_app_credentials() -> tuple[str, str]:
     return require_env("TIKTOK_APP_KEY"), require_env("TIKTOK_APP_SECRET")
 
 
-async def build_read_resources(session: AsyncSession) -> ProductionReadResources:
-    """The real ADR-069 guarded production-read resources (issue #1173
-    rework) -- the Fujiwa merchant, read-only transport guard (ADR-068:
-    production credential is read-only), built the same way
-    `workers/services/polling/orchestrate.py`'s own `_factory_config` +
-    `ProductionReadClientFactory().create_resources(...)` composition
-    already does for Fujiwa polling. Fails closed twice, in order:
-    `_tiktok_app_credentials()` (`require_env`) before any DB query, then
-    `resolve_production_read_credential`'s own `NotFound` when no Fujiwa
-    production-read credential row has been provisioned yet.
+async def build_read_resources(
+    session: AsyncSession, shop_id: uuid.UUID | None = None
+) -> ProductionReadResources | SandboxWriteResources:
+    """The real ADR-069 guarded read resources (issue #1173 rework, amended
+    by issue #1302).
+
+    Shop-aware read routing (issue #1302): When a run's shop is the sandbox
+    shop (i.e., the shop the sandbox-write credential belongs to), build read
+    resources from the sandbox-write credential (which can read its own
+    products). For any other shop, use the Fujiwa production-read credential
+    (unchanged from before this amendment).
+
+    This decouples the read credential from hardcoded shop IDs, instead
+    routing based on capability-derived comparison via the existing resolvers
+    in core.security. The decision does NOT create any new WRITE path against
+    production -- the sandbox-write resources are already write-capable by
+    design (ADR-068), and using them for reads on the sandbox shop is within
+    that boundary.
+
+    Fails closed twice, in order: `_tiktok_app_credentials()` (`require_env`)
+    before any DB query, then the appropriate credential resolver's `NotFound`
+    when no matching credential row has been provisioned yet.
     """
     app_key, app_secret = _tiktok_app_credentials()
+
+    # If shop_id is provided, check if it matches the sandbox-write
+    # credential's shop. If it does, use the sandbox-write credential for
+    # reads; otherwise, fall back to production-read.
+    if shop_id is not None:
+        try:
+            from juli_backend.core.security import resolve_sandbox_write_credential
+
+            sandbox_cred = await resolve_sandbox_write_credential(session)
+            if sandbox_cred.shop_id == shop_id:
+                # This is the sandbox shop; use sandbox-write resources for
+                # reads as well
+                return await load_sandbox_write_resources(
+                    session, app_key=app_key, app_secret=app_secret
+                )
+        except Exception:
+            # If sandbox-write credential resolution fails (e.g., NotFound),
+            # log a named warning before falling back to production-read.
+            # This is a fallback-worthy anomaly because we expected to resolve
+            # a sandbox credential but failed; shop mismatch (resolved but
+            # different shop) is not a warning, just the normal production path.
+            logger.warning(
+                "agent_read_resources_sandbox_fallback",
+                extra={"shop_id": str(shop_id), "reason": "sandbox_resolution_failed"},
+                exc_info=True,
+            )
+
+    # Fall back to production-read for non-sandbox shops or if shop_id is None
     credential = await resolve_production_read_credential(session)
     return ProductionReadClientFactory().create_resources(
         ClientFactoryConfig(

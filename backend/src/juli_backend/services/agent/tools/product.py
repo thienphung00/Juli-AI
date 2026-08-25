@@ -67,7 +67,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from juli_backend.integrations.tiktok import ProductionReadResources
+from juli_backend.integrations.tiktok import (
+    ProductionReadResources,
+    SandboxWriteResources,
+)
 from juli_backend.services.agent.sanitize import (
     Money,
     VendorText,
@@ -226,7 +229,7 @@ class GetProductInformationOutput(BaseModel):
 
 
 def handle_get_product_information(
-    resources: ProductionReadResources,
+    resources: ProductionReadResources | SandboxWriteResources,
     context: ProductToolContext,
     params: GetProductInformationInput,
 ) -> GetProductInformationOutput:
@@ -319,7 +322,7 @@ def _extract_suggestion_texts(raw: dict[str, Any], *, product_id: str, field: st
 
 
 def handle_get_seo_keywords(
-    resources: ProductionReadResources,
+    resources: ProductionReadResources | SandboxWriteResources,
     context: ProductToolContext,
     params: GetSeoKeywordsInput,
 ) -> GetSeoKeywordsOutput:
@@ -369,7 +372,7 @@ class CheckProductStatusOutput(BaseModel):
 
 
 def handle_check_product_status(
-    resources: ProductionReadResources,
+    resources: ProductionReadResources | SandboxWriteResources,
     context: ProductToolContext,
     params: CheckProductStatusInput,
 ) -> CheckProductStatusOutput:
@@ -436,7 +439,7 @@ class InspectProductImageOutput(BaseModel):
 
 
 def handle_inspect_product_image(
-    resources: ProductionReadResources,
+    resources: ProductionReadResources | SandboxWriteResources,
     context: ProductToolContext,
     params: InspectProductImageInput,
 ) -> InspectProductImageOutput:
@@ -500,7 +503,8 @@ INSPECT_PRODUCT_IMAGE_SPEC = ToolSpec(
 # --- registration + handler lookup --------------------------------------------
 
 PRODUCT_READ_TOOL_HANDLERS: dict[
-    str, Callable[[ProductionReadResources, ProductToolContext, Any], BaseModel]
+    str,
+    Callable[[ProductionReadResources | SandboxWriteResources, ProductToolContext, Any], BaseModel],
 ] = {
     GET_PRODUCT_INFORMATION_SPEC.name: handle_get_product_information,
     GET_SEO_KEYWORDS_SPEC.name: handle_get_seo_keywords,

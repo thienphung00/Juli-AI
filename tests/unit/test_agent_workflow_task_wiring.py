@@ -346,12 +346,15 @@ class TestDefaultResourceSeamsComposeRealMarketplaceResources:
             await agent_workflow._default_write_resources(session)
 
 
-async def _fake_read_resources(session):
+async def _fake_read_resources(session, shop_id=None):
     """Injection double for `_default_read_resources` -- every
     `_construct_runner` test below is a wiring test, not a marketplace-
     credential test (that is `TestDefaultResourceSeamsComposeRealMarketplaceResources`
     above), so it monkeypatches this the same way the pre-existing three
-    seams are already monkeypatched, keeping `session=object()` valid."""
+    seams are already monkeypatched, keeping `session=object()` valid.
+
+    Issue #1302 amendment: accepts optional shop_id parameter to support
+    shop-aware read routing tests, but never uses it in the fake."""
     return "FAKE_READ_RESOURCES"
 
 
