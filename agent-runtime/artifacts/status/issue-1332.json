@@ -1,0 +1,36 @@
+{
+  "gateVersion": 1,
+  "issue": 1332,
+  "metrics": {
+    "acceptanceMapped": 7,
+    "acceptanceTotal": 7,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      {
+        "category": "test",
+        "note": "New test file: test_agent_adversarial_loop_behaviour.py (760 lines, 18 parametrized test cases)",
+        "path": "tests/unit/"
+      },
+      {
+        "category": "fixture",
+        "note": "New corpus directory with 13 JSON fixture files for attack payloads",
+        "path": "tests/fixtures/agent_adversarial_loop_behaviour/"
+      }
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1332.json",
+    "ownerSignoffPresent": true,
+    "sha256": "e0a14a90dc1845ef66fda2efc967b7417fa8f874e10d8796ef868776890b7471",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-25T09:11:40Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1332.json",
+    "sha256": "def0408f8fa2a3387285977fc6703dabb999b7d6e7b0c49d76d6e910b5f1686e",
+    "status": "PASS"
+  },
+  "wave": null
+}
