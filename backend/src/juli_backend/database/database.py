@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterator
 
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -18,7 +19,58 @@ def create_engine(database_url: str, **kwargs):
 
 
 def create_session_factory(engine) -> async_sessionmaker[AsyncSession]:
-    return async_sessionmaker(engine, expire_on_commit=False)
+    """Create an async session factory with tenant context seam attached.
+
+    The returned factory creates sessions that automatically apply tenant
+    context (SET LOCAL GUCs) on transaction begin, reading from contextvars
+    set by HTTP middleware or Celery task wrappers.
+
+    Issue #1327, ADR-085 decision 2: the seam runs automatically on every
+    transaction, no opt-in required.
+    """
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    # Attach tenant context setter to AsyncSession's "after_begin" event
+    @event.listens_for(AsyncSession, "after_begin")
+    async def apply_tenant_context(session, transaction, connection):
+        """Apply tenant context (SET LOCAL GUCs) when a transaction begins.
+
+        This runs automatically for any AsyncSession, reading tenant context
+        from contextvars. If no context is available and system_scope() is
+        not active, raises TenantContextRequiredError BEFORE any user SQL.
+
+        Issue #1327: automatic seam, runs on every transaction.
+        """
+        from juli_backend.database.tenant_context import (
+            TenantContextRequiredError,
+            _system_scope_active,
+            get_tenant_context,
+        )
+
+        shop_id, user_id = get_tenant_context()
+
+        # Fail-closed in Python before any SQL
+        if not _system_scope_active and (shop_id is None or user_id is None):
+            raise TenantContextRequiredError(
+                f"Tenant context required for transaction: shop_id={shop_id}, "
+                f"user_id={user_id}, system_scope_active={_system_scope_active}"
+            )
+
+        # Apply SET LOCAL (transaction-scoped) on Postgres only
+        try:
+            if shop_id is not None:
+                await session.execute(text(f"SET LOCAL app.current_shop_id = '{shop_id}'"))
+            if user_id is not None:
+                await session.execute(text(f"SET LOCAL app.current_user_id = '{user_id}'"))
+        except Exception:
+            # On SQLite, SET LOCAL fails with syntax error (expected for testing)
+            bind = session.get_bind()
+            db_url = str(getattr(bind, "url", ""))
+            if "sqlite" not in db_url.lower():
+                raise
+            # Silently skip GUC setting on SQLite (testing only)
+
+    return factory
 
 
 _session_factory: async_sessionmaker[AsyncSession] | None = None
@@ -61,20 +113,12 @@ def ensure_worker_session_factory(database_url: str) -> async_sessionmaker[Async
 async def get_session() -> AsyncIterator[AsyncSession]:
     """FastAPI dependency that yields an async database session.
 
-    Tenant context (app.current_shop_id, app.current_user_id) should be set
-    by the caller via set_tenant_context() before using this session. The
-    context is applied via SET LOCAL when the session is used (issue #1327,
-    ADR-085 decision 2).
+    Tenant context (app.current_shop_id, app.current_user_id) is applied
+    automatically via SET LOCAL when a transaction begins, reading from
+    contextvars that are set by HTTP middleware or Celery task wrappers.
 
-    Routes should follow this pattern:
-        @router.get("/path")
-        async def handler(
-            shop: Shop = Depends(get_active_shop),
-            user: User = Depends(get_current_user),
-            session: AsyncSession = Depends(get_session),
-        ):
-            set_tenant_context(shop.id, user.id)
-            # Now session operations are tenant-scoped
+    This seam is automatic and requires no opt-in from route handlers.
+    Issue #1327, ADR-085 decision 2.
     """
     if _session_factory is None:
         raise RuntimeError(
