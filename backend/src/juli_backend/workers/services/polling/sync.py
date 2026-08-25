@@ -251,6 +251,7 @@ async def sync_products_with_local_upsert(
         return
 
     max_update_time = update_from or 0
+    upsert_failures = 0
     for product in products:
         normalized = normalize_product(product)
 
@@ -269,9 +270,13 @@ async def sync_products_with_local_upsert(
                 name=product.get("name", "") or product.get("title", ""),
                 status=product.get("status", "unknown"),
                 title=product.get("title", "") or product.get("name", ""),
-                update_time=datetime.now(UTC),
+                # products.update_time is TIMESTAMP WITHOUT TIME ZONE —
+                # asyncpg rejects aware datetimes (naive-UTC convention,
+                # same as OrdersRepo at repos.py).
+                update_time=datetime.now(UTC).replace(tzinfo=None),
             )
         except Exception:
+            upsert_failures += 1
             logger.warning(
                 "sync_products_local_upsert_failed",
                 extra={"shop_id": shop_id, "product_id": product.get("product_id")},
@@ -285,6 +290,8 @@ async def sync_products_with_local_upsert(
 
     if products:
         sync_state["products_last_update_time"] = max_update_time
+    sync_state["products_upserted"] = len(products) - upsert_failures
+    sync_state["products_upsert_failed"] = upsert_failures
 
 
 async def sync_returns(
@@ -876,10 +883,22 @@ async def sync_sandbox_write_products(session: AsyncSession, shop_id: uuid.UUID)
             sync_state=sync_state,
         )
 
-        logger.info(
-            "sandbox_write_catalog_sync_completed",
-            extra={"shop_id": str(shop_id), "products_synced": len(sync_state)},
-        )
+        upserted = sync_state.get("products_upserted", 0)
+        failed = sync_state.get("products_upsert_failed", 0)
+        if failed:
+            logger.warning(
+                "sandbox_write_catalog_sync_completed_with_failures",
+                extra={
+                    "shop_id": str(shop_id),
+                    "products_upserted": upserted,
+                    "products_upsert_failed": failed,
+                },
+            )
+        else:
+            logger.info(
+                "sandbox_write_catalog_sync_completed",
+                extra={"shop_id": str(shop_id), "products_upserted": upserted},
+            )
 
     except Exception:
         logger.warning(
