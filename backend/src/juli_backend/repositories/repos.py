@@ -1584,27 +1584,15 @@ class ProductionWriteAuthorizationsRepo(ShopScopedRepo):
         shop_id: uuid.UUID,
         tiktok_product_id: str,
         mutation_kind: str,
-        capability: str,
-        shop_cipher: str,
         authorized_by: str,
+        expires_at: datetime,
         reason: str | None = None,
-        ttl_hours: int = 24,
     ) -> ProductionWriteAuthorization:
-        """Issue an authorization after verifying credential binding.
+        """Persist an authorization (verification done by service layer).
 
-        Raises CredentialBindingError if the credential for this shop and
-        capability is mis-bound (wrong shop_cipher or pointing at a different
-        shop). This prevents authorizing against a mis-provisioned credential.
+        Pure persistence: creates the row with provided parameters.
+        Credential binding verification is done by the service layer before calling this.
         """
-        from juli_backend.services.tiktok.credential_binding import verify_capability_binding
-
-        # Verify the credential binding FIRST
-        await verify_capability_binding(
-            self._session, capability=capability, shop_cipher=shop_cipher
-        )
-
-        # Issue the authorization
-        expires_at = datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=ttl_hours)
         auth = ProductionWriteAuthorization(
             shop_id=shop_id,
             tiktok_product_id=tiktok_product_id,

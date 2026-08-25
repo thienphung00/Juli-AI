@@ -13,8 +13,8 @@ import uuid
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from juli_backend.repositories.repos import (
-    ProductionWriteAuthorizationsRepo,
+from juli_backend.services.operations.production_write_authorizations_service import (
+    ProductionWriteAuthorizationService,
 )
 from juli_backend.services.tiktok.credential_binding import (
     CredentialBindingError,
@@ -84,7 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 async def issue_authorization(args) -> int:
-    """Issue a production write authorization."""
+    """Issue a production write authorization via the service."""
     try:
         shop_id = uuid.UUID(args.shop_id)
         product_id = args.product_id
@@ -101,10 +101,10 @@ async def issue_authorization(args) -> int:
         factory = async_sessionmaker(engine, expire_on_commit=False)
 
         async with factory() as session:
-            repo = ProductionWriteAuthorizationsRepo(session)
+            service = ProductionWriteAuthorizationService(session)
 
             try:
-                auth = await repo.issue(
+                auth = await service.issue(
                     shop_id=shop_id,
                     tiktok_product_id=product_id,
                     mutation_kind=mutation_kind,
@@ -139,7 +139,7 @@ async def issue_authorization(args) -> int:
 
 
 async def revoke_authorization(args) -> int:
-    """Revoke a production write authorization."""
+    """Revoke a production write authorization via the service."""
     try:
         auth_id = uuid.UUID(args.authorization_id)
         reason = args.reason
@@ -149,10 +149,10 @@ async def revoke_authorization(args) -> int:
         factory = async_sessionmaker(engine, expire_on_commit=False)
 
         async with factory() as session:
-            repo = ProductionWriteAuthorizationsRepo(session)
+            service = ProductionWriteAuthorizationService(session)
 
             try:
-                auth = await repo.revoke(auth_id, reason=reason)
+                auth = await service.revoke(auth_id, reason=reason)
                 await session.commit()
 
                 print("✓ Authorization revoked")

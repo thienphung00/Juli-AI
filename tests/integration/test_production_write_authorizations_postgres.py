@@ -15,6 +15,8 @@ from __future__ import annotations
 import asyncio
 import os
 import uuid
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -32,7 +34,9 @@ from juli_backend.repositories.repos import ProductionWriteAuthorizationsRepo
 DATABASE_URL = os.environ.get("DATABASE_URL")
 pytestdb = pytest.importorskip("psycopg2", minversion=None) if DATABASE_URL else None
 
-ALEMBIC_INI = "/Users/macos/Juli-AI-v2/alembic.ini"
+# Resolve paths dynamically from repo root (DEFECT 1: was hardcoded)
+REPO_ROOT = Path(__file__).resolve().parents[2]
+ALEMBIC_INI = REPO_ROOT / "alembic.ini"
 
 
 @pytest_asyncio.fixture
@@ -55,12 +59,12 @@ def alembic_config():
     if not DATABASE_URL:
         pytest.skip("DATABASE_URL not set")
 
-    config = AlembicConfig(ALEMBIC_INI)
+    config = AlembicConfig(str(ALEMBIC_INI))
     config.set_main_option("sqlalchemy.url", DATABASE_URL)
-    # Point to worktree's migrations directory to pick up 043 and 044
+    # Point to migrations directory dynamically (DEFECT 1 fix)
     config.set_main_option(
         "script_location",
-        "/Users/macos/Juli-AI-v2/.worktrees/issue-1335/backend/src/juli_backend/database/migrations",
+        str(REPO_ROOT / "backend/src/juli_backend/database/migrations"),
     )
     return config
 
@@ -97,8 +101,6 @@ class TestProductionWriteAuthorizationsConcurrency:
             sess.add(shop)
             await sess.flush()
 
-            from datetime import UTC, datetime
-
             product = Product(
                 shop_id=shop.id,
                 tiktok_product_id="concurrent_product",
@@ -120,6 +122,7 @@ class TestProductionWriteAuthorizationsConcurrency:
             await sess.flush()
 
             repo = ProductionWriteAuthorizationsRepo(sess)
+            expires_at = datetime.now(UTC) + timedelta(hours=1)
             with patch(
                 "juli_backend.services.tiktok.credential_binding.verify_capability_binding",
                 new_callable=AsyncMock,
@@ -132,7 +135,7 @@ class TestProductionWriteAuthorizationsConcurrency:
                     shop_cipher="ROW_test_cipher",
                     authorized_by="concurrency_test",
                     reason="Testing concurrent consumption",
-                    ttl_hours=1,
+                    expires_at=expires_at,
                 )
 
             auth_id = auth.id

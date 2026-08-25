@@ -22,7 +22,6 @@ from sqlalchemy import select
 
 from juli_backend.models.models import ProductionWriteAuthorization, Shop, TikTokCredential, User
 from juli_backend.repositories.repos import ProductionWriteAuthorizationsRepo
-from juli_backend.services.tiktok.credential_binding import CredentialBindingError
 
 pytestmark = pytest.mark.asyncio
 
@@ -98,64 +97,43 @@ def repo(session):
 class TestProductionWriteAuthorizationIssuing:
     """Test authorization issuing with credential binding verification."""
 
-    async def test_issue_succeeds_with_correct_binding(self, session, shop, credential, repo):
-        """Issuing should verify capability binding and succeed when it matches."""
-        # Mock verify_capability_binding to succeed (normal case)
-        from unittest.mock import AsyncMock, patch
+    async def test_issue_succeeds_with_correct_params(self, session, shop, credential, repo):
+        """Repo.issue is pure persistence; service layer does verification."""
+        auth = await repo.issue(
+            shop_id=shop.id,
+            tiktok_product_id="product_123",
+            mutation_kind="listing.optimize_product",
+            authorized_by="operator@example.com",
+            reason="Testing optimization",
+            expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=24),
+        )
 
-        with patch(
-            "juli_backend.services.tiktok.credential_binding.verify_capability_binding",
-            new_callable=AsyncMock,
-        ) as mock_verify:
-            mock_verify.return_value = None
+        assert auth is not None
+        assert auth.shop_id == shop.id
+        assert auth.tiktok_product_id == "product_123"
+        assert auth.mutation_kind == "listing.optimize_product"
+        assert auth.authorized_by == "operator@example.com"
+        assert auth.reason == "Testing optimization"
+        assert auth.consumed_at is None
+        assert auth.consumed_by_run_id is None
+        assert auth.revoked_at is None
+        assert auth.expires_at is not None
 
-            auth = await repo.issue(
-                shop_id=shop.id,
-                tiktok_product_id="product_123",
-                mutation_kind="listing.optimize_product",
-                capability="sandbox_write",
-                shop_cipher="ROW_test_cipher_sandbox",
-                authorized_by="operator@example.com",
-                reason="Testing optimization",
-                ttl_hours=24,
-            )
+    async def test_issue_with_minimal_params(self, session, shop, repo):
+        """Repo.issue requires only essential parameters for persistence."""
+        auth = await repo.issue(
+            shop_id=shop.id,
+            tiktok_product_id="product_456",
+            mutation_kind="inventory.replenish",
+            authorized_by="operator@example.com",
+            expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=48),
+        )
 
-            assert auth is not None
-            assert auth.shop_id == shop.id
-            assert auth.tiktok_product_id == "product_123"
-            assert auth.mutation_kind == "listing.optimize_product"
-            assert auth.authorized_by == "operator@example.com"
-            assert auth.reason == "Testing optimization"
-            assert auth.consumed_at is None
-            assert auth.consumed_by_run_id is None
-            assert auth.revoked_at is None
-            assert auth.expires_at is not None
-
-            # Verify capability binding was called
-            mock_verify.assert_called_once()
-
-    async def test_issue_refuses_misbound_credential(self, session, shop, repo):
-        """Issuing should refuse when credential binding check fails."""
-        from unittest.mock import AsyncMock, patch
-
-        with patch(
-            "juli_backend.services.tiktok.credential_binding.verify_capability_binding",
-            new_callable=AsyncMock,
-        ) as mock_verify:
-            mock_verify.side_effect = CredentialBindingError(
-                "Capability production_read already bound to a different shop"
-            )
-
-            with pytest.raises(CredentialBindingError):
-                await repo.issue(
-                    shop_id=shop.id,
-                    tiktok_product_id="product_123",
-                    mutation_kind="listing.optimize_product",
-                    capability="production_read",
-                    shop_cipher="ROW_different_shop_cipher",
-                    authorized_by="operator@example.com",
-                    reason="Testing",
-                )
+        assert auth is not None
+        assert auth.shop_id == shop.id
+        assert auth.tiktok_product_id == "product_456"
+        assert auth.mutation_kind == "inventory.replenish"
+        assert auth.reason is None  # Optional parameter can be omitted
 
 
 class TestProductionWriteAuthorizationLookup:
@@ -163,207 +141,153 @@ class TestProductionWriteAuthorizationLookup:
 
     async def test_lookup_finds_valid_unconsumed_authorization(self, session, shop, repo):
         """Lookup should find a valid, unconsumed, unrevoked authorization."""
-        from unittest.mock import AsyncMock, patch
+        auth = await repo.issue(
+            shop_id=shop.id,
+            tiktok_product_id="product_123",
+            mutation_kind="listing.optimize_product",
+            authorized_by="operator@example.com",
+            reason="Testing",
+            expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=24),
+        )
 
-        with patch(
-            "juli_backend.services.tiktok.credential_binding.verify_capability_binding",
-            new_callable=AsyncMock,
-        ):
-            auth = await repo.issue(
-                shop_id=shop.id,
-                tiktok_product_id="product_123",
-                mutation_kind="listing.optimize_product",
-                capability="sandbox_write",
-                shop_cipher="ROW_test_cipher",
-                authorized_by="operator@example.com",
-                reason="Testing",
-                ttl_hours=24,
-            )
+        # Lookup should find it
+        found = await repo.lookup(
+            shop_id=shop.id,
+            tiktok_product_id="product_123",
+            mutation_kind="listing.optimize_product",
+        )
 
-            # Lookup should find it
-            found = await repo.lookup(
-                shop_id=shop.id,
-                tiktok_product_id="product_123",
-                mutation_kind="listing.optimize_product",
-            )
-
-            assert found is not None
-            assert found.id == auth.id
+        assert found is not None
+        assert found.id == auth.id
 
     async def test_lookup_misses_expired_authorization(self, session, shop, repo):
         """Lookup should return None for an expired authorization."""
-        from unittest.mock import AsyncMock, patch
+        # Create an authorization that expired
+        auth = ProductionWriteAuthorization(
+            shop_id=shop.id,
+            tiktok_product_id="product_123",
+            mutation_kind="listing.optimize_product",
+            authorized_by="operator@example.com",
+            reason="Testing",
+            expires_at=datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=1),
+        )
+        session.add(auth)
+        await session.flush()
 
-        with patch(
-            "juli_backend.services.tiktok.credential_binding.verify_capability_binding",
-            new_callable=AsyncMock,
-        ):
-            # Create an authorization that expired
-            auth = ProductionWriteAuthorization(
-                shop_id=shop.id,
-                tiktok_product_id="product_123",
-                mutation_kind="listing.optimize_product",
-                authorized_by="operator@example.com",
-                reason="Testing",
-                expires_at=datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=1),
-            )
-            session.add(auth)
-            await session.flush()
+        # Lookup should miss it
+        found = await repo.lookup(
+            shop_id=shop.id,
+            tiktok_product_id="product_123",
+            mutation_kind="listing.optimize_product",
+        )
 
-            # Lookup should miss it
-            found = await repo.lookup(
-                shop_id=shop.id,
-                tiktok_product_id="product_123",
-                mutation_kind="listing.optimize_product",
-            )
-
-            assert found is None
+        assert found is None
 
     async def test_lookup_misses_consumed_authorization(self, session, shop, repo):
         """Lookup should return None for a consumed authorization."""
-        from unittest.mock import AsyncMock, patch
+        auth = await repo.issue(
+            shop_id=shop.id,
+            tiktok_product_id="product_123",
+            mutation_kind="listing.optimize_product",
+            authorized_by="operator@example.com",
+            reason="Testing",
+            expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=24),
+        )
 
-        with patch(
-            "juli_backend.services.tiktok.credential_binding.verify_capability_binding",
-            new_callable=AsyncMock,
-        ):
-            auth = await repo.issue(
-                shop_id=shop.id,
-                tiktok_product_id="product_123",
-                mutation_kind="listing.optimize_product",
-                capability="sandbox_write",
-                shop_cipher="ROW_test_cipher",
-                authorized_by="operator@example.com",
-                reason="Testing",
-                ttl_hours=24,
-            )
+        # Consume it
+        await repo.consume(auth.id, run_id=uuid.uuid4())
 
-            # Consume it
-            await repo.consume(auth.id, run_id=uuid.uuid4())
+        # Lookup should miss it
+        found = await repo.lookup(
+            shop_id=shop.id,
+            tiktok_product_id="product_123",
+            mutation_kind="listing.optimize_product",
+        )
 
-            # Lookup should miss it
-            found = await repo.lookup(
-                shop_id=shop.id,
-                tiktok_product_id="product_123",
-                mutation_kind="listing.optimize_product",
-            )
-
-            assert found is None
+        assert found is None
 
     async def test_lookup_misses_revoked_authorization(self, session, shop, repo):
         """Lookup should return None for a revoked authorization."""
-        from unittest.mock import AsyncMock, patch
+        auth = await repo.issue(
+            shop_id=shop.id,
+            tiktok_product_id="product_123",
+            mutation_kind="listing.optimize_product",
+            authorized_by="operator@example.com",
+            reason="Testing",
+            expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=24),
+        )
 
-        with patch(
-            "juli_backend.services.tiktok.credential_binding.verify_capability_binding",
-            new_callable=AsyncMock,
-        ):
-            auth = await repo.issue(
-                shop_id=shop.id,
-                tiktok_product_id="product_123",
-                mutation_kind="listing.optimize_product",
-                capability="sandbox_write",
-                shop_cipher="ROW_test_cipher",
-                authorized_by="operator@example.com",
-                reason="Testing",
-                ttl_hours=24,
-            )
+        # Revoke it
+        await repo.revoke(auth.id, reason="Testing revocation")
 
-            # Revoke it
-            await repo.revoke(auth.id, reason="Testing revocation")
+        # Lookup should miss it
+        found = await repo.lookup(
+            shop_id=shop.id,
+            tiktok_product_id="product_123",
+            mutation_kind="listing.optimize_product",
+        )
 
-            # Lookup should miss it
-            found = await repo.lookup(
-                shop_id=shop.id,
-                tiktok_product_id="product_123",
-                mutation_kind="listing.optimize_product",
-            )
-
-            assert found is None
+        assert found is None
 
     async def test_lookup_misses_different_product(self, session, shop, repo):
         """Lookup should return None when product doesn't match."""
-        from unittest.mock import AsyncMock, patch
+        _ = await repo.issue(
+            shop_id=shop.id,
+            tiktok_product_id="product_123",
+            mutation_kind="listing.optimize_product",
+            authorized_by="operator@example.com",
+            reason="Testing",
+            expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=24),
+        )
 
-        with patch(
-            "juli_backend.services.tiktok.credential_binding.verify_capability_binding",
-            new_callable=AsyncMock,
-        ):
-            _ = await repo.issue(
-                shop_id=shop.id,
-                tiktok_product_id="product_123",
-                mutation_kind="listing.optimize_product",
-                capability="sandbox_write",
-                shop_cipher="ROW_test_cipher",
-                authorized_by="operator@example.com",
-                reason="Testing",
-                ttl_hours=24,
-            )
+        # Lookup with different product
+        found = await repo.lookup(
+            shop_id=shop.id,
+            tiktok_product_id="product_999",
+            mutation_kind="listing.optimize_product",
+        )
 
-            # Lookup with different product
-            found = await repo.lookup(
-                shop_id=shop.id,
-                tiktok_product_id="product_999",
-                mutation_kind="listing.optimize_product",
-            )
-
-            assert found is None
+        assert found is None
 
     async def test_lookup_misses_different_mutation_kind(self, session, shop, repo):
         """Lookup should return None when mutation kind doesn't match."""
-        from unittest.mock import AsyncMock, patch
+        _ = await repo.issue(
+            shop_id=shop.id,
+            tiktok_product_id="product_123",
+            mutation_kind="listing.optimize_product",
+            authorized_by="operator@example.com",
+            reason="Testing",
+            expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=24),
+        )
 
-        with patch(
-            "juli_backend.services.tiktok.credential_binding.verify_capability_binding",
-            new_callable=AsyncMock,
-        ):
-            _ = await repo.issue(
-                shop_id=shop.id,
-                tiktok_product_id="product_123",
-                mutation_kind="listing.optimize_product",
-                capability="sandbox_write",
-                shop_cipher="ROW_test_cipher",
-                authorized_by="operator@example.com",
-                reason="Testing",
-                ttl_hours=24,
-            )
+        # Lookup with different mutation kind
+        found = await repo.lookup(
+            shop_id=shop.id,
+            tiktok_product_id="product_123",
+            mutation_kind="inventory.replenish",
+        )
 
-            # Lookup with different mutation kind
-            found = await repo.lookup(
-                shop_id=shop.id,
-                tiktok_product_id="product_123",
-                mutation_kind="inventory.replenish",
-            )
-
-            assert found is None
+        assert found is None
 
     async def test_lookup_misses_different_shop(self, session, shop, other_shop, repo):
         """Lookup should return None when shop doesn't match (tenant isolation)."""
-        from unittest.mock import AsyncMock, patch
+        _ = await repo.issue(
+            shop_id=shop.id,
+            tiktok_product_id="product_123",
+            mutation_kind="listing.optimize_product",
+            authorized_by="operator@example.com",
+            reason="Testing",
+            expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=24),
+        )
 
-        with patch(
-            "juli_backend.services.tiktok.credential_binding.verify_capability_binding",
-            new_callable=AsyncMock,
-        ):
-            _ = await repo.issue(
-                shop_id=shop.id,
-                tiktok_product_id="product_123",
-                mutation_kind="listing.optimize_product",
-                capability="sandbox_write",
-                shop_cipher="ROW_test_cipher",
-                authorized_by="operator@example.com",
-                reason="Testing",
-                ttl_hours=24,
-            )
+        # Lookup from different shop
+        found = await repo.lookup(
+            shop_id=other_shop.id,
+            tiktok_product_id="product_123",
+            mutation_kind="listing.optimize_product",
+        )
 
-            # Lookup from different shop
-            found = await repo.lookup(
-                shop_id=other_shop.id,
-                tiktok_product_id="product_123",
-                mutation_kind="listing.optimize_product",
-            )
-
-            assert found is None
+        assert found is None
 
 
 class TestProductionWriteAuthorizationConsumption:
@@ -371,65 +295,47 @@ class TestProductionWriteAuthorizationConsumption:
 
     async def test_consume_sets_consumed_at_and_run_id(self, session, shop, repo):
         """Consumption should set consumed_at and consumed_by_run_id atomically."""
-        from unittest.mock import AsyncMock, patch
+        auth = await repo.issue(
+            shop_id=shop.id,
+            tiktok_product_id="product_123",
+            mutation_kind="listing.optimize_product",
+            authorized_by="operator@example.com",
+            reason="Testing",
+            expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=24),
+        )
 
-        with patch(
-            "juli_backend.services.tiktok.credential_binding.verify_capability_binding",
-            new_callable=AsyncMock,
-        ):
-            auth = await repo.issue(
-                shop_id=shop.id,
-                tiktok_product_id="product_123",
-                mutation_kind="listing.optimize_product",
-                capability="sandbox_write",
-                shop_cipher="ROW_test_cipher",
-                authorized_by="operator@example.com",
-                reason="Testing",
-                ttl_hours=24,
-            )
+        run_id = uuid.uuid4()
+        consumed = await repo.consume(auth.id, run_id=run_id)
 
-            run_id = uuid.uuid4()
-            consumed = await repo.consume(auth.id, run_id=run_id)
+        assert consumed is not None
+        assert consumed.consumed_at is not None
+        assert consumed.consumed_by_run_id == run_id
 
-            assert consumed is not None
-            assert consumed.consumed_at is not None
-            assert consumed.consumed_by_run_id == run_id
-
-            # Refresh and verify
-            refreshed = await session.get(ProductionWriteAuthorization, auth.id)
-            assert refreshed.consumed_at is not None
-            assert refreshed.consumed_by_run_id == run_id
+        # Refresh and verify
+        refreshed = await session.get(ProductionWriteAuthorization, auth.id)
+        assert refreshed.consumed_at is not None
+        assert refreshed.consumed_by_run_id == run_id
 
 
 class TestProductionWriteAuthorizationExpiry:
     """Test expires_at behavior."""
 
-    async def test_expires_at_defaults_from_config(self, session, shop, repo):
-        """expires_at should default to now + TTL from config."""
-        from unittest.mock import AsyncMock, patch
+    async def test_expires_at_must_be_provided(self, session, shop, repo):
+        """Repo.issue requires explicit expires_at parameter."""
+        before = datetime.now(UTC).replace(tzinfo=None)
+        expires_at = before + timedelta(hours=24)
+        auth = await repo.issue(
+            shop_id=shop.id,
+            tiktok_product_id="product_123",
+            mutation_kind="listing.optimize_product",
+            authorized_by="operator@example.com",
+            reason="Testing",
+            expires_at=expires_at,
+        )
 
-        with patch(
-            "juli_backend.services.tiktok.credential_binding.verify_capability_binding",
-            new_callable=AsyncMock,
-        ):
-            before = datetime.now(UTC).replace(tzinfo=None)
-            auth = await repo.issue(
-                shop_id=shop.id,
-                tiktok_product_id="product_123",
-                mutation_kind="listing.optimize_product",
-                capability="sandbox_write",
-                shop_cipher="ROW_test_cipher",
-                authorized_by="operator@example.com",
-                reason="Testing",
-                ttl_hours=24,
-            )
-            after = datetime.now(UTC).replace(tzinfo=None)
-
-            assert auth.expires_at is not None
-            # Should be roughly 24 hours from creation
-            expected_min = before + timedelta(hours=23, minutes=59)
-            expected_max = after + timedelta(hours=24, minutes=1)
-            assert expected_min <= auth.expires_at <= expected_max
+        assert auth.expires_at is not None
+        # Should be exactly what was provided
+        assert auth.expires_at == expires_at
 
     async def test_expires_at_never_null(self, session, shop, repo):
         """A row cannot be created without an expires_at."""
@@ -453,37 +359,29 @@ class TestProductionWriteAuthorizationRevocation:
 
     async def test_revoke_preserves_row_for_audit(self, session, shop, repo):
         """Revoke should set revoked_at but keep the row readable."""
-        from unittest.mock import AsyncMock, patch
+        auth = await repo.issue(
+            shop_id=shop.id,
+            tiktok_product_id="product_123",
+            mutation_kind="listing.optimize_product",
+            authorized_by="operator@example.com",
+            reason="Testing",
+            expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=24),
+        )
 
-        with patch(
-            "juli_backend.services.tiktok.credential_binding.verify_capability_binding",
-            new_callable=AsyncMock,
-        ):
-            auth = await repo.issue(
-                shop_id=shop.id,
-                tiktok_product_id="product_123",
-                mutation_kind="listing.optimize_product",
-                capability="sandbox_write",
-                shop_cipher="ROW_test_cipher",
-                authorized_by="operator@example.com",
-                reason="Testing",
-                ttl_hours=24,
-            )
+        auth_id = auth.id
 
-            auth_id = auth.id
+        # Revoke it
+        revoked = await repo.revoke(auth.id, reason="No longer needed")
 
-            # Revoke it
-            revoked = await repo.revoke(auth.id, reason="No longer needed")
+        assert revoked is not None
+        assert revoked.revoked_at is not None
+        assert revoked.revoke_reason == "No longer needed"
 
-            assert revoked is not None
-            assert revoked.revoked_at is not None
-            assert revoked.revoke_reason == "No longer needed"
-
-            # Row should still be readable
-            fetched = await session.get(ProductionWriteAuthorization, auth_id)
-            assert fetched is not None
-            assert fetched.revoked_at is not None
-            assert fetched.revoke_reason == "No longer needed"
+        # Row should still be readable
+        fetched = await session.get(ProductionWriteAuthorization, auth_id)
+        assert fetched is not None
+        assert fetched.revoked_at is not None
+        assert fetched.revoke_reason == "No longer needed"
 
 
 class TestProductionWriteAuthorizationTenantIsolation:
@@ -519,9 +417,8 @@ class TestProductionWriteAuthorizationAPIAccess:
     async def test_no_v1_route_exposes_authorization_creation(self, session):
         """Verify no /v1/* route endpoint references ProductionWriteAuthorizationsRepo.issue.
 
-        Structural assertion: scan all app routes and their endpoint modules to prove
-        no endpoint code (not just configuration) can invoke authorization issuing.
-        This prevents future developers from accidentally wiring issuing to a route.
+        Structural assertion: scan all app routes (recursively unwrapping included routers
+        for Starlette 1.6 compatibility) and prove no endpoint code can invoke issuing.
         """
         import inspect
 
@@ -529,10 +426,40 @@ class TestProductionWriteAuthorizationAPIAccess:
 
         app = create_app()
 
-        # Scan all routes
-        for route in app.routes:
+        def collect_routes_recursively(routes, prefix=""):
+            """Recursively unwrap included routers to handle Starlette 1.6."""
+            collected = []
+            for route in routes:
+                # Handle included routers (Starlette 1.6) - must have .app.routes, not just .app
+                if (
+                    hasattr(route, "app")
+                    and hasattr(route, "path")
+                    and hasattr(route.app, "routes")
+                ):
+                    # Included router: recurse with prefix
+                    try:
+                        sub_routes = collect_routes_recursively(
+                            route.app.routes, prefix=prefix + route.path
+                        )
+                        collected.extend(sub_routes)
+                    except (AttributeError, TypeError):
+                        # If recursion fails, treat as normal route
+                        if hasattr(route, "path"):
+                            full_path = prefix + route.path
+                            collected.append((full_path, route))
+                elif hasattr(route, "path"):
+                    # Normal route
+                    full_path = prefix + route.path
+                    collected.append((full_path, route))
+            return collected
+
+        # Collect all routes, handling Starlette 1.6 included routers
+        all_routes = collect_routes_recursively(app.routes)
+
+        # Scan routes for /v1/* patterns
+        for full_path, route in all_routes:
             # Only check /v1/* routes
-            if not route.path.startswith("/v1/"):
+            if not full_path.startswith("/v1/"):
                 continue
 
             # Get the endpoint function
@@ -550,9 +477,9 @@ class TestProductionWriteAuthorizationAPIAccess:
             # Assert the endpoint doesn't reference ProductionWriteAuthorizationsRepo
             repo_ref = "ProductionWriteAuthorizationsRepo"
             assert repo_ref not in source, (
-                f"Route {route.path} endpoint {endpoint.__name__} must not reference {repo_ref}"
+                f"Route {full_path} endpoint {endpoint.__name__} must not reference {repo_ref}"
             )
 
             assert ".issue(" not in source, (
-                f"Route {route.path} endpoint {endpoint.__name__} must not call .issue()"
+                f"Route {full_path} endpoint {endpoint.__name__} must not call .issue()"
             )
