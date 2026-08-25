@@ -815,16 +815,28 @@ async def sync_sandbox_write_products(session: AsyncSession, shop_id: uuid.UUID)
         )
         return
 
-    # Check if shop has sandbox_write credential
-    stmt = select(TikTokCredential).where(
-        TikTokCredential.shop_id == shop_id,
-        TikTokCredential.capability == "sandbox_write",
-    )
-    result = await session.execute(stmt)
-    sandbox_write_cred = result.scalar_one_or_none()
+    # Resolve the sandbox_write credential through the repo-backed resolver:
+    # the raw column is enc:v1 ciphertext, and only the repo path hydrates a
+    # decrypted, lazily-refreshed token the client can actually send.
+    from juli_backend.core.security import resolve_sandbox_write_credential
 
-    if sandbox_write_cred is None:
-        # No sandbox_write credential, skip sync
+    try:
+        sandbox_write_cred = await resolve_sandbox_write_credential(session)
+    except Exception:
+        logger.info(
+            "sandbox_write_catalog_sync_skipped",
+            extra={"shop_id": str(shop_id), "reason": "no_sandbox_write_credential"},
+        )
+        return
+
+    if sandbox_write_cred is None or sandbox_write_cred.shop_id != shop_id:
+        logger.info(
+            "sandbox_write_catalog_sync_skipped",
+            extra={
+                "shop_id": str(shop_id),
+                "reason": "shop_has_no_sandbox_write_credential",
+            },
+        )
         return
 
     try:
@@ -841,11 +853,11 @@ async def sync_sandbox_write_products(session: AsyncSession, shop_id: uuid.UUID)
             merchant_auth_id=SANDBOX_AUTH_ID,
             shop_cipher=sandbox_write_cred.shop_cipher,
         )
-        resources = SandboxWriteClientFactory.create(config)
+        resources = SandboxWriteClientFactory().create_resources(config)
 
         # Create products repo and sync state
         products_repo = ProductsRepo(session)
-        sync_state = {}
+        sync_state: dict[str, Any] = {}
 
         # Empty handoff (we only care about local upsert in task)
         async def noop_handoff(channel: str, shop_key: str, value: bytes) -> None:
