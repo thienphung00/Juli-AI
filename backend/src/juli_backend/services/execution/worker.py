@@ -25,6 +25,9 @@ def _tool_payload(record: ToolExecution, payload: dict[str, Any]) -> dict[str, A
     enriched = dict(payload)
     if record.idempotency_key:
         enriched["idempotency_key"] = record.idempotency_key
+    # Thread shop_id so write handlers can access it for the production write resolver
+    enriched["_execution_shop_id"] = str(record.shop_id)
+    enriched["_execution_id"] = str(record.id)
     return enriched
 
 

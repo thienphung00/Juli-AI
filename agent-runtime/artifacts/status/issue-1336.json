@@ -1,0 +1,33 @@
+{
+  "gateVersion": 1,
+  "issue": 1336,
+  "metrics": {
+    "acceptanceMapped": 8,
+    "acceptanceTotal": 8,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/execution/production_write_resolver.py",
+      "backend/src/juli_backend/services/execution/listing_handlers.py",
+      "backend/src/juli_backend/services/execution/leakage_handlers.py",
+      "backend/src/juli_backend/services/execution/worker.py",
+      "backend/src/juli_backend/workers/agent_runtime_boot.py",
+      "tests/unit/test_production_write_resolver_preconditions.py",
+      "tests/unit/test_production_write_resolver_handler_integration.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1336.json",
+    "ownerSignoffPresent": true,
+    "sha256": "9ce14c90bfd5d55955256ce5033bb681ab509e2cf363952c6b46cd4d79724d78",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-26T06:51:37Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1336.json",
+    "sha256": "b5550298249d54ea36365200662cb7b32eadc0deba85eb2deb001245001c5a31",
+    "status": "PASS"
+  },
+  "wave": "wave-w7"
+}

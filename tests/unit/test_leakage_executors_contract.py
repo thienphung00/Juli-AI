@@ -93,9 +93,7 @@ async def auth_client(app, authenticated_user, shop):
     app.dependency_overrides[get_current_user] = lambda: authenticated_user
     app.dependency_overrides[get_active_shop] = lambda: shop
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
 
@@ -165,7 +163,7 @@ async def test_ac4_replenish_inventory_e2e_mocked_chain(
     mock_resources.inventory.update.return_value = {}
 
     monkeypatch.setattr(
-        "juli_backend.services.execution.leakage_handlers.load_sandbox_write_resources",
+        "juli_backend.services.execution.sandbox_guard.load_sandbox_write_resources",
         AsyncMock(return_value=mock_resources),
     )
 
@@ -219,7 +217,7 @@ async def test_ac5_replenish_inventory_api_failure_records_failed_status(
     mock_resources.inventory.update.side_effect = TikTokAPIError(100004, "Invalid inventory")
 
     monkeypatch.setattr(
-        "juli_backend.services.execution.leakage_handlers.load_sandbox_write_resources",
+        "juli_backend.services.execution.sandbox_guard.load_sandbox_write_resources",
         AsyncMock(return_value=mock_resources),
     )
 
@@ -273,7 +271,7 @@ async def test_ac4_create_activity_e2e_mocked_chain(
     mock_resources.promotion.update_activity_products.return_value = {"activity_id": activity_id}
 
     monkeypatch.setattr(
-        "juli_backend.services.execution.leakage_handlers.load_sandbox_write_resources",
+        "juli_backend.services.execution.sandbox_guard.load_sandbox_write_resources",
         AsyncMock(return_value=mock_resources),
     )
 
@@ -356,8 +354,7 @@ def test_leakage_catalog_endpoints_documented_in_contract_collection():
     from pathlib import Path
 
     contracts = (
-        Path(__file__).resolve().parents[2]
-        / "docs/integrations/tiktok_api/contract-collection.md"
+        Path(__file__).resolve().parents[2] / "docs/integrations/tiktok_api/contract-collection.md"
     )
     text = contracts.read_text(encoding="utf-8")
     assert "POST /product/202309/inventory/search" in text or "inventory/search" in text
