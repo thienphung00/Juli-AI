@@ -49,6 +49,13 @@ GOLDEN_PATH_V2 = (
     / "agent_prompt_gates"
     / "optimize_product_v2_composed.golden.md"
 )
+GOLDEN_PATH_V3 = (
+    REPO_ROOT
+    / "tests"
+    / "fixtures"
+    / "agent_prompt_gates"
+    / "optimize_product_v3_composed.golden.md"
+)
 
 #: The real `prompts/` directory `compose()` reads from in production --
 #: `composer.py`'s own `_PROMPTS_ROOT` (this module's parent directory).
@@ -68,10 +75,13 @@ def _regenerate_golden_fixtures() -> None:
     """
     GOLDEN_PATH_V1.parent.mkdir(parents=True, exist_ok=True)
     GOLDEN_PATH_V2.parent.mkdir(parents=True, exist_ok=True)
+    GOLDEN_PATH_V3.parent.mkdir(parents=True, exist_ok=True)
     composed_v1 = compose(WORKFLOW_KEY, 1)
     GOLDEN_PATH_V1.write_bytes(composed_v1.encode("utf-8"))
     composed_v2 = compose(WORKFLOW_KEY, 2)
     GOLDEN_PATH_V2.write_bytes(composed_v2.encode("utf-8"))
+    composed_v3 = compose(WORKFLOW_KEY, 3)
+    GOLDEN_PATH_V3.write_bytes(composed_v3.encode("utf-8"))
 
 
 def _assert_matches_golden_snapshot(composed: str, golden_bytes: bytes) -> None:
@@ -133,6 +143,29 @@ def test_golden_fixture_v2_matches_the_deterministic_regeneration_byte_for_byte(
     `_regenerate_golden_fixtures` would (re)write."""
     composed = compose(WORKFLOW_KEY, 2)
     assert composed.encode("utf-8") == GOLDEN_PATH_V2.read_bytes()
+
+
+# ---------------------------------------------------------------------------
+# The real gate for v3: compose(WORKFLOW_KEY, 3) matches the committed golden bytes.
+# ---------------------------------------------------------------------------
+
+
+def test_golden_fixture_v3_is_present_and_non_empty():
+    assert GOLDEN_PATH_V3.is_file(), f"missing golden snapshot fixture at {GOLDEN_PATH_V3}"
+    assert GOLDEN_PATH_V3.stat().st_size > 0
+
+
+def test_composed_prompt_v3_matches_golden_snapshot_byte_for_byte():
+    composed = compose(WORKFLOW_KEY, 3)
+    golden_bytes = GOLDEN_PATH_V3.read_bytes()
+    _assert_matches_golden_snapshot(composed, golden_bytes)
+
+
+def test_golden_fixture_v3_matches_the_deterministic_regeneration_byte_for_byte():
+    """The committed golden file is not hand-edited -- it is exactly what
+    `_regenerate_golden_fixtures` would (re)write."""
+    composed = compose(WORKFLOW_KEY, 3)
+    assert composed.encode("utf-8") == GOLDEN_PATH_V3.read_bytes()
 
 
 # ---------------------------------------------------------------------------
