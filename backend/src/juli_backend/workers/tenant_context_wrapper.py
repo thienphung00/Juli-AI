@@ -15,7 +15,7 @@ from typing import Any
 
 from juli_backend.database import set_tenant_context
 from juli_backend.database.database import ensure_worker_session_factory
-from juli_backend.models.models import WorkflowRun
+from juli_backend.models.models import Shop, WorkflowRun
 from juli_backend.workers.tasks.database import get_async_database_url
 
 logger = logging.getLogger(__name__)
@@ -37,10 +37,10 @@ async def resolve_task_tenant_context(run_id: uuid.UUID) -> tuple[uuid.UUID, uui
         run_id: The workflow run ID
 
     Returns:
-        (shop_id, user_id) tuple
+        (shop_id, user_id) tuple where user_id is the shop owner's user_id
 
     Raises:
-        TenantContextTaskError: If the run or its product cannot be resolved
+        TenantContextTaskError: If the run, its shop, or shop's owner cannot be resolved
     """
     factory = ensure_worker_session_factory(get_async_database_url())
 
@@ -59,11 +59,21 @@ async def resolve_task_tenant_context(run_id: uuid.UUID) -> tuple[uuid.UUID, uui
                 f"for run_id={run_id}. Task fails closed."
             )
 
-        # User ID should be set; default to a generated UUID if missing (shouldn't happen)
-        user_id: uuid.UUID = (
-            run.user_id if hasattr(run, "user_id") and run.user_id else uuid.uuid4()
-        )
-        return run.shop_id, user_id
+        # Resolve the shop and use its owner's user_id
+        shop = await session.get(Shop, run.shop_id)
+        if shop is None:
+            raise TenantContextTaskError(
+                f"Cannot resolve tenant context: workflow_runs.shop_id references a "
+                f"shop that cannot be resolved for run_id={run_id}. Task fails closed."
+            )
+
+        if shop.user_id is None:
+            raise TenantContextTaskError(
+                f"Cannot resolve tenant context: shop user_id is missing for "
+                f"shop_id={run.shop_id}, run_id={run_id}. Task fails closed."
+            )
+
+        return run.shop_id, shop.user_id
 
 
 def task_with_tenant_context(run_id_param: str = "run_id") -> Callable:
