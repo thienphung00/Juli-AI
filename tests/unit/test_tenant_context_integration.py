@@ -1,5 +1,6 @@
 """Integration tests: real route + real Celery task with tenant context seam."""
 
+import os
 import uuid
 
 import pytest
@@ -7,8 +8,26 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.app import create_app
+from juli_backend.core.config.runtime import async_database_url
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
+
+
+def _get_test_database_url() -> str:
+    """Get test database URL from environment, with proper async driver conversion.
+
+    Reads DATABASE_URL (CI sets this), optionally overridden by TEST_DATABASE_URL.
+    Skips test if neither is set (local dev may run without a real DB).
+    Uses async_database_url() to convert postgresql:// scheme to postgresql+asyncpg://.
+    """
+    test_override = os.getenv("TEST_DATABASE_URL")
+    if test_override:
+        return test_override
+
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        pytest.skip("DATABASE_URL not set; requires a Postgres database")
+    return async_database_url(database_url)
 
 
 @pytest.mark.asyncio
@@ -19,11 +38,7 @@ async def test_real_route_sets_tenant_context_via_middleware():
     and verifies that SET LOCAL app.current_shop_id is applied to the
     request's session (issue #1327, ADR-085 decision 2).
     """
-    import os
-
-    database_url = os.getenv(
-        "TEST_DATABASE_URL", "postgresql+asyncpg://postgres@localhost:5432/juli_exec_1327"
-    )
+    database_url = _get_test_database_url()
 
     from sqlalchemy.ext.asyncio import async_sessionmaker as async_sessionmaker_factory
     from sqlalchemy.ext.asyncio import create_async_engine
