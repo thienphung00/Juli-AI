@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import os
+import uuid
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,31 +11,44 @@ from juli_backend.services.execution.inventory_leakage import (
     run_clear_excess_inventory_chain,
     run_replenish_inventory_chain,
 )
+from juli_backend.services.execution.production_write_resolver import (
+    resolve_write_capability,
+)
 from juli_backend.services.execution.promotion_leakage import (
     run_create_activity_chain,
     run_delete_activity_chain,
     run_update_activity_chain,
 )
 from juli_backend.services.execution.runner import register_async_tool
-from juli_backend.services.execution.sandbox_guard import load_sandbox_write_resources
 
 
-def _tiktok_app_credentials() -> tuple[str, str]:
-    app_key = os.getenv("TIKTOK_APP_KEY", "").strip()
-    app_secret = os.getenv("TIKTOK_APP_SECRET", "").strip()
-    if not app_key or not app_secret:
-        raise ValueError(
-            "TIKTOK_APP_KEY and TIKTOK_APP_SECRET must be set for leakage executors"
-        )
-    return app_key, app_secret
+async def _load_leakage_resources_for_tool(
+    session: AsyncSession,
+    payload: dict[str, Any],
+    tool_name: str,
+):
+    """Load leakage resources via the production write resolver.
 
+    The resolver checks all four production write preconditions:
+    1. PRODUCTION_WRITE_ENABLED flag is on (default off)
+    2. Matching authorization exists
+    3. RLS boot check passed
+    4. Red-team attestation for release SHA
 
-async def _load_leakage_resources(session: AsyncSession):
-    app_key, app_secret = _tiktok_app_credentials()
-    return await load_sandbox_write_resources(
+    With flag off (default), returns SandboxWriteResources. With all four met,
+    returns a production capability marker dict. Otherwise raises PreconditionFailure.
+    """
+    shop_id_str = payload.get("_execution_shop_id")
+    if not shop_id_str:
+        raise ValueError("Payload missing _execution_shop_id; required for resolver")
+    shop_id = uuid.UUID(shop_id_str)
+
+    # Call the resolver to check all four preconditions
+    return await resolve_write_capability(
         session,
-        app_key=app_key,
-        app_secret=app_secret,
+        tool_name=tool_name,
+        payload=payload,
+        shop_id=shop_id,
     )
 
 
@@ -43,7 +56,16 @@ async def replenish_inventory_handler(
     session: AsyncSession,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    resources = await _load_leakage_resources(session)
+    resources = await _load_leakage_resources_for_tool(
+        session,
+        payload,
+        tool_name="inventory.replenish",
+    )
+    if isinstance(resources, dict) and resources.get("capability") == "production_write":
+        return {
+            "status": "production_authorized",
+            "authorization_id": resources.get("authorization_id"),
+        }
     return run_replenish_inventory_chain(resources, payload)
 
 
@@ -51,7 +73,16 @@ async def clear_excess_inventory_handler(
     session: AsyncSession,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    resources = await _load_leakage_resources(session)
+    resources = await _load_leakage_resources_for_tool(
+        session,
+        payload,
+        tool_name="inventory.clear_excess",
+    )
+    if isinstance(resources, dict) and resources.get("capability") == "production_write":
+        return {
+            "status": "production_authorized",
+            "authorization_id": resources.get("authorization_id"),
+        }
     return run_clear_excess_inventory_chain(resources, payload)
 
 
@@ -59,7 +90,16 @@ async def create_activity_handler(
     session: AsyncSession,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    resources = await _load_leakage_resources(session)
+    resources = await _load_leakage_resources_for_tool(
+        session,
+        payload,
+        tool_name="promotion.create_activity",
+    )
+    if isinstance(resources, dict) and resources.get("capability") == "production_write":
+        return {
+            "status": "production_authorized",
+            "authorization_id": resources.get("authorization_id"),
+        }
     return run_create_activity_chain(resources, payload)
 
 
@@ -67,7 +107,16 @@ async def update_activity_handler(
     session: AsyncSession,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    resources = await _load_leakage_resources(session)
+    resources = await _load_leakage_resources_for_tool(
+        session,
+        payload,
+        tool_name="promotion.update_activity",
+    )
+    if isinstance(resources, dict) and resources.get("capability") == "production_write":
+        return {
+            "status": "production_authorized",
+            "authorization_id": resources.get("authorization_id"),
+        }
     return run_update_activity_chain(resources, payload)
 
 
@@ -75,7 +124,16 @@ async def delete_activity_handler(
     session: AsyncSession,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    resources = await _load_leakage_resources(session)
+    resources = await _load_leakage_resources_for_tool(
+        session,
+        payload,
+        tool_name="promotion.delete_activity",
+    )
+    if isinstance(resources, dict) and resources.get("capability") == "production_write":
+        return {
+            "status": "production_authorized",
+            "authorization_id": resources.get("authorization_id"),
+        }
     return run_delete_activity_chain(resources, payload)
 
 

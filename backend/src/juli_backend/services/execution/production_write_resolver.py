@@ -82,14 +82,14 @@ async def resolve_write_capability(
     payload: dict,
     shop_id,
     run_id=None,
-) -> dict:
+):
     """Resolve a WRITE tool call to production or sandbox resources.
 
-    Returns production resources (when all four preconditions hold) or raises
+    Returns sandbox resources (when flag is off, the default) or raises
     PreconditionFailure with a distinct named reason (when any is unmet).
 
-    With PRODUCTION_WRITE_ENABLED off (default), always resolves to sandbox —
-    this replaces load_sandbox_write_resources() in the tool handler.
+    When all four preconditions hold, returns a production authorization marker
+    (production resources will be created when ProductionWriteClientFactory is available).
 
     Args:
         session: AsyncSession for database queries
@@ -102,8 +102,8 @@ async def resolve_write_capability(
                 If not provided, a placeholder UUID is used (should be replaced with actual run_id)
 
     Returns:
-        SandboxWriteResources if flag is off (default), or a marker dict indicating
-        production capability when all four preconditions pass.
+        SandboxWriteResources if flag is off (default), or a dict marker with
+        capability="production_write" when all four preconditions pass.
 
     Raises:
         PreconditionFailure: with precondition name and reason if any is unmet
@@ -111,7 +111,7 @@ async def resolve_write_capability(
     # Precondition 1: PRODUCTION_WRITE_ENABLED is on
     if not is_production_write_enabled():
         # Default path — flag is off, which is today's configuration
-        # Resolve to sandbox and return sandbox resources in a dict wrapper
+        # Resolve to sandbox and return actual SandboxWriteResources
         from juli_backend.services.execution.sandbox_guard import (
             load_sandbox_write_resources,
         )
@@ -129,11 +129,8 @@ async def resolve_write_capability(
             app_key=app_key,
             app_secret=app_secret,
         )
-        # Return sandbox resources wrapped in a dict for type consistency
-        return {
-            "capability": "sandbox_write",
-            "resources": sandbox_resources,
-        }
+        # Return actual SandboxWriteResources (not wrapped in dict)
+        return sandbox_resources
 
     # Precondition 1 is met; continue with remaining three
     logger.info(
