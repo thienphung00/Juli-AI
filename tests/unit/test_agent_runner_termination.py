@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import ast
 import uuid
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -298,14 +299,22 @@ def _step(tool_name: str, *, policy: ToolPolicy = ToolPolicy.AUTO) -> PlaybookSt
 def _minimal_playbook(
     steps: tuple[PlaybookStep, ...],
     *,
-    policy: TerminationPolicy = OPTIMIZE_PRODUCT_TERMINATION_POLICY,
+    policy: TerminationPolicy | None = None,
 ) -> Playbook:
     """A `Playbook` sharing the real `optimize_product_2` workflow_key/version
     (so `compose()` still resolves a real prose binding) but with a
     caller-chosen step list and termination policy — the policy override is
     what lets the "pinned to source" tests prove the runner reads whatever
     policy it is given, not a value baked into `core.py`/`termination.py`.
+
+    The default drops `terminal_tools` (ADR-088): these playbooks carry a
+    narrowed step list and a registry without the terminal tool, so the runner
+    must not arm its forced retry for them — it only does so when a legitimate
+    "nothing to do" call is actually available. Scenarios that DO exercise the
+    retry pass the real policy explicitly.
     """
+    if policy is None:
+        policy = replace(OPTIMIZE_PRODUCT_TERMINATION_POLICY, terminal_tools=())
     return Playbook(
         workflow_key=OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key,
         version=OPTIMIZE_PRODUCT_PLAYBOOK.version,
@@ -1196,10 +1205,13 @@ async def _concluded_without_changes_scenario() -> RunResult:
     run_id = uuid.uuid4()
     store = _InMemoryConversationStore()
     store.seed(run_id)
-    playbook = _minimal_playbook((_step("get_product_information"),))
+    playbook = _minimal_playbook(
+        (_step("get_product_information"),), policy=OPTIMIZE_PRODUCT_TERMINATION_POLICY
+    )
     llm = _llm(
-        # First turn: text only (triggers forced retry)
-        _turn(TextBlock(text="Analyzing the product...")),
+        # A FinalResponse — the shape the real adapter emits when the model
+        # calls no tool — arms the one forced retry.
+        _turn(FinalResponse(content="Analyzing the product...")),
         # Second turn: conclude_without_changes (forced retry)
         _turn(
             ToolCallBlock(
@@ -1228,12 +1240,16 @@ async def _required_steps_unfulfilled_scenario() -> RunResult:
     run_id = uuid.uuid4()
     store = _InMemoryConversationStore()
     store.seed(run_id)
-    playbook = _minimal_playbook((_step("get_product_information"),))
+    playbook = _minimal_playbook(
+        (_step("get_product_information"),), policy=OPTIMIZE_PRODUCT_TERMINATION_POLICY
+    )
     llm = _llm(
-        # First turn: text only (triggers forced retry)
-        _turn(TextBlock(text="Analyzing the product...")),
-        # Second turn: text only again (no tool call, not conclude_without_changes)
-        _turn(TextBlock(text="Unable to determine recommendations.")),
+        # A FinalResponse — the shape the real adapter emits when the model
+        # calls no tool — arms the one forced retry.
+        _turn(FinalResponse(content="Analyzing the product...")),
+        # The retry is spent and the model narrates again rather than calling a
+        # required tool or conclude_without_changes — the defect signal.
+        _turn(FinalResponse(content="Unable to determine recommendations.")),
     )
     runner = _runner(
         llm_service=llm,
@@ -1339,9 +1355,13 @@ class TestStopReasonReachability:
 
         producer_pattern = "StopReason.OUTPUT_VALIDATION_FAILED,"
         assert TERMINATION_MODULE_PATH.read_text(encoding="utf-8").count(producer_pattern) == 0
-        assert CORE_MODULE_PATH.read_text(encoding="utf-8").count(producer_pattern) == 2, (
-            "exactly two producers are sanctioned: _finalize and resume()'s decline "
-            "branch, both translating the same guard hit"
+        assert CORE_MODULE_PATH.read_text(encoding="utf-8").count(producer_pattern) == 3, (
+            "exactly three producers are sanctioned, all translating the same "
+            "guard_outbound_agent_output hit: _finalize, resume()'s decline branch, "
+            "and (ADR-088) the forced-retry interception in the FinalResponse arm. "
+            "That third one is load-bearing: the retry path bypasses _finalize "
+            "entirely, so without its own guard a banned-pattern narration would "
+            "reach the conversation window and the event stream unchecked."
         )
 
     async def test_every_reachable_stop_reason_has_a_dedicated_scenario_reaching_it(self):

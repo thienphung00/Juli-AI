@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import ast
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -138,7 +139,9 @@ def _minimal_playbook(steps: tuple[PlaybookStep, ...]) -> Playbook:
         workflow_key=OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key,
         version=OPTIMIZE_PRODUCT_PLAYBOOK.version,
         steps=steps,
-        termination_policy=OPTIMIZE_PRODUCT_TERMINATION_POLICY,
+        termination_policy=replace(
+            OPTIMIZE_PRODUCT_TERMINATION_POLICY, terminal_tools=()
+        ),  # ADR-088: narrowed playbook registers no terminal tool
     )
 
 
@@ -256,7 +259,9 @@ class TestPauseThenResumePersistsRowAtEachStage:
                     policy=ToolPolicy.CONFIRM,
                 ),
             ),
-            termination_policy=OPTIMIZE_PRODUCT_TERMINATION_POLICY,
+            termination_policy=replace(
+                OPTIMIZE_PRODUCT_TERMINATION_POLICY, terminal_tools=()
+            ),  # ADR-088: narrowed playbook registers no terminal tool
         )
 
         pause_store = JsonbConversationStore(session)

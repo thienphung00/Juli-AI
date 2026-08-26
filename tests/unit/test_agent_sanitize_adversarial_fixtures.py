@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -168,7 +169,9 @@ def _minimal_playbook() -> Playbook:
                 policy=ToolPolicy.AUTO,
             ),
         ),
-        termination_policy=OPTIMIZE_PRODUCT_TERMINATION_POLICY,
+        termination_policy=replace(
+            OPTIMIZE_PRODUCT_TERMINATION_POLICY, terminal_tools=()
+        ),  # ADR-088: narrowed playbook registers no terminal tool
     )
 
 

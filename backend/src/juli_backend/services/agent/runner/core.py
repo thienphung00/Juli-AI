@@ -1056,27 +1056,87 @@ class WorkflowRunner:
             next_tool_choice = None
 
             stop = None
-            # ADR-088: a turn is "text-only" when it carries at least one
-            # TextBlock and no tool call and no final response — the model
-            # narrating instead of acting. Requiring real text matters: an
-            # empty or malformed turn must fall through to the existing
-            # malformed-block handling, never be mistaken for a decision to
-            # narrate. Initialising this to True is what made empty turns
-            # trigger the retry and mask `iteration_cap_exceeded`.
-            saw_text = False
-            saw_actionable = False
             for block in turn.blocks:
                 if isinstance(block, TextBlock):
-                    saw_text = True
                     consecutive_malformed = 0
                     await self._append_text_block(workflow_run_id, state, block)
                 elif isinstance(block, FinalResponse):
-                    saw_actionable = True
                     consecutive_malformed = 0
+                    # ADR-088: this — not a text-only turn — is how "the model
+                    # narrated instead of acting" actually arrives. The real
+                    # adapter emits a bare TextBlock ONLY alongside tool calls;
+                    # with no function_call items it emits a FinalResponse
+                    # (llm/openai_adapter.py). Gating the forced retry on a
+                    # TextBlock-only turn therefore made it unreachable in
+                    # production while every fake-LLM test passed, because the
+                    # fake emits TextBlock directly. Run 2c961380 terminated
+                    # final_response with required_steps incomplete and no
+                    # retry attempted.
+                    #
+                    # So intercept the FinalResponse once: append the narration
+                    # for continuity, arm one re-invocation with
+                    # tool_choice="required", and let the main loop make it, so
+                    # the top-of-iteration checkpoint and the iteration gate
+                    # keep precedence over required_steps_unfulfilled.
+                    # `policy.terminal_tools` is a precondition, not a
+                    # convenience: forcing tool_choice="required" when the
+                    # model has no legitimate "nothing to do" call available
+                    # would coerce a bogus write on a run that genuinely has
+                    # nothing to propose — the exact hazard ADR-088 names as
+                    # its reason for introducing a terminal tool at all. A
+                    # playbook that declares required_steps but no terminal
+                    # tool therefore keeps the old terminate-on-final
+                    # behaviour.
+                    if policy.terminal_tools and not self._required_steps_completed(state):
+                        if not forced_retry_used:
+                            # Guard BEFORE the interception appends or emits
+                            # anything. `_finalize` runs this same chokepoint,
+                            # but the retry path bypasses `_finalize` entirely,
+                            # so without this a banned-pattern narration would
+                            # reach the conversation window and the event
+                            # stream unchecked (ADR-070). Terminating here
+                            # keeps the blocked body out of both, exactly as
+                            # `_finalize` does.
+                            try:
+                                guard_outbound_agent_output(
+                                    {
+                                        "content": block.content,
+                                        "structured_output": block.structured_output,
+                                    }
+                                )
+                            except BannedPatternGuardFailure:
+                                stop = await self._terminate(
+                                    workflow_run_id,
+                                    state,
+                                    StopReason.OUTPUT_VALIDATION_FAILED,
+                                    version_str,
+                                    sha256,
+                                )
+                                break
+                            forced_retry_used = True
+                            next_tool_choice = "required"
+                            await self._append_text_block(
+                                workflow_run_id, state, TextBlock(text=block.content)
+                            )
+                            break
+                        # The retry was spent and the model narrated again.
+                        # This is the defect signal, distinguishable from a
+                        # healthy final_response (ADR-088 decision 2). A run
+                        # with genuinely nothing to propose ends via the
+                        # conclude_without_changes tool instead, which
+                        # terminates on its own path as
+                        # concluded_without_changes.
+                        stop = await self._terminate(
+                            workflow_run_id,
+                            state,
+                            StopReason.REQUIRED_STEPS_UNFULFILLED,
+                            version_str,
+                            sha256,
+                        )
+                        break
                     stop = await self._finalize(workflow_run_id, state, block, version_str, sha256)
                     break
                 elif isinstance(block, ToolCallBlock):
-                    saw_actionable = True
                     # --- checkpoint: immediately before tool execution ------
                     pre_tool_reason = evaluate_checkpoint(
                         cancel_requested=self._cancel_check(),
@@ -1132,27 +1192,12 @@ class WorkflowRunner:
                     raise TypeError(f"WorkflowRunner cannot dispatch block type {type(block)!r}")
 
             # --- forced retry for incomplete required_steps (ADR-088) --------
-            # A text-only turn with required_steps still incomplete is the
-            # model narrating instead of acting. Rather than terminate here,
-            # arm exactly one re-invocation with tool_choice="required" and let
-            # the main loop make it — so the top-of-iteration checkpoint and
-            # the iteration gate run first and keep their precedence. Once the
-            # retry has been spent and the model narrates again, the run ends
-            # as `required_steps_unfulfilled`, which is distinguishable from a
-            # healthy `final_response` (ADR-088 decision 2).
-            if stop is None and saw_text and not saw_actionable:
-                if not self._required_steps_completed(state):
-                    if not forced_retry_used:
-                        forced_retry_used = True
-                        next_tool_choice = "required"
-                    else:
-                        stop = await self._terminate(
-                            workflow_run_id,
-                            state,
-                            StopReason.REQUIRED_STEPS_UNFULFILLED,
-                            version_str,
-                            sha256,
-                        )
+            # NOTE: the forced retry is armed in the FinalResponse branch
+            # above, not here. An earlier revision gated it on a text-only turn
+            # (`saw_text and not saw_actionable`), which is a block shape the
+            # real adapter never produces when the model declines to act — it
+            # emits FinalResponse instead — so the retry was unreachable in
+            # production while every fake-LLM test passed.
 
             elapsed = self._clock() - iteration_started_at
             state.running_seconds_elapsed = accumulate_running_seconds(

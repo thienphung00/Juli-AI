@@ -48,6 +48,7 @@ import ast
 import gc
 import uuid
 import weakref
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -150,7 +151,9 @@ def _pause_resume_playbook() -> Playbook:
                 policy=ToolPolicy.CONFIRM,
             ),
         ),
-        termination_policy=OPTIMIZE_PRODUCT_TERMINATION_POLICY,
+        termination_policy=replace(
+            OPTIMIZE_PRODUCT_TERMINATION_POLICY, terminal_tools=()
+        ),  # ADR-088: narrowed playbook registers no terminal tool
     )
 
 
