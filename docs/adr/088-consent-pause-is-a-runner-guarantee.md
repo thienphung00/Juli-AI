@@ -1,8 +1,8 @@
 # ADR-088: Reaching the seller-consent pause is a runner guarantee, not a prompt behaviour
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-26
-**Deciders:** Architect with user
+**Deciders:** Architect with user (owner approved 2026-08-26)
 
 **Completes:** [ADR-072](072-agent-prompt-architecture.md) decision 5, whose stated principle
 — "the prompt makes violations rare, the guards make them impossible" — is not honoured on the
