@@ -1,0 +1,90 @@
+{
+  "planId": "rls-policies-that-deny-2026-08-26",
+  "affectedPublicSurfaces": [
+    "Every read and write path in the product: migration 045_rls_policies (down_revision \"044_prod_write_authorizations\") enables ROW LEVEL SECURITY and installs deny-by-default policies on every tenant-scoped table across public, bronze, silver, ops and gold. The tenant-scoped set is derived from models.py metadata (37 tables), never a hand-maintained list.",
+    "The policy predicates the runtime reads once #1327's setter is live: tenant-scoped-direct tables compare shop_id = current_setting('app.current_shop_id', true)::uuid on the already-indexed column; tenant-scoped-via-parent tables (workflow_run_events, run_confirmations via workflow_runs; impact_readings via tool_executions; action_card_approvals via action_cards) use an EXISTS on the parent's indexed primary key with no denormalized shop_id; users keys on app.current_user_id and shops on user_id.",
+    "The deployed runtime is deliberately UNAFFECTED: it still authenticates as the Supabase pooler postgres role, which owns the tables and is exempt from row policies (no FORCE ROW LEVEL SECURITY). RLS enable + policies is behaviourally INERT for the running process until the gate #1339 observation-1 role cutover; if any owner-connection behaviour changes, FORCE was set by accident.",
+    "The ten pre-existing app.current_user_id policies are DROPPED, not left alongside the new ones; webhook_raw_events receives no policy at all because it has no tenant lineage and got no read grant in #1326."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest against a real Postgres 16 (never SQLite — RLS, roles and row locks cannot be expressed there), PYTHONPATH pinned to the worktree's backend/src, DATABASE_URL-driven; the isolation tests connect AS juli_app with two seeded tenants and assert denial from pg_catalog. Post-deploy: alembic upgrade head on the candidate enables RLS and installs policies while the API continues to serve AS postgres; no public traffic is routed to any candidate task set and no production credential or write is involved anywhere.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "The journey's entire point is proving a no-op for the running process: the deployed system still connects as postgres (the table owner, exempt from policies), so after the migration the candidate's authenticated read, approve and SSE stream must behave byte-for-byte as before. The DATABASE_URL cutover to juli_app is gate #1339 observation 1 — an owner act, never performed by this slice or this journey. syntheticShopRequired is true for the pre-merge two-tenant isolation seeding; no real merchant data is touched.",
+    "journeys": [
+      {
+        "name": "policies-deny-as-juli_app-owner-bypassed-runtime-unmoved",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1328",
+        "assertions": [
+          "pre-merge: after alembic upgrade head, every table classified tenant-scoped has relrowsecurity = true and at least one policy, and no table has relforcerowsecurity = true — asserted from pg_catalog, not from the migration source",
+          "pre-merge: the owner-bypass contrast is a test — as postgres a cross-tenant query returns BOTH tenants' rows; as juli_app under tenant A's context the same query returns only A's rows",
+          "pre-merge: with the GUC unset, a SELECT as juli_app returns ZERO rows rather than raising (missing_ok = true), for one table of each of the three shapes; the raising happens in Python first via #1327",
+          "pre-merge: SELECT, UPDATE and DELETE are each scoped and INSERT carries a WITH CHECK that rejects a row for a foreign tenant — proven as juli_app across a direct-shop_id table and a via-parent child table",
+          "pre-merge: the four via-parent tables deny tenant B's rows when the parent belongs to B — seed the parent under B and the child under B, query as A, expect zero rows",
+          "pre-merge: no surviving policy references app.current_user_id except the two that legitimately key on the user (users, shops); the ten pre-existing app.current_user_id policies are dropped",
+          "pre-merge: alembic downgrade -1 && alembic upgrade head round-trips, and the downgrade never leaves any table RLS-enabled with zero policies (that state denies all rows to juli_app and is indistinguishable from data loss)",
+          "pre-merge: EXPLAIN on one direct-shop_id hot read and one EXISTS-on-parent child read shows the index in use — isolation must not convert tenant reads to sequential scans",
+          "pre-merge: the existing suite passes unchanged as postgres — the owner connection path does not move in this slice",
+          "post-deploy: alembic upgrade head on the candidate applies 045_rls_policies, and the candidate's authenticated read, approve and SSE stream return exactly what they did before — the migration is a no-op for the running postgres-connected process (any change means FORCE was set by accident)"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — the diff is one Alembic migration and its real-Postgres isolation tests."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "alembic-history",
+      "pg-catalog-query",
+      "explain-plan"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Migration 045_rls_policies, number RESERVED by Meta (never read from head): down_revision is \"044_prod_write_authorizations\". Additive and INVISIBLE to the owner (postgres) role — enabling RLS plus installing policies, with NO FORCE ROW LEVEL SECURITY, so the previous release running as postgres neither sees nor is denied by any policy and old and new code coexist. The ten dead app.current_user_id policies are dropped in the same migration. No table, column or data change beyond the policy/RLS objects. Derive the tenant-scoped table set from model metadata (37 tables), never a 13-count comment; three shapes each get exactly one treatment, and no shop_id is denormalized onto the via-parent tables. missing_ok=true on every current_setting so unset DENIES rather than raises. Real Postgres 16 only for every isolation and cost claim; SQLite cannot express RLS."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed system changes until the migration lands — it connects as postgres (the table owner), which is exempt from row policies, so every read and write behaves exactly as today. No new exposure and no data hazard; the isolation only becomes real at the gate #1339 observation-1 role cutover.",
+    "postCutoverFailureBehavior": "alembic downgrade -1 drops all policies and disables RLS on the tables this migration touched. The downgrade must NEVER leave a table RLS-enabled with zero policies — that state denies all rows to juli_app and is indistinguishable from data loss; assert the downgrade restores the exact pre-migration RLS/policy state. The deployed process, still on postgres, is unaffected. Performing or reverting the DATABASE_URL cutover itself is gate #1339 observation 1, an owner act outside this slice.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "DATABASE_URL=postgresql://postgres@localhost:5432/juli_exec_1328 PYTHONPATH=$PWD/backend/src python -m pytest tests/integration -k 'rls or isolation or 045 or policy' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'migration or alembic' -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "Derive the tenant-scoped table set from models.py metadata (37 tables), never from a '13 tables' list — that count was true in early August and migrations 033-041 added six more. A table that lands unclassified must fail the proof, not be silently skipped.",
+    "Three shapes, each table gets exactly one: tenant-scoped-direct compares shop_id = current_setting('app.current_shop_id', true)::uuid on the indexed column (NOT the existing EXISTS-on-shops correlated subquery); tenant-scoped-via-parent (workflow_run_events, run_confirmations, impact_readings, action_card_approvals) uses EXISTS on the parent's indexed PK; non-tenant users keys on app.current_user_id and shops on user_id.",
+    "Do NOT denormalize shop_id onto the via-parent tables — a duplicated tenancy fact can drift, and a drifting tenancy fact is a cross-tenant leak.",
+    "webhook_raw_events gets NO policy at all — it has no tenant lineage and got no read grant in #1326.",
+    "missing_ok = true on every current_setting call so an unset GUC DENIES (NULL comparison, zero rows) rather than raising; the named raise happens in Python first via #1327, so the operator sees a named error rather than an empty result set that reads as 'this seller has no data'.",
+    "SELECT, UPDATE and DELETE are each scoped and INSERT carries a WITH CHECK rejecting a foreign-tenant row. A policy that scopes reads and leaves writes open is the failure this slice must not ship.",
+    "The ten pre-existing app.current_user_id policies are DROPPED, not left alongside the new ones; a test asserts no surviving policy references app.current_user_id except the two that legitimately key on the user.",
+    "NO FORCE ROW LEVEL SECURITY anywhere — the owner (alembic, admin, break-glass, and today's deployed postgres runtime) must keep working; policies apply to juli_app because it is not the owner. A test asserts relforcerowsecurity is false everywhere.",
+    "The owner-bypass contrast (postgres sees both tenants' rows, juli_app sees only tenant A's) is the finding this wave exists on and must be a TEST asserted from pg_catalog, never a comment. Real Postgres 16 only; SQLite cannot express RLS.",
+    "EXPLAIN on one direct-shop_id hot read and one EXISTS-on-parent child read must show the index in use — isolation that converts tenant reads to sequential scans is a performance incident with a security changelog.",
+    "The DATABASE_URL cutover to juli_app is gate #1339 observation 1 — an owner act. This slice installs the policies; it must not perform, schedule, or partially apply the cutover, and the deployed system continues to connect as postgres."
+  ]
+}

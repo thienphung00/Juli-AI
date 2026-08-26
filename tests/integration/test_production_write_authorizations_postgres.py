@@ -189,8 +189,11 @@ class TestAlembicRoundTrip:
         if not DATABASE_URL:
             pytest.skip("DATABASE_URL not set")
 
-        # Upgrade to current HEAD (should include 044)
-        command.upgrade(alembic_config, "head")
+        # Start from 043 to isolate 044's upgrade/downgrade round-trip
+        command.downgrade(alembic_config, "043_juli_app_role")
+
+        # Upgrade to 044 specifically
+        command.upgrade(alembic_config, "044_prod_write_authorizations")
 
         # Verify 044 table exists
         sync_engine = create_engine(DATABASE_URL)
