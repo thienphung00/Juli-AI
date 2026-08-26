@@ -135,3 +135,21 @@ def cors_allow_origins() -> list[str]:
         "http://localhost:3000,http://127.0.0.1:3000",
     )
     return [origin.strip() for origin in origins.split(",") if origin.strip()]
+
+
+def is_production_write_enabled() -> bool:
+    """Whether the production-write capability is enabled (issue #1330, #1336).
+
+    Fail-closed: unset or invalid values default to False (capability disabled).
+    Only "true" (case-insensitive) enables the capability. This is the gate for
+    check 7 (RLS preconditions) and #1336's precondition checks.
+
+    When enabled, the boot check verifies that the database connection enforces
+    RLS on all tenant-scoped tables before allowing operation. When disabled
+    (default), the check is a no-op regardless of connection role (today's
+    deployed configuration).
+    """
+    value = os.environ.get("PRODUCTION_WRITE_ENABLED", "").strip().lower()
+    if value not in ("true", "1", "yes"):
+        return False
+    return True
