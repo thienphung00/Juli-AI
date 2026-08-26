@@ -26,7 +26,7 @@ def _get_test_database_url() -> str:
     """
     test_override = os.getenv("TEST_DATABASE_URL")
     if test_override:
-        return test_override
+        return async_database_url(test_override)
 
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
@@ -358,16 +358,21 @@ async def test_resolve_task_tenant_context_real_postgres():
 
         factory = async_sessionmaker(engine, expire_on_commit=False)
 
-        # Seed data: User (owner), Shop (owned by user), WorkflowRun (in shop)
-        owner_user = User(phone="555-0001", display_name="Shop Owner")
-        shop = Shop(user_id=owner_user.id, shop_name="Test Shop", is_active=True)
+        # Seed data with explicit UUIDs and proper flush order to ensure FK constraints
+        owner_user_id = uuid.uuid4()
+        shop_id = uuid.uuid4()
+        product_id = uuid.uuid4()
+        workflow_run_id = uuid.uuid4()
 
-        # We need a Product to create a WorkflowRun (FK constraint)
-        product = Product(shop_id=shop.id, tiktok_product_id="prod-123", name="Test Product")
-
+        owner_user = User(id=owner_user_id, phone="555-0001", display_name="Shop Owner")
+        shop = Shop(id=shop_id, user_id=owner_user_id, shop_name="Test Shop", is_active=True)
+        product = Product(
+            id=product_id, shop_id=shop_id, tiktok_product_id="prod-123", name="Test Product"
+        )
         workflow_run = WorkflowRun(
-            shop_id=shop.id,
-            product_id=product.id,
+            id=workflow_run_id,
+            shop_id=shop_id,
+            product_id=product_id,
             status="queued",
             prompt_version="1.0",
             prompt_sha256="abc123",
@@ -375,21 +380,24 @@ async def test_resolve_task_tenant_context_real_postgres():
 
         async with factory() as session:
             session.add(owner_user)
+            await session.flush()  # Ensure user is persisted before shop references it
             session.add(shop)
+            await session.flush()  # Ensure shop is persisted before product references it
             session.add(product)
+            await session.flush()  # Ensure product is persisted before workflow_run references it
             session.add(workflow_run)
             await session.commit()
 
         # Now resolve the tenant context from the workflow run
-        resolved_shop_id, resolved_user_id = await resolve_task_tenant_context(workflow_run.id)
+        resolved_shop_id, resolved_user_id = await resolve_task_tenant_context(workflow_run_id)
 
         # Assertions:
         # 1. shop_id should match
-        assert resolved_shop_id == shop.id, f"Expected shop_id={shop.id}, got {resolved_shop_id}"
+        assert resolved_shop_id == shop_id, f"Expected shop_id={shop_id}, got {resolved_shop_id}"
 
         # 2. user_id should be the OWNER's user_id, NOT a fabricated uuid
-        assert resolved_user_id == owner_user.id, (
-            f"Expected user_id={owner_user.id} (shop owner), got {resolved_user_id}. "
+        assert resolved_user_id == owner_user_id, (
+            f"Expected user_id={owner_user_id} (shop owner), got {resolved_user_id}. "
             f"This suggests user_id is being fabricated with uuid.uuid4() instead of "
             f"resolved from the shop owner."
         )
@@ -397,10 +405,10 @@ async def test_resolve_task_tenant_context_real_postgres():
         # 3. Clean up inserted rows (do NOT drop schema)
         async with factory() as session:
             # Delete in reverse FK order
-            await session.execute(delete(WorkflowRun).where(WorkflowRun.id == workflow_run.id))
-            await session.execute(delete(Product).where(Product.id == product.id))
-            await session.execute(delete(Shop).where(Shop.id == shop.id))
-            await session.execute(delete(User).where(User.id == owner_user.id))
+            await session.execute(delete(WorkflowRun).where(WorkflowRun.id == workflow_run_id))
+            await session.execute(delete(Product).where(Product.id == product_id))
+            await session.execute(delete(Shop).where(Shop.id == shop_id))
+            await session.execute(delete(User).where(User.id == owner_user_id))
             await session.commit()
 
     finally:
