@@ -1582,6 +1582,158 @@ a {
   min-height: var(--juli-touch-target);
 }
 
+/* Run ledger — In-Progress becomes the run ledger (#1318). Scoped to
+   [data-juli-surface="run"] (packages/theme/run-surface-tokens.css,
+   issue #1314): the --juli-run-* custom properties here resolve only
+   inside that subtree, never leaking an unscoped fallback. */
+.run-ledger {
+  display: grid;
+  gap: var(--juli-space-8);
+  margin: var(--juli-space-6) 0 0;
+  padding: var(--juli-space-6);
+  border-radius: var(--juli-radius, 1rem);
+}
+
+.run-ledger__section-heading {
+  margin: 0 0 var(--juli-space-4);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.run-ledger__cards {
+  display: grid;
+  gap: var(--juli-space-4);
+}
+
+.run-ledger__card {
+  padding: var(--juli-space-4);
+  display: grid;
+  gap: var(--juli-space-2);
+}
+
+.run-ledger__card-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.run-ledger__card-title a {
+  color: inherit;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.run-ledger__card-title a:hover {
+  text-decoration: underline;
+}
+
+.run-ledger__card-title a:focus-visible {
+  outline: var(--juli-focus-width, 3px) solid var(--juli-run-focus-ring);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.run-ledger__expiry {
+  margin: 0;
+  font-weight: 600;
+}
+
+.run-ledger__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--juli-space-2);
+  width: fit-content;
+  padding: var(--juli-space-1) var(--juli-space-3);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.run-ledger__chip--success {
+  background: var(--juli-run-success-tint);
+  color: var(--juli-run-success);
+}
+
+.run-ledger__chip--warning {
+  background: var(--juli-run-warning-tint);
+  color: var(--juli-run-warning);
+}
+
+.run-ledger__chip--destructive {
+  background: var(--juli-run-destructive-tint);
+  color: var(--juli-run-destructive);
+}
+
+.run-ledger__chip--info {
+  background: var(--juli-run-info-tint);
+  color: var(--juli-run-info);
+}
+
+.run-ledger__chip--neutral {
+  background: color-mix(in srgb, var(--juli-run-foreground) 12%, transparent);
+  color: var(--juli-run-foreground);
+}
+
+.run-ledger__breathing-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--juli-run-info);
+  animation-name: run-ledger-breathe;
+  animation-iteration-count: infinite;
+}
+
+.run-ledger__no-retry {
+  margin: 0;
+  color: var(--juli-run-muted-foreground);
+}
+
+.run-ledger__no-retry a {
+  color: var(--juli-run-info);
+}
+
+.run-ledger__error {
+  color: var(--juli-run-warning);
+}
+
+.run-ledger__finished-card {
+  animation-name: run-ledger-rise;
+  animation-fill-mode: backwards;
+}
+
+@keyframes run-ledger-breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes run-ledger-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-ledger__breathing-dot {
+    animation: none;
+  }
+
+  .run-ledger__finished-card {
+    animation-name: none;
+  }
+}
+
 /* Repeat consent — asked only after finished work, once per workflow kind */
 .repeat-consent {
   margin: var(--juli-space-4) 0 0;
