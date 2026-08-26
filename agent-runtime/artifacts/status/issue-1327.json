@@ -6,11 +6,7 @@
     "acceptanceTotal": 7,
     "criticalFindings": 0,
     "modulesTouched": [
-      {
-        "dependencies": [],
-        "module": "backend/src/juli_backend/workers",
-        "reason": "Celery task wrapper for tenant context resolution"
-      }
+      "backend/src/juli_backend/workers"
     ]
   },
   "review": {
