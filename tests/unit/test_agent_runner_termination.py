@@ -1147,6 +1147,9 @@ _DEFERRED_TO_LATER_SLICES: frozenset[StopReason] = frozenset(
         # family members above), never by this file's own `run()`-only
         # scenario suite.
         StopReason.CONFIRMATION_DIVERGED,
+        # #1359: fail-closed resume guard when stored prompt_version is missing
+        # or unparseable. Produced by `resume()`, never by `run()`.
+        StopReason.PROMPT_VERSION_UNRECOVERABLE,
     }
 )
 

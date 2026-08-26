@@ -286,7 +286,7 @@ def _seed_run(session: Session) -> tuple[uuid.UUID, uuid.UUID]:
             product_id=product_id,
             state={},
             status="running",
-            prompt_version="v1",
+            prompt_version="optimize_product.v1",
             prompt_sha256="0" * 64,
         )
     )

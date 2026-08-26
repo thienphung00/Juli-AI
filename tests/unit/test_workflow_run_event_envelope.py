@@ -444,6 +444,7 @@ def test_workflow_failed_documents_exact_failure_class_members():
         "concurrency_conflict",
         "output_validation_failed",
         "worker_lost",
+        "prompt_version_unrecoverable",
     }
 
 
@@ -460,6 +461,7 @@ def test_workflow_failed_documents_exact_failure_class_members():
         (StopReason.CONCURRENCY_CONFLICT, WorkflowRunStatus.FAILED),
         (StopReason.OUTPUT_VALIDATION_FAILED, WorkflowRunStatus.FAILED),
         (StopReason.WORKER_LOST, WorkflowRunStatus.FAILED),
+        (StopReason.PROMPT_VERSION_UNRECOVERABLE, WorkflowRunStatus.FAILED),
     ],
 )
 def test_workflow_failed_accepts_every_failure_class_member_with_matching_status(

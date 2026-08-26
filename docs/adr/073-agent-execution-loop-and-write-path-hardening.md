@@ -157,3 +157,16 @@ metric this total mapping feeds needs to distinguish the two, and any seller-fac
 copy that ever renders a `stop_reason` must not describe an integrity refusal as a
 concurrent edit. The total-mapping test (and its own single-producer guard, mirroring
 `output_validation_failed`'s) covers this member the same way.
+
+## Amendment — `prompt_version_unrecoverable` (2026-08-25, issue #1359)
+
+One additive `stop_reason` member: **`prompt_version_unrecoverable`** (→ `failed`) —
+`WorkflowRunner.resume`'s fail-closed guard when the stored prompt version is
+missing or unparseable after a pause. ADR-072 decision 4 (single-source-of-truth:
+what runs is what was reviewed) and ADR-075 decision 2 (consent binding) require
+resume to execute the original prompt version consented to, never a later
+production bump. If the stored version cannot be recovered from the run row,
+the run fails closed with this member rather than silently recomposing from
+today's production version (which would violate the consent binding invariant).
+The total-mapping test covers this member; the migration (042) extends the
+`workflow_runs.stop_reason` check constraint to accept this value.
