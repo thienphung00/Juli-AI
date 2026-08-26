@@ -794,3 +794,112 @@ class TestDecisionRequestRecordedAtPause:
 
         assert len(event_options) == len(persisted_options) == 1
         assert event_options[0].model_dump(mode="json") == persisted_options[0]
+
+
+# --- Happy path: resume with properly stamped prompt version ------------------
+
+
+class TestResumeWithStampedPromptVersion:
+    """Explicitly verify that resume works with a properly stamped run --
+    issue #1359: fail-closed resume must reject runs without a pin, and this
+    test proves that a real (pinned) run resumes and executes correctly."""
+
+    async def test_resume_with_stamped_pin_executes_stored_version(self, engine: AsyncEngine):
+        """A run created with a properly stamped prompt_version (the real
+        path via approval.py::approve_action_card) resumes and executes the
+        stored version, not a bumped production version."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        # Derive the stamped prompt pin exactly as approval.py does
+        from juli_backend.services.agent import playbooks as playbooks_module
+        from juli_backend.services.agent import prompts as prompts_module
+
+        workflow_key = playbooks_module.OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key
+        version = prompts_module.production_version(workflow_key)
+        prompt_version_pin = prompts_module.prompt_version(workflow_key, version)
+        prompt_sha256_pin = prompts_module.prompt_sha256(workflow_key, version)
+
+        # --- Create a run with the stamped pin (simulating approval.py) -----
+        user = User(id=uuid.uuid4(), phone="+8801")
+        shop = Shop(id=uuid.uuid4(), user_id=user.id, shop_name="Happy Path Shop")
+        product = Product(
+            id=uuid.uuid4(),
+            shop_id=shop.id,
+            tiktok_product_id="test-1359-happy",
+            name="Happy Path Product",
+            status="active",
+            update_time=datetime.now(UTC),
+        )
+
+        async with factory() as session:
+            session.add_all([user, shop, product])
+            await session.flush()
+
+            run = WorkflowRun(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                product_id=product.id,
+                state=RunState().to_dict(),
+                status="running",
+                prompt_version=prompt_version_pin,
+                prompt_sha256=prompt_sha256_pin,
+            )
+            session.add(run)
+            await session.flush()
+            run_id = run.id
+
+            # --- Pause with CONFIRM tool ---
+            spy_pause = _SpyToolExecutor()
+            runner_pause = WorkflowRunner(
+                llm_service=FakeLLMService(
+                    script=[
+                        AssistantTurn(
+                            blocks=(
+                                ToolCallBlock(
+                                    call_id="c1",
+                                    tool_name="update_product_listing",
+                                    arguments={"title": "New title"},
+                                ),
+                            ),
+                            usage=Usage(input_tokens=1, output_tokens=1),
+                        )
+                    ]
+                ),
+                tool_executor=spy_pause,
+                event_sink=InMemoryEventSink(),
+                conversation_store=JsonbConversationStore(session),
+                registry=_full_registry(),
+                playbook=_pause_resume_playbook(),
+            )
+            result_pause = await runner_pause.run(run_id, product_ref=product.tiktok_product_id)
+            assert result_pause.stop_reason == StopReason.PAUSED_FOR_CONFIRMATION
+            assert spy_pause.calls == []
+            await session.commit()
+
+        # --- Resume with CONFIRM approved ---
+        spy_resume = _SpyToolExecutor(result={"title": "New title", "image_attached": False})
+        async with factory() as session_resume:
+            runner_resume = WorkflowRunner(
+                llm_service=FakeLLMService(
+                    script=[
+                        AssistantTurn(
+                            blocks=(FinalResponse(content="Done."),),
+                            usage=Usage(input_tokens=1, output_tokens=1),
+                        )
+                    ]
+                ),
+                tool_executor=spy_resume,
+                event_sink=InMemoryEventSink(),
+                conversation_store=JsonbConversationStore(session_resume),
+                registry=_full_registry(),
+                playbook=_pause_resume_playbook(),
+            )
+            result_resume = await runner_resume.resume(run_id, approved=True)
+
+            # Verify the stamped pin was used and the run completed
+            assert result_resume.stop_reason == StopReason.FINAL_RESPONSE
+            assert result_resume.status == WorkflowRunStatus.COMPLETED
+            # Verify update_product_listing was called (with the title from the paused LLM)
+            assert len(spy_resume.calls) == 1
+            assert spy_resume.calls[0][0] == "update_product_listing"
+            await session_resume.commit()
