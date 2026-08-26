@@ -136,9 +136,7 @@ async def test_set_local_semantics_real_postgres():
             )
 
     finally:
-        # Clean up database
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
+        # No schema cleanup needed — this test only uses GUC operations
         await engine.dispose()
 
 
@@ -180,8 +178,7 @@ async def test_different_tenants_same_connection():
                 assert str(shop_id_2) == value2, f"Expected shop_id={shop_id_2}, got {value2}"
 
     finally:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
+        # No schema cleanup needed — this test only uses GUC operations
         await engine.dispose()
 
 

@@ -50,9 +50,14 @@ async def test_real_route_sets_tenant_context_via_middleware():
 
     try:
         # Create only the User and Shop tables (public schema); skip multi-schema tables
+        # Use checkfirst=True so on a shared DB with migrations already applied, this is a no-op
         async with engine.begin() as conn:
             await conn.run_sync(
-                lambda c: Base.metadata.create_all(c, tables=[User.__table__, Shop.__table__])
+                lambda c: Base.metadata.create_all(
+                    c,
+                    tables=[User.__table__, Shop.__table__],
+                    checkfirst=True,
+                )
             )
 
         # Create test user and shop
@@ -89,7 +94,7 @@ async def test_real_route_sets_tenant_context_via_middleware():
         # Create a test route that checks the GUC
         from fastapi import Depends
         from httpx import ASGITransport
-        from sqlalchemy import text
+        from sqlalchemy import delete, text
 
         from juli_backend.api.dependencies import get_active_shop
 
@@ -124,8 +129,12 @@ async def test_real_route_sets_tenant_context_via_middleware():
             assert data["guc_value"] == data["shop_id"], "GUC was set correctly via get_active_shop"
 
     finally:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
+        # Clean up only the rows we inserted, not the tables
+        # This allows the test to run against a shared DB without schema mutations
+        async with factory() as session:
+            await session.execute(delete(Shop).where(Shop.id == shop_id))
+            await session.execute(delete(User).where(User.id == user_id))
+            await session.commit()
         await engine.dispose()
 
 
