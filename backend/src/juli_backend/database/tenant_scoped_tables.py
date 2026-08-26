@@ -58,6 +58,7 @@ TABLE_CLASSIFICATION_MAP = {
     ("bronze", "live_hours_raw_payloads"): "tenant_direct",
     ("public", "processed_events"): "tenant_direct",
     ("public", "production_write_authorizations"): "tenant_direct",
+    ("public", "production_write_audit"): "tenant_direct",
     # Via-parent tenant-scoped tables
     ("public", "workflow_run_events"): "tenant_via_parent",
     ("public", "run_confirmations"): "tenant_via_parent",
