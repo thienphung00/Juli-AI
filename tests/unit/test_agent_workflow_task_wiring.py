@@ -179,6 +179,15 @@ class TestDefaultSeamsComposeRealCollaborators:
             "upload_product_image",
             "update_product_listing",
             "update_product_price",
+            # ADR-088: the terminal tool must be in the PRODUCTION registry,
+            # not just the playbook, because `_tool_definitions` resolves
+            # `TerminationPolicy.terminal_tools` against whatever registry the
+            # worker handed the runner. This assertion is a hardcoded set, so
+            # it stayed green while production was missing the registration —
+            # see test_agent_production_registry_satisfies_playbook.py, which
+            # cross-checks the real builder against the real playbook instead
+            # and is what actually catches that class of gap.
+            "conclude_without_changes",
         }
 
     def test_default_playbook_returns_the_real_optimize_product_playbook(self):
