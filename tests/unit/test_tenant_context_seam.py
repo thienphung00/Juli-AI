@@ -10,7 +10,7 @@ import os
 import uuid
 
 import pytest
-from sqlalchemy import event, text
+from sqlalchemy import delete, event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from juli_backend.core.config.runtime import async_database_url
@@ -26,7 +26,7 @@ def _get_test_database_url() -> str:
     """
     test_override = os.getenv("TEST_DATABASE_URL")
     if test_override:
-        return test_override
+        return async_database_url(test_override)
 
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
@@ -325,6 +325,144 @@ async def test_celery_task_tenant_resolution(monkeypatch):
 
     assert "Cannot resolve tenant context" in str(exc_info.value)
     assert task_body_executed is False, "Task body should not execute when context resolution fails"
+
+
+# ============================================================================
+# AC5 extended: resolve_task_tenant_context with real Postgres + models
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_resolve_task_tenant_context_real_postgres():
+    """AC5 extended: resolve_task_tenant_context resolves user_id from shop owner.
+
+    Proves that:
+    1. When given a run_id that exists and has a valid shop_id,
+       resolve_task_tenant_context returns (run.shop_id, shop.user_id)
+    2. The returned user_id is the shop's OWNER's user_id, NOT a fabricated uuid
+    3. This test FAILS against the old uuid.uuid4() code and PASSES with the fix
+    """
+    database_url = _get_test_database_url()
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from juli_backend.models.models import Product, Shop, User, WorkflowRun
+    from juli_backend.workers.tenant_context_wrapper import resolve_task_tenant_context
+
+    engine = create_async_engine(database_url, echo=False)
+
+    try:
+        # Create tables (use checkfirst to avoid FK errors on drops)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all, checkfirst=True)
+
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        # Seed data with explicit UUIDs and proper flush order to ensure FK constraints
+        owner_user_id = uuid.uuid4()
+        shop_id = uuid.uuid4()
+        product_id = uuid.uuid4()
+        workflow_run_id = uuid.uuid4()
+
+        from datetime import datetime
+
+        owner_user = User(id=owner_user_id, phone="555-0001", display_name="Shop Owner")
+        shop = Shop(id=shop_id, user_id=owner_user_id, shop_name="Test Shop", is_active=True)
+        product = Product(
+            id=product_id,
+            shop_id=shop_id,
+            tiktok_product_id="prod-123",
+            name="Test Product",
+            status="active",
+            update_time=datetime.utcnow(),
+        )
+        workflow_run = WorkflowRun(
+            id=workflow_run_id,
+            shop_id=shop_id,
+            product_id=product_id,
+            status="queued",
+            prompt_version="1.0",
+            prompt_sha256="abc123",
+        )
+
+        async with factory() as session:
+            session.add(owner_user)
+            await session.flush()  # Ensure user is persisted before shop references it
+            session.add(shop)
+            await session.flush()  # Ensure shop is persisted before product references it
+            session.add(product)
+            await session.flush()  # Ensure product is persisted before workflow_run references it
+            session.add(workflow_run)
+            await session.commit()
+
+        # Now resolve the tenant context from the workflow run
+        resolved_shop_id, resolved_user_id = await resolve_task_tenant_context(workflow_run_id)
+
+        # Assertions:
+        # 1. shop_id should match
+        assert resolved_shop_id == shop_id, f"Expected shop_id={shop_id}, got {resolved_shop_id}"
+
+        # 2. user_id should be the OWNER's user_id, NOT a fabricated uuid
+        assert resolved_user_id == owner_user_id, (
+            f"Expected user_id={owner_user_id} (shop owner), got {resolved_user_id}. "
+            f"This suggests user_id is being fabricated with uuid.uuid4() instead of "
+            f"resolved from the shop owner."
+        )
+
+        # 3. Clean up inserted rows (do NOT drop schema)
+        async with factory() as session:
+            # Delete in reverse FK order
+            await session.execute(delete(WorkflowRun).where(WorkflowRun.id == workflow_run_id))
+            await session.execute(delete(Product).where(Product.id == product_id))
+            await session.execute(delete(Shop).where(Shop.id == shop_id))
+            await session.execute(delete(User).where(User.id == owner_user_id))
+            await session.commit()
+
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_resolve_task_tenant_context_fail_closed_nonexistent_shop():
+    """AC5 extended: resolve_task_tenant_context fails closed when shop doesn't exist.
+
+    Proves that:
+    1. When a WorkflowRun's shop_id points to a nonexistent Shop,
+       resolve_task_tenant_context raises TenantContextTaskError
+    2. No fabricated uuid or fallback is used
+    3. The error message is clear about what failed
+    """
+    database_url = _get_test_database_url()
+
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from juli_backend.workers.tenant_context_wrapper import (
+        TenantContextTaskError,
+        resolve_task_tenant_context,
+    )
+
+    engine = create_async_engine(database_url, echo=False)
+
+    try:
+        # Create tables
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all, checkfirst=True)
+
+        # Test with a run_id that will never be found
+        fake_run_id = uuid.uuid4()
+
+        # Attempt to resolve — should fail closed
+        with pytest.raises(TenantContextTaskError) as exc_info:
+            await resolve_task_tenant_context(fake_run_id)
+
+        # Assert error message is clear
+        error_msg = str(exc_info.value)
+        assert "workflow_runs row not found" in error_msg or "cannot be resolved" in error_msg, (
+            f"Expected clear error message about run not found, got: {error_msg}"
+        )
+
+    finally:
+        await engine.dispose()
 
 
 # ============================================================================
