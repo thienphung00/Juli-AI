@@ -153,17 +153,58 @@ what" to per-shop tenant isolation.
 
 ---
 
-## 5. Config toggle that will block W6
+## 5. Supabase Auth provider configuration that will block W6
 
-**Enable anonymous sign-in on the Supabase project.**
+Two settings on the same Supabase project (the one behind `SUPABASE_URL` in
+`/etc/juli/api.env`). Both are dashboard actions; do them in one sitting.
+
+### 5a. Anonymous sign-in — blocks #1313
 
 Issue #1313 ("Dùng thử Demo mints a real anonymous session scoped to the demo tenant")
 needs it for its post-deploy journey. ADR-084 **forbids a shared demo account**, so there
 is no workaround: without the toggle the executor can build and pre-merge-test everything
 except the live journey, and the issue cannot be fully verified.
 
-Do it in the Supabase dashboard: Authentication → Providers/Sign-in methods → enable
-**Anonymous sign-ins** for the project behind `SUPABASE_URL` in `/etc/juli/api.env`.
+Supabase dashboard → Authentication → Providers/Sign-in methods → enable
+**Anonymous sign-ins**.
+
+### 5b. Google provider + a GCP OAuth client — blocks #1319
+
+Issue #1319 ("Dual entry — Dùng thử Demo and Đăng nhập với Google") builds two doors on
+the landing page. The second one, **Đăng nhập với Google**, goes through Supabase Auth's
+Google provider, which needs an OAuth client you create in Google Cloud. Reference:
+<https://supabase.com/docs/guides/auth/social-login/auth-google>.
+
+What it needs:
+
+1. A **GCP project** (any project; it exists only to own the OAuth client).
+2. An **OAuth 2.0 Client ID** of type *Web application*, plus its client secret.
+3. The Supabase project's **callback URL** registered as an Authorized redirect URI on
+   that client. Supabase shows the exact URL on the Google provider page — copy it from
+   there rather than composing it by hand; a `redirect_uri_mismatch` is the usual symptom
+   of getting this wrong, and it only appears post-deploy.
+4. The client ID and secret pasted into Supabase dashboard → Authentication → Providers →
+   **Google**, then enabled.
+5. The OAuth consent screen filled in far enough for the account you will test with. While
+   the app is in *Testing*, only listed test users can complete the flow.
+
+The public surface for this slice is `demo.app-juli.com` (per #1319's release-evidence
+section), so that host is where the journey gets verified after deploy.
+
+**Not blocked on TikTok.** #1319 deliberately does not wire live TikTok merchant OAuth —
+it builds the "Kết nối TikTok Shop" connect-shop screen and requires it to state its real
+state honestly rather than implying a working exchange. So Google sign-in reaching that
+screen is the whole acceptance bar here; connecting an arbitrary merchant shop is a
+separate flagged follow-up. Don't wait on TikTok credentials to do this setup.
+
+**Timing.** #1319 is blocked by #1313, which is itself blocked on the #1353 decision, and
+#1319 hasn't started — so this is not urgent today. It *will* gate that slice's
+acceptance criteria, which require the Google entry to reach the connect-shop screen and
+to preserve runs across identity linking; neither is demonstrable against an unconfigured
+provider.
+
+**Nothing in W7 needs a GCP project** — verified by scanning every W7 issue (#1326–#1339)
+for Google/GCP requirements. This is a W6-only dependency.
 
 ---
 
