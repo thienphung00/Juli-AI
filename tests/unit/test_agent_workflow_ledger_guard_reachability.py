@@ -226,7 +226,7 @@ async def _seed_run(session) -> tuple[uuid.UUID, uuid.UUID, str]:
         product_id=product.id,
         state=RunState().to_dict(),
         status="running",
-        prompt_version="v1",
+        prompt_version="optimize_product.v1",
         prompt_sha256="0" * 64,
     )
     session.add_all([user, shop, product, run])

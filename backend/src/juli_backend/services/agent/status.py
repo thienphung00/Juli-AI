@@ -104,6 +104,12 @@ class StopReason(StrEnum):
     # execute -- "divergence" is ADR-075 decision 2's own word. 21
     # characters, well inside `workflow_runs.stop_reason`'s `String(32)`.
     CONFIRMATION_DIVERGED = "confirmation_diverged"
+    # Issue #1359 (ADR-072 decision 4, ADR-075 decision 2): the stored prompt
+    # version is absent (pre-fix run) or unparseable (corrupt data). Resume
+    # cannot proceed because the seller's consent was bound to a specific
+    # prompt, and that version is no longer recoverable. Fail-closed: do not
+    # execute an unknown prompt. 28 characters, inside String(32).
+    PROMPT_VERSION_UNRECOVERABLE = "prompt_version_unrecoverable"
     ITERATION_CAP_EXCEEDED = "iteration_cap_exceeded"
     WALL_CLOCK_TIMEOUT = "wall_clock_timeout"
     TOOL_ERROR_UNRECOVERABLE = "tool_error_unrecoverable"
@@ -129,6 +135,7 @@ STOP_REASON_TO_STATUS: MappingProxyType[StopReason, WorkflowRunStatus] = Mapping
         StopReason.CANCELLED_BY_SELLER: WorkflowRunStatus.CANCELLED,
         StopReason.CONFIRMATION_EXPIRED: WorkflowRunStatus.CANCELLED,
         StopReason.CONFIRMATION_DIVERGED: WorkflowRunStatus.FAILED,
+        StopReason.PROMPT_VERSION_UNRECOVERABLE: WorkflowRunStatus.FAILED,
         StopReason.ITERATION_CAP_EXCEEDED: WorkflowRunStatus.TIMED_OUT,
         StopReason.WALL_CLOCK_TIMEOUT: WorkflowRunStatus.TIMED_OUT,
         StopReason.TOOL_ERROR_UNRECOVERABLE: WorkflowRunStatus.FAILED,

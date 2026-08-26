@@ -1,0 +1,66 @@
+{
+  "gateVersion": 1,
+  "issue": 1359,
+  "metrics": {
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      {
+        "module": "backend/src/juli_backend/services/agent/runner/core.py",
+        "rationale": "Core runner logic modified to compose and resume with stored prompt versions; fail-closed guards on missing/unparseable versions",
+        "type": "service"
+      },
+      {
+        "module": "backend/src/juli_backend/services/agent/runner/state.py",
+        "rationale": "RunState extended with optional prompt_version and prompt_sha256 fields",
+        "type": "data"
+      },
+      {
+        "module": "backend/src/juli_backend/database/migrations/versions/042_stop_reason_prompt_pin.py",
+        "rationale": "Migration widens ck_workflow_runs_stop_reason to accept new PROMPT_VERSION_UNRECOVERABLE value",
+        "type": "migration"
+      },
+      {
+        "module": "backend/src/juli_backend/models/models.py",
+        "rationale": "CheckConstraint widened to include prompt_version_unrecoverable",
+        "type": "model"
+      },
+      {
+        "module": "backend/src/juli_backend/services/agent/runner/conversation_store.py",
+        "rationale": "ConversationStore.load() modified to populate prompt fields from row",
+        "type": "data"
+      },
+      {
+        "module": "tests/unit/test_agent_runner_core.py",
+        "rationale": "Guard test added to verify prompt version consistency across playbooks",
+        "type": "test"
+      },
+      {
+        "module": "tests/unit/test_agent_runner_resume_params_sha_binding.py",
+        "rationale": "Test added for resume fail-closed behavior on unparseable prompt version",
+        "type": "test"
+      },
+      {
+        "module": "tests/unit/test_agent_runner_termination.py",
+        "rationale": "StopReason partition test updated to account for new PROMPT_VERSION_UNRECOVERABLE",
+        "type": "test"
+      }
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1359.json",
+    "ownerSignoffPresent": true,
+    "sha256": "422d96bf53e8eb14a5e5d5580b1ca9d8120bdc140b0eae0af3a9112b2e57af94",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-26T00:00:00Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1359.json",
+    "sha256": "9dc9fd1bcd58e93d1c87353b022a272ee08e598b21872193b3d42fb442cc8497",
+    "status": "PASS"
+  },
+  "wave": null
+}

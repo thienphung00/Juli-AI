@@ -103,6 +103,22 @@ def _turn(*blocks) -> AssistantTurn:
     return AssistantTurn(blocks=tuple(blocks), usage=Usage(input_tokens=1, output_tokens=1))
 
 
+def _stamped_prompt_pin() -> tuple[str, str]:
+    """The production-pinned `(prompt_version, prompt_sha256)` for the
+    Optimize Product workflow, matching what approval.py::approve_action_card
+    stamps on run creation. Used by fixtures that construct WorkflowRunRow
+    instances directly rather than via the real approval path."""
+    from juli_backend.services.agent import playbooks as playbooks_module
+    from juli_backend.services.agent import prompts as prompts_module
+
+    workflow_key = playbooks_module.OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key
+    version = prompts_module.production_version(workflow_key)
+    return (
+        prompts_module.prompt_version(workflow_key, version),
+        prompts_module.prompt_sha256(workflow_key, version),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -173,14 +189,15 @@ class TestApproveResumesDispatchesAndReachesTerminalState:
         # row (waiting_approval) and the real `run_confirmations` row
         # (pending) the endpoint under test authorizes against. ------------
         async with factory() as session:
+            prompt_version, prompt_sha256 = _stamped_prompt_pin()
             run = WorkflowRunRow(
                 id=uuid.uuid4(),
                 shop_id=shop.id,
                 product_id=product.id,
                 state=RunState().to_dict(),
                 status="running",
-                prompt_version="v1",
-                prompt_sha256="0" * 64,
+                prompt_version=prompt_version,
+                prompt_sha256=prompt_sha256,
             )
             session.add(run)
             await session.flush()
