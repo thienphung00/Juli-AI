@@ -116,7 +116,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
-from juli_backend.core.config import is_production, require_env
+from juli_backend.core.config import is_production, is_production_write_enabled, require_env
 from juli_backend.services.agent import composition as composition_module
 from juli_backend.services.agent import sanitize as sanitize_module
 from juli_backend.workers import agent_broker_guard as broker_guard_module
@@ -139,7 +139,7 @@ def assert_agent_runtime_config(
     app: FastAPI | None = None,
     broker_url: str | None = None,
 ) -> None:
-    """Fail the process at boot when any of ADR-075 decision 3's six checks
+    """Fail the process at boot when any of ADR-075 decision 3's checks
     is unmet, each raising a `RuntimeError` naming that check.
 
     `app`: pass the real `FastAPI` instance from API boot so check 6 can
@@ -152,6 +152,15 @@ def assert_agent_runtime_config(
     reading `CELERY_BROKER_URL` with the identical default
     `celery_app.py` itself uses, so both boot paths assert against the same
     effective broker.
+
+    **Check 7 (issue #1330):** When the production-write capability is enabled
+    (PRODUCTION_WRITE_ENABLED=true), verify at boot that:
+    (a) The connection's role is NOT an owner of any table in runtime schemas
+        (i.e., does not bypass RLS), and
+    (b) relrowsecurity=true for every tenant-scoped table.
+    Either unmet ⇒ refuse to start, naming the check and (for RLS) naming
+    the table. When the capability is OFF (default), check 7 is a no-op
+    regardless of connection role (preserving today's production state).
     """
     # Check 5 -- unconditional. Must run, and must be able to fail, before
     # anything below it: an empty SUPABASE_JWT_SECRET crashes at boot rather
@@ -173,14 +182,18 @@ def assert_agent_runtime_config(
     if not broker_guard_module.agent_workflows_enabled():
         # Fail-safe-by-omission: a deployment that has not opted into agent
         # workflows is unaffected by checks 1, 3, 4, 6 -- the same shape
-        # check 2 alone already had.
-        return
+        # check 2 alone already had. Check 7 runs independently.
+        pass
+    else:
+        _assert_openai_api_key_present()
+        _assert_banned_patterns_load_and_compile()
+        _assert_sandbox_write_guard_config_resolvable()
+        if app is not None:
+            _assert_zero_unauthenticated_agent_route_groups(app)
 
-    _assert_openai_api_key_present()
-    _assert_banned_patterns_load_and_compile()
-    _assert_sandbox_write_guard_config_resolvable()
-    if app is not None:
-        _assert_zero_unauthenticated_agent_route_groups(app)
+    # Check 7: RLS preconditions for production-write capability (issue #1330).
+    # Runs independently, not gated by agent_workflows_enabled.
+    _assert_non_owner_role_rls_preconditions()
 
 
 def _assert_supabase_jwks_url_usable() -> None:
@@ -282,3 +295,172 @@ def _dependant_requires_auth(dependant: Dependant, auth_dependency: object) -> b
             return True
         stack.extend(current.dependencies)
     return False
+
+
+def _assert_non_owner_role_rls_preconditions() -> None:
+    """Check 7: RLS preconditions when production-write capability is enabled (issue #1330).
+
+    This check implements the core protection: when PRODUCTION_WRITE_ENABLED=true, verify
+    that the database enforces RLS isolation before allowing operation.
+
+    Semantics (corrected from inverted logic):
+    - PRODUCTION_WRITE_ENABLED OFF (default) ⇒ NO-OP, regardless of connection role.
+      This is today's production state (capability off). Boot succeeds even if connecting
+      as the owner (postgres) with partial RLS.
+    - PRODUCTION_WRITE_ENABLED ON ⇒ Verify preconditions:
+      (a) connection role owns no runtime schema tables (if it does, it bypasses RLS) ⇒
+          REFUSE boot, naming the check (AC1 — the core dangerous case).
+      (b) every tenant-scoped table has relrowsecurity=true ⇒ REFUSE, naming the table (AC2).
+      Both conditions must be met to boot (AC4).
+
+    Queries the LIVE connection's actual role and RLS state from pg_catalog,
+    not config values.
+    """
+    # Gate on PRODUCTION_WRITE_ENABLED, not on connection role
+    if not is_production_write_enabled():
+        # Capability is OFF (default) — no-op regardless of connection role
+        return
+
+    from urllib.parse import urlparse
+
+    import psycopg2  # type: ignore[import-untyped]
+    import psycopg2.extras  # type: ignore[import-untyped]
+
+    # Capability is ON — verify preconditions against live database
+    database_url = os.environ.get("DATABASE_URL", "").strip()
+    if not database_url:
+        # No database connection configured; check is not applicable
+        return
+
+    # Parse the DATABASE_URL to extract connection parameters
+    from juli_backend.core.config import sync_database_url
+
+    try:
+        # Normalize URL for sync driver
+        normalized_url = sync_database_url(database_url)
+        parsed = urlparse(normalized_url)
+
+        # Extract connection parameters
+        conn_params = {
+            "host": parsed.hostname or "localhost",
+            "port": parsed.port or 5432,
+            "user": parsed.username or "postgres",
+            "password": parsed.password or "",
+            "database": parsed.path.lstrip("/") if parsed.path else "postgres",
+        }
+
+    except Exception:
+        # If we can't parse/normalize the URL, this is not a precondition failure
+        # Don't fail boot on URL parsing issues
+        return
+
+    # Try to connect and check preconditions
+    conn = None
+    try:
+        conn = psycopg2.connect(**conn_params)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+        # Get current role
+        cursor.execute("SELECT current_user")
+        current_role = cursor.fetchone()[0]
+
+        # Check preconditions when capability is ON
+        # These may raise RuntimeError if preconditions are not met
+        _check_role_does_not_own_tables(cursor, current_role)
+        _check_tenant_tables_have_rls(cursor)
+
+        cursor.close()
+        conn.close()
+
+    except psycopg2.Error as e:
+        if conn is not None:
+            conn.close()
+        raise RuntimeError(
+            f"assert_agent_runtime_config: failed to check RLS preconditions: {e}"
+        ) from e
+
+
+def _check_role_does_not_own_tables(cursor, current_role: str) -> None:
+    """Verify that the current role owns no tables in runtime schemas.
+
+    AC1: If connection role owns tables in runtime schemas, it bypasses RLS.
+    Raises RuntimeError naming the check and owned tables.
+    """
+    # Query for tables owned by current role in runtime schemas
+    cursor.execute(
+        """
+        SELECT t.relname, n.nspname
+        FROM pg_class t
+        JOIN pg_namespace n ON t.relnamespace = n.oid
+        JOIN pg_roles r ON t.relowner = r.oid
+        WHERE r.rolname = %s
+        AND n.nspname IN ('public', 'bronze', 'silver', 'ops', 'gold')
+        AND t.relkind = 'r'
+        ORDER BY n.nspname, t.relname
+        """,
+        (current_role,),
+    )
+
+    owned_tables = cursor.fetchall()
+    if owned_tables:
+        table_list = ", ".join(f"{row['nspname']}.{row['relname']}" for row in owned_tables)
+        raise RuntimeError(
+            f"assert_agent_runtime_config: check 7 (production-write RLS preconditions) "
+            f"refuses boot — connection role '{current_role}' owns tables in runtime "
+            f"schemas: {table_list}. Role ownership bypasses RLS. Set "
+            f"PRODUCTION_WRITE_ENABLED=false or use a non-owner connection role."
+        )
+
+
+def _check_tenant_tables_have_rls(cursor) -> None:
+    """Verify that all tenant-scoped tables have RLS enabled.
+
+    AC2: Raises RuntimeError naming each table without RLS.
+    """
+    from juli_backend.database.tenant_scoped_tables import get_tenant_scoped_tables
+
+    tenant_tables = get_tenant_scoped_tables()
+
+    if not tenant_tables:
+        # No tenant tables defined; check passes
+        return
+
+    # Query RLS state for each tenant table directly from pg_catalog
+    tables_without_rls = []
+    missing_tables = []
+
+    for schema, table in tenant_tables:
+        cursor.execute(
+            """
+            SELECT t.relrowsecurity
+            FROM pg_class t
+            JOIN pg_namespace n ON t.relnamespace = n.oid
+            WHERE n.nspname = %s AND t.relname = %s AND t.relkind = 'r'
+            """,
+            (schema, table),
+        )
+
+        result = cursor.fetchone()
+        if result is None:
+            # Table doesn't exist in catalog
+            missing_tables.append(f"{schema}.{table}")
+        else:
+            relrowsecurity = result[0]  # Using index access since DictCursor may vary
+            if not relrowsecurity:
+                tables_without_rls.append(f"{schema}.{table}")
+
+    if missing_tables:
+        missing_list = ", ".join(missing_tables)
+        raise RuntimeError(
+            f"assert_agent_runtime_config: check 7 (production-write RLS preconditions) "
+            f"refuses boot — tenant-scoped tables not found in pg_catalog: {missing_list}. "
+            f"Set PRODUCTION_WRITE_ENABLED=false or ensure all tenant tables exist."
+        )
+
+    if tables_without_rls:
+        table_list = ", ".join(tables_without_rls)
+        raise RuntimeError(
+            f"assert_agent_runtime_config: check 7 (production-write RLS preconditions) "
+            f"refuses boot — tenant-scoped tables missing RLS: {table_list}. "
+            f"Isolation is incomplete. Set PRODUCTION_WRITE_ENABLED=false or enable RLS."
+        )
