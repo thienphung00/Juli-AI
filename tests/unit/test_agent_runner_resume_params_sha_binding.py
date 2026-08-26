@@ -158,6 +158,8 @@ async def _seed_run_at_pause(
     *,
     arguments: dict[str, Any],
     confirmed_params_sha: str | None,
+    prompt_version: str | None = None,
+    prompt_sha256: str | None = None,
 ) -> uuid.UUID:
     """Seeds a `workflow_runs` row already at `waiting_approval` with a
     `pending_confirmation` blob shaped exactly like a real CONFIRM pause
@@ -166,6 +168,10 @@ async def _seed_run_at_pause(
     (`agent_runs.py::submit_confirmation_decision`) -- `None` to simulate a
     caller (or a pre-#1224-review-round-2 test) that never went through
     that endpoint at all.
+
+    `prompt_version` and `prompt_sha256` default to reasonable values ("optimize_product_2/v1"
+    and "0"*64) if not provided. Pass explicit values for edge cases like
+    unparseable versions or corrupt data (issue #1359 tests).
     """
     pending_confirmation: dict[str, Any] = {
         "call_id": "call-listing-1",
@@ -182,8 +188,8 @@ async def _seed_run_at_pause(
         product_id=product.id,
         state=state.to_dict(),
         status="waiting_approval",
-        prompt_version="optimize_product_2/v1",
-        prompt_sha256="0" * 64,
+        prompt_version=prompt_version if prompt_version is not None else "optimize_product_2/v1",
+        prompt_sha256=prompt_sha256 if prompt_sha256 is not None else "0" * 64,
     )
     session.add(run)
     await session.commit()
@@ -342,6 +348,127 @@ async def test_red_proof_the_check_actually_gates_dispatch(
         "the right reason, not a fixture artifact"
     )
     assert result.stop_reason == StopReason.FINAL_RESPONSE
+
+
+# ---------------------------------------------------------------------------
+# AC: resume executes the original prompt version, not a later production
+# bump (issue #1359, ADR-075 decision 2 consent binding)
+# ---------------------------------------------------------------------------
+
+
+async def test_resume_uses_stored_prompt_version_not_production_bump(
+    session: AsyncSession, shop_and_product, monkeypatch
+):
+    """Resume must execute the same prompt version the run was originally
+    stamped with (issue #1359), even if production_version has bumped
+    between pause and resume. Consent binding requires the seller's decision
+    to be honored against the exact context they saw, not a newer prompt.
+
+    Proof: seed a run at pause with prompt_version='optimize_product.v1'
+    (stored on the row), then monkeypatch production_version to return 2,
+    then resume — the runner should still compose from v1, and the
+    composed version/sha in RunResult should match the stored v1 values.
+    """
+    from juli_backend.services.agent.runner import core as core_module
+
+    shop, product = shop_and_product
+
+    # Seed a run that was paused while v1 was production
+    run_id = await _seed_run_at_pause(
+        session,
+        shop,
+        product,
+        arguments=PROPOSED_CHANGE,
+        confirmed_params_sha=None,  # no params_sha divergence here, testing prompt only
+    )
+
+    # Manually verify the stored prompt_version is v1
+    await session.refresh(run := await session.get(WorkflowRunRow, run_id))
+    assert run.prompt_version == "optimize_product_2/v1", (
+        "Test setup: run must be seeded with v1; check _seed_run_at_pause"
+    )
+
+    spy = _SpyToolExecutor(result={"title": "New improved title", "image_attached": False})
+    llm = FakeLLMService(script=[_turn(FinalResponse(content="All done."))])
+    runner = _build_runner(session, spy, llm)
+
+    # Monkeypatch production_version to return 2, simulating a production
+    # bump between pause and resume
+    def _mock_production_version(workflow_key: str) -> int:
+        return 2  # Bumped since this run was paused
+
+    monkeypatch.setattr(core_module, "production_version", _mock_production_version)
+
+    # Resume the run
+    result = await runner.resume(run_id, approved=True)
+
+    # The resumed run should have composed from v1 (the stored version),
+    # not v2 (today's production bump). Extract the version number to verify.
+    # prompt_version returns format "optimize_product.v1"
+    from juli_backend.services.agent.prompts.composer import prompt_version as pv_fn
+
+    expected_v1 = pv_fn("optimize_product_2", 1)
+    expected_v2 = pv_fn("optimize_product_2", 2)
+
+    assert result.prompt_version == expected_v1, (
+        f"Resume executed version {result.prompt_version}, expected {expected_v1}; "
+        "production bump incorrectly switched prompts mid-run (#1359 regression)"
+    )
+    assert result.prompt_version != expected_v2, (
+        "Resume incorrectly jumped to v2 instead of staying at original v1"
+    )
+    assert result.stop_reason == StopReason.FINAL_RESPONSE
+    assert result.status == WorkflowRunStatus.COMPLETED
+
+
+# ---------------------------------------------------------------------------
+# CRITICAL: Resume fails closed if prompt version is missing or unparseable
+# (issue #1359 — never silently fall back to production_version, which
+# reintroduces the bug)
+# ---------------------------------------------------------------------------
+
+
+async def test_resume_fails_closed_when_prompt_version_unparseable(
+    session: AsyncSession, shop_and_product
+):
+    """Resume must NOT execute if the stored prompt_version is unparseable
+    (corrupt data). Fail-closed: better to refuse a paused run than to
+    execute an unknown prompt (issue #1359).
+    """
+    shop, product = shop_and_product
+
+    # Seed a run at pause with a malformed prompt_version to simulate
+    # corrupt/unparseable data (issue #1359)
+    run_id = await _seed_run_at_pause(
+        session,
+        shop,
+        product,
+        arguments=PROPOSED_CHANGE,
+        confirmed_params_sha=None,
+        prompt_version="completely_malformed_no_version_here",  # Corrupt
+        prompt_sha256="1234567890abcdef" * 4,  # 64 chars, but based on bad version
+    )
+
+    spy = _SpyToolExecutor(result={"title": "New improved title", "image_attached": False})
+    llm = FakeLLMService(script=[])  # must never be called — should fail before dispatch
+    runner = _build_runner(session, spy, llm)
+
+    result = await runner.resume(run_id, approved=True)
+
+    # The resume should fail with the specific stop reason
+    assert result.stop_reason == StopReason.PROMPT_VERSION_UNRECOVERABLE, (
+        "Unparseable prompt_version must fail with PROMPT_VERSION_UNRECOVERABLE"
+    )
+    assert result.status == WorkflowRunStatus.FAILED
+    assert spy.calls == [], "Tool must never execute when prompt version is unparseable"
+    assert len(llm.recorded_calls) == 0, (
+        "LLM must never be called when prompt version is unparseable"
+    )
+
+    # Verify the row was persisted with the terminal status
+    await session.refresh(run := await session.get(WorkflowRunRow, run_id))
+    assert run.status == "failed"
+    assert run.stop_reason == "prompt_version_unrecoverable"
 
 
 if __name__ == "__main__":  # pragma: no cover

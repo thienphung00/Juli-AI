@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 1367,
+  "metrics": {
+    "acceptanceMapped": 7,
+    "acceptanceTotal": 7,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/agent/prompts/composer.py",
+      "backend/src/juli_backend/services/agent/prompts/optimize_product/",
+      "tests/unit/"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1367.json",
+    "ownerSignoffPresent": true,
+    "sha256": "61a39a81a5b54340cd27857630f4ab251caa24a10c7bde7d2efd09d35acb35ed",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-26T04:07:53Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1367.json",
+    "sha256": "fe1e56393595a78c1408479e1bd711cf2bf185a14e70df2c138c786680cd9c46",
+    "status": "PASS"
+  },
+  "wave": null
+}

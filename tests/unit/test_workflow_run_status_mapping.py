@@ -46,11 +46,13 @@ def test_workflow_run_status_has_exactly_seven_members():
     assert actual == expected
 
 
-def test_stop_reason_has_exactly_thirteen_members():
+def test_stop_reason_has_exactly_fourteen_members():
     """The full vocabulary named in ADR-073 decision 2 plus the
     `output_validation_failed` P7 reservation, the `worker_lost` ADR-074
-    amendment, and the `confirmation_diverged` ADR-075 decision 2 / #1224
-    review round 3 amendment."""
+    amendment, the `confirmation_diverged` ADR-075 decision 2 / #1224
+    review round 3 amendment, and the `prompt_version_unrecoverable`
+    #1359 amendment (fail-closed resume when stored prompt version is
+    missing or unparseable)."""
     expected = {
         "final_response",
         "confirmation_declined",
@@ -65,6 +67,7 @@ def test_stop_reason_has_exactly_thirteen_members():
         "concurrency_conflict",
         "output_validation_failed",
         "worker_lost",
+        "prompt_version_unrecoverable",
     }
     actual = {member.value for member in StopReason}
     assert actual == expected
@@ -93,7 +96,8 @@ def test_mapping_values_are_all_valid_statuses():
 
 def test_mapping_reproduces_adr073_decision2_table_exactly():
     """The exact stop_reason -> status table from ADR-073 decision 2, plus
-    the worker_lost and confirmation_diverged amendment rows. A change to
+    the worker_lost and confirmation_diverged amendment rows, plus the
+    prompt_version_unrecoverable amendment row (#1359). A change to
     any single row here is a change to the ADR-authored contract, not a
     refactor."""
     expected = {
@@ -110,6 +114,7 @@ def test_mapping_reproduces_adr073_decision2_table_exactly():
         StopReason.CONCURRENCY_CONFLICT: WorkflowRunStatus.FAILED,
         StopReason.OUTPUT_VALIDATION_FAILED: WorkflowRunStatus.FAILED,
         StopReason.WORKER_LOST: WorkflowRunStatus.FAILED,
+        StopReason.PROMPT_VERSION_UNRECOVERABLE: WorkflowRunStatus.FAILED,
     }
     assert dict(STOP_REASON_TO_STATUS) == expected
 

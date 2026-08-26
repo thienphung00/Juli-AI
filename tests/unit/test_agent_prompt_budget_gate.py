@@ -90,13 +90,14 @@ from juli_backend.services.agent.sanitize.caps import estimate_tokens
 #: module or elsewhere in the test suite for this gate.
 PROMPT_TOKEN_BUDGET_CEILING = 3000
 
-#: Updated 2026-08-25 (#1356 fix round): v2 with concrete tool call example
-#: is 2965 tokens. Headroom is **35 tokens** against 3000 ceiling.
-#: Recorded measurement (see module docstring "Measured headroom") -- the
-#: real composed prompt's proxy token count against the real, released
-#: v2.md + OPTIMIZE_PRODUCT_PLAYBOOK pair. Asserted directly below so a
-#: silent drift in either input is caught even if it stays under the ceiling.
-RECORDED_COMPOSED_TOKEN_MEASUREMENT = 2965
+#: Updated 2026-08-26 (#1367 fix round): v3 with prose-only worked example
+#: and restored safety content is 2950 tokens. Headroom is **50 tokens**
+#: against 3000 ceiling. Recorded measurement (see module docstring
+#: "Measured headroom") -- the real composed prompt's proxy token count
+#: against the real, released v3.md + OPTIMIZE_PRODUCT_PLAYBOOK pair.
+#: Asserted directly below so a silent drift in either input is caught even
+#: if it stays under the ceiling.
+RECORDED_COMPOSED_TOKEN_MEASUREMENT = 2950
 RECORDED_HEADROOM = PROMPT_TOKEN_BUDGET_CEILING - RECORDED_COMPOSED_TOKEN_MEASUREMENT
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -147,11 +148,11 @@ def test_composed_prompt_token_estimate_matches_the_recorded_measurement():
     assert estimated == RECORDED_COMPOSED_TOKEN_MEASUREMENT, (
         f"composed prompt now measures {estimated} tokens, but this module "
         f"records {RECORDED_COMPOSED_TOKEN_MEASUREMENT} as the real, "
-        "independently-confirmed measurement -- if v2.md or the Playbook "
+        "independently-confirmed measurement -- if v3.md or the Playbook "
         "changed intentionally, update this recorded value and the "
         "headroom note in the module docstring together"
     )
-    assert RECORDED_HEADROOM == 35
+    assert RECORDED_HEADROOM == 50
 
 
 # ---------------------------------------------------------------------------
