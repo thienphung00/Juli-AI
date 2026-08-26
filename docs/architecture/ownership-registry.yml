@@ -233,6 +233,15 @@ databaseTables:
       product, and mutation kind. Issued via operator service after verifying
       credential binding; consumed atomically by the write path. Revoke preserves
       the row for audit.
+  production_write_audit:
+    owner: Agent Execution
+    access: write
+    notes: >
+      Append-only audit of every production-write attempt (#1337) — allowed and
+      refused. Records run, shop, product, mutation kind, the authorization id
+      that permitted it or the named precondition that blocked it, the release
+      sha, and timestamp. juli_app is granted SELECT/INSERT only; no update or
+      delete path exists. Tenant-scoped (shop_id) with RLS from migration 047.
   tool_executions:
     owner: Agent Execution
     access: write
