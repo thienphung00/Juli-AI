@@ -130,11 +130,11 @@ def _values_in_check_sqltext(sqltext: str) -> set[str]:
 # ---------------------------------------------------------------------------
 
 
-def test_migration_xxx_revision_equals_filename_stem():
+def test_migration_042_revision_equals_filename_stem():
     assert MIGRATION_042_PATH.exists(), f"missing {MIGRATION_042_PATH}"
     body = MIGRATION_042_PATH.read_text(encoding="utf-8")
     rev = re.search(r'^revision: str = "([^"]+)"', body, re.M)
-    assert rev is not None, "migration XXX has no `revision: str = ...` line"
+    assert rev is not None, "migration 042 has no `revision: str = ...` line"
     assert rev.group(1) == MIGRATION_042_PATH.stem, (
         f"revision id {rev.group(1)!r} must match filename {MIGRATION_042_PATH.stem!r}"
     )
@@ -145,14 +145,14 @@ def test_migration_xxx_revision_equals_filename_stem():
     )
 
 
-def test_migration_xxx_down_revision_is_041():
+def test_migration_042_down_revision_is_041():
     body = MIGRATION_042_PATH.read_text(encoding="utf-8")
     down = re.search(r'^down_revision: str \| None = "([^"]+)"', body, re.M)
-    assert down is not None, "migration XXX has no string `down_revision`"
+    assert down is not None, "migration 042 has no string `down_revision`"
     assert down.group(1) == "041_stop_reason_diverged"
 
 
-def test_migration_xxx_touches_only_stop_reason_constraint():
+def test_migration_042_touches_only_stop_reason_constraint():
     """The issue's "touch no other column, table or constraint" lock."""
     body = MIGRATION_042_PATH.read_text(encoding="utf-8")
     upgrade_body = body.split("def upgrade()", 1)[1].split("def downgrade()", 1)[0]
@@ -268,8 +268,8 @@ def test_stop_reason_constraint_matches_enum_plus_prompt_version_unrecoverable(
 
 @requires_postgres
 @pytest.mark.migration_heavy
-def test_migration_xxx_upgrade_and_downgrade_round_trip_cleanly():
-    """Migration XXX's `downgrade()` actually works: at XXX,
+def test_migration_042_upgrade_and_downgrade_round_trip_cleanly():
+    """Migration 042's `downgrade()` actually works: at XXX,
     `prompt_version_unrecoverable` is accepted; after downgrading to 041, it
     is rejected again."""
     from sqlalchemy.orm import Session
@@ -279,14 +279,15 @@ def test_migration_xxx_upgrade_and_downgrade_round_trip_cleanly():
     cfg = _alembic_config()
     engine = _sync_engine()
     try:
-        # Upgrade to the migration before XXX exists
+        # Upgrade to the migration before 042 exists
         _reset_to_revision(cfg, "041_stop_reason_diverged")
 
         with Session(engine) as session:
             shop, product = _seed_shop_and_product(session)
             shop_id, product_id = shop.id, product.id
+            session.commit()
 
-        # Now upgrade to XXX and verify the value works
+        # Now upgrade to 042 and verify the value works
         command.upgrade(cfg, MIGRATION_042_PATH.stem)
 
         with Session(engine) as session:
