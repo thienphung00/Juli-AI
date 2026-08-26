@@ -483,8 +483,8 @@ The vendor-free logging floor shipped with the first-user security work — root
 _Avoid_: treating DOCP/OpenObserve as a prerequisite for having any security logs, calling journald-only logging "structured" before the `dictConfig` lands
 
 **Non-functional RLS policies**:
-The ten existing `USING (… = current_setting('app.current_user_id')::uuid)` policies (migrations 001, 002, 017, 019, 020, 022, 024). The backend never sets that GUC, so they have never scoped a row — they only deny by raising. Treat as **absent** until rewritten onto `auth.uid()` when 3.5-C Login mode ships client-direct `gold` reads.
-_Avoid_: citing these as existing tenant isolation, assuming RLS-enabled means RLS-working
+The **14** `USING (… = current_setting('app.current_user_id')::uuid)` policies on the deployed project (migrations 001, 002, 017, 019, 020, 022, 024). They have never scoped a row, for two independent reasons: the backend never sets that GUC, and the runtime role `postgres` both owns all 33 `public` tables and carries `rolbypassrls`, so the policies are never evaluated at all. Verified 2026-08-26 — `select current_setting('app.current_user_id')` raises `unrecognized configuration parameter`, yet `select count(*) from products` returns 120: proof the policy was skipped, not that it passed. The owner path cannot be closed from this repo (`NOBYPASSRLS` is superuser-only), so isolation is a **connection property**. Treat as **absent** until W7-A puts the runtime behind a non-owner `juli_app` role. See [ADR-086](docs/adr/086-runtime-database-role-and-tenant-isolation.md).
+_Avoid_: citing these as existing tenant isolation, assuming RLS-enabled means RLS-working, saying they "deny by raising" (they are bypassed, so they never raise), quoting "ten policies", expecting `FORCE ROW LEVEL SECURITY` to constrain a `BYPASSRLS` role
 
 ## CI / test lanes
 
