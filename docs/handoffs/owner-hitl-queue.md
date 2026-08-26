@@ -8,28 +8,39 @@ Ordering matters in exactly one place: **§1 before merging PR #1350** (see §2)
 
 ---
 
-## 1. HITL — gate #1226 observation 1: fix the sandbox product, then walk
+## 1. HITL — gate #1226 observation 1: blocked on #1373, no owner action right now
 
-**Status:** six of seven walk steps proven live on the deployed host (see the two
-2026-08-25 comments on issue #1226). The last step — confirm → sandbox write — has never
-run, and it is not blocked by code.
+**Status (2026-08-26):** still six of seven steps. **Nothing for the owner to do until
+[#1373](https://github.com/thienphung00/Juli-AI/issues/1373) ships** — walking again
+against the current build reproduces run `d9dac43d` exactly.
 
-**Why it's stuck.** Two clean runs (`17dab3b5`, `3c504cf2`) completed end to end and the
-agent chose to *report* rather than propose a write. Its reasoning was sound for the data:
-the bound sandbox product's title is "Hinh ảnh Juli Mới Nhất trên thị trường", its
-description is literally `23432432`, and its main image is a JULI AI infographic banner —
-the vision tool flagged `mismatch: high`. An optimize-product playbook has nothing
-concrete to propose on a listing like that.
+**The product edit this section used to ask for is DONE.** Product `1736363193934775939`
+is now a real listing ("Nồi lẩu điện mini 1.5L có nắp kính, tay cầm tiện dụng") with a
+matching photo; the vision tool returns `verdict: aligned`. That removed the original
+blocker — the agent now has something concrete to propose, and does propose it.
 
-**The action (owner, ~15 min).** In the **TikTok sandbox Seller Center**, signed in as the
-sandbox-write merchant **`7658096633384781588`**, edit product **`1736363193934775939`**
-("Hinh ảnh Juli Mới Nhất trên thị trường"):
+**What three walks established** (all recorded on #1226):
 
-- a plausible product title (any real-sounding item),
-- a genuine description (not a number string),
-- a real product photo that matches the title.
+| Run | Prompt | What happened | Fixed by |
+|---|---|---|---|
+| `17dab3b5`, `3c504cf2` | v1 | nothing worth proposing — junk listing data | the product edit |
+| `ac992b92` | recorded v2, **executed v1** | pin/compose divergence | #1359 |
+| `37a0e14e` | v2 | printed the tool call as a ```python fence in the seller message | #1367 |
+| `d9dac43d` | v3 | narrated a prose promise instead of calling | **#1373** |
 
-**Then walk it.** All on the VPS (`ssh -i ~/.ssh/juli_vps_tool root@5.223.68.27`):
+Three prompt revisions oscillated between two failure modes and never converged.
+[ADR-088](../adr/088-consent-pause-is-a-runner-guarantee.md) (Accepted) diagnoses why:
+reaching the CONFIRM pause was enforced **only** by the prompt, and a worked example
+teaches surface form, so every fix traded one failure mode for the other. #1373 moves
+enforcement into the runner, which also makes the invariant testable with a fake LLM per
+PR — so this should be the last walk needed to close the observation.
+
+**When #1373 has merged and deployed, walk it.** On the VPS
+(`ssh -i ~/.ssh/juli_vps_tool root@5.223.68.27`). Two things differ from earlier walks:
+the card is the shop's **real `optimize_product_2` card**, already reset to `active`, and
+there is **no refresh step** — it is the only active card, so the decisions list is
+unambiguous. Earlier walks used a `create_hero_product_1` card silently substituted onto
+the Optimize Product playbook, which also stops being approvable once #1350 lands.
 
 ```bash
 # 0. env + token (password grant; the call itself re-proves ES256/JWKS verification)
@@ -42,25 +53,18 @@ if [ -z "$TOKEN" ]; then echo "LOGIN FAILED: $RESP"; else echo "token_len=${#TOK
 API=https://api.app-juli.com
 SHOP=1862f13b-de2c-4fae-a4ad-70298cead913
 
-# 1. refresh (per-shop cooldown — if it 429s, wait a few minutes), then list
-curl -s -X POST "$API/v1/action-cards/refresh" \
-  -H "Authorization: Bearer $TOKEN" -H "X-Shop-Id: $SHOP"
-sleep 30
-curl -s "$API/v1/demo/decisions" \
-  -H "Authorization: Bearer $TOKEN" -H "X-Shop-Id: $SHOP" | python3 -m json.tool
-
-# 2. approve a card from that list
-CARD=<action_card_id from step 1>
+# 1. approve — no refresh needed; this card is already active and is the only one
+CARD=0aa74318-a560-4c2f-bbaa-f1f5e5f4e3d5
 curl -s -X POST "$API/v1/demo/decisions/$CARD/approve" \
   -H "Authorization: Bearer $TOKEN" -H "X-Shop-Id: $SHOP" | python3 -m json.tool
 
-# 3. stream — RUN **must** be the run_id from the approve you just did
-RUN=<run_id from step 2>
+# 2. stream — RUN **must** be the run_id from the approve you just did
+RUN=<run_id from step 1>
 curl -sN "$API/v1/demo/runs/$RUN/events" \
   -H "Authorization: Bearer $TOKEN" -H "X-Shop-Id: $SHOP" \
   | tee /root/gate-1226-obs1-events.log
 
-# 4. when the stream shows the confirmation event, in a SECOND ssh window re-set
+# 3. when the stream shows the confirmation event, in a SECOND ssh window re-set
 #    TOKEN/API/SHOP/RUN, then:
 TCID=<tool_call_id from the confirmation event>
 OPT=<option_id from the confirmation event>
@@ -78,7 +82,12 @@ curl -s -X POST "$API/v1/demo/runs/$RUN/confirmations/$TCID" \
 - Never name a shell variable `UID` — bash reserves it (silent failure).
 - Tokens last ~1h; re-mint on a 401.
 - Completed runs consume their card permanently (by design). Failed runs auto-revert since
-  #1306, so no manual `UPDATE` is needed any more.
+  #1306, so no manual `UPDATE` is needed any more. **A card spent on a completed run needs
+  a manual revert to `active` before the next walk** — ask the agent session, don't hand-edit.
+- **Check the first event's `prompt_version` before reading anything else.** If it is not
+  the version #1373 shipped, the release has not landed and the walk is uninformative —
+  stop rather than spending the card. `gh run list --workflow=release.yml --limit 1`
+  confirms the deploy.
 
 **Definition of done:** the write lands in the sandbox, the run reaches a success terminal
 event, `/root/gate-1226-obs1-events.log` is the golden-scenario record, and the outcome is
@@ -91,18 +100,19 @@ posted on issue #1226. Observation 2 is already recorded as blocked by owner dec
 
 | PR | What | Base | Note |
 |---|---|---|---|
-| **#1350** | #1309 executability discriminator + named 409 refusal | `feature/agent-w6-wave` | **Merge only after §1's walk.** |
+| **#1350** | #1309 executability discriminator + named 409 refusal | `feature/agent-w6-wave` | **No longer blocked** — merge freely. |
 | (Cursor session's) | #1326, #1331, #1332, #1334, #1335, #1338 | — | Owned by the other session; review status unknown here. |
 
-**Why #1350 waits for the walk.** It ends silent playbook substitution: approve will
-honestly 409-refuse any card whose `workflow_key` has no registered playbook. Scoring emits
-**11 distinct workflow_keys and only `optimize_product_2` is registered** — the gate walk's
-cards (`create_hero_product_1`, `process_order_5`) are among the ten that stop being
-approvable. Merging first doesn't break anything real, but it removes the walk's approvable
-cards and forces observation 1 to re-scope onto the seeded demo tenant's card.
+**#1350's hold is lifted (2026-08-26).** It was held because it makes approve 409-refuse any
+card whose `workflow_key` has no registered playbook, and the walk was then using a
+`create_hero_product_1` card — one of the ten unregistered keys. The walk has since moved to
+the shop's genuine `optimize_product_2` card, which is the one key that *is* registered, so
+#1350 cannot take it away. Merging it actually helps: it ends the silent playbook
+substitution that made every earlier walk ambiguous about which playbook was running.
 
-Already merged this session (no action): #1343 (#1312 demo seed), #1345 (#1310 run list),
-#1340/#1341/#1342 (W7 planning + handoff), #1323/#1324 (W6 planning).
+Already merged (no action): #1343 (#1312 demo seed), #1345 (#1310 run list),
+#1340/#1341/#1342 (W7 planning + handoff), #1323/#1324 (W6 planning), #1362 (#1359 prompt
+pin), #1364 (this file's §5b), #1368 (#1367 prompt form), #1372 (ADR-088).
 
 ---
 
@@ -217,7 +227,8 @@ for Google/GCP requirements. This is a W6-only dependency.
 | Gate test seller | `gate-1226@app-juli.com`, auth id `00000000-0000-4000-8000-000000000001` |
 | Sandbox shop (walks) | `1862f13b-de2c-4fae-a4ad-70298cead913` |
 | Sandbox-write merchant | `7658096633384781588` |
-| Sandbox product to fix | `1736363193934775939` |
+| Sandbox product (edited, now a real listing) | `1736363193934775939` |
+| Gate walk card (`optimize_product_2`, active) | `0aa74318-a560-4c2f-bbaa-f1f5e5f4e3d5` |
 | Fujiwa production shop | `2b1da87b-d0a8-46a6-b3c6-2132be0b5f4f` — **never write to it** |
 | W6 wave branch | `feature/agent-w6-wave` (manifest `agent-runtime/artifacts/waves/wave-agent-w6.json`) |
 | API is blue/green | candidates on ports 8000/8020 — grep BOTH journals when checking what's live |
