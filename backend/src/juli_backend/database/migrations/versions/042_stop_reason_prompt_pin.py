@@ -32,11 +32,19 @@ thirteen-member constraint already accepted is still accepted, so no existing
 row can violate the new constraint and no data migration or backfill is
 needed. ``downgrade()`` restores the original thirteen-value list.
 
-Downgrade safety note: rows with ``stop_reason='prompt_version_unrecoverable'``
-cannot exist in production at the time this migration is applied, because
-the fail-closed code path that writes this value does not exist yet in the
-deployed version. The constraint is added in the same commit that adds the
-code that writes it. Downgrade is therefore safe for rollback to prior HEAD.
+Upgrade safety: rows with ``stop_reason='prompt_version_unrecoverable'``
+cannot exist when this migration is applied, because the fail-closed code
+path that writes the value ships in the same commit as the constraint.
+
+Downgrade safety is NOT symmetric, and an earlier version of this note
+wrongly claimed it was. A downgrade runs *after* the new code has been live,
+so rows may by then carry ``prompt_version_unrecoverable``. When any do,
+``create_check_constraint`` in ``downgrade()`` fails loudly on the existing
+data rather than corrupting it — which is the correct behaviour, but it does
+mean a rollback past this revision is blocked until an operator decides what
+those rows should say. Failing loudly is deliberate: silently rewriting a
+terminal run's recorded stop reason would destroy exactly the provenance
+this issue exists to protect.
 """
 
 from collections.abc import Sequence
