@@ -1,0 +1,102 @@
+{
+  "planId": "rep-1373-consent-pause-runner-guarantee",
+  "affectedPublicSurfaces": [
+    "GET /v1/demo/runs/{run_id}/events — the seller-facing SSE stream, whose workflow.completed payload carries stop_reason",
+    "POST /v1/demo/decisions/{action_card_id}/approve — the run it creates can now pause where it previously terminated",
+    "packages/contracts/src/agent-events.ts — STOP_REASONS is a published contract consumed by apps/demo"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the sandbox shop 1862f13b-de2c-4fae-a4ad-70298cead913 only; no production shop is touched",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": true,
+    "journeys": [
+      {
+        "name": "the-consent-pause-is-reached",
+        "entryUrl": "POST /v1/demo/decisions/0aa74318-a560-4c2f-bbaa-f1f5e5f4e3d5/approve then stream its events",
+        "assertions": [
+          "the stream emits a confirmation event carrying tool_call_id and options for update_product_listing",
+          "workflow_runs.stop_reason reads paused_for_confirmation, not final_response",
+          "pending_confirmation is persisted on the run row",
+          "this is the gate #1226 observation 1 step that has never executed"
+        ]
+      },
+      {
+        "name": "narration-alone-can-no-longer-end-a-run",
+        "entryUrl": "unit: fake LLM emits a text-only turn with required steps incomplete",
+        "assertions": [
+          "the run does not terminate",
+          "exactly one re-invocation occurs and carries tool_choice=required",
+          "a second text-only turn terminates with required_steps_unfulfilled, never final_response"
+        ]
+      },
+      {
+        "name": "the-honest-negative-survives",
+        "entryUrl": "unit: fake LLM calls conclude_without_changes",
+        "assertions": [
+          "stop_reason reads concluded_without_changes",
+          "no write of any kind is dispatched — the tool is side-effect-free",
+          "ADR-073 d.2's legitimate no-write outcome is preserved, not removed"
+        ]
+      },
+      {
+        "name": "healthy-runs-are-untouched",
+        "entryUrl": "unit: fake LLM completes required steps then emits text",
+        "assertions": [
+          "no forced retry fires",
+          "the run terminates final_response exactly as before"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: backend runner and contract change, no HTML route added or altered"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "notes": "One migration widens the workflow_runs.stop_reason CHECK constraint to admit concluded_without_changes and required_steps_unfulfilled. Expand-only: no column is narrowed, dropped or retyped, and stop_reason is already String(32) so both values (25 and 26 chars) fit without widening the column. Stable code never emits the new values, so a stable process running against the migrated schema is unaffected and a code-only rollback is safe. The asymmetry to state plainly, exactly as migration 042 (#1359) did: DOWNGRADE runs after the new code has been live, so rows may already carry the new values and create_check_constraint will fail loudly rather than silently discard them — that is correct behaviour, not a defect. Choose the revision id against the live alembic head; the W7 wave carries a parallel chain and #1359 had to take 042 rather than 044 to avoid forking it.",
+    "destructiveMigrationAllowed": false
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy the prior release; the widened CHECK constraint stays in place and is harmless to stable code, which never emits the new stop reasons. Do not downgrade the migration to roll back code.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'runner or termination or status_mapping' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_workflow_run_status_mapping.py -q",
+    "alembic upgrade head",
+    "ruff check backend/src/juli_backend tests scripts",
+    "pnpm -w turbo run build --filter=@juli/contracts"
+  ],
+  "doNotInfer": [
+    "Do not implement 'reject final_response when required steps are incomplete' — ADR-088 records that as a rejected alternative because it destroys the legitimate no-write outcome ADR-073 d.2 protects.",
+    "Do not treat this as a prompt fix. Prompt v4 is a later round and is explicitly an optimisation, not the mechanism.",
+    "Do not let the forced retry fire on a run whose required steps are already complete, and do not allow more than one forced re-invocation per run.",
+    "Do not give conclude_without_changes any side effect — a terminal tool that can write is a path around the CONFIRM gate.",
+    "Do not edit models.py's CHECK constraint without an accompanying alembic migration; the unit DB is sqlite built from models.py and structurally cannot catch the omission.",
+    "Do not write to any production shop. Sandbox only, and never Fujiwa (2b1da87b-d0a8-46a6-b3c6-2132be0b5f4f)."
+  ]
+}

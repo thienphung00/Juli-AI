@@ -72,6 +72,7 @@ from juli_backend.services.agent.status import StopReason, WorkflowRunStatus
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
+from juli_backend.services.agent.tools.terminal import register_terminal_tools
 
 TEST_MODULE_PATH = Path(__file__).resolve()
 REPO_ROOT = TEST_MODULE_PATH.parents[2]
@@ -120,6 +121,7 @@ def _full_registry() -> ToolRegistry:
     registry = ToolRegistry()
     register_product_read_tools(registry)
     register_product_write_tools(registry)
+    register_terminal_tools(registry)
     return registry
 
 

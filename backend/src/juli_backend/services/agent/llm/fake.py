@@ -54,6 +54,7 @@ class RecordedCall:
     system: str
     tools: tuple[ToolDefinition, ...]
     config: LLMConfig
+    tool_choice: str | None
 
 
 @dataclass
@@ -103,6 +104,7 @@ class FakeLLMService:
         system: str,
         tools: Sequence[ToolDefinition],
         config: LLMConfig,
+        tool_choice: str | None = None,
     ) -> AssistantTurn:
         self._recorded_calls.append(
             RecordedCall(
@@ -110,6 +112,7 @@ class FakeLLMService:
                 system=system,
                 tools=tuple(tools),
                 config=config,
+                tool_choice=tool_choice,
             )
         )
 

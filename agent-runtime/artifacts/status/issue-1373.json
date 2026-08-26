@@ -1,0 +1,38 @@
+{
+  "gateVersion": 1,
+  "issue": 1373,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/agent/runner/core.py",
+      "backend/src/juli_backend/services/agent/tools/terminal.py",
+      "backend/src/juli_backend/services/agent/llm/service.py",
+      "backend/src/juli_backend/services/agent/llm/openai_adapter.py",
+      "backend/src/juli_backend/services/agent/llm/fake.py",
+      "backend/src/juli_backend/services/agent/playbooks/base.py",
+      "backend/src/juli_backend/services/agent/playbooks/optimize_product.py",
+      "backend/src/juli_backend/services/agent/status.py",
+      "backend/src/juli_backend/models/models.py",
+      "backend/src/juli_backend/database/migrations/versions/043_stop_reason_consent_pause.py",
+      "packages/contracts/src/agent-events.ts",
+      "tests/unit/test_agent_runner_forced_retry.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1373.json",
+    "ownerSignoffPresent": true,
+    "sha256": "89330593675f4cc9cdb0aae669af247f6b4386f38a4464a4a5d789fbd5c59eae",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-26T07:59:41Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1373.json",
+    "sha256": "fe362eb8120981a0b520bd30345b356b0e1915fbdc9a623445b766102c642912",
+    "status": "PASS"
+  },
+  "wave": null
+}

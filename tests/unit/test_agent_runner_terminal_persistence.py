@@ -78,6 +78,7 @@ from juli_backend.services.agent.status import StopReason, WorkflowRunStatus
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
+from juli_backend.services.agent.tools.terminal import register_terminal_tools
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CORE_MODULE_PATH = REPO_ROOT / "backend/src/juli_backend/services/agent/runner/core.py"
@@ -120,7 +121,7 @@ class _RaisingLLMService:
     def __init__(self, exc: BaseException) -> None:
         self._exc = exc
 
-    async def complete(self, *, messages, system, tools, config):
+    async def complete(self, *, messages, system, tools, config, tool_choice=None):
         raise self._exc
 
 
@@ -128,6 +129,7 @@ def _full_registry() -> ToolRegistry:
     registry = ToolRegistry()
     register_product_read_tools(registry)
     register_product_write_tools(registry)
+    register_terminal_tools(registry)
     return registry
 
 

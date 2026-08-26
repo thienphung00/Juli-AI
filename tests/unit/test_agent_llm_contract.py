@@ -141,11 +141,13 @@ class TestLLMServiceIsAProtocol:
     def test_llm_service_declares_complete_with_expected_signature(self):
         signature = inspect.signature(LLMService.complete)
         params = list(signature.parameters)
-        assert params == ["self", "messages", "system", "tools", "config"]
+        assert params == ["self", "messages", "system", "tools", "config", "tool_choice"]
 
     def test_a_conforming_fake_satisfies_the_protocol_at_runtime(self):
         class FakeLLMService:
-            async def complete(self, *, messages, system, tools, config) -> AssistantTurn:
+            async def complete(
+                self, *, messages, system, tools, config, tool_choice=None
+            ) -> AssistantTurn:
                 return AssistantTurn(blocks=(), usage=Usage(input_tokens=0, output_tokens=0))
 
         assert isinstance(FakeLLMService(), LLMService)

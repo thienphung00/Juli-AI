@@ -65,6 +65,7 @@ from juli_backend.services.agent.sanitize import guard_inbound_tool_result
 from juli_backend.services.agent.status import StopReason, WorkflowRunStatus
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry
 from juli_backend.services.agent.tools.product import register_product_read_tools
+from juli_backend.services.agent.tools.terminal import register_terminal_tools
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "agent_sanitize_hidden_text"
 FIXTURE_PATHS = sorted(FIXTURES_DIR.glob("*.json"))
@@ -178,6 +179,7 @@ async def _run_scripted_loop(*, source_field: str, text: str) -> tuple[list[str]
     sink: EventSink = InMemoryEventSink()
     registry = ToolRegistry()
     register_product_read_tools(registry)
+    register_terminal_tools(registry)
     executor = _RecordingToolExecutor(source_field=source_field, text=text)
 
     runner = WorkflowRunner(
