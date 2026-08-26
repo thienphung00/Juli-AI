@@ -1,0 +1,3 @@
+parentIssueId: 1213
+sliceId: AGT-CONSENTPAUSE
+handoffPath: docs/adr/073-agent-execution-loop-and-write-path-hardening.md

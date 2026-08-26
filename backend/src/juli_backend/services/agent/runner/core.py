@@ -396,9 +396,12 @@ class WorkflowRunner:
         self._cancel_check: Callable[[], bool] = (
             cancel_check if cancel_check is not None else (lambda: False)
         )
-        self._allowed_tool_names: frozenset[str] = frozenset(
-            tool_name for step in playbook.steps for tool_name in step.tools
-        )
+        # Build allowed tool names from playbook steps and terminal tools.
+        # Terminal tools are side-effect-free tools that can end a run without
+        # proposing changes (ADR-088 decision 1).
+        step_tools = {tool_name for step in playbook.steps for tool_name in step.tools}
+        terminal_tools = set(playbook.termination_policy.terminal_tools)
+        self._allowed_tool_names: frozenset[str] = frozenset(step_tools | terminal_tools)
 
     def _compose_prompt(self) -> tuple[str, str, str]:
         """Compose the system prompt and its stamp from the PRODUCTION prompt
@@ -939,6 +942,15 @@ class WorkflowRunner:
         """
         consecutive_malformed = 0
         policy = self._playbook.termination_policy
+        # ADR-088: the forced retry rides the main loop rather than nesting its
+        # own dispatch. `next_tool_choice` applies to exactly the next
+        # provider call and is cleared as soon as it is spent, and
+        # `forced_retry_used` bounds it to one per run. Riding the loop is what
+        # keeps the top-of-iteration checkpoint and the iteration gate ahead of
+        # it, so `iteration_cap_exceeded` and `wall_clock_timeout` keep their
+        # precedence instead of being masked by `required_steps_unfulfilled`.
+        forced_retry_used = False
+        next_tool_choice: str | None = None
 
         while True:
             # --- checkpoint: top of iteration (ADR-073 decision 2) ---------
@@ -1014,6 +1026,7 @@ class WorkflowRunner:
                     system=system_prompt,
                     tools=tool_definitions,
                     config=self._llm_config,
+                    tool_choice=next_tool_choice,
                 )
             except LLMProviderError:
                 # The one concrete LLMService's own typed exception surface
@@ -1039,17 +1052,31 @@ class WorkflowRunner:
                 )
                 return stop
             state.iteration_count += 1
+            # Whatever forced choice was set, the call above has spent it.
+            next_tool_choice = None
 
             stop = None
+            # ADR-088: a turn is "text-only" when it carries at least one
+            # TextBlock and no tool call and no final response — the model
+            # narrating instead of acting. Requiring real text matters: an
+            # empty or malformed turn must fall through to the existing
+            # malformed-block handling, never be mistaken for a decision to
+            # narrate. Initialising this to True is what made empty turns
+            # trigger the retry and mask `iteration_cap_exceeded`.
+            saw_text = False
+            saw_actionable = False
             for block in turn.blocks:
                 if isinstance(block, TextBlock):
+                    saw_text = True
                     consecutive_malformed = 0
                     await self._append_text_block(workflow_run_id, state, block)
                 elif isinstance(block, FinalResponse):
+                    saw_actionable = True
                     consecutive_malformed = 0
                     stop = await self._finalize(workflow_run_id, state, block, version_str, sha256)
                     break
                 elif isinstance(block, ToolCallBlock):
+                    saw_actionable = True
                     # --- checkpoint: immediately before tool execution ------
                     pre_tool_reason = evaluate_checkpoint(
                         cancel_requested=self._cancel_check(),
@@ -1091,9 +1118,41 @@ class WorkflowRunner:
                             stop = await self._give_up(workflow_run_id, state, version_str, sha256)
                             break
                     else:
+                        # Not MALFORMED: handle SUCCESS (terminal tool check)
+                        # and reset malformed streak for all other outcomes
+                        if outcome is _ToolCallOutcome.SUCCESS:
+                            # Check if this was the terminal tool
+                            if block.tool_name == "conclude_without_changes":
+                                stop = await self._finalize_with_conclude_without_changes(
+                                    workflow_run_id, state, version_str, sha256
+                                )
+                                break
                         consecutive_malformed = 0
                 else:  # pragma: no cover - Block is a closed union, this is defensive
                     raise TypeError(f"WorkflowRunner cannot dispatch block type {type(block)!r}")
+
+            # --- forced retry for incomplete required_steps (ADR-088) --------
+            # A text-only turn with required_steps still incomplete is the
+            # model narrating instead of acting. Rather than terminate here,
+            # arm exactly one re-invocation with tool_choice="required" and let
+            # the main loop make it — so the top-of-iteration checkpoint and
+            # the iteration gate run first and keep their precedence. Once the
+            # retry has been spent and the model narrates again, the run ends
+            # as `required_steps_unfulfilled`, which is distinguishable from a
+            # healthy `final_response` (ADR-088 decision 2).
+            if stop is None and saw_text and not saw_actionable:
+                if not self._required_steps_completed(state):
+                    if not forced_retry_used:
+                        forced_retry_used = True
+                        next_tool_choice = "required"
+                    else:
+                        stop = await self._terminate(
+                            workflow_run_id,
+                            state,
+                            StopReason.REQUIRED_STEPS_UNFULFILLED,
+                            version_str,
+                            sha256,
+                        )
 
             elapsed = self._clock() - iteration_started_at
             state.running_seconds_elapsed = accumulate_running_seconds(
@@ -1549,6 +1608,33 @@ class WorkflowRunner:
             iteration_count=state.iteration_count,
         )
 
+    async def _finalize_with_conclude_without_changes(
+        self,
+        workflow_run_id: uuid.UUID,
+        state: RunState,
+        version_str: str,
+        sha256: str,
+    ) -> RunResult:
+        """Terminal outcome when conclude_without_changes tool is successfully
+        called (ADR-088 decision 1). The tool itself has no side effects; this
+        method emits the completion event and returns with the appropriate
+        stop_reason."""
+        stop_reason = StopReason.CONCLUDED_WITHOUT_CHANGES
+        await self._emit(
+            workflow_run_id,
+            state,
+            WorkflowCompletedEvent,
+            WorkflowCompletedPayload(stop_reason=stop_reason),
+        )
+        return RunResult(
+            stop_reason=stop_reason,
+            status=status_for(stop_reason),
+            final_response=None,
+            prompt_version=version_str,
+            prompt_sha256=sha256,
+            iteration_count=state.iteration_count,
+        )
+
     async def _terminate(
         self,
         workflow_run_id: uuid.UUID,
@@ -1613,11 +1699,12 @@ class WorkflowRunner:
 
     def _tool_definitions(self) -> tuple[ToolDefinition, ...]:
         """The model-facing tool list, rendered from the active `Playbook`'s
-        own allowlist — the same source `_dispatch_tool_call` enforces
-        against, so what the model is told it can call and what the
-        executor accepts cannot disagree (ADR-072 decision 2)."""
+        own allowlist plus terminal tools — the same source `_dispatch_tool_call`
+        enforces against, so what the model is told it can call and what the
+        executor accepts cannot disagree (ADR-072 decision 2, ADR-088 decision 1)."""
         seen: set[str] = set()
         definitions: list[ToolDefinition] = []
+        # Add step tools first
         for step in self._playbook.steps:
             for tool_name in step.tools:
                 if tool_name in seen:
@@ -1631,6 +1718,19 @@ class WorkflowRunner:
                         "input_schema": spec.render_input_schema(),
                     }
                 )
+        # Then add terminal tools (ADR-088 decision 1)
+        for tool_name in self._playbook.termination_policy.terminal_tools:
+            if tool_name in seen:
+                continue
+            seen.add(tool_name)
+            spec = self._registry.get(tool_name)
+            definitions.append(
+                {
+                    "name": spec.name,
+                    "description": spec.description,
+                    "input_schema": spec.render_input_schema(),
+                }
+            )
         return tuple(definitions)
 
     async def _emit(

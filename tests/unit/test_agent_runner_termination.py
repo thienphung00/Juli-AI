@@ -77,6 +77,7 @@ from juli_backend.services.agent.status import StopReason, WorkflowRunStatus, st
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
+from juli_backend.services.agent.tools.terminal import register_terminal_tools
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CORE_MODULE_PATH = REPO_ROOT / "backend/src/juli_backend/services/agent/runner/core.py"
@@ -185,7 +186,15 @@ class _RaisingLLMService:
     def __init__(self, exc: BaseException) -> None:
         self._exc = exc
 
-    async def complete(self, *, messages: Any, system: str, tools: Any, config: Any) -> Any:
+    async def complete(
+        self,
+        *,
+        messages: Any,
+        system: str,
+        tools: Any,
+        config: Any,
+        tool_choice: str | None = None,
+    ) -> Any:
         raise self._exc
 
 
@@ -267,6 +276,16 @@ def _full_registry() -> ToolRegistry:
     registry = ToolRegistry()
     register_product_read_tools(registry)
     register_product_write_tools(registry)
+    register_terminal_tools(registry)
+    return registry
+
+
+def _full_registry_with_terminal() -> ToolRegistry:
+    """Registry with all product tools plus the terminal tool."""
+    registry = ToolRegistry()
+    register_product_read_tools(registry)
+    register_product_write_tools(registry)
+    register_terminal_tools(registry)
     return registry
 
 
@@ -688,7 +707,16 @@ class TestIterationCapAndExtensions:
             required_steps=OPTIMIZE_PRODUCT_TERMINATION_POLICY.required_steps,
         )
         playbook = _minimal_playbook((_step("get_product_information"),), policy=policy)
-        llm = _llm(*(_turn(TextBlock(text=f"still working {i}")) for i in range(6)))
+        llm = _llm(
+            *(
+                _turn(
+                    ToolCallBlock(
+                        call_id=f"c{i}", tool_name="get_product_information", arguments={}
+                    )
+                )
+                for i in range(6)
+            )
+        )
 
         runner = _runner(
             llm_service=llm,
@@ -718,7 +746,16 @@ class TestIterationCapAndExtensions:
         store.seed(run_id)
         sink = InMemoryEventSink()
         playbook = _minimal_playbook((_step("get_product_information"),))
-        llm = _llm(*(_turn(TextBlock(text=f"still working {i}")) for i in range(8)))
+        llm = _llm(
+            *(
+                _turn(
+                    ToolCallBlock(
+                        call_id=f"c{i}", tool_name="get_product_information", arguments={}
+                    )
+                )
+                for i in range(8)
+            )
+        )
 
         runner = _runner(
             llm_service=llm,
@@ -783,7 +820,16 @@ class TestPolicyValuesArePinnedToTheirSource:
             required_steps=("x",),
         )
         playbook = _minimal_playbook((_step("get_product_information"),), policy=policy)
-        llm = _llm(*(_turn(TextBlock(text=f"turn {i}")) for i in range(3)))
+        llm = _llm(
+            *(
+                _turn(
+                    ToolCallBlock(
+                        call_id=f"c{i}", tool_name="get_product_information", arguments={}
+                    )
+                )
+                for i in range(3)
+            )
+        )
 
         runner = _runner(
             llm_service=llm,
@@ -814,7 +860,16 @@ class TestPolicyValuesArePinnedToTheirSource:
             required_steps=("x",),
         )
         playbook = _minimal_playbook((_step("get_product_information"),), policy=policy)
-        llm = _llm(*(_turn(TextBlock(text=f"turn {i}")) for i in range(2)))
+        llm = _llm(
+            *(
+                _turn(
+                    ToolCallBlock(
+                        call_id=f"c{i}", tool_name="get_product_information", arguments={}
+                    )
+                )
+                for i in range(2)
+            )
+        )
         clock = _SteppingClock(step=3.0)  # 3s/iteration: trips at 6s (>= 5s), after 2 turns
 
         runner = _runner(
@@ -851,7 +906,16 @@ class TestIterationExtensionArithmeticIsPinnedToItsSource:
             required_steps=("x",),
         )
         playbook = _minimal_playbook((_step("get_product_information"),), policy=policy)
-        llm = _llm(*(_turn(TextBlock(text=f"turn {i}")) for i in range(7)))
+        llm = _llm(
+            *(
+                _turn(
+                    ToolCallBlock(
+                        call_id=f"c{i}", tool_name="get_product_information", arguments={}
+                    )
+                )
+                for i in range(7)
+            )
+        )
 
         runner = _runner(
             llm_service=llm,
@@ -1042,7 +1106,12 @@ async def _iteration_cap_exceeded_scenario() -> RunResult:
     store = _InMemoryConversationStore()
     store.seed(run_id)
     playbook = _minimal_playbook((_step("get_product_information"),))
-    llm = _llm(*(_turn(TextBlock(text=f"turn {i}")) for i in range(8)))
+    llm = _llm(
+        *(
+            _turn(ToolCallBlock(call_id=f"c{i}", tool_name="get_product_information", arguments={}))
+            for i in range(8)
+        )
+    )
     runner = _runner(
         llm_service=llm,
         tool_executor=_SpyToolExecutor(),
@@ -1059,7 +1128,12 @@ async def _wall_clock_timeout_scenario() -> RunResult:
     store = _InMemoryConversationStore()
     store.seed(run_id)
     playbook = _minimal_playbook((_step("get_product_information"),))
-    llm = _llm(*(_turn(TextBlock(text=f"turn {i}")) for i in range(3)))
+    llm = _llm(
+        *(
+            _turn(ToolCallBlock(call_id=f"c{i}", tool_name="get_product_information", arguments={}))
+            for i in range(3)
+        )
+    )
     clock = _SteppingClock(step=100.0)  # 3 * 100s == the real 300s budget, exactly
     runner = _runner(
         llm_service=llm,
@@ -1114,6 +1188,64 @@ async def _concurrency_conflict_scenario() -> RunResult:
     return await runner.run(run_id, product_ref="prod-1")
 
 
+async def _concluded_without_changes_scenario() -> RunResult:
+    """Issue #1373 (ADR-088 decision 1): forced retry with conclude_without_changes.
+    A text-only turn leaves required_steps incomplete, triggering forced retry with
+    tool_choice="required". The model calls conclude_without_changes, terminating
+    with stop_reason=concluded_without_changes."""
+    run_id = uuid.uuid4()
+    store = _InMemoryConversationStore()
+    store.seed(run_id)
+    playbook = _minimal_playbook((_step("get_product_information"),))
+    llm = _llm(
+        # First turn: text only (triggers forced retry)
+        _turn(TextBlock(text="Analyzing the product...")),
+        # Second turn: conclude_without_changes (forced retry)
+        _turn(
+            ToolCallBlock(
+                call_id="c1",
+                tool_name="conclude_without_changes",
+                arguments={"reason": "Product is already well optimized"},
+            )
+        ),
+    )
+    runner = _runner(
+        llm_service=llm,
+        tool_executor=_SpyToolExecutor(),
+        event_sink=InMemoryEventSink(),
+        conversation_store=store,
+        playbook=playbook,
+        registry=_full_registry_with_terminal(),
+    )
+    return await runner.run(run_id, product_ref="prod-1")
+
+
+async def _required_steps_unfulfilled_scenario() -> RunResult:
+    """Issue #1373 (ADR-088 decision 2): forced retry with no required tool.
+    A text-only turn leaves required_steps incomplete, triggering forced retry with
+    tool_choice="required". The model doesn't call a required tool and doesn't call
+    conclude_without_changes, terminating with stop_reason=required_steps_unfulfilled."""
+    run_id = uuid.uuid4()
+    store = _InMemoryConversationStore()
+    store.seed(run_id)
+    playbook = _minimal_playbook((_step("get_product_information"),))
+    llm = _llm(
+        # First turn: text only (triggers forced retry)
+        _turn(TextBlock(text="Analyzing the product...")),
+        # Second turn: text only again (no tool call, not conclude_without_changes)
+        _turn(TextBlock(text="Unable to determine recommendations.")),
+    )
+    runner = _runner(
+        llm_service=llm,
+        tool_executor=_SpyToolExecutor(),
+        event_sink=InMemoryEventSink(),
+        conversation_store=store,
+        playbook=playbook,
+        registry=_full_registry_with_terminal(),
+    )
+    return await runner.run(run_id, product_ref="prod-1")
+
+
 # The stop_reasons this slice's code (core.py + termination.py) can actually
 # produce, given today's worktree. `concurrency_conflict` and `llm_error`
 # joined this set via issue #1172 (`ConcurrencyExhaustedError` /
@@ -1134,6 +1266,11 @@ _REACHABLE_BY_THIS_SLICE: frozenset[StopReason] = frozenset(
         StopReason.WALL_CLOCK_TIMEOUT,
         StopReason.CONCURRENCY_CONFLICT,
         StopReason.LLM_ERROR,
+        # #1373 (ADR-088): forced retry outcomes when text-only turns leave
+        # required_steps incomplete. Both are produced by run(), never by
+        # resume() or later slices.
+        StopReason.CONCLUDED_WITHOUT_CHANGES,
+        StopReason.REQUIRED_STEPS_UNFULFILLED,
     }
 )
 
@@ -1216,6 +1353,8 @@ class TestStopReasonReachability:
             StopReason.WALL_CLOCK_TIMEOUT: await _wall_clock_timeout_scenario(),
             StopReason.CONCURRENCY_CONFLICT: await _concurrency_conflict_scenario(),
             StopReason.LLM_ERROR: await _llm_error_scenario(),
+            StopReason.CONCLUDED_WITHOUT_CHANGES: await _concluded_without_changes_scenario(),
+            StopReason.REQUIRED_STEPS_UNFULFILLED: await _required_steps_unfulfilled_scenario(),
         }
 
         # Every scenario actually produced the stop_reason it was scripted for.

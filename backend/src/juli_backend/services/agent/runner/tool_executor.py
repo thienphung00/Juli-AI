@@ -124,6 +124,7 @@ from juli_backend.services.agent.tools.product_write import (
     UpdateProductListingInput,
     UpdateProductPriceInput,
 )
+from juli_backend.services.agent.tools.terminal import TERMINAL_TOOL_HANDLERS
 
 
 class ToolExecutionError(RuntimeError):
@@ -261,7 +262,11 @@ class ProductToolExecutor:
                 image_inspector=self._image_inspector,
             )
 
-            if spec.classification is ToolClassification.READ:
+            # Check for terminal tools first (ADR-088 decision 1)
+            # Terminal tools are side-effect-free and don't fit the READ/WRITE model
+            if tool_name in TERMINAL_TOOL_HANDLERS:
+                result = TERMINAL_TOOL_HANDLERS[tool_name](None, context, params)
+            elif spec.classification is ToolClassification.READ:
                 read_handler = PRODUCT_READ_TOOL_HANDLERS.get(tool_name)
                 if read_handler is None:
                     raise ToolExecutionError(

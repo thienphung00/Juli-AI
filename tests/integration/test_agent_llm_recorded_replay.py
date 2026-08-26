@@ -29,6 +29,7 @@ from juli_backend.services.agent.llm.openai_adapter import OpenAIResponsesAdapte
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
 from juli_backend.services.agent.tools.registry import ToolRegistry
+from juli_backend.services.agent.tools.terminal import register_terminal_tools
 from tests.integration.llm_recorded_replay import (
     load_recorded_exchange,
     recorded_llm_transport,
@@ -42,6 +43,7 @@ def _registry_tool_definitions():
     registry = ToolRegistry()
     register_product_read_tools(registry)
     register_product_write_tools(registry)
+    register_terminal_tools(registry)
     return [
         {
             "name": spec.name,
@@ -112,6 +114,11 @@ class TestRecordedToolCallRoundTrip:
         sent_tools = [tool["name"] for tool in captured["body"]["tools"]]
         assert sorted(sent_tools) == [
             "check_product_status",
+            # ADR-088: the terminal tool is offered alongside the playbook's own
+            # tools so the model always has a legitimate way to end a run it has
+            # nothing to propose for — which is what makes tool_choice="required"
+            # safe on the forced retry.
+            "conclude_without_changes",
             "get_product_information",
             "get_seo_keywords",
             # #1208: the image step became a READ inspection. upload stays

@@ -46,13 +46,15 @@ def test_workflow_run_status_has_exactly_seven_members():
     assert actual == expected
 
 
-def test_stop_reason_has_exactly_fourteen_members():
+def test_stop_reason_has_exactly_sixteen_members():
     """The full vocabulary named in ADR-073 decision 2 plus the
     `output_validation_failed` P7 reservation, the `worker_lost` ADR-074
     amendment, the `confirmation_diverged` ADR-075 decision 2 / #1224
-    review round 3 amendment, and the `prompt_version_unrecoverable`
+    review round 3 amendment, the `prompt_version_unrecoverable`
     #1359 amendment (fail-closed resume when stored prompt version is
-    missing or unparseable)."""
+    missing or unparseable), and the `concluded_without_changes` and
+    `required_steps_unfulfilled` #1373 amendments (ADR-088 consent pause
+    guarantee)."""
     expected = {
         "final_response",
         "confirmation_declined",
@@ -68,6 +70,8 @@ def test_stop_reason_has_exactly_fourteen_members():
         "output_validation_failed",
         "worker_lost",
         "prompt_version_unrecoverable",
+        "concluded_without_changes",
+        "required_steps_unfulfilled",
     }
     actual = {member.value for member in StopReason}
     assert actual == expected
@@ -97,12 +101,14 @@ def test_mapping_values_are_all_valid_statuses():
 def test_mapping_reproduces_adr073_decision2_table_exactly():
     """The exact stop_reason -> status table from ADR-073 decision 2, plus
     the worker_lost and confirmation_diverged amendment rows, plus the
-    prompt_version_unrecoverable amendment row (#1359). A change to
-    any single row here is a change to the ADR-authored contract, not a
-    refactor."""
+    prompt_version_unrecoverable amendment row (#1359), plus the
+    concluded_without_changes and required_steps_unfulfilled amendment rows
+    (#1373, ADR-088). A change to any single row here is a change to the
+    ADR-authored contract, not a refactor."""
     expected = {
         StopReason.FINAL_RESPONSE: WorkflowRunStatus.COMPLETED,
         StopReason.CONFIRMATION_DECLINED: WorkflowRunStatus.COMPLETED,
+        StopReason.CONCLUDED_WITHOUT_CHANGES: WorkflowRunStatus.COMPLETED,
         StopReason.PAUSED_FOR_CONFIRMATION: WorkflowRunStatus.WAITING_APPROVAL,
         StopReason.CANCELLED_BY_SELLER: WorkflowRunStatus.CANCELLED,
         StopReason.CONFIRMATION_EXPIRED: WorkflowRunStatus.CANCELLED,
@@ -115,6 +121,7 @@ def test_mapping_reproduces_adr073_decision2_table_exactly():
         StopReason.OUTPUT_VALIDATION_FAILED: WorkflowRunStatus.FAILED,
         StopReason.WORKER_LOST: WorkflowRunStatus.FAILED,
         StopReason.PROMPT_VERSION_UNRECOVERABLE: WorkflowRunStatus.FAILED,
+        StopReason.REQUIRED_STEPS_UNFULFILLED: WorkflowRunStatus.FAILED,
     }
     assert dict(STOP_REASON_TO_STATUS) == expected
 

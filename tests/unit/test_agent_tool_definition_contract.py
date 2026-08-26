@@ -24,12 +24,14 @@ from juli_backend.services.agent.playbooks.optimize_product import OPTIMIZE_PROD
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
 from juli_backend.services.agent.tools.registry import ToolRegistry
+from juli_backend.services.agent.tools.terminal import register_terminal_tools
 
 
 def _registry() -> ToolRegistry:
     registry = ToolRegistry()
     register_product_read_tools(registry)
     register_product_write_tools(registry)
+    register_terminal_tools(registry)
     return registry
 
 

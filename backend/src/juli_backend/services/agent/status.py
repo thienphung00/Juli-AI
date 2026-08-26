@@ -121,6 +121,16 @@ class StopReason(StrEnum):
     # ADR-074 amendment (2026-08-12): assigned by the reaper to runs whose
     # worker died twice (crash + failed redelivery).
     WORKER_LOST = "worker_lost"
+    # ADR-088 decision 2: the model explicitly called the terminal tool
+    # `conclude_without_changes` to end a run without proposing any action.
+    # The honest negative ADR-073 d.2 protects, now recorded through a channel
+    # that can be counted and observed. 25 characters, inside String(32).
+    CONCLUDED_WITHOUT_CHANGES = "concluded_without_changes"
+    # ADR-088 decision 2: the forced retry for incomplete required_steps was
+    # spent and the model still emitted no call (neither a tool call nor the
+    # terminal tool). The defect signal — distinct from `final_response`.
+    # 26 characters, inside String(32).
+    REQUIRED_STEPS_UNFULFILLED = "required_steps_unfulfilled"
 
 
 # The TOTAL stop_reason -> status mapping, reproducing ADR-073 decision 2's
@@ -131,6 +141,7 @@ STOP_REASON_TO_STATUS: MappingProxyType[StopReason, WorkflowRunStatus] = Mapping
     {
         StopReason.FINAL_RESPONSE: WorkflowRunStatus.COMPLETED,
         StopReason.CONFIRMATION_DECLINED: WorkflowRunStatus.COMPLETED,
+        StopReason.CONCLUDED_WITHOUT_CHANGES: WorkflowRunStatus.COMPLETED,
         StopReason.PAUSED_FOR_CONFIRMATION: WorkflowRunStatus.WAITING_APPROVAL,
         StopReason.CANCELLED_BY_SELLER: WorkflowRunStatus.CANCELLED,
         StopReason.CONFIRMATION_EXPIRED: WorkflowRunStatus.CANCELLED,
@@ -143,6 +154,7 @@ STOP_REASON_TO_STATUS: MappingProxyType[StopReason, WorkflowRunStatus] = Mapping
         StopReason.CONCURRENCY_CONFLICT: WorkflowRunStatus.FAILED,
         StopReason.OUTPUT_VALIDATION_FAILED: WorkflowRunStatus.FAILED,
         StopReason.WORKER_LOST: WorkflowRunStatus.FAILED,
+        StopReason.REQUIRED_STEPS_UNFULFILLED: WorkflowRunStatus.FAILED,
     }
 )
 

@@ -44,6 +44,7 @@ from juli_backend.services.agent.playbooks.base import (
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
 from juli_backend.services.agent.tools.registry import ToolPolicy, ToolRegistry
+from juli_backend.services.agent.tools.terminal import register_terminal_tools
 
 # System-wide workflow key (ADR-069's `WORKFLOW_TOOL_CATALOG` key, also what
 # ADR-077 decision 5's `WORKFLOW_OUTCOME_SUCCESS_CRITERIA` uses) -- distinct
@@ -60,6 +61,8 @@ WORKFLOW_KEY = "optimize_product_2"
 # and the price change -- even though either is independently rejectable
 # (a final_response with only one, or neither, confirmed is honest outcome
 # data for the execution-quality metric, not a synthetic failure).
+# ADR-088 decision 1: terminal_tools added to allow the model to explicitly
+# conclude without changes when the forced-retry mechanism is invoked.
 OPTIMIZE_PRODUCT_TERMINATION_POLICY = TerminationPolicy(
     max_iterations=6,
     max_extensions=1,
@@ -67,6 +70,7 @@ OPTIMIZE_PRODUCT_TERMINATION_POLICY = TerminationPolicy(
     wall_clock_timeout_s=300,
     approval_timeout_h=4,
     required_steps=("update_product_listing", "update_product_price"),
+    terminal_tools=("conclude_without_changes",),
 )
 
 OPTIMIZE_PRODUCT_PLAYBOOK = Playbook(
@@ -143,6 +147,7 @@ def _build_registry() -> ToolRegistry:
     registry = ToolRegistry()
     register_product_read_tools(registry)
     register_product_write_tools(registry)
+    register_terminal_tools(registry)
     return registry
 
 

@@ -33,6 +33,7 @@ from juli_backend.services.agent.llm.openai_adapter import OpenAIResponsesAdapte
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
 from juli_backend.services.agent.tools.registry import ToolRegistry
+from juli_backend.services.agent.tools.terminal import register_terminal_tools
 from tests.integration.llm_recorded_replay import write_recorded_exchange
 
 pytestmark = pytest.mark.live
@@ -56,6 +57,7 @@ def _registry_tool_definitions():
     registry = ToolRegistry()
     register_product_read_tools(registry)
     register_product_write_tools(registry)
+    register_terminal_tools(registry)
     return [
         {
             "name": spec.name,
