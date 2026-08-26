@@ -13,6 +13,9 @@ bogus write.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from juli_backend.services.agent.tools.registry import (
@@ -87,8 +90,14 @@ CONCLUDE_WITHOUT_CHANGES_SPEC = ToolSpec(
 )
 
 
-TERMINAL_TOOL_HANDLERS: dict[str, callable] = {
-    "conclude_without_changes": handle_conclude_without_changes,
+# Mirrors PRODUCT_READ_TOOL_HANDLERS' shape (tools/product.py) so the executor
+# can dispatch all three families uniformly. The first two positions are the
+# resources and product context every product handler takes; a terminal tool
+# needs neither, which is exactly what makes it side-effect-free, so they are
+# typed `Any` and ignored rather than narrowed to something this tool would
+# then be tempted to use.
+TERMINAL_TOOL_HANDLERS: dict[str, Callable[[Any, Any, Any], BaseModel]] = {
+    CONCLUDE_WITHOUT_CHANGES_SPEC.name: handle_conclude_without_changes,
 }
 
 

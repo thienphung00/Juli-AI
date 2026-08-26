@@ -114,6 +114,7 @@ export const WORKFLOW_FAILED_STOP_REASON_TO_STATUS: Readonly<
       | "output_validation_failed"
       | "worker_lost"
       | "prompt_version_unrecoverable"
+      | "required_steps_unfulfilled"
     >,
     WorkflowRunStatus
   >
@@ -129,6 +130,7 @@ export const WORKFLOW_FAILED_STOP_REASON_TO_STATUS: Readonly<
   output_validation_failed: "failed",
   worker_lost: "failed",
   prompt_version_unrecoverable: "failed",
+  required_steps_unfulfilled: "failed",
 };
 
 // ---------------------------------------------------------------------------
