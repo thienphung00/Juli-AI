@@ -1,0 +1,40 @@
+{
+  "artifactType": "status",
+  "id": "status-issue-1318",
+  "issue": 1318,
+  "timestamp": "2026-08-26T14:20:00Z",
+  "status": "PASS",
+  "phase": "Review + Validation",
+  "allArtifactsPresent": true,
+  "intentReviewPresent": true,
+  "reviewPresent": true,
+  "validationPresent": true,
+  "intentFidelity": "pass",
+  "reviewStatus": "PASS",
+  "validationStatus": "PASS",
+  "readyForMerge": true,
+  "acceptanceCriteria": {
+    "total": 9,
+    "inScope": 7,
+    "satisfied": 7,
+    "deferrableToDownstream": 2,
+    "notes": "ACs 8 (frozen replay) and 4 (single live stream optimization) are deferred to issues #1316 and #1315 respectively; #1318 implements the navigation contract and poll-only behavior that compose at those points"
+  },
+  "testCoverage": {
+    "unitTests": 1138,
+    "files": 80,
+    "testResults": "PASS",
+    "typecheck": "PASS"
+  },
+  "criticalFindings": [],
+  "warnings": [],
+  "notes": [
+    "In-Progress becomes the run ledger: three sections (waiting_approval/queued+running/finished) render from polled GET /v1/demo/runs endpoint",
+    "Seven distinct terminal states derived from server stop_reason, never computed client-side",
+    "No retry-in-place control anywhere on surface",
+    "Legacy mock execution list (other 10 workflows) compositionally intact, guarded by in-progress-list-shell.test.tsx",
+    "Scoped run-surface visual identity via #1314 tokens",
+    "Accessibility: real section landmarks, reachable card order, no countdown spam",
+    "Acceptance commands: pnpm --filter @juli/demo test -- --run (1138/1138 PASS) ✓; pnpm --filter @juli/demo exec tsc --noEmit (clean) ✓"
+  ]
+}
