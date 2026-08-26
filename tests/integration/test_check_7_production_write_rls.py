@@ -247,8 +247,15 @@ class TestCheck7ProductionWriteRLS:
             if tables_without_rls:
                 pytest.skip(f"Some tenant tables lack RLS: {tables_without_rls}")
 
-            # Test with non-owner role: enable capability and verify boot succeeds
-            test_url = _database_url().replace("postgres@", f"{test_login_role}:test@")
+            # Test with non-owner role: enable capability and verify boot succeeds.
+            # Rebuild the URL swapping in the test role's credentials via proper URL
+            # parsing — a string replace on "postgres@" breaks when DATABASE_URL
+            # carries a password (postgres:test@...), as CI's does.
+            from sqlalchemy.engine import make_url
+
+            test_url = make_url(_database_url()).set(
+                username=test_login_role, password="test"
+            ).render_as_string(hide_password=False)
             with patch_env(DATABASE_URL=test_url, PRODUCTION_WRITE_ENABLED="true"):
                 assert is_production_write_enabled()
 
