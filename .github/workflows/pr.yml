@@ -560,6 +560,43 @@ jobs:
       - name: Public-schema boundary check must PASS for a table created AFTER head
         run: python agent-runtime/scripts/ci/check_public_schema_privileges.py
 
+  two-tenant-isolation-proof:
+    runs-on: ubuntu-latest
+    needs: [classify-tier, changes, migration-check]
+    if: >-
+      needs.classify-tier.outputs.tier == 'main'
+      && (needs.changes.outputs.migrations == 'true'
+      || needs.changes.outputs.backend == 'true')
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: isolation_test
+        ports:
+          - 5433:5432
+    env:
+      DATABASE_URL: postgresql://postgres:test@localhost:5433/isolation_test
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -e "./backend[dev]" -c backend/constraints.txt
+      - name: Create PostgREST client roles + seed Supabase bootstrap grants
+        run: python agent-runtime/scripts/ci/ensure_postgrest_client_roles.py
+      - name: Alembic upgrade head
+        run: alembic upgrade head
+      - name: Two-tenant RLS isolation proof (issue #1329)
+        run: >-
+          python -m pytest
+          tests/integration/test_two_tenant_isolation_proof.py
+          -v
+          --tb=short
+          -k "isolation_proof"
+
   frontend:
     runs-on: ubuntu-latest
     needs: [classify-tier, changes]
@@ -1109,6 +1146,7 @@ jobs:
       - full-regression
       - performance-smoke
       - migration-check
+      - two-tenant-isolation-proof
       - frontend
       - demo-frontend
       - landing-frontend
@@ -1139,6 +1177,7 @@ jobs:
           regression="${{ needs.full-regression.result }}"
           perf="${{ needs.performance-smoke.result }}"
           mig="${{ needs.migration-check.result }}"
+          isolation_proof="${{ needs.two-tenant-isolation-proof.result }}"
           fe="${{ needs.frontend.result }}"
           demo="${{ needs.demo-frontend.result }}"
           landing="${{ needs.landing-frontend.result }}"
@@ -1195,6 +1234,7 @@ jobs:
             require "nginx-config-parses" "$nginx_parse" "false"
             require "full-regression" "$regression" "false"
             require "migration-check" "$mig" "false"
+            require "two-tenant-isolation-proof" "$isolation_proof" "false"
             require "frontend" "$fe" "true"
             require "demo-frontend" "$demo" "true"
             require "landing-frontend" "$landing" "true"
