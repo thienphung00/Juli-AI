@@ -482,11 +482,9 @@ def _record_rls_boot_check_passed() -> None:
     the state so the #1336 production write resolver (precondition 3) can verify
     that boot-time assertions were met.
 
-    Uses a lazy import to avoid pulling the resolver module into every boot path
+    Uses a lazy import to avoid pulling the execution services into every boot path
     (the resolver is only consulted when PRODUCTION_WRITE_ENABLED is on).
     """
-    from juli_backend.services.execution.production_write_resolver import (
-        record_rls_boot_check_passed,
-    )
+    from juli_backend.services.execution import record_rls_boot_check_passed
 
     record_rls_boot_check_passed()
