@@ -111,10 +111,15 @@ interface RunCardProps {
   run: WorkflowRunListItem;
 }
 
-function WaitingOnYouCard({ run }: RunCardProps) {
-  const expiry = run.decision_summary
-    ? resolveExpiryCountdown(run.decision_summary.expires_at, Date.now())
-    : null;
+function WaitingOnYouCard({ run, nowMs }: RunCardProps & { nowMs: number | null }) {
+  // `nowMs` is sourced in `useRunLedger`'s effect (alongside each poll), never
+  // read via `Date.now()` here: calling an impure function during render is
+  // forbidden by `react-hooks/purity`. Until the first poll resolves `nowMs`
+  // is null and no countdown is shown (the loading state covers that frame).
+  const expiry =
+    run.decision_summary && nowMs !== null
+      ? resolveExpiryCountdown(run.decision_summary.expires_at, nowMs)
+      : null;
 
   return (
     <article
@@ -235,9 +240,15 @@ function useRunLedger(active: boolean): {
   sections: ReturnType<typeof groupRunsIntoLedgerSections>;
   status: LedgerLoadStatus;
   hasAnyRuns: boolean;
+  nowMs: number | null;
 } {
   const [runs, setRuns] = useState<WorkflowRunListItem[]>([]);
   const [status, setStatus] = useState<LedgerLoadStatus>("loading");
+  // The wall-clock the expiry countdown is measured against. Sourced here in
+  // the polling effect (Date.now() is pure-safe outside render) and refreshed
+  // on every successful poll, so the countdown updates on the same cadence the
+  // original inline Date.now() did — without an impure call during render.
+  const [nowMs, setNowMs] = useState<number | null>(null);
   const inFlightRef = useRef(false);
 
   useEffect(() => {
@@ -256,6 +267,7 @@ function useRunLedger(active: boolean): {
         if (!cancelled) {
           setRuns(nextRuns);
           setStatus("ready");
+          setNowMs(Date.now());
         }
       } catch {
         if (!cancelled) {
@@ -285,6 +297,7 @@ function useRunLedger(active: boolean): {
     sections: groupRunsIntoLedgerSections(runs),
     status,
     hasAnyRuns: runs.length > 0,
+    nowMs,
   };
 }
 
@@ -690,7 +703,7 @@ export function InProgressPanel({ panelId, active = true }: InProgressPanelProps
           </h2>
           <div className="run-ledger__cards">
             {ledger.sections.waitingOnYou.map((run) => (
-              <WaitingOnYouCard key={run.id} run={run} />
+              <WaitingOnYouCard key={run.id} run={run} nowMs={ledger.nowMs} />
             ))}
           </div>
         </section>
