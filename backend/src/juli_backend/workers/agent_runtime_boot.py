@@ -313,6 +313,9 @@ def _assert_non_owner_role_rls_preconditions() -> None:
       (b) every tenant-scoped table has relrowsecurity=true ⇒ REFUSE, naming the table (AC2).
       Both conditions must be met to boot (AC4).
 
+    When both conditions are met, records the boot check state so the #1336 production
+    write resolver can read it (precondition 3).
+
     Queries the LIVE connection's actual role and RLS state from pg_catalog,
     not config values.
     """
@@ -371,6 +374,11 @@ def _assert_non_owner_role_rls_preconditions() -> None:
 
         cursor.close()
         conn.close()
+
+        # Both checks passed; record this for the #1336 production write resolver
+        # (precondition 3). This records that the RLS boot assertion passed for this
+        # process, allowing the resolver to verify it at write time.
+        _record_rls_boot_check_passed()
 
     except psycopg2.Error as e:
         if conn is not None:
@@ -464,3 +472,21 @@ def _check_tenant_tables_have_rls(cursor) -> None:
             f"refuses boot — tenant-scoped tables missing RLS: {table_list}. "
             f"Isolation is incomplete. Set PRODUCTION_WRITE_ENABLED=false or enable RLS."
         )
+
+
+def _record_rls_boot_check_passed() -> None:
+    """Record that the RLS boot check passed for this process.
+
+    Called by _assert_non_owner_role_rls_preconditions() after both RLS checks
+    pass (no table ownership, all tenant tables have RLS enabled). This records
+    the state so the #1336 production write resolver (precondition 3) can verify
+    that boot-time assertions were met.
+
+    Uses a lazy import to avoid pulling the resolver module into every boot path
+    (the resolver is only consulted when PRODUCTION_WRITE_ENABLED is on).
+    """
+    from juli_backend.services.execution.production_write_resolver import (
+        record_rls_boot_check_passed,
+    )
+
+    record_rls_boot_check_passed()
