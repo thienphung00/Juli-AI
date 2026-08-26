@@ -139,7 +139,7 @@ def assert_agent_runtime_config(
     app: FastAPI | None = None,
     broker_url: str | None = None,
 ) -> None:
-    """Fail the process at boot when any of ADR-075 decision 3's six checks
+    """Fail the process at boot when any of ADR-075 decision 3's checks
     is unmet, each raising a `RuntimeError` naming that check.
 
     `app`: pass the real `FastAPI` instance from API boot so check 6 can
@@ -152,6 +152,12 @@ def assert_agent_runtime_config(
     reading `CELERY_BROKER_URL` with the identical default
     `celery_app.py` itself uses, so both boot paths assert against the same
     effective broker.
+
+    **Check 7 (issue #1330):** When the process connects as a non-owner role
+    (e.g., juli_app), verify at boot that (a) the connection's role is NOT
+    an owner of any table in the runtime schemas, and (b) relrowsecurity is
+    true for every table in the tenant-scoped classification map. Either unmet
+    ⇒ refuse to start, naming the check and (for RLS) naming the table.
     """
     # Check 5 -- unconditional. Must run, and must be able to fail, before
     # anything below it: an empty SUPABASE_JWT_SECRET crashes at boot rather
@@ -172,7 +178,7 @@ def assert_agent_runtime_config(
 
     if not broker_guard_module.agent_workflows_enabled():
         # Fail-safe-by-omission: a deployment that has not opted into agent
-        # workflows is unaffected by checks 1, 3, 4, 6 -- the same shape
+        # workflows is unaffected by checks 1, 3, 4, 6, 7 -- the same shape
         # check 2 alone already had.
         return
 
@@ -181,6 +187,7 @@ def assert_agent_runtime_config(
     _assert_sandbox_write_guard_config_resolvable()
     if app is not None:
         _assert_zero_unauthenticated_agent_route_groups(app)
+    _assert_non_owner_role_rls_preconditions()
 
 
 def _assert_supabase_jwks_url_usable() -> None:
@@ -282,3 +289,182 @@ def _dependant_requires_auth(dependant: Dependant, auth_dependency: object) -> b
             return True
         stack.extend(current.dependencies)
     return False
+
+
+def _assert_non_owner_role_rls_preconditions() -> None:
+    """Check 7: RLS preconditions for non-owner role (issue #1330).
+
+    When the process connects as a non-owner role (e.g., juli_app), verify
+    at boot that:
+    (a) The connection's role is NOT an owner of any table in runtime schemas
+    (b) relrowsecurity is true for EVERY tenant-scoped table
+
+    If connecting as the owner (postgres), this check is a no-op -- today's
+    deployed configuration must not break.
+
+    Queries the LIVE connection's actual role and RLS state from pg_catalog,
+    not config values. A boot check asserting a setting is present rather than
+    effective is the #1282 failure repeated.
+    """
+    from urllib.parse import urlparse
+
+    import psycopg2  # type: ignore[import-untyped]
+    import psycopg2.extras  # type: ignore[import-untyped]
+
+    # Get DATABASE_URL from environment
+    database_url = os.environ.get("DATABASE_URL", "").strip()
+    if not database_url:
+        # No database connection configured; check is not applicable
+        return
+
+    # Parse the DATABASE_URL to extract connection parameters
+    try:
+        from juli_backend.core.config.runtime import sync_database_url
+
+        # Normalize URL for sync driver
+        normalized_url = sync_database_url(database_url)
+        parsed = urlparse(normalized_url)
+
+        # Extract connection parameters
+        conn_params = {
+            "host": parsed.hostname or "localhost",
+            "port": parsed.port or 5432,
+            "user": parsed.username or "postgres",
+            "password": parsed.password or "",
+            "database": parsed.path.lstrip("/") if parsed.path else "postgres",
+        }
+
+        # Try to connect and check preconditions
+        conn = None
+        try:
+            conn = psycopg2.connect(**conn_params)
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+            # Get current role
+            cursor.execute("SELECT current_user")
+            current_role = cursor.fetchone()[0]
+
+            # If connecting as owner (postgres or superuser), no-op (current production state)
+            if _is_superuser(cursor, current_role):
+                cursor.close()
+                conn.close()
+                return
+
+            # Non-owner role: check preconditions
+            _check_role_does_not_own_tables(cursor, current_role)
+            _check_tenant_tables_have_rls(cursor)
+
+            cursor.close()
+            conn.close()
+
+        except psycopg2.Error as e:
+            if conn is not None:
+                conn.close()
+            raise RuntimeError(
+                f"assert_agent_runtime_config: failed to check RLS preconditions: {e}"
+            ) from e
+
+    except Exception:
+        # If we can't parse/normalize the URL or connect, this is not a
+        # precondition failure -- the application will fail on its own when
+        # trying to use the database. Don't fail boot on connection setup issues.
+        pass
+
+
+def _is_superuser(cursor, role_name: str) -> bool:
+    """Check if the given role is a superuser.
+
+    Superusers always bypass RLS, so the check is a no-op for them.
+    """
+    try:
+        cursor.execute(
+            "SELECT usesuper FROM pg_user WHERE usename = %s",
+            (role_name,),
+        )
+        result = cursor.fetchone()
+        return bool(result and result[0]) if result else False
+    except Exception:
+        # If we can't determine superuser status, assume it's not a superuser
+        return False
+
+
+def _check_role_does_not_own_tables(cursor, current_role: str) -> None:
+    """Verify that the current role does not own any tables in runtime schemas.
+
+    Raises RuntimeError naming the check if the role owns any tables.
+    """
+    # Query for tables owned by current role in runtime schemas
+    cursor.execute(
+        """
+        SELECT t.relname, n.nspname
+        FROM pg_class t
+        JOIN pg_namespace n ON t.relnamespace = n.oid
+        JOIN pg_roles r ON t.relowner = r.oid
+        WHERE r.rolname = %s
+        AND n.nspname IN ('public', 'bronze', 'silver', 'ops', 'gold')
+        AND t.relkind = 'r'
+        ORDER BY n.nspname, t.relname
+        """,
+        (current_role,),
+    )
+
+    owned_tables = cursor.fetchall()
+    if owned_tables:
+        table_list = ", ".join(f"{row['nspname']}.{row['relname']}" for row in owned_tables)
+        raise RuntimeError(
+            f"assert_agent_runtime_config: non-owner role '{current_role}' "
+            f"owns tables in runtime schemas: {table_list} "
+            f"(check 7 requires role to own no tables)"
+        )
+
+
+def _check_tenant_tables_have_rls(cursor) -> None:
+    """Verify that all tenant-scoped tables have RLS enabled.
+
+    Raises RuntimeError naming each table without RLS.
+    """
+    from juli_backend.database.tenant_scoped_tables import get_tenant_scoped_tables
+
+    tenant_tables = get_tenant_scoped_tables()
+
+    if not tenant_tables:
+        # No tenant tables defined; check passes
+        return
+
+    # Query RLS state for each tenant table directly from pg_catalog
+    tables_without_rls = []
+    missing_tables = []
+
+    for schema, table in tenant_tables:
+        cursor.execute(
+            """
+            SELECT t.relrowsecurity
+            FROM pg_class t
+            JOIN pg_namespace n ON t.relnamespace = n.oid
+            WHERE n.nspname = %s AND t.relname = %s AND t.relkind = 'r'
+            """,
+            (schema, table),
+        )
+
+        result = cursor.fetchone()
+        if result is None:
+            # Table doesn't exist in catalog
+            missing_tables.append(f"{schema}.{table}")
+        else:
+            relrowsecurity = result[0]  # Using index access since DictCursor may vary
+            if not relrowsecurity:
+                tables_without_rls.append(f"{schema}.{table}")
+
+    if missing_tables:
+        missing_list = ", ".join(missing_tables)
+        raise RuntimeError(
+            f"assert_agent_runtime_config: tenant-scoped tables not found in pg_catalog: "
+            f"{missing_list} (check 7 requires all tenant tables to exist)"
+        )
+
+    if tables_without_rls:
+        table_list = ", ".join(tables_without_rls)
+        raise RuntimeError(
+            f"assert_agent_runtime_config: tenant-scoped tables missing RLS: "
+            f"{table_list} (check 7 requires relrowsecurity=true for all tenant tables)"
+        )

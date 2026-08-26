@@ -34,76 +34,14 @@ from juli_backend.database.tenant_context import (
     clear_tenant_context,
     with_tenant_scope,
 )
+from juli_backend.database.tenant_scoped_tables import (
+    TABLE_CLASSIFICATION_MAP,
+    VIA_PARENT_MAPPINGS,
+)
 
 pytestmark = pytest.mark.migration_heavy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-
-# ============================================================================
-# Table Classification Map
-# ============================================================================
-# This is the COMMITTED map that MUST be COMPLETE. An unclassified table
-# causes the build to FAIL. Each table is classified as one of:
-# - "tenant_direct": has shop_id column, policy compares shop_id directly
-# - "tenant_via_parent": child of a tenant_direct table, policy uses EXISTS
-# - "non_tenant": shared across tenants, keyed to user_id or app.current_user_id
-# - "non_tenant_unprotected": no RLS policy (webhook_raw_events)
-
-TABLE_CLASSIFICATION_MAP = {
-    # Direct tenant-scoped tables (shop_id column)
-    ("public", "tiktok_credentials"): "tenant_direct",
-    ("public", "tiktok_sync_state"): "tenant_direct",
-    ("public", "orders"): "tenant_direct",
-    ("public", "order_items"): "tenant_direct",
-    ("public", "returns"): "tenant_direct",
-    ("public", "products"): "tenant_direct",
-    ("public", "inventory_items"): "tenant_direct",
-    ("public", "settlements"): "tenant_direct",
-    ("public", "creators"): "tenant_direct",
-    ("public", "livestreams"): "tenant_direct",
-    ("public", "analytics_performance_intervals"): "tenant_direct",
-    ("public", "alert_configs"): "tenant_direct",
-    ("public", "alert_history"): "tenant_direct",
-    ("public", "workflow_webhook_signals"): "tenant_direct",
-    ("public", "workflow_runs"): "tenant_direct",
-    ("public", "tool_executions"): "tenant_direct",
-    ("public", "workflow_outcome_records"): "tenant_direct",
-    ("public", "action_cards"): "tenant_direct",
-    ("public", "decision_emission_novelty_ledger"): "tenant_direct",
-    ("public", "demo_execution_records"): "tenant_direct",
-    ("public", "recommendations"): "tenant_direct",
-    ("public", "campaigns"): "tenant_direct",
-    ("public", "graph_edges"): "tenant_direct",
-    ("public", "analytics_kpi_envelopes"): "tenant_direct",
-    ("silver", "orders"): "tenant_direct",
-    ("silver", "returns"): "tenant_direct",
-    ("ops", "analytics_backfill_partitions"): "tenant_direct",
-    ("gold", "kpi_envelopes"): "tenant_direct",
-    ("gold", "ml_feature_snapshots"): "tenant_direct",
-    ("bronze", "order_raw_payloads"): "tenant_direct",
-    ("bronze", "return_raw_payloads"): "tenant_direct",
-    ("bronze", "ctor_performance_raw_payloads"): "tenant_direct",
-    ("bronze", "live_hours_raw_payloads"): "tenant_direct",
-    ("public", "processed_events"): "tenant_direct",
-    ("public", "production_write_authorizations"): "tenant_direct",
-    # Via-parent tenant-scoped tables
-    ("public", "workflow_run_events"): "tenant_via_parent",
-    ("public", "run_confirmations"): "tenant_via_parent",
-    ("public", "impact_readings"): "tenant_via_parent",
-    ("public", "action_card_approvals"): "tenant_via_parent",
-    # Non-tenant tables
-    ("public", "users"): "non_tenant",
-    ("public", "shops"): "non_tenant",
-    ("public", "webhook_raw_events"): "non_tenant_unprotected",
-}
-
-# Metadata about via-parent relationships
-VIA_PARENT_MAPPINGS = {
-    ("public", "workflow_run_events"): ("workflow_runs", "workflow_run_id", "id"),
-    ("public", "run_confirmations"): ("workflow_runs", "workflow_run_id", "id"),
-    ("public", "impact_readings"): ("tool_executions", "tool_execution_id", "id"),
-    ("public", "action_card_approvals"): ("action_cards", "action_card_id", "id"),
-}
 
 
 def _database_url() -> str:
