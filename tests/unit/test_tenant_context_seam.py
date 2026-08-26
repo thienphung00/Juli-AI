@@ -364,10 +364,17 @@ async def test_resolve_task_tenant_context_real_postgres():
         product_id = uuid.uuid4()
         workflow_run_id = uuid.uuid4()
 
+        from datetime import datetime
+
         owner_user = User(id=owner_user_id, phone="555-0001", display_name="Shop Owner")
         shop = Shop(id=shop_id, user_id=owner_user_id, shop_name="Test Shop", is_active=True)
         product = Product(
-            id=product_id, shop_id=shop_id, tiktok_product_id="prod-123", name="Test Product"
+            id=product_id,
+            shop_id=shop_id,
+            tiktok_product_id="prod-123",
+            name="Test Product",
+            status="active",
+            update_time=datetime.utcnow(),
         )
         workflow_run = WorkflowRun(
             id=workflow_run_id,
