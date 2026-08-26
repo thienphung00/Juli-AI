@@ -253,9 +253,11 @@ class TestCheck7ProductionWriteRLS:
             # carries a password (postgres:test@...), as CI's does.
             from sqlalchemy.engine import make_url
 
-            test_url = make_url(_database_url()).set(
-                username=test_login_role, password="test"
-            ).render_as_string(hide_password=False)
+            test_url = (
+                make_url(_database_url())
+                .set(username=test_login_role, password="test")
+                .render_as_string(hide_password=False)
+            )
             with patch_env(DATABASE_URL=test_url, PRODUCTION_WRITE_ENABLED="true"):
                 assert is_production_write_enabled()
 

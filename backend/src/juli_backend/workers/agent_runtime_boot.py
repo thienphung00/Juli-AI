@@ -116,8 +116,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
-from juli_backend.core.config import is_production, require_env
-from juli_backend.core.config import is_production_write_enabled
+from juli_backend.core.config import is_production, is_production_write_enabled, require_env
 from juli_backend.services.agent import composition as composition_module
 from juli_backend.services.agent import sanitize as sanitize_module
 from juli_backend.workers import agent_broker_guard as broker_guard_module
