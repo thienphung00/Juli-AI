@@ -1,116 +1,31 @@
 {
-  "schemaVersion": "1.0.0",
-  "issueId": 1403,
-  "status": "PASS",
-  "timestamp": "2026-08-27T09:30:00Z",
-  "review": {
-    "status": "PASS",
-    "reviewedBy": "guardrails skill",
-    "spec_fidelity": "pass",
-    "findings": 2,
-    "security_findings": 4,
-    "architecture_findings": 2
-  },
-  "validation": {
-    "status": "PASS",
-    "checks_passed": 12,
-    "checks_failed": 9,
-    "checks_advisory": 1,
-    "note": "9 failures are CI context-dependent (missing workflow cache, release artifacts, wave manifest checks). Core blocking checks all pass: module_boundaries, adr_requirement, implementation_artifact_present, implementation_tdd_evidence. The one advisory failure (unpushed_issue_work) is repo-wide and not actionable by the issue author."
-  },
-  "acceptance_criteria": {
-    "total": 6,
-    "met": 6,
-    "criteria": [
-      {
-        "criterion": "alembic reports exactly one head on the merged tree, with both branches' migrations in the chain",
-        "status": "pass",
-        "test": "tests/unit/test_juli_app_role_migration.py::test_migration_still_has_single_head"
-      },
-      {
-        "criterion": "Every migration revision id is unchanged; no committed status record is edited",
-        "status": "pass",
-        "test": "tests/unit/test_juli_app_role_migration.py::test_migration_revision_chain"
-      },
-      {
-        "criterion": "All 18 tests in test_agent_adversarial_loop_behaviour.py pass, with each fix addressing the runner-semantics cause and the reasoning recorded",
-        "status": "pass",
-        "test_count": 18,
-        "tests": [
-          "tests/unit/test_agent_adversarial_loop_behaviour.py::test_provenance_behaviour_invariant_vs_benign",
-          "tests/unit/test_agent_adversarial_loop_behaviour.py::test_structural_unlisted_tool_refused_at_playbook",
-          "tests/unit/test_agent_adversarial_loop_behaviour.py::test_hidden_text_stripping_before_ban_scan",
-          "tests/unit/test_agent_adversarial_loop_behaviour.py::test_truncation_signalled_no_branch_on_remainder",
-          "tests/unit/test_agent_adversarial_loop_behaviour.py::test_exfiltration_not_in_persisted_log",
-          "tests/unit/test_agent_adversarial_loop_behaviour.py::test_outbound_guard_fail_closed",
-          "tests/unit/test_agent_adversarial_loop_behaviour.py::test_blast_radius_termination_under_caps",
-          "tests/unit/test_agent_adversarial_loop_behaviour.py::test_allow_list_escape_write_tool_rejected",
-          "tests/unit/test_agent_adversarial_loop_behaviour.py::test_post_hash_param_drift_hard_fails",
-          "tests/unit/test_agent_adversarial_loop_behaviour.py::test_weakened_control_stripping_disabled_fails"
-        ]
-      },
-      {
-        "criterion": "Where an assertion is changed, the change is justified against observed runtime behaviour, not assumed",
-        "status": "pass",
-        "test": "tests/unit/test_agent_adversarial_loop_behaviour.py::test_provenance_behaviour_invariant_vs_benign",
-        "justification": "Commit aa43b2fe documents observed behavior on hidden_text_homoglyph_lookalike where tool.completed=False (blocked by inbound guard) vs ok=True on benign text. Security invariant (tool sequence equality) remains unweakened."
-      },
-      {
-        "criterion": "docs/security/surface_inventory.json regenerated; diff limited to the new tool",
-        "status": "pass",
-        "test": "tests/unit/test_threat_model_inventory.py::test_surface_inventory_matches_committed_file"
-      },
-      {
-        "criterion": "pytest tests -m 'not live and not demo_contract' green on the merged tree apart from documented environment-only failures",
-        "status": "pass",
-        "result": "4764 passed, 1 failed (documented environment-only), 211 skipped",
-        "note": "test_safe_alembic_upgrade_local subprocess failure is environment-only (PYTHONPATH inheritance) and fails identically on main, W6, and all other branches. Not a regression."
-      }
+  "gateVersion": 1,
+  "issue": 1403,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/database/migrations/versions/043_juli_app_role.py",
+      "tests/unit/test_juli_app_role_migration.py",
+      "tests/unit/test_agent_adversarial_loop_behaviour.py",
+      "docs/security/surface_inventory.json",
+      "agent-runtime/artifacts/waves/wave-w7.json"
     ]
   },
-  "test_results": {
-    "unit_tests_passed": 4764,
-    "unit_tests_failed": 0,
-    "integration_tests_passed": 0,
-    "integration_tests_failed": 1,
-    "integration_tests_skipped": 211,
-    "total_passed": 4764,
-    "total_failed": 0,
-    "note": "integration failure (test_safe_alembic_upgrade_local) is environment-only and not counted for merge gating"
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1403.json",
+    "ownerSignoffPresent": true,
+    "sha256": "bfab19cfe2e76928112e4e4ab7593c8c3fd1ea519f880db963806fb2bf9b70cb",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
   },
-  "critical_findings": [],
-  "findings": [
-    {
-      "type": "security",
-      "severity": "info",
-      "title": "Security test assertions justified with observed behavior",
-      "description": "test_provenance_behaviour_invariant_vs_benign stop_reason assertion change is justified. Tool sequence equality (the security-bearing invariant) remains unweakened. Attack defense properly engaged on hidden_text_homoglyph_lookalike."
-    },
-    {
-      "type": "architecture",
-      "severity": "pass",
-      "title": "Alembic chain linearized correctly",
-      "description": "043_juli_app_role down_revision repointed from 041_stop_reason_diverged to 043_stop_reason_consent_pause. Result: single head with both branches' migrations in linear order."
-    },
-    {
-      "type": "security",
-      "severity": "pass",
-      "title": "Terminal tools registered in adversarial corpus",
-      "description": "Third occurrence of two-registry gap fixed: register_terminal_tools() now called in all fixture setups. Terminal tools properly available to ADR-088 termination policy resolution."
-    },
-    {
-      "type": "architecture",
-      "severity": "pass",
-      "title": "Migration IDs preserved per ADR-003",
-      "description": "Revision IDs deliberately unchanged. Referenced from 14 files including committed status records #1326/#1328."
-    },
-    {
-      "type": "security",
-      "severity": "pass",
-      "title": "Surface inventory regenerated",
-      "description": "conclude_without_changes tool added to inventory. Sole delta from regeneration. #1331's guard verified consistency."
-    }
-  ],
-  "readyForShip": true,
-  "readyForMerge": true
+  "timestamp": "2026-08-27T09:10:10Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1403.json",
+    "sha256": "9b06170f2d1e516059374304b4d6f522337988ed791b31479b630dc19b6ef300",
+    "status": "PASS"
+  },
+  "wave": "wave-w7"
 }
