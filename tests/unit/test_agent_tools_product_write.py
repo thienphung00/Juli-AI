@@ -119,6 +119,11 @@ _DEFAULT_PRODUCT_DETAIL = {
     "main_images": [
         {"uri": "tos-alisg-i-aphluv4xwc-sg/abc123", "width": 1200, "height": 1200},
     ],
+    # Category-mandatory attributes. Which ones are required varies by
+    # category, so a product that carries none does not model the real case.
+    "product_attributes": [
+        {"id": "100107", "name": "Loại bảo hành", "values": [{"id": "1001", "name": "12 tháng"}]},
+    ],
 }
 
 
@@ -935,6 +940,20 @@ class TestEveryRequiredFieldSurvivesADescriptionOnlyEdit:
         body = _build_listing_edit_body(params, ctx)
 
         assert body["main_images"] == [{"uri": "tos-staged/new-photo"}]
+
+    def test_category_mandatory_attributes_are_passed_through(self, context):
+        """Gate #1226 walk run f5c1f9bf: TikTokAPIError [12052104] "missing
+        product attribute ID 100107" (Loại bảo hành). Which attributes a
+        category makes mandatory varies by category, so there is no fixed list
+        to encode — passing through whatever the product already carries is the
+        only correct answer, and the only one that cannot invent a value."""
+        params = UpdateProductListingInput(
+            title=None, description="<p>x</p>", attach_staged_image=False
+        )
+
+        body = _build_listing_edit_body(params, context)
+
+        assert body["product_attributes"] == context.product_detail["product_attributes"]
 
     def test_a_product_with_no_usable_image_fails_closed(self, context):
         """Never send an empty main_images — that would clear the listing's

@@ -292,6 +292,16 @@ def _build_listing_edit_body(
     if "package_weight" in context.product_detail:
         body["package_weight"] = context.product_detail["package_weight"]
 
+    # The category's mandatory attributes. Gate #1226 walk run f5c1f9bf was
+    # rejected with TikTokAPIError [12052104] "missing product attribute ID
+    # 100107" (Loại bảo hành / warranty type) — a category-attribute
+    # requirement, distinct from the plain 36009004 required-field errors that
+    # category_id and main_images produced. Which attributes are mandatory
+    # varies BY CATEGORY, so there is no fixed list to encode: passthrough of
+    # whatever this product already carries is the only correct answer.
+    if "product_attributes" in context.product_detail:
+        body["product_attributes"] = context.product_detail["product_attributes"]
+
     # main_images is REQUIRED by the endpoint, whether or not the run is
     # changing the photo — TikTok rejected a description-only edit with
     # "MainImages is a required field and has not been provided" (gate #1226
