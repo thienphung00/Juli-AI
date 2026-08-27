@@ -1,0 +1,99 @@
+{
+  "planId": "rep-1396-crash-terminal-relay",
+  "affectedPublicSurfaces": [
+    "GET /v1/demo/runs/{run_id}/events \u2014 a failed run now delivers workflow.failed to already-connected streams instead of hanging on heartbeats",
+    "workflow_runs.stop_reason \u2014 a vendor rejection now records tool_error_unrecoverable rather than worker_lost"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "sandbox shop 1862f13b-de2c-4fae-a4ad-70298cead913 only",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "a-failed-run-tells-the-watcher",
+        "entryUrl": "unit: drive the real _emit_crash_terminal_event with a fake publisher",
+        "assertions": [
+          "a publish occurs on the run's own channel",
+          "the message carries workflow.failed",
+          "removing the publish call makes this fail"
+        ]
+      },
+      {
+        "name": "a-broker-outage-does-not-strand-the-run",
+        "entryUrl": "unit: publisher raises ConnectionError",
+        "assertions": [
+          "the run still ends terminal",
+          "the event row still commits",
+          "the exception does not escape the crash handler"
+        ]
+      },
+      {
+        "name": "the-stop-reason-names-what-was-observed",
+        "entryUrl": "unit: classify vendor / provider / unknown exceptions",
+        "assertions": [
+          "TikTokAPIError maps to tool_error_unrecoverable",
+          "LLMProviderError maps to llm_error",
+          "an unrecognised exception falls to the residual bucket and is logged",
+          "classification never raises"
+        ]
+      },
+      {
+        "name": "gate-1226-walk",
+        "entryUrl": "approve card 0aa74318-a560-4c2f-bbaa-f1f5e5f4e3d5 and watch the stream",
+        "assertions": [
+          "a failing run terminates the stream instead of heartbeating forever",
+          "the operator no longer needs to query Postgres to learn a run ended"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: worker and event-relay change"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. stop_reason values written are existing members of the CHECK constraint (tool_error_unrecoverable, llm_error, worker_lost); no new value is introduced, so no migration is needed and a code-only rollback is safe."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy the prior release; streams go back to hanging on failed runs and vendor errors go back to reading worker_lost, which is the current state",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_agent_crash_terminal_event.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_import_boundaries.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests -m 'not live and not demo_contract' -q",
+    "ruff check backend/src/juli_backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do not reuse PersistingEventSink.emit in the crash handler \u2014 it commits its own session, and the handler needs the event row, run status and card revert in ONE transaction. Share the publish helper instead.",
+    "Do not let a publish failure re-raise. The row is already committed; the handler's job is to stop a run being stranded non-terminal (#1210).",
+    "Do not put the exception classifier in workers \u2014 .importlinter.toml gives workers no edge to integrations at any depth.",
+    "Do not deep-import juli_backend.integrations.tiktok.exceptions; cross-package depth is capped at 2. Use the public package root.",
+    "Do not claim #1390 is fully closed. An unrecognised exception still records worker_lost as the residual bucket; a dedicated stop reason would need a migration and TS parity."
+  ]
+}

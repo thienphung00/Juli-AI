@@ -165,6 +165,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from juli_backend.models.models import Product, WorkflowRun
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
+from juli_backend.services.agent import crash_classification as crash_module
 from juli_backend.services.agent import events as events_module
 from juli_backend.services.agent import runner as runner_module
 from juli_backend.workers.celery_app import celery_app
@@ -181,6 +182,8 @@ logger = logging.getLogger(__name__)
 
 # Re-bound from depth-2 facade imports for crash handling
 StopReason = runner_module.StopReason
+classify_crash_stop_reason = crash_module.classify_crash_stop_reason
+publish_event_best_effort = events_module.publish_event_best_effort
 WorkflowRunStatus = runner_module.WorkflowRunStatus
 WorkflowFailedEvent = events_module.WorkflowFailedEvent
 WorkflowFailedPayload = events_module.WorkflowFailedPayload
@@ -503,6 +506,7 @@ async def _next_sequence_number(session: AsyncSession, run_id: uuid.UUID) -> int
 async def _emit_crash_terminal_event(
     session: AsyncSession,
     run_id: uuid.UUID,
+    exc: BaseException | None = None,
 ) -> None:
     """Emit a terminal `workflow.failed` event after a crash (issue #1291).
 
@@ -533,6 +537,14 @@ async def _emit_crash_terminal_event(
             now = datetime.now(UTC)
             seq = await _next_sequence_number(fresh_session, run_id)
 
+            # #1390: name the cause we observed, not a cause we assumed. This
+            # used to hardcode WORKER_LOST for every exception, so a vendor 4xx
+            # was indistinguishable from a process that actually died — and
+            # WORKER_LOST is what an operator pages on.
+            stop_reason = (
+                classify_crash_stop_reason(exc) if exc is not None else StopReason.WORKER_LOST
+            )
+
             event = WorkflowFailedEvent(
                 workflow_run_id=run_id,
                 sequence_number=seq,
@@ -540,7 +552,7 @@ async def _emit_crash_terminal_event(
                 timestamp=now,
                 payload=WorkflowFailedPayload(
                     status=WorkflowRunStatus.FAILED,
-                    stop_reason=StopReason.WORKER_LOST,
+                    stop_reason=stop_reason,
                 ),
                 v=1,
             )
@@ -559,7 +571,7 @@ async def _emit_crash_terminal_event(
 
             # Update run status
             run.status = WorkflowRunStatus.FAILED.value
-            run.stop_reason = StopReason.WORKER_LOST.value
+            run.stop_reason = stop_reason.value
             run.completed_at = now
             run.required_steps_completed = False
 
@@ -572,9 +584,19 @@ async def _emit_crash_terminal_event(
 
             await fresh_session.commit()
 
+            # #1396: the row is durably committed — now tell anyone watching.
+            # Without this the terminal event never reaches the Redis channel
+            # the SSE endpoint subscribes to, so every connected stream sits on
+            # heartbeats forever while the run is already dead. Best-effort by
+            # contract: the same helper PersistingEventSink.emit uses, so the
+            # two paths cannot drift apart again.
+
+            # #1396: the row is durably committed — now tell anyone watching.
+            await publish_event_best_effort(_resolve_event_publisher(), event)
+
             logger.info(
                 "workflow_run_crash_terminal_event_emitted",
-                extra={"run_id": str(run_id)},
+                extra={"run_id": str(run_id), "stop_reason": stop_reason.value},
             )
         except Exception:
             logger.error(
@@ -593,7 +615,7 @@ async def _run_agent_workflow_async(run_id: str) -> None:
                 runner = await _construct_runner(session, sync_session, run, product)
                 await runner.run(run.id, product_ref=product.tiktok_product_id)
                 await session.commit()
-            except Exception:
+            except Exception as exc:
                 # Catch any crash and emit a terminal event so the run doesn't
                 # stay stranded in queued/running with no terminal event (ADR-074
                 # decision 4, issue #1291).
@@ -603,7 +625,7 @@ async def _run_agent_workflow_async(run_id: str) -> None:
                     extra={"run_id": str(run_uuid)},
                     exc_info=True,
                 )
-                await _emit_crash_terminal_event(session, run_uuid)
+                await _emit_crash_terminal_event(session, run_uuid, exc)
 
 
 async def _resume_agent_workflow_async(run_id: str, *, approved: bool) -> None:
@@ -615,7 +637,7 @@ async def _resume_agent_workflow_async(run_id: str, *, approved: bool) -> None:
                 runner = await _construct_runner(session, sync_session, run, product)
                 await runner.resume(run.id, approved=approved)
                 await session.commit()
-            except Exception:
+            except Exception as exc:
                 # Same crash handling as run_agent_workflow (issue #1291).
                 run_uuid = uuid.UUID(run_id)
                 logger.exception(
@@ -623,7 +645,7 @@ async def _resume_agent_workflow_async(run_id: str, *, approved: bool) -> None:
                     extra={"run_id": str(run_uuid)},
                     exc_info=True,
                 )
-                await _emit_crash_terminal_event(session, run_uuid)
+                await _emit_crash_terminal_event(session, run_uuid, exc)
 
 
 def run_agent_workflow_sync(run_id: str) -> None:

@@ -1,0 +1,73 @@
+# AGT-CRASHRELAY — #1213 gate-walk chain, issues #1396 and #1390. Two defects in
+# ONE function — `workers/tasks/agent_workflow.py::_emit_crash_terminal_event`,
+# the catch-all crash handler — fixed together because they sit within a few
+# lines of each other and both concern what that handler tells the world.
+#
+# #1396 — IT NEVER PUBLISHED. `PersistingEventSink.emit` INSERTs the event row
+# then PUBLISHes to the Redis channel the SSE endpoint subscribes to. The crash
+# path only INSERTed. On precisely the runs that failed, the terminal event was
+# durable and INVISIBLE: connected streams sat on heartbeats forever while the
+# run was already dead. The owner hit this twice mid-walk; runs b354d2d6,
+# f6f2695e and f5c1f9bf all had to be diagnosed by querying Postgres.
+#
+# #1390 — IT NAMED A CAUSE IT DID NOT OBSERVE. Every unhandled exception was
+# recorded `worker_lost` while the worker was healthy (NRestarts=0, the Celery
+# task completing normally). Each was really a vendor rejection inside the tool
+# dispatch. `worker_lost` means the process died and the reaper stamped the row
+# — it is what an operator pages on.
+#
+# DESIGN CONSTRAINTS, verified:
+# - The crash handler CANNOT reuse `PersistingEventSink.emit`: it commits the
+#   event row, the run-status update and the action-card revert in ONE
+#   transaction, and `emit` commits its own session. So extract the publish
+#   (`publish_event_best_effort`) and share that instead — two copies of the
+#   publish are how these paths diverged in the first place.
+# - Publish is best-effort by contract (ADR-074 d.3): logged and swallowed,
+#   never re-raised into a handler whose whole job is to stop a run being
+#   stranded non-terminal (#1210).
+# - The classifier MUST live in `services`, not `workers`. Recognising a vendor
+#   exception means naming types from `integrations`, and `.importlinter.toml`
+#   gives `workers` NO edge to that package at any depth. `services` has one.
+# - Import it from the PUBLIC PACKAGE ROOT (`juli_backend.integrations.tiktok`),
+#   not `...tiktok.exceptions` — cross-package depth is capped at 2. The
+#   standalone `check_import_boundaries.py` reports that at WARN and masks it;
+#   `tests/unit/test_import_boundaries.py` (strict + baseline) is what fails.
+#
+# KNOWN REMAINING IMPRECISION: an unrecognised exception still falls to
+# `worker_lost`. That is the residual bucket, not a claim a worker died — there
+# is no dedicated "crashed for an unnamed reason" stop reason and adding one
+# needs a migration plus TypeScript parity. The classifier logs the exception
+# type when it cannot name one, so the gap is visible rather than silent.
+#
+# The publish test is PRODUCER-SIDE by design: it drives the real
+# `_emit_crash_terminal_event` and asserts a publish happened, not the helper in
+# isolation. This lane has shipped a consumer without its producer four times
+# (#1379, #1382, #1389 twice); a helper that exists and is never called is
+# exactly that shape.
+AGT-CRASHRELAY:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/074-agent-event-streaming-and-relay.md
+  requiredModules:
+    - backend/src/juli_backend/workers/tasks/agent_workflow.py
+    - backend/src/juli_backend/services/agent/events/persisting_sink.py
+    - backend/src/juli_backend/services/agent/status.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/agent/events/__init__.py
+    - backend/src/juli_backend/integrations/tiktok/exceptions.py
+    - backend/src/juli_backend/api/routes/agent_runs.py
+    - tests/unit/test_import_boundaries.py
+    - .importlinter.toml
+  doNotLoad:
+    - apps/
+    - ios/
+    - packages/ui/
+    - packages/theme/
+    - backend/src/juli_backend/services/agent/prompts/
+    - backend/src/juli_backend/services/scoring/
+    - backend/src/juli_backend/database/migrations/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

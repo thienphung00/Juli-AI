@@ -38,6 +38,7 @@ from juli_backend.services.agent.events.payloads import (
 from juli_backend.services.agent.events.persisting_sink import (
     EventPublisher,
     PersistingEventSink,
+    publish_event_best_effort,
     run_events_channel,
 )
 from juli_backend.services.agent.events.sink import EventSink, InMemoryEventSink
@@ -52,6 +53,7 @@ __all__ = [
     "EventSink",
     "InMemoryEventSink",
     "PersistingEventSink",
+    "publish_event_best_effort",
     "ToolCompletedEvent",
     "ToolCompletedPayload",
     "ToolStartedEvent",
