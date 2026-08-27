@@ -1,0 +1,79 @@
+{
+  "planId": "rep-1382-persist-compare-before-write-basis",
+  "affectedPublicSurfaces": [
+    "GET /v1/demo/runs/{run_id}/events \u2014 a confirmed write that previously reported conflict now lands",
+    "the TikTok sandbox listing itself \u2014 this is the first change that actually mutates a listing"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "sandbox shop 1862f13b-de2c-4fae-a4ad-70298cead913 only; no production shop is touched",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": true,
+    "journeys": [
+      {
+        "name": "basis-survives-the-pause",
+        "entryUrl": "unit: capture basis on leg 1, persist, resume, dispatch the write",
+        "assertions": [
+          "RunState.basis_snapshots is non-empty after the leg-1 read",
+          "the resumed guard is seeded from it rather than an empty dict",
+          "the write is not refused with conflict"
+        ]
+      },
+      {
+        "name": "gate-1226-observation-1",
+        "entryUrl": "approve card 0aa74318-a560-4c2f-bbaa-f1f5e5f4e3d5, confirm the pause",
+        "assertions": [
+          "tool result carries no conflict flag",
+          "the sandbox listing's title and description actually change",
+          "this closes observation 1 at 7/7"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: backend runner change, no HTML route"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. basis_snapshots is an existing key inside the workflow_runs.state JSONB blob; this change starts populating it. Stable code ignores it, so a code-only rollback is safe and simply returns to the refuse-everything behaviour."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy the prior release; writes go back to being refused as conflicts, which is the current state, so no data risk",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'concurrency or pause_resume or basis' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests -m 'not live and not demo_contract' -q",
+    "ruff check backend/src/juli_backend tests scripts"
+  ],
+  "doNotInfer": [
+    "This is not a #1302 read-routing problem; build_read_resources correctly returns sandbox resources for the sandbox shop and the leg-1 read succeeded.",
+    "This is not an ADR-088 regression; it predates it.",
+    "Do not weaken compare-before-write to make the write pass. An empty basis must stay a refusal \u2014 the fix is to stop the basis being empty, not to stop checking it.",
+    "Do not write to any production shop. Sandbox only, never Fujiwa (2b1da87b-d0a8-46a6-b3c6-2132be0b5f4f)."
+  ]
+}

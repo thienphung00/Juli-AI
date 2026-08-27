@@ -474,6 +474,11 @@ async def _construct_runner(
         registry=registry,
         playbook=_default_playbook(),
         cancel_check=_make_cancel_check(sync_session, run.id),
+        # #1382: the SAME guard instance the ToolExecutor got above. The
+        # executor updates its basis; the runner mirrors that into
+        # RunState.basis_snapshots so it survives the pause and is read back
+        # by the `basis_snapshot=` seed a few lines up on the resume leg.
+        concurrency_guard=concurrency_guard,
     )
 
 

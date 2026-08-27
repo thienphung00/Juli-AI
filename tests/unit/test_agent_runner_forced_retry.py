@@ -12,6 +12,7 @@ invariant (ADR-088 decision 4): per-PR, fake LLM, no API key/network/sandbox.
 from __future__ import annotations
 
 import uuid
+from dataclasses import replace
 
 import pytest
 
@@ -27,6 +28,7 @@ from juli_backend.services.agent.llm import (
 from juli_backend.services.agent.llm.fake import FakeLLMService
 from juli_backend.services.agent.playbooks.optimize_product import (
     OPTIMIZE_PRODUCT_PLAYBOOK,
+    OPTIMIZE_PRODUCT_TERMINATION_POLICY,
 )
 from juli_backend.services.agent.runner.core import WorkflowRunner
 from juli_backend.services.agent.runner.state import RunState
@@ -484,3 +486,108 @@ class TestAdapterShapeMatchesTheRetryTrigger:
             "narration accompanying a tool call must stay a TextBlock — it is "
             "interim commentary, not a decision to stop, and must not arm the retry"
         )
+
+
+class TestPartialProgressTerminatesFinalResponse:
+    """#1383: a run that acted on SOME required steps and then narrated ends
+    `final_response`, not `required_steps_unfulfilled`.
+
+    ADR-073 d.2 protects that outcome by name. Gate #1226 walk run 675bb11e
+    did the listing change, declined the price change because inventory is 0 —
+    a correct judgement — and was recorded `failed`.
+
+    The playbook here declares a single AUTO required step so the scenario can
+    complete one without a CONFIRM pause; the classification logic under test
+    is identical either way, and the two-write production policy is covered by
+    the unit-level scan tests in
+    `test_agent_partial_progress_is_not_failure.py`.
+    """
+
+    async def _run(self, conversation_store, event_sink, fake_resources, *, required):
+        workflow_run_id = uuid.uuid4()
+        conversation_store.seed(workflow_run_id)
+        registry = _full_registry_with_terminal()
+
+        class _Products:
+            """Minimal stub — the shared fixture leaves products None, and
+            this scenario must actually complete a required read."""
+
+            def get_details(self, product_id):
+                return {
+                    "id": product_id,
+                    "title": "Nồi lẩu điện mini 1.5L",
+                    "description": "<p>mô tả</p>",
+                    "status": "ACTIVATE",
+                    "skus": [],
+                    "main_images": [],
+                }
+
+        resources = replace(fake_resources, products=_Products())
+        playbook = replace(
+            OPTIMIZE_PRODUCT_PLAYBOOK,
+            termination_policy=replace(
+                OPTIMIZE_PRODUCT_TERMINATION_POLICY, required_steps=required
+            ),
+        )
+        fake_llm = FakeLLMService(
+            script=[
+                # Perform the required step.
+                AssistantTurn(
+                    blocks=(
+                        ToolCallBlock(
+                            call_id="c1", tool_name="get_product_information", arguments={}
+                        ),
+                    ),
+                    usage=Usage(0, 0),
+                ),
+                # Then narrate — arms the one forced retry.
+                AssistantTurn(
+                    blocks=(FinalResponse(content="Đã cập nhật xong."),), usage=Usage(0, 0)
+                ),
+                # And narrate again after it.
+                AssistantTurn(
+                    blocks=(FinalResponse(content="Không còn gì để đề xuất."),), usage=Usage(0, 0)
+                ),
+            ]
+        )
+        runner = WorkflowRunner(
+            llm_service=fake_llm,
+            tool_executor=ProductToolExecutor(
+                registry=registry, read_resources=resources, product_id="test_product"
+            ),
+            event_sink=event_sink,
+            conversation_store=conversation_store,
+            registry=registry,
+            playbook=playbook,
+            clock=lambda: 0.0,
+        )
+        return await runner.run(workflow_run_id, product_ref="test_product")
+
+    async def test_some_progress_then_narration_is_final_response(
+        self, conversation_store, event_sink, fake_resources
+    ):
+        result = await self._run(
+            conversation_store,
+            event_sink,
+            fake_resources,
+            required=("get_product_information", "update_product_price"),
+        )
+
+        assert result.stop_reason == StopReason.FINAL_RESPONSE, (
+            "one of two required steps done and the rest honestly declined is "
+            "ADR-073 d.2's honest outcome, not a failure"
+        )
+        assert result.status == WorkflowRunStatus.COMPLETED
+
+    async def test_zero_progress_then_narration_still_fails(
+        self, conversation_store, event_sink, fake_resources
+    ):
+        """Non-vacuity: ADR-088's defect signal must survive #1383."""
+        result = await self._run(
+            conversation_store,
+            event_sink,
+            fake_resources,
+            required=("update_product_listing", "update_product_price"),
+        )
+
+        assert result.stop_reason == StopReason.REQUIRED_STEPS_UNFULFILLED

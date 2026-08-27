@@ -293,6 +293,52 @@ def extension_grant_narration(
     )
 
 
+def completed_required_steps(
+    conversation_window: Sequence[Mapping[str, Any]],
+    required_steps: tuple[str, ...],
+) -> frozenset[str]:
+    """Which of `required_steps` this run actually performed.
+
+    The single scan; `required_steps_completed` below is a thin predicate over
+    it. Issue #1383 split the two because the terminal classification needs to
+    tell "took no qualifying action at all" from "acted on some and honestly
+    declined the rest" — ADR-073 decision 2 protects the second as honest
+    outcome data, not a failure, and `all(...)` alone cannot distinguish them.
+
+    A `role == "tool"` entry counts for its `tool_name` only when its
+    `content` is none of:
+
+    - the `{"error": {...}}` envelope (`sanitize/errors.py::to_error_envelope`)
+      — every refusal, malformed-params rejection and inbound-guard block;
+    - a declined-confirmation record (`{"confirmation": {"decision":
+      "declined"}}`, `WorkflowRunner.resume`'s decline branch);
+    - a compare-before-write refusal (`{"conflict": True, "current_values":
+      {...}}`, `concurrency.py`) — **added by #1383**. The guard declined the
+      write, so the operation never happened; counting it as a completed
+      required step credited the run for work it did not do. Gate #1226 walk
+      run 675bb11e is the case: its `update_product_listing` was refused this
+      way.
+
+    All three name the tool but never performed the operation, which is the one
+    rule this function applies. A required tool never proposed at all simply
+    never appears, treated identically to an explicit refusal: not completed.
+    """
+    completed: set[str] = set()
+    for message in conversation_window:
+        if message.get("role") != "tool":
+            continue
+        tool_name = message.get("tool_name")
+        if tool_name not in required_steps:
+            continue
+        content = message.get("content")
+        if not isinstance(content, Mapping):
+            continue
+        if "error" in content or "confirmation" in content or "conflict" in content:
+            continue
+        completed.add(tool_name)
+    return frozenset(completed)
+
+
 def required_steps_completed(
     conversation_window: Sequence[Mapping[str, Any]],
     required_steps: tuple[str, ...],
@@ -321,19 +367,7 @@ def required_steps_completed(
     simply never appears, which this function treats identically to an
     explicit refusal: not completed.
     """
-    completed: set[str] = set()
-    for message in conversation_window:
-        if message.get("role") != "tool":
-            continue
-        tool_name = message.get("tool_name")
-        if tool_name not in required_steps:
-            continue
-        content = message.get("content")
-        if not isinstance(content, Mapping):
-            continue
-        if "error" in content or "confirmation" in content:
-            continue
-        completed.add(tool_name)
+    completed = completed_required_steps(conversation_window, required_steps)
     return all(name in completed for name in required_steps)
 
 
@@ -341,6 +375,7 @@ __all__ = [
     "IterationGate",
     "IterationGateAction",
     "accumulate_running_seconds",
+    "completed_required_steps",
     "effective_iteration_cap",
     "evaluate_checkpoint",
     "evaluate_iteration_gate",
