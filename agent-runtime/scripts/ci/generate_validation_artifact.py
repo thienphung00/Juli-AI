@@ -41,6 +41,7 @@ CHECKS: list[tuple[str, str]] = [
     ("public_release_evidence_plan", "check_public_release_evidence_plan.py"),
     ("implementation_schema_valid", "check_implementation_schema_valid.py"),
     ("implementation_tdd_evidence", "check_implementation_tdd_evidence.py"),
+    ("differential_tdd", "check_differential_tdd.py"),
     ("executor_domain_matches_cache", "check_executor_domain_matches_cache.py"),
     ("phase_run_correlation", "check_phase_run_correlation.py"),
     ("release_evidence_plan_continuity", "check_release_evidence_plan_continuity.py"),
