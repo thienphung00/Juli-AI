@@ -1,0 +1,59 @@
+# AGT-BASISPERSIST — #1213 gate-walk chain, issue #1382. The compare-before-write
+# basis is captured in memory by `ConcurrencyGuard` and never written into
+# `RunState.basis_snapshots`, so it does not survive the pause. Since every
+# CONFIRM write happens on the resume leg by construction, the guard always
+# compares against an empty basis and refuses the write as a conflict.
+#
+# Found by gate #1226 walk run 675bb11e on 2026-08-27 — the first run ever to
+# reach the CONFIRM pause and dispatch a seller-approved write. The write was
+# refused: tool result `{"conflict": true, "current_values": {...}}`, and
+# `workflow_runs.state->'basis_snapshots'` for that run is `{}`.
+#
+# VERIFIED, do not re-investigate:
+# - `RunState.basis_snapshots` exists (state.py:98), serializes (:149),
+#   deserializes (:181). `workers/tasks/agent_workflow.py:448` READS it to seed
+#   a fresh guard on resume. Nothing writes it — grepped across the backend.
+# - `ConcurrencyGuard` is "the in-memory working copy" (concurrency.py:266);
+#   `record_basis` is called at tool_executor.py:289 (pre-write, on the
+#   get_product_information read) and :355 (post-write refresh).
+# - NOT a #1302 read-routing problem: `build_read_resources` correctly returns
+#   sandbox resources for the sandbox shop, and the leg-1 read succeeded.
+# - NOT an ADR-088 regression: this predates it. ADR-088 is only what finally
+#   got a run far enough to expose it.
+#
+# The runner has no reference to the guard (the guard lives in the
+# ToolExecutor, whose `ToolExecutor` Protocol exposes `execute` only), so the
+# fix passes the SAME guard instance to `WorkflowRunner` as an optional
+# constructor arg and mirrors its basis into state after each dispatch.
+# Optional so the many tests constructing a runner without a guard keep working.
+#
+# ACCEPTANCE BAR: a test that spans the pause — capture on leg 1, persist,
+# resume, assert the write is NOT refused. No existing test crosses that
+# boundary, which is exactly why this shipped.
+AGT-BASISPERSIST:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/073-agent-execution-loop-and-write-path-hardening.md
+  requiredModules:
+    - backend/src/juli_backend/services/agent/runner/core.py
+    - backend/src/juli_backend/services/agent/runner/concurrency.py
+    - backend/src/juli_backend/services/agent/runner/tool_executor.py
+    - backend/src/juli_backend/services/agent/runner/state.py
+    - backend/src/juli_backend/workers/tasks/agent_workflow.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/agent/runner/conversation_store.py
+    - tests/unit/test_agent_runner_concurrency.py
+    - tests/unit/test_agent_runner_pause_resume.py
+    - tests/integration/test_agent_confirmation_decision_endpoint.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - packages/ui/
+    - packages/theme/
+    - backend/src/juli_backend/services/agent/prompts/
+    - backend/src/juli_backend/services/scoring/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
