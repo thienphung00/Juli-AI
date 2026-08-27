@@ -271,6 +271,7 @@ from juli_backend.services.agent.runner.state import ConversationMessage, RunSta
 from juli_backend.services.agent.runner.termination import (
     IterationGateAction,
     accumulate_running_seconds,
+    completed_required_steps,
     evaluate_checkpoint,
     evaluate_iteration_gate,
     extension_grant_narration,
@@ -1139,12 +1140,31 @@ class WorkflowRunner:
                             )
                             break
                         # The retry was spent and the model narrated again.
-                        # This is the defect signal, distinguishable from a
-                        # healthy final_response (ADR-088 decision 2). A run
-                        # with genuinely nothing to propose ends via the
-                        # conclude_without_changes tool instead, which
-                        # terminates on its own path as
-                        # concluded_without_changes.
+                        #
+                        # #1383: which terminal this is depends on whether the
+                        # run did ANY required work, not whether it did ALL of
+                        # it. `required_steps_unfulfilled` is the ADR-088 d.2
+                        # defect signal for a run that took no qualifying
+                        # action at all. A run that acted on some required
+                        # steps and honestly declined the rest is what ADR-073
+                        # d.2 protects — "honest outcome data ... not a
+                        # synthetic failure" — and ends `final_response`. Gate
+                        # #1226 walk run 675bb11e did the listing change and
+                        # declined the price change because inventory is 0, a
+                        # correct judgement, and was recorded failed.
+                        #
+                        # The partial fact is not lost: `required_steps_completed`
+                        # is still persisted False (#1220), so the
+                        # execution-quality metric keeps it without the stop
+                        # reason having to carry two meanings.
+                        if completed_required_steps(
+                            state.conversation_window,
+                            self._playbook.termination_policy.required_steps,
+                        ):
+                            stop = await self._finalize(
+                                workflow_run_id, state, block, version_str, sha256
+                            )
+                            break
                         stop = await self._terminate(
                             workflow_run_id,
                             state,
