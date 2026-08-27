@@ -505,6 +505,41 @@ class TestConstructRunner:
         guard = runner.last_kwargs["tool_executor"]._concurrency_guard
         assert guard.basis_snapshot == {"price": "deadbeef"}
 
+    async def test_construct_runner_seeds_the_product_executor_from_state_product_detail(
+        self, monkeypatch
+    ):
+        """Issue #1389: product_detail persists across the CONFIRM pause so
+        update_product_listing can access it on resume without a second vendor
+        call. The production construction must pass state.product_detail to
+        the ProductToolExecutor, just as it passes basis_snapshots to the
+        ConcurrencyGuard."""
+        import juli_backend.services.agent.runner as runner_pkg
+
+        monkeypatch.setattr(runner_pkg, "WorkflowRunner", _SpyWorkflowRunner)
+        monkeypatch.setattr(agent_workflow, "_default_llm_service", lambda: "FAKE_LLM_SERVICE")
+        monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
+        monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
+        monkeypatch.setattr(agent_workflow, "_default_read_resources", _fake_read_resources)
+        monkeypatch.setattr(agent_workflow, "_default_write_resources", _fake_write_resources)
+
+        run, product = _seeded_run_and_product()
+        test_product_detail = {
+            "id": "123",
+            "title": "Test Product",
+            "description": "A test product",
+            "category_chains": [{"id": "456", "is_leaf": True}],
+            "skus": [{"id": "sku1", "price": {"amount": "100", "currency": "VND"}}],
+            "package_weight": {"value": "1", "unit": "kg"},
+        }
+        run.state = {"product_detail": test_product_detail}
+
+        executor = await agent_workflow._construct_runner(
+            session=object(), sync_session=object(), run=run, product=product
+        )
+
+        tool_executor = executor.last_kwargs["tool_executor"]
+        assert tool_executor._product_detail == test_product_detail
+
 
 class TestConstructRunnerUsesRealPersistingEventSink:
     """Issue #1171: the real task path (no injection) must construct the

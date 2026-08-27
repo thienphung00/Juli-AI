@@ -55,6 +55,7 @@ from juli_backend.services.agent.tools.product_write import (
     UPDATE_PRODUCT_PRICE_SPEC,
     UPLOAD_PRODUCT_IMAGE_SPEC,
     ProductSkuPrice,
+    UnresolvedAgentRefError,
     UnresolvedSkuRefError,
     UnresolvedStagedImageError,
     UpdateProductListingInput,
@@ -91,6 +92,25 @@ _PNG_1X1 = (
     b"\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xfc\xcf\xc0\xf0\x1f\x00\x05\x05\x02\x00\xa7\x93\xa1"
     b"\xf2\x00\x00\x00\x00IEND\xaeB`\x82"
 )
+
+# Default product detail for tests that need it (issue #1389).
+# Matches the shape from docs/integrations/tiktok_api/samples/products-detail-response.json
+_DEFAULT_PRODUCT_DETAIL = {
+    "id": BOUND_PRODUCT_ID,
+    "title": "Original Title",
+    "description": "Original Description",
+    "category_chains": [
+        {"id": "605254", "is_leaf": True, "local_name": "Water Bottles", "parent_id": "849672"}
+    ],
+    "skus": [
+        {
+            "id": "1736433041572857475",
+            "inventory": [{"warehouse_id": "7657265511696664340", "quantity": 50}],
+            "price": {"amount": "100000", "currency": "VND"},
+        }
+    ],
+    "package_weight": {"value": "500", "unit": "GRAM"},
+}
 
 
 class _FakeProductsResource:
@@ -140,9 +160,9 @@ def make_resources(products: _FakeProductsResource) -> SandboxWriteResources:
 
 @pytest.fixture
 def context() -> ProductToolContext:
-    """A bare bound-identity context — no staged image, no sku_refs. Tests
-    that need those populate their own context explicitly."""
-    return ProductToolContext(product_id=BOUND_PRODUCT_ID)
+    """A bound-identity context with product detail for update_product_listing.
+    Tests that need staged image or sku_refs populate their own context explicitly."""
+    return ProductToolContext(product_id=BOUND_PRODUCT_ID, product_detail=_DEFAULT_PRODUCT_DETAIL)
 
 
 def _all_field_names(model: type[BaseModel]) -> set[str]:
@@ -398,7 +418,9 @@ class TestUpdateProductListing:
         products = _FakeProductsResource(edit_result={})
         resources = make_resources(products)
         staged_context = ProductToolContext(
-            product_id=BOUND_PRODUCT_ID, staged_image_uri="tos-img-abc123"
+            product_id=BOUND_PRODUCT_ID,
+            staged_image_uri="tos-img-abc123",
+            product_detail=_DEFAULT_PRODUCT_DETAIL,
         )
 
         handle_update_product_listing(
@@ -437,7 +459,9 @@ class TestUpdateProductListing:
         products = _FakeProductsResource(edit_result={})
         resources = make_resources(products)
         staged_context = ProductToolContext(
-            product_id=BOUND_PRODUCT_ID, staged_image_uri="tos-img-1"
+            product_id=BOUND_PRODUCT_ID,
+            staged_image_uri="tos-img-1",
+            product_detail=_DEFAULT_PRODUCT_DETAIL,
         )
 
         result = handle_update_product_listing(
@@ -455,6 +479,132 @@ class TestUpdateProductListing:
         assert result.description == "Lightweight."
         assert result.image_attached is True
         assert "image_uri" not in type(result).model_fields
+
+    def test_handler_includes_all_required_fields_from_product_detail(self):
+        """Verify that edit body includes all fields required by TikTok B-4
+        (Edit Product / Partial endpoint) — title, description, category_id,
+        category_version, skus, and package_weight.
+
+        Refs issue #1389, docs/integrations/tiktok_api/contract-collection.md § B-4.
+        """
+        products = _FakeProductsResource(edit_result={})
+        resources = make_resources(products)
+
+        product_detail = {
+            "id": BOUND_PRODUCT_ID,
+            "title": "Original Title",
+            "description": "Original Description",
+            "category_chains": [
+                {
+                    "id": "605254",
+                    "is_leaf": True,
+                    "local_name": "Water Bottles",
+                    "parent_id": "849672",
+                }
+            ],
+            "skus": [
+                {
+                    "id": "1736433041572857475",
+                    "inventory": [{"warehouse_id": "7657265511696664340", "quantity": 50}],
+                    "price": {"amount": "100000", "currency": "VND"},
+                }
+            ],
+            "package_weight": {"value": "500", "unit": "GRAM"},
+        }
+
+        context = ProductToolContext(product_id=BOUND_PRODUCT_ID, product_detail=product_detail)
+
+        handle_update_product_listing(
+            resources,
+            context,
+            UpdateProductListingInput(title="New Title", description="New Description"),
+        )
+
+        _, body = products.edit_calls[0]
+
+        # Agent-authored fields
+        assert body["title"] == "New Title"
+        assert body["description"] == "New Description"
+
+        # Required fields derived from product detail
+        assert body["category_id"] == "605254"
+        assert body["category_version"] == "v2"
+
+        # Passthrough from product detail
+        assert body["skus"] == product_detail["skus"]
+        assert body["package_weight"] == product_detail["package_weight"]
+
+    def test_handler_raises_when_no_leaf_category_found(self):
+        """Per anti-hardcoding contract, missing leaf category fails closed
+        with no vendor call attempted. Never invents a category."""
+        products = _FakeProductsResource(edit_result={})
+        resources = make_resources(products)
+
+        product_detail = {
+            "id": BOUND_PRODUCT_ID,
+            "category_chains": [
+                {"id": "849672", "is_leaf": False, "local_name": "Parent", "parent_id": "root"}
+            ],
+        }
+
+        context = ProductToolContext(product_id=BOUND_PRODUCT_ID, product_detail=product_detail)
+
+        with pytest.raises(ValueError) as exc_info:
+            handle_update_product_listing(
+                resources,
+                context,
+                UpdateProductListingInput(title="New Title"),
+            )
+
+        assert "leaf category" in str(exc_info.value).lower()
+        assert products.edit_calls == []
+
+    def test_handler_raises_when_product_detail_missing(self):
+        """Fail closed: without product detail, cannot build the edit body."""
+        products = _FakeProductsResource(edit_result={})
+        resources = make_resources(products)
+        context = ProductToolContext(product_id=BOUND_PRODUCT_ID)
+
+        with pytest.raises(UnresolvedAgentRefError):
+            handle_update_product_listing(
+                resources,
+                context,
+                UpdateProductListingInput(title="New Title"),
+            )
+
+        assert products.edit_calls == []
+
+    def test_handler_agent_only_authors_title_and_description(self):
+        """Agent controls only title/description; everything else is
+        passthrough from product's current values."""
+        products = _FakeProductsResource(edit_result={})
+        resources = make_resources(products)
+
+        product_detail = {
+            "id": BOUND_PRODUCT_ID,
+            "category_chains": [{"id": "605254", "is_leaf": True}],
+            "skus": [{"id": "sku-1", "price": {"amount": "100000", "currency": "VND"}}],
+            "package_weight": {"value": "500", "unit": "GRAM"},
+        }
+
+        context = ProductToolContext(product_id=BOUND_PRODUCT_ID, product_detail=product_detail)
+
+        handle_update_product_listing(
+            resources,
+            context,
+            UpdateProductListingInput(title="Changed", description="Also Changed"),
+        )
+
+        _, body = products.edit_calls[0]
+
+        # Agent-authored fields changed
+        assert body["title"] == "Changed"
+        assert body["description"] == "Also Changed"
+
+        # Everything else unchanged from product detail
+        assert body["category_id"] == product_detail["category_chains"][0]["id"]
+        assert body["skus"] == product_detail["skus"]
+        assert body["package_weight"] == product_detail["package_weight"]
 
 
 class TestUpdateProductPrice:

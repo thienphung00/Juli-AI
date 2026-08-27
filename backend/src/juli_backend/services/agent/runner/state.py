@@ -9,6 +9,7 @@ constructs a runner around this object and the `ConversationStore` protocol
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -104,6 +105,11 @@ class RunState:
     next_sequence: int = 1
     pending_confirmation: dict[str, Any] | None = None
     basis_snapshots: dict[str, str] = field(default_factory=dict)
+    # `product_detail` — the raw product information read by `get_product_information`,
+    # persisted here so WRITE handlers on the resume leg can access it without a
+    # second vendor call. Issue #1389, ADR-073 decision 1 (survives pause). None if
+    # no product has been read yet, or if reading is deferred to the resume leg.
+    product_detail: Mapping[str, Any] | None = None
     running_seconds_elapsed: float = 0.0
     prompt_version: str | None = None
     prompt_sha256: str | None = None
@@ -163,6 +169,8 @@ class RunState:
             blob["prompt_version"] = self.prompt_version
         if self.prompt_sha256 is not None:
             blob["prompt_sha256"] = self.prompt_sha256
+        if self.product_detail is not None:
+            blob["product_detail"] = dict(self.product_detail)
         blob.update(self.unknown_fields)
         return blob
 
@@ -185,14 +193,18 @@ class RunState:
             raise RunStateFieldMissingError(
                 f"RunState blob missing required field(s): {', '.join(missing)}"
             )
-        # Optional prompt-versioning fields (issue #1359) — not in _KNOWN_FIELDS
+        # Optional fields added after initial schema — not in _KNOWN_FIELDS
         # so old blobs without them deserialize cleanly. Exclude them from
         # unknown_fields since we handle them explicitly.
-        optional_prompt_fields = {"prompt_version", "prompt_sha256"}
+        optional_fields = {
+            "prompt_version",  # issue #1359
+            "prompt_sha256",  # issue #1359
+            "product_detail",  # issue #1389
+        }
         unknown = {
             key: value
             for key, value in blob.items()
-            if key not in _KNOWN_FIELDS and key not in optional_prompt_fields
+            if key not in _KNOWN_FIELDS and key not in optional_fields
         }
         return cls(
             conversation_window=list(blob["conversation_window"]),
@@ -204,5 +216,6 @@ class RunState:
             running_seconds_elapsed=blob["running_seconds_elapsed"],
             prompt_version=blob.get("prompt_version"),
             prompt_sha256=blob.get("prompt_sha256"),
+            product_detail=blob.get("product_detail"),
             unknown_fields=unknown,
         )
