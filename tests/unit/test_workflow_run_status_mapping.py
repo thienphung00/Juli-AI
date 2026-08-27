@@ -257,10 +257,16 @@ def test_output_validation_failed_is_produced_only_by_the_outbound_guard():
         # unnoticed, which is the discipline this test exists to keep.
         if path.name == "core.py":
             occurrences = path.read_text(encoding="utf-8").count(producer_pattern)
-            assert occurrences == 2, (
+            assert occurrences == 3, (
                 f"core.py has {occurrences} OUTPUT_VALIDATION_FAILED producer call sites; "
-                "exactly two are sanctioned (_finalize and resume()'s decline branch, "
-                "both translating the same outbound guard hit)"
+                "exactly three are sanctioned, all translating the same outbound guard "
+                "hit: _finalize, resume()'s decline branch, and (ADR-088, #1373) the "
+                "forced-retry interception in the FinalResponse arm. The third is the "
+                "decision this docstring calls for: that path bypasses _finalize "
+                "entirely, so without its own guard translation a banned-pattern "
+                "narration would reach the conversation window and the event stream, "
+                "and an uncaught hit would strand the row RUNNING for the reaper to "
+                "mislabel worker_lost — the very failure #1210 exists to prevent"
             )
             continue
         text = path.read_text(encoding="utf-8")

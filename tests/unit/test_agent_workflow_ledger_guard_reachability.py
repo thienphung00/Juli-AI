@@ -34,6 +34,7 @@ that could stay green after a real wiring break.
 from __future__ import annotations
 
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from sqlalchemy import create_engine
@@ -103,7 +104,9 @@ def _write_only_playbook() -> Playbook:
                 policy=ToolPolicy.CONFIRM,
             ),
         ),
-        termination_policy=OPTIMIZE_PRODUCT_TERMINATION_POLICY,
+        termination_policy=replace(
+            OPTIMIZE_PRODUCT_TERMINATION_POLICY, terminal_tools=()
+        ),  # ADR-088: narrowed playbook registers no terminal tool
     )
 
 
@@ -119,7 +122,9 @@ def _read_only_playbook() -> Playbook:
                 policy=ToolPolicy.AUTO,
             ),
         ),
-        termination_policy=OPTIMIZE_PRODUCT_TERMINATION_POLICY,
+        termination_policy=replace(
+            OPTIMIZE_PRODUCT_TERMINATION_POLICY, terminal_tools=()
+        ),  # ADR-088: narrowed playbook registers no terminal tool
     )
 
 

@@ -139,7 +139,7 @@ class TestTextOnlyWithIncompleteRequiredSteps:
             script=[
                 # First turn: just text (no terminal block, no tool call)
                 AssistantTurn(
-                    blocks=(TextBlock(text="Analyzing the product..."),),
+                    blocks=(FinalResponse(content="Analyzing the product..."),),
                     usage=Usage(0, 0),
                 ),
                 # Second turn: conclude_without_changes (forced retry)
@@ -384,12 +384,12 @@ class TestNoCallAfterForcedRetry:
             script=[
                 # First turn: just text
                 AssistantTurn(
-                    blocks=(TextBlock(text="Hmm, let me think..."),),
+                    blocks=(FinalResponse(content="Hmm, let me think..."),),
                     usage=Usage(0, 0),
                 ),
                 # Second turn (forced retry): still just text, no call
                 AssistantTurn(
-                    blocks=(TextBlock(text="I need more time to analyze..."),),
+                    blocks=(FinalResponse(content="I need more time to analyze..."),),
                     usage=Usage(0, 0),
                 ),
             ]
@@ -420,3 +420,67 @@ class TestNoCallAfterForcedRetry:
         assert len(fake_llm.recorded_calls) == 2
         # Second call should have tool_choice="required"
         assert fake_llm.recorded_calls[1].tool_choice == "required"
+
+
+class TestAdapterShapeMatchesTheRetryTrigger:
+    """The coupling that broke ADR-088 in production.
+
+    The forced retry must trigger on the block shape the REAL adapter emits
+    when the model declines to act. An earlier revision gated it on a
+    TextBlock-only turn, which `_parse_output_blocks` never produces in that
+    case — with no `function_call` items it emits a `FinalResponse`. The retry
+    was therefore unreachable in production while every test here passed,
+    because the fake LLM emits whatever block the test constructs.
+
+    Run `2c961380-3218-464a-90d1-cd5940abea83` terminated `final_response`
+    with `required_steps_completed=false` and no retry attempted.
+
+    These two tests pin the two halves of the coupling so it cannot silently
+    come apart again: what the adapter emits, and what the runner reacts to.
+    """
+
+    def test_adapter_emits_final_response_when_the_model_calls_no_tool(self):
+        from juli_backend.services.agent.llm.openai_adapter import _parse_output_blocks
+
+        blocks = _parse_output_blocks(
+            {
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [{"type": "output_text", "text": "I'll prepare an update."}],
+                    }
+                ]
+            }
+        )
+
+        assert len(blocks) == 1
+        assert isinstance(blocks[0], FinalResponse), (
+            "the runner arms its forced retry on FinalResponse; if the adapter "
+            "starts emitting a bare TextBlock here instead, the retry goes dead "
+            "in production while the fake-LLM tests keep passing"
+        )
+
+    def test_adapter_emits_text_plus_tool_call_when_the_model_does_act(self):
+        from juli_backend.services.agent.llm.openai_adapter import _parse_output_blocks
+
+        blocks = _parse_output_blocks(
+            {
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [{"type": "output_text", "text": "Updating now."}],
+                    },
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "get_product_information",
+                        "arguments": "{}",
+                    },
+                ]
+            }
+        )
+
+        assert [type(b).__name__ for b in blocks] == ["TextBlock", "ToolCallBlock"], (
+            "narration accompanying a tool call must stay a TextBlock — it is "
+            "interim commentary, not a decision to stop, and must not arm the retry"
+        )
