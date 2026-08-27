@@ -116,3 +116,72 @@ def test_advisory_and_blocking_both_fail_status_is_fail() -> None:
     assert artifact["readyForMerge"] is False
     assert len(artifact["advisoryFailures"]) == 1
     assert artifact["advisoryFailures"][0]["name"] == "unpushed_issue_work"
+
+
+# --- #1143: phase_run_correlation must see THIS generation's file ------------
+
+
+def test_phase_run_correlation_runs_against_the_artifact_this_run_writes(
+    tmp_path, monkeypatch
+) -> None:
+    """The read-before-write off-by-one (#1143).
+
+    `check_phase_run_correlation` loads `validation-issue-<N>.json` off disk,
+    but the generator used to run every gate BEFORE writing that file — so the
+    gate always judged the PREVIOUS generation's artifact (or its absence, on
+    a first-ever run, failing with `phaseRunId None != canonical` even when
+    every artifact already agreed). This test simulates exactly that
+    first-ever run: no validation file exists, every other gate passes, and a
+    recording stand-in for phase_run_correlation asserts the on-disk file
+    already exists AND carries this run's phaseRunId at the moment the gate
+    executes. Pre-fix this fails: the gate ran first and found nothing.
+    """
+    import generate_validation_artifact as gva
+
+    canonical = "9999-20260817T000000"
+    review = {"phaseRunId": canonical, "status": "PASS", "testCoverage": {}}
+    seen: dict = {}
+
+    def fake_load_checker(script_name: str):
+        def _passing(issue: int):
+            return True, "stub pass", {}
+
+        def _recording(issue: int):
+            out = tmp_path / f"validation-issue-{issue}.json"
+            seen["existed"] = out.exists()
+            if out.exists():
+                import json
+
+                seen["phaseRunId"] = json.loads(out.read_text()).get("phaseRunId")
+            return True, "recorded", {}
+
+        if script_name == "check_phase_run_correlation.py":
+            return _recording
+        return _passing
+
+    monkeypatch.setattr(gva, "load_checker", fake_load_checker)
+    monkeypatch.setattr(gva, "VALIDATION_DIR", tmp_path)
+    monkeypatch.setattr(gva, "load_review_artifact", lambda issue: review)
+    monkeypatch.setattr(gva, "resolve_issue_number", lambda raw: 9999)
+    monkeypatch.setattr(sys, "argv", ["generate_validation_artifact.py", "--issue", "9999"])
+
+    assert gva.main() == 0
+
+    assert seen.get("existed") is True, (
+        "phase_run_correlation ran before the validation artifact was written "
+        "— it judged the previous generation's file (#1143)"
+    )
+    assert seen.get("phaseRunId") == canonical, (
+        f"gate saw phaseRunId {seen.get('phaseRunId')!r}, not this run's {canonical!r}"
+    )
+
+    # And the final artifact still contains the gate's own result, in the
+    # registry position, with counters that include it.
+    import json
+
+    final = json.loads((tmp_path / "validation-issue-9999.json").read_text())
+    names = [c["name"] for c in final["checks"]]
+    assert names == [name for name, _ in gva.CHECKS], (
+        "two-pass generation must not reorder or drop gate results"
+    )
+    assert final["passedChecks"] == len(gva.CHECKS)
