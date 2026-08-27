@@ -453,8 +453,17 @@ class TestConstructRunner:
             "registry",
             "playbook",
             "cancel_check",
+            # #1382: the runner is handed the SAME ConcurrencyGuard instance
+            # the ToolExecutor got, so it can mirror the compare-before-write
+            # basis into RunState before each persist. Without that the basis
+            # dies at the pause and every seller-confirmed write is refused.
+            "concurrency_guard",
         }
         assert callable(kwargs["cancel_check"])
+        # Same object, not merely an equivalent one — two guards would each
+        # hold their own basis and the mirroring would be meaningless.
+        assert kwargs["concurrency_guard"] is not None
+        assert kwargs["concurrency_guard"] is kwargs["tool_executor"]._concurrency_guard
         assert kwargs["llm_service"] == "FAKE_LLM_SERVICE"
         assert isinstance(kwargs["registry"], ToolRegistry)
         assert isinstance(kwargs["playbook"], Playbook)

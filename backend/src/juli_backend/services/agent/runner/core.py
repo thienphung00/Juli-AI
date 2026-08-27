@@ -254,7 +254,10 @@ from juli_backend.services.agent.prompts.composer import (
     prompt_sha256,
     prompt_version,
 )
-from juli_backend.services.agent.runner.concurrency import ConcurrencyExhaustedError
+from juli_backend.services.agent.runner.concurrency import (
+    ConcurrencyExhaustedError,
+    ConcurrencyGuard,
+)
 from juli_backend.services.agent.runner.confirmation import (
     build_confirmation_options,
     compute_params_sha,
@@ -385,9 +388,21 @@ class WorkflowRunner:
         llm_config: LLMConfig | None = None,
         clock: Callable[[], float] | None = None,
         cancel_check: Callable[[], bool] | None = None,
+        concurrency_guard: ConcurrencyGuard | None = None,
     ) -> None:
         self._llm_service = llm_service
         self._tool_executor = tool_executor
+        # Issue #1382. The guard holds the compare-before-write basis in
+        # memory; `RunState.basis_snapshots` is what survives a pause. The
+        # runner is given the SAME guard instance the ToolExecutor got, purely
+        # so it can copy that basis into state before each persist. Without
+        # this the basis is captured on the first leg, discarded at the pause,
+        # and the resume leg -- where every CONFIRM write happens by
+        # construction -- compares against an empty basis and refuses the
+        # write as a conflict. Optional so the many tests that construct a
+        # runner without a guard keep working; when absent, `_sync_basis` is
+        # a no-op and behaviour is unchanged.
+        self._concurrency_guard = concurrency_guard
         self._event_sink = event_sink
         self._conversation_store = conversation_store
         self._registry = registry
@@ -860,6 +875,10 @@ class WorkflowRunner:
             raw_result = self._tool_executor.execute(
                 tool_name=tool_name, params=params, tool_call_id=call_id
             )
+            # #1382: the guard just updated its in-memory basis (on a read, or
+            # via the post-write refresh). Mirror it into state now, while we
+            # are still on this leg — after the pause it is unrecoverable.
+            self._sync_basis(state)
         except ConcurrencyExhaustedError:
             # Mirrors `_dispatch_tool_call`'s handling (issue #1172) — this
             # is the second of the two dispatch sites `ToolExecutor.execute`
@@ -1329,6 +1348,7 @@ class WorkflowRunner:
             raw_result = self._tool_executor.execute(
                 tool_name=block.tool_name, params=params, tool_call_id=block.call_id
             )
+            self._sync_basis(state)  # #1382 — see the sibling dispatch site
         except ConcurrencyExhaustedError:
             # A second same-operation basis-hash mismatch (ADR-073 decision
             # 4) — the run ends here, translated by `_drive_loop` via
@@ -1797,6 +1817,20 @@ class WorkflowRunner:
                 }
             )
         return tuple(definitions)
+
+    def _sync_basis(self, state: RunState) -> None:
+        """Copy the guard's in-memory compare-before-write basis into
+        `RunState`, so it survives the pause/resume boundary (issue #1382).
+
+        `ConcurrencyGuard` is the working copy; `RunState.basis_snapshots` is
+        the persisted one that `workers/tasks/agent_workflow.py` reads back to
+        seed a fresh guard on resume. Nothing wrote to it before this, so the
+        resume leg always started empty and every seller-confirmed write was
+        refused as a conflict.
+        """
+        if self._concurrency_guard is None:
+            return
+        state.basis_snapshots = dict(self._concurrency_guard.basis_snapshot)
 
     async def _emit(
         self,
