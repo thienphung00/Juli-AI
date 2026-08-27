@@ -41,6 +41,7 @@ CHECKS: list[tuple[str, str]] = [
     ("public_release_evidence_plan", "check_public_release_evidence_plan.py"),
     ("implementation_schema_valid", "check_implementation_schema_valid.py"),
     ("implementation_tdd_evidence", "check_implementation_tdd_evidence.py"),
+    ("differential_tdd", "check_differential_tdd.py"),
     ("executor_domain_matches_cache", "check_executor_domain_matches_cache.py"),
     ("phase_run_correlation", "check_phase_run_correlation.py"),
     ("release_evidence_plan_continuity", "check_release_evidence_plan_continuity.py"),
@@ -60,7 +61,22 @@ CHECKS: list[tuple[str, str]] = [
 #
 # Every other gate stays blocking. Do not add to this set without updating
 # the pinned test and agent-runtime/scripts/validate/checks.md.
-ADVISORY_CHECKS: frozenset[str] = frozenset({"unpushed_issue_work"})
+#
+# `differential_tdd` is advisory *for a measurement window only*, not by nature.
+# It is a strict new gate that has never run in anger: some changes legitimately
+# cannot go red (pure refactors, characterisation tests, config-shaped edits),
+# and shipping it blocking on the belief that those are rare is how a gate gets
+# routed around instead of trusted. Advisory here is a stage, with an exit:
+#
+#   PROMOTE to blocking once 10 consecutive issues have produced a
+#   `differential_tdd` verdict with zero false `no_discrimination` — i.e. every
+#   non-red verdict corresponded to a change that genuinely had no red step.
+#   Read the verdicts from `verdict`/`baseExit`/`headExit` in the validation
+#   artifacts. On promotion, delete this note and the name below.
+#
+# Do not let this become permanent. `unpushed_issue_work` is the cautionary
+# case: advisory, the most expensive gate in the chain, and therefore pure cost.
+ADVISORY_CHECKS: frozenset[str] = frozenset({"unpushed_issue_work", "differential_tdd"})
 
 
 def load_checker(script_name: str) -> Callable[..., tuple[bool, str, dict[str, Any]]]:
@@ -74,15 +90,39 @@ def load_checker(script_name: str) -> Callable[..., tuple[bool, str, dict[str, A
     return module.run_check  # type: ignore[attr-defined]
 
 
-def run_checks(issue: int) -> list[dict[str, Any]]:
-    """Run every registered gate and return one result dict per gate.
+# #1143: gates that read validation-issue-<N>.json off disk. Running them in
+# the same pass as everything else means they judge the PREVIOUS generation's
+# file (or its absence, on a first-ever run — failing with `phaseRunId None !=
+# canonical` even when every artifact already agrees). main() runs these AFTER
+# the first write, against the file this run just produced, then rebuilds the
+# artifact so their results land in the registry position with correct
+# counters. A named frozenset for the same reason ADVISORY_CHECKS is one:
+# widening it must require a human to touch this line.
+SELF_REFERENTIAL_CHECKS = frozenset({"phase_run_correlation"})
+
+
+def run_checks(
+    issue: int,
+    *,
+    only: frozenset[str] | None = None,
+    exclude: frozenset[str] = frozenset(),
+) -> list[dict[str, Any]]:
+    """Run registered gates and return one result dict per gate.
 
     Each result carries an explicit ``classification`` ("blocking" or
     "advisory") so the artifact is self-documenting about which gates decide
     merge readiness — nothing is inferred silently downstream.
+
+    ``only``/``exclude`` exist for #1143's two-pass generation and filter by
+    gate name; both default to running everything, so every other caller is
+    unchanged.
     """
     results: list[dict[str, Any]] = []
     for check_name, script in CHECKS:
+        if only is not None and check_name not in only:
+            continue
+        if check_name in exclude:
+            continue
         run_check = load_checker(script)
         passed, description, details = run_check(issue)
         is_advisory = check_name in ADVISORY_CHECKS
@@ -152,23 +192,19 @@ def build_artifact(
             f"reported but not merge-blocking — see advisoryFailures): {names}."
         )
 
-    merge_blocked_by_warnings = (
-        review_status == "PASS_WITH_WARNINGS"
-        and any(
-            r["name"] in {
-                "findings_acknowledged",
-                "reviewer_signoff_present",
-                "owner_signoff_present",
-            }
-            and r["status"] == "FAIL"
-            for r in results
-        )
+    merge_blocked_by_warnings = review_status == "PASS_WITH_WARNINGS" and any(
+        r["name"]
+        in {
+            "findings_acknowledged",
+            "reviewer_signoff_present",
+            "owner_signoff_present",
+        }
+        and r["status"] == "FAIL"
+        for r in results
     )
 
     merge_allowed_with_override = (
-        review is not None
-        and review.get("status") == "FAIL"
-        and merge_override_active(review)
+        review is not None and review.get("status") == "FAIL" and merge_override_active(review)
     )
 
     artifact: dict[str, Any] = {
@@ -204,11 +240,22 @@ def main() -> int:
         print("error: could not resolve issue number", file=sys.stderr)
         return 1
 
-    results = run_checks(issue)
+    # #1143 two-pass generation. Pass 1 runs every gate EXCEPT the
+    # self-referential ones and writes the enriched artifact — that write is
+    # what stamps this run's phaseRunId onto disk. Pass 2 runs the deferred
+    # gates against the file that now exists, splices their results back into
+    # registry order, and rebuilds. build_artifact is a pure function of
+    # (issue, results, review), so the rebuild recomputes every counter and
+    # status honestly rather than patching them in place.
     review = load_review_artifact(issue)
-    artifact = build_artifact(issue, results, review)
-
+    first_pass = run_checks(issue, exclude=SELF_REFERENTIAL_CHECKS)
     out = VALIDATION_DIR / f"validation-issue-{issue}.json"
+    write_json(out, build_artifact(issue, first_pass, review))
+
+    deferred = run_checks(issue, only=SELF_REFERENTIAL_CHECKS)
+    by_name = {r["name"]: r for r in first_pass + deferred}
+    results = [by_name[name] for name, _ in CHECKS if name in by_name]
+    artifact = build_artifact(issue, results, review)
     write_json(out, artifact)
     print(f"wrote {out}")
     blocking_failed = sum(

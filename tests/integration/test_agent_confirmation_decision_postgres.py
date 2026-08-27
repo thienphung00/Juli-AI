@@ -65,6 +65,7 @@ from juli_backend.services.agent.status import StopReason
 from juli_backend.services.agent.tools import ToolRegistry
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
+from juli_backend.services.agent.tools.terminal import register_terminal_tools
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ALEMBIC_INI = os.path.join(REPO_ROOT, "alembic.ini")
@@ -162,11 +163,28 @@ def _full_registry() -> ToolRegistry:
     registry = ToolRegistry()
     register_product_read_tools(registry)
     register_product_write_tools(registry)
+    register_terminal_tools(registry)
     return registry
 
 
 def _turn(*blocks) -> AssistantTurn:
     return AssistantTurn(blocks=tuple(blocks), usage=Usage(input_tokens=1, output_tokens=1))
+
+
+def _stamped_prompt_pin() -> tuple[str, str]:
+    """The production-pinned `(prompt_version, prompt_sha256)` for the
+    Optimize Product workflow, matching what approval.py::approve_action_card
+    stamps on run creation. Used by fixtures that construct WorkflowRunRow
+    instances directly rather than via the real approval path."""
+    from juli_backend.services.agent import playbooks as playbooks_module
+    from juli_backend.services.agent import prompts as prompts_module
+
+    workflow_key = playbooks_module.OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key
+    version = prompts_module.production_version(workflow_key)
+    return (
+        prompts_module.prompt_version(workflow_key, version),
+        prompts_module.prompt_sha256(workflow_key, version),
+    )
 
 
 async def _seed_shop_and_product(factory) -> tuple[uuid.UUID, uuid.UUID]:
@@ -196,14 +214,15 @@ async def _seed_shop_and_product(factory) -> tuple[uuid.UUID, uuid.UUID]:
 
 async def _seed_run(factory, shop_id: uuid.UUID, product_id: uuid.UUID) -> uuid.UUID:
     async with factory() as session:
+        prompt_version, prompt_sha256 = _stamped_prompt_pin()
         run = WorkflowRunRow(
             id=uuid.uuid4(),
             shop_id=shop_id,
             product_id=product_id,
             state=RunState().to_dict(),
             status="running",
-            prompt_version="v1",
-            prompt_sha256="0" * 64,
+            prompt_version=prompt_version,
+            prompt_sha256=prompt_sha256,
         )
         session.add(run)
         await session.commit()

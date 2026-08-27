@@ -78,7 +78,7 @@ structurally, which is this module's whole point.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -92,6 +92,11 @@ from juli_backend.services.agent.tools.registry import (
     ToolSpec,
 )
 from juli_backend.services.execution.file_screening import screen_and_reencode_image
+
+# Vendor protocol constant from TikTok B-4 (Edit Product / Partial endpoint).
+# Section reference: docs/integrations/tiktok_api/contract-collection.md § B-4
+# Never hardcode this at call sites; always source it from this constant.
+TIKTOK_PRODUCT_EDIT_CATEGORY_VERSION = "v2"
 
 
 class UnresolvedAgentRefError(ValueError):
@@ -189,14 +194,119 @@ class UpdateProductListingOutput(BaseModel):
     image_attached: bool = False
 
 
+def _extract_leaf_category_id(product_detail: Mapping[str, Any]) -> str:
+    """Extract the leaf category ID from product_detail's category_chains.
+
+    Per TikTok contract B-4, category_id is required for product edits and
+    must be a leaf category. Fails closed if no leaf category is found.
+
+    Args:
+        product_detail: The full product details, expected to have a
+            category_chains list of dicts with {id, is_leaf, ...}.
+
+    Returns:
+        The id of the first (and typically only) leaf category.
+
+    Raises:
+        ValueError: If no leaf category is found in category_chains.
+    """
+    category_chains = product_detail.get("category_chains", [])
+    for chain in category_chains:
+        if chain.get("is_leaf"):
+            return chain["id"]
+    raise ValueError(
+        f"Product {product_detail.get('id', '?')} has no leaf category in "
+        f"category_chains. Cannot proceed with edit. Category chains: {category_chains}"
+    )
+
+
+def _extract_main_image_refs(product_detail: Mapping[str, Any]) -> list[dict[str, str]]:
+    """The product's current main images, as the edit body's `{"uri": ...}` refs.
+
+    Passthrough, never invented: a listing edit that dropped the seller's photos
+    would be a far worse outcome than the 400 this exists to avoid. Fails closed
+    when the product has no usable image, because the endpoint requires the
+    field and there is nothing honest to send.
+    """
+    images = product_detail.get("main_images") or []
+    refs = [{"uri": img["uri"]} for img in images if isinstance(img, Mapping) and img.get("uri")]
+    if not refs:
+        raise UnresolvedAgentRefError(
+            "update_product_listing needs the product's current main_images, but the "
+            "product detail carries none with a uri. TikTok requires main_images on "
+            "every edit; sending an empty list would clear the listing's photos."
+        )
+    return refs
+
+
 def _build_listing_edit_body(
     params: UpdateProductListingInput, context: ProductToolContext
 ) -> dict[str, Any]:
+    """Build the TikTok product edit body with all required fields per B-4 spec.
+
+    Per the contract (docs/integrations/tiktok_api/contract-collection.md § B-4),
+    the edit endpoint requires:
+    - title, description (agent-authored)
+    - category_id, category_version (derived from product's current values)
+    - skus, package_weight (passthrough from product detail)
+
+    The agent only controls title and description; all other fields are derived
+    from the product's current state to avoid clobbering seller changes between
+    read and write.
+    """
+    if context.product_detail is None:
+        raise UnresolvedAgentRefError(
+            "update_product_listing called with no product_detail in run context. "
+            "The run must read the product first via get_product_information."
+        )
+
     body: dict[str, Any] = {}
-    if params.title is not None:
-        body["title"] = params.title
-    if params.description is not None:
-        body["description"] = params.description
+
+    # Agent-authored fields, falling back to the product's CURRENT value when
+    # the agent did not author one. The endpoint requires these regardless of
+    # whether they changed — the same lesson `category_id` taught. Omitting an
+    # unedited field is what produced "Title is a required field"-class 400s;
+    # passing the current value through is a no-op edit, not a widening of what
+    # the agent controls.
+    title = params.title if params.title is not None else context.product_detail.get("title")
+    if title is not None:
+        body["title"] = title
+    description = (
+        params.description
+        if params.description is not None
+        else context.product_detail.get("description")
+    )
+    if description is not None:
+        body["description"] = description
+
+    # Required fields derived from product's current values (passthrough).
+    # Never hardcode or invent these — they come from the product detail.
+    body["category_id"] = _extract_leaf_category_id(context.product_detail)
+    body["category_version"] = TIKTOK_PRODUCT_EDIT_CATEGORY_VERSION
+
+    # SKUs and package weight — passthrough from product detail.
+    # This ensures we only edit what the agent authored, preserving the
+    # product's current configuration for these fields.
+    if "skus" in context.product_detail:
+        body["skus"] = context.product_detail["skus"]
+    if "package_weight" in context.product_detail:
+        body["package_weight"] = context.product_detail["package_weight"]
+
+    # The category's mandatory attributes. Gate #1226 walk run f5c1f9bf was
+    # rejected with TikTokAPIError [12052104] "missing product attribute ID
+    # 100107" (Loại bảo hành / warranty type) — a category-attribute
+    # requirement, distinct from the plain 36009004 required-field errors that
+    # category_id and main_images produced. Which attributes are mandatory
+    # varies BY CATEGORY, so there is no fixed list to encode: passthrough of
+    # whatever this product already carries is the only correct answer.
+    if "product_attributes" in context.product_detail:
+        body["product_attributes"] = context.product_detail["product_attributes"]
+
+    # main_images is REQUIRED by the endpoint, whether or not the run is
+    # changing the photo — TikTok rejected a description-only edit with
+    # "MainImages is a required field and has not been provided" (gate #1226
+    # walk run f6f2695e). B-4's sample cURL omits it, so the sample is not a
+    # complete required-field list; derive from the product instead.
     if params.attach_staged_image:
         if not context.staged_image_uri:
             raise UnresolvedStagedImageError(
@@ -204,6 +314,9 @@ def _build_listing_edit_body(
                 "staged_image_uri in run context"
             )
         body["main_images"] = [{"uri": context.staged_image_uri}]
+    else:
+        body["main_images"] = _extract_main_image_refs(context.product_detail)
+
     return body
 
 

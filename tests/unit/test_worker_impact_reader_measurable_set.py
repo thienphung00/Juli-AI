@@ -221,6 +221,18 @@ class TestRealLedgerDispatchLandsInTheMeasurableSet:
                     write_resources=write_resources,
                     product_id="tt-contract-1",
                     sku_refs={"S1": "vendor-sku-1"},
+                    product_detail={
+                        "id": "tt-contract-1",
+                        "title": "Test Product",
+                        "description": "Test",
+                        "category_chains": [{"id": "123", "is_leaf": True}],
+                        "skus": [
+                            {"id": "vendor-sku-1", "price": {"amount": "100", "currency": "VND"}}
+                        ],
+                        "package_weight": {"value": "1", "unit": "kg"},
+                        # Required on every edit, not just photo changes (#1389).
+                        "main_images": [{"uri": "tos-alisg-i-test/img"}],
+                    },
                     ledger=ledger,
                     workflow_run_id=run_id,
                 )

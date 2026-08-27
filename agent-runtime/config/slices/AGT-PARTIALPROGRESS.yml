@@ -1,0 +1,65 @@
+# AGT-PARTIALPROGRESS — #1213 gate-walk chain, issue #1383. Two related
+# defects in how a run's "did the job" fact is computed and classified.
+#
+# (a) TERMINAL CLASSIFICATION. ADR-088's `required_steps_unfulfilled` is
+# produced whenever `required_steps_completed(...)` is False after the forced
+# retry is spent. That conflates "the model took no qualifying action at all"
+# (the defect signal the stop reason was introduced for) with "the model acted
+# on some required steps and honestly declined the rest" — which ADR-073 d.2
+# explicitly protects: "a final_response with only one, or neither, confirmed
+# is honest outcome data for the execution-quality metric, not a synthetic
+# failure". Gate #1226 walk run 675bb11e did the listing change and declined
+# the price change because total inventory is 0 — a correct judgement — and
+# was recorded status=failed.
+#
+# (b) A REFUSED WRITE COUNTS AS COMPLETED. `required_steps_completed`
+# (termination.py:296) skips tool results whose content carries an "error" or
+# "confirmation" key — its docstring's rule is entries that "name the tool but
+# never performed the operation". The compare-before-write refusal payload is
+# `{"conflict": True, "current_values": {...}}` (concurrency.py:24) and has
+# NEITHER key, so a write the guard refused is counted as a completed required
+# step. Same class of miss as (a), opposite direction.
+#
+# FIX SHAPE. Extract the single scan into `completed_required_steps(...) ->
+# frozenset[str]`; keep `required_steps_completed` as a thin `all(...)` over
+# it, and add the "conflict" key to the skip set. `runner/core.py`'s
+# FinalResponse arm then terminates `required_steps_unfulfilled` only when
+# that set is EMPTY, and `final_response` otherwise. Do not change when the
+# retry ARMS — one nudge toward finishing the job is still right on any
+# incomplete state; only the terminal classification after it is spent differs.
+#
+# `required_steps_completed` also feeds `workflow_runs.required_steps_completed`
+# (#1220). Fixing (b) changes that column's value for conflict-refused runs —
+# correctly, but it is a recorded-fact change and the PR should say so.
+#
+# COORDINATION: #1385 (fix/issue-1382-persist-basis) also touches
+# runner/core.py — its constructor and the two dispatch call sites, NOT the
+# FinalResponse arm. Different hunks; rebase after it lands.
+AGT-PARTIALPROGRESS:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/073-agent-execution-loop-and-write-path-hardening.md
+    - docs/adr/088-consent-pause-is-a-runner-guarantee.md
+  requiredModules:
+    - backend/src/juli_backend/services/agent/runner/termination.py
+    - backend/src/juli_backend/services/agent/runner/core.py
+    - backend/src/juli_backend/services/agent/runner/concurrency.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/agent/status.py
+    - backend/src/juli_backend/services/agent/playbooks/optimize_product.py
+    - tests/unit/test_agent_runner_termination.py
+    - tests/unit/test_agent_runner_forced_retry.py
+    - tests/unit/test_workflow_run_status_mapping.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - packages/ui/
+    - packages/theme/
+    - backend/src/juli_backend/services/agent/prompts/
+    - backend/src/juli_backend/services/scoring/
+    - backend/src/juli_backend/database/migrations/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

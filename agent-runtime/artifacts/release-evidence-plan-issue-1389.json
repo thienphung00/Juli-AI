@@ -1,0 +1,99 @@
+{
+  "planId": "rep-1389-edit-body-required-fields",
+  "affectedPublicSurfaces": [
+    "the TikTok sandbox listing itself \u2014 this is the change that makes a seller-confirmed write actually land",
+    "GET /v1/demo/runs/{run_id}/events \u2014 tool.completed for update_product_listing instead of a crash"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "sandbox shop 1862f13b-de2c-4fae-a4ad-70298cead913 only; never a production shop",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": true,
+    "journeys": [
+      {
+        "name": "every-required-field-is-derived",
+        "entryUrl": "unit: build the edit body from a product detail fixture",
+        "assertions": [
+          "category_id comes from the category_chains entry with is_leaf true",
+          "skus and package_weight come from the product's own detail",
+          "no per-product literal appears anywhere in the built body",
+          "category_version is a single named constant citing contract B-4"
+        ]
+      },
+      {
+        "name": "missing-required-data-fails-closed",
+        "entryUrl": "unit: a product detail with no leaf category",
+        "assertions": [
+          "raises a named error",
+          "does not omit the field and does not invent one",
+          "no vendor call is attempted"
+        ]
+      },
+      {
+        "name": "the-agent-only-authors-title-and-description",
+        "entryUrl": "unit: compare the built body against the source detail",
+        "assertions": [
+          "title and description are the agent's",
+          "every other field equals the product's current value"
+        ]
+      },
+      {
+        "name": "gate-1226-observation-1",
+        "entryUrl": "approve card 0aa74318-a560-4c2f-bbaa-f1f5e5f4e3d5 and confirm the pause",
+        "assertions": [
+          "tool.completed update_product_listing with no vendor error",
+          "the sandbox listing's title and description actually change",
+          "this closes observation 1 at 7/7"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: vendor payload change"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. Payload-shape change only."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy the prior release; listing writes go back to failing 400, which is the current state, so no seller data is at risk from the rollback itself",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'product_write or edit_body' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests -m 'not live and not demo_contract' -q",
+    "ruff check backend/src/juli_backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do not discover the required-field list by probing the vendor one 400 at a time. contract-collection.md B-4 carries a verified cURL; read it.",
+    "Do not hardcode any per-product value \u2014 category id, warehouse id, quantity, price, currency, weight. All are derived from the product's own detail.",
+    "Do not invent a category when one cannot be derived. Fail closed with a named error; a fabricated category id mis-files a real seller's listing.",
+    "Do not widen what the agent authors beyond title and description.",
+    "Do not close the 400 by introducing silent price reversion \u2014 reason about the skus/price passthrough clobber hazard explicitly and prove the compare-before-write interaction, or state that it is unproven.",
+    "Do not write to any production shop. Sandbox only, never Fujiwa (2b1da87b-d0a8-46a6-b3c6-2132be0b5f4f)."
+  ]
+}

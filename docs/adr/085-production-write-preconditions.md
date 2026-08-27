@@ -258,6 +258,30 @@ empirically by decision 8's readiness check.
 C2 is deferred with a trigger: **a second live merchant connects, or W8's business-impact
 metric needs readings from more than one shop.**
 
+**Amended 2026-08-26 (grill, W7 open questions 3 and 4): C2 and the GA per-shop credential
+model are one deferral, not two.** They were recorded separately — C2 here, "the GA per-shop
+credential model" in the Deferred bullet below — and separate records invite actioning one
+without the other. The dangerous order is C2 first.
+
+C2 delivers self-serve connect for arbitrary shops. But credentials are selected **by
+capability, not by shop**: `integrations/tiktok/merchant.py:88` routes every merchant id that
+is not one of the two configured ids into a single shared `SELLER_CONNECT` bucket. That is
+coherent for one residual merchant and incoherent for a fleet — with many shops in one bucket,
+"which credential serves this shop's request" has no answer. Closing it is exactly the per-shop
+`seller_connect` scoping that the GA credential deferral describes, and the handoff correctly
+calls an architecture change rather than a fix.
+
+So C2 cannot ship without per-shop credential scoping, and that scoping has no reason to exist
+before C2. One trigger now gates one future wave carrying **both**, on top of a landed W7-A —
+because self-serve onboarding puts arbitrary merchants' data behind tenant policies that
+[ADR-086](086-runtime-database-role-and-tenant-isolation.md) proves are currently bypassed
+entirely. The trigger text is unchanged; only its scope widens.
+
+*Checked while amending:* the trigger is reachable as written. An earlier reading of this
+grill assumed it was circular — that no second merchant could connect without the scoping work
+it gates. `resolve_merchant_context` falls through to `SELLER_CONNECT` rather than raising, so a
+second merchant genuinely can connect today. The trigger fires on a real, observable event.
+
 ## Consequences
 
 - **Positive:** tenant isolation stops depending on every future author remembering, and
@@ -274,7 +298,8 @@ metric needs readings from more than one shop.**
   environment change with the previous role still valid.
 - **Deferred:** a tenant column on `webhook_raw_events`; `gold` RLS keyed to `auth.uid()`
   for client-direct reads (ADR-061's 3.5-C deferral, untouched — this wave does not
-  re-open the Data API); the GA per-shop credential model; ADR-050 C2.
+  re-open the Data API); **ADR-050 C2 together with the GA per-shop credential model**, now a
+  single deferral behind one trigger (§9, amended 2026-08-26).
 
 ## Options considered
 

@@ -18,6 +18,13 @@ _VELOCITY_CHANGE_THRESHOLD = 0.15
 _DEFAULT_LOW_STOCK_WINDOW_DAYS = 7
 _REORDER_QUANTITY_MIN_FALLBACK = 10  # Minimum units for zero-velocity items
 
+# Reorder policy. Public and named because the API surfaces these to the seller
+# as the *basis* for a suggested quantity: any consumer that displays a basis
+# must read them from here rather than re-typing the numbers, or the basis can
+# drift out of agreement with the quantity it claims to explain.
+REORDER_LEAD_TIME_DAYS = 3
+REORDER_SAFETY_STOCK_DAYS = 2
+
 
 @dataclass
 class ForecastResult:
@@ -293,8 +300,8 @@ async def get_velocity_changes(session: AsyncSession, shop_id: uuid.UUID) -> lis
 def compute_reorder_quantity(
     risk: LowStockRisk,
     *,
-    lead_time_days: int = 3,
-    safety_stock_days: int = 2,
+    lead_time_days: int = REORDER_LEAD_TIME_DAYS,
+    safety_stock_days: int = REORDER_SAFETY_STOCK_DAYS,
 ) -> float:
     """Compute suggested reorder quantity for a low-stock risk item.
 

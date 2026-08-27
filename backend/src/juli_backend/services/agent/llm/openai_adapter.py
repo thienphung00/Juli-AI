@@ -116,6 +116,7 @@ class OpenAIResponsesAdapter:
         system: str,
         tools: Sequence[ToolDefinition],
         config: LLMConfig,
+        tool_choice: str | None = None,
     ) -> AssistantTurn:
         api_key = require_env(_API_KEY_ENV_VAR)
         body = _build_request_body(
@@ -125,6 +126,7 @@ class OpenAIResponsesAdapter:
             tools=tools,
             max_output_tokens=config.max_output_tokens,
             temperature=config.temperature,
+            tool_choice=tool_choice,
         )
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -175,8 +177,9 @@ def _build_request_body(
     tools: Sequence[ToolDefinition],
     max_output_tokens: int,
     temperature: float,
+    tool_choice: str | None = None,
 ) -> dict[str, Any]:
-    return {
+    body: dict[str, Any] = {
         "model": model,
         "instructions": system,
         "input": [_translate_message(message) for message in messages],
@@ -189,6 +192,9 @@ def _build_request_body(
         # Non-streamed (ADR-071 decision 3): one complete turn per call.
         "stream": False,
     }
+    if tool_choice is not None:
+        body["tool_choice"] = tool_choice
+    return body
 
 
 def _translate_message(message: Message) -> dict[str, Any]:

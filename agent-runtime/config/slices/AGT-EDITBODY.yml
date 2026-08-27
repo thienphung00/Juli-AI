@@ -1,0 +1,92 @@
+# AGT-EDITBODY — #1213 gate-walk chain, issue #1389. `update_product_listing`
+# builds a TikTok edit body from the agent-authored title/description only, and
+# the vendor rejects it:
+#
+#   PUT /product/202309/products/1736363193934775939
+#   400 {"code":36009004,"message":"CategoryId is a required field and has not been provided."}
+#
+# Found on gate #1226 walk run b354d2d6 (2026-08-27) — the first run to get a
+# seller-approved write PAST compare-before-write and onto the vendor. No
+# update_product_listing call can currently succeed, for any product.
+#
+# GROUND TRUTH — do not guess, and do not probe the vendor one 400 at a time.
+# docs/integrations/tiktok_api/contract-collection.md B-4 carries a VERIFIED
+# cURL for this exact endpoint. Its body:
+#
+#   {"title": ..., "description": ...,
+#    "category_id": "605254", "category_version": "v2",
+#    "skus": [{"inventory": [{"warehouse_id": ..., "quantity": 50}],
+#              "price": {"amount": "100000", "currency": "VND"}}],
+#    "package_weight": {"value": "500", "unit": "GRAM"}}
+#
+# So the endpoint needs materially more than category_id. `resources.products.
+# edit()`'s docstring calls this a "Partial edit" — that is the root
+# misconception and should be corrected in the same change, or the next person
+# rebuilds the same minimal body.
+#
+# THE ANTI-HARDCODING CONTRACT (the owner's explicit constraint):
+#
+# 1. PER-PRODUCT VALUES ARE DERIVED, NEVER LITERAL. category_id comes from the
+#    product's own `category_chains` entry with `is_leaf: true`; skus and
+#    package_weight from its detail. The run already reads the product
+#    (get_product_information, and the basis snapshot is built from a full
+#    products.get_details) — this is carrying data the run has, not fetching
+#    anything new. A literal category id, warehouse id, weight or currency
+#    anywhere in the diff is a defect.
+# 2. VENDOR PROTOCOL CONSTANTS ARE NAMED, SINGLE-SOURCED AND CITED.
+#    `category_version` is a contract constant of the same kind as the 202309
+#    API version. It belongs in ONE named constant beside a reference to B-4 —
+#    never an inline literal at the call site. This is the one legitimate
+#    exception to rule 1 and must be visibly that, not smuggled in.
+# 3. FAIL CLOSED, NEVER DEFAULT. If the product detail lacks a field the body
+#    requires, raise a named error. NEVER invent a category — a fabricated
+#    category id mis-files a real seller's listing, which is worse than the
+#    400 this issue is about.
+# 4. DO NOT WIDEN WHAT THE AGENT AUTHORS. It writes title and description.
+#    Everything else is passthrough of the product's current values.
+#
+# THE HAZARD TO REASON ABOUT EXPLICITLY (do not hand-wave):
+# A full-object PUT that passes `skus`/`price` through can CLOBBER. If the
+# seller changed a price between the run's read and the seller-confirmed write,
+# passthrough silently reverts it. Compare-before-write's basis covers price
+# (concurrency.py's extract_mutable_fields), so the guard MAY already refuse
+# that case — but that interaction is unproven. Prove it with a test or state
+# plainly that it is unproven. A fix that closes a 400 by introducing silent
+# price reversion is worse than the bug.
+#
+# Prior art in the same lane, for context on how this path now behaves:
+# #1379 (terminal tool registered in the production registry), #1381 (retry
+# arms on FinalResponse), #1385 (basis persists across the pause — the reason
+# the write now reaches the vendor at all), #1387 (partial progress is not
+# failure). #1390 is filed separately: the vendor 400 surfaced as `worker_lost`
+# because the Celery crash handler hardcodes that stop reason. NOT this slice.
+AGT-EDITBODY:
+  executorDomain: integrations
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/integrations/tiktok_api/contract-collection.md
+    - docs/integrations/tiktok_api/endpoints.md
+  requiredModules:
+    - backend/src/juli_backend/services/agent/tools/product_write.py
+    - backend/src/juli_backend/integrations/tiktok/resources/products.py
+    - backend/src/juli_backend/services/agent/tools/product.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/agent/runner/tool_executor.py
+    - backend/src/juli_backend/services/agent/runner/concurrency.py
+    - backend/src/juli_backend/integrations/tiktok/paths.py
+    - docs/integrations/tiktok_api/samples/products-detail-response.json
+    - tests/unit/test_agent_tools_product_write.py
+    - tests/integration/test_agent_live_smoke_sandbox_write.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - packages/ui/
+    - packages/theme/
+    - backend/src/juli_backend/services/agent/prompts/
+    - backend/src/juli_backend/services/scoring/
+    - backend/src/juli_backend/database/migrations/
+    - backend/src/juli_backend/workers/tasks/agent_workflow.py
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

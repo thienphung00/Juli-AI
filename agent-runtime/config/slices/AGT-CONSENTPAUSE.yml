@@ -1,0 +1,125 @@
+# AGT-CONSENTPAUSE — #1213 gate-walk chain, issue #1373, implementing ADR-088
+# (Accepted 2026-08-26). This slice ENDS the chain #1356 -> #1359 -> #1367 by
+# moving enforcement of the seller-consent pause out of the prompt and into
+# the runner.
+#
+# READ ADR-088 FIRST. It is not yet on main (PR #1372 pending):
+#   git show origin/docs/adr-088-consent-pause-guarantee:docs/adr/088-consent-pause-is-a-runner-guarantee.md
+#
+# WHY THIS IS NOT ANOTHER PROMPT FIX. Three prompt revisions oscillated
+# between two failure modes and never converged: v1 and v3 narrated a prose
+# promise, v2 printed the tool call inside a ```python fence. Under v2 the
+# model had already produced correct title/description values -- the
+# capability is present, the CHANNEL is not being used. A worked example
+# teaches surface form, and every form has a failure mode, so the fourth
+# revision would not be the safe one either.
+#
+# ALREADY VERIFIED -- do not re-investigate, these are established facts:
+# - runner/core.py:1407 sets StopReason.FINAL_RESPONSE on ANY text block,
+#   unconditionally. That is the defect's home.
+# - `required_steps_completed` is computed (runner/termination.py:296) and
+#   persisted, but gates nothing. Run d9dac43d recorded `false` and was still
+#   marked `completed`.
+# - `tool_choice` appears NOWHERE in the codebase. It must be plumbed through
+#   llm/service.py and llm/openai_adapter.py; it is not a config toggle that
+#   already exists.
+# - Iteration budget is NOT the constraint: max_iterations=6 and the failing
+#   run used 2.
+# - Text and tool-call blocks CAN coexist in one turn --
+#   llm/openai_adapter.py:289-294 appends text blocks then tool-call blocks.
+#   So the Vietnamese narration does not compete with the call; the model can
+#   emit both. It is simply never required to.
+# - `_tool_definitions` (core.py:1505) renders the model-facing tool list from
+#   the playbook's steps with no capability filter, so a new tool becomes
+#   visible to the model purely by being in a PlaybookStep.
+#
+# STOP REASONS. StopReason (services/agent/status.py:93) currently has
+# FOURTEEN members; this slice adds two, making sixteen:
+#   - concluded_without_changes  (the honest negative, ADR-073 d.2's intent)
+#   - required_steps_unfulfilled (forced retry spent, still no call)
+# Consequences the executor must handle together, or CI breaks:
+# - `workflow_runs.stop_reason` is String(32) -- both new values fit (25 and
+#   26 chars), no column widening needed.
+# - The CHECK constraint is in models/models.py around line 626-640 (the
+#   'prompt_version_unrecoverable' entry at line 635 is the #1359 precedent).
+#   models.py alone is NOT enough: an ALEMBIC MIGRATION is required. Unit
+#   tests structurally cannot catch a missing one because the unit DB is
+#   sqlite built from models.py (tests/unit/conftest.py:115). #1359 shipped
+#   this exact near-miss; migration 042_stop_reason_prompt_pin is the worked
+#   precedent for the widening.
+# - CHECK the current alembic head before choosing a revision number. The W7
+#   wave carries its own chain and a duplicate id forks the head -- #1359 hit
+#   this and had to take 042 rather than 044.
+# - packages/contracts/src/agent-events.ts must gain both values in
+#   STOP_REASONS and, where applicable, WORKFLOW_FAILED_STOP_REASON_TO_STATUS.
+#   There is a python/TS parity test AND a member-count drift guard named for
+#   "fourteen members" -- rename and update it, do not delete it.
+#
+# THE RETRY -- the two ways this fix can itself be wrong:
+# 1. It must fire ONLY when required steps are incomplete AND budget remains.
+#    Firing on a healthy run that legitimately finished is a regression.
+# 2. It is bounded to exactly ONE forced re-invocation per run. Not a loop.
+# `conclude_without_changes` must be genuinely side-effect-free -- if it can
+# write anything, it becomes a path around the CONFIRM gate, which is the
+# opposite of this slice's purpose. Assert that in a test.
+#
+# ADR-073 d.2 IS AMENDED, NOT DISCARDED. A run with genuinely nothing to
+# propose must still be able to end honestly -- that is exactly what the
+# terminal tool preserves. Do not implement "reject final_response when
+# required steps are incomplete"; ADR-088 records that as a rejected
+# alternative because it destroys the legitimate outcome.
+#
+# STAGING. Decisions 1 + 2 + the deterministic fake-LLM tests are one
+# coherent unit and are this slice's first pass. Prompt v4 (decision 3) and
+# the live-lane CI changes (decision 4's second half) follow in later rounds
+# on the SAME branch. Do not attempt all four at once.
+#
+# PROMPT VERSIONING, for the later v4 round: v1, v2 AND v3 are all released
+# and immutable under ADR-072 d.4 -- v3 has executed in production with a
+# recorded prompt_sha256. v4 is a NEW file plus a pin bump; all three earlier
+# versions stay byte-identical and individually composable, because #1359's
+# resume path composes from the version stored on the run row. The
+# AGT-W5A-PROMPTFORM overlay carries the full prompt-gate test list.
+AGT-CONSENTPAUSE:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/073-agent-execution-loop-and-write-path-hardening.md
+    - docs/adr/072-agent-prompt-architecture.md
+  requiredModules:
+    - backend/src/juli_backend/services/agent/runner/core.py
+    - backend/src/juli_backend/services/agent/runner/termination.py
+    - backend/src/juli_backend/services/agent/status.py
+    - backend/src/juli_backend/services/agent/llm/service.py
+    - backend/src/juli_backend/services/agent/llm/openai_adapter.py
+    - backend/src/juli_backend/services/agent/tools/product_write.py
+    - backend/src/juli_backend/services/agent/playbooks/optimize_product.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/agent/playbooks/base.py
+    - backend/src/juli_backend/services/agent/tools/registry.py
+    - backend/src/juli_backend/services/agent/llm/blocks.py
+    - backend/src/juli_backend/services/agent/llm/fake.py
+    - backend/src/juli_backend/services/agent/runner/conversation_store.py
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/database/migrations/versions/042_stop_reason_prompt_pin.py
+    - packages/contracts/src/agent-events.ts
+    - tests/unit/test_agent_runner_core.py
+    - tests/unit/test_agent_runner_termination.py
+    - tests/unit/test_agent_llm_fake.py
+    - tests/unit/test_workflow_run_status_mapping.py
+    - tests/integration/test_agent_live_smoke_sandbox_write.py
+    - docs/adr/075-agent-approval-gate-and-security-prerequisites.md
+  doNotLoad:
+    - apps/
+    - ios/
+    - packages/ui/
+    - packages/theme/
+    - backend/src/juli_backend/workers/
+    - backend/src/juli_backend/services/scoring/
+    - backend/src/juli_backend/api/routes/demo_decisions.py
+    - docs/product/design/
+    - docs/adr/076-agent-demo-execution-experience.md
+    - docs/adr/077-incremental-impact-measurement.md
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

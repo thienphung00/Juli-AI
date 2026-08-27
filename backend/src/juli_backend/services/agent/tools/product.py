@@ -126,6 +126,13 @@ class ProductToolContext:
     sku_refs: Mapping[str, str] = field(default_factory=dict)
     staged_image_uri: str | None = None
     pending_image_bytes: bytes | None = None
+    # `product_detail` -- the full product information fetched by a prior
+    # `get_product_information` call, threaded forward so
+    # `update_product_listing` can derive required fields (category_id,
+    # skus, package_weight) from the product's current values (ADR-070 decision 1's
+    # reserved per-step extension, issue #1389). Never LLM-supplied: the
+    # model cannot fetch product details, only the run executor can.
+    product_detail: Mapping[str, Any] | None = None
     # `image_inspector` -- the vision collaborator `inspect_product_image` uses
     # (#1208). Injected, not imported, so this READ handler carries no LLM
     # dependency and tests supply a deterministic double. `None` means "no

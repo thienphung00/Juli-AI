@@ -286,7 +286,7 @@ def _seed_run(session: Session) -> tuple[uuid.UUID, uuid.UUID]:
             product_id=product_id,
             state={},
             status="running",
-            prompt_version="v1",
+            prompt_version="optimize_product.v1",
             prompt_sha256="0" * 64,
         )
     )
@@ -1223,6 +1223,16 @@ class TestPayloadContractWithImpactReader:
             registry=_full_registry(),
             write_resources=_write_resources(products),
             product_id="tt-product-listing-1",
+            product_detail={
+                "id": "tt-product-listing-1",
+                "title": "Original Title",
+                "description": "Original Description",
+                "category_chains": [{"id": "123", "is_leaf": True}],
+                "skus": [{"id": "sku1", "price": {"amount": "100", "currency": "VND"}}],
+                "package_weight": {"value": "1", "unit": "kg"},
+                # Required on every edit, not just photo changes (#1389).
+                "main_images": [{"uri": "tos-alisg-i-test/img"}],
+            },
             ledger=ToolExecutionLedger(session, shop_id=shop_id),
             workflow_run_id=run_id,
         )

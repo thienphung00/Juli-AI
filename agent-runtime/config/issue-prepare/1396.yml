@@ -1,0 +1,3 @@
+parentIssueId: 1213
+sliceId: AGT-CRASHRELAY
+handoffPath: docs/adr/074-agent-event-streaming-and-relay.md
