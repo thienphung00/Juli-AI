@@ -49,7 +49,7 @@ def test_advisory_checks_set_is_pinned_to_exactly_unpushed_issue_work() -> None:
     Any addition (or removal) must fail this test, so widening the set into a
     way to hide a real failure requires a human to touch this line.
     """
-    assert ADVISORY_CHECKS == frozenset({"unpushed_issue_work"})
+    assert ADVISORY_CHECKS == frozenset({"unpushed_issue_work", "differential_tdd"})
 
 
 def test_advisory_check_name_is_a_real_registered_gate() -> None:

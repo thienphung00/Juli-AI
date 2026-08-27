@@ -30,13 +30,19 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:
 
     satisfied, problems = ml_gates_satisfied(review)
     ml_gates = review.get("mlGates") or {}
-    _, _, scan_details = verify_ml_gates_threshold_values(touched, ml_gates)
+
+    # Details only: `ml_gates_satisfied` above already runs this scan and folds
+    # its verdict into `satisfied`/`problems` (see common.py::ml_gates_satisfied).
+    # Re-reading it here would double-count every problem.
+    _, _, scan_details = verify_ml_gates_threshold_values(touched)
+
     details = {
         "mlModules": touched,
         "coldStartThresholdDocumented": bool(ml_gates.get("coldStartThresholdDocumented")),
         "promotionGateDocumented": bool(ml_gates.get("promotionGateDocumented")),
         "sourceScan": scan_details.get("sourceScan"),
-        "declaredThresholds": scan_details.get("declaredThresholds"),
+        # Read from source, not transcribed by the author.
+        "sourceThresholds": scan_details.get("sourceThresholds"),
         "problems": problems,
     }
     if not satisfied:
