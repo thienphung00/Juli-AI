@@ -816,3 +816,103 @@ async def test_a_card_that_appears_in_the_list_is_approvable_by_the_same_caller(
 
     assert approve_resp.status_code == 202, approve_resp.text
     assert approve_resp.json()["data"]["action_card_id"] == str(surfaced_card.id)
+
+
+# ---------------------------------------------------------------------------
+# AC -- executability discriminator on decisions envelope
+# ---------------------------------------------------------------------------
+
+
+async def test_list_decisions_includes_is_executable_discriminator(demo_client, session, shop):
+    """GET /v1/demo/decisions carries an is_executable discriminator on each
+    card (ADR-084 decision 3), derived from the playbook registry."""
+    executable_card = _card(shop.id, workflow_key="optimize_product_2", surfaced_at=COMPUTED_AT)
+    session.add(executable_card)
+    await session.commit()
+
+    resp = await demo_client.get("/v1/demo/decisions")
+
+    assert resp.status_code == 200
+    items = resp.json()["data"]
+    assert len(items) == 1
+    assert items[0]["is_executable"] is True
+
+
+async def test_detail_decisions_includes_is_executable_discriminator(demo_client, session, shop):
+    """GET /v1/demo/decisions/{id} carries an is_executable discriminator
+    (ADR-084 decision 3)."""
+    executable_card = _card(shop.id, workflow_key="optimize_product_2", surfaced_at=COMPUTED_AT)
+    session.add(executable_card)
+    await session.commit()
+
+    resp = await demo_client.get(f"/v1/demo/decisions/{executable_card.id}")
+
+    assert resp.status_code == 200
+    assert resp.json()["data"]["is_executable"] is True
+
+
+async def test_non_executable_card_on_list_carries_is_executable_false(demo_client, session, shop):
+    """A card with a non-executable workflow_key carries is_executable=false
+    on the list endpoint (ADR-084 decision 3)."""
+    non_executable_card = _card(
+        shop.id, workflow_key="unknown_workflow_xyz", surfaced_at=COMPUTED_AT
+    )
+    session.add(non_executable_card)
+    await session.commit()
+
+    resp = await demo_client.get("/v1/demo/decisions")
+
+    assert resp.status_code == 200
+    items = resp.json()["data"]
+    assert len(items) == 1
+    assert items[0]["is_executable"] is False
+
+
+async def test_non_executable_card_on_detail_carries_is_executable_false(
+    demo_client, session, shop
+):
+    """A card with a non-executable workflow_key carries is_executable=false
+    on the detail endpoint (ADR-084 decision 3)."""
+    non_executable_card = _card(
+        shop.id, workflow_key="unknown_workflow_xyz", surfaced_at=COMPUTED_AT
+    )
+    session.add(non_executable_card)
+    await session.commit()
+
+    resp = await demo_client.get(f"/v1/demo/decisions/{non_executable_card.id}")
+
+    assert resp.status_code == 200
+    assert resp.json()["data"]["is_executable"] is False
+
+
+# ---------------------------------------------------------------------------
+# AC -- approve endpoint refuses non-executable cards with 409
+# ---------------------------------------------------------------------------
+
+
+async def test_approve_non_executable_card_returns_409(app, session, user, shop, product):
+    """POST /v1/demo/decisions/{id}/approve on a non-executable card returns
+    409, refusing the approval (ADR-084 decision 3, refusal branch)."""
+    non_executable_card = _card(shop.id, workflow_key="unknown_workflow_xyz", status="active")
+    session.add(non_executable_card)
+    await session.commit()
+
+    async with _client_for(app, user, shop) as client:
+        resp = await client.post(f"/v1/demo/decisions/{non_executable_card.id}/approve")
+
+    assert resp.status_code == 409
+
+
+async def test_approve_non_executable_leaves_card_active(app, session, user, shop, product):
+    """Approving a non-executable card leaves the card in active status
+    (ADR-084 decision 3) -- no run row created, no card state change."""
+    non_executable_card = _card(shop.id, workflow_key="unknown_workflow_xyz", status="active")
+    session.add(non_executable_card)
+    await session.commit()
+
+    async with _client_for(app, user, shop) as client:
+        resp = await client.post(f"/v1/demo/decisions/{non_executable_card.id}/approve")
+
+    assert resp.status_code == 409
+    await session.refresh(non_executable_card)
+    assert non_executable_card.status == "active"

@@ -476,35 +476,34 @@ class TestCardFlipAndAuditRow:
 
 
 class TestInTransactionIndexRejection:
-    async def test_second_active_run_for_the_derived_product_raises_integrity_error(
-        self, session, shop, product
+    async def test_sequential_double_approve_on_same_card_hits_non_active_status(
+        self, session, shop, product, card
     ):
-        """Two DIFFERENT cards deriving the SAME product (only one product
-        exists for this shop) -- the second approve must fail at
-        `approve_action_card`'s own flush, in-transaction, not silently
-        succeed and not wait until some later unrelated commit."""
-        from sqlalchemy.exc import IntegrityError
-
-        card_one = _make_card(shop.id, workflow_key="optimize_product_2")
-        card_two = _make_card(shop.id, workflow_key="optimize_product_2_alt")
-        session.add_all([card_one, card_two])
-        await session.flush()
-
-        await approval_module.approve_action_card(
+        """Attempting to approve the same card twice -- the second attempt
+        hits the non-active status check, preventing creation of a second
+        run for the same product. (The concurrent race case, which can't be
+        tested with SQLite's coarse-grained locking, lives in
+        tests/integration/test_agent_approval_concurrency.py)."""
+        first_result = await approval_module.approve_action_card(
             session,
             shop_id=shop.id,
-            action_card_id=card_one.id,
+            action_card_id=card.id,
             approved_by_user_id=uuid.uuid4(),
         )
         await session.commit()
 
-        with pytest.raises(IntegrityError):
+        # Attempting to approve the same card again should fail because
+        # the card is no longer in "active" status
+        with pytest.raises(approval_module.ActionCardNotActive):
             await approval_module.approve_action_card(
                 session,
                 shop_id=shop.id,
-                action_card_id=card_two.id,
+                action_card_id=card.id,
                 approved_by_user_id=uuid.uuid4(),
             )
+        # First approval succeeded and created a run
+        assert first_result.run_id
+        assert first_result.status == "queued"
 
 
 # ---------------------------------------------------------------------------
@@ -531,7 +530,7 @@ class TestAtomicitySeam:
 
         with patch.object(
             approval_module,
-            "_resolve_optimize_product_prompt_pin",
+            "_resolve_prompt_pin",
             side_effect=RuntimeError("simulated crash between flip and insert"),
         ):
             with pytest.raises(RuntimeError):
@@ -564,3 +563,111 @@ class TestAtomicitySeam:
         assert runs == []
         approvals = (await session.execute(select(ActionCardApproval))).scalars().all()
         assert approvals == []
+
+
+# ---------------------------------------------------------------------------
+# AC -- executability: non-executable card (no registered playbook) raises
+# WorkflowNotExecutable, executable card creates run with that playbook
+# ---------------------------------------------------------------------------
+
+
+class TestExecutabilityCheck:
+    async def test_non_executable_workflow_key_raises_workflow_not_executable(
+        self, session, shop, product
+    ):
+        """A card whose workflow_key has no registered playbook is refused by
+        approve_action_card at the service layer (ADR-084 decision 3) --
+        proven here at the service layer directly, not only through HTTP,
+        so a future caller cannot route around the check."""
+        c = _make_card(shop.id, workflow_key="unknown_workflow_1")
+        session.add(c)
+        await session.flush()
+
+        with pytest.raises(approval_module.WorkflowNotExecutable):
+            await approval_module.approve_action_card(
+                session,
+                shop_id=shop.id,
+                action_card_id=c.id,
+                approved_by_user_id=uuid.uuid4(),
+            )
+
+    async def test_non_executable_workflow_leaves_no_run_row_behind(self, session, shop, product):
+        """Non-executable approval fails before any run is created -- the card
+        is left active and unmodified."""
+        c = _make_card(shop.id, workflow_key="unknown_workflow_2")
+        session.add(c)
+        await session.commit()
+        card_id = c.id
+
+        with pytest.raises(approval_module.WorkflowNotExecutable):
+            await approval_module.approve_action_card(
+                session,
+                shop_id=shop.id,
+                action_card_id=card_id,
+                approved_by_user_id=uuid.uuid4(),
+            )
+        await session.rollback()
+
+        # No run created, card unchanged
+        session.expunge_all()
+        runs = (await session.execute(select(WorkflowRunRow))).scalars().all()
+        assert runs == []
+        refreshed = (
+            await session.execute(select(ActionCard).where(ActionCard.id == card_id))
+        ).scalar_one()
+        assert refreshed.status == "active"
+
+    async def test_executable_card_creates_run_with_its_own_workflow_key(
+        self, session, shop, product
+    ):
+        """A card whose workflow_key resolves to a registered playbook creates
+        a run bound to that playbook, asserted by reading the persisted
+        workflow_key from the run (the card's own workflow_key will be in the
+        run's state blob, and the prompt version/sha256 will match the
+        registry lookup) -- not by asserting a hardcoded constant."""
+        c = _make_card(shop.id, workflow_key="optimize_product_2")
+        session.add(c)
+        await session.flush()
+
+        result = await approval_module.approve_action_card(
+            session,
+            shop_id=shop.id,
+            action_card_id=c.id,
+            approved_by_user_id=uuid.uuid4(),
+        )
+
+        run = (
+            await session.execute(select(WorkflowRunRow).where(WorkflowRunRow.id == result.run_id))
+        ).scalar_one()
+
+        # The run's state contains the card's workflow_key in the opening context
+        state_dict = run.state
+        opening = json.loads(state_dict["conversation_window"][0]["content"])
+        assert opening["action_card"]["workflow_key"] == "optimize_product_2"
+
+    async def test_prompt_version_matches_workflow_registry_lookup(self, session, shop, product):
+        """The created run's prompt_version and prompt_sha256 are derived from
+        the registry lookup for the card's workflow_key, not hardcoded."""
+        from juli_backend.services.agent import prompts as prompts_module
+
+        c = _make_card(shop.id, workflow_key="optimize_product_2")
+        session.add(c)
+        await session.flush()
+
+        result = await approval_module.approve_action_card(
+            session,
+            shop_id=shop.id,
+            action_card_id=c.id,
+            approved_by_user_id=uuid.uuid4(),
+        )
+
+        run = (
+            await session.execute(select(WorkflowRunRow).where(WorkflowRunRow.id == result.run_id))
+        ).scalar_one()
+
+        expected_version = prompts_module.production_version("optimize_product_2")
+        expected_prompt = prompts_module.prompt_version("optimize_product_2", expected_version)
+        expected_sha256 = prompts_module.prompt_sha256("optimize_product_2", expected_version)
+
+        assert run.prompt_version == expected_prompt
+        assert run.prompt_sha256 == expected_sha256

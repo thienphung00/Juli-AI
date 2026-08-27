@@ -83,6 +83,7 @@ from juli_backend.database.exceptions import NotFound
 from juli_backend.models.models import ActionCard, ActionCardApproval
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.repositories.repos import ActionCardsRepo, ProductsRepo
+from juli_backend.services.agent import playbooks as playbooks_module
 
 Clock = Callable[[], datetime]
 
@@ -115,6 +116,12 @@ class NoProductsForShop(Exception):
     """The caller's shop has zero `products` rows -- ADR-082 decision 4: an
     honest 409, never a run created with a NULL `product_id`, never a bare
     500 from the column's NOT NULL constraint."""
+
+
+class WorkflowNotExecutable(Exception):
+    """The card's `workflow_key` has no registered playbook -- ADR-084 decision 3.
+    The card is refused for approval before any run is created; the card
+    remains `active` and unchanged."""
 
 
 @dataclass(frozen=True)
@@ -168,19 +175,17 @@ def _initial_run_state_for(card: ActionCard) -> dict[str, Any]:
     return run_context_module.initial_run_state(opening)
 
 
-def _resolve_optimize_product_prompt_pin() -> tuple[str, str]:
-    """The production-pinned `(prompt_version, prompt_sha256)` for the
-    Optimize Product workflow -- the only `Playbook` this wave implements.
-    Every run this transaction creates runs that one playbook, regardless
-    of the approved card's own `workflow_key`, mirroring exactly what the
-    now-removed `agent_runs.py::create_run` did before this slice (single-
-    workflow scope is a pre-existing, unchanged constraint, not a new
-    decision made here).
+def _resolve_prompt_pin(workflow_key: str) -> tuple[str, str]:
+    """The production-pinned `(prompt_version, prompt_sha256)` for the given
+    workflow_key (ADR-084 decision 3).
+
+    This function looks up the playbook from the registry to determine the
+    correct prompt version and sha256, based on the card's own
+    `workflow_key`. Non-executable workflow_keys should be rejected before
+    calling this function (see `approve_action_card`).
     """
-    from juli_backend.services.agent import playbooks as playbooks_module
     from juli_backend.services.agent import prompts as prompts_module
 
-    workflow_key = playbooks_module.OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key
     version = prompts_module.production_version(workflow_key)
     return (
         prompts_module.prompt_version(workflow_key, version),
@@ -199,10 +204,10 @@ async def approve_action_card(
     """Approve `action_card_id` under `shop_id` and create the agent run it
     authorizes, all on `session` -- see module docstring for the exact step
     order and the "no commit here" contract. Raises `ActionCardNotFound`,
-    `ActionCardNotActive`, or `NoProductsForShop` for the three fail-closed
-    conditions; the caller is responsible for translating those (and any
-    `IntegrityError` its own `session.commit()` raises) to HTTP responses
-    and for calling `session.rollback()` in every failure branch.
+    `ActionCardNotActive`, `NoProductsForShop`, or `WorkflowNotExecutable` for
+    the four fail-closed conditions; the caller is responsible for translating
+    those (and any `IntegrityError` its own `session.commit()` raises) to HTTP
+    responses and for calling `session.rollback()` in every failure branch.
     """
     clock = now or _default_clock
 
@@ -214,6 +219,16 @@ async def approve_action_card(
     if card.status != "active":
         raise ActionCardNotActive(
             f"ActionCard {action_card_id} is not active (status={card.status!r})"
+        )
+
+    # ADR-084 decision 3: check if the card's workflow_key is executable
+    # (has a registered playbook). This check happens BEFORE any database
+    # changes, so a non-executable card is refused without creating or
+    # modifying any rows.
+    if not playbooks_module.is_workflow_executable(card.workflow_key):
+        raise WorkflowNotExecutable(
+            f"ActionCard {action_card_id} has workflow_key {card.workflow_key!r} "
+            f"which has no registered playbook and cannot be executed"
         )
 
     # Captured BEFORE the flip below -- the audit is what was shown.
@@ -230,7 +245,7 @@ async def approve_action_card(
     if product is None:
         raise NoProductsForShop(f"Shop {shop_id} has no products to bind this run to")
 
-    prompt_version_value, prompt_sha256_value = _resolve_optimize_product_prompt_pin()
+    prompt_version_value, prompt_sha256_value = _resolve_prompt_pin(card.workflow_key)
     initial_state = _initial_run_state_for(card)
 
     run = WorkflowRunRow(
