@@ -220,6 +220,25 @@ def _extract_leaf_category_id(product_detail: Mapping[str, Any]) -> str:
     )
 
 
+def _extract_main_image_refs(product_detail: Mapping[str, Any]) -> list[dict[str, str]]:
+    """The product's current main images, as the edit body's `{"uri": ...}` refs.
+
+    Passthrough, never invented: a listing edit that dropped the seller's photos
+    would be a far worse outcome than the 400 this exists to avoid. Fails closed
+    when the product has no usable image, because the endpoint requires the
+    field and there is nothing honest to send.
+    """
+    images = product_detail.get("main_images") or []
+    refs = [{"uri": img["uri"]} for img in images if isinstance(img, Mapping) and img.get("uri")]
+    if not refs:
+        raise UnresolvedAgentRefError(
+            "update_product_listing needs the product's current main_images, but the "
+            "product detail carries none with a uri. TikTok requires main_images on "
+            "every edit; sending an empty list would clear the listing's photos."
+        )
+    return refs
+
+
 def _build_listing_edit_body(
     params: UpdateProductListingInput, context: ProductToolContext
 ) -> dict[str, Any]:
@@ -243,11 +262,22 @@ def _build_listing_edit_body(
 
     body: dict[str, Any] = {}
 
-    # Agent-authored fields (only these can change)
-    if params.title is not None:
-        body["title"] = params.title
-    if params.description is not None:
-        body["description"] = params.description
+    # Agent-authored fields, falling back to the product's CURRENT value when
+    # the agent did not author one. The endpoint requires these regardless of
+    # whether they changed — the same lesson `category_id` taught. Omitting an
+    # unedited field is what produced "Title is a required field"-class 400s;
+    # passing the current value through is a no-op edit, not a widening of what
+    # the agent controls.
+    title = params.title if params.title is not None else context.product_detail.get("title")
+    if title is not None:
+        body["title"] = title
+    description = (
+        params.description
+        if params.description is not None
+        else context.product_detail.get("description")
+    )
+    if description is not None:
+        body["description"] = description
 
     # Required fields derived from product's current values (passthrough).
     # Never hardcode or invent these — they come from the product detail.
@@ -262,7 +292,11 @@ def _build_listing_edit_body(
     if "package_weight" in context.product_detail:
         body["package_weight"] = context.product_detail["package_weight"]
 
-    # Optional: staged image attachment
+    # main_images is REQUIRED by the endpoint, whether or not the run is
+    # changing the photo — TikTok rejected a description-only edit with
+    # "MainImages is a required field and has not been provided" (gate #1226
+    # walk run f6f2695e). B-4's sample cURL omits it, so the sample is not a
+    # complete required-field list; derive from the product instead.
     if params.attach_staged_image:
         if not context.staged_image_uri:
             raise UnresolvedStagedImageError(
@@ -270,6 +304,8 @@ def _build_listing_edit_body(
                 "staged_image_uri in run context"
             )
         body["main_images"] = [{"uri": context.staged_image_uri}]
+    else:
+        body["main_images"] = _extract_main_image_refs(context.product_detail)
 
     return body
 
