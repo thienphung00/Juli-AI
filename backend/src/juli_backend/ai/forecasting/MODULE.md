@@ -22,7 +22,11 @@ Read-only against `src/data` — no writes or migrations.
   `days_until_stockout`, `urgency_score`
 
 ### Reorder quantity computation (Issue #721)
-- `compute_reorder_quantity(risk, lead_time_days=3, safety_stock_days=2) -> float`
+- `REORDER_LEAD_TIME_DAYS`, `REORDER_SAFETY_STOCK_DAYS` — the reorder policy. Any
+  consumer displaying a *basis* to the seller must read these rather than restate
+  the numbers, or the basis can drift out of agreement with the quantity.
+- `compute_reorder_quantity(risk, lead_time_days=REORDER_LEAD_TIME_DAYS,
+  safety_stock_days=REORDER_SAFETY_STOCK_DAYS) -> float`
   — Suggested reorder quantity for a low-stock item based on sales velocity.
   For `daily_velocity > 0`, returns `ceil(daily_velocity * (lead_time_days + safety_stock_days))`
   with a floor of 1 unit. For `daily_velocity ≤ 0` (no recent sales), returns 10 units.

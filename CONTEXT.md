@@ -292,6 +292,17 @@ _Avoid_: AI Action Card, recommendation card (UI renderings — see **Action Car
 The Postgres persistence/API-layer name for the row backing a **Decision** — `action_cards` table, `ActionCardsRepo`, `POST /v1/action-cards/refresh`. 1:1 with one seller-facing Decision; layer-boundary naming split, not a competing synonym. Product/UI says "Decision"; backend says "Action Card."
 _Avoid_: "Action Card" in seller-facing copy; "Decision" as SQLAlchemy model name; conflating with unrelated `Recommendation` model
 
+**Card revision**:
+A successor Action Card for the *same* `(shop, workflow_key, subject)` — a new row linked to its
+predecessor by `supersedes_card_id`, never a counter updated in place and never a copy of the
+predecessor's payload. Emitted only when the subject's **Basis snapshot** has changed since the
+last executed revision; an unchanged basis suppresses with a named `suppressed_reason` instead.
+Distinct from the trailing identifiers in `workflow_key` (`optimize_product_2`,
+`process_order_5b`), which are catalog suffixes and carry no version meaning. See
+[ADR-087](docs/adr/087-subject-scoped-action-cards-and-card-revisions.md).
+_Avoid_: a bare `version` column (collides with `workflow_key` suffixes in every reader's head),
+copying the previous revision forward, re-offering an executed card on a timer alone
+
 ## Inventory
 
 **Phase 2 FBS-only fulfillment**:
@@ -447,7 +458,7 @@ The eventual concurrency model for agent workflow runs: a burst of run requests 
 _Avoid_: 100 concurrent agents (misreads the NFR as parallelism), Redis broker as the queue of record (ADR-041 — broker loss must be recoverable from Postgres `queued` rows)
 
 **Agent concurrency key (target NFR — out of scope for current phases)**:
-One agent per workflow per product: at most one active `WorkflowRun` per `(shop, workflow category, product)` — equivalently, one agent per subject-scoped **Action Card**, since a card is `(shop, category, subject)`. Two agents may work the same product **only under different categories** (e.g. Optimize Product + Inventory Management concurrently on product X); same category + same product queues. An "agent" is a `WorkflowRun` in flight — there is no persistent agent pool. A category may run many agents simultaneously (one per card), which requires cards to become subject-scoped (today's unique `(shop, workflow_key)` caps each category at one card). Cross-category field collisions on a shared product are arbitrated by the **Basis snapshot** guard, not admission-time exclusion. Supersedes (in the target design) the current `(shop_id, product_id)` partial unique index, which is too coarse — it blocks the allowed cross-category case.
+One agent per workflow per product: at most one active `WorkflowRun` per `(shop, workflow category, product)` — equivalently, one agent per subject-scoped **Action Card**, since a card is `(shop, category, subject)`. Two agents may work the same product **only under different categories** (e.g. Optimize Product + Inventory Management concurrently on product X); same category + same product queues. An "agent" is a `WorkflowRun` in flight — there is no persistent agent pool. A category may run many agents simultaneously (one per card), which requires cards to become subject-scoped (today's unique `(shop, workflow_key)` caps each category at one card). **Scheduled by [ADR-087](docs/adr/087-subject-scoped-action-cards-and-card-revisions.md)** (2026-08-26), which also amends ADR-082 d.1 — product binding moves from approval time to card generation — and excludes the `create_*` workflows, which have no pre-existing subject. Cross-category field collisions on a shared product are arbitrated by the **Basis snapshot** guard, not admission-time exclusion. Supersedes (in the target design) the current `(shop_id, product_id)` partial unique index, which is too coarse — it blocks the allowed cross-category case.
 _Avoid_: product-level exclusion across categories (blocks allowed concurrency), two agents on one Action Card, "agent" as a persistent worker entity
 
 **Agent progress surface (target NFR — out of scope for current phases)**:
@@ -483,8 +494,8 @@ The vendor-free logging floor shipped with the first-user security work — root
 _Avoid_: treating DOCP/OpenObserve as a prerequisite for having any security logs, calling journald-only logging "structured" before the `dictConfig` lands
 
 **Non-functional RLS policies**:
-The ten existing `USING (… = current_setting('app.current_user_id')::uuid)` policies (migrations 001, 002, 017, 019, 020, 022, 024). The backend never sets that GUC, so they have never scoped a row — they only deny by raising. Treat as **absent** until rewritten onto `auth.uid()` when 3.5-C Login mode ships client-direct `gold` reads.
-_Avoid_: citing these as existing tenant isolation, assuming RLS-enabled means RLS-working
+The **14** `USING (… = current_setting('app.current_user_id')::uuid)` policies on the deployed project (migrations 001, 002, 017, 019, 020, 022, 024). They have never scoped a row, for two independent reasons: the backend never sets that GUC, and the runtime role `postgres` both owns all 33 `public` tables and carries `rolbypassrls`, so the policies are never evaluated at all. Verified 2026-08-26 — `select current_setting('app.current_user_id')` raises `unrecognized configuration parameter`, yet `select count(*) from products` returns 120: proof the policy was skipped, not that it passed. The owner path cannot be closed from this repo (`NOBYPASSRLS` is superuser-only), so isolation is a **connection property**. Treat as **absent** until W7-A puts the runtime behind a non-owner `juli_app` role. See [ADR-086](docs/adr/086-runtime-database-role-and-tenant-isolation.md).
+_Avoid_: citing these as existing tenant isolation, assuming RLS-enabled means RLS-working, saying they "deny by raising" (they are bypassed, so they never raise), quoting "ten policies", expecting `FORCE ROW LEVEL SECURITY` to constrain a `BYPASSRLS` role
 
 ## CI / test lanes
 

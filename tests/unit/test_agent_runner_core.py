@@ -20,6 +20,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import uuid
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -53,6 +54,7 @@ from juli_backend.services.agent.status import StopReason, WorkflowRunStatus
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
+from juli_backend.services.agent.tools.terminal import register_terminal_tools
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CORE_MODULE_PATH = REPO_ROOT / "backend/src/juli_backend/services/agent/runner/core.py"
@@ -114,7 +116,15 @@ class _InMemoryConversationStore:
         self._store[workflow_run_id] = state if state is not None else RunState()
 
     async def load(self, workflow_run_id: uuid.UUID) -> RunState:
-        return self._store[workflow_run_id]
+        state = self._store[workflow_run_id]
+        # Simulate JsonbConversationStore.load() populating prompt_version/
+        # prompt_sha256 from the row (issue #1359). In-memory tests don't have
+        # a database row, so default to reasonable values if not already set.
+        if state.prompt_version is None:
+            state.prompt_version = "optimize_product.v1"
+        if state.prompt_sha256 is None:
+            state.prompt_sha256 = "0" * 64
+        return state
 
     async def persist(
         self,
@@ -181,7 +191,15 @@ class _RaisingLLMService:
         self._exc = exc
         self.call_count = 0
 
-    async def complete(self, *, messages: Any, system: str, tools: Any, config: Any) -> Any:
+    async def complete(
+        self,
+        *,
+        messages: Any,
+        system: str,
+        tools: Any,
+        config: Any,
+        tool_choice: str | None = None,
+    ) -> Any:
         self.call_count += 1
         raise self._exc
 
@@ -241,6 +259,7 @@ def _full_registry() -> ToolRegistry:
     registry = ToolRegistry()
     register_product_read_tools(registry)
     register_product_write_tools(registry)
+    register_terminal_tools(registry)
     return registry
 
 
@@ -248,12 +267,23 @@ def _minimal_playbook(steps: tuple[PlaybookStep, ...]) -> Playbook:
     """A `Playbook` sharing the real `optimize_product_2` workflow_key/version
     (so `compose()` still resolves a real prose binding) but with a
     caller-chosen, deliberately narrower step list — used by the allowlist
-    tests to prove a registered-but-unlisted tool is refused."""
+    tests to prove a registered-but-unlisted tool is refused.
+
+    The termination policy drops `terminal_tools` (ADR-088). These playbooks
+    carry a narrowed step list and a registry that does not register the
+    terminal tool, so declaring one would be inconsistent — and the runner
+    only arms its forced retry when a terminal tool is actually available,
+    precisely so it never forces a call the model cannot legitimately satisfy.
+    Without this, every scenario here gains an unscripted model call.
+
+    These tests are about block dispatch, allowlists and guards, not
+    termination semantics; the ADR-088 retry path is covered directly in
+    `test_agent_runner_forced_retry.py` against the real policy."""
     return Playbook(
         workflow_key=OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key,
         version=OPTIMIZE_PRODUCT_PLAYBOOK.version,
         steps=steps,
-        termination_policy=OPTIMIZE_PRODUCT_TERMINATION_POLICY,
+        termination_policy=replace(OPTIMIZE_PRODUCT_TERMINATION_POLICY, terminal_tools=()),
     )
 
 
@@ -752,6 +782,18 @@ class TestPromptStamping:
                 ),
                 _turn(ToolCallBlock(call_id="c2", tool_name="get_seo_keywords", arguments={})),
                 _turn(FinalResponse(content="Done.")),
+                # ADR-088: the real playbook's required_steps are incomplete
+                # here, so that FinalResponse arms one forced re-invocation.
+                # compose() must still have run exactly once — the retry reuses
+                # the already-composed system prompt, which is what this test
+                # exists to pin.
+                _turn(
+                    ToolCallBlock(
+                        call_id="c3",
+                        tool_name="conclude_without_changes",
+                        arguments={"reason": "nothing worth changing"},
+                    )
+                ),
             ]
         )
         runner = WorkflowRunner(
@@ -772,22 +814,105 @@ class TestPromptStamping:
             result = await runner.run(run_id, product_ref="prod-1")
 
         assert mock_compose.call_count == 1
-        assert len(llm.recorded_calls) == 3
+        # Four provider calls: two reads, the narration that arms ADR-088's
+        # forced retry, and the retry itself.
+        assert len(llm.recorded_calls) == 4
         systems = {call.system for call in llm.recorded_calls}
         assert len(systems) == 1  # identical system prompt on every iteration
+        # The retry reuses that same composed prompt and differs only in
+        # tool_choice — it must be the last call and the only forced one.
+        assert [call.tool_choice for call in llm.recorded_calls] == [
+            None,
+            None,
+            None,
+            "required",
+        ]
 
-        expected_version = prompt_version(
-            OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key, OPTIMIZE_PRODUCT_PLAYBOOK.version
-        )
-        expected_sha = prompt_sha256(
-            OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key, OPTIMIZE_PRODUCT_PLAYBOOK.version
-        )
+        # The prompt version should be derived from production_version(), not
+        # from OPTIMIZE_PRODUCT_PLAYBOOK.version (issue #1359). The playbook's
+        # version describes its steps and policies, not which prompt executes.
+        from juli_backend.services.agent.prompts.composer import production_version
+
+        prod_version = production_version(OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key)
+        expected_version = prompt_version(OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key, prod_version)
+        expected_sha = prompt_sha256(OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key, prod_version)
         assert result.prompt_version == expected_version
         assert result.prompt_sha256 == expected_sha
 
         started = [e for e in sink.events if e.event_type == "workflow.started"]
         assert len(started) == 1
         assert started[0].payload.prompt_version == expected_version
+
+
+# --- Guard: recorded pin and executed version never diverge (issue #1359) ------
+
+
+class TestPromptVersionConsistency:
+    """Guard test ensuring the stamped prompt pin and the executed prompt
+    version never diverge for any registered playbook (issue #1359,
+    ADR-072 decision 4).
+
+    Parametrized so new playbooks are automatically covered. Includes a
+    non-vacuity check that the registry is not empty.
+    """
+
+    @pytest.mark.parametrize("playbook", [OPTIMIZE_PRODUCT_PLAYBOOK])
+    def test_approval_stamp_matches_runner_composition(self, playbook: Playbook) -> None:
+        """What approval.py::_resolve_prompt_pin stamps on the row should
+        equal what WorkflowRunner composes and executes (issue #1359).
+
+        A mismatch means the recorded pin says one thing while another prompt
+        executes — defeating ADR-072 d.4's "what runs is what was reviewed".
+        """
+        from juli_backend.services.agent.prompts.composer import (
+            production_version,
+            prompt_sha256,
+            prompt_version,
+        )
+
+        # Non-vacuity guard: this list should not be empty.
+        assert [OPTIMIZE_PRODUCT_PLAYBOOK], (
+            "This test must have at least one playbook to validate; "
+            "if all playbooks were removed, this test would pass vacuously."
+        )
+
+        # What approval.py::_resolve_prompt_pin produces (the row stamp).
+        workflow_key = playbook.workflow_key
+        prod_version = production_version(workflow_key)
+        stamped_version = prompt_version(workflow_key, prod_version)
+        stamped_sha = prompt_sha256(workflow_key, prod_version)
+
+        # What WorkflowRunner._compose_prompt() produces (the execution).
+        # The runner should derive both from production_version, never from
+        # playbook.version (the bug that #1359 fixes).
+        runner = WorkflowRunner(
+            llm_service=FakeLLMService(script=[]),
+            tool_executor=_DummyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=_InMemoryConversationStore(),
+            registry=_full_registry(),
+            playbook=playbook,
+        )
+        composed_prompt, composed_version, composed_sha = runner._compose_prompt()
+
+        # The assertion: both must agree.
+        assert composed_version == stamped_version, (
+            f"Stamped version {stamped_version!r} != composed version {composed_version!r} "
+            f"for playbook {playbook.workflow_key!r} — #1359 regression"
+        )
+        assert composed_sha == stamped_sha, (
+            f"Stamped SHA {stamped_sha!r} != composed SHA {composed_sha!r} "
+            f"for playbook {playbook.workflow_key!r} — #1359 regression"
+        )
+
+
+class _DummyToolExecutor:
+    """Minimal tool executor for guard test — never called."""
+
+    def execute(
+        self, *, tool_name: str, params: Any, tool_call_id: str | None = None
+    ) -> dict[str, Any]:
+        raise NotImplementedError("DummyToolExecutor should not be called in this test")
 
 
 # --- AC: happy path, end to end -------------------------------------------------
@@ -816,6 +941,17 @@ class TestHappyPath:
                     ),
                     _turn(ToolCallBlock(call_id="c2", tool_name="get_seo_keywords", arguments={})),
                     _turn(FinalResponse(content="Here is what I found and updated.")),
+                    # ADR-088: with the real playbook, that FinalResponse leaves
+                    # required_steps incomplete, so the runner arms one forced
+                    # re-invocation instead of terminating. The model then takes
+                    # the legitimate exit rather than narrating again.
+                    _turn(
+                        ToolCallBlock(
+                            call_id="c3",
+                            tool_name="conclude_without_changes",
+                            arguments={"reason": "listing already matches its photo and copy"},
+                        )
+                    ),
                 ]
             ),
             tool_executor=executor,
@@ -828,15 +964,14 @@ class TestHappyPath:
         result = await runner.run(run_id, product_ref="prod-1")
 
         assert isinstance(result, RunResult)
-        assert result.stop_reason == StopReason.FINAL_RESPONSE
+        assert result.stop_reason == StopReason.CONCLUDED_WITHOUT_CHANGES
         assert result.status == WorkflowRunStatus.COMPLETED
-        assert result.final_response == "Here is what I found and updated."
         assert products.get_details_calls == ["p1"]
         assert products.get_seo_words_calls == [["p1"]]
 
         completed = [e for e in sink.events if e.event_type == "workflow.completed"]
         assert len(completed) == 1
-        assert completed[0].payload.stop_reason == StopReason.FINAL_RESPONSE
+        assert completed[0].payload.stop_reason == StopReason.CONCLUDED_WITHOUT_CHANGES
 
 
 # --- AC: exception translation for llm_error / concurrency_conflict /

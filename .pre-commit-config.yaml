@@ -24,3 +24,19 @@ repos:
       - id: conventional-pre-commit
         stages: [commit-msg]
         args: [feat, fix, refactor, docs, test, chore, perf, ci]
+
+  # #1384: backstop for .claude/hooks/executor_cache_gate.py. That gate is a
+  # PreToolUse hook on Edit|Write|MultiEdit|NotebookEdit, so any shell write
+  # (sed -i, a heredoc, cat >, tee, a script) never reaches it — which is the
+  # path of least resistance for mechanical bulk edits, so it gets crossed by
+  # accident rather than by intent. This checks the staged diff instead, which
+  # no write mechanism can route around. Both share .claude/hooks/_gate_rules.py
+  # so the policy is written once.
+  - repo: local
+    hooks:
+      - id: executor-cache-gate
+        name: executor cache gate (staged product code on an issue branch)
+        entry: python3 .claude/hooks/executor_cache_precommit.py
+        language: system
+        pass_filenames: false
+        always_run: true

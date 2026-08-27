@@ -9,6 +9,7 @@ constructs a runner around this object and the `ConversationStore` protocol
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -80,6 +81,14 @@ class RunState:
       `running_seconds_elapsed` integer column (#1117) is a separate,
       denormalized mirror the runner writes from this value — not this
       field itself.
+    - `prompt_version`: the prompt version string executed by this run
+      (populated by ConversationStore.load from the workflow_runs row,
+      issue #1359). Used by resume() to ensure the resumed run executes the
+      same prompt version it was originally stamped with, not a later
+      production version bump.
+    - `prompt_sha256`: the SHA256 hash of the executed prompt (populated by
+      ConversationStore.load from the workflow_runs row, issue #1359). Paired
+      with prompt_version for integrity checking.
     """
 
     conversation_window: list[ConversationMessage] = field(default_factory=list)
@@ -96,7 +105,14 @@ class RunState:
     next_sequence: int = 1
     pending_confirmation: dict[str, Any] | None = None
     basis_snapshots: dict[str, str] = field(default_factory=dict)
+    # `product_detail` — the raw product information read by `get_product_information`,
+    # persisted here so WRITE handlers on the resume leg can access it without a
+    # second vendor call. Issue #1389, ADR-073 decision 1 (survives pause). None if
+    # no product has been read yet, or if reading is deferred to the resume leg.
+    product_detail: Mapping[str, Any] | None = None
     running_seconds_elapsed: float = 0.0
+    prompt_version: str | None = None
+    prompt_sha256: str | None = None
 
     # Fields present on a deserialized blob that this version of RunState
     # does not recognize (ADR-073 decision 5, the P-CS forward-compat
@@ -149,6 +165,12 @@ class RunState:
             "basis_snapshots": dict(self.basis_snapshots),
             "running_seconds_elapsed": self.running_seconds_elapsed,
         }
+        if self.prompt_version is not None:
+            blob["prompt_version"] = self.prompt_version
+        if self.prompt_sha256 is not None:
+            blob["prompt_sha256"] = self.prompt_sha256
+        if self.product_detail is not None:
+            blob["product_detail"] = dict(self.product_detail)
         blob.update(self.unknown_fields)
         return blob
 
@@ -171,7 +193,19 @@ class RunState:
             raise RunStateFieldMissingError(
                 f"RunState blob missing required field(s): {', '.join(missing)}"
             )
-        unknown = {key: value for key, value in blob.items() if key not in _KNOWN_FIELDS}
+        # Optional fields added after initial schema — not in _KNOWN_FIELDS
+        # so old blobs without them deserialize cleanly. Exclude them from
+        # unknown_fields since we handle them explicitly.
+        optional_fields = {
+            "prompt_version",  # issue #1359
+            "prompt_sha256",  # issue #1359
+            "product_detail",  # issue #1389
+        }
+        unknown = {
+            key: value
+            for key, value in blob.items()
+            if key not in _KNOWN_FIELDS and key not in optional_fields
+        }
         return cls(
             conversation_window=list(blob["conversation_window"]),
             iteration_count=blob["iteration_count"],
@@ -180,5 +214,8 @@ class RunState:
             pending_confirmation=blob["pending_confirmation"],
             basis_snapshots=dict(blob["basis_snapshots"]),
             running_seconds_elapsed=blob["running_seconds_elapsed"],
+            prompt_version=blob.get("prompt_version"),
+            prompt_sha256=blob.get("prompt_sha256"),
+            product_detail=blob.get("product_detail"),
             unknown_fields=unknown,
         )

@@ -208,6 +208,7 @@ accumulator either before or after this issue's fix.
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from collections.abc import Callable
@@ -247,8 +248,16 @@ from juli_backend.services.agent.llm import (
 )
 from juli_backend.services.agent.llm.openai_adapter import LLMProviderError
 from juli_backend.services.agent.playbooks.base import Playbook
-from juli_backend.services.agent.prompts.composer import compose, prompt_sha256, prompt_version
-from juli_backend.services.agent.runner.concurrency import ConcurrencyExhaustedError
+from juli_backend.services.agent.prompts.composer import (
+    compose,
+    production_version,
+    prompt_sha256,
+    prompt_version,
+)
+from juli_backend.services.agent.runner.concurrency import (
+    ConcurrencyExhaustedError,
+    ConcurrencyGuard,
+)
 from juli_backend.services.agent.runner.confirmation import (
     build_confirmation_options,
     compute_params_sha,
@@ -262,6 +271,7 @@ from juli_backend.services.agent.runner.state import ConversationMessage, RunSta
 from juli_backend.services.agent.runner.termination import (
     IterationGateAction,
     accumulate_running_seconds,
+    completed_required_steps,
     evaluate_checkpoint,
     evaluate_iteration_gate,
     extension_grant_narration,
@@ -279,6 +289,8 @@ from juli_backend.services.agent.sanitize import (
 from juli_backend.services.agent.status import StopReason, WorkflowRunStatus, status_for
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry, ToolSpec, UnknownToolError
 from juli_backend.services.execution.types import ExecutionErrorCategory
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -376,9 +388,21 @@ class WorkflowRunner:
         llm_config: LLMConfig | None = None,
         clock: Callable[[], float] | None = None,
         cancel_check: Callable[[], bool] | None = None,
+        concurrency_guard: ConcurrencyGuard | None = None,
     ) -> None:
         self._llm_service = llm_service
         self._tool_executor = tool_executor
+        # Issue #1382. The guard holds the compare-before-write basis in
+        # memory; `RunState.basis_snapshots` is what survives a pause. The
+        # runner is given the SAME guard instance the ToolExecutor got, purely
+        # so it can copy that basis into state before each persist. Without
+        # this the basis is captured on the first leg, discarded at the pause,
+        # and the resume leg -- where every CONFIRM write happens by
+        # construction -- compares against an empty basis and refuses the
+        # write as a conflict. Optional so the many tests that construct a
+        # runner without a guard keep working; when absent, `_sync_basis` is
+        # a no-op and behaviour is unchanged.
+        self._concurrency_guard = concurrency_guard
         self._event_sink = event_sink
         self._conversation_store = conversation_store
         self._registry = registry
@@ -388,8 +412,60 @@ class WorkflowRunner:
         self._cancel_check: Callable[[], bool] = (
             cancel_check if cancel_check is not None else (lambda: False)
         )
-        self._allowed_tool_names: frozenset[str] = frozenset(
-            tool_name for step in playbook.steps for tool_name in step.tools
+        # Build allowed tool names from playbook steps and terminal tools.
+        # Terminal tools are side-effect-free tools that can end a run without
+        # proposing changes (ADR-088 decision 1).
+        step_tools = {tool_name for step in playbook.steps for tool_name in step.tools}
+        terminal_tools = set(playbook.termination_policy.terminal_tools)
+        self._allowed_tool_names: frozenset[str] = frozenset(step_tools | terminal_tools)
+
+    def _compose_prompt(self) -> tuple[str, str, str]:
+        """Compose the system prompt and its stamp from the PRODUCTION prompt
+        version, never the playbook's own `version`.
+
+        `approval.py::_resolve_prompt_pin` writes `workflow_runs.prompt_version`
+        from `production_version()`. Composing here from `self._playbook.version`
+        instead let the two diverge silently: run `ac992b92` was recorded as
+        `optimize_product.v2` while actually executing v1 (#1359), defeating
+        ADR-072 decision 4's "what runs is what was reviewed". A playbook's
+        `version` describes its steps and policies; it does not decide which
+        prompt text runs.
+        """
+        version = production_version(self._playbook.workflow_key)
+        return (
+            compose(self._playbook.workflow_key, version),
+            prompt_version(self._playbook.workflow_key, version),
+            prompt_sha256(self._playbook.workflow_key, version),
+        )
+
+    def _compose_prompt_at_version(self, prompt_version_str: str) -> tuple[str, str, str]:
+        """Compose the system prompt from a specific, already-stamped version
+        string (issue #1359, ADR-075 decision 2).
+
+        Used by `resume()` to ensure the resumed run executes the same prompt
+        version it was originally stamped with, even if production_version has
+        bumped between pause and resume — preserving consent binding.
+
+        `prompt_version_str` is in the format "workflow_key_binding.vN" (e.g.,
+        "optimize_product.v1"), from which we extract the version number N.
+        Supports both dot and slash separators for robustness in test/legacy data.
+        """
+        # Extract version number: find the rightmost 'v' followed by digits
+        # Format is typically "optimize_product.v1" or "optimize_product_2/v1"
+        if ".v" in prompt_version_str:
+            version_str = prompt_version_str.split(".v")[-1]
+        elif "/v" in prompt_version_str:
+            version_str = prompt_version_str.split("/v")[-1]
+        else:
+            raise ValueError(
+                f"Cannot parse version from prompt_version string {prompt_version_str!r}; "
+                "expected format 'workflow_key_binding.vN' or 'workflow_key_binding/vN'"
+            )
+        version = int(version_str)
+        return (
+            compose(self._playbook.workflow_key, version),
+            prompt_version(self._playbook.workflow_key, version),
+            prompt_sha256(self._playbook.workflow_key, version),
         )
 
     async def run(self, workflow_run_id: uuid.UUID, *, product_ref: str) -> RunResult:
@@ -411,9 +487,7 @@ class WorkflowRunner:
         """
         state = await self._conversation_store.load(workflow_run_id)
 
-        system_prompt = compose(self._playbook.workflow_key, self._playbook.version)
-        version_str = prompt_version(self._playbook.workflow_key, self._playbook.version)
-        sha256 = prompt_sha256(self._playbook.workflow_key, self._playbook.version)
+        system_prompt, version_str, sha256 = self._compose_prompt()
         tool_definitions = self._tool_definitions()
 
         await self._emit(
@@ -572,9 +646,63 @@ class WorkflowRunner:
             durable=True,
         )
 
-        system_prompt = compose(self._playbook.workflow_key, self._playbook.version)
-        version_str = prompt_version(self._playbook.workflow_key, self._playbook.version)
-        sha256 = prompt_sha256(self._playbook.workflow_key, self._playbook.version)
+        # Use the stored prompt version from when the run was originally created
+        # (issue #1359, ADR-075 decision 2). A production bump between pause and
+        # resume must not switch prompts mid-run — the seller consented to the
+        # original prompt, not a newer one. state.prompt_version is loaded from
+        # the workflow_runs row by ConversationStore.load().
+        # Fail-closed (ADR-072 d.4): do not execute if the version is unrecoverable,
+        # to preserve "what runs is what was reviewed".
+        if state.prompt_version is None or state.prompt_sha256 is None:
+            logger.warning(
+                "prompt_version_missing_on_resume: run_id=%s reason=pre_fix_run_or_missing_data",
+                workflow_run_id,
+            )
+            stop = await self._terminate(
+                workflow_run_id,
+                state,
+                StopReason.PROMPT_VERSION_UNRECOVERABLE,
+                version_str="",
+                sha256="",
+            )
+            await self._conversation_store.persist(
+                workflow_run_id,
+                state,
+                status=stop.status,
+                stop_reason=stop.stop_reason,
+                required_steps_completed=self._required_steps_completed(state),
+                running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+            )
+            return stop
+
+        try:
+            system_prompt, version_str, sha256 = self._compose_prompt_at_version(
+                state.prompt_version
+            )
+        except (ValueError, IndexError) as exc:
+            logger.warning(
+                "prompt_version_unparseable_on_resume: run_id=%s "
+                "reason=corrupt_or_malformed_version prompt_version=%s error=%s",
+                workflow_run_id,
+                state.prompt_version,
+                str(exc),
+            )
+            stop = await self._terminate(
+                workflow_run_id,
+                state,
+                StopReason.PROMPT_VERSION_UNRECOVERABLE,
+                version_str="",
+                sha256="",
+            )
+            await self._conversation_store.persist(
+                workflow_run_id,
+                state,
+                status=stop.status,
+                stop_reason=stop.stop_reason,
+                required_steps_completed=self._required_steps_completed(state),
+                running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+            )
+            return stop
         tool_definitions = self._tool_definitions()
 
         pending = state.pending_confirmation
@@ -747,6 +875,13 @@ class WorkflowRunner:
             raw_result = self._tool_executor.execute(
                 tool_name=tool_name, params=params, tool_call_id=call_id
             )
+            # #1382: the guard just updated its in-memory basis (on a read, or
+            # via the post-write refresh). Mirror it into state now, while we
+            # are still on this leg — after the pause it is unrecoverable.
+            self._sync_basis(state)
+            # #1389: if a product was read (for the concurrency basis), persist
+            # the raw detail to state so it survives the pause.
+            self._sync_product_detail(state)
         except ConcurrencyExhaustedError:
             # Mirrors `_dispatch_tool_call`'s handling (issue #1172) — this
             # is the second of the two dispatch sites `ToolExecutor.execute`
@@ -830,6 +965,15 @@ class WorkflowRunner:
         """
         consecutive_malformed = 0
         policy = self._playbook.termination_policy
+        # ADR-088: the forced retry rides the main loop rather than nesting its
+        # own dispatch. `next_tool_choice` applies to exactly the next
+        # provider call and is cleared as soon as it is spent, and
+        # `forced_retry_used` bounds it to one per run. Riding the loop is what
+        # keeps the top-of-iteration checkpoint and the iteration gate ahead of
+        # it, so `iteration_cap_exceeded` and `wall_clock_timeout` keep their
+        # precedence instead of being masked by `required_steps_unfulfilled`.
+        forced_retry_used = False
+        next_tool_choice: str | None = None
 
         while True:
             # --- checkpoint: top of iteration (ADR-073 decision 2) ---------
@@ -905,6 +1049,7 @@ class WorkflowRunner:
                     system=system_prompt,
                     tools=tool_definitions,
                     config=self._llm_config,
+                    tool_choice=next_tool_choice,
                 )
             except LLMProviderError:
                 # The one concrete LLMService's own typed exception surface
@@ -930,6 +1075,8 @@ class WorkflowRunner:
                 )
                 return stop
             state.iteration_count += 1
+            # Whatever forced choice was set, the call above has spent it.
+            next_tool_choice = None
 
             stop = None
             for block in turn.blocks:
@@ -938,6 +1085,97 @@ class WorkflowRunner:
                     await self._append_text_block(workflow_run_id, state, block)
                 elif isinstance(block, FinalResponse):
                     consecutive_malformed = 0
+                    # ADR-088: this — not a text-only turn — is how "the model
+                    # narrated instead of acting" actually arrives. The real
+                    # adapter emits a bare TextBlock ONLY alongside tool calls;
+                    # with no function_call items it emits a FinalResponse
+                    # (llm/openai_adapter.py). Gating the forced retry on a
+                    # TextBlock-only turn therefore made it unreachable in
+                    # production while every fake-LLM test passed, because the
+                    # fake emits TextBlock directly. Run 2c961380 terminated
+                    # final_response with required_steps incomplete and no
+                    # retry attempted.
+                    #
+                    # So intercept the FinalResponse once: append the narration
+                    # for continuity, arm one re-invocation with
+                    # tool_choice="required", and let the main loop make it, so
+                    # the top-of-iteration checkpoint and the iteration gate
+                    # keep precedence over required_steps_unfulfilled.
+                    # `policy.terminal_tools` is a precondition, not a
+                    # convenience: forcing tool_choice="required" when the
+                    # model has no legitimate "nothing to do" call available
+                    # would coerce a bogus write on a run that genuinely has
+                    # nothing to propose — the exact hazard ADR-088 names as
+                    # its reason for introducing a terminal tool at all. A
+                    # playbook that declares required_steps but no terminal
+                    # tool therefore keeps the old terminate-on-final
+                    # behaviour.
+                    if policy.terminal_tools and not self._required_steps_completed(state):
+                        if not forced_retry_used:
+                            # Guard BEFORE the interception appends or emits
+                            # anything. `_finalize` runs this same chokepoint,
+                            # but the retry path bypasses `_finalize` entirely,
+                            # so without this a banned-pattern narration would
+                            # reach the conversation window and the event
+                            # stream unchecked (ADR-070). Terminating here
+                            # keeps the blocked body out of both, exactly as
+                            # `_finalize` does.
+                            try:
+                                guard_outbound_agent_output(
+                                    {
+                                        "content": block.content,
+                                        "structured_output": block.structured_output,
+                                    }
+                                )
+                            except BannedPatternGuardFailure:
+                                stop = await self._terminate(
+                                    workflow_run_id,
+                                    state,
+                                    StopReason.OUTPUT_VALIDATION_FAILED,
+                                    version_str,
+                                    sha256,
+                                )
+                                break
+                            forced_retry_used = True
+                            next_tool_choice = "required"
+                            await self._append_text_block(
+                                workflow_run_id, state, TextBlock(text=block.content)
+                            )
+                            break
+                        # The retry was spent and the model narrated again.
+                        #
+                        # #1383: which terminal this is depends on whether the
+                        # run did ANY required work, not whether it did ALL of
+                        # it. `required_steps_unfulfilled` is the ADR-088 d.2
+                        # defect signal for a run that took no qualifying
+                        # action at all. A run that acted on some required
+                        # steps and honestly declined the rest is what ADR-073
+                        # d.2 protects — "honest outcome data ... not a
+                        # synthetic failure" — and ends `final_response`. Gate
+                        # #1226 walk run 675bb11e did the listing change and
+                        # declined the price change because inventory is 0, a
+                        # correct judgement, and was recorded failed.
+                        #
+                        # The partial fact is not lost: `required_steps_completed`
+                        # is still persisted False (#1220), so the
+                        # execution-quality metric keeps it without the stop
+                        # reason having to carry two meanings.
+                        if completed_required_steps(
+                            state.conversation_window,
+                            self._playbook.termination_policy.required_steps,
+                        ):
+                            stop = await self._finalize(
+                                workflow_run_id, state, block, version_str, sha256
+                            )
+                            break
+                        stop = await self._terminate(
+                            workflow_run_id,
+                            state,
+                            StopReason.REQUIRED_STEPS_UNFULFILLED,
+                            version_str,
+                            sha256,
+                        )
+                        break
                     stop = await self._finalize(workflow_run_id, state, block, version_str, sha256)
                     break
                 elif isinstance(block, ToolCallBlock):
@@ -982,9 +1220,26 @@ class WorkflowRunner:
                             stop = await self._give_up(workflow_run_id, state, version_str, sha256)
                             break
                     else:
+                        # Not MALFORMED: handle SUCCESS (terminal tool check)
+                        # and reset malformed streak for all other outcomes
+                        if outcome is _ToolCallOutcome.SUCCESS:
+                            # Check if this was the terminal tool
+                            if block.tool_name == "conclude_without_changes":
+                                stop = await self._finalize_with_conclude_without_changes(
+                                    workflow_run_id, state, version_str, sha256
+                                )
+                                break
                         consecutive_malformed = 0
                 else:  # pragma: no cover - Block is a closed union, this is defensive
                     raise TypeError(f"WorkflowRunner cannot dispatch block type {type(block)!r}")
+
+            # --- forced retry for incomplete required_steps (ADR-088) --------
+            # NOTE: the forced retry is armed in the FinalResponse branch
+            # above, not here. An earlier revision gated it on a text-only turn
+            # (`saw_text and not saw_actionable`), which is a block shape the
+            # real adapter never produces when the model declines to act — it
+            # emits FinalResponse instead — so the retry was unreachable in
+            # production while every fake-LLM test passed.
 
             elapsed = self._clock() - iteration_started_at
             state.running_seconds_elapsed = accumulate_running_seconds(
@@ -1096,6 +1351,8 @@ class WorkflowRunner:
             raw_result = self._tool_executor.execute(
                 tool_name=block.tool_name, params=params, tool_call_id=block.call_id
             )
+            self._sync_basis(state)  # #1382 — see the sibling dispatch site
+            self._sync_product_detail(state)  # #1389 — product persists across pause
         except ConcurrencyExhaustedError:
             # A second same-operation basis-hash mismatch (ADR-073 decision
             # 4) — the run ends here, translated by `_drive_loop` via
@@ -1440,6 +1697,33 @@ class WorkflowRunner:
             iteration_count=state.iteration_count,
         )
 
+    async def _finalize_with_conclude_without_changes(
+        self,
+        workflow_run_id: uuid.UUID,
+        state: RunState,
+        version_str: str,
+        sha256: str,
+    ) -> RunResult:
+        """Terminal outcome when conclude_without_changes tool is successfully
+        called (ADR-088 decision 1). The tool itself has no side effects; this
+        method emits the completion event and returns with the appropriate
+        stop_reason."""
+        stop_reason = StopReason.CONCLUDED_WITHOUT_CHANGES
+        await self._emit(
+            workflow_run_id,
+            state,
+            WorkflowCompletedEvent,
+            WorkflowCompletedPayload(stop_reason=stop_reason),
+        )
+        return RunResult(
+            stop_reason=stop_reason,
+            status=status_for(stop_reason),
+            final_response=None,
+            prompt_version=version_str,
+            prompt_sha256=sha256,
+            iteration_count=state.iteration_count,
+        )
+
     async def _terminate(
         self,
         workflow_run_id: uuid.UUID,
@@ -1504,11 +1788,12 @@ class WorkflowRunner:
 
     def _tool_definitions(self) -> tuple[ToolDefinition, ...]:
         """The model-facing tool list, rendered from the active `Playbook`'s
-        own allowlist — the same source `_dispatch_tool_call` enforces
-        against, so what the model is told it can call and what the
-        executor accepts cannot disagree (ADR-072 decision 2)."""
+        own allowlist plus terminal tools — the same source `_dispatch_tool_call`
+        enforces against, so what the model is told it can call and what the
+        executor accepts cannot disagree (ADR-072 decision 2, ADR-088 decision 1)."""
         seen: set[str] = set()
         definitions: list[ToolDefinition] = []
+        # Add step tools first
         for step in self._playbook.steps:
             for tool_name in step.tools:
                 if tool_name in seen:
@@ -1522,7 +1807,51 @@ class WorkflowRunner:
                         "input_schema": spec.render_input_schema(),
                     }
                 )
+        # Then add terminal tools (ADR-088 decision 1)
+        for tool_name in self._playbook.termination_policy.terminal_tools:
+            if tool_name in seen:
+                continue
+            seen.add(tool_name)
+            spec = self._registry.get(tool_name)
+            definitions.append(
+                {
+                    "name": spec.name,
+                    "description": spec.description,
+                    "input_schema": spec.render_input_schema(),
+                }
+            )
         return tuple(definitions)
+
+    def _sync_basis(self, state: RunState) -> None:
+        """Copy the guard's in-memory compare-before-write basis into
+        `RunState`, so it survives the pause/resume boundary (issue #1382).
+
+        `ConcurrencyGuard` is the working copy; `RunState.basis_snapshots` is
+        the persisted one that `workers/tasks/agent_workflow.py` reads back to
+        seed a fresh guard on resume. Nothing wrote to it before this, so the
+        resume leg always started empty and every seller-confirmed write was
+        refused as a conflict.
+        """
+        if self._concurrency_guard is None:
+            return
+        state.basis_snapshots = dict(self._concurrency_guard.basis_snapshot)
+
+    def _sync_product_detail(self, state: RunState) -> None:
+        """Copy the guard's captured product detail into `RunState`, so it
+        survives the pause/resume boundary (issue #1389).
+
+        When get_product_information reads the product for the concurrency
+        basis, the raw product is stored in the guard and must be persisted
+        to state.product_detail before the pause. The resume leg then
+        retrieves it and passes it to a fresh executor, so
+        update_product_listing can access the full product detail without
+        a second vendor call.
+        """
+        if self._concurrency_guard is None:
+            return
+        product_detail = self._concurrency_guard.get_product_detail()
+        if product_detail is not None:
+            state.product_detail = dict(product_detail)
 
     async def _emit(
         self,

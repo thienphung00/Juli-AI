@@ -272,7 +272,7 @@ def test_payload_field_sets_match_between_python_and_typescript(event_type):
 # ---------------------------------------------------------------------------
 
 
-def test_workflow_failed_stop_reason_to_status_mapping_matches_python_for_all_ten_members():
+def test_workflow_failed_stop_reason_to_status_mapping_matches_python_for_all_twelve_members():
     introspected = _ts_introspect()
     ts_mapping = introspected["workflowFailedStopReasonToStatus"]
 
@@ -291,8 +291,13 @@ def test_workflow_failed_stop_reason_to_status_mapping_matches_python_for_all_te
         "concurrency_conflict",
         "output_validation_failed",
         "worker_lost",
+        "prompt_version_unrecoverable",
+        # ADR-088: the model narrated instead of acting even after the one forced
+        # retry. `concluded_without_changes` is deliberately absent — that is the
+        # honest negative ADR-073 d.2 protects and maps to `completed`.
+        "required_steps_unfulfilled",
     }
-    assert len(python_mapping) == 10
+    assert len(python_mapping) == 12
 
     assert set(ts_mapping) == set(python_mapping), (
         f"stop_reason membership diverges -- python-only={set(python_mapping) - set(ts_mapping)}, "

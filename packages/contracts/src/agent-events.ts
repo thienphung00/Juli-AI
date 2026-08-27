@@ -67,6 +67,14 @@ export const STOP_REASONS = [
   "concurrency_conflict",
   "output_validation_failed",
   "worker_lost",
+  // Issue #1359 amendment: fail-closed resume when stored prompt version
+  // is missing or unparseable (ADR-072 decision 4, ADR-075 decision 2).
+  "prompt_version_unrecoverable",
+  // ADR-088 decision 2: model explicitly called the terminal tool
+  // conclude_without_changes to end a run without proposing any action.
+  "concluded_without_changes",
+  // ADR-088 decision 2: forced retry spent, model still emitted no call.
+  "required_steps_unfulfilled",
 ] as const;
 
 export type StopReason = (typeof STOP_REASONS)[number];
@@ -105,6 +113,8 @@ export const WORKFLOW_FAILED_STOP_REASON_TO_STATUS: Readonly<
       | "concurrency_conflict"
       | "output_validation_failed"
       | "worker_lost"
+      | "prompt_version_unrecoverable"
+      | "required_steps_unfulfilled"
     >,
     WorkflowRunStatus
   >
@@ -119,6 +129,8 @@ export const WORKFLOW_FAILED_STOP_REASON_TO_STATUS: Readonly<
   concurrency_conflict: "failed",
   output_validation_failed: "failed",
   worker_lost: "failed",
+  prompt_version_unrecoverable: "failed",
+  required_steps_unfulfilled: "failed",
 };
 
 // ---------------------------------------------------------------------------

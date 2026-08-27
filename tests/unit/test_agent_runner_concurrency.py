@@ -856,7 +856,7 @@ def _new_run(shop_id: uuid.UUID, product_id: uuid.UUID, *, status: str) -> Workf
         product_id=product_id,
         state={},
         status=status,
-        prompt_version="v1",
+        prompt_version="optimize_product.v1",
         prompt_sha256="0" * 64,
     )
 

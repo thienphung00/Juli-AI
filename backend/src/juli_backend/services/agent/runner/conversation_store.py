@@ -259,7 +259,15 @@ class JsonbConversationStore:
         run = await self._session.get(WorkflowRun, workflow_run_id)
         if run is None:
             raise NotFound(f"WorkflowRun {workflow_run_id} not found")
-        return RunState.from_dict(run.state)
+        state = RunState.from_dict(run.state)
+        # Populate prompt_version and prompt_sha256 from the run row (issue
+        # #1359). These are stored as separate columns, not in the state blob,
+        # so resume() can ensure it executes the same prompt version the run
+        # was originally stamped with, even if production_version has bumped
+        # between pause and resume.
+        state.prompt_version = run.prompt_version
+        state.prompt_sha256 = run.prompt_sha256
+        return state
 
     async def persist(
         self,

@@ -632,9 +632,11 @@ class WorkflowRun(Base):
             "stop_reason IS NULL OR stop_reason IN ("
             "'final_response', 'confirmation_declined', 'paused_for_confirmation', "
             "'cancelled_by_seller', 'confirmation_expired', 'confirmation_diverged', "
+            "'prompt_version_unrecoverable', "
             "'iteration_cap_exceeded', "
             "'wall_clock_timeout', 'tool_error_unrecoverable', 'llm_error', "
-            "'concurrency_conflict', 'output_validation_failed', 'worker_lost')",
+            "'concurrency_conflict', 'output_validation_failed', 'worker_lost', "
+            "'concluded_without_changes', 'required_steps_unfulfilled')",
             name="ck_workflow_runs_stop_reason",
         ),
     )

@@ -1,0 +1,89 @@
+# AGT-W5A-CONFIRMPROMPT — #1213 W5 gate-walk chain, blocker #1356. The
+# Optimize Product prompt's Section 7 worked example ends a run by narrating
+# a prose promise ("mình sẽ chờ bạn phê duyệt") instead of calling the
+# CONFIRM-policy `update_product_listing` tool, so every live run at gate
+# #1226 reached final_response with pending_confirmation null — the
+# seller-consent path (#1224, ADR-075) has never executed against reality.
+# Sibling of AGT-W5A (same #1213 approval-gate lane) but a distinct file
+# surface — services/agent/prompts/, services/agent/prompts/composer.py's
+# PRODUCTION_PROMPT_VERSION pin, and the family of prompt-gate tests, not
+# runner/core.py or api/routes/agent_runs.py — so it gets its own slice
+# rather than widening AGT-W5A's requiredModules for one hotfix. Precedent:
+# AGT-W5A-READROUTE was split out the same way for #1302.
+#
+# PROMPT VERSIONING, READ THIS BEFORE EDITING:
+# - v1.md is RELEASED (PRODUCTION_PROMPT_VERSION["optimize_product_2"] == 1
+#   in composer.py) and therefore IMMUTABLE per ADR-072 d.4. Editing it
+#   in place fails tests/unit/test_agent_prompt_snapshot_gate.py's
+#   byte-for-byte golden-fixture comparison — that test is HARDCODED to
+#   compose(WORKFLOW_KEY, 1) and is not parametrized by version. The fix is
+#   a NEW backend/src/juli_backend/services/agent/prompts/optimize_product/v2.md.
+# - Every one of the five prompt-gate test files under tests/unit/ —
+#   test_agent_prompt_compose.py, test_agent_prompt_snapshot_gate.py,
+#   test_agent_prompt_playbook_consistency_gate.py,
+#   test_agent_prompt_copy_governance_gate.py, and
+#   test_agent_prompt_budget_gate.py — is ALSO hardcoded to
+#   compose(WORKFLOW_KEY, 1) and to PRODUCTION_PROMPT_VERSION[...] == 1
+#   (see test_agent_prompt_compose.py's
+#   test_production_prompt_version_is_a_plain_module_level_dict and
+#   test_production_version_helper_returns_the_pinned_constant). Bumping the
+#   pin to 2 without updating all five breaks them; each needs either a
+#   version bump to 2 or a new v2-scoped counterpart, plus a new golden
+#   fixture at tests/fixtures/agent_prompt_gates/ (naming convention:
+#   optimize_product_v1_composed.golden.md — the v2 file follows the same
+#   pattern). test_agent_prompt_optimize_product_v1_contract.py stays
+#   scoped to v1 unchanged (it is a contract test on the v1 file, which is
+#   not edited); write its v2 counterpart alongside the new file rather
+#   than mutating it.
+# - prompt_sha256() (composer.py) is NEVER hand-edited — it is recomputed
+#   from compose()'s output on every call. Bumping
+#   PRODUCTION_PROMPT_VERSION to 2 is the only pin edit; approval.py's
+#   _resolve_optimize_product_prompt_pin picks up both prompt_version and
+#   prompt_sha256 automatically through prompts_module.production_version().
+#   Do not add a second, independent sha constant anywhere.
+# - approval.py itself needs no logic change — it already resolves the pin
+#   dynamically — but it is in requiredModules so the Executor can verify
+#   that resolution end to end and is not tempted to invent a second call
+#   site for the pin.
+AGT-W5A-CONFIRMPROMPT:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/072-agent-prompt-architecture.md
+    - docs/adr/075-agent-approval-gate-and-security-prerequisites.md
+  requiredModules:
+    - backend/src/juli_backend/services/agent/prompts/optimize_product/v1.md
+    - backend/src/juli_backend/services/agent/prompts/composer.py
+    - backend/src/juli_backend/services/agent/approval.py
+    - backend/src/juli_backend/services/agent/playbooks/optimize_product.py
+    - backend/src/juli_backend/services/agent/tools/product.py
+  loadWhenNeeded:
+    - tests/unit/test_agent_prompt_compose.py
+    - tests/unit/test_agent_prompt_snapshot_gate.py
+    - tests/unit/test_agent_prompt_playbook_consistency_gate.py
+    - tests/unit/test_agent_prompt_copy_governance_gate.py
+    - tests/unit/test_agent_prompt_budget_gate.py
+    - tests/unit/test_agent_prompt_optimize_product_v1_contract.py
+    - tests/fixtures/agent_prompt_gates/optimize_product_v1_composed.golden.md
+    - dictionary.md
+    - packages/contracts/seller-copy-banned-patterns.json
+    - docs/adr/073-agent-execution-loop-and-write-path-hardening.md
+    - docs/product/agent-workflow-execution/PLAN.md
+  doNotLoad:
+    - apps/
+    - ios/
+    - packages/ui/
+    - packages/theme/
+    - backend/src/juli_backend/database/migrations/
+    - backend/src/juli_backend/services/demo_execution/
+    - backend/src/juli_backend/services/agent/runner/
+    - backend/src/juli_backend/api/routes/agent_runs.py
+    - backend/src/juli_backend/api/routes/demo_decisions.py
+    - backend/src/juli_backend/workers/impact_reader/
+    - docs/product/design/
+    - docs/adr/074-agent-event-streaming-and-relay.md
+    - docs/adr/076-agent-demo-execution-experience.md
+    - docs/adr/077-incremental-impact-measurement.md
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import ast
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -78,6 +79,7 @@ from juli_backend.services.agent.status import StopReason, WorkflowRunStatus
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
+from juli_backend.services.agent.tools.terminal import register_terminal_tools
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CORE_MODULE_PATH = REPO_ROOT / "backend/src/juli_backend/services/agent/runner/core.py"
@@ -120,7 +122,7 @@ class _RaisingLLMService:
     def __init__(self, exc: BaseException) -> None:
         self._exc = exc
 
-    async def complete(self, *, messages, system, tools, config):
+    async def complete(self, *, messages, system, tools, config, tool_choice=None):
         raise self._exc
 
 
@@ -128,6 +130,7 @@ def _full_registry() -> ToolRegistry:
     registry = ToolRegistry()
     register_product_read_tools(registry)
     register_product_write_tools(registry)
+    register_terminal_tools(registry)
     return registry
 
 
@@ -136,7 +139,9 @@ def _minimal_playbook(steps: tuple[PlaybookStep, ...]) -> Playbook:
         workflow_key=OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key,
         version=OPTIMIZE_PRODUCT_PLAYBOOK.version,
         steps=steps,
-        termination_policy=OPTIMIZE_PRODUCT_TERMINATION_POLICY,
+        termination_policy=replace(
+            OPTIMIZE_PRODUCT_TERMINATION_POLICY, terminal_tools=()
+        ),  # ADR-088: narrowed playbook registers no terminal tool
     )
 
 
@@ -172,7 +177,7 @@ async def _seed_workflow_run(session: AsyncSession) -> uuid.UUID:
         product_id=product.id,
         state=RunState().to_dict(),
         status="running",
-        prompt_version="v1",
+        prompt_version="optimize_product.v1",
         prompt_sha256="0" * 64,
     )
     session.add_all([user, shop, product, run])
@@ -254,7 +259,9 @@ class TestPauseThenResumePersistsRowAtEachStage:
                     policy=ToolPolicy.CONFIRM,
                 ),
             ),
-            termination_policy=OPTIMIZE_PRODUCT_TERMINATION_POLICY,
+            termination_policy=replace(
+                OPTIMIZE_PRODUCT_TERMINATION_POLICY, terminal_tools=()
+            ),  # ADR-088: narrowed playbook registers no terminal tool
         )
 
         pause_store = JsonbConversationStore(session)

@@ -271,6 +271,9 @@ class ConcurrencyGuard:
     def __init__(self, *, basis_snapshot: Mapping[str, str] | None = None) -> None:
         self._basis_snapshot: dict[str, str] = dict(basis_snapshot or {})
         self._conflict_counts: dict[str, int] = {}
+        # #1389: raw product detail from the read that captured this basis,
+        # carried alongside the basis so the runner can persist both together.
+        self._product_detail: Mapping[str, Any] | None = None
 
     @property
     def basis_snapshot(self) -> Mapping[str, str]:
@@ -284,6 +287,23 @@ class ConcurrencyGuard:
         count — see the module docstring's "Conflict counts are monotonic"
         section for why."""
         self._basis_snapshot = capture_basis_snapshot(fields)
+
+    def set_product_detail(self, raw: Mapping[str, Any]) -> None:
+        """Store the raw product detail read during basis capture.
+
+        Issue #1389: when get_product_information reads the product and
+        record_basis is called, also store the raw detail so the runner can
+        persist both the basis and its source together to RunState.
+        """
+        self._product_detail = raw
+
+    def get_product_detail(self) -> Mapping[str, Any] | None:
+        """Retrieve the raw product detail stored at basis capture time.
+
+        Returns None if no product has been read yet (e.g. test doubles that
+        never populate it).
+        """
+        return self._product_detail
 
     def check_before_write(
         self, *, operation: str, current_fields: MutableProductFields

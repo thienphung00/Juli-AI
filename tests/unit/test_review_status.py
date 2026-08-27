@@ -9,6 +9,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "agent-runtime" / "scripts" / "ci"))
 sys.path.insert(0, str(REPO_ROOT / "agent-runtime" / "scripts" / "validate"))
 
+from check_critical_findings_resolved import run_check as run_critical_check  # noqa: E402
+from check_findings_acknowledged import run_check as run_ack_check  # noqa: E402
+from check_ml_gates import run_check as run_ml_gates_check  # noqa: E402
+from check_owner_signoff import run_check as run_owner_signoff_check  # noqa: E402
+from check_review_artifact import run_check as run_review_check  # noqa: E402
+from check_reviewer_signoff import run_check as run_reviewer_signoff_check  # noqa: E402
 from common import (  # noqa: E402
     build_review_artifact,
     criterion_matches_test,
@@ -27,13 +33,6 @@ from common import (  # noqa: E402
     reviewer_signoff_valid,
     unacknowledged_findings,
 )
-from check_review_artifact import run_check as run_review_check  # noqa: E402
-
-from check_critical_findings_resolved import run_check as run_critical_check  # noqa: E402
-from check_findings_acknowledged import run_check as run_ack_check  # noqa: E402
-from check_ml_gates import run_check as run_ml_gates_check  # noqa: E402
-from check_owner_signoff import run_check as run_owner_signoff_check  # noqa: E402
-from check_reviewer_signoff import run_check as run_reviewer_signoff_check  # noqa: E402
 
 
 def _write_review_artifact(tmp_path: Path, review: dict) -> None:
@@ -86,9 +85,7 @@ def test_legacy_warning_migrates_to_critical_findings() -> None:
     assert len(findings) == 1
     assert findings[0]["severity"] == "WARNING"
     assert findings[0]["type"] == "other"
-    assert findings[0]["description"] == (
-        "web/src/lib/services/home.ts — errors swallowed"
-    )
+    assert findings[0]["description"] == ("web/src/lib/services/home.ts — errors swallowed")
     assert derive_review_status(findings) == "PASS_WITH_WARNINGS"
 
 
@@ -100,7 +97,8 @@ def test_review_status_issues_flags_legacy_warnings_and_pass_mismatch() -> None:
     }
     issues = review_status_issues(artifact)
     assert issues == [
-        "legacy warnings[] has 1 entry; migrate to criticalFindings and set status via generate_review_artifact.py",
+        "legacy warnings[] has 1 entry; migrate to criticalFindings and set status "
+        "via generate_review_artifact.py",
         "status 'PASS' does not match derived 'PASS_WITH_WARNINGS' (warnings=1, critical=0)",
     ]
 
@@ -254,9 +252,7 @@ def test_run_check_passes_when_artifact_aligned(
     assert details == {"status": "PASS", "derivedStatus": "PASS", "warningCount": 0}
 
 
-def test_run_check_rejects_legacy_warnings(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_check_rejects_legacy_warnings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     review = {
         "id": "review-issue-7",
         "issue": 7,
@@ -276,9 +272,7 @@ def test_run_check_rejects_legacy_warnings(
     assert "issues" in details
 
 
-def test_run_check_rejects_status_mismatch(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_check_rejects_status_mismatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     review = {
         "id": "review-issue-8",
         "issue": 8,
@@ -341,7 +335,11 @@ def test_finalize_review_artifact_counts_action_required_as_failure() -> None:
 
 def test_legacy_warning_to_finding_maps_domain() -> None:
     finding = legacy_warning_to_finding(
-        {"domain": "security", "message": "key in default param", "location": "connectors/tiktok.py"}
+        {
+            "domain": "security",
+            "message": "key in default param",
+            "location": "connectors/tiktok.py",
+        }
     )
     assert finding["type"] == "security"
     assert finding["severity"] == "WARNING"
@@ -495,9 +493,7 @@ def test_mandatory_fail_reasons_include_test_regression() -> None:
     assert derive_review_status([], artifact) == "FAIL"
 
 
-def test_ml_gates_required_for_ml_modules(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_ml_gates_required_for_ml_modules(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     review = {
         "id": "review-issue-140",
         "issue": 140,
@@ -712,7 +708,16 @@ def test_ml_gates_scan_source_thresholds() -> None:
     assert problems == []
 
 
-def test_ml_gates_fail_when_source_constants_missing() -> None:
+def test_ml_gates_ignore_a_declared_threshold_copy() -> None:
+    """`mlGates.thresholds` is no longer consulted — source decides.
+
+    This previously asserted that a declared constant absent from source fails.
+    That check was opt-in: omitting the field skipped it entirely, so declaring
+    thresholds could only hurt, and staying silent was the safer move. Source
+    constants are now read directly; the real "source is missing a required
+    constant" case is covered by verify_cold_start_thresholds and by
+    tests/unit/test_ml_thresholds.py::test_missing_source_constants_still_fail.
+    """
     review = {
         "modulesTouched": ["backend/ai/ad_performance"],
         "mlGates": {
@@ -722,8 +727,8 @@ def test_ml_gates_fail_when_source_constants_missing() -> None:
         },
     }
     ok, problems = ml_gates_satisfied(review)
-    assert ok is False
-    assert any("NONEXISTENT_CONSTANT" in p for p in problems)
+    assert ok is True
+    assert problems == []
 
 
 def test_reviewer_signoff_without_per_finding_acceptance_fails(

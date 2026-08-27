@@ -63,4 +63,5 @@ class LLMService(Protocol):
         system: str,
         tools: Sequence[ToolDefinition],
         config: LLMConfig,
+        tool_choice: str | None = None,
     ) -> AssistantTurn: ...

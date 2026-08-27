@@ -13,7 +13,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.ai.forecasting import compute_reorder_quantity, get_low_stock_risks
+from juli_backend.ai.forecasting import (
+    REORDER_LEAD_TIME_DAYS,
+    REORDER_SAFETY_STOCK_DAYS,
+    compute_reorder_quantity,
+    get_low_stock_risks,
+)
 from juli_backend.api.dependencies import get_active_shop
 from juli_backend.database import Shop, get_session
 from juli_backend.repositories.repos import ActionCardsRepo
@@ -168,7 +173,11 @@ async def get_action_card_inputs(
 
     # Use highest-urgency risk (first element after sort by urgency_score desc)
     risk = risks[0]
-    reorder_qty = compute_reorder_quantity(risk)
+    reorder_qty = compute_reorder_quantity(
+        risk,
+        lead_time_days=REORDER_LEAD_TIME_DAYS,
+        safety_stock_days=REORDER_SAFETY_STOCK_DAYS,
+    )
 
     return ActionCardInputsResponse(
         data=ActionCardInputsData(
@@ -180,8 +189,8 @@ async def get_action_card_inputs(
             editable=True,
             basis=ReorderBasis(
                 daily_velocity=risk.daily_velocity,
-                lead_time_days=3,
-                safety_stock_days=2,
+                lead_time_days=REORDER_LEAD_TIME_DAYS,
+                safety_stock_days=REORDER_SAFETY_STOCK_DAYS,
                 days_until_stockout=risk.days_until_stockout,
             ),
         )

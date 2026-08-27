@@ -96,3 +96,83 @@ Use this body template.
 ## Blocked by
 <!-- "None - can start immediately" OR "Blocked by #123" -->
 
+
+---
+
+## Acceptance criteria — worked examples
+
+An AC is met when a **behavior is observable**, not when a function exists. Both
+examples below are real, from this repo.
+
+### Bad — unit-shaped. This shipped.
+
+Issue #721 carried a criterion of roughly this shape:
+
+```
+- Compute suggested reorder quantity from sales velocity
+```
+
+The executor wrote `compute_reorder_quantity`, unit-tested it, and never called
+it from any product code path. **The criterion was satisfied exactly as written**
+and the seller saw nothing. Review caught it; the AC could not, because nothing
+in it required the behavior to be reachable.
+
+The tell: the criterion names a *computation*. You can satisfy it without the
+product changing.
+
+### Good — same intent, observable
+
+```
+- GIVEN a shop with a SKU forecast to stock out within the lead-time window
+  WHEN the seller opens the `replenish_inventory` action card
+  THEN `GET /v1/action-cards/{key}/inputs` returns a `reorder_quantity` derived
+  from that SKU's velocity, plus a `basis` that explains the number
+  Observable at: api/routes/action_cards.py::get_action_card_inputs
+  Verified by:   tests/unit/test_action_card_inputs_contract.py::test_ac1_returns_computed_reorder_quantity_for_highest_urgency_item
+```
+
+**`Observable at:` is the load-bearing line.** It names where the behavior
+surfaces, so "built but never wired" cannot satisfy the criterion. `Verified by:`
+names the test — write it in the issue even though the test does not exist yet;
+that name is what the executor creates and what the gates probe.
+
+Keep the GIVEN/WHEN/THEN prose natural. The grammar is not the point — a
+criterion that reads `GIVEN the system WHEN the code runs THEN it works`
+satisfies the shape and means nothing. The two named lines are what make it
+checkable.
+
+### Writing the paired test
+
+Each AC gets one test, and the test must **fail before the change exists**. A
+test that passes against unmodified source proves nothing about the work.
+
+**Bad — pins a value that already holds:**
+
+```python
+def test_reorder_basis_uses_three_day_lead_time():
+    assert basis["lead_time_days"] == 3      # passes before the fix too
+```
+
+This is the `assert True` family. It is green on day one, so it never went red,
+and it will not notice the defect it was written for.
+
+**Good — pins the coupling, from `test_action_card_inputs_contract.py`:**
+
+```python
+# A lead time that is deliberately NOT the default, so a hardcoded 3 shows up.
+with patch("juli_backend.api.routes.action_cards.REORDER_LEAD_TIME_DAYS", 7):
+    response = await auth_client.get("/v1/action-cards/replenish_inventory_1/inputs")
+
+basis = response.json()["data"]["basis"]
+assert basis["lead_time_days"] == 7
+expected = math.ceil(basis["daily_velocity"] * (basis["lead_time_days"] + basis["safety_stock_days"]))
+assert response.json()["data"]["reorder_quantity"] == expected
+```
+
+The route previously re-typed `lead_time_days=3` beside a call that used the
+function's own defaults. Pinning `3` would not have caught it — the values agreed
+by coincidence. Moving the policy and asserting **both halves follow** is what
+catches it.
+
+The rule: **pin the relationship, not the number.** Ask "would this test have
+been red yesterday?" If not, it is not evidence.

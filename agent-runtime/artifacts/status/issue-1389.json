@@ -1,0 +1,36 @@
+{
+  "gateVersion": 1,
+  "issue": 1389,
+  "metrics": {
+    "acceptanceMapped": 0,
+    "acceptanceTotal": 0,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/agent/tools/product_write.py",
+      "backend/src/juli_backend/services/agent/runner/concurrency.py",
+      "backend/src/juli_backend/services/agent/runner/core.py",
+      "backend/src/juli_backend/services/agent/runner/state.py",
+      "backend/src/juli_backend/services/agent/runner/tool_executor.py",
+      "backend/src/juli_backend/services/agent/tools/product.py",
+      "backend/src/juli_backend/workers/tasks/agent_workflow.py",
+      "tests/unit/test_agent_product_detail_survives_pause.py",
+      "tests/unit/test_agent_tools_product_write.py",
+      "tests/unit/test_agent_workflow_task_wiring.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1389.json",
+    "ownerSignoffPresent": true,
+    "sha256": "653d12800e2118087232b1563e5b55dcaed58edd3400a83aa00550c98dc073a6",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-27T04:59:10Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1389.json",
+    "sha256": "21551378e5b2cb217f927dc83ddb55e7d028609d44ced27f8819a771fbf0930c",
+    "status": "PASS"
+  },
+  "wave": null
+}

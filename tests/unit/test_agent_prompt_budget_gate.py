@@ -82,7 +82,7 @@ from juli_backend.services.agent.playbooks.optimize_product import (
     OPTIMIZE_PRODUCT_PLAYBOOK,
     WORKFLOW_KEY,
 )
-from juli_backend.services.agent.prompts.composer import compose
+from juli_backend.services.agent.prompts.composer import compose, production_version
 from juli_backend.services.agent.sanitize.caps import estimate_tokens
 
 #: ADR-072 d.6's ceiling -- the single named constant this whole gate exists
@@ -90,19 +90,14 @@ from juli_backend.services.agent.sanitize.caps import estimate_tokens
 #: module or elsewhere in the test suite for this gate.
 PROMPT_TOKEN_BUDGET_CEILING = 3000
 
-#: Updated 2026-08-19 (#1208): 2967 -> 2972 when Optimize Product's step 4/4.5
-#: changed from `upload_product_image` to `inspect_product_image`, whose intent
-#: line is longer. Headroom is now **28 tokens** against a 3000 ceiling -- the
-#: next prose change to v1.md or the Playbook is very likely to breach it, so
-#: raising the ceiling (or shortening a step intent) is the next decision, not
-#: an emergency today.
-#:
-#: Recorded measurement (see module docstring "Measured headroom") -- the
-#: real composed prompt's proxy token count against the real, released
-#: v1.md + OPTIMIZE_PRODUCT_PLAYBOOK pair, independently confirmed twice
-#: per the #1039 issue thread. Asserted directly below so a silent drift
-#: in either input is caught even if it happens to stay under the ceiling.
-RECORDED_COMPOSED_TOKEN_MEASUREMENT = 2972
+#: Updated 2026-08-26 (#1367 fix round): v3 with prose-only worked example
+#: and restored safety content is 2950 tokens. Headroom is **50 tokens**
+#: against 3000 ceiling. Recorded measurement (see module docstring
+#: "Measured headroom") -- the real composed prompt's proxy token count
+#: against the real, released v3.md + OPTIMIZE_PRODUCT_PLAYBOOK pair.
+#: Asserted directly below so a silent drift in either input is caught even
+#: if it stays under the ceiling.
+RECORDED_COMPOSED_TOKEN_MEASUREMENT = 2950
 RECORDED_HEADROOM = PROMPT_TOKEN_BUDGET_CEILING - RECORDED_COMPOSED_TOKEN_MEASUREMENT
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -135,7 +130,7 @@ def _assert_composed_prompt_within_budget(composed: str, *, ceiling: int) -> int
 
 
 def test_composed_prompt_is_at_or_under_the_token_budget_ceiling():
-    composed = compose(WORKFLOW_KEY, 1)
+    composed = compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY))
     _assert_composed_prompt_within_budget(composed, ceiling=PROMPT_TOKEN_BUDGET_CEILING)
 
 
@@ -148,16 +143,16 @@ def test_composed_prompt_token_estimate_matches_the_recorded_measurement():
     """Pins the real measured value (module docstring) so a silent drift in
     v1.md's prose or the Playbook's rendered size is caught even while
     still under budget -- not just a >= 0 sanity check."""
-    composed = compose(WORKFLOW_KEY, 1)
+    composed = compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY))
     estimated = estimate_tokens(composed)
     assert estimated == RECORDED_COMPOSED_TOKEN_MEASUREMENT, (
         f"composed prompt now measures {estimated} tokens, but this module "
         f"records {RECORDED_COMPOSED_TOKEN_MEASUREMENT} as the real, "
-        "independently-confirmed measurement -- if v1.md or the Playbook "
+        "independently-confirmed measurement -- if v3.md or the Playbook "
         "changed intentionally, update this recorded value and the "
         "headroom note in the module docstring together"
     )
-    assert RECORDED_HEADROOM == 28
+    assert RECORDED_HEADROOM == 50
 
 
 # ---------------------------------------------------------------------------
@@ -203,7 +198,7 @@ class TestSyntheticOverBudgetCompositionIsCaught:
         # is not a ComposeIntegrityError, it is a budget problem, which is
         # exactly the gap this gate exists to catch (compose() has no
         # opinion on prompt size; only this gate does).
-        oversized_composed = compose(WORKFLOW_KEY, 1)
+        oversized_composed = compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY))
         assert estimate_tokens(oversized_composed) > PROMPT_TOKEN_BUDGET_CEILING
 
         with pytest.raises(AssertionError, match="over the 3000-token ceiling"):
@@ -227,7 +222,7 @@ class TestSyntheticOverBudgetCompositionIsCaught:
                 prompt_dir=binding.prompt_dir, playbook=_oversized_playbook()
             ),
         )
-        compose(WORKFLOW_KEY, 1)
+        compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY))
 
         after = v1_path.read_bytes()
         assert before == after

@@ -104,6 +104,7 @@ from juli_backend.services.agent.llm.openai_adapter import OpenAIResponsesAdapte
 from juli_backend.services.agent.tools import ToolClassification, ToolRegistry
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
+from juli_backend.services.agent.tools.terminal import register_terminal_tools
 from juli_backend.services.execution.sandbox_guard import load_sandbox_write_resources
 
 logger = logging.getLogger(__name__)
@@ -148,6 +149,14 @@ def build_product_tool_registry() -> ToolRegistry:
     registry = ToolRegistry()
     register_product_read_tools(registry)
     register_product_write_tools(registry)
+    # ADR-088: terminal tools are offered alongside the playbook's own, so the
+    # model always has a legitimate way to end a run it has nothing to propose
+    # for -- which is what makes the forced retry's tool_choice="required" safe.
+    # `_tool_definitions` resolves `TerminationPolicy.terminal_tools` against
+    # THIS registry, so omitting them here raises UnknownToolError at runtime
+    # on the first run that reaches the retry. It did: run ffc8fd40 crashed with
+    # `Unknown tool: 'conclude_without_changes'` and was recorded worker_lost.
+    register_terminal_tools(registry)
     return registry
 
 
