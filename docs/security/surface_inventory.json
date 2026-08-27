@@ -219,6 +219,14 @@
       ]
     },
     {
+      "name": "conclude_without_changes",
+      "classification": "read",
+      "policy": "auto",
+      "playbooks": [
+        "optimize_product"
+      ]
+    },
+    {
       "name": "get_product_information",
       "classification": "read",
       "policy": "auto",

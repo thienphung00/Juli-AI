@@ -32,7 +32,7 @@ def test_migration_revision_chain():
     """Verify migration numbering and revision chain."""
     text = MIGRATION_PATH.read_text(encoding="utf-8")
     assert 'revision: str = "043_juli_app_role"' in text
-    assert 'down_revision: str | None = "041_stop_reason_diverged"' in text
+    assert 'down_revision: str | None = "043_stop_reason_consent_pause"' in text
 
 
 def test_migration_creates_role_only_no_login():

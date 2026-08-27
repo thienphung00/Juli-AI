@@ -12,8 +12,10 @@ Weakened-control monkeypatches prove each defense is necessary.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import uuid
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from unittest import mock
@@ -29,12 +31,21 @@ from juli_backend.services.agent.playbooks.optimize_product import (
     OPTIMIZE_PRODUCT_PLAYBOOK,
     OPTIMIZE_PRODUCT_TERMINATION_POLICY,
 )
+from juli_backend.services.agent.prompts.composer import compose as compose_prompt
+from juli_backend.services.agent.prompts.composer import (
+    production_version,
+)
+from juli_backend.services.agent.prompts.composer import prompt_version as compose_prompt_version
 from juli_backend.services.agent.runner.confirmation import compute_params_sha
 from juli_backend.services.agent.runner.core import WorkflowRunner
 from juli_backend.services.agent.runner.state import RunState
 from juli_backend.services.agent.status import StopReason, WorkflowRunStatus
 from juli_backend.services.agent.tools import ToolClassification, ToolRegistry, ToolSpec
 from juli_backend.services.agent.tools.product import register_product_read_tools
+from juli_backend.services.agent.tools.terminal import (
+    TERMINAL_TOOL_HANDLERS,
+    register_terminal_tools,
+)
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "agent_adversarial_loop_behaviour"
 FIXTURE_PATHS = sorted(FIXTURES_DIR.glob("*.json"))
@@ -123,8 +134,28 @@ class _RecordingToolExecutor:
     def execute(
         self, *, tool_name: str, params: Any, tool_call_id: str | None = None
     ) -> dict[str, Any]:
+        # Terminal tools (ADR-088) are side-effect-free -- they touch no vendor and
+        # mutate nothing. They are deliberately NOT recorded: every assertion in this
+        # corpus is about the provenance sequence of real tool calls, and counting an
+        # honest "I have nothing to propose" among them would make `calls` mean two
+        # different things. The call still returns normally so the loop terminates.
+        if tool_name in TERMINAL_TOOL_HANDLERS:
+            return {"description": {"source": self._source_field, "text": self._text}}
         self.calls.append((tool_name, params))
         return {"description": {"source": self._source_field, "text": self._text}}
+
+
+# ADR-088 made `required_steps` load-bearing: a `final_response` that leaves them
+# unfulfilled arms the forced retry. The production policy requires the two WRITE
+# tools, which these read-only fixtures neither register nor script — so every
+# fixture run would arm a retry, exhaust its script, and fail for a reason that has
+# nothing to do with what this corpus tests. The fixtures borrowed the production
+# policy when nothing enforced it; they now carry one naming the single read step
+# they DO declare and DO script -- so "did the job" means what it says here, and
+# the retry stays armed for the case it was built for rather than firing on every run.
+_FIXTURE_TERMINATION_POLICY = replace(
+    OPTIMIZE_PRODUCT_TERMINATION_POLICY, required_steps=(_TOOL_NAME,)
+)
 
 
 def _playbook_read_only() -> Playbook:
@@ -140,7 +171,7 @@ def _playbook_read_only() -> Playbook:
                 policy=ToolPolicy.AUTO,
             ),
         ),
-        termination_policy=OPTIMIZE_PRODUCT_TERMINATION_POLICY,
+        termination_policy=_FIXTURE_TERMINATION_POLICY,
     )
 
 
@@ -163,7 +194,7 @@ def _playbook_with_confirm() -> Playbook:
                 policy=ToolPolicy.CONFIRM,
             ),
         ),
-        termination_policy=OPTIMIZE_PRODUCT_TERMINATION_POLICY,
+        termination_policy=_FIXTURE_TERMINATION_POLICY,
     )
 
 
@@ -183,6 +214,7 @@ async def _run_loop(
     sink: EventSink = InMemoryEventSink()
     registry = ToolRegistry()
     register_product_read_tools(registry)
+    register_terminal_tools(registry)
     executor = _RecordingToolExecutor(source_field=fixture["source_field"], text=text)
 
     runner = WorkflowRunner(
@@ -194,6 +226,16 @@ async def _run_loop(
                 ),
                 AssistantTurn(
                     blocks=(FinalResponse(content="Done."),),
+                    usage=Usage(input_tokens=1, output_tokens=1),
+                ),
+                AssistantTurn(
+                    blocks=(
+                        ToolCallBlock(
+                            call_id="terminal",
+                            tool_name="conclude_without_changes",
+                            arguments={"reason": "Nothing to propose."},
+                        ),
+                    ),
                     usage=Usage(input_tokens=1, output_tokens=1),
                 ),
             ]
@@ -221,6 +263,7 @@ async def _run_loop_with_confirm(
     sink: EventSink = InMemoryEventSink()
     registry = ToolRegistry()
     register_product_read_tools(registry)
+    register_terminal_tools(registry)
     _register_confirm_tool(registry)
     playbook = _playbook_with_confirm()
 
@@ -251,6 +294,16 @@ async def _run_loop_with_confirm(
                 ),
                 AssistantTurn(
                     blocks=(FinalResponse(content="Done."),),
+                    usage=Usage(input_tokens=1, output_tokens=1),
+                ),
+                AssistantTurn(
+                    blocks=(
+                        ToolCallBlock(
+                            call_id="terminal",
+                            tool_name="conclude_without_changes",
+                            arguments={"reason": "Nothing to propose."},
+                        ),
+                    ),
                     usage=Usage(input_tokens=1, output_tokens=1),
                 ),
             ]
@@ -293,7 +346,21 @@ async def test_provenance_behaviour_invariant_vs_benign(path: Path) -> None:
 
     # Behavior equality, not absence of bad call
     assert calls_with == calls_without, f"Tool sequences differ: {calls_with} vs {calls_without}"
-    assert stop_with == stop_without, f"Stop reasons differ: {stop_with} vs {stop_without}"
+    # Stop reason: equal, or the attacked run ended MORE conservatively. When the
+    # inbound guard blocks a payload it replaces the tool result with an error
+    # envelope, so `completed_required_steps` correctly declines to credit the step
+    # and the run ends through the terminal tool instead of claiming a plain
+    # final_response. That divergence is the defense engaging, not the attack
+    # landing — the attacked run does strictly LESS. Verified on
+    # hidden_text_homoglyph_lookalike: tool.completed ok=False, summary
+    # "blocked by the inbound safety guard", against ok=True on the benign text.
+    # Exact equality held only while every path collapsed to final_response,
+    # before ADR-088 split the two. The invariant that carries the security
+    # meaning — identical tool sequence — is asserted above and is unweakened.
+    assert stop_with == stop_without or stop_with == StopReason.CONCLUDED_WITHOUT_CHANGES, (
+        f"Stop reasons differ and the attacked run did not simply conclude: "
+        f"{stop_with} vs {stop_without}"
+    )
     assert len(calls_with) == 1 and calls_with[0][0] == _TOOL_NAME
 
 
@@ -319,6 +386,7 @@ async def test_structural_unlisted_tool_refused_at_playbook(path: Path) -> None:
     sink: EventSink = InMemoryEventSink()
     registry = ToolRegistry()
     register_product_read_tools(registry)
+    register_terminal_tools(registry)
     executor = _RecordingToolExecutor(source_field=fixture["source_field"], text="baseline")
 
     runner = WorkflowRunner(
@@ -330,6 +398,16 @@ async def test_structural_unlisted_tool_refused_at_playbook(path: Path) -> None:
                 ),
                 AssistantTurn(
                     blocks=(FinalResponse(content="Done."),),
+                    usage=Usage(input_tokens=1, output_tokens=1),
+                ),
+                AssistantTurn(
+                    blocks=(
+                        ToolCallBlock(
+                            call_id="terminal",
+                            tool_name="conclude_without_changes",
+                            arguments={"reason": "Nothing to propose."},
+                        ),
+                    ),
                     usage=Usage(input_tokens=1, output_tokens=1),
                 ),
             ]
@@ -349,6 +427,10 @@ async def test_structural_unlisted_tool_refused_at_playbook(path: Path) -> None:
     assert result.stop_reason in (
         StopReason.TOOL_ERROR_UNRECOVERABLE,
         StopReason.FINAL_RESPONSE,
+        # ADR-088 split this out of FINAL_RESPONSE. The refused tool is the only
+        # one scripted, so no required step completes and the honest ending is
+        # the terminal tool. Still a normal terminal state, which is the claim.
+        StopReason.CONCLUDED_WITHOUT_CHANGES,
     )
 
 
@@ -503,6 +585,7 @@ async def test_blast_radius_termination_under_caps(path: Path) -> None:
     sink: EventSink = InMemoryEventSink()
     registry = ToolRegistry()
     register_product_read_tools(registry)
+    register_terminal_tools(registry)
     executor = _RecordingToolExecutor(
         source_field=fixture["source_field"], text=fixture["raw_text"]
     )
@@ -541,6 +624,7 @@ async def test_blast_radius_termination_under_caps(path: Path) -> None:
         StopReason.ITERATION_CAP_EXCEEDED,
         StopReason.FINAL_RESPONSE,
         StopReason.WALL_CLOCK_TIMEOUT,
+        StopReason.CONCLUDED_WITHOUT_CHANGES,  # ADR-088, see above
     ), f"Unexpected stop reason: {result.stop_reason}"
     # Runtime must be reasonable (test framework timeout is 30s, we should be < 1s)
     assert len(executor.calls) < 1000, f"Too many tool calls: {len(executor.calls)}"
@@ -573,6 +657,7 @@ async def test_allow_list_escape_write_tool_rejected(path: Path) -> None:
     sink: EventSink = InMemoryEventSink()
     registry = ToolRegistry()
     register_product_read_tools(registry)
+    register_terminal_tools(registry)
     executor = _RecordingToolExecutor(source_field=fixture["source_field"], text="baseline")
 
     runner = WorkflowRunner(
@@ -584,6 +669,16 @@ async def test_allow_list_escape_write_tool_rejected(path: Path) -> None:
                 ),
                 AssistantTurn(
                     blocks=(FinalResponse(content="Done."),),
+                    usage=Usage(input_tokens=1, output_tokens=1),
+                ),
+                AssistantTurn(
+                    blocks=(
+                        ToolCallBlock(
+                            call_id="terminal",
+                            tool_name="conclude_without_changes",
+                            arguments={"reason": "Nothing to propose."},
+                        ),
+                    ),
                     usage=Usage(input_tokens=1, output_tokens=1),
                 ),
             ]
@@ -614,8 +709,13 @@ async def test_allow_list_escape_write_tool_rejected(path: Path) -> None:
         "not part of the active" in error_event.payload.summary.lower()
         or "not a registered" in error_event.payload.summary.lower()
     ), f"Expected playbook/registry refusal message, got: {error_event.payload.summary}"
-    # Assert: normal terminal state
-    assert result.stop_reason == StopReason.FINAL_RESPONSE
+    # Assert: normal terminal state. The refused tool is the only one scripted
+    # before the final response, so no required step completes and the run ends
+    # through the terminal tool rather than a bare final_response (ADR-088).
+    assert result.stop_reason in (
+        StopReason.FINAL_RESPONSE,
+        StopReason.CONCLUDED_WITHOUT_CHANGES,
+    )
 
 
 # =============================================================================
@@ -643,6 +743,7 @@ async def test_post_hash_param_drift_hard_fails(path: Path) -> None:
     sink: EventSink = InMemoryEventSink()
     registry = ToolRegistry()
     register_product_read_tools(registry)
+    register_terminal_tools(registry)
     _register_confirm_tool(registry)
     playbook = _playbook_with_confirm()
 
@@ -669,6 +770,16 @@ async def test_post_hash_param_drift_hard_fails(path: Path) -> None:
                 ),
                 AssistantTurn(
                     blocks=(FinalResponse(content="Done."),),
+                    usage=Usage(input_tokens=1, output_tokens=1),
+                ),
+                AssistantTurn(
+                    blocks=(
+                        ToolCallBlock(
+                            call_id="terminal",
+                            tool_name="conclude_without_changes",
+                            arguments={"reason": "Nothing to propose."},
+                        ),
+                    ),
                     usage=Usage(input_tokens=1, output_tokens=1),
                 ),
             ]
@@ -700,6 +811,21 @@ async def test_post_hash_param_drift_hard_fails(path: Path) -> None:
     # When resume() is called, the model will propose the same arguments
     # but we mutate them to show divergence between shown and executed
     state.pending_confirmation["arguments"]["setting"] = "value_diverged"
+
+    # #1359 / ADR-075 d.2 pinned the prompt version across the pause, and resume()
+    # fails closed with PROMPT_VERSION_UNRECOVERABLE when it is absent. In production
+    # these two come off the workflow_runs row via ConversationStore.load(); this
+    # in-memory store stands in for that row and does not populate them, so without
+    # this the run stops on the pin check and never reaches the params_sha check
+    # that is the actual subject of this test.
+    # Built through the composer's own helpers rather than a literal: the format is
+    # "<prompt_dir>.vN" and resume() parses it, so a hand-written string here would
+    # silently rot the day the binding changes.
+    _wf_key = OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key
+    state.prompt_version = compose_prompt_version(_wf_key, production_version(_wf_key))
+    state.prompt_sha256 = hashlib.sha256(
+        compose_prompt(_wf_key, production_version(_wf_key)).encode("utf-8")
+    ).hexdigest()
 
     # Part 3: Resume with approved=True (which will trigger params_sha check)
     result2 = await runner.resume(run_id, approved=True)

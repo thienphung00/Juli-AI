@@ -1,7 +1,7 @@
 """Create non-owner runtime role juli_app with explicit per-table grants (ADR-085 #1326)
 
 Revision ID: 043_juli_app_role
-Revises: 041_stop_reason_diverged
+Revises: 043_stop_reason_consent_pause
 Create Date: 2026-08-25
 
 ADR-085 decision 1: functional RLS requires a non-owner runtime role, not more policies.
@@ -37,7 +37,7 @@ from alembic import op
 GrantMap = dict[str, dict[str, tuple[str, ...]]]
 
 revision: str = "043_juli_app_role"
-down_revision: str | None = "041_stop_reason_diverged"
+down_revision: str | None = "043_stop_reason_consent_pause"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

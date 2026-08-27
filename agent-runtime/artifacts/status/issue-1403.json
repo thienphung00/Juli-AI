@@ -1,0 +1,31 @@
+{
+  "gateVersion": 1,
+  "issue": 1403,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/database/migrations/versions/043_juli_app_role.py",
+      "tests/unit/test_juli_app_role_migration.py",
+      "tests/unit/test_agent_adversarial_loop_behaviour.py",
+      "docs/security/surface_inventory.json",
+      "agent-runtime/artifacts/waves/wave-w7.json"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1403.json",
+    "ownerSignoffPresent": true,
+    "sha256": "bfab19cfe2e76928112e4e4ab7593c8c3fd1ea519f880db963806fb2bf9b70cb",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-27T09:10:10Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1403.json",
+    "sha256": "9b06170f2d1e516059374304b4d6f522337988ed791b31479b630dc19b6ef300",
+    "status": "PASS"
+  },
+  "wave": "wave-w7"
+}

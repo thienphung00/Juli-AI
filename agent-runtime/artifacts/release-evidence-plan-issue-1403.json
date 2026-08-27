@@ -1,0 +1,100 @@
+{
+  "planId": "rep-1403-w7-wave-reconciliation",
+  "affectedPublicSurfaces": [
+    "none at runtime — this reconciles an integration branch with main. The only production-visible consequence is that `alembic upgrade head` succeeds where it would otherwise abort on two heads.",
+    "docs/security/surface_inventory.json — gains the conclude_without_changes tool entry; no route added, changed or removed"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "none — no request path is touched",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "the-migration-chain-has-one-head",
+        "entryUrl": "unit: ScriptDirectory.get_heads() on the merged tree",
+        "assertions": [
+          "exactly one head, 047_prod_write_audit",
+          "walk_revisions from base to head yields 48 revisions with no branch",
+          "both 043_stop_reason_consent_pause and 043_juli_app_role are in the chain, in that order",
+          "reverting the down_revision edit reintroduces two heads"
+        ]
+      },
+      {
+        "name": "no-revision-id-moved",
+        "entryUrl": "unit: test_migration_revision_chain",
+        "assertions": [
+          "043_juli_app_role still declares revision id 043_juli_app_role",
+          "no committed status record under agent-runtime/artifacts/status/ is modified by this change"
+        ]
+      },
+      {
+        "name": "the-adversarial-corpus-still-refuses-what-it-refused",
+        "entryUrl": "unit: tests/unit/test_agent_adversarial_loop_behaviour.py",
+        "assertions": [
+          "all 18 cases pass",
+          "the attacked run's tool sequence is identical to the benign run's — the invariant carrying the security meaning is unchanged",
+          "on hidden_text_homoglyph_lookalike the inbound guard still blocks: tool.completed ok=False, summary 'blocked by the inbound safety guard'",
+          "the relaxed stop_reason assertion admits only concluded_without_changes — a run that did LESS — and no other divergence"
+        ]
+      },
+      {
+        "name": "the-surface-inventory-is-not-stale",
+        "entryUrl": "unit: test_surface_inventory_matches_committed_file",
+        "assertions": [
+          "the generated inventory equals the committed file",
+          "the diff versus the pre-merge file is exactly one added tool entry",
+          "no route entry changed"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: migration metadata, test reconciliation and a generated security inventory"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration is added, removed or altered in what it DOES. One down_revision pointer moves, which changes only the order Alembic applies existing migrations in. Production is at 043_stop_reason_consent_pause, precisely the revision the W7 chain now descends from, so the chain applies forward with no rewrite of applied history."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy the prior release. Note the asymmetry: if 043_juli_app_role..047 have already been applied, reverting this branch restores the two-head state and `alembic upgrade head` aborts again — the forward fix, not a revert, is the recovery.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_juli_app_role_migration.py tests/unit/test_rls_policies_migration.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_agent_adversarial_loop_behaviour.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_threat_model_inventory.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests -m 'not live and not demo_contract' -q"
+  ],
+  "doNotInfer": [
+    "Do not renumber 043_juli_app_role..047 to 044..048. Their revision ids are referenced from fourteen files including the committed status records for #1326 and #1328, which are the merge-time source of truth under ADR-003. Filename ordering is cosmetic; the ids are what Alembic reads.",
+    "Do not relax an assertion in test_agent_adversarial_loop_behaviour.py to make it pass. It is a security corpus. Every change must name the runner-semantics cause and be justified against observed behaviour.",
+    "Do not treat the stop_reason divergence on hidden_text_homoglyph_lookalike as an attack succeeding. The inbound guard blocks the payload, so the required step is not credited and the run does strictly LESS than the benign one.",
+    "Do not hand-write agent-runtime/artifacts/status/issue-1403.json. Generate it with generate_status_records.py — the guard is fail-closed on schema and a hand-written record fails CI while reading PASS.",
+    "Do not add register_terminal_tools only where a test happens to fail. ADR-088 resolves TerminationPolicy.terminal_tools against whichever registry is passed, so every hand-rolled registry needs it."
+  ]
+}
