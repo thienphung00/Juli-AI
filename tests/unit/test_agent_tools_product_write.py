@@ -42,6 +42,7 @@ calls, no direct `TikTokClient` construction.
 from __future__ import annotations
 
 import ast
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -64,6 +65,7 @@ from juli_backend.services.agent.tools.product_write import (
     UpdateProductPriceOutput,
     UploadProductImageInput,
     UploadProductImageOutput,
+    _build_listing_edit_body,
     handle_update_product_listing,
     handle_update_product_price,
     handle_upload_product_image,
@@ -110,6 +112,13 @@ _DEFAULT_PRODUCT_DETAIL = {
         }
     ],
     "package_weight": {"value": "500", "unit": "GRAM"},
+    # Required by the edit endpoint on EVERY edit, not just photo changes —
+    # gate #1226 walk run f6f2695e was rejected with "MainImages is a required
+    # field" on a description-only edit. A fixture without it does not model a
+    # real product.
+    "main_images": [
+        {"uri": "tos-alisg-i-aphluv4xwc-sg/abc123", "width": 1200, "height": 1200},
+    ],
 }
 
 
@@ -445,15 +454,31 @@ class TestUpdateProductListing:
 
         assert products.edit_calls == []
 
-    def test_handler_omits_unset_fields_from_the_edit_body(self, context):
+    def test_handler_carries_unset_fields_through_at_their_current_values(self, context):
+        """Renamed and inverted from `..._omits_unset_fields_...` (#1389).
+
+        It asserted the "partial edit" assumption — that a field the agent did
+        not author is left out of the body. That assumption is the bug: the
+        endpoint requires these fields whether or not the run is changing them,
+        and omitting them produced two production 400s one after the other,
+        "CategoryId is a required field" then "MainImages is a required field".
+
+        Passing the current value through is a no-op edit, not a widening of
+        what the agent authors — the agent still controls only what it set.
+        """
         products = _FakeProductsResource(edit_result={})
         resources = make_resources(products)
 
         handle_update_product_listing(resources, context, UpdateProductListingInput(title="T"))
 
         _, body = products.edit_calls[0]
-        assert "description" not in body
-        assert "main_images" not in body
+        assert body["title"] == "T", "the agent's edit is applied"
+        assert body["description"] == _DEFAULT_PRODUCT_DETAIL["description"], (
+            "unset description falls back to the product's current value"
+        )
+        assert body["main_images"] == [
+            {"uri": img["uri"]} for img in _DEFAULT_PRODUCT_DETAIL["main_images"]
+        ], "the seller's photos are preserved, never dropped"
 
     def test_output_echoes_the_applied_fields_without_a_uri(self):
         products = _FakeProductsResource(edit_result={})
@@ -510,6 +535,7 @@ class TestUpdateProductListing:
                 }
             ],
             "package_weight": {"value": "500", "unit": "GRAM"},
+            "main_images": [{"uri": "tos-alisg-i-aphluv4xwc-sg/abc123"}],
         }
 
         context = ProductToolContext(product_id=BOUND_PRODUCT_ID, product_detail=product_detail)
@@ -585,6 +611,7 @@ class TestUpdateProductListing:
             "category_chains": [{"id": "605254", "is_leaf": True}],
             "skus": [{"id": "sku-1", "price": {"amount": "100000", "currency": "VND"}}],
             "package_weight": {"value": "500", "unit": "GRAM"},
+            "main_images": [{"uri": "tos-alisg-i-aphluv4xwc-sg/abc123"}],
         }
 
         context = ProductToolContext(product_id=BOUND_PRODUCT_ID, product_detail=product_detail)
@@ -853,3 +880,69 @@ class TestEmptyPriceMutationCannotReachConfirmation:
             skus=[ProductSkuPrice(sku_ref="S1", currency="VND", amount="179000")]
         )
         assert len(parsed.skus) == 1
+
+
+class TestEveryRequiredFieldSurvivesADescriptionOnlyEdit:
+    """Gate #1226 walk run f6f2695e: the agent edited the description only
+    (`title: null`, `attach_staged_image: false`) and TikTok rejected it with
+
+        400 {"code":36009004,"message":"MainImages is a required field and has not been provided."}
+
+    The endpoint requires fields regardless of whether the run is changing them
+    — the same lesson `category_id` taught one 400 earlier. B-4's sample cURL
+    omits `main_images`, so the sample is not a complete required-field list,
+    and building the body from an allowlist copied out of it is what produced
+    this second failure.
+
+    These pin the fields present on a description-only edit, which is the
+    common case: the model changes copy and leaves the photo alone.
+    """
+
+    def test_a_description_only_edit_still_carries_title_and_images(self, context):
+        params = UpdateProductListingInput(
+            title=None, description="<p>mô tả mới</p>", attach_staged_image=False
+        )
+
+        body = _build_listing_edit_body(params, context)
+
+        assert body["description"] == "<p>mô tả mới</p>", "the agent's edit is applied"
+        assert body["title"] == context.product_detail["title"], (
+            "title falls back to the product's current value — a no-op edit, not a "
+            "widening of what the agent authors"
+        )
+        assert body["main_images"] == [
+            {"uri": img["uri"]} for img in context.product_detail["main_images"]
+        ], "the seller's current photos are passed through, never dropped"
+
+    def test_main_images_are_refs_not_the_raw_detail_objects(self, context):
+        """The detail carries width/height/urls; the edit body takes uri refs."""
+        params = UpdateProductListingInput(
+            title=None, description="<p>x</p>", attach_staged_image=False
+        )
+
+        body = _build_listing_edit_body(params, context)
+
+        for ref in body["main_images"]:
+            assert set(ref) == {"uri"}, f"unexpected keys in an image ref: {sorted(ref)}"
+
+    def test_a_staged_image_still_replaces_the_current_ones(self, context):
+        """The attach path is unchanged — passthrough must not override it."""
+        ctx = replace(context, staged_image_uri="tos-staged/new-photo")
+        params = UpdateProductListingInput(
+            title=None, description="<p>x</p>", attach_staged_image=True
+        )
+
+        body = _build_listing_edit_body(params, ctx)
+
+        assert body["main_images"] == [{"uri": "tos-staged/new-photo"}]
+
+    def test_a_product_with_no_usable_image_fails_closed(self, context):
+        """Never send an empty main_images — that would clear the listing's
+        photos, which is worse than the 400 this avoids."""
+        ctx = replace(context, product_detail=dict(context.product_detail, main_images=[]))
+        params = UpdateProductListingInput(
+            title=None, description="<p>x</p>", attach_staged_image=False
+        )
+
+        with pytest.raises(UnresolvedAgentRefError, match="main_images"):
+            _build_listing_edit_body(params, ctx)

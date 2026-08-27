@@ -230,6 +230,8 @@ class TestRealLedgerDispatchLandsInTheMeasurableSet:
                             {"id": "vendor-sku-1", "price": {"amount": "100", "currency": "VND"}}
                         ],
                         "package_weight": {"value": "1", "unit": "kg"},
+                        # Required on every edit, not just photo changes (#1389).
+                        "main_images": [{"uri": "tos-alisg-i-test/img"}],
                     },
                     ledger=ledger,
                     workflow_run_id=run_id,

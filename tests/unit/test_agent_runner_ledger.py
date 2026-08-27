@@ -1230,6 +1230,8 @@ class TestPayloadContractWithImpactReader:
                 "category_chains": [{"id": "123", "is_leaf": True}],
                 "skus": [{"id": "sku1", "price": {"amount": "100", "currency": "VND"}}],
                 "package_weight": {"value": "1", "unit": "kg"},
+                # Required on every edit, not just photo changes (#1389).
+                "main_images": [{"uri": "tos-alisg-i-test/img"}],
             },
             ledger=ToolExecutionLedger(session, shop_id=shop_id),
             workflow_run_id=run_id,

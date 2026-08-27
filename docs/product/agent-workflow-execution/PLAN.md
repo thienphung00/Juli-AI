@@ -1575,3 +1575,85 @@ Demo page baseline: all-11 plan/review/execution modules exist client-side but e
 - Contract: registry↔catalog cross-validation; event-schema snapshot tests in `packages/contracts`; new LLM-boundary tests replacing the lifted no-LLM tests.
 - Integration: sandbox-write guarded run of `optimize_product_2` (`tests/integration/tiktok_sandbox.py` helpers); SSE reconnect/replay test.
 - E2E: Demo page approve → live stream → rendered structured output against the real provider (manual, then recorded-replay fixture).
+
+---
+
+## Deferred design — explicit step state contracts + agent-requested data (2026-08-27)
+
+**Status: DEFERRED. Revisit at the W6 exit gate, and before any further workflow
+implementation.** Consistent with D4 (sequential, minimal-first): get the whole
+pipeline working end-to-end first, then deepen. Nothing here blocks gate #1226.
+
+### The problem
+
+The playbook fixes the *sequence* of steps, but each step's **data requirements
+are implicit**. A tool reaches into whatever the run happens to have and hopes
+the fields it needs are present. Nothing declares what a step consumes, nothing
+verifies it before dispatch, and the agent has no way to ask for data the run
+never gathered.
+
+Two consequences, both observed in production during the gate #1226 walk:
+
+**Producers silently missing.** Four defects in one lane where a value's
+consumer shipped and its producer did not — the failure only appeared on a live
+run, because every unit test supplied the missing value itself:
+
+| Issue | Consumer built | Producer missing |
+|---|---|---|
+| #1379 | terminal tool declared in the playbook | never registered in the production tool registry |
+| #1382 | resume seeded a guard from `RunState.basis_snapshots` | nothing ever wrote that key |
+| #1389 | handler read `context.product_detail` | never assigned at context construction |
+| #1389 | `_sync_product_detail` read the guard | `set_product_detail` never called in production |
+
+**Vendor requirements discovered one rejection at a time.** The
+`update_product_listing` body was built from an allowlist copied out of
+contract-collection B-4's sample cURL. That sample is a working example, not a
+required-field specification, so production surfaced the gaps serially:
+
+- run `b354d2d6` → `400 CategoryId is a required field`
+- run `f6f2695e` → `400 MainImages is a required field`
+
+Each cost a fix, a review, a deploy and a walk. The current mitigation — pass
+every unedited field through at its current value — stops the bleeding, but the
+tool is still deciding what it needs invisibly, from a bag it never asked for.
+
+### The two halves
+
+**1. Workflow half — steps declare their inputs.** A `PlaybookStep` states what
+it consumes, and the runner verifies availability *before* dispatch, failing
+with "step 5 needs `main_images`, which no prior step produced" instead of
+letting the vendor reject it. This is the half that would have caught all four
+producer gaps above at once, and it is the higher-value half.
+
+**2. Agent half — the agent can request data.** A capability the model can call
+when a step needs something the run has not gathered, rather than the tool
+silently reaching for it. Narrow and explicit, not open-ended: the point is
+adaptability *within* the fixed structure, not letting the agent improvise the
+workflow. ADR-068's capability boundary and ADR-072 d.2's playbook allowlist
+both constrain what this may look like.
+
+### Open questions to answer at revisit
+
+- Where does the declared-input contract live — `PlaybookStep`, the `ToolSpec`,
+  or both? A tool's requirements are arguably a property of the tool, not of the
+  step that calls it.
+- Does verification happen at import time (like `validate_playbook_tools`), at
+  run start, or immediately before each dispatch? Each catches a different class
+  of failure at a different cost.
+- How does a declared input survive the CONFIRM pause? The write leg runs in a
+  fresh process, so this interacts directly with `RunState` persistence
+  (#1382, #1389).
+- What is the vendor-contract source of truth? B-4's sample proved insufficient.
+  Either the required-field list is documented properly per endpoint, or the
+  body is derived wholesale from the current entity — the second is what the
+  current fix does, and may simply be the right long-term answer.
+- Does the agent-requested-data capability need its own CONFIRM policy, or is
+  read-only by construction sufficient?
+
+### Why not now
+
+The pipeline is one field away from its first end-to-end success. The gate #1226
+walk is currently the *only* end-to-end test of this path (see ADR-088 decision
+4 on the live smoke that has never run), so redesigning mid-walk would remove
+the one instrument that has found every one of these defects. Close the gate,
+then design this properly as an ADR.
