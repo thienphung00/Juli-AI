@@ -691,7 +691,7 @@ def ml_gates_satisfied(artifact: dict[str, Any]) -> tuple[bool, list[str]]:
 
     from ml_thresholds import verify_ml_gates_threshold_values  # noqa: PLC0415
 
-    scan_ok, scan_problems, _ = verify_ml_gates_threshold_values(touched, ml_gates)
+    scan_ok, scan_problems, _ = verify_ml_gates_threshold_values(touched)
     if not scan_ok:
         problems.extend(scan_problems)
     return len(problems) == 0, problems

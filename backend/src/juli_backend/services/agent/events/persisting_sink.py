@@ -103,16 +103,36 @@ class PersistingEventSink:
         # reached. From here on, publish is best-effort: a publish failure
         # is logged and swallowed, never re-raised and never a reason to
         # touch the row that already committed (ADR-074 decision 3).
-        channel = run_events_channel(event.workflow_run_id)
-        message = event.model_dump_json()
-        try:
-            await self._publisher.publish(channel, message)
-        except Exception:
-            logger.warning(
-                "PersistingEventSink: publish failed for workflow_run_id=%s "
-                "sequence_number=%s (event already durably committed; "
-                "liveness degrades, correctness does not)",
-                event.workflow_run_id,
-                event.sequence_number,
-                exc_info=True,
-            )
+        await publish_event_best_effort(self._publisher, event)
+
+
+async def publish_event_best_effort(publisher, event: WorkflowRunEvent) -> None:
+    """PUBLISH an already-committed event; never raise.
+
+    Extracted from `PersistingEventSink.emit` so the crash handler in
+    `workers/tasks/agent_workflow.py` publishes identically (#1396). That
+    handler writes its own terminal `workflow.failed` row in one transaction
+    with the run-status and action-card updates, so it cannot reuse `emit`
+    (which commits its own session) — but it must not reimplement the publish,
+    because two copies are how the two paths silently diverged: the crash path
+    committed its event and never published it, leaving every connected SSE
+    stream on heartbeats forever while the run was already dead.
+
+    Call ONLY after the row is durably committed. Publish is best-effort by
+    contract (ADR-074 decision 3): a failure is logged and swallowed, never
+    re-raised, and never a reason to touch a row that already committed.
+    Liveness degrades, correctness does not.
+    """
+    channel = run_events_channel(event.workflow_run_id)
+    message = event.model_dump_json()
+    try:
+        await publisher.publish(channel, message)
+    except Exception:
+        logger.warning(
+            "publish failed for workflow_run_id=%s sequence_number=%s "
+            "(event already durably committed; liveness degrades, "
+            "correctness does not)",
+            event.workflow_run_id,
+            event.sequence_number,
+            exc_info=True,
+        )

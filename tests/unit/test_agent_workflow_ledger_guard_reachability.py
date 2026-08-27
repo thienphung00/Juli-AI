@@ -34,6 +34,7 @@ that could stay green after a real wiring break.
 from __future__ import annotations
 
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from sqlalchemy import create_engine
@@ -68,6 +69,7 @@ from juli_backend.services.agent.status import StopReason
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
+from juli_backend.services.agent.tools.terminal import register_terminal_tools
 
 _SQLITE_SCHEMA_TRANSLATE_MAP = {"ops": None, "bronze": None, "gold": None, "silver": None}
 
@@ -80,6 +82,7 @@ def _full_registry() -> ToolRegistry:
     registry = ToolRegistry()
     register_product_read_tools(registry)
     register_product_write_tools(registry)
+    register_terminal_tools(registry)
     return registry
 
 
@@ -101,7 +104,9 @@ def _write_only_playbook() -> Playbook:
                 policy=ToolPolicy.CONFIRM,
             ),
         ),
-        termination_policy=OPTIMIZE_PRODUCT_TERMINATION_POLICY,
+        termination_policy=replace(
+            OPTIMIZE_PRODUCT_TERMINATION_POLICY, terminal_tools=()
+        ),  # ADR-088: narrowed playbook registers no terminal tool
     )
 
 
@@ -117,7 +122,9 @@ def _read_only_playbook() -> Playbook:
                 policy=ToolPolicy.AUTO,
             ),
         ),
-        termination_policy=OPTIMIZE_PRODUCT_TERMINATION_POLICY,
+        termination_policy=replace(
+            OPTIMIZE_PRODUCT_TERMINATION_POLICY, terminal_tools=()
+        ),  # ADR-088: narrowed playbook registers no terminal tool
     )
 
 
@@ -226,7 +233,7 @@ async def _seed_run(session) -> tuple[uuid.UUID, uuid.UUID, str]:
         product_id=product.id,
         state=RunState().to_dict(),
         status="running",
-        prompt_version="v1",
+        prompt_version="optimize_product.v1",
         prompt_sha256="0" * 64,
     )
     session.add_all([user, shop, product, run])

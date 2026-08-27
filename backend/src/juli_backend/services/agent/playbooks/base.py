@@ -54,6 +54,10 @@ class TerminationPolicy:
     - `required_steps` — tool names whose completion defines "did the job"
       for the execution-quality metric; a `final_response` without them is
       honest data, not a synthetic failure (ADR-073 decision 2).
+    - `terminal_tools` — tool names that are side-effect-free and can be
+      called to explicitly end a run without proposing changes (ADR-088
+      decision 1). Not added as playbook steps; instead, appended to the
+      model-facing tool list directly by the runner. Empty by default.
     """
 
     max_iterations: int
@@ -62,6 +66,7 @@ class TerminationPolicy:
     wall_clock_timeout_s: int
     approval_timeout_h: int
     required_steps: tuple[str, ...]
+    terminal_tools: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.max_iterations, int) or self.max_iterations <= 0:
@@ -78,6 +83,10 @@ class TerminationPolicy:
             raise ValueError("TerminationPolicy.required_steps must be a non-empty tuple")
         if not all(isinstance(name, str) and name for name in self.required_steps):
             raise ValueError("TerminationPolicy.required_steps entries must be non-empty strings")
+        if not isinstance(self.terminal_tools, tuple):
+            raise ValueError("TerminationPolicy.terminal_tools must be a tuple")
+        if not all(isinstance(name, str) and name for name in self.terminal_tools):
+            raise ValueError("TerminationPolicy.terminal_tools entries must be non-empty strings")
 
 
 @dataclass(frozen=True)

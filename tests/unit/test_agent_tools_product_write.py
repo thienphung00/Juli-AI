@@ -42,6 +42,7 @@ calls, no direct `TikTokClient` construction.
 from __future__ import annotations
 
 import ast
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -55,6 +56,7 @@ from juli_backend.services.agent.tools.product_write import (
     UPDATE_PRODUCT_PRICE_SPEC,
     UPLOAD_PRODUCT_IMAGE_SPEC,
     ProductSkuPrice,
+    UnresolvedAgentRefError,
     UnresolvedSkuRefError,
     UnresolvedStagedImageError,
     UpdateProductListingInput,
@@ -63,6 +65,7 @@ from juli_backend.services.agent.tools.product_write import (
     UpdateProductPriceOutput,
     UploadProductImageInput,
     UploadProductImageOutput,
+    _build_listing_edit_body,
     handle_update_product_listing,
     handle_update_product_price,
     handle_upload_product_image,
@@ -91,6 +94,37 @@ _PNG_1X1 = (
     b"\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xfc\xcf\xc0\xf0\x1f\x00\x05\x05\x02\x00\xa7\x93\xa1"
     b"\xf2\x00\x00\x00\x00IEND\xaeB`\x82"
 )
+
+# Default product detail for tests that need it (issue #1389).
+# Matches the shape from docs/integrations/tiktok_api/samples/products-detail-response.json
+_DEFAULT_PRODUCT_DETAIL = {
+    "id": BOUND_PRODUCT_ID,
+    "title": "Original Title",
+    "description": "Original Description",
+    "category_chains": [
+        {"id": "605254", "is_leaf": True, "local_name": "Water Bottles", "parent_id": "849672"}
+    ],
+    "skus": [
+        {
+            "id": "1736433041572857475",
+            "inventory": [{"warehouse_id": "7657265511696664340", "quantity": 50}],
+            "price": {"amount": "100000", "currency": "VND"},
+        }
+    ],
+    "package_weight": {"value": "500", "unit": "GRAM"},
+    # Required by the edit endpoint on EVERY edit, not just photo changes —
+    # gate #1226 walk run f6f2695e was rejected with "MainImages is a required
+    # field" on a description-only edit. A fixture without it does not model a
+    # real product.
+    "main_images": [
+        {"uri": "tos-alisg-i-aphluv4xwc-sg/abc123", "width": 1200, "height": 1200},
+    ],
+    # Category-mandatory attributes. Which ones are required varies by
+    # category, so a product that carries none does not model the real case.
+    "product_attributes": [
+        {"id": "100107", "name": "Loại bảo hành", "values": [{"id": "1001", "name": "12 tháng"}]},
+    ],
+}
 
 
 class _FakeProductsResource:
@@ -140,9 +174,9 @@ def make_resources(products: _FakeProductsResource) -> SandboxWriteResources:
 
 @pytest.fixture
 def context() -> ProductToolContext:
-    """A bare bound-identity context — no staged image, no sku_refs. Tests
-    that need those populate their own context explicitly."""
-    return ProductToolContext(product_id=BOUND_PRODUCT_ID)
+    """A bound-identity context with product detail for update_product_listing.
+    Tests that need staged image or sku_refs populate their own context explicitly."""
+    return ProductToolContext(product_id=BOUND_PRODUCT_ID, product_detail=_DEFAULT_PRODUCT_DETAIL)
 
 
 def _all_field_names(model: type[BaseModel]) -> set[str]:
@@ -398,7 +432,9 @@ class TestUpdateProductListing:
         products = _FakeProductsResource(edit_result={})
         resources = make_resources(products)
         staged_context = ProductToolContext(
-            product_id=BOUND_PRODUCT_ID, staged_image_uri="tos-img-abc123"
+            product_id=BOUND_PRODUCT_ID,
+            staged_image_uri="tos-img-abc123",
+            product_detail=_DEFAULT_PRODUCT_DETAIL,
         )
 
         handle_update_product_listing(
@@ -423,21 +459,39 @@ class TestUpdateProductListing:
 
         assert products.edit_calls == []
 
-    def test_handler_omits_unset_fields_from_the_edit_body(self, context):
+    def test_handler_carries_unset_fields_through_at_their_current_values(self, context):
+        """Renamed and inverted from `..._omits_unset_fields_...` (#1389).
+
+        It asserted the "partial edit" assumption — that a field the agent did
+        not author is left out of the body. That assumption is the bug: the
+        endpoint requires these fields whether or not the run is changing them,
+        and omitting them produced two production 400s one after the other,
+        "CategoryId is a required field" then "MainImages is a required field".
+
+        Passing the current value through is a no-op edit, not a widening of
+        what the agent authors — the agent still controls only what it set.
+        """
         products = _FakeProductsResource(edit_result={})
         resources = make_resources(products)
 
         handle_update_product_listing(resources, context, UpdateProductListingInput(title="T"))
 
         _, body = products.edit_calls[0]
-        assert "description" not in body
-        assert "main_images" not in body
+        assert body["title"] == "T", "the agent's edit is applied"
+        assert body["description"] == _DEFAULT_PRODUCT_DETAIL["description"], (
+            "unset description falls back to the product's current value"
+        )
+        assert body["main_images"] == [
+            {"uri": img["uri"]} for img in _DEFAULT_PRODUCT_DETAIL["main_images"]
+        ], "the seller's photos are preserved, never dropped"
 
     def test_output_echoes_the_applied_fields_without_a_uri(self):
         products = _FakeProductsResource(edit_result={})
         resources = make_resources(products)
         staged_context = ProductToolContext(
-            product_id=BOUND_PRODUCT_ID, staged_image_uri="tos-img-1"
+            product_id=BOUND_PRODUCT_ID,
+            staged_image_uri="tos-img-1",
+            product_detail=_DEFAULT_PRODUCT_DETAIL,
         )
 
         result = handle_update_product_listing(
@@ -455,6 +509,134 @@ class TestUpdateProductListing:
         assert result.description == "Lightweight."
         assert result.image_attached is True
         assert "image_uri" not in type(result).model_fields
+
+    def test_handler_includes_all_required_fields_from_product_detail(self):
+        """Verify that edit body includes all fields required by TikTok B-4
+        (Edit Product / Partial endpoint) — title, description, category_id,
+        category_version, skus, and package_weight.
+
+        Refs issue #1389, docs/integrations/tiktok_api/contract-collection.md § B-4.
+        """
+        products = _FakeProductsResource(edit_result={})
+        resources = make_resources(products)
+
+        product_detail = {
+            "id": BOUND_PRODUCT_ID,
+            "title": "Original Title",
+            "description": "Original Description",
+            "category_chains": [
+                {
+                    "id": "605254",
+                    "is_leaf": True,
+                    "local_name": "Water Bottles",
+                    "parent_id": "849672",
+                }
+            ],
+            "skus": [
+                {
+                    "id": "1736433041572857475",
+                    "inventory": [{"warehouse_id": "7657265511696664340", "quantity": 50}],
+                    "price": {"amount": "100000", "currency": "VND"},
+                }
+            ],
+            "package_weight": {"value": "500", "unit": "GRAM"},
+            "main_images": [{"uri": "tos-alisg-i-aphluv4xwc-sg/abc123"}],
+        }
+
+        context = ProductToolContext(product_id=BOUND_PRODUCT_ID, product_detail=product_detail)
+
+        handle_update_product_listing(
+            resources,
+            context,
+            UpdateProductListingInput(title="New Title", description="New Description"),
+        )
+
+        _, body = products.edit_calls[0]
+
+        # Agent-authored fields
+        assert body["title"] == "New Title"
+        assert body["description"] == "New Description"
+
+        # Required fields derived from product detail
+        assert body["category_id"] == "605254"
+        assert body["category_version"] == "v2"
+
+        # Passthrough from product detail
+        assert body["skus"] == product_detail["skus"]
+        assert body["package_weight"] == product_detail["package_weight"]
+
+    def test_handler_raises_when_no_leaf_category_found(self):
+        """Per anti-hardcoding contract, missing leaf category fails closed
+        with no vendor call attempted. Never invents a category."""
+        products = _FakeProductsResource(edit_result={})
+        resources = make_resources(products)
+
+        product_detail = {
+            "id": BOUND_PRODUCT_ID,
+            "category_chains": [
+                {"id": "849672", "is_leaf": False, "local_name": "Parent", "parent_id": "root"}
+            ],
+        }
+
+        context = ProductToolContext(product_id=BOUND_PRODUCT_ID, product_detail=product_detail)
+
+        with pytest.raises(ValueError) as exc_info:
+            handle_update_product_listing(
+                resources,
+                context,
+                UpdateProductListingInput(title="New Title"),
+            )
+
+        assert "leaf category" in str(exc_info.value).lower()
+        assert products.edit_calls == []
+
+    def test_handler_raises_when_product_detail_missing(self):
+        """Fail closed: without product detail, cannot build the edit body."""
+        products = _FakeProductsResource(edit_result={})
+        resources = make_resources(products)
+        context = ProductToolContext(product_id=BOUND_PRODUCT_ID)
+
+        with pytest.raises(UnresolvedAgentRefError):
+            handle_update_product_listing(
+                resources,
+                context,
+                UpdateProductListingInput(title="New Title"),
+            )
+
+        assert products.edit_calls == []
+
+    def test_handler_agent_only_authors_title_and_description(self):
+        """Agent controls only title/description; everything else is
+        passthrough from product's current values."""
+        products = _FakeProductsResource(edit_result={})
+        resources = make_resources(products)
+
+        product_detail = {
+            "id": BOUND_PRODUCT_ID,
+            "category_chains": [{"id": "605254", "is_leaf": True}],
+            "skus": [{"id": "sku-1", "price": {"amount": "100000", "currency": "VND"}}],
+            "package_weight": {"value": "500", "unit": "GRAM"},
+            "main_images": [{"uri": "tos-alisg-i-aphluv4xwc-sg/abc123"}],
+        }
+
+        context = ProductToolContext(product_id=BOUND_PRODUCT_ID, product_detail=product_detail)
+
+        handle_update_product_listing(
+            resources,
+            context,
+            UpdateProductListingInput(title="Changed", description="Also Changed"),
+        )
+
+        _, body = products.edit_calls[0]
+
+        # Agent-authored fields changed
+        assert body["title"] == "Changed"
+        assert body["description"] == "Also Changed"
+
+        # Everything else unchanged from product detail
+        assert body["category_id"] == product_detail["category_chains"][0]["id"]
+        assert body["skus"] == product_detail["skus"]
+        assert body["package_weight"] == product_detail["package_weight"]
 
 
 class TestUpdateProductPrice:
@@ -703,3 +885,83 @@ class TestEmptyPriceMutationCannotReachConfirmation:
             skus=[ProductSkuPrice(sku_ref="S1", currency="VND", amount="179000")]
         )
         assert len(parsed.skus) == 1
+
+
+class TestEveryRequiredFieldSurvivesADescriptionOnlyEdit:
+    """Gate #1226 walk run f6f2695e: the agent edited the description only
+    (`title: null`, `attach_staged_image: false`) and TikTok rejected it with
+
+        400 {"code":36009004,"message":"MainImages is a required field and has not been provided."}
+
+    The endpoint requires fields regardless of whether the run is changing them
+    — the same lesson `category_id` taught one 400 earlier. B-4's sample cURL
+    omits `main_images`, so the sample is not a complete required-field list,
+    and building the body from an allowlist copied out of it is what produced
+    this second failure.
+
+    These pin the fields present on a description-only edit, which is the
+    common case: the model changes copy and leaves the photo alone.
+    """
+
+    def test_a_description_only_edit_still_carries_title_and_images(self, context):
+        params = UpdateProductListingInput(
+            title=None, description="<p>mô tả mới</p>", attach_staged_image=False
+        )
+
+        body = _build_listing_edit_body(params, context)
+
+        assert body["description"] == "<p>mô tả mới</p>", "the agent's edit is applied"
+        assert body["title"] == context.product_detail["title"], (
+            "title falls back to the product's current value — a no-op edit, not a "
+            "widening of what the agent authors"
+        )
+        assert body["main_images"] == [
+            {"uri": img["uri"]} for img in context.product_detail["main_images"]
+        ], "the seller's current photos are passed through, never dropped"
+
+    def test_main_images_are_refs_not_the_raw_detail_objects(self, context):
+        """The detail carries width/height/urls; the edit body takes uri refs."""
+        params = UpdateProductListingInput(
+            title=None, description="<p>x</p>", attach_staged_image=False
+        )
+
+        body = _build_listing_edit_body(params, context)
+
+        for ref in body["main_images"]:
+            assert set(ref) == {"uri"}, f"unexpected keys in an image ref: {sorted(ref)}"
+
+    def test_a_staged_image_still_replaces_the_current_ones(self, context):
+        """The attach path is unchanged — passthrough must not override it."""
+        ctx = replace(context, staged_image_uri="tos-staged/new-photo")
+        params = UpdateProductListingInput(
+            title=None, description="<p>x</p>", attach_staged_image=True
+        )
+
+        body = _build_listing_edit_body(params, ctx)
+
+        assert body["main_images"] == [{"uri": "tos-staged/new-photo"}]
+
+    def test_category_mandatory_attributes_are_passed_through(self, context):
+        """Gate #1226 walk run f5c1f9bf: TikTokAPIError [12052104] "missing
+        product attribute ID 100107" (Loại bảo hành). Which attributes a
+        category makes mandatory varies by category, so there is no fixed list
+        to encode — passing through whatever the product already carries is the
+        only correct answer, and the only one that cannot invent a value."""
+        params = UpdateProductListingInput(
+            title=None, description="<p>x</p>", attach_staged_image=False
+        )
+
+        body = _build_listing_edit_body(params, context)
+
+        assert body["product_attributes"] == context.product_detail["product_attributes"]
+
+    def test_a_product_with_no_usable_image_fails_closed(self, context):
+        """Never send an empty main_images — that would clear the listing's
+        photos, which is worse than the 400 this avoids."""
+        ctx = replace(context, product_detail=dict(context.product_detail, main_images=[]))
+        params = UpdateProductListingInput(
+            title=None, description="<p>x</p>", attach_staged_image=False
+        )
+
+        with pytest.raises(UnresolvedAgentRefError, match="main_images"):
+            _build_listing_edit_body(params, ctx)

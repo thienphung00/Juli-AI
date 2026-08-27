@@ -179,6 +179,15 @@ class TestDefaultSeamsComposeRealCollaborators:
             "upload_product_image",
             "update_product_listing",
             "update_product_price",
+            # ADR-088: the terminal tool must be in the PRODUCTION registry,
+            # not just the playbook, because `_tool_definitions` resolves
+            # `TerminationPolicy.terminal_tools` against whatever registry the
+            # worker handed the runner. This assertion is a hardcoded set, so
+            # it stayed green while production was missing the registration —
+            # see test_agent_production_registry_satisfies_playbook.py, which
+            # cross-checks the real builder against the real playbook instead
+            # and is what actually catches that class of gap.
+            "conclude_without_changes",
         }
 
     def test_default_playbook_returns_the_real_optimize_product_playbook(self):
@@ -444,8 +453,17 @@ class TestConstructRunner:
             "registry",
             "playbook",
             "cancel_check",
+            # #1382: the runner is handed the SAME ConcurrencyGuard instance
+            # the ToolExecutor got, so it can mirror the compare-before-write
+            # basis into RunState before each persist. Without that the basis
+            # dies at the pause and every seller-confirmed write is refused.
+            "concurrency_guard",
         }
         assert callable(kwargs["cancel_check"])
+        # Same object, not merely an equivalent one — two guards would each
+        # hold their own basis and the mirroring would be meaningless.
+        assert kwargs["concurrency_guard"] is not None
+        assert kwargs["concurrency_guard"] is kwargs["tool_executor"]._concurrency_guard
         assert kwargs["llm_service"] == "FAKE_LLM_SERVICE"
         assert isinstance(kwargs["registry"], ToolRegistry)
         assert isinstance(kwargs["playbook"], Playbook)
@@ -486,6 +504,41 @@ class TestConstructRunner:
 
         guard = runner.last_kwargs["tool_executor"]._concurrency_guard
         assert guard.basis_snapshot == {"price": "deadbeef"}
+
+    async def test_construct_runner_seeds_the_product_executor_from_state_product_detail(
+        self, monkeypatch
+    ):
+        """Issue #1389: product_detail persists across the CONFIRM pause so
+        update_product_listing can access it on resume without a second vendor
+        call. The production construction must pass state.product_detail to
+        the ProductToolExecutor, just as it passes basis_snapshots to the
+        ConcurrencyGuard."""
+        import juli_backend.services.agent.runner as runner_pkg
+
+        monkeypatch.setattr(runner_pkg, "WorkflowRunner", _SpyWorkflowRunner)
+        monkeypatch.setattr(agent_workflow, "_default_llm_service", lambda: "FAKE_LLM_SERVICE")
+        monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
+        monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
+        monkeypatch.setattr(agent_workflow, "_default_read_resources", _fake_read_resources)
+        monkeypatch.setattr(agent_workflow, "_default_write_resources", _fake_write_resources)
+
+        run, product = _seeded_run_and_product()
+        test_product_detail = {
+            "id": "123",
+            "title": "Test Product",
+            "description": "A test product",
+            "category_chains": [{"id": "456", "is_leaf": True}],
+            "skus": [{"id": "sku1", "price": {"amount": "100", "currency": "VND"}}],
+            "package_weight": {"value": "1", "unit": "kg"},
+        }
+        run.state = {"product_detail": test_product_detail}
+
+        executor = await agent_workflow._construct_runner(
+            session=object(), sync_session=object(), run=run, product=product
+        )
+
+        tool_executor = executor.last_kwargs["tool_executor"]
+        assert tool_executor._product_detail == test_product_detail
 
 
 class TestConstructRunnerUsesRealPersistingEventSink:

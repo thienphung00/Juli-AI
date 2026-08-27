@@ -1,0 +1,86 @@
+{
+  "planId": "rep-1383-partial-progress-is-not-failure",
+  "affectedPublicSurfaces": [
+    "GET /v1/demo/runs/{run_id}/events \u2014 workflow.completed vs workflow.failed for a partial-progress run",
+    "workflow_runs.stop_reason and workflow_runs.required_steps_completed \u2014 both change value for affected runs"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "sandbox shop 1862f13b-de2c-4fae-a4ad-70298cead913 only",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "partial-progress-is-not-a-failure",
+        "entryUrl": "unit: complete one of two required steps, then narrate",
+        "assertions": [
+          "terminates final_response, not required_steps_unfulfilled",
+          "status is completed, not failed",
+          "required_steps_completed stays false \u2014 the partial fact is still recorded honestly"
+        ]
+      },
+      {
+        "name": "zero-progress-still-fails",
+        "entryUrl": "unit: narrate, take the forced retry, narrate again",
+        "assertions": [
+          "terminates required_steps_unfulfilled",
+          "the ADR-088 defect signal is not weakened by this change"
+        ]
+      },
+      {
+        "name": "a-refused-write-is-not-progress",
+        "entryUrl": "unit: a required write returning {'conflict': true, ...}",
+        "assertions": [
+          "does not count as a completed required step",
+          "a run whose only required write was refused still terminates required_steps_unfulfilled"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: backend runner change"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. workflow_runs.required_steps_completed (#1220) changes value for conflict-refused runs \u2014 correctly, since a refused write never performed the operation \u2014 but no historical row is rewritten and no column is altered."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy the prior release; partial-progress runs go back to being labelled failed, which is the current state",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'termination or forced_retry or status_mapping' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests -m 'not live and not demo_contract' -q",
+    "ruff check backend/src/juli_backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do not change when the forced retry ARMS. One nudge toward finishing the job is still correct on any incomplete state; only the terminal classification after the retry is spent changes.",
+    "Do not weaken required_steps_unfulfilled out of existence \u2014 the zero-progress case must still produce it, or ADR-088 decision 2's defect signal is lost.",
+    "Do not treat a conflict-refused write as progress. It names the tool but never performed the operation, which is the same rule the existing error/confirmation skips apply.",
+    "Do not write to any production shop. Sandbox only, never Fujiwa (2b1da87b-d0a8-46a6-b3c6-2132be0b5f4f)."
+  ]
+}
