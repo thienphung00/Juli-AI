@@ -879,6 +879,9 @@ class WorkflowRunner:
             # via the post-write refresh). Mirror it into state now, while we
             # are still on this leg — after the pause it is unrecoverable.
             self._sync_basis(state)
+            # #1389: if a product was read (for the concurrency basis), persist
+            # the raw detail to state so it survives the pause.
+            self._sync_product_detail(state)
         except ConcurrencyExhaustedError:
             # Mirrors `_dispatch_tool_call`'s handling (issue #1172) — this
             # is the second of the two dispatch sites `ToolExecutor.execute`
@@ -1349,6 +1352,7 @@ class WorkflowRunner:
                 tool_name=block.tool_name, params=params, tool_call_id=block.call_id
             )
             self._sync_basis(state)  # #1382 — see the sibling dispatch site
+            self._sync_product_detail(state)  # #1389 — product persists across pause
         except ConcurrencyExhaustedError:
             # A second same-operation basis-hash mismatch (ADR-073 decision
             # 4) — the run ends here, translated by `_drive_loop` via
@@ -1831,6 +1835,23 @@ class WorkflowRunner:
         if self._concurrency_guard is None:
             return
         state.basis_snapshots = dict(self._concurrency_guard.basis_snapshot)
+
+    def _sync_product_detail(self, state: RunState) -> None:
+        """Copy the guard's captured product detail into `RunState`, so it
+        survives the pause/resume boundary (issue #1389).
+
+        When get_product_information reads the product for the concurrency
+        basis, the raw product is stored in the guard and must be persisted
+        to state.product_detail before the pause. The resume leg then
+        retrieves it and passes it to a fresh executor, so
+        update_product_listing can access the full product detail without
+        a second vendor call.
+        """
+        if self._concurrency_guard is None:
+            return
+        product_detail = self._concurrency_guard.get_product_detail()
+        if product_detail is not None:
+            state.product_detail = dict(product_detail)
 
     async def _emit(
         self,

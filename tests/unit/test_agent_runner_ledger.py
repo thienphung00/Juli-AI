@@ -1223,6 +1223,14 @@ class TestPayloadContractWithImpactReader:
             registry=_full_registry(),
             write_resources=_write_resources(products),
             product_id="tt-product-listing-1",
+            product_detail={
+                "id": "tt-product-listing-1",
+                "title": "Original Title",
+                "description": "Original Description",
+                "category_chains": [{"id": "123", "is_leaf": True}],
+                "skus": [{"id": "sku1", "price": {"amount": "100", "currency": "VND"}}],
+                "package_weight": {"value": "1", "unit": "kg"},
+            },
             ledger=ToolExecutionLedger(session, shop_id=shop_id),
             workflow_run_id=run_id,
         )

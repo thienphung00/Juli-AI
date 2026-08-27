@@ -183,6 +183,7 @@ class ProductToolExecutor:
         staged_image_uri: str | None = None,
         pending_image_bytes: bytes | None = None,
         image_inspector: Any | None = None,
+        product_detail: Mapping[str, Any] | None = None,
         ledger: ToolExecutionLedger | None = None,
         workflow_run_id: uuid.UUID | None = None,
         concurrency_guard: ConcurrencyGuard | None = None,
@@ -198,6 +199,10 @@ class ProductToolExecutor:
         # so every existing construction site keeps working; the handler reports
         # `inspected=False` when absent rather than failing the run.
         self._image_inspector = image_inspector
+        # #1389: raw product detail from get_product_information, threaded
+        # forward so update_product_listing can derive required fields without
+        # a second vendor call. Comes from RunState on the resume leg.
+        self._product_detail = product_detail
         self._ledger = ledger
         self._workflow_run_id = workflow_run_id
         self._concurrency_guard = concurrency_guard
@@ -260,6 +265,7 @@ class ProductToolExecutor:
                 staged_image_uri=self._staged_image_uri,
                 pending_image_bytes=self._pending_image_bytes,
                 image_inspector=self._image_inspector,
+                product_detail=self._product_detail,
             )
 
             # Check for terminal tools first (ADR-088 decision 1)
@@ -287,6 +293,14 @@ class ProductToolExecutor:
                     # tools/product.py's sanitize-shaped result for hashing).
                     raw = self._read_resources.products.get_details(self._product_id)
                     self._concurrency_guard.record_basis(extract_mutable_fields(raw))
+                    # #1389: keep the RAW detail too, not just the hashes derived
+                    # from it. The B-4 edit body needs this product's own
+                    # category_id, skus and package_weight, and the write runs on
+                    # the RESUME leg where get_product_information never runs
+                    # again. The guard is the object both the executor and the
+                    # runner hold, so it is what carries this to
+                    # `_sync_product_detail` and on into RunState.
+                    self._concurrency_guard.set_product_detail(raw)
             else:
                 write_handler = PRODUCT_WRITE_TOOL_HANDLERS.get(tool_name)
                 if write_handler is None:

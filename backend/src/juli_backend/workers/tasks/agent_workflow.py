@@ -460,6 +460,11 @@ async def _construct_runner(
         # #1208: without this the inspect step reports inspected=False and the
         # run still completes -- degraded, never broken.
         image_inspector=composition_module.build_image_inspector(),
+        # #1389: raw product detail from get_product_information, persisted
+        # across CONFIRM pause in run.state so update_product_listing can
+        # access it on resume without a second vendor call. Retrieved from
+        # run.state (the persisted RunState.product_detail).
+        product_detail=run.state.get("product_detail"),
     )
     conversation_store = runner_module.JsonbConversationStore(session)
     event_sink = events_module.PersistingEventSink(
