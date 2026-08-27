@@ -103,3 +103,65 @@ class TestDetailCrossesThePauseBoundary:
         restored = RunState.from_dict(state.to_dict())
 
         assert restored.product_detail == DETAIL
+
+
+class TestTheProducerActuallyRuns:
+    """The producer side — dispatching the read must POPULATE the guard.
+
+    Everything above tests that a populated guard reaches the write. That is
+    the consumer half, and it passes just as happily when nothing ever fills
+    the guard in the first place: an earlier revision of #1389 defined
+    `set_product_detail` and never called it in production, so the whole
+    persistence chain was inert and `update_product_listing` failed closed on
+    every run.
+
+    That is the fourth time this lane shipped a consumer without its producer
+    — #1379 (tool declared in the playbook, never registered in the production
+    registry), #1382 (basis captured, never persisted), the `product_detail`
+    field declared on the context and never assigned, and this. Each time the
+    unit tests supplied the missing input themselves and passed.
+
+    So this asserts the production dispatch path fills the guard, using the
+    real `ProductToolExecutor` rather than a hand-populated one.
+    """
+
+    def test_dispatching_get_product_information_populates_the_guard(self):
+        from juli_backend.services.agent.runner.concurrency import ConcurrencyGuard
+        from juli_backend.services.agent.runner.tool_executor import ProductToolExecutor
+        from juli_backend.services.agent.tools.product import register_product_read_tools
+        from juli_backend.services.agent.tools.registry import ToolRegistry
+
+        class _Products:
+            def get_details(self, product_id):
+                return dict(DETAIL, id=product_id)
+
+        class _Resources:
+            products = _Products()
+
+        registry = ToolRegistry()
+        register_product_read_tools(registry)
+        guard = ConcurrencyGuard()
+        executor = ProductToolExecutor(
+            registry=registry,
+            read_resources=_Resources(),
+            product_id=DETAIL["id"],
+            concurrency_guard=guard,
+        )
+
+        assert guard.get_product_detail() is None, "precondition: nothing captured yet"
+
+        spec = registry.get("get_product_information")
+        executor.execute(
+            tool_name="get_product_information",
+            params=spec.input_model(),
+            tool_call_id="c1",
+        )
+
+        captured = guard.get_product_detail()
+        assert captured is not None, (
+            "dispatching the read must populate the guard — without this the "
+            "whole pause/resume chain is inert and every write fails closed"
+        )
+        assert captured["id"] == DETAIL["id"]
+        for field in ("category_chains", "skus", "package_weight"):
+            assert field in captured, f"{field} is required by the B-4 edit body"

@@ -293,6 +293,14 @@ class ProductToolExecutor:
                     # tools/product.py's sanitize-shaped result for hashing).
                     raw = self._read_resources.products.get_details(self._product_id)
                     self._concurrency_guard.record_basis(extract_mutable_fields(raw))
+                    # #1389: keep the RAW detail too, not just the hashes derived
+                    # from it. The B-4 edit body needs this product's own
+                    # category_id, skus and package_weight, and the write runs on
+                    # the RESUME leg where get_product_information never runs
+                    # again. The guard is the object both the executor and the
+                    # runner hold, so it is what carries this to
+                    # `_sync_product_detail` and on into RunState.
+                    self._concurrency_guard.set_product_detail(raw)
             else:
                 write_handler = PRODUCT_WRITE_TOOL_HANDLERS.get(tool_name)
                 if write_handler is None:
