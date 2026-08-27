@@ -92,3 +92,59 @@ Create an issue in the current repo using `gh`:
 
 Use a heredoc to avoid formatting issues when creating the issue body.
 
+
+---
+
+## Worked examples
+
+The PRD is what `to-issues` decomposes. A user story that names a capability
+without saying where it becomes visible decomposes into a unit-shaped
+acceptance criterion, and a unit-shaped criterion is satisfiable without the
+product changing — that is how #721 shipped a computation nobody could reach.
+
+### User stories
+
+**Bad — restates the module:**
+
+> As a seller, I want a reorder quantity calculator, so that I can calculate
+> reorder quantities.
+
+Names a component, not a benefit, and the "so that" is circular. It cannot be
+falsified, so it cannot be tested.
+
+**Good — a moment in the product:**
+
+> As a seller whose bestseller is about to stock out, I want the replenish card
+> to open with a suggested quantity already filled in and the reasoning shown,
+> so that I can approve a restock in one glance instead of doing the arithmetic
+> myself.
+
+Names *who*, *when*, *what they see*, and *what it saves them*. It decomposes
+into a criterion with a surface and a test.
+
+### Testing Decisions
+
+This section becomes the executor's test plan, so make it discriminating rather
+than aspirational.
+
+**Bad:** "Unit tests for the reorder module; aim for high coverage."
+
+**Good:**
+
+> Test external behavior at the API surface, not the calculator in isolation —
+> the failure mode we care about is a number that reaches the seller without
+> the basis that explains it. Where a displayed value is derived from a policy
+> constant, the test moves the policy and asserts every displayed half follows,
+> rather than pinning today's value. Prior art:
+> `tests/unit/test_action_card_inputs_contract.py`.
+
+The distinction that matters: a test pinning a current value is green the day
+it is written, so it never went red and never proves the change. State which
+*relationship* holds, and let the issue's test assert that.
+
+### Out of Scope
+
+Write it as decisions, not silence — every unlisted thing becomes an executor's
+judgment call mid-implementation, and that is where trial-and-fix rounds come
+from. "Multi-warehouse lead times: single warehouse assumed, one lead-time
+policy for now" is worth more than omitting the topic.

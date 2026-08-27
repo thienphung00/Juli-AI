@@ -60,7 +60,9 @@ def parse_threshold_constants(thresholds_file: Path) -> dict[str, float | int | 
     return constants
 
 
-def verify_cold_start_thresholds(touched_modules: list[str]) -> tuple[bool, list[str], dict[str, Any]]:
+def verify_cold_start_thresholds(
+    touched_modules: list[str],
+) -> tuple[bool, list[str], dict[str, Any]]:
     """Verify cold-start constants exist in source for inference ML modules."""
     problems: list[str] = []
     details: dict[str, Any] = {"modules": {}, "required": []}
@@ -89,7 +91,9 @@ def verify_cold_start_thresholds(touched_modules: list[str]) -> tuple[bool, list
     return len(problems) == 0, problems, details
 
 
-def verify_promotion_thresholds(touched_modules: list[str]) -> tuple[bool, list[str], dict[str, Any]]:
+def verify_promotion_thresholds(
+    touched_modules: list[str],
+) -> tuple[bool, list[str], dict[str, Any]]:
     """Verify promotion gate constants in artifacts/thresholds.py."""
     leaves = {module_leaf(m) for m in touched_modules}
     if not leaves & TRAINER_MODULE_LEAVES:
@@ -115,12 +119,10 @@ def verify_promotion_thresholds(touched_modules: list[str]) -> tuple[bool, list[
 
 def verify_ml_gates_threshold_values(
     touched_modules: list[str],
-    ml_gates: dict[str, Any] | None,
 ) -> tuple[bool, list[str], dict[str, Any]]:
-    """Cross-check mlGates.thresholds (when present) against source constants."""
-    ml_gates = ml_gates or {}
+    """Verify required threshold constants exist in source, and report their values."""
     problems: list[str] = []
-    details: dict[str, Any] = {"sourceScan": {}, "declaredThresholds": ml_gates.get("thresholds") or {}}
+    details: dict[str, Any] = {"sourceScan": {}}
 
     cold_ok, cold_problems, cold_details = verify_cold_start_thresholds(touched_modules)
     promo_ok, promo_problems, promo_details = verify_promotion_thresholds(touched_modules)
@@ -129,33 +131,20 @@ def verify_ml_gates_threshold_values(
     details["sourceScan"]["coldStart"] = cold_details
     details["sourceScan"]["promotion"] = promo_details
 
-    declared = ml_gates.get("thresholds") or {}
-    if not declared:
-        return len(problems) == 0, problems, details
-
+    # Thresholds are READ from source, never demanded from the artifact.
+    #
+    # `mlGates.thresholds` used to be a hand-typed copy that this function
+    # compared back to source. The comparison was optional — omit the field and
+    # no check ran — so declaring thresholds could only ever hurt you, and
+    # omitting them was the strictly safer move. It bought no floor, cost a
+    # restatement on every threshold change, and rewarded silence.
+    #
+    # Any declared copy is now ignored. The gate reports what source actually
+    # says, so the artifact records a value nobody had to transcribe correctly.
     source_constants: dict[str, float | int | str] = {}
     for leaf in COLD_START_CONSTANTS:
         source_constants.update(parse_threshold_constants(ML_ROOT / leaf / "thresholds.py"))
     source_constants.update(parse_threshold_constants(ML_ROOT / "artifacts" / "thresholds.py"))
+    details["sourceThresholds"] = source_constants
 
-    mismatches: list[dict[str, Any]] = []
-    for name, declared_value in declared.items():
-        if name not in source_constants:
-            mismatches.append({"constant": name, "error": "not found in source thresholds.py files"})
-            continue
-        source_value = source_constants[name]
-        if source_value != declared_value:
-            mismatches.append(
-                {
-                    "constant": name,
-                    "declared": declared_value,
-                    "source": source_value,
-                }
-            )
-    if mismatches:
-        problems.append(
-            "mlGates.thresholds mismatch with source: "
-            + ", ".join(m["constant"] for m in mismatches)
-        )
-    details["mismatches"] = mismatches
     return len(problems) == 0, problems, details

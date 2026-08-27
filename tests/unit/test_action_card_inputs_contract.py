@@ -10,6 +10,7 @@ AC6 → endpoint does not write to DB / does not invoke scoring pipeline
 
 from __future__ import annotations
 
+import math
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -397,3 +398,67 @@ def test_endpoint_does_not_invoke_scoring_pipeline():
         # verify no new scoring imports were added (just forecasting)
         # This is a light check — the main assertion is in AC6 (no DB writes)
         assert "services.scoring.pipeline" not in scoring_imports
+
+
+@pytest.mark.asyncio
+async def test_displayed_basis_is_the_parameters_the_quantity_was_computed_with(
+    session,
+    shop_with_inventory,
+    auth_client,
+):
+    """The basis shown to the seller must explain the quantity shown to the seller.
+
+    The route used to call ``compute_reorder_quantity(risk)`` — taking that
+    function's own defaults — and then re-type ``lead_time_days=3,
+    safety_stock_days=2`` by hand to build the displayed ``ReorderBasis``. The
+    two agreed only by coincidence: change the reorder policy in one place and
+    the seller is shown a basis that contradicts the number beside it.
+
+    Pinning the values would not catch that, because today they match. This
+    pins the *coupling* — move the policy and both halves must move together.
+    """
+    now = datetime.now(UTC)
+    inv_item = InventoryItem(
+        id=uuid.uuid4(),
+        shop_id=shop_with_inventory.id,
+        tiktok_sku_id="SKU-1",
+        tiktok_product_id="prod-basis-1",
+        quantity=12,
+        update_time=now,
+    )
+    session.add(inv_item)
+    await session.flush()
+
+    mock_risks = [
+        LowStockRisk(
+            sku_id="SKU-1",
+            tiktok_product_id="prod-basis-1",
+            quantity=12,
+            daily_velocity=5.0,
+            days_until_stockout=2.4,
+            urgency_score=41.67,
+        )
+    ]
+
+    # A lead time that is deliberately NOT the default, so a hardcoded 3 shows up.
+    with (
+        patch(
+            "juli_backend.api.routes.action_cards.get_low_stock_risks",
+            new_callable=AsyncMock,
+            return_value=mock_risks,
+        ),
+        patch("juli_backend.api.routes.action_cards.REORDER_LEAD_TIME_DAYS", 7),
+    ):
+        response = await auth_client.get("/v1/action-cards/replenish_inventory_1/inputs")
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    basis = data["basis"]
+
+    # The policy actually in force must be what the seller is shown...
+    assert basis["lead_time_days"] == 7
+    # ...and the quantity must be the one that policy produces.
+    expected = math.ceil(
+        basis["daily_velocity"] * (basis["lead_time_days"] + basis["safety_stock_days"])
+    )
+    assert data["reorder_quantity"] == expected

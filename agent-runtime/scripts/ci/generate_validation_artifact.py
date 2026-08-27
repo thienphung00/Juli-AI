@@ -41,6 +41,7 @@ CHECKS: list[tuple[str, str]] = [
     ("public_release_evidence_plan", "check_public_release_evidence_plan.py"),
     ("implementation_schema_valid", "check_implementation_schema_valid.py"),
     ("implementation_tdd_evidence", "check_implementation_tdd_evidence.py"),
+    ("differential_tdd", "check_differential_tdd.py"),
     ("executor_domain_matches_cache", "check_executor_domain_matches_cache.py"),
     ("phase_run_correlation", "check_phase_run_correlation.py"),
     ("release_evidence_plan_continuity", "check_release_evidence_plan_continuity.py"),
@@ -60,7 +61,22 @@ CHECKS: list[tuple[str, str]] = [
 #
 # Every other gate stays blocking. Do not add to this set without updating
 # the pinned test and agent-runtime/scripts/validate/checks.md.
-ADVISORY_CHECKS: frozenset[str] = frozenset({"unpushed_issue_work"})
+#
+# `differential_tdd` is advisory *for a measurement window only*, not by nature.
+# It is a strict new gate that has never run in anger: some changes legitimately
+# cannot go red (pure refactors, characterisation tests, config-shaped edits),
+# and shipping it blocking on the belief that those are rare is how a gate gets
+# routed around instead of trusted. Advisory here is a stage, with an exit:
+#
+#   PROMOTE to blocking once 10 consecutive issues have produced a
+#   `differential_tdd` verdict with zero false `no_discrimination` — i.e. every
+#   non-red verdict corresponded to a change that genuinely had no red step.
+#   Read the verdicts from `verdict`/`baseExit`/`headExit` in the validation
+#   artifacts. On promotion, delete this note and the name below.
+#
+# Do not let this become permanent. `unpushed_issue_work` is the cautionary
+# case: advisory, the most expensive gate in the chain, and therefore pure cost.
+ADVISORY_CHECKS: frozenset[str] = frozenset({"unpushed_issue_work", "differential_tdd"})
 
 
 def load_checker(script_name: str) -> Callable[..., tuple[bool, str, dict[str, Any]]]:
@@ -176,23 +192,19 @@ def build_artifact(
             f"reported but not merge-blocking — see advisoryFailures): {names}."
         )
 
-    merge_blocked_by_warnings = (
-        review_status == "PASS_WITH_WARNINGS"
-        and any(
-            r["name"] in {
-                "findings_acknowledged",
-                "reviewer_signoff_present",
-                "owner_signoff_present",
-            }
-            and r["status"] == "FAIL"
-            for r in results
-        )
+    merge_blocked_by_warnings = review_status == "PASS_WITH_WARNINGS" and any(
+        r["name"]
+        in {
+            "findings_acknowledged",
+            "reviewer_signoff_present",
+            "owner_signoff_present",
+        }
+        and r["status"] == "FAIL"
+        for r in results
     )
 
     merge_allowed_with_override = (
-        review is not None
-        and review.get("status") == "FAIL"
-        and merge_override_active(review)
+        review is not None and review.get("status") == "FAIL" and merge_override_active(review)
     )
 
     artifact: dict[str, Any] = {
