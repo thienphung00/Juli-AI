@@ -43,9 +43,27 @@ async def seed_replay_run(
     now = datetime.now(UTC)
     first_event_time = datetime.fromisoformat(scenario.events[0]["timestamp"])
 
-    # Create rows for each event, rebasing timestamps
+    # Create rows for each event, rebasing timestamps AND sequence numbers.
+    #
+    # Sequence numbers are minted from 1, not carried over from the scenario.
+    # A live run mints from `workflow_runs.state["next_sequence"]`, which starts
+    # at 1, so sequence 0 never occurs in production — and the events endpoint
+    # relies on that: with no `Last-Event-ID` and no `?after=` it resolves
+    # `after_seq` to 0 and replays everything `> after_seq`. A row at sequence 0
+    # is therefore unreachable, silently, for every client.
+    #
+    # A scenario numbered from 0 would lose its first event — the run's opening
+    # `workflow.started` — with a 200 and no error anywhere. Caught by
+    # `tests/integration/test_golden_scenario_replay_endpoint.py`, which streams
+    # through the real handler; a test that read `workflow_run_events` directly
+    # saw all the rows present and passed.
+    #
+    # Minting here rather than validating-and-rejecting is deliberate: ADR-076
+    # decision 2 wants replay runs indistinguishable from live ones at the
+    # endpoint, and that means adopting the live sequence semantics rather than
+    # asking every scenario author to already know them.
     rows = []
-    for event_dict in scenario.events:
+    for sequence_number, event_dict in enumerate(scenario.events, start=1):
         # Parse the event timestamp and compute delta from first event
         event_time = datetime.fromisoformat(event_dict["timestamp"])
         delta = event_time - first_event_time
@@ -57,6 +75,7 @@ async def seed_replay_run(
         replay_event_dict = event_dict.copy()
         replay_event_dict["workflow_run_id"] = str(run_id)
         replay_event_dict["timestamp"] = new_timestamp.isoformat()
+        replay_event_dict["sequence_number"] = sequence_number
 
         # Validate against the shared event union
         try:

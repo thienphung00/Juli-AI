@@ -501,7 +501,7 @@ class TestContinuationsAC5:
         events = result.scalars().all()
 
         assert len(events) == 3  # 0, 1 (base) + 2 (approve continuation)
-        assert events[2].sequence_number == 2
+        assert events[2].sequence_number == 3  # 1-based mint (#1311)
         assert events[2].event_type == "workflow.completed"
 
     async def test_append_continuation_unknown_option_refused(

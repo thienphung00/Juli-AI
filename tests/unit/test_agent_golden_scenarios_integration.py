@@ -59,13 +59,15 @@ async def test_app(session: AsyncSession):
     app.dependency_overrides.clear()
 
 
-class TestReplayEndpointAC3:
+class TestReplaySeedingPersistsRows:
     """AC3: Real handler streams replay-seeded runs."""
 
-    async def test_replay_events_persist_for_endpoint(
+    async def test_seeding_writes_ordered_rows_for_the_run(
         self, session: AsyncSession, authenticated_shop: Shop
     ):
-        """AC3: Events persist as real WorkflowRunEvent rows (endpoint streams them)."""
+        """Seeding writes ordered rows. This does NOT prove AC3 — reading the
+        table says nothing about the handler. AC3 is proven over HTTP in
+        tests/integration/test_golden_scenario_replay_endpoint.py."""
         replay_run_id = uuid.uuid4()
         product_id = uuid.uuid4()
         run = WorkflowRun(
@@ -140,6 +142,9 @@ class TestReplayEndpointAC3:
         assert events[2].event_type == "workflow.completed"
 
         # Verify sequence numbers are preserved (for Last-Event-ID header)
-        assert events[0].sequence_number == 0
-        assert events[1].sequence_number == 1
-        assert events[2].sequence_number == 2
+        # Minted from 1, matching a live run's `next_sequence`. A row at
+        # sequence 0 is unreachable through the events endpoint, which resolves
+        # `after_seq` to 0 and serves everything `> after_seq` (#1311).
+        assert events[0].sequence_number == 1
+        assert events[1].sequence_number == 2
+        assert events[2].sequence_number == 3
