@@ -1,0 +1,258 @@
+"""A replay run is served by the REAL events endpoint (#1311, AC3 and AC4).
+
+The issue is explicit about what this must prove:
+
+    "A seeded replay run streams through the **real** /v1/demo/runs/{id}/events
+    handler. The test asserts the handler was used, not that the bytes look
+    right — an in-memory shortcut here is the defect this slice exists to
+    prevent."
+
+So every assertion below is made on the bytes that came back from an HTTP
+request through the ASGI app. Nothing here queries `workflow_run_events`
+directly to decide whether the endpoint works: reading the table proves seeding
+worked and says nothing about the handler, which is exactly the substitution the
+issue forbids. Two earlier attempts at this file made that substitution — one
+even carried the comment "this simulates what the real endpoint does" — which is
+why the distinction is spelled out rather than assumed.
+
+The fixtures and app/client helpers are imported from the streaming matrix
+module rather than re-created. That module already wires `create_app()` to a
+real Postgres through the same dependency overrides production uses, and reusing
+it means these tests exercise the same handler path as the live-run tests
+instead of a parallel harness that could drift from it.
+
+`ASGITransport` reads a *finite* response to completion. Replay runs are finite
+by construction — the seeded scenario ends in a terminal event — so this is the
+correct transport here, and no live uvicorn server is needed (see that module's
+note on why an infinite live stream would need one).
+"""
+
+from __future__ import annotations
+
+import uuid
+from typing import Any
+
+import pytest
+
+from juli_backend.services.agent.golden_scenarios import (
+    GoldenScenario,
+    append_continuation,
+    seed_replay_run,
+)
+
+# Fixtures and helpers reused from the live-run streaming matrix, so replay runs
+# are proven through the same wiring live runs are. Imported fixtures are picked
+# up by pytest as if defined here.
+from tests.integration.test_agent_events_streaming_matrix import (  # noqa: F401
+    _authenticated_client,
+    _build_app,
+    _database_url,
+    _disposable_postgres_url,
+    _postgres_reachable,
+    _postgres_schema_ready,
+    _record_ids,
+    _seed_run,
+    _seed_shop,
+    pg_engine,
+    pg_session_factory,
+)
+
+pytestmark = pytest.mark.skipif(
+    not _postgres_reachable(),
+    reason="Replay endpoint tests need a reachable local Postgres DATABASE_URL",
+)
+
+
+def _scenario_with_a_decision(run_id: uuid.UUID) -> GoldenScenario:
+    """A three-event scenario ending in a decision, with two continuations.
+
+    Built here as a *fixture for the endpoint*, not as scenario input: AC8's
+    "no hand-authored JSON" rule is about what feeds the capture tool. These
+    events exist to give the handler something to stream.
+    """
+
+    def _event(seq: int, event_type: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "workflow_run_id": str(run_id),
+            "sequence_number": seq,
+            "event_type": event_type,
+            "timestamp": f"2026-08-14T12:00:{seq:02d}Z",
+            "payload": payload,
+            "v": 1,
+        }
+
+    return GoldenScenario(
+        scenario_id="replay-endpoint-fixture",
+        workflow_key="optimize_product",
+        prompt_sha256="a" * 64,
+        captured_at="2026-08-14T12:00:00Z",
+        events=[
+            _event(
+                0,
+                "workflow.started",
+                {
+                    "workflow_key": "optimize_product",
+                    "product_ref": "product-ref-a1b2c3d4",
+                    "prompt_version": "optimize_product.v1",
+                },
+            ),
+            _event(
+                1,
+                "tool.started",
+                {"tool_call_id": "call-1", "tool_name": "get_product_information"},
+            ),
+            _event(
+                2,
+                "tool.completed",
+                {
+                    "tool_call_id": "call-1",
+                    "tool_name": "get_product_information",
+                    "ok": True,
+                    "summary": "Xong",
+                },
+            ),
+        ],
+        continuations={},
+    )
+
+
+async def _seed_replay_run(session_factory, shop) -> tuple[uuid.UUID, GoldenScenario]:
+    """Create a real run row via the shared helper, then seed the scenario onto it.
+
+    `_seed_run` is reused rather than hand-rolled because `workflow_runs.product_id`
+    is a foreign key — a replay run is an ordinary row and has to satisfy the same
+    constraints a live run does. That is the point of the design, so the fixture
+    should not route around it.
+    """
+    run = await _seed_run(session_factory, shop, status="completed")
+    run_id = run.id
+    scenario = _scenario_with_a_decision(run_id)
+    async with session_factory() as session:
+        await seed_replay_run(session, run_id, scenario)
+        await session.commit()
+    return run_id, scenario
+
+
+class TestTheRealHandlerServesAReplayRun:
+    """AC3. Every assertion is on the HTTP response body."""
+
+    @pytest.mark.asyncio
+    async def test_a_seeded_replay_run_streams_through_the_real_endpoint(self, pg_session_factory):  # noqa: F811
+        user, shop = await _seed_shop(pg_session_factory)
+        run_id, _ = await _seed_replay_run(pg_session_factory, shop)
+
+        app = _build_app(pg_session_factory, subscriber=None)
+        async with _authenticated_client(app, user, shop) as client:
+            response = await client.get(f"/v1/demo/runs/{run_id}/events")
+
+        assert response.status_code == 200, response.text
+        body = response.text
+
+        # The handler's own SSE framing — id/event/data per record. If this file
+        # had queried the table instead, none of this would be exercised.
+        assert "event: workflow.started" in body
+        assert "event: tool.completed" in body
+        assert _record_ids(body) == [1, 2, 3], (
+            f"the endpoint did not stream the seeded sequence in order: {_record_ids(body)}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_another_shops_replay_run_is_not_served(self, pg_session_factory):  # noqa: F811
+        """A replay run is an ordinary row, so it must inherit ordinary
+        ownership. If replay bypassed `_resolve_owned_run`, this would leak."""
+        _, owner_shop = await _seed_shop(pg_session_factory)
+        other_user, other_shop = await _seed_shop(pg_session_factory)
+        run_id, _ = await _seed_replay_run(pg_session_factory, owner_shop)
+
+        app = _build_app(pg_session_factory, subscriber=None)
+        async with _authenticated_client(app, other_user, other_shop) as client:
+            response = await client.get(f"/v1/demo/runs/{run_id}/events")
+
+        assert response.status_code == 404, (
+            "another shop's replay run must 404, never 403 — a 403 confirms the run exists"
+        )
+
+
+class TestReconnectIsGaplessAndDuplicateFree:
+    """AC4. Same `Last-Event-ID` semantics as a live run, proven over HTTP."""
+
+    @pytest.mark.asyncio
+    async def test_last_event_id_resumes_without_gap_or_duplicate(self, pg_session_factory):  # noqa: F811
+        user, shop = await _seed_shop(pg_session_factory)
+        run_id, _ = await _seed_replay_run(pg_session_factory, shop)
+
+        app = _build_app(pg_session_factory, subscriber=None)
+        async with _authenticated_client(app, user, shop) as client:
+            full = await client.get(f"/v1/demo/runs/{run_id}/events")
+            resumed = await client.get(
+                f"/v1/demo/runs/{run_id}/events", headers={"Last-Event-ID": "1"}
+            )
+
+        assert full.status_code == 200 and resumed.status_code == 200
+        all_ids = _record_ids(full.text)
+        resumed_ids = _record_ids(resumed.text)
+
+        # Gapless: resuming after 0 yields exactly the remainder.
+        assert resumed_ids == [i for i in all_ids if i > 1], (
+            f"reconnect was not gapless: full={all_ids} resumed={resumed_ids}"
+        )
+        # Duplicate-free: the record already delivered is not re-sent.
+        assert 1 not in resumed_ids, "the last delivered event was re-sent after reconnect"
+        assert len(resumed_ids) == len(set(resumed_ids)), "reconnect delivered duplicates"
+
+    @pytest.mark.asyncio
+    async def test_the_after_query_parameter_agrees_with_the_header(self, pg_session_factory):  # noqa: F811
+        """The endpoint accepts both; a replay run must not diverge between them,
+        or a client that uses one gets a different run than a client using the
+        other."""
+        user, shop = await _seed_shop(pg_session_factory)
+        run_id, _ = await _seed_replay_run(pg_session_factory, shop)
+
+        app = _build_app(pg_session_factory, subscriber=None)
+        async with _authenticated_client(app, user, shop) as client:
+            via_header = await client.get(
+                f"/v1/demo/runs/{run_id}/events", headers={"Last-Event-ID": "1"}
+            )
+            via_query = await client.get(f"/v1/demo/runs/{run_id}/events?after=1")
+
+        assert _record_ids(via_header.text) == _record_ids(via_query.text)
+
+
+class TestContinuationsThroughTheEndpoint:
+    """AC5, proven the same way — over HTTP, not by reading the table."""
+
+    @pytest.mark.asyncio
+    async def test_answering_appends_only_the_chosen_continuation(self, pg_session_factory):  # noqa: F811
+        user, shop = await _seed_shop(pg_session_factory)
+        run_id, scenario = await _seed_replay_run(pg_session_factory, shop)
+
+        chosen = {
+            "workflow_run_id": str(run_id),
+            "sequence_number": 4,
+            "event_type": "workflow.completed",
+            "timestamp": "2026-08-14T12:00:03Z",
+            "payload": {"stop_reason": "final_response"},
+            "v": 1,
+        }
+        not_chosen = dict(
+            chosen,
+            event_type="workflow.failed",
+            payload={"status": "failed", "stop_reason": "tool_error_unrecoverable"},
+        )
+        scenario = scenario.model_copy(
+            update={"continuations": {"opt-a": [chosen], "opt-b": [not_chosen]}}
+        )
+
+        async with pg_session_factory() as session:
+            await append_continuation(session, run_id, "opt-a", scenario)
+            await session.commit()
+
+        app = _build_app(pg_session_factory, subscriber=None)
+        async with _authenticated_client(app, user, shop) as client:
+            response = await client.get(f"/v1/demo/runs/{run_id}/events")
+
+        body = response.text
+        assert "event: workflow.completed" in body, "the chosen continuation was not streamed"
+        assert "event: workflow.failed" not in body, (
+            "an option the seller did not choose was streamed to them"
+        )
