@@ -24,7 +24,10 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import os
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TESTS_DIR = REPO_ROOT / "tests"
@@ -122,3 +125,65 @@ def test_the_detector_actually_detects():
         "test_migrations.py",
     ):
         assert known in actual, f"{known} downgrades to base but the scan missed it"
+
+
+# ---------------------------------------------------------------------------
+# The non-local DATABASE_URL refusal (audited 2026-08-28).
+#
+# `requires_postgres` gates on reachability, not locality, and production is
+# reachable. `core/config/runtime.py` calls load_dotenv at import time, so on a
+# checkout with a `.env` the production URL arrives by itself — no
+# misconfiguration required. Eleven modules then downgrade Alembic to base.
+# ---------------------------------------------------------------------------
+def _refusal():
+    spec = importlib.util.spec_from_file_location("_juli_root_conftest_guard", CONFTEST)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module._refuse_non_local_test_database
+
+
+def test_a_non_local_database_url_is_refused(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@db.example.com:5432/prod")
+    monkeypatch.delenv("JULI_ALLOW_REMOTE_TEST_DATABASE", raising=False)
+    with pytest.warns(UserWarning, match="non-local host"):
+        _refusal()()
+    assert os.environ["DATABASE_URL"] == "", (
+        "a non-local DATABASE_URL must not survive into the test session — "
+        "eleven modules downgrade to base against whatever it names"
+    )
+
+
+def test_a_local_database_url_is_left_alone(monkeypatch):
+    local = "postgresql://postgres@localhost:5432/juli_test"
+    monkeypatch.setenv("DATABASE_URL", local)
+    monkeypatch.delenv("JULI_ALLOW_REMOTE_TEST_DATABASE", raising=False)
+    _refusal()()
+    assert os.environ["DATABASE_URL"] == local
+
+
+def test_the_key_is_claimed_even_when_unset(monkeypatch):
+    """The subtle half: load_dotenv runs AFTER conftest.
+
+    `load_dotenv(override=False)` skips names already present in os.environ, and
+    `.env` is only read when a test module first imports `juli_backend` — after
+    this file has been imported. Popping the variable would leave the door open
+    for that later injection. Claiming the key with an empty string is what
+    actually closes it, so pin that it is claimed rather than merely absent.
+    """
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("JULI_ALLOW_REMOTE_TEST_DATABASE", raising=False)
+    _refusal()()
+    assert "DATABASE_URL" in os.environ, (
+        "the key must be claimed, not left absent, or load_dotenv re-injects "
+        "the production URL during collection"
+    )
+    assert os.environ["DATABASE_URL"] == ""
+
+
+def test_the_opt_in_still_works(monkeypatch):
+    remote = "postgresql://u:p@throwaway.example.com:5432/scratch"
+    monkeypatch.setenv("DATABASE_URL", remote)
+    monkeypatch.setenv("JULI_ALLOW_REMOTE_TEST_DATABASE", "1")
+    _refusal()()
+    assert os.environ["DATABASE_URL"] == remote

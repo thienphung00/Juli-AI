@@ -1,5 +1,6 @@
 import os
 import uuid
+import warnings
 
 import pytest
 
@@ -28,6 +29,80 @@ os.environ.setdefault("SUPABASE_JWT_SECRET", "test-jwt-secret-collection-default
 # runs. A test exercising the "SUPABASE_URL missing/unusable" failure path
 # still `monkeypatch.delenv`/`setenv`s it for that test's duration.
 os.environ.setdefault("SUPABASE_URL", "https://test-project.supabase.co")
+
+
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
+
+# --------------------------------------------------------------------------
+# SAFETY: the test suite must never point at a database it does not own.
+#
+# `requires_postgres` in seventeen modules skips on *unreachable*, not on
+# *non-local*. Production is extremely reachable. And nothing has to be
+# misconfigured for it to be selected: `core/config/runtime.py` calls
+# `load_dotenv(repo_root/".env", override=False)` at import time, so on a
+# developer machine with a `.env`, importing anything under `juli_backend`
+# injects the production DATABASE_URL into the environment. Verified on this
+# checkout with DATABASE_URL unset:
+#
+#     host: aws-1-us-west-2.pooler.supabase.com   is local: False
+#
+# Eleven of those modules then run `downgrade(cfg, "base")`, which drops every
+# table in whatever they are pointed at. That is the 2026-07-30 production wipe
+# again, and the only thing that has prevented it is that individual modules
+# each remembered to add their own `_assert_local_database_url` — sixteen
+# separate copies, any one of which can be omitted by the next module.
+#
+# So refuse centrally, at import time, before pytest collects anything: a
+# non-local DATABASE_URL is removed from the environment for the test session.
+# Every `_postgres_reachable()` then returns False and its module skips exactly
+# as it does on a machine with no Postgres — the already-supported path, not a
+# new one. Tests that need a specific URL set it themselves with monkeypatch
+# and are unaffected.
+#
+# `JULI_ALLOW_REMOTE_TEST_DATABASE=1` opts back in for a deliberate run against
+# a remote *throwaway* database. It is not a production escape hatch: the
+# per-module isolation fixture below still refuses to create or drop databases
+# on a non-local host.
+# --------------------------------------------------------------------------
+def _refuse_non_local_test_database() -> None:
+    if os.environ.get("JULI_ALLOW_REMOTE_TEST_DATABASE", "").strip() == "1":
+        return
+
+    url = os.environ.get("DATABASE_URL", "").strip()
+
+    # Claim the key even when it is currently unset. `load_dotenv(override=False)`
+    # skips any name already present in os.environ, and it runs LATER than this
+    # file: conftest is imported before collection, but `.env` is only read when
+    # a test module first imports something under `juli_backend`. Popping the
+    # variable would therefore leave the door open — the next module import
+    # re-injects the production URL and every `_postgres_reachable()` after that
+    # point says yes. An empty string counts as present, so this closes it.
+    if not url:
+        os.environ["DATABASE_URL"] = ""
+        return
+
+    if not url.startswith("postgresql"):
+        return
+
+    from urllib.parse import urlparse
+
+    host = (urlparse(url).hostname or "localhost").lower()
+    if host in _LOCAL_HOSTS:
+        return
+
+    os.environ["DATABASE_URL"] = ""
+    warnings.warn(
+        f"DATABASE_URL pointed at the non-local host {host!r}; it has been removed "
+        "for this test session. Postgres-backed tests will skip. Eleven test "
+        "modules downgrade Alembic to base, which drops every table in the target "
+        "database. Set a local DATABASE_URL to run them, or "
+        "JULI_ALLOW_REMOTE_TEST_DATABASE=1 for a remote throwaway database.",
+        stacklevel=1,
+    )
+
+
+_refuse_non_local_test_database()
 
 
 # --------------------------------------------------------------------------
@@ -77,8 +152,6 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         "test_safe_alembic_upgrade_local.py",
     }
 )
-
-_LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 
 @pytest.fixture(scope="module", autouse=True)
