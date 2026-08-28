@@ -2,13 +2,13 @@
   "scenario_id": "optimize-product-confirm-pause",
   "workflow_key": "optimize_product_2",
   "prompt_sha256": "e79e9f4b586a2031b7f0771aa5297c2b138b173e394104a31277074c6f58d53d",
-  "captured_at": "2026-08-28T08:01:11.413952+00:00",
+  "captured_at": "2026-08-28T08:32:13.313141+00:00",
   "events": [
     {
-      "workflow_run_id": "32225ce8-223c-46e4-b694-e0a284baecc4",
+      "workflow_run_id": "6fed3803-a77e-4d55-9ea3-ac72d25e77e2",
       "sequence_number": 1,
       "event_type": "workflow.started",
-      "timestamp": "2026-08-28T08:01:11.404651",
+      "timestamp": "2026-08-28T08:32:13.304159",
       "payload": {
         "workflow_key": "optimize_product_2",
         "product_ref": "product-ref-ba227180",
@@ -17,10 +17,10 @@
       "v": 1
     },
     {
-      "workflow_run_id": "32225ce8-223c-46e4-b694-e0a284baecc4",
+      "workflow_run_id": "6fed3803-a77e-4d55-9ea3-ac72d25e77e2",
       "sequence_number": 2,
       "event_type": "tool.started",
-      "timestamp": "2026-08-28T08:01:11.405884",
+      "timestamp": "2026-08-28T08:32:13.305485",
       "payload": {
         "tool_call_id": "c1",
         "tool_name": "get_product_information"
@@ -28,10 +28,10 @@
       "v": 1
     },
     {
-      "workflow_run_id": "32225ce8-223c-46e4-b694-e0a284baecc4",
+      "workflow_run_id": "6fed3803-a77e-4d55-9ea3-ac72d25e77e2",
       "sequence_number": 3,
       "event_type": "tool.completed",
-      "timestamp": "2026-08-28T08:01:11.406807",
+      "timestamp": "2026-08-28T08:32:13.306420",
       "payload": {
         "tool_call_id": "c1",
         "tool_name": "get_product_information",
@@ -41,17 +41,17 @@
       "v": 1
     },
     {
-      "workflow_run_id": "32225ce8-223c-46e4-b694-e0a284baecc4",
+      "workflow_run_id": "6fed3803-a77e-4d55-9ea3-ac72d25e77e2",
       "sequence_number": 4,
       "event_type": "workflow.approval_required",
-      "timestamp": "2026-08-28T08:01:11.408637",
+      "timestamp": "2026-08-28T08:32:13.308195",
       "payload": {
         "tool_call_id": "c2",
         "tool_name": "update_product_listing",
         "proposed_change": {
           "title": "Tiêu đề đã tối ưu"
         },
-        "expires_at": "2026-08-28T12:01:11.408598Z",
+        "expires_at": "2026-08-28T12:32:13.308159Z",
         "options": [
           {
             "option_id": "1",
@@ -69,10 +69,10 @@
   "continuations": {
     "approve": [
       {
-        "workflow_run_id": "fc984a43-d47c-4ba5-874e-fdaf769ae615",
+        "workflow_run_id": "9b0eae35-ada3-41f6-b160-7c40d5f67960",
         "sequence_number": 5,
         "event_type": "tool.started",
-        "timestamp": "2026-08-28T08:01:11.426741",
+        "timestamp": "2026-08-28T08:32:13.325269",
         "payload": {
           "tool_call_id": "c2",
           "tool_name": "update_product_listing"
@@ -80,10 +80,10 @@
         "v": 1
       },
       {
-        "workflow_run_id": "fc984a43-d47c-4ba5-874e-fdaf769ae615",
+        "workflow_run_id": "9b0eae35-ada3-41f6-b160-7c40d5f67960",
         "sequence_number": 6,
         "event_type": "tool.completed",
-        "timestamp": "2026-08-28T08:01:11.427657",
+        "timestamp": "2026-08-28T08:32:13.326163",
         "payload": {
           "tool_call_id": "c2",
           "tool_name": "update_product_listing",
@@ -93,10 +93,10 @@
         "v": 1
       },
       {
-        "workflow_run_id": "fc984a43-d47c-4ba5-874e-fdaf769ae615",
+        "workflow_run_id": "9b0eae35-ada3-41f6-b160-7c40d5f67960",
         "sequence_number": 7,
         "event_type": "workflow.completed",
-        "timestamp": "2026-08-28T08:01:11.429346",
+        "timestamp": "2026-08-28T08:32:13.327858",
         "payload": {
           "stop_reason": "final_response"
         },
@@ -105,10 +105,10 @@
     ],
     "decline": [
       {
-        "workflow_run_id": "6af08186-1cd4-459a-9b59-a592bd01981b",
+        "workflow_run_id": "169702b7-b74b-407b-ad07-466a3e5989e8",
         "sequence_number": 5,
         "event_type": "tool.completed",
-        "timestamp": "2026-08-28T08:01:11.445169",
+        "timestamp": "2026-08-28T08:32:13.342828",
         "payload": {
           "tool_call_id": "c2",
           "tool_name": "update_product_listing",
@@ -118,10 +118,10 @@
         "v": 1
       },
       {
-        "workflow_run_id": "6af08186-1cd4-459a-9b59-a592bd01981b",
+        "workflow_run_id": "169702b7-b74b-407b-ad07-466a3e5989e8",
         "sequence_number": 6,
         "event_type": "workflow.completed",
-        "timestamp": "2026-08-28T08:01:11.446071",
+        "timestamp": "2026-08-28T08:32:13.343708",
         "payload": {
           "stop_reason": "confirmation_declined"
         },

@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -54,10 +55,12 @@ async def capture_run_as_scenario(session: AsyncSession, run_id: uuid.UUID) -> G
         raise ValueError(f"Workflow run {run_id} has no events")
 
     # Convert events to dicts and validate against the shared event union
-    event_dicts = []
+    # Annotated: the literal's values are str/int/JSON, which mypy joins to
+    # `object`, and that propagates all the way to the payload read below.
+    event_dicts: list[dict[str, Any]] = []
     for event in events:
         # Convert to dict
-        event_dict = {
+        event_dict: dict[str, Any] = {
             "workflow_run_id": str(event.workflow_run_id),
             "sequence_number": event.sequence_number,
             "event_type": event.event_type,
@@ -80,10 +83,11 @@ async def capture_run_as_scenario(session: AsyncSession, run_id: uuid.UUID) -> G
     sanitized_events = _sanitize_events(event_dicts)
 
     # Extract workflow_key from the first event (workflow.started)
-    workflow_key = None
+    workflow_key: str | None = None
     for event_dict in sanitized_events:
         if event_dict["event_type"] == "workflow.started":
-            workflow_key = event_dict["payload"].get("workflow_key")
+            payload: dict[str, Any] = event_dict["payload"]
+            workflow_key = payload.get("workflow_key")
             break
 
     if not workflow_key:
@@ -109,7 +113,7 @@ async def capture_run_as_scenario(session: AsyncSession, run_id: uuid.UUID) -> G
     return scenario
 
 
-def _sanitize_events(events: list[dict]) -> list[dict]:
+def _sanitize_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Sanitize events: remove raw vendor identifiers and credentials.
 
     Args:

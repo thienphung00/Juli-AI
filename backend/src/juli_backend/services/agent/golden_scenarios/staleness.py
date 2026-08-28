@@ -133,7 +133,7 @@ def _render_text(results: list[ScenarioStaleness]) -> str:
         lines.append(f"{mark} {r.scenario_id}  ({r.path.name})")
         if r.error:
             lines.append(f"        {r.error}")
-        elif r.is_stale:
+        elif r.is_stale and r.current_sha256 is not None:
             lines.append(f"        recorded {r.recorded_sha256[:16]}…")
             lines.append(f"        current  {r.current_sha256[:16]}…")
     stale = [r for r in results if r.is_stale]
