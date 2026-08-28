@@ -1,0 +1,132 @@
+{
+  "scenario_id": "optimize-product-confirm-pause",
+  "workflow_key": "optimize_product_2",
+  "prompt_sha256": "e79e9f4b586a2031b7f0771aa5297c2b138b173e394104a31277074c6f58d53d",
+  "captured_at": "2026-08-28T08:01:11.413952+00:00",
+  "events": [
+    {
+      "workflow_run_id": "32225ce8-223c-46e4-b694-e0a284baecc4",
+      "sequence_number": 1,
+      "event_type": "workflow.started",
+      "timestamp": "2026-08-28T08:01:11.404651",
+      "payload": {
+        "workflow_key": "optimize_product_2",
+        "product_ref": "product-ref-ba227180",
+        "prompt_version": "optimize_product.v3"
+      },
+      "v": 1
+    },
+    {
+      "workflow_run_id": "32225ce8-223c-46e4-b694-e0a284baecc4",
+      "sequence_number": 2,
+      "event_type": "tool.started",
+      "timestamp": "2026-08-28T08:01:11.405884",
+      "payload": {
+        "tool_call_id": "c1",
+        "tool_name": "get_product_information"
+      },
+      "v": 1
+    },
+    {
+      "workflow_run_id": "32225ce8-223c-46e4-b694-e0a284baecc4",
+      "sequence_number": 3,
+      "event_type": "tool.completed",
+      "timestamp": "2026-08-28T08:01:11.406807",
+      "payload": {
+        "tool_call_id": "c1",
+        "tool_name": "get_product_information",
+        "ok": true,
+        "summary": "completed"
+      },
+      "v": 1
+    },
+    {
+      "workflow_run_id": "32225ce8-223c-46e4-b694-e0a284baecc4",
+      "sequence_number": 4,
+      "event_type": "workflow.approval_required",
+      "timestamp": "2026-08-28T08:01:11.408637",
+      "payload": {
+        "tool_call_id": "c2",
+        "tool_name": "update_product_listing",
+        "proposed_change": {
+          "title": "Tiêu đề đã tối ưu"
+        },
+        "expires_at": "2026-08-28T12:01:11.408598Z",
+        "options": [
+          {
+            "option_id": "1",
+            "proposed_change": {
+              "title": "Tiêu đề đã tối ưu"
+            },
+            "rationale": "Apply agent-authored title/description (and, if attach_staged_image is true, the run's staged image) to the bound product's listing.",
+            "params_sha": "70767739d8d4ab0c2c1aedce7672e337f843db023847ee709eff11b35a520d4d"
+          }
+        ]
+      },
+      "v": 1
+    }
+  ],
+  "continuations": {
+    "approve": [
+      {
+        "workflow_run_id": "fc984a43-d47c-4ba5-874e-fdaf769ae615",
+        "sequence_number": 5,
+        "event_type": "tool.started",
+        "timestamp": "2026-08-28T08:01:11.426741",
+        "payload": {
+          "tool_call_id": "c2",
+          "tool_name": "update_product_listing"
+        },
+        "v": 1
+      },
+      {
+        "workflow_run_id": "fc984a43-d47c-4ba5-874e-fdaf769ae615",
+        "sequence_number": 6,
+        "event_type": "tool.completed",
+        "timestamp": "2026-08-28T08:01:11.427657",
+        "payload": {
+          "tool_call_id": "c2",
+          "tool_name": "update_product_listing",
+          "ok": true,
+          "summary": "completed"
+        },
+        "v": 1
+      },
+      {
+        "workflow_run_id": "fc984a43-d47c-4ba5-874e-fdaf769ae615",
+        "sequence_number": 7,
+        "event_type": "workflow.completed",
+        "timestamp": "2026-08-28T08:01:11.429346",
+        "payload": {
+          "stop_reason": "final_response"
+        },
+        "v": 1
+      }
+    ],
+    "decline": [
+      {
+        "workflow_run_id": "6af08186-1cd4-459a-9b59-a592bd01981b",
+        "sequence_number": 5,
+        "event_type": "tool.completed",
+        "timestamp": "2026-08-28T08:01:11.445169",
+        "payload": {
+          "tool_call_id": "c2",
+          "tool_name": "update_product_listing",
+          "ok": false,
+          "summary": "declined by the seller"
+        },
+        "v": 1
+      },
+      {
+        "workflow_run_id": "6af08186-1cd4-459a-9b59-a592bd01981b",
+        "sequence_number": 6,
+        "event_type": "workflow.completed",
+        "timestamp": "2026-08-28T08:01:11.446071",
+        "payload": {
+          "stop_reason": "confirmation_declined"
+        },
+        "v": 1
+      }
+    ]
+  }
+}

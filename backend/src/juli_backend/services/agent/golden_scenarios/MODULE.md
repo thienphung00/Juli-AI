@@ -63,3 +63,44 @@ from juli_backend.services.agent.golden_scenarios import (
 - Tool invocation CLI (will be in infra/scripts or agents/tools in a future slice)
 - Prompt staleness detection command (future slice)
 - Demo UI for scenario replay (UI domain)
+
+## Detecting a stale scenario (#1311 AC7)
+
+A scenario records what the agent did under a particular prompt. Bump the prompt
+and the recording still replays perfectly — same events, same pacing, green
+tests — while no longer showing what the agent would do today. Nothing fails.
+That silence is the problem: the demo quietly becomes fiction and the suite
+keeps saying it is fine.
+
+```bash
+# every committed scenario (default: tests/fixtures/golden_scenarios)
+python -m juli_backend.services.agent.golden_scenarios.staleness
+
+# machine-readable, for CI
+python -m juli_backend.services.agent.golden_scenarios.staleness --json
+
+# a different directory
+python -m juli_backend.services.agent.golden_scenarios.staleness path/to/scenarios
+```
+
+Exit codes: `0` every scenario matches the current production prompt, `1` at
+least one is stale, `2` the scan could not run (missing directory, unreadable
+scenario). The non-zero exit is what lets CI use this without anyone reading the
+output.
+
+The hash comes from `composer.prompt_sha256()` — the same function the runner
+calls when it stamps a run — rather than being recomputed here. Two hash
+implementations would drift, and the one that drifts silently is the one
+deciding whether a scenario is stale.
+
+A scenario whose `workflow_key` no longer has a prompt binding is reported
+**stale**, not current: "cannot be compared" must never read as "matches", or
+renaming a workflow silently retires the check for every scenario under it.
+
+## Re-capturing
+
+`tests/unit/test_golden_scenario_capture_from_real_runner.py` regenerates
+`tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` on every
+run and compares it to the committed copy. To accept a change: run that test,
+inspect the diff, commit it. Hand-authored event JSON is not acceptable input —
+if the tool cannot produce a scenario, fix the tool.
