@@ -6,16 +6,8 @@
     "acceptanceTotal": 7,
     "criticalFindings": 0,
     "modulesTouched": [
-      {
-        "category": "test",
-        "note": "New test file: test_agent_adversarial_loop_behaviour.py (760 lines, 18 parametrized test cases)",
-        "path": "tests/unit/"
-      },
-      {
-        "category": "fixture",
-        "note": "New corpus directory with 13 JSON fixture files for attack payloads",
-        "path": "tests/fixtures/agent_adversarial_loop_behaviour/"
-      }
+      "tests/unit/",
+      "tests/fixtures/agent_adversarial_loop_behaviour/"
     ]
   },
   "review": {

@@ -6,21 +6,9 @@
     "acceptanceTotal": 8,
     "criticalFindings": 0,
     "modulesTouched": [
-      {
-        "changes": "Added migration 043_juli_app_role.py creating NOLOGIN juli_app role and explicit per-table grant map",
-        "impact": "Database schema layer only; no service, repository, or API code affected",
-        "module": "backend/database"
-      },
-      {
-        "changes": "Added 14 juli_app-specific integration tests verifying role creation, idempotence, grant surface, denials, unmapped table inaccessibility, non-membership, and downgrade",
-        "impact": "Test coverage increased from 48 to 62 migration tests",
-        "module": "tests/integration"
-      },
-      {
-        "changes": "Added 10 unit tests for migration contract (file existence, revision chain, role creation, idempotence guards, ADR-085 documentation, no policies, additive gate, UPDATE grants, webhook_raw_events, single head)",
-        "impact": "Enhanced unit test suite for migration validation",
-        "module": "tests/unit"
-      }
+      "backend/database",
+      "tests/integration",
+      "tests/unit"
     ]
   },
   "review": {

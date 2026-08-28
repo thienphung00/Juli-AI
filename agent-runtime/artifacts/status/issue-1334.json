@@ -6,26 +6,10 @@
     "acceptanceTotal": 7,
     "criticalFindings": 0,
     "modulesTouched": [
-      {
-        "boundary_concern": false,
-        "path": "backend/src/juli_backend/services/agent/abuse_limits.py",
-        "type": "service"
-      },
-      {
-        "boundary_concern": false,
-        "path": "tests/unit/test_agent_abuse_limits_gate.py",
-        "type": "test"
-      },
-      {
-        "boundary_concern": false,
-        "path": "tests/unit/test_agent_abuse_limits_routes.py",
-        "type": "test"
-      },
-      {
-        "boundary_concern": false,
-        "path": "tests/unit/test_nginx_limit_req_lint.py",
-        "type": "test"
-      }
+      "backend/src/juli_backend/services/agent/abuse_limits.py",
+      "tests/unit/test_agent_abuse_limits_gate.py",
+      "tests/unit/test_agent_abuse_limits_routes.py",
+      "tests/unit/test_nginx_limit_req_lint.py"
     ]
   },
   "review": {
