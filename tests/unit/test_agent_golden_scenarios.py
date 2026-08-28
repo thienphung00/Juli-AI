@@ -16,6 +16,7 @@ from juli_backend.services.agent.golden_scenarios.capture import (
     capture_run_as_scenario,
 )
 from juli_backend.services.agent.golden_scenarios.replay import (
+    append_continuation,
     seed_replay_run,
 )
 from juli_backend.services.agent.golden_scenarios.scenarios import (
@@ -391,3 +392,162 @@ class TestReplayRun:
         delta = (events[1].timestamp - events[0].timestamp).total_seconds()
         # Should be approximately 5 seconds
         assert 4.9 < delta < 5.1
+
+
+class TestContinuationsAC5:
+    """AC5: Continuations append chosen option, refuse unknown option_id."""
+
+    async def test_append_continuation_chosen_option(
+        self, session: AsyncSession, shop_id: uuid.UUID
+    ):
+        """AC5: Appending continuation adds only the chosen option's events."""
+        replay_run_id = uuid.uuid4()
+        product_id = uuid.uuid4()
+        run = WorkflowRun(
+            id=replay_run_id,
+            shop_id=shop_id,
+            product_id=product_id,
+            state={},
+            status="waiting_approval",
+            prompt_version="optimize_product.v1",
+            prompt_sha256="0" * 64,
+        )
+        session.add(run)
+        await session.commit()
+
+        scenario_dict = {
+            "scenario_id": "test-scenario-ac5",
+            "workflow_key": "optimize_product",
+            "prompt_sha256": "abc123",
+            "captured_at": "2026-08-14T12:00:00Z",
+            "events": [
+                {
+                    "workflow_run_id": str(replay_run_id),
+                    "sequence_number": 0,
+                    "event_type": "workflow.started",
+                    "timestamp": "2026-08-14T12:00:00Z",
+                    "payload": {
+                        "workflow_key": "optimize_product",
+                        "product_ref": "product-ref-abc",
+                        "prompt_version": "optimize_product.v1",
+                    },
+                    "v": 1,
+                },
+                {
+                    "workflow_run_id": str(replay_run_id),
+                    "sequence_number": 1,
+                    "event_type": "workflow.approval_required",
+                    "timestamp": "2026-08-14T12:00:01Z",
+                    "payload": {
+                        "tool_call_id": "call_1",
+                        "tool_name": "update_price",
+                        "proposed_change": {"price": {"from": "199000", "to": "179000"}},
+                        "expires_at": "2026-08-14T16:00:01Z",
+                        "options": [
+                            {
+                                "option_id": "approve",
+                                "proposed_change": {"price": {"from": "199000", "to": "179000"}},
+                                "rationale": "Apply new price.",
+                                "params_sha": "abc123",
+                            },
+                            {
+                                "option_id": "decline",
+                                "proposed_change": {},
+                                "rationale": "Keep current price.",
+                                "params_sha": "def456",
+                            },
+                        ],
+                    },
+                    "v": 1,
+                },
+            ],
+            "continuations": {
+                "approve": [
+                    {
+                        "workflow_run_id": str(replay_run_id),
+                        "sequence_number": 2,
+                        "event_type": "workflow.completed",
+                        "timestamp": "2026-08-14T12:00:02Z",
+                        "payload": {"stop_reason": "final_response"},
+                        "v": 1,
+                    }
+                ],
+                "decline": [
+                    {
+                        "workflow_run_id": str(replay_run_id),
+                        "sequence_number": 2,
+                        "event_type": "workflow.completed",
+                        "timestamp": "2026-08-14T12:00:02Z",
+                        "payload": {"stop_reason": "paused_for_confirmation"},
+                        "v": 1,
+                    }
+                ],
+            },
+        }
+        scenario = GoldenScenario(**scenario_dict)
+        await seed_replay_run(session, replay_run_id, scenario)
+
+        # Append "approve" continuation
+        await append_continuation(session, replay_run_id, "approve", scenario)
+
+        # Verify only approve's events were added (seq 2)
+        from sqlalchemy import select
+
+        result = await session.execute(
+            select(WorkflowRunEvent)
+            .where(WorkflowRunEvent.workflow_run_id == replay_run_id)
+            .order_by(WorkflowRunEvent.sequence_number)
+        )
+        events = result.scalars().all()
+
+        assert len(events) == 3  # 0, 1 (base) + 2 (approve continuation)
+        assert events[2].sequence_number == 2
+        assert events[2].event_type == "workflow.completed"
+
+    async def test_append_continuation_unknown_option_refused(
+        self, session: AsyncSession, shop_id: uuid.UUID
+    ):
+        """AC5: Appending unknown option_id raises ValueError."""
+        replay_run_id = uuid.uuid4()
+        product_id = uuid.uuid4()
+        run = WorkflowRun(
+            id=replay_run_id,
+            shop_id=shop_id,
+            product_id=product_id,
+            state={},
+            status="waiting_approval",
+            prompt_version="optimize_product.v1",
+            prompt_sha256="0" * 64,
+        )
+        session.add(run)
+        await session.commit()
+
+        scenario_dict = {
+            "scenario_id": "test-scenario-ac5-refuse",
+            "workflow_key": "optimize_product",
+            "prompt_sha256": "abc123",
+            "captured_at": "2026-08-14T12:00:00Z",
+            "events": [
+                {
+                    "workflow_run_id": str(replay_run_id),
+                    "sequence_number": 0,
+                    "event_type": "workflow.started",
+                    "timestamp": "2026-08-14T12:00:00Z",
+                    "payload": {
+                        "workflow_key": "optimize_product",
+                        "product_ref": "product-ref-xyz",
+                        "prompt_version": "optimize_product.v1",
+                    },
+                    "v": 1,
+                }
+            ],
+            "continuations": {"approve": []},
+        }
+        scenario = GoldenScenario(**scenario_dict)
+        await seed_replay_run(session, replay_run_id, scenario)
+
+        # Try to append unknown option
+        with pytest.raises(ValueError) as exc_info:
+            await append_continuation(session, replay_run_id, "unknown_option", scenario)
+
+        assert "unknown_option" in str(exc_info.value).lower()
