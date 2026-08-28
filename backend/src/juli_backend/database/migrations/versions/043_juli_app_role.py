@@ -192,20 +192,48 @@ $grant_schema_usage$;
 def downgrade() -> None:
     """Revoke all privileges and drop the juli_app role.
 
-    Note: DROP ROLE fails loudly (not silently) if any session is connected as
-    juli_app, which is correct — the runbook must say to cut DATABASE_URL back
-    to 'postgres' before downgrading.
+    A ROLE is cluster-wide; DROP OWNED BY is database-local. A migration runs in
+    ONE database and can therefore only ever clean up its own grants — it cannot
+    see, let alone remove, grants held in a sibling database of the same cluster.
+    So `DROP ROLE` here is an operation this migration cannot guarantee, and the
+    original version's "fail loudly" stance made that unguaranteeable step abort
+    the whole downgrade (issue #1405).
+
+    That failure was not loud, it was silent and dangerous. `command.downgrade`
+    runs the chain as one transaction, so the abort rolled everything back and
+    left the database **at head with every table still present**, while the
+    caller carried on believing it had reached base. The next operation then hit
+    `workflow_runs` still carrying W7's foreign keys:
+
+        cannot drop table workflow_runs because other objects depend on it
+        DETAIL: production_write_authorizations_consumed_by_run_id_fkey
+                production_write_audit_run_id_fkey
+
+    which is how one cross-database grant turned into 19 failing schema tests.
+
+    So: drop this database's grants, then attempt the role and tolerate the one
+    outcome the migration cannot control. Leaving the role behind is not a
+    permission leak — it is NOLOGIN, it owns nothing, and DROP OWNED BY has
+    already removed every privilege it held *here*. A stranded NOLOGIN role is
+    strictly safer than a downgrade that reports success from head.
     """
-    # Drop the role; fails loudly if sessions are connected as juli_app.
-    # DROP OWNED BY removes all privileges the role has on objects (the actual grants).
     sql = f"""
 DO $drop_role$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{ROLE_NAME}') THEN
-    -- DROP OWNED BY removes all privileges/grants this role has on all objects
+    -- Database-local: removes every privilege this role holds in THIS database.
     EXECUTE 'DROP OWNED BY {ROLE_NAME}';
-    -- Now drop the role itself
-    DROP ROLE {ROLE_NAME};
+    BEGIN
+      EXECUTE 'DROP ROLE {ROLE_NAME}';
+    EXCEPTION WHEN dependent_objects_still_exist THEN
+      -- Objects in ANOTHER database of this cluster still depend on the role.
+      -- Unreachable from here by construction. Keep the role, keep the
+      -- downgrade honest, and say so.
+      RAISE NOTICE
+        'role {ROLE_NAME} kept: objects in another database of this cluster '
+        'still depend on it. Every privilege it held in THIS database has been '
+        'removed. Drop the role manually once no database references it.';
+    END;
   END IF;
 END
 $drop_role$;
