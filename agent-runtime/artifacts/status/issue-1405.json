@@ -1,0 +1,28 @@
+{
+  "gateVersion": 1,
+  "issue": 1405,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/database/migrations/versions/043_juli_app_role.py",
+      "tests/unit/test_juli_app_role_downgrade_cross_database.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1405.json",
+    "ownerSignoffPresent": true,
+    "sha256": "15b1b7c7bdf4353ac8392134469c4a6d63f727040777c6df1540f8d18970c7dc",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-28T04:01:14Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1405.json",
+    "sha256": "c90c0c7360a02d932188ea5d1b7ed48d2894df055d30d38d44cf6a01bd015c6b",
+    "status": "PASS"
+  },
+  "wave": "wave-w7"
+}
