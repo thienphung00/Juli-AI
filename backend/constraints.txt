@@ -212,7 +212,7 @@ sqlalchemy==2.0.52
     #   juli-backend (pyproject.toml)
 starlette==1.6.0
     # via fastapi
-stevedore==5.9.0
+stevedore==5.9.1
     # via bandit
 threadpoolctl==3.6.0
     # via scikit-learn
