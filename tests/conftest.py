@@ -136,9 +136,30 @@ _refuse_non_local_test_database()
 # two jobs — so marking the two currently-unmarked modules to reach them here
 # would silently drop them from those jobs. Isolation and selection are
 # different concerns and must not share a switch.
+#
+# TWO reasons a module needs its own database (#1425):
+#
+#   1. It DESTROYS shared state — `downgrade(cfg, "base")` drops every table,
+#      taking the schema out from under whatever runs next.
+#   2. It ASSERTS ON global state — an unscoped `SELECT COUNT(*)` is only
+#      correct if nothing else has written to the table.
+#
+# The second reason surfaced when #1405 fixed the first. `test_rls_policies`
+# asserts `COUNT(*) FROM products == 2` to show the owner bypassing RLS; that
+# held only because a destructive module happened to have emptied the table
+# first. Give the destructive modules their own databases and the accidental
+# cleanup disappears, so the count sees every row the run has accumulated.
+#
+# Scoping those queries would also work, but it changes what a security test
+# asserts to work around an infrastructure problem. An owner-bypass test is
+# *about* seeing everything RLS would otherwise hide; narrowing its queries
+# weakens the contrast it exists to demonstrate.
 # --------------------------------------------------------------------------
-_DESTRUCTIVE_MIGRATION_MODULES = frozenset(
+_ISOLATED_DATABASE_MODULES = frozenset(
     {
+        # Reason 2: asserts on unscoped global counts (#1425).
+        "test_rls_policies.py",
+        # Reason 1: downgrades to base, dropping every table (#1405).
         "test_stop_reason_diverged_schema.py",
         "test_stop_reason_prompt_version_unrecoverable_schema.py",
         "test_run_confirmations_approvals_schema.py",
@@ -152,6 +173,10 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         "test_safe_alembic_upgrade_local.py",
     }
 )
+
+# The subset that destroys shared state. The guard requires every one of these
+# to be isolated; modules isolated for reason 2 are not expected here.
+_DESTRUCTIVE_MIGRATION_MODULES = _ISOLATED_DATABASE_MODULES - {"test_rls_policies.py"}
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -169,7 +194,7 @@ def _isolated_migration_database(request):
     module_name = os.path.basename(str(getattr(request, "path", request.node.fspath)))
     base_url = os.environ.get("DATABASE_URL", "").strip()
 
-    if module_name not in _DESTRUCTIVE_MIGRATION_MODULES or not base_url.startswith("postgresql"):
+    if module_name not in _ISOLATED_DATABASE_MODULES or not base_url.startswith("postgresql"):
         yield
         return
 

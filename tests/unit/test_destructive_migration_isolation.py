@@ -64,12 +64,16 @@ def _downgrades_to_base(source: str) -> bool:
     return False
 
 
-def _isolated_modules() -> frozenset[str]:
+def _conftest():
     spec = importlib.util.spec_from_file_location("_juli_root_conftest", CONFTEST)
     assert spec and spec.loader, f"could not load {CONFTEST}"
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module._DESTRUCTIVE_MIGRATION_MODULES
+    return module
+
+
+def _isolated_modules() -> frozenset[str]:
+    return _conftest()._ISOLATED_DATABASE_MODULES
 
 
 def _modules_that_downgrade_to_base() -> set[str]:
@@ -90,23 +94,39 @@ def test_every_module_that_downgrades_to_base_is_isolated():
     unlisted = sorted(actual - declared)
     assert not unlisted, (
         "These modules downgrade to base but are not in "
-        "tests/conftest.py::_DESTRUCTIVE_MIGRATION_MODULES, so they run against the "
+        "tests/conftest.py::_ISOLATED_DATABASE_MODULES, so they run against the "
         "shared database and will drop its schema out from under whatever pytest "
         f"runs next (#1405): {unlisted}"
     )
 
 
-def test_the_isolation_list_has_no_dead_entries():
-    """A stale entry is a smaller problem than a missing one, but it still lies
-    about what the suite does — and it makes the list harder to trust."""
-    declared = _isolated_modules()
-    actual = _modules_that_downgrade_to_base()
+def test_every_isolated_module_still_exists():
+    """A rename must not silently retire isolation for a module.
 
-    stale = sorted(declared - actual)
-    assert not stale, (
-        "These modules are declared destructive but no longer downgrade to base; "
-        f"drop them from _DESTRUCTIVE_MIGRATION_MODULES: {stale}"
+    Replaces an earlier "no dead entries" check that compared the list against
+    the downgrade-to-base scan. That comparison stopped being right once
+    isolation gained a second reason (#1425): a module isolated because it
+    asserts on global counts legitimately never downgrades, and the old test
+    would have called it a dead entry. Existence is the invariant that still
+    holds for every isolated module regardless of why it is isolated.
+    """
+    present = {p.name for p in TESTS_DIR.rglob("test_*.py")}
+    missing = sorted(_isolated_modules() - present)
+    assert not missing, (
+        "These modules are declared in _ISOLATED_DATABASE_MODULES but no longer "
+        f"exist — a rename would silently drop their isolation: {missing}"
     )
+
+
+def test_the_destructive_subset_is_a_subset():
+    """`_DESTRUCTIVE_MIGRATION_MODULES` is derived, and must stay a subset.
+
+    If it ever diverges, the guard above would be checking one list while the
+    fixture reads another — the two would disagree silently, which is the exact
+    failure mode this file exists to prevent.
+    """
+    c = _conftest()
+    assert c._DESTRUCTIVE_MIGRATION_MODULES <= c._ISOLATED_DATABASE_MODULES
 
 
 def test_the_detector_actually_detects():
