@@ -139,8 +139,9 @@ _refuse_non_local_test_database()
 #
 # TWO reasons a module needs its own database (#1425):
 #
-#   1. It DESTROYS shared state — `downgrade(cfg, "base")` drops every table,
-#      taking the schema out from under whatever runs next.
+#   1. It MUTATES shared schema state — `downgrade(cfg, "base")` drops every
+#      table, or `Base.metadata.create_all` creates them outside Alembic. Either
+#      leaves the database in a shape the next module did not expect.
 #   2. It ASSERTS ON global state — an unscoped `SELECT COUNT(*)` is only
 #      correct if nothing else has written to the table.
 #
@@ -155,11 +156,9 @@ _refuse_non_local_test_database()
 # *about* seeing everything RLS would otherwise hide; narrowing its queries
 # weakens the contrast it exists to demonstrate.
 # --------------------------------------------------------------------------
-_ISOLATED_DATABASE_MODULES = frozenset(
+_DESTRUCTIVE_MIGRATION_MODULES = frozenset(
     {
-        # Reason 2: asserts on unscoped global counts (#1425).
-        "test_rls_policies.py",
-        # Reason 1: downgrades to base, dropping every table (#1405).
+        # Downgrades to base, dropping every table (#1405).
         "test_stop_reason_diverged_schema.py",
         "test_stop_reason_prompt_version_unrecoverable_schema.py",
         "test_run_confirmations_approvals_schema.py",
@@ -174,9 +173,24 @@ _ISOLATED_DATABASE_MODULES = frozenset(
     }
 )
 
-# The subset that destroys shared state. The guard requires every one of these
-# to be isolated; modules isolated for reason 2 are not expected here.
-_DESTRUCTIVE_MIGRATION_MODULES = _ISOLATED_DATABASE_MODULES - {"test_rls_policies.py"}
+# Isolated for the other two reasons. Kept separate so the subset relationship
+# below holds by construction rather than by subtracting names — subtraction
+# silently stops being correct the moment a name is added to one set and not
+# the other.
+_SHARED_STATE_MODULES = frozenset(
+    {
+        # Reason 2: asserts on unscoped global counts (#1425).
+        "test_rls_policies.py",
+        # Reason 1: `Base.metadata.create_all` against the shared database, which
+        # leaves tables that a module running `alembic upgrade head` afterwards
+        # collides with ("relation \"users\" already exists"). Surfaced when
+        # #1429 made that create_all succeed — before then it failed on a missing
+        # schema and never got far enough to leave anything behind.
+        "test_tenant_context_seam.py",
+    }
+)
+
+_ISOLATED_DATABASE_MODULES = _DESTRUCTIVE_MIGRATION_MODULES | _SHARED_STATE_MODULES
 
 
 @pytest.fixture(scope="module", autouse=True)
