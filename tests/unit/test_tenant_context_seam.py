@@ -352,8 +352,20 @@ async def test_resolve_task_tenant_context_real_postgres():
     engine = create_async_engine(database_url, echo=False)
 
     try:
-        # Create tables (use checkfirst to avoid FK errors on drops)
+        # Create tables (use checkfirst to avoid FK errors on drops).
+        #
+        # The non-public schemas are created first. `Base.metadata` places tables
+        # in bronze/silver/gold/ops, and `create_all` does not create a schema —
+        # it fails with `InvalidSchemaNameError: schema "silver" does not exist`.
+        # This passed only because some other module had migrated the shared
+        # database first and left the schemas behind; #1405 gave those modules
+        # their own databases, so the leftover disappeared. Same shape as #1425:
+        # provision what the test needs rather than depend on what ran before it.
+        # Mirrors `_build_postgres_engine` in test_agent_runner_concurrency.py,
+        # which has always created these schemas explicitly.
         async with engine.begin() as conn:
+            for schema_name in ("bronze", "silver", "gold", "ops"):
+                await conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {schema_name}"))
             await conn.run_sync(Base.metadata.create_all, checkfirst=True)
 
         factory = async_sessionmaker(engine, expire_on_commit=False)
