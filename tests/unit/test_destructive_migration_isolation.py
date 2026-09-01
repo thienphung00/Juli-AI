@@ -284,7 +284,7 @@ def test_an_unmarked_database_url_is_cleared(monkeypatch):
     _unmarked(monkeypatch)
     with pytest.warns(UserWarning, match="JULI_TEST_DATABASE_DISPOSABLE"):
         _guard()._require_disposable_test_database()
-    assert os.environ["DATABASE_URL"] == "", (
+    assert os.environ["DATABASE_URL"] == _guard().UNSET_SENTINEL, (
         "an unmarked DATABASE_URL must not survive into the test session — "
         "twelve modules downgrade to base against whatever it names"
     )
@@ -311,17 +311,62 @@ def test_the_key_is_claimed_even_when_unset(monkeypatch):
     `load_dotenv(override=False)` skips names already present in os.environ, and
     `.env` is only read when a test module first imports `juli_backend` — after
     this file has been imported. Popping the variable would leave the door open
-    for that later injection. Claiming the key with an empty string is what
-    actually closes it, so pin that it is claimed rather than merely absent.
+    for that later injection. Claiming the key is what actually closes it, so
+    pin that it is claimed rather than merely absent.
     """
     monkeypatch.delenv("DATABASE_URL", raising=False)
     _unmarked(monkeypatch)
-    _guard()._require_disposable_test_database()
+    module = _guard()
+    module._require_disposable_test_database()
     assert "DATABASE_URL" in os.environ, (
         "the key must be claimed, not left absent, or load_dotenv re-injects "
         "the production URL during collection"
     )
-    assert os.environ["DATABASE_URL"] == ""
+    assert os.environ["DATABASE_URL"] == module.UNSET_SENTINEL
+
+
+def test_the_unset_sentinel_parses_but_cannot_connect():
+    """The empty string claimed the key but was not a URL (#1432 follow-up).
+
+    `create_engine("")` raises ArgumentError, and several tests build an engine
+    without ever connecting through it. That is what took down the release.yml
+    build on the W7 merge to main: eight tests failed, `deploy` was skipped, and
+    the wave sat on main undeployed. So pin BOTH halves — the sentinel must
+    parse, and it must name somewhere nothing is listening.
+    """
+    from sqlalchemy import create_engine
+    from sqlalchemy.engine import make_url
+
+    sentinel = _guard().UNSET_SENTINEL
+
+    create_engine(sentinel)  # must not raise ArgumentError
+
+    url = make_url(sentinel)
+    assert url.port == 1, (
+        "port 1 is reserved and unlistened, so a connection attempt is refused "
+        "immediately instead of hanging — the sentinel must stay unusable"
+    )
+    assert url.host in {"127.0.0.1", "localhost"}, (
+        "the sentinel must not resolve off-box; a DNS lookup would make every "
+        "reachability probe slow, and could reach something real"
+    )
+
+
+def test_the_sentinel_is_excluded_wherever_the_postgres_prefix_is_tested():
+    """The sentinel parses as Postgres, which is the trap it sets.
+
+    Any `startswith("postgresql")` branch will match it. The isolation fixture's
+    branch is the dangerous one: falling through it reaches the disposability
+    check, which RAISES — turning "Postgres tests skip" into "the job errors"
+    for all twelve isolated modules on any run with no database.
+    """
+    source = CONFTEST.read_text(encoding="utf-8")
+    prefix_tests = source.count('startswith("postgresql")')
+    sentinel_guards = source.count("== UNSET_SENTINEL")
+    assert sentinel_guards >= prefix_tests, (
+        f"{prefix_tests} branch(es) test the postgresql prefix but only "
+        f"{sentinel_guards} exclude the sentinel — each prefix test needs one"
+    )
 
 
 def test_ci_raises_rather_than_skipping_silently(monkeypatch):
