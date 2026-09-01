@@ -95,7 +95,7 @@ httpcore==1.0.9
     # via httpx
 httpx==0.28.1
     # via juli-backend (pyproject.toml)
-idna==3.18
+idna==3.19
     # via
     #   anyio
     #   httpx
@@ -120,7 +120,7 @@ mypy==2.3.1
     # via juli-backend (pyproject.toml)
 mypy-extensions==1.1.0
     # via mypy
-narwhals==2.24.0
+narwhals==2.25.0
     # via scikit-learn
 numpy==2.5.2
     # via
@@ -200,7 +200,7 @@ ruff==0.16.4
     # via juli-backend (pyproject.toml)
 scikit-learn==1.9.0
     # via juli-backend (pyproject.toml)
-scipy==1.18.0
+scipy==1.18.1
     # via
     #   scikit-learn
     #   xgboost
@@ -243,7 +243,7 @@ urllib3==2.7.0
     #   requests
     #   responses
     #   types-requests
-uvicorn==0.52.3
+uvicorn==0.52.4
     # via juli-backend (pyproject.toml)
 vine==5.1.0
     # via
