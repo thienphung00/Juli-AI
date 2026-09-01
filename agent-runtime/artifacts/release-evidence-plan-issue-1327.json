@@ -1,0 +1,83 @@
+{
+  "planId": "tenant-context-seam-set-local-2026-08-25",
+  "affectedPublicSurfaces": [
+    "Every authenticated `/v1/*` request: the unit-of-work seam in `database/database.py` now applies `SET LOCAL app.current_shop_id` (shop-scoped majority) and `SET LOCAL app.current_user_id` (user-scoped tables) inside each tenant-scoped transaction, with the values read from the already-resolved active shop and user. No route contract, status code, or body changes — the settings are read by nobody until #1328's policies land, and that invisibility is itself the release property to verify.",
+    "Every Celery task: worker units of work derive their tenant from the run's shop (never from a request, never from any default or reference shop) and fail closed with a named error when the run cannot be resolved. Beat tasks that are genuinely fleet-wide (reconcile, backfill top-up, impact reader, reaper, credential refresh) run under a single named, logged `system_scope()` escape.",
+    "The fail-closed boundary itself: a tenant-scoped unit of work opened with neither a tenant context nor `system_scope()` raises a named Python error BEFORE any SQL is emitted. This is new refusal behaviour on the runtime path — wrong in the too-strict direction it refuses every request, which is why the candidate journey proves normal traffic end to end.",
+    "Mixed-version note: the seam lives in shared backend code loaded by both `juli-api` and `juli-celery-worker` on the single-VPS lane (ADR-057). The change is behaviourally invisible while the deployed system connects as `postgres` and no policy reads the GUCs, so old and new processes coexist; a worker restarted onto the new release simply starts setting GUCs nothing consumes yet."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest with PYTHONPATH pinned to the worktree's backend/src; all pool-behaviour claims (SET LOCAL cleared on checkout return, two sequential tenants on one pooled connection each seeing only their own value) run against a real pooled Postgres 16 engine on a scratch database — never an in-memory session, which cannot make a pool claim. Post-deploy: the candidate is exercised with ordinary authenticated traffic against the sandbox/test seller only; no production credential is used for any write and no public traffic is routed to a candidate task set (the single-VPS lane has none).",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE deliberately: the Celery half of the seam (task tenant derived from the run's shop; beat tasks under system_scope()) can only be proven with a worker running — a beat task under system_scope() must be observed completing end to end, not stubbed. The journey's entire point is behavioural invisibility: with the app still connecting as postgres and zero policies reading the GUCs, every request and task must complete exactly as before, with the only observable difference being the transaction-scoped settings and the system_scope() log records.",
+    "journeys": [
+      {
+        "name": "seam-applied-and-behaviourally-invisible",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1327",
+        "assertions": [
+          "pre-merge: a unit of work opened without a tenant context and without system_scope() raises the named error before any SQL is emitted — asserted by observing that no statement reached the database (statement capture on the engine), not merely that an exception occurred",
+          "pre-merge: on a real pooled Postgres engine, after a tenant-scoped transaction commits and the connection returns to the pool, a fresh checkout observes app.current_shop_id and app.current_user_id unset — SET LOCAL, never SET",
+          "pre-merge: two sequential units of work for different tenants on the SAME pooled connection each observe only their own value — the cross-tenant leak this decision exists to prevent",
+          "pre-merge: system_scope() emits a log record naming the caller, its transactions are exempt from the fail-closed assertion, and a test enumerates the system_scope() call sites so the exemption list cannot grow silently",
+          "pre-merge: a Celery task resolves its tenant from the run's shop and fails closed with the named error when the run cannot be resolved — no fallback to any default or reference shop, asserted by the absence of any such query",
+          "pre-merge: the existing suite passes unchanged as postgres, and core/security/dependencies.py shows a zero-line diff",
+          "post-deploy: on the candidate, an authenticated read, an approve, an SSE stream and one beat task each complete normally — behaviourally identical responses while the process still connects as postgres and no policy reads the GUCs",
+          "post-deploy: the system_scope() log records for the beat task name the calling task, and no request is refused by the fail-closed assertion during the journey window"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — the diff is backend Python (database/database.py, a request/task tenant context module, workers) plus tests."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "worker-journal",
+      "api-json-response"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration. The seam sets transaction-scoped GUCs that no policy reads yet (#1328 adds the readers) — setting an unread GUC is schema-neutral and version-neutral, so the stable release and the candidate coexist against the same database. If implementation concludes it needs any schema change, this plan must be revised BEFORE merge; nothing here may write a policy — that is #1328's slice and would be inert-or-dangerous out of order."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without the seam, behaviour is exactly today's: the GUCs are never set and the ten existing policies remain dead. No new exposure — the wave's isolation chain simply stays blocked at its first backend link.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart juli-api and juli-celery-worker. The seam is additive (a GUC nothing consumes), so rollback is code-only with no data or schema residue. THE ONE ORDERING HAZARD: a revert must not be able to leave the fail-closed assertion active without the setter — that combination refuses every request. The setter and the fail-closed assertion ship in the same module and the same commit, and a test asserts the pairing (the assertion is unreachable without the seam being importable), so a whole-release revert removes both together; partial cherry-picks of this slice are forbidden.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'tenant_context or system_scope or unit_of_work' -q",
+    "DATABASE_URL=postgresql://postgres@localhost:5432/juli_exec_1327 PYTHONPATH=$PWD/backend/src python -m pytest tests/integration -k 'tenant_context or set_local or pooled' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "core/security/dependencies.py is W6 #1313's file and must not appear in this PR's diff. The seam reads the ALREADY-RESOLVED active shop and user at the unit of work — it does not touch auth resolution.",
+    "SET LOCAL, never SET: session-scoped settings leak one tenant's context into the next pool checkout. Every pool-behaviour claim runs on a real pooled Postgres engine — an in-memory or mocked session proves nothing about the pool.",
+    "No policy is written in this slice. Policies are #1328's; writing them against a setter that just landed inverts the chain ADR-085 fixed. The GUCs being read by nobody in this slice is deliberate and is what makes the setter provable in isolation.",
+    "Celery tenant resolution derives from the run's shop and fails closed when the run cannot be resolved — never a fallback to any default shop, reference shop, or DEMO_REFERENCE_SHOP_ID. A bug must never render as another tenant's context.",
+    "system_scope() is a named, logged decision in the code: the beat tasks it exempts are enumerated by a test, and adding a call site without updating the enumeration fails.",
+    "The DATABASE_URL cutover to juli_app is gate #1339 observation 1 — an owner act. This slice changes nothing about which role the deployed system connects as, and writes stay sandbox-bound: nothing targets Fujiwa Vietnam Store (2b1da87b)."
+  ]
+}

@@ -24,6 +24,14 @@ from typing import TYPE_CHECKING
 
 from juli_backend.database.database import Base, get_session, init_session_factory
 from juli_backend.database.exceptions import NotFound
+from juli_backend.database.tenant_context import (
+    TenantContextRequiredError,
+    clear_tenant_context,
+    get_tenant_context,
+    set_tenant_context,
+    system_scope,
+    with_tenant_scope,
+)
 
 if TYPE_CHECKING:
     from juli_backend.models.models import (
@@ -37,6 +45,7 @@ if TYPE_CHECKING:
         Livestream,
         Order,
         Product,
+        ProductionWriteAuthorization,
         Recommendation,
         Settlement,
         Shop,
@@ -52,6 +61,7 @@ if TYPE_CHECKING:
         InventoryRepo,
         LivestreamsRepo,
         OrdersRepo,
+        ProductionWriteAuthorizationsRepo,
         ProductsRepo,
         RecommendationsRepo,
         SettlementsRepo,
@@ -80,6 +90,7 @@ _LAZY_EXPORTS = {
     "Order": "juli_backend.models.models",
     "ProcessedEvent": "juli_backend.services.etl.persistence.ingest",
     "Product": "juli_backend.models.models",
+    "ProductionWriteAuthorization": "juli_backend.models.models",
     "Recommendation": "juli_backend.models.models",
     "Settlement": "juli_backend.models.models",
     "Shop": "juli_backend.models.models",
@@ -95,6 +106,7 @@ _LAZY_EXPORTS = {
     "LivestreamsRepo": "juli_backend.repositories.repos",
     "OrdersRepo": "juli_backend.repositories.repos",
     "ProcessedEventsRepo": "juli_backend.services.etl.persistence.ingest",
+    "ProductionWriteAuthorizationsRepo": "juli_backend.repositories.repos",
     "ProductsRepo": "juli_backend.repositories.repos",
     "RecommendationsRepo": "juli_backend.repositories.repos",
     "SettlementsRepo": "juli_backend.repositories.repos",
@@ -139,6 +151,8 @@ __all__ = [
     "ProcessedEvent",
     "ProcessedEventsRepo",
     "Product",
+    "ProductionWriteAuthorization",
+    "ProductionWriteAuthorizationsRepo",
     "ProductsRepo",
     "Recommendation",
     "RecommendationsRepo",
@@ -147,10 +161,16 @@ __all__ = [
     "Shop",
     "ShopScopedRepo",
     "ShopsRepo",
+    "TenantContextRequiredError",
     "TikTokCredential",
     "TikTokCredentialRepo",
     "User",
     "UsersRepo",
+    "clear_tenant_context",
     "get_session",
+    "get_tenant_context",
     "init_session_factory",
+    "set_tenant_context",
+    "system_scope",
+    "with_tenant_scope",
 ]

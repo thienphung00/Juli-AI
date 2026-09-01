@@ -149,6 +149,10 @@ from juli_backend.services.impact.metric_map import (
     RawDailyRecord,
     resolve_metric,
 )
+from juli_backend.services.impact.readiness import (
+    ReadinessResult,
+    check_readiness,
+)
 from juli_backend.services.impact.reading import (
     MetricReading,
     MutationReadings,
@@ -195,6 +199,7 @@ __all__ = [
     "MetricFamily",
     "POST_WINDOW_DAYS",
     "PRE_WINDOW_DAYS",
+    "ReadinessResult",
     "RenderedReadingCopy",
     "SKU_ORDERS",
     "SelectedControl",
@@ -213,6 +218,7 @@ __all__ = [
     "WindowKind",
     "Windows",
     "assign_confidence",
+    "check_readiness",
     "compute_confidence",
     "compute_expected",
     "compute_growth",

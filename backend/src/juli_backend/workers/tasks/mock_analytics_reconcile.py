@@ -185,6 +185,8 @@ def run_mock_analytics_reconcile_sync(
 
 async def _run_hourly_reconcile_async() -> None:
     """Run hourly reconciliation through SharedComputeOrchestrator."""
+    from juli_backend.database.tenant_context import system_scope
+
     shop_id = get_demo_reference_shop_id()
     if shop_id is None:
         logger.info(
@@ -201,12 +203,13 @@ async def _run_hourly_reconcile_async() -> None:
 
     factory = _ensure_session_factory()
     async with factory() as session:
-        await run_mock_analytics_reconcile_orchestrated(
-            session=session,
-            shop_id=shop_id,
-            shop_key=shop_key,
-        )
-        await session.commit()
+        async with system_scope(session, caller="mock_analytics_hourly_reconcile"):
+            await run_mock_analytics_reconcile_orchestrated(
+                session=session,
+                shop_id=shop_id,
+                shop_key=shop_key,
+            )
+            await session.commit()
 
 
 @celery_app.task(name="juli_backend.mock_analytics_hourly_reconcile")

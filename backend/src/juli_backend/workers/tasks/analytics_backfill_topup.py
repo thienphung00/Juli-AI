@@ -110,6 +110,8 @@ async def run_analytics_backfill_topup_for_shop(
 
 async def _run_analytics_backfill_topup_async() -> None:
     """Run analytics backfill top-up for the reference shop (async entrypoint)."""
+    from juli_backend.database.tenant_context import system_scope
+
     shop_id = get_demo_reference_shop_id()
     if shop_id is None:
         logger.info(
@@ -120,7 +122,8 @@ async def _run_analytics_backfill_topup_async() -> None:
 
     factory = _ensure_session_factory()
     async with factory() as session:
-        await run_analytics_backfill_topup_for_shop(session=session, shop_id=shop_id)
+        async with system_scope(session, caller="analytics_backfill_topup"):
+            await run_analytics_backfill_topup_for_shop(session=session, shop_id=shop_id)
 
 
 @celery_app.task(name="juli_backend.analytics_backfill_topup")

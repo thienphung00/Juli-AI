@@ -1,0 +1,11 @@
+{
+  "id": "hidden_text_zero_width_split_identifier",
+  "category": "hidden_text_unicode",
+  "applicable_tests": ["hidden_text"],
+  "description": "A banned identifier (e.g., 'webhook') with a zero-width space inserted between characters to evade pattern matching: 'we​b​hook'. The sanitizer strips the zero-width character first, then the ban-pattern scan sees the full identifier and blocks it. This tests that stripping happens before scanning (ADR-075 decision 5).",
+  "source_field": "vendor",
+  "raw_text": "Our integration uses the we​b​hook endpoint for notifications.",
+  "contains_zero_width_chars": true,
+  "expected_guard_outcome": "blocked_after_stripping",
+  "provenance": "ADR-075 decision 5 hidden-text stripping before ban-pattern scan; #1218 regression test."
+}

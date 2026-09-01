@@ -1,0 +1,28 @@
+{
+  "gateVersion": 1,
+  "issue": 1451,
+  "metrics": {
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "tests/unit/test_agent_adversarial_loop_behaviour.py",
+      "agent-runtime/artifacts/waves/wave-agent-w6.json"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1451.json",
+    "ownerSignoffPresent": true,
+    "sha256": "c711af97deb6377a11bb953d5e14fe94469805ce826401ba99d553de4896d16f",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-09-01T05:10:00Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1451.json",
+    "sha256": "225cd72367626b6046fcc1d5b7f0e9b771229246ee93d37f14043e34249ff0c3",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w6"
+}

@@ -162,7 +162,7 @@ async def test_ac4_create_hero_product_e2e_mocked_chain(
     mock_resources.products.search.return_value = {"products": [{"id": "1736405947247986307"}]}
 
     monkeypatch.setattr(
-        "juli_backend.services.execution.listing_handlers.load_sandbox_write_resources",
+        "juli_backend.services.execution.sandbox_guard.load_sandbox_write_resources",
         AsyncMock(return_value=mock_resources),
     )
 
@@ -237,7 +237,7 @@ async def test_ac5_create_hero_product_api_failure_records_failed_status(
     )
 
     monkeypatch.setattr(
-        "juli_backend.services.execution.listing_handlers.load_sandbox_write_resources",
+        "juli_backend.services.execution.sandbox_guard.load_sandbox_write_resources",
         AsyncMock(return_value=mock_resources),
     )
 
@@ -319,7 +319,7 @@ async def test_ac4_optimize_product_e2e_mocked_chain(
     mock_resources.products.update_prices.return_value = {}
 
     monkeypatch.setattr(
-        "juli_backend.services.execution.listing_handlers.load_sandbox_write_resources",
+        "juli_backend.services.execution.sandbox_guard.load_sandbox_write_resources",
         AsyncMock(return_value=mock_resources),
     )
 
