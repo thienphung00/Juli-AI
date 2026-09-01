@@ -1,0 +1,78 @@
+{
+  "planId": "rep-1455-drop-legacy-isolation-policies",
+  "affectedPublicSurfaces": [
+    "none in the request path today — the deployed system connects as postgres, the table owner, which is exempt from RLS, so no policy is evaluated at all.",
+    "It gates #1339 observation 1: after the cutover to juli_app, every query touching public.shops or public.users evaluates these policies."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "none",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "a-missing-tenant-context-denies-instead-of-raising",
+        "entryUrl": "psql as juli_app against a database at head, no tenant context set",
+        "assertions": [
+          "select count(*) from shops returns 0 rather than raising unrecognized configuration parameter",
+          "select count(*) from users returns 0 rather than raising",
+          "with app.current_user_id set, the query still returns only in-context rows",
+          "at 048 the same query raises — the RED is reproduced, not assumed"
+        ]
+      },
+      {
+        "name": "no-policy-anywhere-uses-the-raising-form",
+        "entryUrl": "pytest: tests/integration/test_rls_policy_current_setting_form.py",
+        "assertions": [
+          "no policy in any scanned schema calls current_setting without the missing_ok argument",
+          "the detector distinguishes the two forms as Postgres renders them in pg_policies",
+          "the scan covers a non-empty corpus, so the invariant cannot hold vacuously",
+          "shops and users still carry a policy for all four commands after the drop"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": ["not-applicable: RLS policy change"],
+    "discoverFromHtml": false,
+    "assetTypes": ["not-applicable"],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Drops two policies and creates none. The stable release connects as postgres and is exempt from RLS, so it is unaffected either side of the migration; a candidate connected as juli_app is strictly better off. Both tables keep four per-command policies, and the migration asserts that coverage BEFORE dropping rather than trusting it."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "downgrade recreates both policies exactly as migration 001 left them, including the one-argument current_setting. The downgrade restores the prior state faithfully rather than a corrected version of it — a downgrade that silently improves things hides what the upgrade changed.",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "DATABASE_URL=postgresql://postgres@localhost:5432/<freshly-created> JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=$PWD/backend/src:$PWD python -m pytest tests/integration/test_rls_policy_current_setting_form.py -q",
+    "DATABASE_URL=postgresql://postgres@localhost:5432/<freshly-created> JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=$PWD/backend/src:$PWD python -m pytest tests/integration/test_migrations.py tests/integration/test_rls_policies.py tests/integration/test_two_tenant_isolation_proof.py -q",
+    "psql -At -c \"select policyname from pg_policies where tablename in ('shops','users') order by 1\""
+  ],
+  "doNotInfer": [
+    "Do not require a policy for all four commands on every RLS-enabled table. production_write_audit is append-only by design — migration 047 says 'no UPDATE or DELETE grants. SELECT/INSERT only for juli_app' — so its missing policies are intended denial. A first version of this test asserted four commands everywhere and failed on it; the pressure that creates is to add policies that widen access.",
+    "Do not correct the one-argument current_setting in downgrade(). The downgrade must restore migration 001's policies exactly, defect included, or the upgrade becomes unreviewable.",
+    "Do not pattern-match on '%_isolation' to find policies to drop. Migration 045 already dropped seventeen of them legitimately; a pattern would silently widen if another arrives. The two triples are named explicitly.",
+    "Do not conclude the deployed system is affected today. It connects as postgres, the table owner, which is exempt from RLS — which is exactly why three waves of CI never saw this. Verify as juli_app or not at all.",
+    "Do not verify by reading the migrations. All three W7 grant/policy omissions had correct-looking source and a database that disagreed; read pg_policies."
+  ]
+}
