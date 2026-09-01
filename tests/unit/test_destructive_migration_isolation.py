@@ -284,7 +284,7 @@ def test_an_unmarked_database_url_is_cleared(monkeypatch):
     _unmarked(monkeypatch)
     with pytest.warns(UserWarning, match="JULI_TEST_DATABASE_DISPOSABLE"):
         _guard()._require_disposable_test_database()
-    assert os.environ["DATABASE_URL"] == _guard().UNSET_SENTINEL, (
+    assert os.environ["DATABASE_URL"] == "", (
         "an unmarked DATABASE_URL must not survive into the test session — "
         "twelve modules downgrade to base against whatever it names"
     )
@@ -311,62 +311,17 @@ def test_the_key_is_claimed_even_when_unset(monkeypatch):
     `load_dotenv(override=False)` skips names already present in os.environ, and
     `.env` is only read when a test module first imports `juli_backend` — after
     this file has been imported. Popping the variable would leave the door open
-    for that later injection. Claiming the key is what actually closes it, so
-    pin that it is claimed rather than merely absent.
+    for that later injection. Claiming the key with an empty string is what
+    actually closes it, so pin that it is claimed rather than merely absent.
     """
     monkeypatch.delenv("DATABASE_URL", raising=False)
     _unmarked(monkeypatch)
-    module = _guard()
-    module._require_disposable_test_database()
+    _guard()._require_disposable_test_database()
     assert "DATABASE_URL" in os.environ, (
         "the key must be claimed, not left absent, or load_dotenv re-injects "
         "the production URL during collection"
     )
-    assert os.environ["DATABASE_URL"] == module.UNSET_SENTINEL
-
-
-def test_the_unset_sentinel_parses_but_cannot_connect():
-    """The empty string claimed the key but was not a URL (#1432 follow-up).
-
-    `create_engine("")` raises ArgumentError, and several tests build an engine
-    without ever connecting through it. That is what took down the release.yml
-    build on the W7 merge to main: eight tests failed, `deploy` was skipped, and
-    the wave sat on main undeployed. So pin BOTH halves — the sentinel must
-    parse, and it must name somewhere nothing is listening.
-    """
-    from sqlalchemy import create_engine
-    from sqlalchemy.engine import make_url
-
-    sentinel = _guard().UNSET_SENTINEL
-
-    create_engine(sentinel)  # must not raise ArgumentError
-
-    url = make_url(sentinel)
-    assert url.port == 1, (
-        "port 1 is reserved and unlistened, so a connection attempt is refused "
-        "immediately instead of hanging — the sentinel must stay unusable"
-    )
-    assert url.host in {"127.0.0.1", "localhost"}, (
-        "the sentinel must not resolve off-box; a DNS lookup would make every "
-        "reachability probe slow, and could reach something real"
-    )
-
-
-def test_the_sentinel_is_excluded_wherever_the_postgres_prefix_is_tested():
-    """The sentinel parses as Postgres, which is the trap it sets.
-
-    Any `startswith("postgresql")` branch will match it. The isolation fixture's
-    branch is the dangerous one: falling through it reaches the disposability
-    check, which RAISES — turning "Postgres tests skip" into "the job errors"
-    for all twelve isolated modules on any run with no database.
-    """
-    source = CONFTEST.read_text(encoding="utf-8")
-    prefix_tests = source.count('startswith("postgresql")')
-    sentinel_guards = source.count("== UNSET_SENTINEL")
-    assert sentinel_guards >= prefix_tests, (
-        f"{prefix_tests} branch(es) test the postgresql prefix but only "
-        f"{sentinel_guards} exclude the sentinel — each prefix test needs one"
-    )
+    assert os.environ["DATABASE_URL"] == ""
 
 
 def test_ci_raises_rather_than_skipping_silently(monkeypatch):
@@ -396,12 +351,35 @@ def test_ci_is_configured_to_declare_its_database_disposable():
     service into a hard error — the guard would be correct and the pipeline
     would be dead. Pin that every job supplying a DATABASE_URL also supplies the
     marker, so the two can never drift apart silently.
+
+    EVERY workflow that runs pytest, not just pr.yml. The first version of this
+    test read pr.yml alone, and that blind spot is exactly what shipped: the W7
+    merge went green in pr.yml and then took down release.yml's build job, which
+    runs `pytest tests/` with no Postgres service at all. `deploy` was skipped
+    and the wave sat on main undeployed. A parity check that covers one of two
+    pipelines is not a parity check.
     """
-    workflow = (REPO_ROOT / ".github" / "workflows" / "pr.yml").read_text(encoding="utf-8")
-    urls = workflow.count("DATABASE_URL: postgresql://")
-    markers = workflow.count("JULI_TEST_DATABASE_DISPOSABLE:")
-    assert urls and markers >= urls, (
-        f"pr.yml sets DATABASE_URL in {urls} place(s) but declares the database "
-        f"disposable in {markers} — every job with a Postgres service must set "
-        'JULI_TEST_DATABASE_DISPOSABLE: "1" or it will fail closed'
+    workflows = REPO_ROOT / ".github" / "workflows"
+    runs_pytest = sorted(
+        path for path in workflows.glob("*.yml") if "pytest" in path.read_text(encoding="utf-8")
+    )
+    assert runs_pytest, "no workflow runs pytest — this test has lost its subject"
+
+    problems = []
+    for path in runs_pytest:
+        text = path.read_text(encoding="utf-8")
+        urls = text.count("DATABASE_URL: postgresql://")
+        markers = text.count("JULI_TEST_DATABASE_DISPOSABLE:")
+        if not urls:
+            problems.append(
+                f"{path.name} runs pytest with no Postgres DATABASE_URL — the "
+                "Postgres-backed modules cannot all skip cleanly without one"
+            )
+        elif markers < urls:
+            problems.append(
+                f"{path.name} sets DATABASE_URL in {urls} place(s) but declares "
+                f"the database disposable in {markers}"
+            )
+    assert not problems, (
+        "every workflow that runs pytest must give it a disposable Postgres: " + "; ".join(problems)
     )

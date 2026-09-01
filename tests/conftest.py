@@ -33,27 +33,6 @@ os.environ.setdefault("SUPABASE_URL", "https://test-project.supabase.co")
 
 DISPOSABLE_MARKER = "JULI_TEST_DATABASE_DISPOSABLE"
 
-# What DATABASE_URL is set to when there is no usable test database.
-#
-# It has to be a VALUE, not an empty string, because the guard's job is to keep
-# the key claimed: `load_dotenv(override=False)` skips any name already present
-# in os.environ, and it runs after this file. Popping the key, or never setting
-# it, lets the next `juli_backend` import re-inject the production URL.
-#
-# It has to PARSE, which the empty string does not. `create_engine("")` raises
-# `sqlalchemy.exc.ArgumentError: Could not parse SQLAlchemy URL`, and several
-# tests build an engine without ever connecting through it. That is not
-# hypothetical: the empty string took down the `release.yml` build on the W7
-# merge to main — eight tests failed, `deploy` was skipped, and the wave sat on
-# main undeployed. `release.yml` runs `pytest tests/` with no Postgres service
-# and no marker, which is exactly the path that lands here.
-#
-# And it has to be UNUSABLE. Port 1 is reserved and nothing listens on it, so a
-# connection attempt is refused immediately rather than hanging — `requires_postgres`
-# resolves to "unreachable" fast, and the Postgres-backed modules skip exactly as
-# they did when the value was empty.
-UNSET_SENTINEL = "postgresql://juli-guard@127.0.0.1:1/unset-by-test-guard"
-
 
 class NonDisposableTestDatabaseError(RuntimeError):
     """`DATABASE_URL` names a database that has not declared itself throwaway."""
@@ -111,17 +90,9 @@ def _require_disposable_test_database() -> None:
     # a test module first imports something under `juli_backend`. Popping the
     # variable would therefore leave the door open — the next module import
     # re-injects the production URL and every `_postgres_reachable()` after that
-    # point says yes. Any value counts as present, so claiming it closes that.
+    # point says yes. An empty string counts as present, so this closes it.
     if not url:
-        os.environ["DATABASE_URL"] = UNSET_SENTINEL
-        return
-
-    # Idempotence. The sentinel parses as Postgres, so a second run of this
-    # function would fall through to the CI branch below and RAISE on a value
-    # this function itself wrote. That is reachable: conftest is exec'd as a
-    # fresh module by the guard's own tests, and anything that re-imports it in
-    # CI would hit it.
-    if url == UNSET_SENTINEL:
+        os.environ["DATABASE_URL"] = ""
         return
 
     if not url.startswith("postgresql"):
@@ -138,7 +109,7 @@ def _require_disposable_test_database() -> None:
             f"{DISPOSABLE_MARKER}=1 alongside the ephemeral Postgres service."
         )
 
-    os.environ["DATABASE_URL"] = UNSET_SENTINEL
+    os.environ["DATABASE_URL"] = ""
     warnings.warn(
         f"DATABASE_URL is set but {DISPOSABLE_MARKER}=1 is not, so it has been "
         "cleared for this test session and Postgres-backed tests will skip. These "
@@ -294,10 +265,7 @@ def _shared_database_at_head():
     Postgres behaves exactly as it does today.
     """
     url = os.environ.get("DATABASE_URL", "").strip()
-    # The sentinel starts with "postgresql" — it has to, to parse as a URL — so
-    # it must be excluded explicitly. Testing only the prefix would send this
-    # fixture off to migrate a database that does not exist.
-    if url == UNSET_SENTINEL or not url.startswith("postgresql"):
+    if not url.startswith("postgresql"):
         yield
         return
 
@@ -360,16 +328,7 @@ def _isolated_migration_database(request):
     module_name = os.path.basename(str(getattr(request, "path", request.node.fspath)))
     base_url = os.environ.get("DATABASE_URL", "").strip()
 
-    # The sentinel is excluded for the same reason as in the session fixture,
-    # and here the consequence is sharper: it parses as Postgres, so without
-    # this the disposability check below would RAISE for all twelve isolated
-    # modules on any run with no database — turning "these tests skip" into
-    # "the whole job errors".
-    if (
-        module_name not in _ISOLATED_DATABASE_MODULES
-        or base_url == UNSET_SENTINEL
-        or not base_url.startswith("postgresql")
-    ):
+    if module_name not in _ISOLATED_DATABASE_MODULES or not base_url.startswith("postgresql"):
         yield
         return
 

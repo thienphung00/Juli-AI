@@ -13,6 +13,45 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # `pytest tests/` below runs the whole tree, and ~29 modules are
+    # Postgres-backed. Without a database they do not all skip cleanly: eight
+    # tests build a SQLAlchemy engine from DATABASE_URL without connecting
+    # through it, and `tests/conftest.py` claims the key with an empty string so
+    # that `load_dotenv(override=False)` cannot re-inject the production URL
+    # later. `create_engine("")` raises ArgumentError, so those eight failed and
+    # took this job down on the W7 merge to main (#1402) — `deploy` was skipped
+    # and the wave sat on main undeployed while production stayed on the
+    # previous release.
+    #
+    # Giving this job the same ephemeral service pr.yml's jobs already have is
+    # the fix that adds evidence rather than removing it: those 29 modules now
+    # RUN here instead of skipping, which is the difference between attested and
+    # executed evidence that ADR-079 is about. The alternative considered — a
+    # parseable sentinel URL — was measured and rejected: it made 22 modules that
+    # gate on `startswith("postgresql")` attempt real connections, turning 8
+    # failures into 34 failures and 34 errors.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:test@localhost:5432/test_db
+      # The service above is created for this job and destroyed with it.
+      # tests/conftest.py refuses to run destructive suites against a database
+      # that has not declared itself throwaway, and fails closed here rather
+      # than skipping — a silent skip would report success having run no
+      # Postgres test at all.
+      JULI_TEST_DATABASE_DISPOSABLE: "1"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
