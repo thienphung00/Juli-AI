@@ -344,6 +344,39 @@ def test_resolve_tier_and_branch_classifies_wave_push() -> None:
     assert branch == "feature/w7-wave"
 
 
+def test_resolve_tier_and_branch_classifies_push_to_main_as_main_tier() -> None:
+    """`release.yml`'s flow, which was missing and took production down.
+
+    The deploy pipeline runs on push to main and executes `pytest tests/`. With
+    this flow unclassified, every merge to main raised UnresolvableTierError
+    inside that run, `build` failed, `deploy` was skipped, and three merges sat
+    undeployed — including a migration.
+
+    `pr.yml` cannot catch it: its event is always `pull_request`, so the branch
+    below is unreachable there. Same shape as #1447.
+    """
+    env = {"GITHUB_EVENT_NAME": "push", "GITHUB_REF_NAME": "main"}
+
+    tier, branch = resolve_tier_and_branch(env=env)
+
+    assert tier == "main"
+    assert branch == "main"
+
+
+def test_resolve_tier_and_branch_classifies_push_to_staging_as_main_tier() -> None:
+    """Staging is classified with main on the pull_request path; keep push in step.
+
+    Splitting them would leave one workflow's event resolving and the other's
+    raising for the same branch, which is exactly the asymmetry that produced
+    the outage.
+    """
+    env = {"GITHUB_EVENT_NAME": "push", "GITHUB_REF_NAME": "staging"}
+
+    tier, _branch = resolve_tier_and_branch(env=env)
+
+    assert tier == "main"
+
+
 def test_resolve_tier_and_branch_fails_closed_on_unsupported_ci_flow() -> None:
     env = {"GITHUB_EVENT_NAME": "schedule", "GITHUB_REF_NAME": "main", "CI": "true"}
 

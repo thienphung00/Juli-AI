@@ -208,6 +208,19 @@ def resolve_tier_and_branch(
             return "issue", resolved_branch
         if event == "pull_request" and base_ref in {"main", "staging"}:
             return "main", resolved_branch
+        # `release.yml` runs on push to main — the deploy pipeline, and the
+        # post-merge state of a main-tier pull request. It was missing here,
+        # so every merge to main raised UnresolvableTierError inside
+        # `release.yml`'s own `pytest tests/` run and took the build down.
+        # Three merges sat undeployed before it was noticed, including a
+        # migration.
+        #
+        # This is the same shape as #1447: a change verified against `pr.yml`,
+        # where the event is always `pull_request`, breaking `release.yml`,
+        # where it is `push` to `main`. The two workflows exercise different
+        # events, so a green `pr.yml` says nothing about this branch.
+        if event == "push" and ref_name in {"main", "staging"}:
+            return "main", resolved_branch
         raise UnresolvableTierError(
             f"unsupported CI flow: event={event!r} base={base_ref!r} ref={ref_name!r}; "
             "the required-artifact set is not narrowed on an unresolved tier."
