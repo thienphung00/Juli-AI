@@ -22,6 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CI_DIR = REPO_ROOT / "agent-runtime" / "scripts" / "ci"
 sys.path.insert(0, str(CI_DIR))
 
+import capture_providers  # noqa: E402
 from common import load_json  # noqa: E402
 from generate_status_records import build_status_record, migrate  # noqa: E402
 from json_schema_validate import validate_json_schema  # noqa: E402
@@ -260,7 +261,7 @@ def test_built_status_record_validates_against_schema(tmp_path: Path, monkeypatc
     schema = load_json(STATUS_SCHEMA_PATH)
     errors = validate_json_schema(record, schema)
     assert errors == []
-    assert record["gateVersion"] == 1
+    assert record["gateVersion"] == 2
     assert record["review"]["sha256"] == hashlib.sha256(review_bytes).hexdigest()
     assert record["validation"]["sha256"] == hashlib.sha256(validation_bytes).hexdigest()
 
@@ -296,3 +297,187 @@ def test_review_artifact_readable_from_disk_when_dir_is_gitignored(
         "agent-runtime/artifacts/reviews/review-issue-670.json",
     )
     assert result.returncode == 0
+
+
+# --- #1438: gateVersion 2, the run{} envelope, and the capture-provider seam --
+# The seam is the deliverable: six Wave-2 slices each add ONE provider module
+# under agent-runtime/scripts/ci/capture_providers/. If any of them had to edit
+# generate_status_records.py they would serialize against each other, so the
+# tests below assert the writer stays untouched, and that a provider which
+# raises fails record generation closed rather than dropping its block.
+
+
+def _seed_bodies(tmp_path: Path, issue: int, monkeypatch):
+    """Point the generator at a tmp review+validation pair and return it."""
+    import generate_status_records as gsr
+
+    reviews = tmp_path / "reviews"
+    validation = tmp_path / "validation"
+    reviews.mkdir(exist_ok=True)
+    validation.mkdir(exist_ok=True)
+    (reviews / f"review-issue-{issue}.json").write_text(
+        json.dumps(
+            {
+                "issue": issue,
+                "status": "PASS",
+                "criticalFindings": [],
+                "modulesTouched": ["agent-runtime"],
+                "testCoverage": {"acceptance": {"total": 4, "mapped": 4}},
+                "timestamp": "2026-09-01T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (validation / f"validation-issue-{issue}.json").write_text(
+        json.dumps(
+            {
+                "issue": issue,
+                "status": "PASS",
+                "readyForMerge": True,
+                "timestamp": "2026-09-01T00:00:01Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(gsr, "REVIEWS_DIR", reviews)
+    monkeypatch.setattr(gsr, "VALIDATION_DIR", validation)
+    monkeypatch.setattr(gsr, "STATUS_DIR", tmp_path / "status")
+    monkeypatch.setattr(gsr, "WAVES_DIR", tmp_path / "waves")
+    return gsr
+
+
+def _write_provider_module(directory: Path, filename: str, body: str) -> Path:
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / filename
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
+def test_gateversion_2_record_with_run_block_validates(tmp_path: Path, monkeypatch) -> None:
+    gsr = _seed_bodies(tmp_path, 1438, monkeypatch)
+
+    record = gsr.build_status_record(1438)
+
+    schema = load_json(STATUS_SCHEMA_PATH)
+    assert validate_json_schema(record, schema) == []
+    assert record["gateVersion"] == 2
+    assert isinstance(record["run"], dict)
+    # The shipped reference provider proves the registry is wired end to end,
+    # not merely importable.
+    assert "artifactBytes" in record["run"], (
+        f"expected the reference provider's block under run{{}}, got {sorted(record['run'])}"
+    )
+
+
+def test_registered_provider_block_appears_without_writer_edit(tmp_path: Path, monkeypatch) -> None:
+    """A Wave-2 slice drops one module into the provider directory; its block
+    shows up under run{} with generate_status_records.py byte-identical."""
+    writer_path = CI_DIR / "generate_status_records.py"
+    writer_before = writer_path.read_bytes()
+
+    provider_dir = tmp_path / "providers"
+    _write_provider_module(
+        provider_dir,
+        "wave_two_probe.py",
+        'PROVIDER_NAME = "waveTwoProbe"\n'
+        "\n"
+        "\n"
+        "def capture(context):\n"
+        '    return {"issue": context.issue}\n',
+    )
+
+    gsr = _seed_bodies(tmp_path, 1441, monkeypatch)
+
+    with capture_providers.provider_sandbox():
+        discovered = capture_providers.discover_providers(provider_dir)
+        assert "waveTwoProbe" in discovered
+        record = gsr.build_status_record(1441)
+
+    assert record["run"]["waveTwoProbe"] == {"issue": 1441}
+    # The seam, stated as an assertion: the writer never learned this provider's
+    # name and was not modified to make the block appear.
+    assert b"waveTwoProbe" not in writer_before
+    assert writer_path.read_bytes() == writer_before
+
+    # ...and the sandbox really did unregister it, so slices stay independent.
+    assert "waveTwoProbe" not in capture_providers.registered_providers()
+
+
+def test_provider_error_fails_closed(tmp_path: Path, monkeypatch) -> None:
+    """A provider that raises must fail generation naming itself — never emit a
+    record whose block is silently absent."""
+    gsr = _seed_bodies(tmp_path, 1442, monkeypatch)
+
+    def _boom(context):
+        raise RuntimeError("transcript unavailable")
+
+    with capture_providers.provider_sandbox():
+        capture_providers.register_provider("explodingProbe", _boom)
+        with pytest.raises(capture_providers.CaptureProviderError) as excinfo:
+            gsr.migrate()
+
+    assert excinfo.value.provider == "explodingProbe"
+    assert "explodingProbe" in str(excinfo.value)
+    assert "transcript unavailable" in str(excinfo.value)
+    assert not (tmp_path / "status" / "issue-1442.json").exists(), (
+        "fail-closed violated: a record was written despite a provider raising"
+    )
+
+
+def test_provider_returning_a_non_dict_fails_closed(tmp_path: Path, monkeypatch) -> None:
+    gsr = _seed_bodies(tmp_path, 1443, monkeypatch)
+
+    with capture_providers.provider_sandbox():
+        capture_providers.register_provider("scalarProbe", lambda context: "not-a-block")
+        with pytest.raises(capture_providers.CaptureProviderError) as excinfo:
+            gsr.build_status_record(1443)
+
+    assert excinfo.value.provider == "scalarProbe"
+
+
+def test_provider_module_missing_capture_fails_closed(tmp_path: Path) -> None:
+    provider_dir = tmp_path / "providers"
+    _write_provider_module(provider_dir, "half_built.py", 'PROVIDER_NAME = "halfBuilt"\n')
+
+    with capture_providers.provider_sandbox():
+        with pytest.raises(capture_providers.CaptureProviderError) as excinfo:
+            capture_providers.discover_providers(provider_dir)
+
+    assert "halfBuilt" in str(excinfo.value)
+    assert "halfBuilt" not in capture_providers.registered_providers()
+
+
+def test_provider_module_that_fails_to_import_fails_closed(tmp_path: Path) -> None:
+    provider_dir = tmp_path / "providers"
+    _write_provider_module(provider_dir, "broken.py", "raise ImportError('no telemetry sdk')\n")
+
+    with capture_providers.provider_sandbox():
+        with pytest.raises(capture_providers.CaptureProviderError) as excinfo:
+            capture_providers.discover_providers(provider_dir)
+
+    assert "broken.py" in str(excinfo.value)
+
+
+def test_two_modules_claiming_one_provider_name_fail_closed(tmp_path: Path) -> None:
+    """Six slices land in parallel; a silently-overwritten block would be a
+    lost measurement, so a name collision is an error, not last-writer-wins."""
+    provider_dir = tmp_path / "providers"
+    body = 'PROVIDER_NAME = "tokens"\n\n\ndef capture(context):\n    return {}\n'
+    _write_provider_module(provider_dir, "slice_a.py", body)
+    _write_provider_module(provider_dir, "slice_b.py", body)
+
+    with capture_providers.provider_sandbox():
+        with pytest.raises(capture_providers.CaptureProviderError) as excinfo:
+            capture_providers.discover_providers(provider_dir)
+
+    message = str(excinfo.value)
+    assert "slice_a.py" in message and "slice_b.py" in message
+
+
+def test_shipped_provider_directory_is_discoverable() -> None:
+    """The real capture_providers/ directory registers the reference provider,
+    which is what makes the file-drop path a Wave-2 slice uses real."""
+    with capture_providers.provider_sandbox():
+        discovered = capture_providers.discover_providers()
+
+    assert "artifactBytes" in discovered

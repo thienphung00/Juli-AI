@@ -80,6 +80,13 @@
         }
       }
     },
+    "run": {
+      "type": "object",
+      "description": "#1438, gateVersion 2: harness-captured evidence — what the run was observed to do, as opposed to what the agent typed. One named block per capture provider registered under agent-runtime/scripts/ci/capture_providers/. Deliberately OPEN (no additionalProperties: false) so a new provider ships as one new module and needs no edit to this schema nor to generate_status_records.py; each provider owns the shape of its own block. Absent on gateVersion 1 records — the pre-#1438 records are not backfilled (they record nothing about their runs and never will).",
+      "additionalProperties": {
+        "type": "object"
+      }
+    },
     "timestamp": {
       "type": "string",
       "format": "date-time"
@@ -87,7 +94,8 @@
     "gateVersion": {
       "type": "integer",
       "minimum": 1,
-      "description": "Status-record schema/gate-semantics version; bump when the read-path contract changes."
+      "enum": [1, 2],
+      "description": "Status-record schema/gate-semantics version; bump when the read-path contract changes. 1 = the #670 compact record. 2 = #1438, which adds the run{} capture envelope. Both are readable: v1 records stay valid unchanged and are never backfilled. Enumerated rather than open-ended so a record written by a future generator this reader was not built against fails closed instead of being read on a guess."
     }
   }
 }
