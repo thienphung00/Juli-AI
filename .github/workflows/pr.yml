@@ -618,10 +618,13 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     needs: [classify-tier, changes]
+    # #1437: also runs at 'wave' tier and on the wave->main path. A wave
+    # assembled by local merges never passed through issue tier, so
+    # main_via_wave is no longer evidence that eslint/tsc/jest already ran.
     if: >-
       (needs.classify-tier.outputs.tier == 'issue'
-      || (needs.classify-tier.outputs.tier == 'main'
-          && needs.classify-tier.outputs.main_via_wave != 'true'))
+      || needs.classify-tier.outputs.tier == 'wave'
+      || needs.classify-tier.outputs.tier == 'main')
       && needs.changes.outputs.dashboard == 'true'
     defaults:
       run:
@@ -650,10 +653,13 @@ jobs:
   demo-frontend:
     runs-on: ubuntu-latest
     needs: [classify-tier, changes]
+    # #1437: also runs at 'wave' tier and on the wave->main path. A wave
+    # assembled by local merges never passed through issue tier, so
+    # main_via_wave is no longer evidence that eslint/tsc/jest already ran.
     if: >-
       (needs.classify-tier.outputs.tier == 'issue'
-      || (needs.classify-tier.outputs.tier == 'main'
-          && needs.classify-tier.outputs.main_via_wave != 'true'))
+      || needs.classify-tier.outputs.tier == 'wave'
+      || needs.classify-tier.outputs.tier == 'main')
       && needs.changes.outputs.demo == 'true'
     steps:
       - uses: actions/checkout@v7
@@ -673,10 +679,13 @@ jobs:
   landing-frontend:
     runs-on: ubuntu-latest
     needs: [classify-tier, changes]
+    # #1437: also runs at 'wave' tier and on the wave->main path. A wave
+    # assembled by local merges never passed through issue tier, so
+    # main_via_wave is no longer evidence that eslint/tsc/jest already ran.
     if: >-
       (needs.classify-tier.outputs.tier == 'issue'
-      || (needs.classify-tier.outputs.tier == 'main'
-          && needs.classify-tier.outputs.main_via_wave != 'true'))
+      || needs.classify-tier.outputs.tier == 'wave'
+      || needs.classify-tier.outputs.tier == 'main')
       && needs.changes.outputs.landing == 'true'
     steps:
       - uses: actions/checkout@v7
@@ -1224,6 +1233,10 @@ jobs:
           policy="${{ needs.policy-checks.result }}"
           security="${{ needs.security-scan.result }}"
           deployment="${{ needs.deployment-checks.result }}"
+          main_via_wave="${{ needs.classify-tier.outputs.main_via_wave }}"
+          dashboard_changed="${{ needs.changes.outputs.dashboard }}"
+          demo_changed="${{ needs.changes.outputs.demo }}"
+          landing_changed="${{ needs.changes.outputs.landing }}"
 
           fail() { echo "$1"; exit 1; }
 
@@ -1234,6 +1247,15 @@ jobs:
             else
               [[ "$result" == "success" ]] || fail "$name: $result"
             fi
+          }
+
+          # Stricter than require(): the job must have actually run. Used where
+          # a "skipped" result would mean the check never happened at all.
+          require_ran() {
+            local name="$1" result="$2" changed="$3"
+            [[ "$changed" == "true" ]] || return 0
+            [[ "$result" == "success" ]] \
+              || fail "$name: $result (sources changed; must not be skipped)"
           }
 
           require "gitleaks" "$gitleaks" "false"
@@ -1274,6 +1296,16 @@ jobs:
             require "frontend" "$fe" "true"
             require "demo-frontend" "$demo" "true"
             require "landing-frontend" "$landing" "true"
+            # #1437: main_via_wave means this main-tier run came from a wave
+            # branch. A wave assembled by local merges never ran the frontend
+            # jobs at issue tier, so a "skipped" result there is not a dedup —
+            # it is zero eslint, tsc and jest. Fail closed for any frontend
+            # domain the wave actually changed.
+            if [[ "$main_via_wave" == "true" ]]; then
+              require_ran "frontend" "$fe" "$dashboard_changed"
+              require_ran "demo-frontend" "$demo" "$demo_changed"
+              require_ran "landing-frontend" "$landing" "$landing_changed"
+            fi
             require "demo-deploy-contracts" "$demo_deploy" "false"
             require "demo-e2e" "$demo_e2e" "false"
             require "performance-smoke" "$perf" "false"
