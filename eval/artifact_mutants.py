@@ -31,14 +31,22 @@ from __future__ import annotations
 
 import copy
 import json
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator
 
-from jsonschema import Draft202012Validator
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_DIR = REPO_ROOT / "agent-runtime" / "docs" / "schemas"
+
+# The harness scripts under agent-runtime/ are deliberately stdlib-only
+# (agent-runtime/scripts/ci/common.py: "Shared utilities ... stdlib only"), and
+# CI installs only `./backend[dev] -c backend/constraints.txt` -- which does not
+# carry jsonschema. Importing it here passed locally and failed collection in
+# full-regression with ModuleNotFoundError. Reuse the repo's own minimal
+# draft-2020-12 validator instead of adding a dependency for a harness-only tool.
+sys.path.insert(0, str(REPO_ROOT / "agent-runtime" / "scripts" / "ci"))
+from json_schema_validate import validate_json_schema  # noqa: E402
 
 #: Artifact types the three present schemas cover, plus the intent-review body
 #: that several gates read alongside them. Only the first three are mutated —
@@ -132,12 +140,20 @@ def schema_for(artifact_type: str) -> dict[str, Any]:
     return json.loads((SCHEMA_DIR / SCHEMA_FILES[artifact_type]).read_text())
 
 
+class SchemaValidationError(AssertionError):
+    """Raised when a record violates the schema for its artifact type."""
+
+
 def validate_against_schema(record: dict[str, Any], artifact_type: str) -> None:
-    """Raise ``jsonschema.ValidationError`` when the record violates its schema.
+    """Raise ``SchemaValidationError`` when the record violates its schema.
 
     Fail-closed: a missing or unparseable schema raises rather than passing.
     """
-    Draft202012Validator(schema_for(artifact_type)).validate(record)
+    errors = validate_json_schema(record, schema_for(artifact_type))
+    if errors:
+        raise SchemaValidationError(
+            f"{artifact_type} record violates its schema: " + "; ".join(errors)
+        )
 
 
 # ---------------------------------------------------------------------------
