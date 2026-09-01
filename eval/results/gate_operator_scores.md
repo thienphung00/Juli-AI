@@ -110,7 +110,7 @@ These never reached PASS on the clean arm, so no catch was possible and no concl
 
 - `check_issue_load_profile` — FAIL: issue_load_profile: FAIL — Unable to derive issueLoadProfile: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)
 - `check_public_release_classification` — FAIL: public_release_classification: FAIL — Unable to fetch issue body: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)
-- `check_unpushed_issue_work` — FAIL: STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.68h, worktree=None)
+- `check_unpushed_issue_work` — FAIL: STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.84h, worktree=None)
 - `check_workflow_cache` — FAIL: workflow_cache_staleness: FAIL — Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)
 - `check_workflow_cache_staleness` — FAIL: workflow_cache_staleness: FAIL — Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)
 - `run_ensure_workflow_cache` — FAIL: error: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)

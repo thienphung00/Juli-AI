@@ -1576,47 +1576,47 @@
         "absent": {
           "verdict": "FAIL",
           "exitCode": 1,
-          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.67h, worktree=None)"
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.83h, worktree=None)"
         },
         "clean": {
           "verdict": "FAIL",
           "exitCode": 1,
-          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.68h, worktree=None)"
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.84h, worktree=None)"
         },
         "self_reported_pass": {
           "verdict": "FAIL",
           "exitCode": 1,
-          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.69h, worktree=None)"
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.86h, worktree=None)"
         },
         "vacuous_test_evidence": {
           "verdict": "FAIL",
           "exitCode": 1,
-          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.7h, worktree=None)"
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.87h, worktree=None)"
         },
         "narrowed_command_scope": {
           "verdict": "FAIL",
           "exitCode": 1,
-          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.71h, worktree=None)"
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.88h, worktree=None)"
         },
         "dangling_artifact_ref": {
           "verdict": "FAIL",
           "exitCode": 1,
-          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.73h, worktree=None)"
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.89h, worktree=None)"
         },
         "missing_artifact_as_skipped": {
           "verdict": "FAIL",
           "exitCode": 1,
-          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.74h, worktree=None)"
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.9h, worktree=None)"
         },
         "environment_mismatch": {
           "verdict": "FAIL",
           "exitCode": 1,
-          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.75h, worktree=None)"
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.92h, worktree=None)"
         },
         "unbacked_claim": {
           "verdict": "FAIL",
           "exitCode": 1,
-          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.76h, worktree=None)"
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.93h, worktree=None)"
         }
       }
     },

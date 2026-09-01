@@ -145,9 +145,23 @@ class Fixture:
         return ARTIFACTS / directory / name.format(issue=self.issue)
 
 
+def _head_sha() -> str:
+    """Current HEAD, resolved at fixture-install time.
+
+    The template must NOT pin a literal SHA. `check_harness_bootstrap_pin`
+    compares `bootstrapRef.commitSha` against HEAD, so a frozen SHA makes the
+    fixture go stale the instant anything is committed — the clean arm would
+    then fail for a reason that has nothing to do with the record, and the table
+    would not reproduce at any other commit. Found the hard way: committing this
+    very branch flipped that gate from PASS to FAIL.
+    """
+    return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True).strip()
+
+
 def _render_template(name: str, issue: int) -> dict[str, Any]:
     raw = (FIXTURE_DIR / name).read_text()
-    return json.loads(raw.replace("__ISSUE__", str(issue)))
+    raw = raw.replace("__ISSUE__", str(issue)).replace("__HEAD_SHA__", _head_sha())
+    return json.loads(raw)
 
 
 def _intent_review(issue: int) -> dict[str, Any]:

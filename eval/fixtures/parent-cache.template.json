@@ -30,7 +30,7 @@
   ],
   "bootstrapRef": {
     "branch": "HEAD",
-    "commitSha": "f6b9935d41c196bad7cadacc826bf69ed34fb791",
+    "commitSha": "__HEAD_SHA__",
     "copiedAt": "2026-09-01T07:19:03Z"
   },
   "lastValidatedAt": "2026-09-01T07:19:04Z"
