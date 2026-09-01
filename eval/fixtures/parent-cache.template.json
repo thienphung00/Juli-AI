@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "parent_cache",
+  "parentIssueId": __ISSUE__,
+  "cacheBlockVersion": 1,
+  "parentScopeBlock": "# Parent #1434\n\n## Slice\n- Default slice: META-3\n## Handoff\n- docs/handoffs/issue-1434.md\n",
+  "sliceId": "META-3",
+  "handoffPath": "docs/handoffs/issue-1434.md",
+  "childIssueIds": [
+    __ISSUE__
+  ],
+  "doNotLoad": [
+    "docs/handoffs/archive/",
+    "docs/product/features/",
+    "Sibling issue context caches"
+  ],
+  "upstreamFingerprints": [
+    {
+      "path": "GitHub issue #1434",
+      "fingerprint": "05fa6e16f086e735"
+    },
+    {
+      "path": "docs/handoffs/issue-1434.md",
+      "fingerprint": "7bebc50a6bab3f69df59107666507ad4537ab648"
+    },
+    {
+      "path": "EXECUTION.md",
+      "fingerprint": "bd92d02682d7a5ca4948d85aa68e6a2993cfb68e"
+    }
+  ],
+  "bootstrapRef": {
+    "branch": "HEAD",
+    "commitSha": "__HEAD_SHA__",
+    "copiedAt": "2026-09-01T07:19:03Z"
+  },
+  "lastValidatedAt": "2026-09-01T07:19:04Z"
+}
