@@ -1,0 +1,128 @@
+{
+  "schemaVersion": "1.2.0",
+  "artifactType": "issue_context_cache",
+  "issueId": __ISSUE__,
+  "parentIssueId": __ISSUE__,
+  "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-__ISSUE__.json",
+  "phaseRunId": "__ISSUE__-20260901T071904",
+  "workflowPhase": "meta",
+  "cacheStatus": "valid",
+  "cacheBlockVersion": 1,
+  "parentLinkage": {
+    "sliceId": "META-3",
+    "handoffPath": "docs/handoffs/issue-1434.md"
+  },
+  "issueLoadProfile": {
+    "executorDomain": "backend",
+    "requiredDocs": [
+      "docs/handoffs/issue-1434.md",
+      "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+      "agent-runtime/docs/agent-runtime.md",
+      "agent-runtime/docs/agent-runtime-artifacts.md"
+    ],
+    "requiredModules": [
+      "agent-runtime/scripts/validate/",
+      "agent-runtime/docs/schemas/"
+    ],
+    "acceptanceCriteria": [
+      "GIVEN the three artifact schemas WHEN the mutator runs THEN it emits schema-valid records carrying exactly one planted defect each, across seven operators, and every mutant validates against its schema",
+      "GIVEN the mutant corpus WHEN all 29 gates are run against it THEN a committed table reports gate \u00d7 operator \u2192 caught? with a row for every gate, including gates that caught nothing",
+      "GIVEN a gate catching zero operators WHEN the run completes THEN it is listed as a **deletion candidate**, not a tuning candidate, and a deletion PR is opened",
+      "GIVEN a clean unmutated record WHEN the gates run THEN no gate reports a failure, establishing the false-positive floor"
+    ],
+    "loadWhenNeeded": [
+      ".cursor/skills/domain/testing-patterns/python-testing.md",
+      ".cursor/rules/reliability.mdc"
+    ]
+  },
+  "authorityChain": [
+    {
+      "rank": 1,
+      "source": "EXECUTION.md",
+      "reason": "Phase/slice law \u2014 META-3"
+    },
+    {
+      "rank": 2,
+      "source": "parent-cache-issue-__ISSUE__",
+      "reason": "Epic constant"
+    },
+    {
+      "rank": 3,
+      "source": "GitHub issue #__ISSUE__",
+      "reason": "Child acceptance criteria"
+    },
+    {
+      "rank": 4,
+      "source": "docs/handoffs/issue-1434.md",
+      "reason": "Epic handoff"
+    }
+  ],
+  "resolvedDecisions": [],
+  "inScope": [
+    "Slice META-3 acceptance criteria",
+    "Executor domain: backend"
+  ],
+  "outOfScope": [
+    "docs/handoffs/archive/",
+    "docs/product/features/",
+    "apps/demo/",
+    "apps/landing/",
+    "apps/dashboard/"
+  ],
+  "doNotLoad": [
+    "docs/handoffs/archive/",
+    "docs/product/features/",
+    "apps/demo/",
+    "apps/landing/",
+    "apps/dashboard/",
+    "web/",
+    "ios/",
+    "backend/src/juli_backend/",
+    "Sibling issue context caches"
+  ],
+  "promptCacheBlock": "# Issue #__ISSUE__ \u2014 META-3\n\n## Parent\n#1434\n\n## Executor domain\nbackend\n\n## Required docs\n- docs/handoffs/issue-1434.md\n- docs/adr/035-public-release-evidence-and-automatic-rollback.md\n- agent-runtime/docs/agent-runtime.md\n- agent-runtime/docs/agent-runtime-artifacts.md\n",
+  "phaseCacheBlocks": {
+    "scope": "# Issue #__ISSUE__ \u2014 META-3\n\n## Parent\n#1434\n\n## Executor domain\nbackend\n\n## Required docs\n- docs/handoffs/issue-1434.md\n- docs/adr/035-public-release-evidence-and-automatic-rollback.md\n- agent-runtime/docs/agent-runtime.md\n- agent-runtime/docs/agent-runtime-artifacts.md\n",
+    "meta": "# Meta \u2014 Issue #__ISSUE__\n\n- sliceId: META-3\n- executorDomain: backend (single primary)\n- Ensure: workflow cache auto-bootstrapped; Executor blocked until valid.\n- Skills: primary domain only; Review/Validate skills load in their phases.\n",
+    "executor": "",
+    "review": "",
+    "validate": ""
+  },
+  "harnessUtility": {
+    "skills": [
+      {
+        "path": ".cursor/skills/domain/backend/SKILL.md",
+        "purpose": "Primary backend Executor TDD"
+      }
+    ],
+    "rulesTier2": [
+      ".cursor/rules/code-quality.mdc",
+      ".cursor/rules/reliability.mdc"
+    ],
+    "mcps": [],
+    "tools": [
+      "Read",
+      "Grep",
+      "Glob",
+      "Shell",
+      "StrReplace"
+    ]
+  },
+  "glossarySnippets": [],
+  "openQuestions": [],
+  "upstreamFingerprints": [
+    {
+      "path": "GitHub issue #__ISSUE__",
+      "fingerprint": "4006c88c2df5b6da"
+    },
+    {
+      "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-__ISSUE__.md",
+      "fingerprint": "7112445215b4050f57cc0d63457bc54b5a7cf65d"
+    }
+  ],
+  "scopeAlignmentPath": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-__ISSUE__.md",
+  "lastValidatedAt": "2026-09-01T07:19:05Z",
+  "lastScopeAlignmentAt": "2026-09-01T07:19:05Z",
+  "publicRelease": false,
+  "publicReleaseReasons": []
+}
