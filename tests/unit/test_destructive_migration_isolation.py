@@ -351,12 +351,35 @@ def test_ci_is_configured_to_declare_its_database_disposable():
     service into a hard error — the guard would be correct and the pipeline
     would be dead. Pin that every job supplying a DATABASE_URL also supplies the
     marker, so the two can never drift apart silently.
+
+    EVERY workflow that runs pytest, not just pr.yml. The first version of this
+    test read pr.yml alone, and that blind spot is exactly what shipped: the W7
+    merge went green in pr.yml and then took down release.yml's build job, which
+    runs `pytest tests/` with no Postgres service at all. `deploy` was skipped
+    and the wave sat on main undeployed. A parity check that covers one of two
+    pipelines is not a parity check.
     """
-    workflow = (REPO_ROOT / ".github" / "workflows" / "pr.yml").read_text(encoding="utf-8")
-    urls = workflow.count("DATABASE_URL: postgresql://")
-    markers = workflow.count("JULI_TEST_DATABASE_DISPOSABLE:")
-    assert urls and markers >= urls, (
-        f"pr.yml sets DATABASE_URL in {urls} place(s) but declares the database "
-        f"disposable in {markers} — every job with a Postgres service must set "
-        'JULI_TEST_DATABASE_DISPOSABLE: "1" or it will fail closed'
+    workflows = REPO_ROOT / ".github" / "workflows"
+    runs_pytest = sorted(
+        path for path in workflows.glob("*.yml") if "pytest" in path.read_text(encoding="utf-8")
+    )
+    assert runs_pytest, "no workflow runs pytest — this test has lost its subject"
+
+    problems = []
+    for path in runs_pytest:
+        text = path.read_text(encoding="utf-8")
+        urls = text.count("DATABASE_URL: postgresql://")
+        markers = text.count("JULI_TEST_DATABASE_DISPOSABLE:")
+        if not urls:
+            problems.append(
+                f"{path.name} runs pytest with no Postgres DATABASE_URL — the "
+                "Postgres-backed modules cannot all skip cleanly without one"
+            )
+        elif markers < urls:
+            problems.append(
+                f"{path.name} sets DATABASE_URL in {urls} place(s) but declares "
+                f"the database disposable in {markers}"
+            )
+    assert not problems, (
+        "every workflow that runs pytest must give it a disposable Postgres: " + "; ".join(problems)
     )
