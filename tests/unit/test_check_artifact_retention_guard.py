@@ -343,3 +343,93 @@ def test_fail_closed_never_passes_when_it_cannot_determine_an_answer(
     passed, detail = evaluate(issue, status_dir=tmp_path)
     assert passed is False
     assert detail  # a reason is always given -- no silent skip/fail
+
+
+# --- #1438: the guard reads gateVersion 1 AND gateVersion 2 records ---------
+# Architect lock: no backfill. The ~290 committed records stay at gateVersion 1
+# and must keep passing unchanged, while records written after #1438 carry
+# gateVersion 2 plus a run{} envelope of harness-captured evidence.
+
+
+def test_gateversion_1_record_still_passes(tmp_path: Path) -> None:
+    """An untouched pre-#1438 record — no run{}, gateVersion 1 — still validates
+    and still passes the guard."""
+    _write_record(tmp_path, 1064)
+    payload = json.loads((tmp_path / "issue-1064.json").read_text(encoding="utf-8"))
+    assert payload["gateVersion"] == 1
+    assert "run" not in payload
+
+    passed, detail = evaluate(1064, status_dir=tmp_path)
+    assert passed is True, detail
+
+
+def test_gateversion_1_record_from_the_real_status_dir_still_passes() -> None:
+    """Not a fixture: read the actual committed records and assert the guard
+    still accepts the v1 shape it has been reading all along."""
+    real_status_dir = REPO_ROOT / "agent-runtime" / "artifacts" / "status"
+    candidates = []
+    for path in sorted(real_status_dir.glob("issue-*.json")):
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if (
+            record.get("gateVersion") == 1
+            and record.get("review", {}).get("status") in {"PASS", "PASS_WITH_WARNINGS"}
+            and record.get("validation", {}).get("status") == "PASS"
+        ):
+            candidates.append((path, record))
+    if not candidates:
+        pytest.skip("no committed gateVersion 1 PASS record available in this checkout")
+
+    for path, record in candidates[:25]:
+        passed, detail = evaluate(int(record["issue"]), status_dir=real_status_dir)
+        assert passed is True, f"{path.name} no longer passes the guard: {detail}"
+
+
+def test_gateversion_2_record_with_run_block_passes(tmp_path: Path) -> None:
+    """The post-#1438 shape: gateVersion 2 plus a run{} envelope whose blocks
+    the schema deliberately leaves open so a new provider needs no schema edit."""
+    _write_record(
+        tmp_path,
+        1438,
+        payload={
+            "issue": 1438,
+            "wave": None,
+            "review": {
+                "status": "PASS",
+                "artifactRef": "git-history:x",
+                "sha256": "a" * 64,
+            },
+            "validation": {
+                "status": "PASS",
+                "artifactRef": "git-history:y",
+                "sha256": "b" * 64,
+            },
+            "run": {
+                "artifactBytes": {"reviewBytes": 512, "validationBytes": 256},
+                "someFutureWave2Block": {"anything": ["at", "all"]},
+            },
+            "gateVersion": 2,
+        },
+    )
+    passed, detail = evaluate(1438, status_dir=tmp_path)
+    assert passed is True, detail
+
+
+def test_unknown_gate_version_fails_closed(tmp_path: Path) -> None:
+    """gateVersion is the read-path contract marker. A version this guard was
+    never written against must fail, not be read on a guess."""
+    _write_record(
+        tmp_path,
+        1438,
+        payload={
+            "issue": 1438,
+            "review": {"status": "PASS", "artifactRef": "x", "sha256": "a" * 64},
+            "validation": {"status": "PASS", "artifactRef": "y", "sha256": "b" * 64},
+            "gateVersion": 99,
+        },
+    )
+    passed, detail = evaluate(1438, status_dir=tmp_path)
+    assert passed is False
+    assert "schema" in detail.lower()

@@ -27,6 +27,11 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from capture_providers import (  # noqa: E402
+    CaptureContext,
+    capture_run_block,
+    discover_providers,
+)
 from common import (  # noqa: E402
     REVIEWS_DIR,
     STATUS_DIR,
@@ -39,7 +44,17 @@ from common import (  # noqa: E402
 )
 
 WAVES_DIR = STATUS_DIR.parent / "waves"
-GATE_VERSION = 1
+# 2 (#1438): records carry the run{} capture envelope. v1 records are NOT
+# backfilled — see the schema's gateVersion description.
+GATE_VERSION = 2
+
+# Register every capture provider shipped under capture_providers/. This is the
+# only line that knows the seam exists: a slice adding token counts, transcript
+# parsing or git evidence drops one module into that package and is picked up
+# here, so parallel slices never contend on this file. Failure to discover is
+# not caught — a provider that cannot even be loaded must not produce a record
+# that silently lacks its block.
+discover_providers()
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -108,6 +123,19 @@ def build_status_record(issue: int) -> dict[str, Any] | None:
         else {}
     )
 
+    # Providers run before the record is assembled so a raising provider aborts
+    # generation outright (fail-closed): there is no path that writes a record
+    # whose block is quietly missing. Nothing here knows what any block means.
+    run = capture_run_block(
+        CaptureContext(
+            issue=issue,
+            review=review,
+            validation=validation,
+            review_bytes=review_bytes,
+            validation_bytes=validation_bytes,
+        )
+    )
+
     return {
         "issue": issue,
         "wave": _wave_for_issue(issue),
@@ -145,6 +173,7 @@ def build_status_record(issue: int) -> dict[str, Any] | None:
             "criticalFindings": len(review.get("criticalFindings") or []),
             "modulesTouched": review.get("modulesTouched") or [],
         },
+        "run": run,
         "timestamp": validation.get("timestamp") or review.get("timestamp") or utc_now_iso(),
         "gateVersion": GATE_VERSION,
     }
