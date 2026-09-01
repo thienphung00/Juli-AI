@@ -200,7 +200,7 @@ ruff==0.16.4
     # via juli-backend (pyproject.toml)
 scikit-learn==1.9.0
     # via juli-backend (pyproject.toml)
-scipy==1.18.0
+scipy==1.18.1
     # via
     #   scikit-learn
     #   xgboost
