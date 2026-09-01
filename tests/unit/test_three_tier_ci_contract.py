@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -400,3 +401,189 @@ def test_main_tier_wave_to_main_checkpoint_unchanged() -> None:
     assert "merge_group" in workflow
     live_sandbox_block = _job_block(workflow, "test-live-sandbox:")
     assert "github.event_name == 'merge_group'" in live_sandbox_block
+
+
+# --- HE-A/P-EVAL-2 (#1437): frontend jobs must be checked at wave tier ----
+#
+# The three frontend jobs (frontend, demo-frontend, landing-frontend) admitted
+# only tier == 'issue' or (tier == 'main' && main_via_wave != 'true'). A wave
+# assembled by local merges therefore reached main having run zero eslint, tsc
+# or jest: nothing ran on the wave push, the wave->main run skipped them, and
+# main-tier status-check accepted "skipped". #809 (936fa57c) fixed exactly this
+# for lint/typecheck; the frontend jobs were not included.
+
+FRONTEND_JOBS = ("frontend", "demo-frontend", "landing-frontend")
+
+FRONTEND_JOB_DOMAIN = {
+    "frontend": "dashboard",
+    "demo-frontend": "demo",
+    "landing-frontend": "landing",
+}
+
+_CONTEXT_REF = re.compile(r"needs\.([A-Za-z0-9_-]+)\.(?:outputs\.([A-Za-z0-9_]+)|result)")
+_EXPR_SUBSTITUTION = re.compile(r"\$\{\{\s*(.+?)\s*\}\}")
+
+
+def _parsed_workflow() -> dict:
+    return yaml.safe_load(_workflow())
+
+
+def _eval_job_if(condition: str, *, tier: str, main_via_wave: str, changes: dict) -> bool:
+    """Evaluate a job's GitHub `if:` expression for a concrete tier context.
+
+    The frontend job conditions are pure boolean expressions over string
+    comparisons of `needs.*.outputs.*`, so they translate 1:1 to Python. This
+    asserts on what the condition *decides*, not on the text it is written in.
+    """
+
+    def resolve(match: re.Match[str]) -> str:
+        job, key = match.group(1), match.group(2)
+        if job == "classify-tier":
+            return repr({"tier": tier, "main_via_wave": main_via_wave}[key])
+        if job == "changes":
+            return repr(changes.get(key, "false"))
+        raise AssertionError(f"unhandled context reference: {match.group(0)}")
+
+    # A folded `>-` scalar keeps real newlines for more-indented continuation
+    # lines, which Python would read as unexpected indentation.
+    expr = " ".join(condition.split())
+    expr = _CONTEXT_REF.sub(resolve, expr)
+    expr = expr.replace("&&", " and ").replace("||", " or ")
+    return bool(eval(expr, {"__builtins__": {}}, {}))
+
+
+def _status_check_script() -> str:
+    workflow = _parsed_workflow()
+    for step in workflow["jobs"]["status-check"]["steps"]:
+        if step.get("name") == "Require tier jobs":
+            return step["run"]
+    raise AssertionError("status-check step 'Require tier jobs' not found")
+
+
+def _run_status_check(
+    *,
+    tier: str,
+    main_via_wave: str = "false",
+    results: dict | None = None,
+    changes: dict | None = None,
+    event_name: str = "pull_request",
+) -> subprocess.CompletedProcess[str]:
+    """Run the real status-check bash script with substituted job results."""
+    results = results or {}
+    changes = changes or {}
+
+    def resolve(match: re.Match[str]) -> str:
+        ref = match.group(1)
+        if ref == "github.event_name":
+            return event_name
+        if ref == "needs.classify-tier.outputs.tier":
+            return tier
+        if ref == "needs.classify-tier.outputs.main_via_wave":
+            return main_via_wave
+        if ref.startswith("needs.changes.outputs."):
+            return changes.get(ref.rsplit(".", 1)[1], "true")
+        result_ref = re.fullmatch(r"needs\.([A-Za-z0-9_-]+)\.result", ref)
+        if result_ref:
+            return results.get(result_ref.group(1), "success")
+        raise AssertionError(f"unhandled status-check reference: {ref}")
+
+    script = _EXPR_SUBSTITUTION.sub(resolve, _status_check_script())
+    return subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+
+
+def _needs_violations(jobs: dict) -> list[str]:
+    """Duplicate and dangling `needs:` entries, per job."""
+    violations: list[str] = []
+    for name, body in jobs.items():
+        needs = (body or {}).get("needs")
+        if needs is None:
+            continue
+        if isinstance(needs, str):
+            needs = [needs]
+        for dep in sorted({d for d in needs if needs.count(d) > 1}):
+            violations.append(f"{name}: duplicate needs entry {dep!r}")
+        for dep in needs:
+            if dep not in jobs:
+                violations.append(f"{name}: needs unknown job {dep!r}")
+    return violations
+
+
+def test_frontend_jobs_run_at_wave_tier() -> None:
+    """AC1: a push to feature/*-wave touching a frontend domain runs that
+    domain's frontend job instead of skipping it — and wave->main can no
+    longer assume an issue-tier run happened, so it must run there too."""
+    jobs = _parsed_workflow()["jobs"]
+
+    for job in FRONTEND_JOBS:
+        condition = jobs[job]["if"]
+        changed = {FRONTEND_JOB_DOMAIN[job]: "true"}
+
+        assert (
+            _eval_job_if(condition, tier="wave", main_via_wave="false", changes=changed) is True
+        ), f"{job} does not run on a wave push that changed its sources"
+
+        # A wave assembled by local merges never saw issue tier, so the
+        # wave->main checkpoint must run them rather than dedup them away.
+        assert (
+            _eval_job_if(condition, tier="main", main_via_wave="true", changes=changed) is True
+        ), f"{job} skips on wave->main, leaving the wave unchecked"
+
+        # Domain gating is preserved: an untouched domain still skips.
+        assert _eval_job_if(condition, tier="wave", main_via_wave="false", changes={}) is False, (
+            f"{job} runs at wave tier for a domain that did not change"
+        )
+
+        # Issue tier is unchanged.
+        assert (
+            _eval_job_if(condition, tier="issue", main_via_wave="false", changes=changed) is True
+        ), f"{job} no longer runs at issue tier"
+
+
+def test_main_via_wave_rejects_skipped_frontend() -> None:
+    """AC2: on the main-tier wave->main path, a `skipped` frontend result
+    must fail status-check rather than satisfy it."""
+    baseline = _run_status_check(tier="main", main_via_wave="true")
+    assert baseline.returncode == 0, baseline.stdout + baseline.stderr
+
+    for job in FRONTEND_JOBS:
+        # Plant the lie: the job never ran, but its sources changed.
+        planted = _run_status_check(tier="main", main_via_wave="true", results={job: "skipped"})
+        assert planted.returncode != 0, (
+            f"{job}: 'skipped' accepted on the wave->main path\n{planted.stdout}"
+        )
+        assert job in planted.stdout, planted.stdout
+
+    # Not reached via a wave: the #658 dedup allowance is unchanged.
+    for job in FRONTEND_JOBS:
+        allowed = _run_status_check(tier="main", main_via_wave="false", results={job: "skipped"})
+        assert allowed.returncode == 0, allowed.stdout + allowed.stderr
+
+    # Reached via a wave but the domain genuinely did not change: skipping is
+    # correct and must not fail.
+    untouched = _run_status_check(
+        tier="main",
+        main_via_wave="true",
+        results={"frontend": "skipped"},
+        changes={"dashboard": "false"},
+    )
+    assert untouched.returncode == 0, untouched.stdout + untouched.stderr
+
+
+def test_needs_graph_has_no_duplicate_or_dangling_entries() -> None:
+    """AC3: every job's `needs:` list is duplicate-free and names only jobs
+    that exist. Duplicate `- <job>` entries make a string-replace edit land on
+    the wrong job, with an empty `needs.X.result` as the only symptom."""
+    jobs = _parsed_workflow()["jobs"]
+
+    assert _needs_violations(jobs) == []
+
+    # The checker itself must catch a planted duplicate and a planted dangling
+    # entry, so a green above means "clean", never "did not look".
+    planted_duplicate = {
+        "a": {},
+        "b": {"needs": ["a", "a"]},
+    }
+    assert _needs_violations(planted_duplicate) == ["b: duplicate needs entry 'a'"]
+
+    planted_dangling = {"a": {}, "b": {"needs": ["a", "ghost"]}}
+    assert _needs_violations(planted_dangling) == ["b: needs unknown job 'ghost'"]
