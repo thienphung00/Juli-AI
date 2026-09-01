@@ -54,7 +54,12 @@ def upgrade() -> None:
     # Guarded on the role's existence for the same reason 043 guards CREATE ROLE:
     # roles are cluster-global while migrations are per-database, so a database
     # in the same cluster that has not yet run 043 would fail an unguarded GRANT.
-    op.execute(f"""
+    #
+    # nosec B608: ROLE_NAME and TABLE_NAME are module-level constants defined
+    # above, never parameters and never reachable from a request. GRANT targets
+    # cannot be bound as query parameters, so this is the same construction —
+    # and the same suppression — that 045_rls_policies.py uses for DROP POLICY.
+    sql = f"""
     DO $$
     BEGIN
         IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{ROLE_NAME}') THEN
@@ -62,7 +67,8 @@ def upgrade() -> None:
         END IF;
     END
     $$;
-    """)
+    """  # nosec B608
+    op.execute(sql)
 
 
 def downgrade() -> None:
@@ -72,7 +78,9 @@ def downgrade() -> None:
     source of any other privilege on this table, and a blanket revoke would
     silently drop grants a later migration had added.
     """
-    op.execute(f"""
+    # nosec B608: see the note in upgrade() — module-level constants, and GRANT
+    # targets cannot be bound as query parameters.
+    sql = f"""
     DO $$
     BEGIN
         IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{ROLE_NAME}') THEN
@@ -80,4 +88,5 @@ def downgrade() -> None:
         END IF;
     END
     $$;
-    """)
+    """  # nosec B608
+    op.execute(sql)
