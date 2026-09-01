@@ -1,0 +1,28 @@
+{
+  "gateVersion": 1,
+  "issue": 1453,
+  "metrics": {
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/database/migrations/versions/048_prod_write_auth_grants.py",
+      "tests/integration/test_runtime_role_grant_coverage.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1453.json",
+    "ownerSignoffPresent": true,
+    "sha256": "6a2b257349656c5b8d40c6c585e124c5b0f80695d6fe3662aa51780bb1dcdad4",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-09-01T06:30:00Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1453.json",
+    "sha256": "084312e4d88b272e190394bc2945e2c9bddbb276c87f278d308cde41edc196bc",
+    "status": "PASS"
+  },
+  "wave": null
+}
