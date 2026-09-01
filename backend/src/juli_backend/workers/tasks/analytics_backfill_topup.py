@@ -110,7 +110,7 @@ async def run_analytics_backfill_topup_for_shop(
 
 async def _run_analytics_backfill_topup_async() -> None:
     """Run analytics backfill top-up for the reference shop (async entrypoint)."""
-    from juli_backend.database.tenant_context import system_scope
+    from juli_backend.database.tenant_context import with_shop_scope
 
     shop_id = get_demo_reference_shop_id()
     if shop_id is None:
@@ -122,7 +122,13 @@ async def _run_analytics_backfill_topup_async() -> None:
 
     factory = _ensure_session_factory()
     async with factory() as session:
-        async with system_scope(session, caller="analytics_backfill_topup"):
+        # Shop scope, not system scope (#1478 / ADR-089). This task has always
+        # known its shop before opening a session — it used system_scope only to
+        # bypass the tenant-context requirement, and that requirement is
+        # satisfiable here. Under system_scope the runtime role sets no GUC at
+        # all, so once DATABASE_URL points at juli_app every policied read
+        # returns nothing and the task completes having done exactly that.
+        async with with_shop_scope(session, shop_id):
             await run_analytics_backfill_topup_for_shop(session=session, shop_id=shop_id)
 
 
