@@ -407,6 +407,12 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql://postgres:test@localhost:5432/test_db
+      # The Postgres service above is created for this job and destroyed with
+      # it. tests/conftest.py refuses to run destructive suites against a
+      # database that has not declared itself throwaway, and fails closed here
+      # rather than skipping — a silent skip would report success having run
+      # no Postgres test at all.
+      JULI_TEST_DATABASE_DISPOSABLE: "1"
       REDIS_URL: redis://localhost:6379
       # APP_KEY/SECRET: ASGI webhook signature tests (non-live). Live oauth secrets
       # live only on test-live-sandbox (merge_group).
@@ -496,6 +502,12 @@ jobs:
           - 5432:5432
     env:
       DATABASE_URL: postgresql://postgres:test@localhost:5432/migration_test
+      # The Postgres service above is created for this job and destroyed with
+      # it. tests/conftest.py refuses to run destructive suites against a
+      # database that has not declared itself throwaway, and fails closed here
+      # rather than skipping — a silent skip would report success having run
+      # no Postgres test at all.
+      JULI_TEST_DATABASE_DISPOSABLE: "1"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -578,6 +590,12 @@ jobs:
           - 5433:5432
     env:
       DATABASE_URL: postgresql://postgres:test@localhost:5433/isolation_test
+      # The Postgres service above is created for this job and destroyed with
+      # it. tests/conftest.py refuses to run destructive suites against a
+      # database that has not declared itself throwaway, and fails closed here
+      # rather than skipping — a silent skip would report success having run
+      # no Postgres test at all.
+      JULI_TEST_DATABASE_DISPOSABLE: "1"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -864,6 +882,12 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql://postgres:test@localhost:5432/test_db
+      # The Postgres service above is created for this job and destroyed with
+      # it. tests/conftest.py refuses to run destructive suites against a
+      # database that has not declared itself throwaway, and fails closed here
+      # rather than skipping — a silent skip would report success having run
+      # no Postgres test at all.
+      JULI_TEST_DATABASE_DISPOSABLE: "1"
       REDIS_URL: redis://localhost:6379
       TIKTOK_APP_KEY: ${{ secrets.TIKTOK_APP_KEY }}
       TIKTOK_APP_SECRET: ${{ secrets.TIKTOK_APP_SECRET }}
@@ -986,6 +1010,12 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql://postgres:test@localhost:5432/test_db
+      # The Postgres service above is created for this job and destroyed with
+      # it. tests/conftest.py refuses to run destructive suites against a
+      # database that has not declared itself throwaway, and fails closed here
+      # rather than skipping — a silent skip would report success having run
+      # no Postgres test at all.
+      JULI_TEST_DATABASE_DISPOSABLE: "1"
       REDIS_URL: redis://localhost:6379
       TIKTOK_APP_KEY: ${{ secrets.TIKTOK_APP_KEY }}
       TIKTOK_APP_SECRET: ${{ secrets.TIKTOK_APP_SECRET }}
@@ -1056,6 +1086,12 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql://postgres:test@localhost:5432/test_db
+      # The Postgres service above is created for this job and destroyed with
+      # it. tests/conftest.py refuses to run destructive suites against a
+      # database that has not declared itself throwaway, and fails closed here
+      # rather than skipping — a silent skip would report success having run
+      # no Postgres test at all.
+      JULI_TEST_DATABASE_DISPOSABLE: "1"
       REDIS_URL: redis://localhost:6379
       TIKTOK_APP_KEY: ${{ secrets.TIKTOK_APP_KEY }}
       TIKTOK_APP_SECRET: ${{ secrets.TIKTOK_APP_SECRET }}

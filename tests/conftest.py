@@ -31,44 +31,57 @@ os.environ.setdefault("SUPABASE_JWT_SECRET", "test-jwt-secret-collection-default
 os.environ.setdefault("SUPABASE_URL", "https://test-project.supabase.co")
 
 
-_LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
+DISPOSABLE_MARKER = "JULI_TEST_DATABASE_DISPOSABLE"
+
+
+class NonDisposableTestDatabaseError(RuntimeError):
+    """`DATABASE_URL` names a database that has not declared itself throwaway."""
 
 
 # --------------------------------------------------------------------------
 # SAFETY: the test suite must never point at a database it does not own.
 #
 # `requires_postgres` in seventeen modules skips on *unreachable*, not on
-# *non-local*. Production is extremely reachable. And nothing has to be
+# *disposable*. Production is extremely reachable. And nothing has to be
 # misconfigured for it to be selected: `core/config/runtime.py` calls
 # `load_dotenv(repo_root/".env", override=False)` at import time, so on a
 # developer machine with a `.env`, importing anything under `juli_backend`
 # injects the production DATABASE_URL into the environment. Verified on this
 # checkout with DATABASE_URL unset:
 #
-#     host: aws-1-us-west-2.pooler.supabase.com   is local: False
+#     host: aws-1-us-west-2.pooler.supabase.com
 #
 # Eleven of those modules then run `downgrade(cfg, "base")`, which drops every
 # table in whatever they are pointed at. That is the 2026-07-30 production wipe
 # again, and the only thing that has prevented it is that individual modules
-# each remembered to add their own `_assert_local_database_url` — sixteen
-# separate copies, any one of which can be omitted by the next module.
+# each remembered their own `_assert_local_database_url` — sixteen separate
+# copies, any one of which the next module can omit.
 #
-# So refuse centrally, at import time, before pytest collects anything: a
-# non-local DATABASE_URL is removed from the environment for the test session.
-# Every `_postgres_reachable()` then returns False and its module skips exactly
-# as it does on a machine with no Postgres — the already-supported path, not a
-# new one. Tests that need a specific URL set it themselves with monkeypatch
-# and are unaffected.
+# THE TEST IS DISPOSABILITY, NOT LOCALITY.
 #
-# `JULI_ALLOW_REMOTE_TEST_DATABASE=1` opts back in for a deliberate run against
-# a remote *throwaway* database. It is not a production escape hatch: the
-# per-module isolation fixture below still refuses to create or drop databases
-# on a non-local host.
+# An earlier version of this guard asked "is the host local?". That is the wrong
+# axis in both directions: it rejects a legitimate ephemeral cloud database (a
+# branch database, a per-run instance) while accepting a local restore of a
+# production dump. Locality is a proxy for "safe to destroy", and a poor one.
+#
+# So the database must SAY it is disposable. A positive declaration cannot be
+# arrived at by accident: CI sets it beside the Postgres service container it
+# just created, and a developer sets it for a database they made to throw away.
+# Production carries no such marker and never will, because nothing sets it
+# there.
+#
+# FAIL-CLOSED IN CI, DEGRADE ON A DEVELOPER MACHINE.
+#
+# On a developer machine an unmarked URL is a misconfiguration with an obvious
+# recovery: clear it and let the Postgres-backed modules skip, exactly as they
+# do on a machine with no Postgres — the already-supported path, not a new one.
+#
+# In CI it is not recoverable, and silence would be dangerous. Clearing the URL
+# there would skip twenty-nine modules while the job still reported success:
+# attested evidence rather than executed evidence, which is the failure mode
+# this repository has been bitten by repeatedly. So CI raises instead.
 # --------------------------------------------------------------------------
-def _refuse_non_local_test_database() -> None:
-    if os.environ.get("JULI_ALLOW_REMOTE_TEST_DATABASE", "").strip() == "1":
-        return
-
+def _require_disposable_test_database() -> None:
     url = os.environ.get("DATABASE_URL", "").strip()
 
     # Claim the key even when it is currently unset. `load_dotenv(override=False)`
@@ -85,24 +98,28 @@ def _refuse_non_local_test_database() -> None:
     if not url.startswith("postgresql"):
         return
 
-    from urllib.parse import urlparse
-
-    host = (urlparse(url).hostname or "localhost").lower()
-    if host in _LOCAL_HOSTS:
+    if os.environ.get(DISPOSABLE_MARKER, "").strip() == "1":
         return
+
+    if os.environ.get("CI", "").strip().lower() in {"1", "true"}:
+        raise NonDisposableTestDatabaseError(
+            f"DATABASE_URL is set but {DISPOSABLE_MARKER}=1 is not. In CI this is a "
+            "misconfiguration, not a fallback: clearing the URL would skip every "
+            "Postgres-backed module while the job still reported success. Set "
+            f"{DISPOSABLE_MARKER}=1 alongside the ephemeral Postgres service."
+        )
 
     os.environ["DATABASE_URL"] = ""
     warnings.warn(
-        f"DATABASE_URL pointed at the non-local host {host!r}; it has been removed "
-        "for this test session. Postgres-backed tests will skip. Eleven test "
-        "modules downgrade Alembic to base, which drops every table in the target "
-        "database. Set a local DATABASE_URL to run them, or "
-        "JULI_ALLOW_REMOTE_TEST_DATABASE=1 for a remote throwaway database.",
+        f"DATABASE_URL is set but {DISPOSABLE_MARKER}=1 is not, so it has been "
+        "cleared for this test session and Postgres-backed tests will skip. These "
+        "tests drop tables, roles and whole databases. Set "
+        f"{DISPOSABLE_MARKER}=1 only for a database you are willing to lose.",
         stacklevel=1,
     )
 
 
-_refuse_non_local_test_database()
+_require_disposable_test_database()
 
 
 # --------------------------------------------------------------------------
@@ -170,6 +187,13 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         "test_restore_drill.py",
         "test_safe_alembic_upgrade.py",
         "test_safe_alembic_upgrade_local.py",
+        # Downgrades to base twice (`:98`, `:142`) — but never writes the word,
+        # because it acquires `postgres_at_head` by importing it from
+        # `test_migrations.py:55`. That is why a name list could not find it and
+        # why the AST scan below now follows imports: destructiveness is
+        # inherited here, not declared. Its purpose — diffing the ORM models
+        # against a migration-built schema — is a private-database job anyway.
+        "test_schema_parity.py",
     }
 )
 
@@ -187,10 +211,106 @@ _SHARED_STATE_MODULES = frozenset(
         # #1429 made that create_all succeed — before then it failed on a missing
         # schema and never got far enough to leave anything behind.
         "test_tenant_context_seam.py",
+        # Reason 1 again, one file over: `Base.metadata.create_all` on the shared
+        # database (`:53-61`), leaving `users`/`shops` with no `alembic_version`
+        # row. Same defect as the seam module; found by the #1425 map rather than
+        # by another red build (#1429).
+        "test_tenant_context_integration.py",
     }
 )
 
 _ISOLATED_DATABASE_MODULES = _DESTRUCTIVE_MIGRATION_MODULES | _SHARED_STATE_MODULES
+
+
+# --------------------------------------------------------------------------
+# The shared database has a contract: it is at head before any test runs.
+#
+# CI's `full-regression` runs TWO pytest invocations against ONE database
+# (`pr.yml`): `pytest tests/unit`, then `pytest tests/integration`. Nothing
+# migrates it — no alembic step in the workflow, no fixture until now. It has
+# only ever worked because some module happened to migrate before a module
+# happened to need it, and the current provider is
+# `test_agent_approval_concurrency.py` purely because it sorts first.
+#
+# That accident is why fixing this class kept revealing more of it: #1405 and
+# #1429 moved `test_migrations.py` and `test_rls_policies.py` onto private
+# databases, and both had been de-facto providers. Each fix deleted the thing
+# making the next test pass.
+#
+# So state it as a contract instead. This runs once per pytest process, which
+# means the integration invocation repairs whatever the unit invocation left —
+# the two are separate processes, so the second inherits the first's mess.
+#
+# RESET, don't just upgrade. A bare `alembic upgrade head` cannot recover the
+# state that has bitten us twice: tables present from a `create_all` with no
+# `alembic_version` row. Alembic starts from base, hits `relation "users"
+# already exists`, and dies. Dropping the schemas first makes the outcome the
+# same whatever arrived.
+#
+# The roles/grants step is not optional and not decoration: a fresh Postgres 16
+# substrate never auto-grants table privileges to non-owner roles, so migration
+# 029's `ALTER DEFAULT PRIVILEGES ... REVOKE ALL` would have nothing to
+# counteract and the "born closed" assertions would pass whether or not the
+# clause ran (#929). `_reset_to_head` in test_migrations.py documents this; the
+# same ordering is reproduced here rather than a bare upgrade.
+# --------------------------------------------------------------------------
+_RUNTIME_SCHEMAS = ("bronze", "silver", "gold", "ops")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _shared_database_at_head():
+    """Guarantee the shared database is at head before any test runs.
+
+    A no-op for a non-Postgres or cleared DATABASE_URL, so a run without
+    Postgres behaves exactly as it does today.
+    """
+    url = os.environ.get("DATABASE_URL", "").strip()
+    if not url.startswith("postgresql"):
+        yield
+        return
+
+    import sys
+    from pathlib import Path
+
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, text
+
+    from juli_backend.core.config.runtime import sync_database_url
+
+    repo_root = Path(__file__).resolve().parents[1]
+    sys.path.insert(0, str(repo_root / "agent-runtime" / "scripts" / "ci"))
+    from ensure_postgrest_client_roles import (  # noqa: E402
+        ensure_roles,
+        seed_supabase_bootstrap_grants,
+    )
+
+    sync_url = sync_database_url(url)
+    engine = create_engine(sync_url, isolation_level="AUTOCOMMIT")
+    try:
+        with engine.connect() as conn:
+            # CASCADE because `public` carries the tables every other schema's
+            # foreign keys point at; dropping them one at a time would fail on
+            # exactly the dependencies this reset exists to clear.
+            conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+            for schema in _RUNTIME_SCHEMAS:
+                conn.execute(text(f"DROP SCHEMA IF EXISTS {schema} CASCADE"))
+            conn.execute(text("CREATE SCHEMA public"))
+    finally:
+        engine.dispose()
+
+    ensure_roles(url)
+    seed_supabase_bootstrap_grants(url)
+
+    cfg = Config(str(repo_root / "alembic.ini"))
+    cfg.set_main_option(
+        "script_location",
+        str(repo_root / "backend/src/juli_backend/database/migrations"),
+    )
+    cfg.set_main_option("sqlalchemy.url", sync_url)
+    command.upgrade(cfg, "head")
+
+    yield
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -219,12 +339,26 @@ def _isolated_migration_database(request):
 
     admin_url = make_url(sync_database_url(base_url)).set(database="postgres")
 
-    # Refuse to create/drop databases anywhere but a local throwaway cluster —
-    # the same discipline #734 established for the downgrades themselves.
-    if (admin_url.host or "localhost").lower() not in _LOCAL_HOSTS:
-        raise RuntimeError(
-            "Refusing to provision an isolated migration database against the "
-            f"non-local host {admin_url.host!r}."
+    # Refuse to create/drop databases on a cluster that has not declared itself
+    # throwaway — the same discipline #734 established for the downgrades
+    # themselves, now on the same axis as the import-time guard above.
+    #
+    # This used to test locality, and it was the identical mistake corrected
+    # there. `CREATE DATABASE` against the production cluster is not made safe
+    # by the client being local, and a per-run cloud instance is exactly as
+    # disposable as a service container. Testing locality here would also have
+    # made an ephemeral cloud substrate unreachable for the eleven isolated
+    # modules while claiming to protect them.
+    #
+    # `_require_disposable_test_database()` has already cleared or rejected an
+    # unmarked URL before collection, so this is defence in depth against a test
+    # that sets DATABASE_URL itself afterwards.
+    if os.environ.get(DISPOSABLE_MARKER, "").strip() != "1":
+        raise NonDisposableTestDatabaseError(
+            "Refusing to CREATE/DROP databases on the cluster at "
+            f"{admin_url.host or 'localhost'!r}: it has not declared itself "
+            f"disposable. Set {DISPOSABLE_MARKER}=1 only for a cluster you are "
+            "willing to lose."
         )
 
     # Postgres identifiers cap at 63 bytes; the stem keeps failures legible in

@@ -76,27 +76,128 @@ def _isolated_modules() -> frozenset[str]:
     return _conftest()._ISOLATED_DATABASE_MODULES
 
 
-def _modules_that_downgrade_to_base() -> set[str]:
+def _fixtures_defined(source: str) -> set[str]:
+    """Names in this module that are pytest fixtures.
+
+    A fixture is the unit that carries destructiveness across an import: asking
+    for `postgres_at_head` by name is what runs the downgrade in *your* module,
+    whereas importing a plain helper runs nothing until you call it.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return set()
     found: set[str] = set()
-    for path in TESTS_DIR.rglob("test_*.py"):
-        if path.name == _SELF:
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
-        if _downgrades_to_base(path.read_text(encoding="utf-8")):
-            found.add(path.name)
+        for deco in node.decorator_list:
+            target = deco.func if isinstance(deco, ast.Call) else deco
+            name = target.attr if isinstance(target, ast.Attribute) else getattr(target, "id", None)
+            if name == "fixture":
+                found.add(node.name)
+                break
     return found
+
+
+def _sources() -> dict[str, str]:
+    return {
+        path.name: path.read_text(encoding="utf-8")
+        for path in TESTS_DIR.rglob("test_*.py")
+        if path.name != _SELF
+    }
+
+
+def _modules_that_downgrade_to_base(sources: dict[str, str] | None = None) -> set[str]:
+    sources = _sources() if sources is None else sources
+    return {name for name, source in sources.items() if _downgrades_to_base(source)}
+
+
+def _modules_that_inherit_destructiveness(
+    sources: dict[str, str], direct: set[str]
+) -> dict[str, set[str]]:
+    """Modules that acquire a destructive fixture by importing it (#1402).
+
+    THE BLIND SPOT THIS CLOSES.
+
+    `test_schema_parity.py` downgrades the shared database to base twice, and
+    the word `downgrade` appears nowhere in it: it writes
+    `from tests.integration.test_migrations import postgres_at_head`, and the
+    fixture does the dropping on its behalf. The AST scan above reads one module
+    at a time, so it could not see that — the module was invisible to the guard
+    for as long as the guard existed, which is why it survived every earlier
+    round of this fix.
+
+    Only *fixture* imports count. `test_migration_host_guard.py` imports
+    `_validate_destructive_db_url` from the same destructive module; that is a
+    pure predicate and running it drops nothing. Flagging it would hand a
+    private database to a module that does not need one, and a guard that cries
+    wolf gets its list padded until it means nothing.
+    """
+    fixtures_by_module = {name: _fixtures_defined(sources[name]) for name in direct}
+    inherited: dict[str, set[str]] = {}
+
+    for name, source in sources.items():
+        if name in direct:
+            continue
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom) or not node.module:
+                continue
+            origin = node.module.rsplit(".", 1)[-1] + ".py"
+            destructive_fixtures = fixtures_by_module.get(origin)
+            if not destructive_fixtures:
+                continue
+            if destructive_fixtures.intersection(alias.name for alias in node.names):
+                inherited.setdefault(name, set()).add(origin)
+    return inherited
 
 
 def test_every_module_that_downgrades_to_base_is_isolated():
     """The list must cover reality, not the reality of the day it was written."""
     declared = _isolated_modules()
-    actual = _modules_that_downgrade_to_base()
+    sources = _sources()
+    direct = _modules_that_downgrade_to_base(sources)
+    inherited = _modules_that_inherit_destructiveness(sources, direct)
+    actual = direct | set(inherited)
 
     unlisted = sorted(actual - declared)
+    # Name the route for anything that got here through an import — otherwise the
+    # failure reads as a false positive, because the named module contains no
+    # `downgrade` call to look at.
+    via_import = {name: sorted(inherited[name]) for name in unlisted if name in inherited}
     assert not unlisted, (
         "These modules downgrade to base but are not in "
         "tests/conftest.py::_ISOLATED_DATABASE_MODULES, so they run against the "
         "shared database and will drop its schema out from under whatever pytest "
         f"runs next (#1405): {unlisted}"
+        + (f" — reached through an imported fixture from: {via_import}" if via_import else "")
+    )
+
+
+def test_the_scan_follows_destructive_fixtures_across_imports():
+    """Guard the guard, second edge (#1402).
+
+    Pins both halves of the import rule, because each was got wrong once:
+    `test_schema_parity.py` must be found (it was invisible for thirteen W7
+    slices), and `test_migration_host_guard.py` must NOT be (a first version of
+    this rule flagged every import from a destructive module and caught it).
+    """
+    sources = _sources()
+    direct = _modules_that_downgrade_to_base(sources)
+    inherited = _modules_that_inherit_destructiveness(sources, direct)
+
+    assert "test_schema_parity.py" in inherited, (
+        "the scan no longer follows `postgres_at_head` across the import from "
+        "test_migrations.py — the exact blind spot that hid this module"
+    )
+    assert "test_migration_host_guard.py" not in inherited, (
+        "importing a plain helper from a destructive module is not itself "
+        "destructive; flagging it pads the isolation list with modules that "
+        "drop nothing"
     )
 
 
@@ -148,38 +249,60 @@ def test_the_detector_actually_detects():
 
 
 # ---------------------------------------------------------------------------
-# The non-local DATABASE_URL refusal (audited 2026-08-28).
+# The disposability requirement (audited 2026-08-28, re-axed 2026-09-01).
 #
-# `requires_postgres` gates on reachability, not locality, and production is
-# reachable. `core/config/runtime.py` calls load_dotenv at import time, so on a
-# checkout with a `.env` the production URL arrives by itself — no
-# misconfiguration required. Eleven modules then downgrade Alembic to base.
+# `requires_postgres` gates on reachability, not on ownership, and production is
+# extremely reachable. `core/config/runtime.py` calls load_dotenv at import
+# time, so on a checkout with a `.env` the production URL arrives by itself — no
+# misconfiguration required. Twelve modules then downgrade Alembic to base.
+#
+# The first version of this guard asked "is the host local?". That is the wrong
+# axis in both directions: it rejects an ephemeral cloud database while
+# accepting a local restore of a production dump. The database must instead SAY
+# it is disposable, which cannot happen by accident.
 # ---------------------------------------------------------------------------
-def _refusal():
+def _guard():
     spec = importlib.util.spec_from_file_location("_juli_root_conftest_guard", CONFTEST)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module._refuse_non_local_test_database
+    return module
 
 
-def test_a_non_local_database_url_is_refused(monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@db.example.com:5432/prod")
-    monkeypatch.delenv("JULI_ALLOW_REMOTE_TEST_DATABASE", raising=False)
-    with pytest.warns(UserWarning, match="non-local host"):
-        _refusal()()
+def _unmarked(monkeypatch):
+    monkeypatch.delenv("JULI_TEST_DATABASE_DISPOSABLE", raising=False)
+    monkeypatch.delenv("CI", raising=False)
+
+
+def test_an_unmarked_database_url_is_cleared(monkeypatch):
+    """Locality is not the test — the marker is.
+
+    This URL is `localhost`, which the previous guard waved through. A local
+    restore of a production dump is exactly as destroyable as production.
+    """
+    monkeypatch.setenv("DATABASE_URL", "postgresql://postgres@localhost:5432/juli_prod_restore")
+    _unmarked(monkeypatch)
+    with pytest.warns(UserWarning, match="JULI_TEST_DATABASE_DISPOSABLE"):
+        _guard()._require_disposable_test_database()
     assert os.environ["DATABASE_URL"] == "", (
-        "a non-local DATABASE_URL must not survive into the test session — "
-        "eleven modules downgrade to base against whatever it names"
+        "an unmarked DATABASE_URL must not survive into the test session — "
+        "twelve modules downgrade to base against whatever it names"
     )
 
 
-def test_a_local_database_url_is_left_alone(monkeypatch):
-    local = "postgresql://postgres@localhost:5432/juli_test"
-    monkeypatch.setenv("DATABASE_URL", local)
-    monkeypatch.delenv("JULI_ALLOW_REMOTE_TEST_DATABASE", raising=False)
-    _refusal()()
-    assert os.environ["DATABASE_URL"] == local
+def test_a_marked_database_url_survives_wherever_it_lives(monkeypatch):
+    """The half the locality guard got wrong in the other direction.
+
+    A per-run cloud instance is the substrate the owner asked for. It is remote,
+    it is disposable, and it must be usable — otherwise the guard quietly forces
+    every test database to be local, which is the constraint being removed.
+    """
+    remote = "postgresql://u:p@ephemeral-run-4821.neon.tech:5432/scratch"
+    monkeypatch.setenv("DATABASE_URL", remote)
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setenv("JULI_TEST_DATABASE_DISPOSABLE", "1")
+    _guard()._require_disposable_test_database()
+    assert os.environ["DATABASE_URL"] == remote
 
 
 def test_the_key_is_claimed_even_when_unset(monkeypatch):
@@ -192,8 +315,8 @@ def test_the_key_is_claimed_even_when_unset(monkeypatch):
     actually closes it, so pin that it is claimed rather than merely absent.
     """
     monkeypatch.delenv("DATABASE_URL", raising=False)
-    monkeypatch.delenv("JULI_ALLOW_REMOTE_TEST_DATABASE", raising=False)
-    _refusal()()
+    _unmarked(monkeypatch)
+    _guard()._require_disposable_test_database()
     assert "DATABASE_URL" in os.environ, (
         "the key must be claimed, not left absent, or load_dotenv re-injects "
         "the production URL during collection"
@@ -201,9 +324,39 @@ def test_the_key_is_claimed_even_when_unset(monkeypatch):
     assert os.environ["DATABASE_URL"] == ""
 
 
-def test_the_opt_in_still_works(monkeypatch):
-    remote = "postgresql://u:p@throwaway.example.com:5432/scratch"
-    monkeypatch.setenv("DATABASE_URL", remote)
-    monkeypatch.setenv("JULI_ALLOW_REMOTE_TEST_DATABASE", "1")
-    _refusal()()
-    assert os.environ["DATABASE_URL"] == remote
+def test_ci_raises_rather_than_skipping_silently(monkeypatch):
+    """Clearing the URL in CI would be attested evidence, not executed evidence.
+
+    Twenty-nine Postgres-backed modules skip when DATABASE_URL is empty, and the
+    job still reports success. That is the failure shape this repository has
+    been bitten by repeatedly (ADR-079), so the unrecoverable case must be loud.
+    """
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@db.example.com:5432/prod")
+    # conftest.py calls the guard at module level, so loading it is itself a
+    # run. Mark the environment for the load, then unmark for the call under
+    # test — otherwise the import raises and `pytest.raises` never sees it.
+    monkeypatch.setenv("JULI_TEST_DATABASE_DISPOSABLE", "1")
+    module = _guard()
+    monkeypatch.delenv("JULI_TEST_DATABASE_DISPOSABLE")
+    monkeypatch.setenv("CI", "true")
+
+    with pytest.raises(module.NonDisposableTestDatabaseError):
+        module._require_disposable_test_database()
+
+
+def test_ci_is_configured_to_declare_its_database_disposable():
+    """The guard above is only safe if CI actually sets the marker (#1402).
+
+    Without this, the fail-closed branch turns every CI job with a Postgres
+    service into a hard error — the guard would be correct and the pipeline
+    would be dead. Pin that every job supplying a DATABASE_URL also supplies the
+    marker, so the two can never drift apart silently.
+    """
+    workflow = (REPO_ROOT / ".github" / "workflows" / "pr.yml").read_text(encoding="utf-8")
+    urls = workflow.count("DATABASE_URL: postgresql://")
+    markers = workflow.count("JULI_TEST_DATABASE_DISPOSABLE:")
+    assert urls and markers >= urls, (
+        f"pr.yml sets DATABASE_URL in {urls} place(s) but declares the database "
+        f"disposable in {markers} — every job with a Postgres service must set "
+        'JULI_TEST_DATABASE_DISPOSABLE: "1" or it will fail closed'
+    )
