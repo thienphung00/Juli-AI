@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -587,3 +588,234 @@ def test_needs_graph_has_no_duplicate_or_dangling_entries() -> None:
 
     planted_dangling = {"a": {}, "b": {"needs": ["a", "ghost"]}}
     assert _needs_violations(planted_dangling) == ["b: needs unknown job 'ghost'"]
+
+
+# --- HE-A/P-EVAL-3 (#1440): the code-reading validate gates run in CI --------
+#
+# `grep -rn "scripts/validate" .github/workflows/` returned zero. The 29 gates in
+# agent-runtime/scripts/validate/ executed only locally, invoked by an agent,
+# against artifacts that same agent wrote. The `validate-gates` job runs the
+# subset whose inputs are code, git or `gh` — never one of the five gitignored
+# artifact body directories, which are absent from any CI checkout.
+
+VALIDATE_GATES_JOB = "validate-gates"
+VALIDATE_GATES_STEP = "Run code-reading validate gates"
+
+EXPECTED_BLOCKING_GATES = [
+    "check_module_boundaries",
+    "check_module_drift",
+    "check_adr",
+    "check_done_md",
+]
+# check_differential_tdd keeps the advisory status and promotion criterion
+# documented at agent-runtime/scripts/ci/generate_validation_artifact.py:65-75.
+# check_unpushed_issue_work infers intent from repo-wide branch/worktree state
+# that no PR author controls — advisory per Architect lock 5 (#1434).
+EXPECTED_ADVISORY_GATES = [
+    "check_differential_tdd",
+    "check_unpushed_issue_work",
+]
+
+# check_acceptance_mapping was named in #1440's list but is NOT wired. The
+# criterion below is measured, not grepped: an earlier draft of this test
+# scanned each gate's source for `load_review_artifact` and friends, and that
+# proxy is wrong — check_adr *calls* `load_review_artifact(issue) or {}` and
+# carries on without it, while check_acceptance_mapping returns
+# `False, "Review artifact missing"` on the very next line. Source mentions do
+# not separate the two; behaviour on an artifact-free checkout does.
+#
+# An issue number with no artifact body anywhere: exactly the state of any CI
+# checkout, where the five body directories are gitignored and never pushed.
+ARTIFACT_FREE_ISSUE = "999999"
+ARTIFACT_MISSING_MARKER = "artifact missing"
+
+VALIDATE_DIR = ROOT / "agent-runtime" / "scripts" / "validate"
+
+_BASH_ARRAY = re.compile(r"^([A-Z_]+)=\(([^)]*)\)$", re.MULTILINE)
+
+
+def _validate_gates_step_run() -> str:
+    job = _parsed_workflow()["jobs"][VALIDATE_GATES_JOB]
+    for step in job["steps"]:
+        if step.get("name") == VALIDATE_GATES_STEP:
+            return step["run"]
+    raise AssertionError(f"step {VALIDATE_GATES_STEP!r} not found in {VALIDATE_GATES_JOB}")
+
+
+def _wired_gate_lists() -> dict[str, list[str]]:
+    arrays = dict(_BASH_ARRAY.findall(_validate_gates_step_run()))
+    return {name: value.split() for name, value in arrays.items()}
+
+
+def _run_real_gate(gate: str, issue: str) -> subprocess.CompletedProcess[str]:
+    """Run a real gate script the way the pr.yml job does: `--issue <n>`, and
+    with GITHUB_BASE_REF absent so git_changed_files() takes its working-tree
+    fallback instead of the shallow-fetch branch the job deliberately avoids."""
+    env = {key: value for key, value in os.environ.items() if key != "GITHUB_BASE_REF"}
+    return subprocess.run(
+        [sys.executable, str(VALIDATE_DIR / f"{gate}.py"), "--issue", issue],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _stub_gate_tree(tmp: Path, bodies: dict[str, str]) -> Path:
+    """A checkout-shaped temp tree holding stub gate scripts."""
+    gates_dir = tmp / "agent-runtime" / "scripts" / "validate"
+    gates_dir.mkdir(parents=True)
+    for gate, body in bodies.items():
+        (gates_dir / f"{gate}.py").write_text(body, encoding="utf-8")
+    bin_dir = tmp / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "python").symlink_to(sys.executable)
+    return bin_dir
+
+
+def _passing_stub(gate: str) -> str:
+    return f'print("{gate.removeprefix("check_")}: PASS")\n'
+
+
+def _failing_stub(gate: str) -> str:
+    return f'import sys\nprint("{gate.removeprefix("check_")}: FAIL — planted")\nsys.exit(1)\n'
+
+
+CRASHING_STUB = 'raise RuntimeError("gate could not read its input")\n'
+
+
+def _run_validate_gates(
+    *,
+    bodies: dict[str, str],
+    issue_number: str = "1440",
+) -> subprocess.CompletedProcess[str]:
+    """Execute the real `run:` bash from pr.yml against stub gate scripts."""
+    script = _validate_gates_step_run()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        bin_dir = _stub_gate_tree(tmp, bodies)
+        return subprocess.run(
+            ["bash", "-c", script],
+            cwd=tmp,
+            env={
+                "ISSUE_NUMBER": issue_number,
+                "PATH": f"{bin_dir}:/usr/bin:/bin:/usr/local/bin",
+            },
+            capture_output=True,
+            text=True,
+        )
+
+
+def test_validate_gates_job_enumerates_code_reading_gates() -> None:
+    """AC1: an issue-tier PR runs a job that executes the code-reading gates
+    and reports each gate's name and result.
+
+    The wired list is asserted against the gates' own source, not against a
+    copy of #1440's prose: any gate reaching into one of the five gitignored
+    artifact body directories must not be a blocking entry, because a CI
+    checkout never contains those files.
+    """
+    jobs = _parsed_workflow()["jobs"]
+    assert VALIDATE_GATES_JOB in jobs, "no job runs agent-runtime/scripts/validate/ in CI"
+
+    condition = jobs[VALIDATE_GATES_JOB]["if"]
+    assert _eval_job_if(condition, tier="issue", main_via_wave="false", changes={}) is True
+    assert _eval_job_if(condition, tier="wave", main_via_wave="false", changes={}) is False
+    assert _eval_job_if(condition, tier="main", main_via_wave="false", changes={}) is False
+
+    wired = _wired_gate_lists()
+    assert wired.get("BLOCKING_GATES") == EXPECTED_BLOCKING_GATES
+    assert wired.get("ADVISORY_GATES") == EXPECTED_ADVISORY_GATES
+
+    for gate in EXPECTED_BLOCKING_GATES + EXPECTED_ADVISORY_GATES:
+        assert (VALIDATE_DIR / f"{gate}.py").exists(), f"{gate} is wired but has no script"
+
+    # Teeth, measured: every blocking gate must reach a verdict on a checkout
+    # that holds no artifact body. Asserting on "reached a verdict, and not
+    # because an artifact was missing" keeps this independent of whether the
+    # working tree happens to contain a real boundary violation today.
+    for gate in EXPECTED_BLOCKING_GATES:
+        measured = _run_real_gate(gate, ARTIFACT_FREE_ISSUE)
+        assert re.search(r"^[a-z_]+: (PASS|FAIL)", measured.stdout, re.MULTILINE), (
+            f"{gate} reached no verdict without artifact input\n{measured.stdout}{measured.stderr}"
+        )
+        assert ARTIFACT_MISSING_MARKER not in measured.stdout.lower(), (
+            f"{gate} is wired blocking but cannot answer without a gitignored"
+            f" artifact body\n{measured.stdout}"
+        )
+
+    # The same measurement on the gate #1440 listed and this slice dropped: it
+    # has no tolerant path, so in CI it can only ever fail — the universally
+    # failing job #1440 explicitly rules out.
+    dropped = _run_real_gate("check_acceptance_mapping", ARTIFACT_FREE_ISSUE)
+    assert dropped.returncode != 0, dropped.stdout
+    assert 'return False, "Review artifact missing"' in (
+        VALIDATE_DIR / "check_acceptance_mapping.py"
+    ).read_text(encoding="utf-8")
+    assert "check_acceptance_mapping" not in _validate_gates_step_run()
+
+    # check_differential_tdd fails the same measurement, and is wired advisory
+    # rather than dropped because #1440 says so and keeps its promotion
+    # criterion. Advisory is what makes that honest: it runs and reports, and
+    # cannot block on an input CI does not have until #1438 supplies one.
+    difftdd = _run_real_gate("check_differential_tdd", ARTIFACT_FREE_ISSUE)
+    assert difftdd.returncode != 0, difftdd.stdout
+    assert ARTIFACT_MISSING_MARKER in difftdd.stdout.lower(), difftdd.stdout
+    assert "check_differential_tdd" in _wired_gate_lists()["ADVISORY_GATES"]
+
+    # status-check must require it at issue tier, and must not accept "skipped".
+    status_job = _workflow().split("status-check:", 1)[1]
+    assert 'require "validate-gates" "$validate_gates" "false"' in status_job
+
+    planted = _run_status_check(tier="issue", results={VALIDATE_GATES_JOB: "failure"})
+    assert planted.returncode != 0, planted.stdout
+    assert VALIDATE_GATES_JOB in planted.stdout
+
+
+def test_validate_gates_job_fails_closed_on_gate_error() -> None:
+    """AC3: a gate that raises, or cannot read its input, fails the job rather
+    than passing it — proven by executing pr.yml's real bash against stub gates,
+    not by asserting the workflow text mentions the word "fail"."""
+    all_gates = EXPECTED_BLOCKING_GATES + EXPECTED_ADVISORY_GATES
+    green = {gate: _passing_stub(gate) for gate in all_gates}
+
+    baseline = _run_validate_gates(bodies=green)
+    assert baseline.returncode == 0, baseline.stdout + baseline.stderr
+    # "reports each gate's name and result"
+    for gate in all_gates:
+        assert gate in baseline.stdout, f"{gate} not reported\n{baseline.stdout}"
+
+    # A gate that raises prints no PASS/FAIL verdict. Python exits 1 either way,
+    # so the job must key off the missing verdict line, not the exit code alone.
+    for gate in all_gates:
+        crashed = _run_validate_gates(bodies={**green, gate: CRASHING_STUB})
+        assert crashed.returncode != 0, (
+            f"{gate} raised and the job still passed\n{crashed.stdout}{crashed.stderr}"
+        )
+        assert gate in crashed.stdout
+
+    # A gate script that is not there at all fails the job.
+    for gate in all_gates:
+        missing = {name: body for name, body in green.items() if name != gate}
+        absent = _run_validate_gates(bodies=missing)
+        assert absent.returncode != 0, f"{gate} missing and the job still passed\n{absent.stdout}"
+        assert gate in absent.stdout
+
+    # A blocking gate reporting FAIL blocks; an advisory one is reported and does not.
+    for gate in EXPECTED_BLOCKING_GATES:
+        blocked = _run_validate_gates(bodies={**green, gate: _failing_stub(gate)})
+        assert blocked.returncode != 0, f"blocking {gate} FAIL did not block\n{blocked.stdout}"
+
+    for gate in EXPECTED_ADVISORY_GATES:
+        advised = _run_validate_gates(bodies={**green, gate: _failing_stub(gate)})
+        assert advised.returncode == 0, (
+            f"advisory {gate} FAIL blocked the job\n{advised.stdout}{advised.stderr}"
+        )
+        assert "advisory" in advised.stdout.lower()
+
+    # No issue number: a documented SKIP, never a silent claim that gates ran.
+    skipped = _run_validate_gates(bodies=green, issue_number="")
+    assert skipped.returncode == 0, skipped.stdout + skipped.stderr
+    assert "SKIP" in skipped.stdout
+    for gate in all_gates:
+        assert f"{gate}: PASS" not in skipped.stdout

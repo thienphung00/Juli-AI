@@ -823,6 +823,146 @@ jobs:
           python agent-runtime/scripts/ci/check_artifact_retention_guard.py \
             --issue "$ISSUE_NUMBER"
 
+  # HE-A/P-EVAL-3 (#1440): the code-reading validate gates, run where the agent
+  # is not. Before this job, `grep -rn "scripts/validate" .github/workflows/`
+  # returned zero -- all 29 gates under agent-runtime/scripts/validate/ ran only
+  # locally, invoked by an agent, against artifacts that same agent had just
+  # written. This job runs the subset whose inputs are code, git or `gh`.
+  #
+  # Deliberately NOT wired: gates reading one of the five gitignored artifact
+  # body directories (reviews/, implementations/, intent-reviews/, validation/,
+  # optimization/). Those files never reach a pushed branch, so in CI such a
+  # gate can only ever report "artifact missing" -- a universally failing check
+  # that measures gitignore, not the change. check_acceptance_mapping appeared
+  # in #1440's list and is dropped here for exactly that reason: its first
+  # statement is load_review_artifact(issue). It follows once #1438's capture
+  # seam gives it durable, CI-visible input.
+  #
+  # Blocking vs advisory follows Architect lock 5 (#1434) -- only a factual gate
+  # that cannot false-positive ships blocking:
+  #   check_differential_tdd     advisory, per #1440; keeps the promotion
+  #                              criterion documented at
+  #                              agent-runtime/scripts/ci/generate_validation_artifact.py:65-75.
+  #                              It too reads the gitignored implementation
+  #                              artifact and so reports FAIL in CI until #1438
+  #                              lands -- the point of this slice is that it runs
+  #                              at all, where today it appears in 1 session of 22.
+  #   check_unpushed_issue_work  advisory; a repo-wide heuristic over local
+  #                              branches and worktrees no PR author controls.
+  validate-gates:
+    runs-on: ubuntu-latest
+    needs: [classify-tier, resolve-issue]
+    if: needs.classify-tier.outputs.tier == 'issue'
+    env:
+      ISSUE_NUMBER: ${{ needs.resolve-issue.outputs.issue_number }}
+      BASE_REF: ${{ github.base_ref }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      # No dependency install: agent-runtime/scripts/ci/common.py and every gate
+      # wired below are stdlib-only.
+      - name: Materialise this PR's diff for the gates
+        run: |
+          set -euo pipefail
+          if [[ -z "${BASE_REF:-}" ]]; then
+            echo "validate-gates: no base ref to diff against - failing closed."
+            exit 1
+          fi
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          merge_base="$(git merge-base "origin/${BASE_REF}" HEAD)"
+          echo "Diffing against merge base ${merge_base} (origin/${BASE_REF})"
+          # Move HEAD back to the merge base, leaving this PR's changes in the
+          # index. git_changed_files() (agent-runtime/scripts/ci/common.py) then
+          # reads them through its `git diff --name-only HEAD` fallback.
+          # The alternative -- leaving GITHUB_BASE_REF set so the gate takes its
+          # own branch -- runs `git fetch origin <base> --depth=1`, which
+          # shallow-grafts a fetch-depth:0 checkout. `git diff <base>...HEAD`
+          # then aborts with "no merge base", the gate swallows the error and
+          # returns an empty change list, and every diff-driven gate passes
+          # vacuously. Verified: reproduced whenever the PR branch is behind the
+          # base tip, i.e. the normal case.
+          git reset --soft "${merge_base}"
+          git --no-pager diff --name-only HEAD
+      - name: Run code-reading validate gates
+        run: |
+          set -uo pipefail
+
+          # Take the working-tree fallback in git_changed_files() rather than
+          # its GITHUB_BASE_REF branch -- see the previous step.
+          unset GITHUB_BASE_REF
+
+          BLOCKING_GATES=(check_module_boundaries check_module_drift check_adr check_done_md)
+          ADVISORY_GATES=(check_differential_tdd check_unpushed_issue_work)
+
+          if [[ -z "${ISSUE_NUMBER:-}" ]]; then
+            # Unreachable in practice: policy-checks already fails an issue-tier
+            # PR whose branch carries no issue-N. Reported, never a silent pass.
+            echo "validate-gates: SKIP - branch resolved no issue-N and every gate takes --issue."
+            exit 0
+          fi
+
+          # print_check_result() in agent-runtime/scripts/ci/common.py prints
+          # "<name>: PASS|FAIL". A gate that raises prints no such line, and
+          # Python exits 1 for both a reported FAIL and an uncaught exception --
+          # so the verdict line, not the exit code, is what separates "the gate
+          # answered" from "the gate could not".
+          verdict_re='^[a-z_]+: (PASS|FAIL)'
+          rc=0
+
+          run_gate() {
+            local gate="$1" mode="$2"
+            local script="agent-runtime/scripts/validate/${gate}.py"
+            local args=(--issue "$ISSUE_NUMBER")
+            local output status
+
+            if [[ ! -f "$script" ]]; then
+              echo "${gate}: ERROR - gate script not found at ${script}"
+              return 1
+            fi
+            if [[ "$gate" == "check_unpushed_issue_work" ]]; then
+              # This job has no GH_TOKEN, so the gate would skip its gh-backed
+              # checks anyway; ask for that explicitly so the result cannot vary
+              # with runner auth.
+              args+=(--no-gh)
+            fi
+
+            output="$(python "$script" "${args[@]}" 2>&1)"
+            status=$?
+            printf '%s\n' "$output"
+
+            if ! grep -Eq "$verdict_re" <<< "$output"; then
+              echo "${gate}: ERROR - exited ${status} with no PASS/FAIL verdict (raised, or could not read its input)"
+              return 1
+            fi
+            if [[ "$status" -ne 0 ]]; then
+              if [[ "$mode" == "advisory" ]]; then
+                echo "${gate}: FAIL (advisory - reported, does not block)"
+                return 0
+              fi
+              echo "${gate}: FAIL (blocking)"
+              return 1
+            fi
+            echo "${gate}: PASS (${mode})"
+            return 0
+          }
+
+          for gate in "${BLOCKING_GATES[@]}"; do
+            run_gate "$gate" blocking || rc=1
+          done
+          for gate in "${ADVISORY_GATES[@]}"; do
+            run_gate "$gate" advisory || rc=1
+          done
+
+          if [[ "$rc" -ne 0 ]]; then
+            echo "validate-gates: FAIL"
+            exit 1
+          fi
+          echo "validate-gates: PASS"
+
   policy-checks:
     runs-on: ubuntu-latest
     needs: [classify-tier, resolve-issue]
@@ -1199,6 +1339,7 @@ jobs:
       - demo-e2e
       - artifact-gate
       - artifact-retention-guard
+      - validate-gates
       - policy-checks
       - security-scan
       - deployment-checks
@@ -1230,6 +1371,7 @@ jobs:
           demo_e2e="${{ needs.demo-e2e.result }}"
           artifact_gate="${{ needs.artifact-gate.result }}"
           artifact_retention_guard="${{ needs.artifact-retention-guard.result }}"
+          validate_gates="${{ needs.validate-gates.result }}"
           policy="${{ needs.policy-checks.result }}"
           security="${{ needs.security-scan.result }}"
           deployment="${{ needs.deployment-checks.result }}"
@@ -1269,6 +1411,7 @@ jobs:
             require "landing-frontend" "$landing" "true"
             require "policy-checks" "$policy" "false"
             require "artifact-retention-guard" "$artifact_retention_guard" "false"
+            require "validate-gates" "$validate_gates" "false"
           elif [[ "$tier" == "wave" ]]; then
             # lint/typecheck also run at wave tier so a wave assembled by local
             # merges (rather than issue-tier PRs) is still statically checked.
