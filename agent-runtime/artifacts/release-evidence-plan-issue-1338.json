@@ -1,0 +1,81 @@
+{
+  "planId": "impact-readiness-and-reading-honesty-2026-08-25",
+  "affectedPublicSurfaces": [
+    "The impact read surface — whatever route or operator entry point answers \"what was the impact\" over `impact_readings`. This slice adds the honesty rule at that read end: no surface, report or query answering that question may count a `suppressed` or `confounded` row as a reading, and with ONLY `suppressed` rows present the gate-closing query returns ZERO rows — the exact dishonesty gate #1226 forbids by name (\"producing a `suppressed` reading and calling it a reading\").",
+    "A new operator readiness entry point: given a shop and a `tiktok_product_id`, a verdict with reasons answering whether a T+7 reading could clear the confidence floor — pre-window (T−14…T−1) daily row count in `analytics_performance_intervals` against the required count, control-set size against the minimum, and target volume against the floor `services/impact/confidence` applies. A bare boolean is not sufficient; the owner needs to know which condition is short and by how much, BEFORE authorizing the one production mutation they are willing to sign — otherwise the chain is a seven-day round trip that may return no information.",
+    "The reader itself (`run_daily_impact_reader`, beat `daily-impact-reader` 03:00 UTC) is explicitly NOT changed: it is complete, scheduled and correctly pessimistic (`_PERSISTED_CONFIDENCE` maps `below_floor` to a persisted `suppressed`). This slice is the READ end and the pre-write readiness check only — `workers/impact_reader/pipeline.py`'s computation and persistence do not move.",
+    "Distinguishability at the read surface: `confounded` (a competing change) and `suppressed` (insufficient signal) are different facts. Where they are shown at all they are labelled as their own outcome, never as zero impact, and never collapsed into each other — collapsing them loses the reason."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest with `PYTHONPATH` pinned to the worktree's `backend/src`, on seeded Postgres data — no live TikTok call, no VPS contact, no production write anywhere. Post-deploy: operator-only invocations on the candidate against the sandbox shop and the reference shop's read path. No public traffic is routed to a candidate task set (the single-VPS lane has none), and nothing in this journey mutates a listing — it is read-only over `impact_readings` and `analytics_performance_intervals`.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "The journey is read-side only: the readiness check reads analytics history and the honesty rule reads impact_readings; neither writes vendor state or shop rows. The standing owner decision of 2026-08-21 holds — nothing here approves or writes against Fujiwa Vietnam Store (2b1da87b) or any production shop. The sandbox shop's honest 'not ready' verdict is itself a deliverable: it has no analytics series, which is the fact that put this whole gate on the production path in the first place.",
+    "journeys": [
+      {
+        "name": "readiness-honest-at-both-ends",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1338",
+        "assertions": [
+          "pre-merge: given a shop and product, the readiness verdict carries the reasons — pre-window row count vs required, control-set size vs minimum, target volume vs floor — not a bare boolean; asserted against a shop with known-insufficient history (not ready, naming the shortfall) and a shop with sufficient history (ready)",
+          "pre-merge: the readiness verdict is compared against what run_daily_impact_reader ACTUALLY produces for the same seeded window — where readiness says ready the reader produces a non-suppressed tier, where it says not-ready the reader produces suppressed; a readiness check that disagrees with the reader is worse than none and this equality is the assertion that prevents it",
+          "pre-merge: the readiness check calls services/impact's own floor and control-set logic — asserted by reference to the real symbols, never a second copy of a threshold that can drift",
+          "pre-merge: with ONLY suppressed rows present for a run, the gate-closing query returns zero rows, asserted directly; a query answering 'readings for this run / shop / product' excludes suppressed and confounded from anything counted as a reading",
+          "pre-merge: a confounded row is distinguishable from a suppressed one at the read surface — two seeded rows, two distinct labelled outcomes, neither rendered as zero impact",
+          "post-deploy: on the candidate, readiness against the sandbox shop returns the honest 'not ready — no analytics series' verdict with its named shortfalls",
+          "post-deploy: on the candidate, readiness against the reference shop's known-good product returns a ready verdict carrying its numbers (pre-window rows, control-set size, volume vs floor)",
+          "post-deploy: the impact read surface returns zero readings for a run seeded with only suppressed rows, and the suppressed rows remain visible only as their own labelled outcome"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — the diff is backend Python (a readiness service reusing services/impact, and the read-side honesty rule over impact_readings) plus tests. Operator-facing output is a JSON verdict, not a rendered page."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "api-json-response"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration. The slice is read-only over impact_readings and analytics_performance_intervals: the readiness check reads analytics history and services/impact's thresholds; the honesty rule changes which rows a read surface counts as readings, not what is persisted. The reader keeps persisting suppressed and confounded rows exactly as ADR-077 designed — that write path does not move. If implementation concludes it needs schema (it should not), this plan must be revised to schemaChangeInScope: true BEFORE merge, additive and nullable only."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without this slice, the chain reads authorize → wait seven days → discover the reading is suppressed, and no structural rule prevents a suppressed row being counted as a reading. That is the pre-existing state — no new exposure, nothing partially applied.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart the services. Read-side only: reverting restores the previous read surface and the previous absence of a readiness entry point; no schema state, no data effect, no vendor-side effect to undo. One honesty caveat is binding: if the PREVIOUS surface counted suppressed rows as readings, the revert restores a live dishonesty — the PR must say so explicitly, because it means the dishonesty #1226 names was live before this slice, and the rollback decision must be made knowing that.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'readiness or impact_reading or impact_honesty' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/integration -k 'readiness or impact' -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "Do NOT modify workers/impact_reader/pipeline.py's computation or persistence. The reader is complete, scheduled and correctly pessimistic; if a defect is found in it, REPORT it — this slice does not change how readings are computed or persisted.",
+    "No scheduling work. The T+7/T+14 scheduling (daily-impact-reader, 03:00 UTC after the 02:00 backfill top-up) already exists and is correct.",
+    "No production write, and nothing targets Fujiwa Vietnam Store (2b1da87b) — the standing owner decision of 2026-08-21 holds for the entire wave. This slice is read-only and must not be the thing that tests that boundary.",
+    "No W6-owned file appears in the diff: apps/**, packages/**, api/routes/demo_decisions.py, the run-list route, services/agent/approval.py, services/agent/runner/core.py, services/agent/sanitize/** source, the scenario module, the demo seed, core/security/dependencies.py. W6 touches none of this slice's surface; keep it mutual.",
+    "suppressed and confounded are DIFFERENT facts (insufficient signal vs a competing change). Do not collapse them at any surface, and do not render either as zero impact — they are their own labelled outcomes, excluded from anything counted as a reading.",
+    "Reuse services/impact's own floor and control-set logic. A second copy of a threshold is a second thing to drift — if the logic is not reusable as-is, report that rather than duplicating it."
+  ]
+}

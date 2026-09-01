@@ -6,6 +6,10 @@ from juli_backend.services.execution.dispatch import (
     mark_execution_finished,
     set_task_dispatcher,
 )
+from juli_backend.services.execution.production_write_resolver import (
+    get_rls_boot_check_state,
+    record_rls_boot_check_passed,
+)
 from juli_backend.services.execution.runner import (
     register_async_tool,
     register_tool,
@@ -28,10 +32,12 @@ __all__ = [
     "ExecutionStatus",
     "build_sandbox_write_resources",
     "enqueue_approved_tool",
+    "get_rls_boot_check_state",
     "get_task_dispatcher",
     "is_noop_tool",
     "load_sandbox_write_resources",
     "mark_execution_finished",
+    "record_rls_boot_check_passed",
     "register_async_tool",
     "register_tool",
     "resolve_tool_name",

@@ -1,0 +1,10 @@
+{
+  "id": "outbound_guard_banned_pattern",
+  "category": "output_chokepoint",
+  "applicable_tests": ["outbound_guard"],
+  "description": "Agent-authored output (not tool result) carrying a banned pattern. The outbound chokepoint guard_outbound_agent_output blocks it before streaming or persistence. Assert: guard raises BannedPatternGuardFailure.",
+  "source_field": "agent_output",
+  "raw_text": "The webhook endpoint is https://internal.example.com/v1/webhook for integration.",
+  "expected_guard_outcome": "outbound_guard_blocked",
+  "provenance": "ADR-070 decision 6 outbound chokepoint; agent-authored output fail-closed."
+}

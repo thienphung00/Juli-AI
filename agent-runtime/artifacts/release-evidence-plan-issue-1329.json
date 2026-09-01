@@ -1,0 +1,84 @@
+{
+  "planId": "two-tenant-isolation-proof-catalog-enumerated-2026-08-26",
+  "affectedPublicSurfaces": [
+    "Release CI (.github/workflows/pr.yml): a new isolation-proof job is APPENDED, hanging off the existing migration-check job which already stands up Postgres 16 and runs alembic upgrade head. This slice ships NO runtime code and NO migration — it adds a CI guard plus the isolation-proof harness and tests under the repo's test tree.",
+    "The isolation-proof harness itself: at test time it enumerates every table from pg_catalog / information_schema and classifies each via a small committed classification map (tenant-scoped-direct, tenant-scoped-via-parent, non-tenant). The map must be COMPLETE — an unclassified table fails the build — so the guard reads the catalog rather than a list that rots (ADR-061: the controls that survived were expressed as defaults, the ones expressed as conventions rotted; two tables landed unprotected during the audit that discovered the problem).",
+    "The standing guarantee for every future schema change: because coverage is the count of tenant-scoped tables in the catalog rather than a hand-maintained list, a table that lands unprotected lands the build red. This is the enforcement half of ADR-085 decision 3 — the reason #1328's policies cannot silently rot the way the previous RLS did."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Not applicable to the running host — this slice ships no runtime code and no migration. The verification is entirely in CI: the isolation-proof job runs against a real Postgres 16, connected AS juli_app, with two seeded tenants, and asserts denial across every tenant-scoped table. The demonstrable proof for the PR is that the job runs RED against a deliberately-unprotected table (a table temporarily left unclassified or unprotected) and GREEN once it is protected/classified — both states shown in the PR. No public traffic, no candidate task set, no production credential or write is involved anywhere.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "There is no host-side candidate journey because nothing runs on the host changes: the deliverable is a pr.yml CI job and its test harness. syntheticShopRequired is true for the two-tenant isolation seeding (distinct users, shops and a full row set across every tenant-scoped table); no real merchant data is touched. The job hangs off migration-check, which already provisions Postgres 16 and runs alembic upgrade head, so the isolation proof runs against the fully-migrated schema as juli_app. The DATABASE_URL cutover to juli_app on the deployed host is gate #1339 observation 1 — an owner act, entirely outside this slice.",
+    "journeys": [
+      {
+        "name": "catalog-enumerated-isolation-proof-red-then-green",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1329",
+        "assertions": [
+          "the job runs against real Postgres 16, connected AS juli_app (never SQLite, never as the owner postgres); a test that merely asserts pg_policies is non-empty is explicitly NOT the mechanism and must not appear as the proof",
+          "every table is enumerated from pg_catalog / information_schema at test time and classified via the committed map; the count of covered tenant-scoped tables is asserted EQUAL to the count of tenant-scoped tables in the catalog, so a table cannot be skipped by being forgotten",
+          "the test of the test: a table CREATED inside the test transaction and left unclassified FAILS the proof — if the enumeration cannot see a new table it is a list wearing a query's clothing",
+          "with two seeded tenants and tenant A's context set as juli_app, SELECT, UPDATE and DELETE reach ZERO of tenant B's rows across every tenant-scoped table, and an INSERT of a B-owned row is rejected",
+          "the owner-bypass contrast is asserted: the same queries as postgres see BOTH tenants' rows, as juli_app see only tenant A's",
+          "the unset-context case is asserted in BOTH directions: zero rows from SQL (missing_ok=true), AND a named Python error from #1327's unit-of-work assertion — because if only one is proven the other is the failure mode that reads to a seller as 'you have no data'",
+          "the job is fail-closed: a database it cannot connect to, a classification map it cannot parse, or a table it cannot classify all FAIL the build — none of them skip",
+          "runtime is bounded and STATED; if the generated matrix exceeds the stated budget the fix is a tighter representative row set, never skipping tables",
+          "demonstration for the PR: the job is shown RED against a deliberately-unprotected table and GREEN after it is protected — proving the guard actually denies rather than merely existing"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — the diff is one appended pr.yml CI job plus the real-Postgres isolation-proof harness and tests."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "ci-workflow-job",
+      "pg-catalog-query"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration and no runtime code in this slice — it adds a CI job and its test harness only. The job hangs off the existing migration-check job (Postgres 16 + alembic upgrade head) and runs the isolation proof against the fully-migrated schema as juli_app. Because it introduces no schema change, stable and candidate are trivially compatible; the guard's value is that every FUTURE migration is now checked for isolation coverage against the catalog rather than a list."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. This slice ships no runtime code, no migration, and nothing that reaches the deployed host — it adds a CI guard. Until it merges, the isolation coverage is simply unchecked in CI (the status quo before this slice); there is no new exposure and no data hazard.",
+    "postCutoverFailureBehavior": "Removing the job removes a guard and nothing else — no runtime behaviour changes. Removal must NOT be silent: the job is recorded in the runbook's list of required checks, so its absence is visible. Reverting the slice restores the prior (unchecked) CI state; no schema or data is touched either way.",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "DATABASE_URL=postgresql://postgres@localhost:5432/juli_exec_1329 PYTHONPATH=$PWD/backend/src python -m pytest tests/integration -k 'isolation or catalog or tenant' -q",
+    "python agent-runtime/scripts/ci/validate_workflow.py .github/workflows/pr.yml",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "The proof reads the catalog (pg_catalog / information_schema) at test time, NEVER a hardcoded table list. ADR-061 recorded that this repo lost RLS twice because remedies expressed as lists rotted while defaults survived; a list wearing a query's clothing is the exact failure to avoid.",
+    "The classification map must be COMPLETE: an unclassified table FAILS the build. The test of the test is a table created inside the test transaction and left unclassified — it must fail the proof, proving the enumeration actually sees new tables.",
+    "The count of covered tenant-scoped tables is asserted EQUAL to the count of tenant-scoped tables in the catalog, so nothing is skipped by being forgotten.",
+    "Connects AS juli_app to a REAL Postgres 16, never SQLite and never as the owner (postgres). Asserting pg_policies is non-empty is EXPLICITLY INSUFFICIENT and must not be the mechanism — the proof is DENIAL: SELECT, UPDATE and DELETE reach zero of tenant B's rows and INSERT of a B-owned row is rejected, across every tenant-scoped table.",
+    "The owner-bypass contrast is asserted (both tenants visible as postgres, only tenant A as juli_app), and the unset-context case is asserted in BOTH directions: zero rows via SQL AND a named Python error from #1327's assertion.",
+    "The job is fail-closed: an unconnectable database, an unparseable classification map, or an unclassifiable table all FAIL — none of them skip. Runtime is bounded and STATED; exceeding the budget is fixed with a tighter representative row set, never by skipping tables.",
+    "APPEND the pr.yml job — NEVER string-replace into an existing needs: block. Duplicate '- <job>' entries make a replace hit the wrong job, and an empty needs.X.result is the silent symptom; run the workflow validator after editing pr.yml. Hang the job off the existing migration-check job (Postgres 16 + alembic upgrade head). W6 is adding jobs in parallel, so keep the diff to appended blocks and do not touch W6's jobs.",
+    "This slice ships no runtime code and no migration; it must not perform, schedule, or partially apply the gate #1339 observation-1 DATABASE_URL cutover, and it does not edit any W6-owned file."
+  ]
+}

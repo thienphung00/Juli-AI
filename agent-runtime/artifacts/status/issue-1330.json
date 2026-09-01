@@ -1,0 +1,32 @@
+{
+  "gateVersion": 1,
+  "issue": 1330,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/workers/agent_runtime_boot.py",
+      "backend/src/juli_backend/core/config/runtime.py",
+      "backend/src/juli_backend/database/tenant_scoped_tables.py",
+      "tests/integration/test_check_7_production_write_rls.py",
+      "tests/integration/test_two_tenant_isolation_proof.py",
+      "docs/CUTOVER_RUNBOOK_PRODUCTION_WRITE_ROLE.md"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1330.json",
+    "ownerSignoffPresent": true,
+    "sha256": "585290a02fc1f791e7c391d208c2524eb3548ad4fd29b6163020079f46748015",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-26T05:52:11Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1330.json",
+    "sha256": "bb0448542b525ac01f5e27173749969c50ff8ce396b7404ea320ecf94d2d90cb",
+    "status": "PASS"
+  },
+  "wave": "wave-w7"
+}

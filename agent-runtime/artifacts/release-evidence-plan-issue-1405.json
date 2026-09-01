@@ -1,0 +1,85 @@
+{
+  "planId": "rep-1405-juli-app-downgrade-cross-database",
+  "affectedPublicSurfaces": [
+    "none at runtime — the change is inside 043_juli_app_role.downgrade(), a path production never executes. Production only ever moves forward.",
+    "operator-visible: a downgrade that previously aborted now completes and emits a NOTICE naming the retained role"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "none — no request path is touched",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "downgrade-reaches-base-despite-an-unreachable-grant",
+        "entryUrl": "postgres: sibling database in the same cluster holds GRANT SELECT ... TO juli_app",
+        "assertions": [
+          "upgrade head then downgrade base completes",
+          "alembic_version is EMPTY — not merely that no exception was raised, because the pre-fix failure was a silent rollback to head",
+          "workflow_runs, production_write_authorizations and production_write_audit are all gone",
+          "reverting the migration change makes this fail with DependentObjectsStillExist"
+        ]
+      },
+      {
+        "name": "the-role-is-kept-not-force-dropped",
+        "entryUrl": "postgres: same sibling-database condition",
+        "assertions": [
+          "juli_app still exists after the downgrade",
+          "it is NOLOGIN",
+          "a future change that force-drops it fails this test — dropping a cluster-wide object still used by another database is not safe"
+        ]
+      },
+      {
+        "name": "the-database-local-cleanup-still-happens",
+        "entryUrl": "source: 043_juli_app_role.py",
+        "assertions": [
+          "DROP OWNED BY is still issued, so every privilege held in THIS database is removed",
+          "only the unreachable cluster-wide step is tolerated"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": ["not-applicable: migration downgrade path"],
+    "discoverFromHtml": false,
+    "assetTypes": ["not-applicable"],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "upgrade() is untouched. Only downgrade() changes, and only in how it handles one error it cannot prevent. Production never runs downgrade, so deployed behaviour is identical; the blast radius is CI and local development."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy the prior release. Reverting this change restores the abort, which returns full-regression to 7 failures and 12 errors and puts #1402 back to red.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "DATABASE_URL=postgresql://localhost:5432/<throwaway> PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_juli_app_role_downgrade_cross_database.py -q",
+    "DATABASE_URL=postgresql://localhost:5432/<throwaway> PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_juli_app_role_migration.py tests/unit/test_rls_policies_migration.py tests/unit/test_workflow_runs_schema.py -q",
+    "DATABASE_URL=postgresql://localhost:5432/<throwaway> PYTHONPATH=$PWD/backend/src python -m pytest tests -m 'not live and not demo_contract' -q"
+  ],
+  "doNotInfer": [
+    "Do not force-drop juli_app to make the downgrade 'clean'. It is cluster-wide; another database in the cluster may still depend on it, and this migration cannot see that.",
+    "Do not assert only that the downgrade raised no exception. The pre-fix failure mode WAS silent — one transaction, rolled back, database left at head, caller believing it reached base. Assert alembic_version is empty.",
+    "Do not try to reproduce this with a single database. It needs a sibling database in the same cluster; test_workflow_runs_schema.py alone is 14/14 and the three failing files together are 31/31.",
+    "Do not 'fix' the schema tests that fail downstream. They are correct; they were reading a database that had silently rolled back to head.",
+    "Do not extend DROP OWNED BY and expect it to reach the sibling database. It covers the current database plus SHARED objects only — never another database's tables."
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "planId": "rep-1432-shared-test-database-contract",
+  "affectedPublicSurfaces": [
+    "none — test harness and CI workflow only. No product code, no route, no migration, no runtime path.",
+    ".github/workflows/pr.yml gains an environment variable in six jobs and changes no step, image, or condition."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "none",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "the-shared-database-is-at-head-without-an-accidental-provider",
+        "entryUrl": "pytest: CI's two-invocation order (tests/unit, then tests/integration) against a freshly created database",
+        "assertions": [
+          "both invocations run against one database that nothing migrated beforehand",
+          "the integration stage passes — before this change the same order gave 14 failed, 127 passed, 11 errors",
+          "tests/integration/test_two_tenant_isolation_proof.py passes on a completely empty database with no provider module present",
+          "verified in CI's real order, NOT via a single `pytest tests` run, in which `integration` sorts before `unit` and the class is unreachable"
+        ]
+      },
+      {
+        "name": "the-guard-tests-disposability-not-locality",
+        "entryUrl": "pytest: tests/unit/test_destructive_migration_isolation.py",
+        "assertions": [
+          "an unmarked localhost DATABASE_URL is cleared — locality alone no longer grants permission to drop tables",
+          "a marked remote DATABASE_URL survives — an ephemeral cloud database is a first-class test substrate",
+          "with CI=true and no marker the guard raises instead of clearing, so a misconfigured pipeline cannot skip 29 Postgres modules and still report success",
+          "pr.yml declares the marker in at least as many places as it sets a Postgres DATABASE_URL, so the fail-closed branch cannot strand a job"
+        ]
+      },
+      {
+        "name": "destructiveness-acquired-through-an-import-is-visible",
+        "entryUrl": "pytest: tests/unit/test_destructive_migration_isolation.py::test_the_scan_follows_destructive_fixtures_across_imports",
+        "assertions": [
+          "test_schema_parity.py is detected as destructive though the word `downgrade` never appears in it",
+          "test_migration_host_guard.py is NOT detected — importing a plain helper from a destructive module drops nothing",
+          "both halves are pinned, because each was got wrong once"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": ["not-applicable: test harness"],
+    "discoverFromHtml": false,
+    "assetTypes": ["not-applicable"],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration authored. The session fixture runs `alembic upgrade head` against the test database only, after the import-time guard has established that the database declared itself disposable. It cannot reach a database that did not."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy the prior release; nothing deployed changes. Reverting restores the full-regression failure that has blocked #1402 since b9a37489.",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "DATABASE_URL=postgresql://postgres@localhost:5432/<freshly-created> JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=$PWD/backend/src:$PWD python -m pytest tests/unit -q -m 'not live and not demo_contract'",
+    "DATABASE_URL=postgresql://postgres@localhost:5432/<freshly-created> JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=$PWD/backend/src:$PWD python -m pytest tests/integration -q -m 'not live and not demo_contract'",
+    "python -c \"import yaml; d=yaml.safe_load(open('.github/workflows/pr.yml')); print(len(d['jobs']))\""
+  ],
+  "doNotInfer": [
+    "Do not verify with a single `pytest tests` run. In one invocation `integration` sorts BEFORE `unit`, which is the inverse of CI, and every green obtained that way is structurally incapable of reproducing this class. That verification error is what hid the defect through six rounds of fixing it.",
+    "Do not re-add a locality check. Locality is a proxy for 'safe to destroy' and it is wrong in both directions: it rejects an ephemeral cloud database and accepts a local restore of a production dump.",
+    "Do not let the guard clear DATABASE_URL in CI as a fallback. Twenty-nine Postgres-backed modules skip on an empty URL and the job still reports success — attested evidence rather than executed evidence (ADR-079).",
+    "Do not extend the isolation name list as the fix. A name list provably cannot enumerate this class: test_schema_parity.py acquires its destructiveness through an import and was invisible to the list for as long as the list existed.",
+    "Do not remove the two-tenant-isolation-proof job because the session fixture makes it look redundant. It is #1329's RLS gate; it needs the disposability marker, not deletion."
+  ]
+}

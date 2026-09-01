@@ -1,0 +1,95 @@
+{
+  "planId": "prod-write-four-precondition-resolver-default-off-2026-08-26",
+  "affectedPublicSurfaces": [
+    "The agent WRITE path in services/execution — the single highest-consequence code path in the product. Today every WRITE tool call resolves to sandbox via load_sandbox_write_resources(). This slice adds a resolver alongside the existing sandbox guard so a WRITE resolves to sandbox (unchanged), to production (only under ALL FOUR preconditions), or refuses with a distinct named reason. The default path does not move: with PRODUCTION_WRITE_ENABLED off (today's configuration), every write is byte-identical sandbox behaviour.",
+    "integrations/tiktok/capabilities.py and integrations/tiktok/guards.py — the capability/guard surface the resolver consults; the ADR-068 hard-bound PRODUCTION_READ / SANDBOX_WRITE properties must survive untouched, and no new path may resolve a production credential for a write outside the four-precondition resolver.",
+    "The four named refusal reasons emitted to the SERVER LOG (which precondition failed): flag off, no matching authorization, boot assertion not passed for this process, no red-team attestation for the deployed release sha. The seller-facing surface reports a normal terminal run state with an honest stop reason WITHOUT leaking which precondition failed.",
+    "Precondition 4's red-team attestation record keyed to the deployed release sha (naming sha, date, who performed the pass, outcome) — a committed record the resolver reads; a sha with no attestation refuses."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest with PYTHONPATH pinned and every vendor call bound to a fake at the real client signature — no live TikTok call, no VPS contact, and NO production credential resolved for a write at any point. Post-deploy candidate: with PRODUCTION_WRITE_ENABLED OFF, a full sandbox approve->write on the sandbox shop confirms behaviour is unchanged; then with the flag ON but no authorization row, confirm the named refusal. NO production write is performed during candidate verification — the standing owner decision of 2026-08-21 forbids it and the chain is not cleared.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the write resolves in the Celery worker; a run with workers disabled cannot exercise the resolver. apiSideEffectsInScope is FALSE in the sense the pairing rule protects — no PUBLIC/PRODUCTION side effect occurs: the flag-off journey writes only to the TikTok SANDBOX, and the flag-on-no-authorization journey performs NO write at all (it confirms the named refusal). Production stays unreachable: the four-precondition resolver plus ADR-068's hard-bound SANDBOX_WRITE merchant id keep a production write impossible until the full chain (including gate #1339's owner acts) clears.",
+    "journeys": [
+      {
+        "name": "flag-off-sandbox-write-unchanged",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1336",
+        "assertions": [
+          "pre-merge: the existing sandbox-write tests run UNCHANGED and green — with the flag off, every WRITE tool resolves to sandbox byte-identically to load_sandbox_write_resources() today",
+          "pre-merge: a test asserts the ADR-068 guards still hold — PRODUCTION_READ cannot write, SANDBOX_WRITE stays hard-bound to its merchant id, and no code path resolves a production credential for a write; the vendor fake binds to the real client signature, not a **kwargs double",
+          "post-deploy: with PRODUCTION_WRITE_ENABLED off, approve a sandbox card and observe the resulting write resolve to sandbox and complete exactly as before this slice"
+        ]
+      },
+      {
+        "name": "flag-on-no-authorization-named-refusal",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1336",
+        "assertions": [
+          "pre-merge: each of the four preconditions, individually unmet, refuses with its OWN distinct named reason — four tests, four names; a single generic 'not permitted' fails the test",
+          "pre-merge: precondition 3 reads a value RECORDED AT BOOT (not a live re-query); a process whose boot assertion did not run at all is treated as FAILED, not unknown (fail-closed on absence)",
+          "pre-merge: precondition 4 matches the DEPLOYED RELEASE SHA — an attestation for a different sha refuses; a branch name or date is not accepted",
+          "pre-merge: a run whose authorization expires BETWEEN approval and the write refuses AT THE WRITE, not at approval — the check is at the moment of mutation",
+          "pre-merge: the refusal is a NORMAL terminal run state with an honest stop reason (not a crash); the precondition name goes to the SERVER LOG and the seller-facing surface does not leak which precondition failed",
+          "pre-merge: all four preconditions met => the write resolves to production resources and #1335's authorization is consumed atomically, recording consumed_by_run_id — asserted in a test that never hands the transport guard a production credential (a fake stands in for the production resource resolution)",
+          "post-deploy: with the flag ON and no authorization row, an approve->write on the sandbox shop reaches the named refusal, no write is attempted, and the server log names the missing precondition"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — the diff is backend Python under services/execution and integrations/tiktok plus tests and a committed attestation record."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "worker-journal",
+      "server-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration in this slice — the resolver reads #1335's existing production_write_authorizations table (its lookup and atomic consumption). The scoped allow-list IS the authorization row; there is no second list and no new schema. The default path (sandbox) is unchanged, so the previous release runs identically against the same schema."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without the resolver, the write path is today's unconditional sandbox path — no production write is possible (ADR-068 guards hold), so there is no new exposure.",
+    "postCutoverFailureBehavior": "Revert the resolver: the write path returns to the unconditional sandbox path (default-off behaviour). The revert MUST NOT leave PRODUCTION_WRITE_ENABLED readable with the four preconditions removed — that would be an unguarded production write, the exact state this wave exists to prevent. If the flag and the resolver cannot be reverted together, revert the RESOLVER (removing the ability to resolve production at all), never leave the flag consulted without its guards.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'production_write or capabilit or guard or four_precondition or resolver' -q",
+    "DATABASE_URL=postgresql://postgres@localhost:5432/juli_exec_1336 PYTHONPATH=$PWD/backend/src python -m pytest tests/integration -k 'production_write or authorization or resolver' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'sandbox_write' -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "The four preconditions each refuse with a DISTINCT named reason (flag off; no matching unconsumed/unexpired/unrevoked authorization; RLS boot assertion not passed for this process; no red-team attestation for the deployed release sha). A single generic 'not permitted' is insufficient — the operator must know which link failed.",
+    "Precondition 3 reads a value RECORDED AT BOOT, never a live re-query; a process whose boot assertion did not run at all is treated as FAILED, not unknown — fail-closed on absence.",
+    "Precondition 4 matches the DEPLOYED RELEASE SHA, not a branch name or a date; an attestation for a different sha refuses.",
+    "A run whose authorization expires BETWEEN approval and the write refuses AT THE WRITE (the moment of mutation), not at approval.",
+    "The refusal is a NORMAL terminal run state with an honest stop reason — not a crash. The seller-facing surface says what happened WITHOUT leaking which precondition failed; the precondition name goes to the SERVER LOG only.",
+    "With the flag off — today's configuration — every WRITE tool resolves to sandbox and behaviour is BYTE-IDENTICAL to before this slice, proven by the existing sandbox-write tests running unchanged.",
+    "NO production write is possible in any test in this suite — assert the transport guard is never handed production credentials; a fake bound to the real client signature stands in for production resource resolution.",
+    "The scoped allow-list IS the authorization row (#1335); there is no second list to keep in step.",
+    "Do NOT touch services/agent/approval.py or services/agent/runner/core.py — both are W6-owned (#1309, #1272). If the resolver needs a hook in the runner, REPORT it rather than editing. This slice touches services/execution/** and integrations/tiktok/capabilities.py / guards.py, none of which W6 touches.",
+    "This slice does NOT perform a production write or a production mutation — those are gate #1339's owner observations; the standing owner decision of 2026-08-21 forbids any production write against Fujiwa Vietnam Store (2b1da87b) without the full chain."
+  ]
+}

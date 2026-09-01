@@ -130,14 +130,22 @@ _SSE_CONCURRENCY_SAFETY_TTL_SECONDS = 3600
 
 
 def _int_env(name: str, default: int) -> int:
+    """Read an integer from an env var, failing loudly on malformed values.
+
+    Unset or empty returns the default (documented behavior).
+    Any syntactically invalid or non-positive value raises ValueError,
+    making configuration errors visible immediately rather than silent.
+    """
     raw = os.getenv(name, "").strip()
     if not raw:
         return default
     try:
         value = int(raw)
-    except ValueError:
-        return default
-    return value if value > 0 else default
+    except ValueError as e:
+        raise ValueError(f"Environment variable {name}={raw!r} is not a valid integer") from e
+    if value <= 0:
+        raise ValueError(f"Environment variable {name}={value} must be positive")
+    return value
 
 
 def approve_rate_limit_max_requests() -> int:

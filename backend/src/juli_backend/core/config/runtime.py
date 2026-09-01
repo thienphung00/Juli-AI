@@ -135,3 +135,49 @@ def cors_allow_origins() -> list[str]:
         "http://localhost:3000,http://127.0.0.1:3000",
     )
     return [origin.strip() for origin in origins.split(",") if origin.strip()]
+
+
+def is_production_write_enabled() -> bool:
+    """Whether the production-write capability is enabled (issue #1330, #1336).
+
+    Fail-closed: unset or invalid values default to False (capability disabled).
+    Only "true" (case-insensitive) enables the capability. This is the gate for
+    check 7 (RLS preconditions) and #1336's precondition checks.
+
+    When enabled, the boot check verifies that the database connection enforces
+    RLS on all tenant-scoped tables before allowing operation. When disabled
+    (default), the check is a no-op regardless of connection role (today's
+    deployed configuration).
+    """
+    value = os.environ.get("PRODUCTION_WRITE_ENABLED", "").strip().lower()
+    if value not in ("true", "1", "yes"):
+        return False
+    return True
+
+
+def is_production_write_kill_switch_active() -> bool:
+    """Whether the production-write kill switch is active (issue #1337).
+
+    Read PER TOOL CALL, not at boot. This is the emergency stop for production
+    writes — it provides latency without deploy or restart.
+
+    Fail-closed: unset defaults to False (kill switch off, writes allowed).
+    Unparseable values are treated as "on" (fail-closed: writes off).
+
+    Only "false", "0", or "no" (case-insensitive) disable the kill switch.
+    Any other value, including unset, is interpreted as active.
+
+    This is distinct from PRODUCTION_WRITE_ENABLED: one is the deliberate
+    capability gate (must be on to write production), the other is the
+    emergency stop (when on, no production writes happen).
+    """
+    value = os.environ.get("PRODUCTION_WRITE_KILL_SWITCH", "").strip().lower()
+    # Fail-closed: only explicit "off" values disable; everything else means "active"
+    # Empty/unset means OFF (no kill switch active)
+    if not value:
+        return False
+    # Explicit "off" values mean kill switch is OFF
+    if value in ("false", "0", "no"):
+        return False
+    # Everything else (including malformed) is fail-closed as "active"
+    return True
