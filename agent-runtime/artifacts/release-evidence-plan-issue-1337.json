@@ -1,0 +1,94 @@
+{
+  "planId": "prod-write-kill-switch-and-append-only-audit-2026-08-26",
+  "affectedPublicSurfaces": [
+    "The production write path's operational controls: a NEW kill switch setting (distinct from PRODUCTION_WRITE_ENABLED) read PER TOOL CALL inside the WRITE resolver in `services/execution`, and an append-only `production_write_audit` table recording every production-write ATTEMPT — allowed and refused. This is the highest-consequence control surface in the product because it is the one disable path that must work while an incident is in progress, without a deploy, restart, or rebuild.",
+    "Runtime configuration: the kill switch is a runtime env/setting with a documented default of OFF (writes permitted, subject to #1336's four preconditions). It is deliberately a SEPARATE setting from PRODUCTION_WRITE_ENABLED — one is the deliberate capability, the other the emergency stop; conflating them means disabling in a hurry and re-enabling by accident.",
+    "The audit read surface: querying 'every production write that happened for shop X' must be answerable from the audit table ALONE, without joining run state, so the #1339 gate can prove 'exactly one' production mutation occurred. The audit carries the tenant treatment #1328 assigns it, so it is covered by #1329's isolation proof.",
+    "Mixed-version hazard: the kill switch is read in the Celery worker on the single-VPS lane where the WRITE tool executes; both juli-api and juli-celery-worker read the same setting. The audit table is additive; the previous release neither reads nor writes it."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest with PYTHONPATH pinned to the worktree's backend/src against a real Postgres migrated to head (includes migration 047), every vendor call bound to a fake on the real client signature — no live TikTok call, no production credential resolved for a write at any point. Post-deploy candidate: the SANDBOX shop only, and with the flag OFF; a production write is NEVER performed during candidate verification (the standing owner decision of 2026-08-21 forbids it and the chain is not cleared).",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the WRITE tool (and thus the kill-switch read and the audit append) executes in the Celery worker; a run with workers disabled cannot exercise the control. No production write is attempted: candidate verification stays with the flag OFF (a sandbox write, which writes NO production audit row) and with the flag ON but no authorization (a REFUSED attempt, audited with the precondition name). apiSideEffectsInScope FALSE in the pairing-rule sense (no PUBLIC/PRODUCTION side effects): the only state written is (a) sandbox writes for the sandbox shop and (b) production_write_audit rows recording refused/sandbox-context attempts. Production stays untouched.",
+    "journeys": [
+      {
+        "name": "kill-switch-per-call-and-every-attempt-audited",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1337",
+        "assertions": [
+          "pre-merge: the kill switch is read PER TOOL CALL — a test flips the setting BETWEEN two tool calls within one scripted run and asserts the second production write refuses while the first did not, WITHOUT restarting the process or any fixture",
+          "pre-merge: a process/resolver started with the switch OFF refuses after the switch is turned ON, and vice versa; turning the switch OFF does NOT by itself permit a write (the four #1336 preconditions still apply and are still evaluated)",
+          "pre-merge: the kill switch is fail-closed on an unreadable or malformed value — an unparseable setting means production writes are OFF, asserted",
+          "pre-merge: the kill switch is a DIFFERENT setting from PRODUCTION_WRITE_ENABLED — asserted structurally, so disabling the emergency stop cannot silently re-arm the deliberate capability",
+          "pre-merge: EVERY production-write attempt appends EXACTLY ONE audit row — allowed attempts name the authorization id, refused attempts name the precondition — asserted for all FIVE refusal reasons (the four from #1336 plus the kill switch)",
+          "pre-merge: a refusal raised from INSIDE the transport guard is still audited — the audit row is written on a path the error cannot skip (refused recorded BEFORE the refusal propagates)",
+          "pre-merge: the audit repository exposes NO update and NO delete path — asserted by a test over the repository surface plus grep-level review; append-only in practice",
+          "pre-merge: 'every production write for shop X' is answerable from production_write_audit ALONE, without joining run state — a test builds a mixed set of allowed/refused attempts and reconstructs the exact set from the audit table only",
+          "pre-merge: NO production write is possible in any test — the transport guard is asserted to never be handed production credentials in this suite",
+          "pre-merge: alembic upgrade head then `downgrade -1 && upgrade head` round-trips migration 047 cleanly against a real Postgres that also carries 045/046",
+          "post-deploy (sandbox, flag OFF): a sandbox approve->write completes unchanged and writes NO production_write_audit row (the audit records production attempts, not sandbox ones)",
+          "post-deploy (flag ON, no authorization): a refused attempt is audited with the precondition name, and no production write occurs",
+          "post-deploy: the kill switch setting is present in the candidate environment with its documented default (OFF)"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — the diff is backend Python under services/execution and integrations/tiktok plus one additive migration and tests. Operator-facing signals are audit rows, a runtime setting, and server logs, not rendered pages."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "worker-journal",
+      "alembic-migration"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Migration 047 (revision id 047_production_write_audit, or 047_prod_write_audit if the former exceeds 32 chars; down_revision 046_rls_missed_tables) adds the additive `production_write_audit` table with nullable columns; the previous release neither reads nor writes it, so old and new code coexist. The table carries the tenant treatment #1328 assigns it (direct shop_id, covered by #1329's isolation proof) so #1329's catalog-enumerated completeness check must classify it — a new tenant-scoped table that #1329 cannot classify fails that build, which is the intended guard, not a regression. Migration numbers are reserved by Meta, never read from head: 046 is on the wave (#1329), W6's #1359 holds 042; this wave takes 047 and never reuses. No destructive or backfill-required migration."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without this slice, #1336's resolver has no fast disable (a kill only via deploy) and no audit of attempts, so 'exactly one production write' cannot be proven. No production write was ever possible (default-off capability + the four preconditions), so there is no new exposure from holding the merge.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart juli-api and juli-celery-worker. Reverting removes the kill switch and the audit. CRITICAL: the revert must NOT leave #1336's resolver active with the kill switch removed — that would leave the resolver with no fast disable, the exact operational gap this slice closes. If only one of the two can be reverted, revert the RESOLVER (#1336), not the kill switch. Audit rows written while the new release was live remain as ordinary rows the old code does not read; rollback is code-only and leaves no partially-applied schema state (the table is additive).",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "DATABASE_URL=postgresql://postgres@localhost:5432/juli_exec_1337 PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'kill_switch or production_write_audit or write_resolver' -q",
+    "DATABASE_URL=postgresql://postgres@localhost:5432/juli_exec_1337 PYTHONPATH=$PWD/backend/src python -m pytest tests/integration/test_production_write_audit_postgres.py -q",
+    "DATABASE_URL=postgresql://postgres@localhost:5432/juli_exec_1337 PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'sandbox_write' -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "The kill switch is read PER TOOL CALL, not at boot — proven by flipping the setting BETWEEN two tool calls in one run, never by restarting a fixture. Its entire value is latency: no deploy, no restart, no rebuild.",
+    "The kill switch is a SEPARATE setting from PRODUCTION_WRITE_ENABLED. One is the deliberate capability, the other the emergency stop. Do not reuse or alias the flag; conflating them means disabling in a hurry and re-enabling by accident.",
+    "Turning the kill switch OFF does not by itself permit a write — the four #1336 preconditions still apply and are still evaluated. The switch only ever SUBTRACTS permission.",
+    "The kill switch is fail-closed: an unreadable or malformed value means production writes are OFF, never on.",
+    "Every production-write attempt appends EXACTLY ONE audit row. Allowed attempts name the authorization id; refused attempts name the precondition. This is asserted for all FIVE refusal reasons — the four preconditions from #1336 plus the kill switch — not a generic entry.",
+    "Refused attempts are recorded BEFORE the refusal propagates, including refusals raised from inside the transport guard, so an attempt cannot be lost to the error path.",
+    "The audit is append-only IN PRACTICE: the repository exposes no update and no delete path (asserted by a test plus grep-level review). Do not add a mutation or cleanup path.",
+    "The audit answers 'every production write for shop X' from the audit table ALONE, without joining run state, so the gate can prove 'exactly one'.",
+    "The audit table carries the tenant treatment #1328 assigns it (direct shop_id) so it is covered by #1329's isolation proof — classify it in #1329's map if that classification is enforced at build.",
+    "NO production write is possible in any test in this suite. Assert the transport guard is never handed production credentials in a test run, and never perform a production write during candidate verification (the standing owner decision of 2026-08-21 holds for the whole wave).",
+    "Do NOT touch services/agent/approval.py or services/agent/runner/core.py — both are W6-owned (#1309, #1272). If the kill-switch read or the audit append needs a hook in the runner, REPORT it rather than editing. This slice's surface is services/execution/** and integrations/tiktok/capabilities.py / guards.py plus the additive migration.",
+    "This slice does not perform the DATABASE_URL cutover or any production mutation — those are gate #1339 owner acts."
+  ]
+}

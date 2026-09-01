@@ -1345,6 +1345,81 @@ class BronzeLiveHoursRawPayload(Base):
     source_event_id: Mapped[str | None] = mapped_column(String(255))
 
 
+class ProductionWriteAuthorization(Base):
+    """Single-use owner authorization for a production mutation on a listing.
+
+    Scoped to exactly one shop, one product, and one mutation kind. Expires
+    after a configurable TTL (default 24h) and is consumed atomically by the
+    write path. An operator issues authorizations after verifying the
+    credential binding; a revoked authorization is preserved for audit.
+
+    Tenant treatment: direct shop_id (ADR-068 decision, #1328).
+    """
+
+    __tablename__ = "production_write_authorizations"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
+    tiktok_product_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    mutation_kind: Mapped[str] = mapped_column(String(100), nullable=False)
+    authorized_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False))
+    consumed_by_run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("workflow_runs.id"))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False))
+    revoke_reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_production_write_authorizations_shop_id", "shop_id"),
+        Index(
+            "ix_production_write_authorizations_lookup",
+            "shop_id",
+            "tiktok_product_id",
+            "mutation_kind",
+        ),
+    )
+
+
+class ProductionWriteAudit(Base):
+    """Append-only audit trail of every production write attempt (issue #1337).
+
+    Records every production write attempt—allowed and refused—carrying:
+    - run_id: the workflow run identifier
+    - shop_id: the tenant (for RLS isolation)
+    - tiktok_product_id: the target product
+    - mutation_kind: the operation type
+    - authorization_id: set if attempt succeeded, NULL if refused
+    - precondition_name: set if attempt was refused, NULL if succeeded
+    - release_sha: the deployed release SHA
+    - created_at: server timestamp
+
+    Tenant treatment: direct shop_id (ADR-068 decision, #1328).
+    Append-only: no UPDATE or DELETE grants to juli_app.
+    """
+
+    __tablename__ = "production_write_audit"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflow_runs.id"), nullable=False)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
+    tiktok_product_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    mutation_kind: Mapped[str] = mapped_column(String(100), nullable=False)
+    authorization_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("production_write_authorizations.id")
+    )
+    precondition_name: Mapped[str | None] = mapped_column(String(100))
+    release_sha: Mapped[str] = mapped_column(String(40), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_production_write_audit_shop_id", "shop_id"),
+        Index("ix_production_write_audit_run_id", "run_id"),
+        Index("ix_production_write_audit_created_at", "created_at"),
+    )
+
+
 from juli_backend.services.etl.persistence.ingest import (  # noqa: E402, F401
     ProcessedEvent,
 )

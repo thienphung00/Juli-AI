@@ -440,17 +440,20 @@ def _ensure_session_factory() -> async_sessionmaker:
 
 
 async def _reap_abandoned_workflow_runs_async() -> ReapResult:
+    from juli_backend.database.tenant_context import system_scope
+
     factory = _ensure_session_factory()
     async with factory() as session:
-        result = await reap_workflow_runs(session)
-        logger.info(
-            "reap_abandoned_workflow_runs_complete",
-            extra={
-                "stale_runs_reaped": len(result.stale_runs_reaped),
-                "expired_approvals_reaped": len(result.expired_approvals_reaped),
-            },
-        )
-        return result
+        async with system_scope(session, caller="reap_abandoned_workflow_runs"):
+            result = await reap_workflow_runs(session)
+            logger.info(
+                "reap_abandoned_workflow_runs_complete",
+                extra={
+                    "stale_runs_reaped": len(result.stale_runs_reaped),
+                    "expired_approvals_reaped": len(result.expired_approvals_reaped),
+                },
+            )
+            return result
 
 
 @celery_app.task(name="juli_backend.reap_abandoned_workflow_runs")

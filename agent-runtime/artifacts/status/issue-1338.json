@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 1338,
+  "metrics": {
+    "acceptanceMapped": 9,
+    "acceptanceTotal": 9,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/impact/readiness.py",
+      "backend/src/juli_backend/services/operations/impact_honesty.py",
+      "backend/src/juli_backend/services/operations/outcome_tracking.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1338.json",
+    "ownerSignoffPresent": true,
+    "sha256": "5a587acf0990b343e34ecfac75bc11b95cecb4096aaf07702222faf23c03f8ab",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-25T09:02:31Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1338.json",
+    "sha256": "60e6db7bfa41db8ef164d098ec10d2d8166c3d88c1121656e0f33f94b09c45ac",
+    "status": "PASS"
+  },
+  "wave": null
+}

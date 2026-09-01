@@ -40,20 +40,23 @@ def _ensure_session_factory() -> async_sessionmaker:
 
 
 async def _run_daily_impact_reader_async() -> None:
+    from juli_backend.database.tenant_context import system_scope
+
     factory = _ensure_session_factory()
     reference_date = datetime.now(UTC).date()
     async with factory() as session:
-        result = await run_daily_impact_reader(session, reference_date)
-        await session.commit()
-        logger.info(
-            "daily_impact_reader_complete",
-            extra={
-                "reference_date": reference_date.isoformat(),
-                "executions_scanned": result.executions_scanned,
-                "readings_written": result.readings_written,
-                "executions_skipped_unclassified": result.executions_skipped_unclassified,
-            },
-        )
+        async with system_scope(session, caller="daily_impact_reader"):
+            result = await run_daily_impact_reader(session, reference_date)
+            await session.commit()
+            logger.info(
+                "daily_impact_reader_complete",
+                extra={
+                    "reference_date": reference_date.isoformat(),
+                    "executions_scanned": result.executions_scanned,
+                    "readings_written": result.readings_written,
+                    "executions_skipped_unclassified": result.executions_skipped_unclassified,
+                },
+            )
 
 
 @celery_app.task(name="juli_backend.daily_impact_reader")

@@ -1,0 +1,74 @@
+{
+  "planId": "rep-1425-rls-test-database-isolation",
+  "affectedPublicSurfaces": [
+    "none — test-harness only. No product code, no route, no migration, no runtime path."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "none",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "the-owner-bypass-contrast-survives-a-populated-run",
+        "entryUrl": "pytest: full integration suite in CI order",
+        "assertions": [
+          "test_owner_bypass_contrast_direct_shop_id passes when other modules have written rows",
+          "its assertions are unchanged — the fix is the database it runs against, not what it asserts",
+          "reverting the isolation entry reproduces 'Owner should see N rows, got M'"
+        ]
+      },
+      {
+        "name": "the-destructive-invariant-is-not-lost-while-generalising",
+        "entryUrl": "unit: tests/unit/test_destructive_migration_isolation.py",
+        "assertions": [
+          "every module that CALLS downgrade(..., 'base') is still required to be isolated",
+          "_DESTRUCTIVE_MIGRATION_MODULES remains a subset of _ISOLATED_DATABASE_MODULES, so the guard and the fixture cannot read different lists",
+          "a listed module that no longer exists fails the guard, so a rename cannot silently retire isolation"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": ["not-applicable: test harness"],
+    "discoverFromHtml": false,
+    "assetTypes": ["not-applicable"],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration and no product code. Only which database a test module is pointed at."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy the prior release; nothing deployed changes, since this is test-harness only. Reverting restores the integration-tests failure on the wave.",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "DATABASE_URL=postgresql://postgres@localhost:5432/<throwaway> PYTHONPATH=$PWD/backend/src python -m pytest tests/integration -q -p no:randomly",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_destructive_migration_isolation.py -q",
+    "DATABASE_URL=postgresql://postgres@localhost:5432/<throwaway> PYTHONPATH=$PWD/backend/src python -m pytest tests -m 'not live and not demo_contract' -q"
+  ],
+  "doNotInfer": [
+    "Do not scope the assertions in test_owner_bypass_contrast_direct_shop_id to fix this. An owner-bypass test is about seeing everything RLS would otherwise hide; narrowing its queries weakens the contrast it exists to demonstrate. Change the database it runs against, not what it asserts.",
+    "Do not collapse the two isolation reasons back into one name. A module isolated because it asserts on global counts legitimately never downgrades to base, and the earlier 'no dead entries' check would have called it stale.",
+    "Do not let _DESTRUCTIVE_MIGRATION_MODULES and _ISOLATED_DATABASE_MODULES diverge. The guard reads one and the fixture reads the other; if they disagree the guard silently checks the wrong set.",
+    "Do not treat this as the cause of the failure. It is a pre-existing fragility that #1405 exposed — the same test failed locally before #1405 with different counts (got 3, got 4)."
+  ]
+}

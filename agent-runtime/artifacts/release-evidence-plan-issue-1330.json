@@ -1,0 +1,81 @@
+{
+  "planId": "prod-write-boot-check-refuses-bypassable-db-2026-08-26",
+  "affectedPublicSurfaces": [
+    "PROCESS STARTUP for BOTH `juli-api` and the Celery worker (`juli-celery-worker`) \u2014 the highest-blast-radius surface in the repo. Both import `assert_agent_runtime_config()` (`workers/agent_runtime_boot.py`) and run it at boot, so a wrong assertion in EITHER direction is an outage: too strict refuses to start a healthy process; too loose lets the production-write capability come up against a database it can bypass \u2014 the precondition silently skipped, which is the exact state the whole W7 chain exists to prevent.",
+    "The 7th check added to `assert_agent_runtime_config()`: when the production-write capability is ENABLED, the process verifies at boot that (a) its own live connection role is NOT an owner of any table in the runtime schemas, and (b) `relrowsecurity` is true for every table the classification map (from #1329) calls tenant-scoped. Either unmet \u21d2 refuse to start, NAMING the check, and for the RLS case NAMING which table. Same shape as the existing check 6 (production-write capability \u21d2 zero unauthenticated route groups), applied to the precondition that actually matters.",
+    "The capability-gated no-op path: with the production-write capability OFF, the new check does nothing, so today's deployed configuration (process connects as the owner `postgres`, RLS present-but-inert) boots unchanged. This is the case that protects the current deployment and must not break.",
+    "The cutover runbook (operator-facing documentation, not runtime code): the out-of-band `GRANT juli_app TO <login>` step from #1326, the `DATABASE_URL` change to name `juli_app`, the two verification commands, and the revert \u2014 stating plainly that the revert is a `DATABASE_URL` change and that `alembic downgrade` is NEVER the rollback for a role cutover."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest with PYTHONPATH pinned to the worktree's backend/src, exercising the boot assertion against a REAL Postgres 16 whose role/RLS state is set up per case (owner vs non-owner connection; full vs partial RLS) \u2014 no live host contact. Post-deploy candidate: boot both juli-api and juli-celery-worker with the production-write capability OFF (today's configuration) and confirm a clean start plus one served authenticated read \u2014 the no-op case that protects the current deployment; then, on the candidate only, boot with the capability ON against the owner (postgres) connection and confirm the NAMED refusal. No public traffic is routed to a candidate, and the DATABASE_URL cutover itself is NOT performed here (gate #1339 observation 1, an owner act).",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": false,
+    "notes": "workersDisabledOnCandidate is FALSE deliberately: the assertion runs at WORKER boot as well as API boot, and the worker half is exactly what a too-strict or too-loose check would break, so the worker must boot in the candidate verification. No production credential is resolved and no write is attempted \u2014 this slice only gates startup; it performs neither the DATABASE_URL cutover nor any production mutation. The check must query the LIVE connection's actual role and privileges (pg_catalog: role ownership via pg_class.relowner/pg_roles, and relrowsecurity per tenant-scoped table), NOT a config value describing them \u2014 a boot check that asserts a setting is PRESENT rather than EFFECTIVE is the #1282 failure repeated. Both directions are proven: refuse-to-boot (capability on + owner connection, and capability on + one tenant-scoped table's RLS disabled \u2192 names the table), and clean-boot (capability off as owner with partial RLS = today's config; and capability on + non-owner + full RLS).",
+    "journeys": [
+      {
+        "name": "prod-write-capability-refuses-to-boot-against-a-bypassable-db",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1330",
+        "assertions": [
+          "pre-merge: with the production-write capability ENABLED and the live connection OWNING tables, assert_agent_runtime_config() raises and refuses boot, and the message NAMES the check \u2014 asserted for BOTH the API boot path and the worker boot path, since both import the assertion",
+          "pre-merge: with the capability ENABLED and exactly one tenant-scoped table's relrowsecurity disabled on a real Postgres, the process refuses to boot and the message NAMES WHICH table \u2014 a check that says only 'RLS is not fully enabled' is one somebody will later disable, so the named-table assertion is explicit",
+          "pre-merge: with the capability OFF, the check is a NO-OP \u2014 proven by booting as the OWNER (postgres) with RLS partially enabled and observing a clean start, because this is exactly today's deployed configuration and it must not break",
+          "pre-merge: with the capability ENABLED, a NON-OWNER connection (juli_app), and full RLS on every classified tenant-scoped table, the process BOOTS cleanly",
+          "pre-merge: the check reads the LIVE connection's actual role and privileges from pg_catalog (role ownership and relrowsecurity), NOT a config/env value describing them \u2014 a test proves that flipping only the config while the live DB state stays bypassable still refuses (present vs effective; the #1282 failure not repeated)",
+          "pre-merge: the tenant-scoped table set the check verifies is the SAME classification source #1329 enumerates from the catalog \u2014 not a second hand-maintained list \u2014 so a newly-added tenant-scoped table is covered by the boot check without a code edit",
+          "post-deploy candidate: boot juli-api and juli-celery-worker with the capability OFF \u2192 both start clean and serve one authenticated read; then boot with the capability ON against the owner connection \u2192 both refuse with the named message. The DATABASE_URL cutover to juli_app is NOT performed (owner act, gate #1339 obs 1)"
+        ]
+      }
+    ],
+    "apiSideEffectsInScope": false
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes \u2014 the diff is backend Python (workers/agent_runtime_boot.py plus tests) and a Markdown runbook. The only operator-facing surface is the named boot-refusal message and the runbook."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "process-boot-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration. The change is a capability-gated boot assertion plus a runbook. It is additive and invisible while the production-write capability is OFF (today's deployment), so the previous release and the new one coexist against the same schema. This slice does NOT perform the DATABASE_URL role cutover \u2014 that is gate #1339 observation 1 and an owner act; it only makes the wrong ordering impossible by refusing to boot the capability against a database the connection can bypass."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without this check, enabling the production-write capability against a connection that bypasses RLS (owner connection, or a tenant-scoped table with RLS off) would come up silently \u2014 the exact unsafe state the chain exists to prevent, with nothing to notice it. No production write is possible today regardless (capability off; ADR-068 guards hold), so there is no new exposure from NOT merging \u2014 only the safety gate is absent.",
+    "postCutoverFailureBehavior": "The check is additive and capability-gated. Revert by removing the 7th check; boot returns to unconditional (its prior behaviour). Assert the revert does NOT leave the capability flag readable-but-unchecked \u2014 i.e. reverting must remove the flag's enforcement together with the check, never leave a state where PRODUCTION_WRITE_ENABLED can be read while nothing verifies the DB is non-bypassable, which would be the precondition silently gone. A too-strict assertion is the worse failure: it refuses to start a healthy process, an outage; the clean-boot cases (capability off as owner; capability on + non-owner + full RLS) are the guardrails against that and must stay green.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "DATABASE_URL=postgresql://postgres@localhost:5432/juli_boot_1330 PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_agent_runtime_boot_assertion.py -q",
+    "DATABASE_URL=postgresql://postgres@localhost:5432/juli_boot_1330 PYTHONPATH=$PWD/backend/src python -m pytest tests -k 'boot and (prod_write or rls or owner or capability)' -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "The check queries the LIVE connection's ACTUAL role and privileges from pg_catalog (role ownership and relrowsecurity), NOT a config value describing them. A boot check that asserts a setting is PRESENT rather than EFFECTIVE is the #1282 failure repeated and is explicitly forbidden.",
+    "Refusal NAMES the check, and for the RLS case NAMES which table. A check that says only 'RLS is not fully enabled' is one somebody will later disable; the named-table message is the deliverable, not a nicety.",
+    "The check is a NO-OP when the production-write capability is OFF, PROVEN by booting as the owner (postgres) with RLS partially enabled and observing a clean start \u2014 this is exactly today's deployed configuration and must not break. Assert BOTH API and worker boot paths, since both import the assertion.",
+    "This slice does NOT perform the DATABASE_URL cutover to juli_app \u2014 that is gate #1339 observation 1 and an owner act. It makes the cutover safe and reversible and makes the wrong order (capability on before isolation is real) impossible.",
+    "Do NOT edit core/security/dependencies.py \u2014 W6's #1313 owns that module. Do not edit migration 043 (its no-DELETE grant decision stands) or migration 045.",
+    "The tenant-scoped table set the check verifies MUST come from the same classification source #1329 enumerates from the catalog, never a second hand-maintained literal list \u2014 so a new tenant-scoped table is covered without a code edit.",
+    "The runbook documents the out-of-band GRANT juli_app TO <login> from #1326, the DATABASE_URL change, the two verification commands, and the revert, and states plainly that a downgrade of #1326's migration must be preceded by cutting DATABASE_URL back to postgres \u2014 alembic downgrade is NEVER the rollback for a role cutover."
+  ]
+}

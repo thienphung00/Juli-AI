@@ -1,0 +1,79 @@
+{
+  "planId": "adversarial-corpus-loop-behaviour-2026-08-25",
+  "affectedPublicSurfaces": [
+    "No runtime code changes — this slice adds a committed adversarial fixture corpus directory plus a behaviour test suite over the scripted agent loop. The loop itself (`services/agent/runner/`) is a production code path serving the deployed agent-run surface (`POST /v1/demo/decisions/{id}/approve` → workflow run → tool calls), which is why its behavioural invariants under attack are release evidence even though the diff is tests and fixtures only.",
+    "The adversarial coverage record for the manual red-team pass (gate #1339 observation 2): the corpus directory listing is the visible, committed record of which attack classes are asserted. Removing a fixture file removes a case with no code change, so the directory listing is the surface reviewers and the red-team pass read.",
+    "Coverage grows from string neutralization (#1218's `tests/unit/test_agent_sanitize_adversarial_fixtures.py`, which proves the sanitizer neutralizes strings) to behavioural invariance of the loop across all six ADR-075 decision-5 layers plus three additions: allow-list escape (no WRITE outside the playbook allow-list), post-hash param drift (`params_sha` comparison hard-fails, nothing written), and exfiltration (no credential, endpoint, internal id or playbook key in `workflow_run_events.payload` or the final response). Invisible-Unicode, bidi-override and homoglyph payloads are carried through each class rather than tested only as strings."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Not applicable to the running host, stated plainly: this slice ships no runtime code, so there is nothing to verify on a candidate that the CI run does not already prove. The suite runs in CI against the same commit the candidate serves — the loop is SCRIPTED (no live model call, no network), runtime is bounded, and every attack runs through the real loop code path. No traffic, synthetic or public, is routed anywhere; no shop is touched; no vendor call is made.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "The verification IS the CI run on the merge commit. Because the deployed release serves the same commit CI proved, a green suite on that commit is the candidate evidence. The only persisted state the suite creates is test-database rows (workflow_run_events for the exfiltration assertions), which live and die inside the test run. No production, sandbox, or demo shop is contacted; no credential is exercised.",
+    "journeys": [
+      {
+        "name": "adversarial-corpus-behaviour-suite-green-on-release-commit",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1332",
+        "assertions": [
+          "pre-merge: every corpus case runs through the scripted agent loop and asserts a behavioural property — tool sequence, write attempts, terminal state, persisted payload contents — never only the sanitizer's return value; string neutralization stays asserted but never alone",
+          "pre-merge: behaviour-invariance cases compare the attacked run against the same run with benign content, asserting equality of the tool sequence rather than absence of a bad call",
+          "pre-merge: the allow-list escape case asserts refusal at the tool boundary by its named error, and the post-hash drift case asserts the params_sha comparison hard-failed by its named error — not merely that the run ended without a write",
+          "pre-merge: exfiltration cases assert over the persisted workflow_run_events log and the final response, not a single constructed payload; no credential, endpoint, internal id or playbook key appears",
+          "pre-merge: a deliberately-weakened control (one sanitizer rule disabled via test-local monkeypatch) makes the corresponding case fail — proving the suite asserts the defence, not the fixture",
+          "pre-merge: the suite enumerates the committed corpus directory, so adding a fixture file adds a case with no code change; each fixture states its provenance",
+          "pre-merge: blast-radius cases prove iteration and wall-clock caps hold under an attack designed to loop, with bounded suite runtime and zero network access",
+          "post-deploy: `/root/releases/current` resolves to the release containing the merge commit that CI proved — no further host-side journey exists because the diff contains no runtime code"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — the diff is a fixture corpus directory plus pytest files under tests/. No app surface is rendered or altered."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "fixture-corpus-directory-listing"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration and no schema change of any kind. The suite reads and writes only test-database rows through the existing schema (workflow_run_events for the exfiltration assertions). If implementation concludes it needs any schema change, this plan is wrong and must be revised before merge — a tests-and-fixtures slice that grows a migration has left its scope."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. A red case is either a suite defect (fix the test) or a real defect in the loop or sanitizer — which is REPORTED and coordinated with W6's #1272, never fixed in this PR. A failing case documenting a real defect is a legitimate deliverable of this slice; if one exists at merge time it is committed as an expected-failure with the report linked, stated in the PR body, never silently skipped.",
+    "postCutoverFailureBehavior": "Reverting the PR removes test coverage and fixture files only; runtime behaviour is untouched in both directions because the diff contains no runtime code. The corpus directory listing is the visible record of what coverage a revert removes — say which classes were lost in the revert PR.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'adversarial' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_agent_sanitize_adversarial_fixtures.py -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "services/agent/runner/core.py and services/agent/sanitize/** SOURCE are owned by W6 (#1272) and #1218's shipped work respectively — this slice adds tests and fixture files ONLY. If a case reveals a defect requiring a change in runner/core.py or the sanitizer, REPORT it and coordinate with W6's #1272; do not fix it in this PR. A silent cross-wave edit is a scope violation even if it makes the suite green.",
+    "A failing case that documents a real defect is a legitimate deliverable here — do not weaken an assertion, add an exclusion, or narrow a fixture to force green.",
+    "Behavioural assertion is never replaced by string-neutralization assertion alone: every case asserts what the loop DID (tool sequence, write attempts, terminal state, persisted payload contents). A case that only checks the sanitizer's return value is the sanitizer testing itself and does not satisfy this slice.",
+    "No live model call and no network anywhere in the suite — the loop is scripted and runtime is bounded. Do not 'complete' a case by calling a real model or a real vendor endpoint.",
+    "The deliberately-weakened-control check is part of the contract: if disabling a defence leaves the suite green, the suite is asserting the wrong thing — fix the assertion, do not drop the check."
+  ]
+}

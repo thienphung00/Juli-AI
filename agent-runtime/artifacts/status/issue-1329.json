@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 1329,
+  "metrics": {
+    "acceptanceMapped": 7,
+    "acceptanceTotal": 7,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/database/migrations",
+      "tests/integration",
+      ".github/workflows"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1329.json",
+    "ownerSignoffPresent": true,
+    "sha256": "cf5a2c4a1497a752352ecb44908a8849f522788983acfde57e281e21d6fb244a",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-26T05:03:48Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1329.json",
+    "sha256": "7130167c1b492c225dd3fff2b3db4d0980fcfa97d5296da5b1d3c7c4fb00daaa",
+    "status": "PASS"
+  },
+  "wave": "wave-w7"
+}

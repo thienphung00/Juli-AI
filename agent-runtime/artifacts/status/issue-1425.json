@@ -1,0 +1,28 @@
+{
+  "gateVersion": 1,
+  "issue": 1425,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "tests/conftest.py",
+      "tests/unit/test_destructive_migration_isolation.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1425.json",
+    "ownerSignoffPresent": true,
+    "sha256": "9b1ba5374eeec7d6185f2d5c309cc1470ee7d39b4bccdac1b1229f0c0f174802",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-30T01:49:23Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1425.json",
+    "sha256": "460b1d04a5e2c97612f2495073f7e4477550502c80ef46f7ed565062fe99dfee",
+    "status": "PASS"
+  },
+  "wave": "wave-w7"
+}

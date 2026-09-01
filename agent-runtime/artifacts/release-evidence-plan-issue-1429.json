@@ -1,0 +1,72 @@
+{
+  "planId": "rep-1429-tenant-seam-schema-provisioning",
+  "affectedPublicSurfaces": [
+    "none — test-harness only. No product code, no route, no migration, no runtime path."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "none",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "the-seam-tests-run-against-a-never-migrated-database",
+        "entryUrl": "pytest: tests/unit/test_tenant_context_seam.py against a freshly created database",
+        "assertions": [
+          "both postgres-backed tests pass on a database that has never been migrated",
+          "verified on a database created empty for the run, not one reused from a previous run",
+          "reverting the schema creation reproduces InvalidSchemaNameError: schema \"silver\" does not exist"
+        ]
+      },
+      {
+        "name": "nothing-else-was-leaning-on-the-same-leftover",
+        "entryUrl": "pytest: full suite on a freshly created database",
+        "assertions": [
+          "the only remaining failure is the documented environment-only one",
+          "no new module surfaces the same missing-schema error once the accidental provider is gone"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": ["not-applicable: test harness"],
+    "discoverFromHtml": false,
+    "assetTypes": ["not-applicable"],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration and no product code. CREATE SCHEMA IF NOT EXISTS runs only inside these tests, against their own connection."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy the prior release; nothing deployed changes. Reverting restores the full-regression failure on the wave.",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "DATABASE_URL=postgresql://postgres@localhost:5432/<freshly-created> PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_tenant_context_seam.py -q",
+    "DATABASE_URL=postgresql://postgres@localhost:5432/<freshly-created> PYTHONPATH=$PWD/backend/src python -m pytest tests -m 'not live and not demo_contract' -q"
+  ],
+  "doNotInfer": [
+    "Do not skip or xfail these tests. They exercise the tenant-context seam against real Postgres, which is the point of them.",
+    "Do not verify against a database left over from an earlier run. The bug IS the leftover; reusing one hides it. Create an empty database for the check.",
+    "Do not add the module to the isolation list instead. A private database would also start without the schemas — isolation fixes contention, not provisioning.",
+    "Do not assume this is the last of the class. Three tests on this wave depended on state another module happened to create; the accidental provider was removed by #1405 and each dependent surfaced separately."
+  ]
+}

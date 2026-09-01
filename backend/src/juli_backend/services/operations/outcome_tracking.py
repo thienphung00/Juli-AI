@@ -291,6 +291,12 @@ async def _fill_cadences_from_impact_readings(
     to, so a cadence with no matching reading yet is left exactly as
     ``build_workflow_outcome_metrics`` built it (the "pending" placeholder).
 
+    ADR-085 decision 8 (#1338) honesty distinction: this is a DISPLAY surface
+    (shows all readings with labels for audit). Suppressed/confounded rows
+    are shown with their 'n/a' label (not as zero, but as their own outcome).
+    Gate-closing QUERIES that COUNT readings should use list_impact_readings_honest
+    to exclude suppressed/confounded and return zero when only suppressed present.
+
     A run can classify multiple mutation kinds (price + image + title +
     description, say), each with its own metric — so one ``kind`` can have
     several ``impact_readings`` rows. This lists every one of them rather

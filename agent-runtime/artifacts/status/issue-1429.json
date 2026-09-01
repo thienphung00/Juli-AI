@@ -1,0 +1,27 @@
+{
+  "gateVersion": 1,
+  "issue": 1429,
+  "metrics": {
+    "acceptanceMapped": 2,
+    "acceptanceTotal": 2,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "tests/unit/test_tenant_context_seam.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1429.json",
+    "ownerSignoffPresent": true,
+    "sha256": "6f407fd240c14b4a3023950241f313ba68ec005f774acff95fe1648b4ce68697",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-30T02:45:22Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1429.json",
+    "sha256": "4e4184146e8a53b284272d6ee7f8464cff4a8721c42ec5507bd6b89cc8effc67",
+    "status": "PASS"
+  },
+  "wave": "wave-w7"
+}

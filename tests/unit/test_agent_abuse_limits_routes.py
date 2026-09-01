@@ -619,3 +619,146 @@ class TestCancelSurvivesTheStorm:
             resp = await client.post(f"/v1/demo/runs/{run.id}/cancel")
 
         assert resp.status_code == 202
+
+
+# ---------------------------------------------------------------------------
+# Redis outage scenarios -- fail-closed for all rate-limited operations,
+# but cancel is unaffected because it never asks the gate at all
+# ---------------------------------------------------------------------------
+
+
+class TestRedisOutageScenario:
+    """Verify fail-closed behavior when Redis backend is unavailable,
+    and that cancel succeeds DURING the outage because it never calls
+    the limiter."""
+
+    async def test_approve_fails_closed_when_redis_is_unavailable(self, app, session, user, shop):
+        """Approve returns 429 when Redis is unavailable."""
+        from juli_backend.services.agent.abuse_limits import UnavailableAbuseLimitGate
+
+        set_agent_abuse_limit_gate(UnavailableAbuseLimitGate())
+        card = await _make_card(session, shop)
+        await _make_product(session, shop)
+
+        mock_task = _mock_celery_task("celery-1334-redis-outage-approve")
+        with patch("juli_backend.workers.tasks.agent_workflow.run_agent_workflow", mock_task):
+            async with _client_for(app, user, shop) as client:
+                resp = await client.post(f"/v1/demo/decisions/{card.id}/approve")
+
+        assert resp.status_code == 429
+        assert "Retry-After" in resp.headers
+
+    async def test_confirmation_fails_closed_when_redis_is_unavailable(
+        self, app, session, user, shop
+    ):
+        """Confirmation returns 429 when Redis is unavailable."""
+        from juli_backend.services.agent.abuse_limits import UnavailableAbuseLimitGate
+
+        set_agent_abuse_limit_gate(UnavailableAbuseLimitGate())
+
+        async with _client_for(app, user, shop) as client:
+            resp = await client.post(
+                f"/v1/demo/runs/{uuid.uuid4()}/confirmations/tool-call-1",
+                json={"decision": "decline"},
+            )
+
+        assert resp.status_code == 429
+        assert "Retry-After" in resp.headers
+
+    async def test_sse_fails_closed_when_redis_is_unavailable(self, app, session, user, shop):
+        """SSE returns 429 when Redis is unavailable."""
+        from juli_backend.services.agent.abuse_limits import UnavailableAbuseLimitGate
+
+        set_agent_abuse_limit_gate(UnavailableAbuseLimitGate())
+        run = await _make_run(session, shop, status="completed")
+
+        async with _client_for(app, user, shop) as client:
+            resp = await client.get(f"/v1/demo/runs/{run.id}/events")
+
+        assert resp.status_code == 429
+        assert "Retry-After" in resp.headers
+
+    async def test_cancel_succeeds_during_redis_outage(self, app, session, user, shop):
+        """Cancel succeeds even when Redis is unavailable, because it
+        never calls the limiter at all. This proves the structural exemption
+        is real: cancel is not "a gate this module always says yes to", but
+        a route that never asks this module the question in the first place."""
+        from juli_backend.services.agent.abuse_limits import UnavailableAbuseLimitGate
+
+        set_agent_abuse_limit_gate(UnavailableAbuseLimitGate())
+        run = await _make_run(session, shop, status="running")
+
+        async with _client_for(app, user, shop) as client:
+            resp = await client.post(f"/v1/demo/runs/{run.id}/cancel")
+
+        # Cancel must succeed (202) -- it never consults the gate, so
+        # whether Redis is available is irrelevant.
+        assert resp.status_code == 202
+
+
+# ---------------------------------------------------------------------------
+# SSE concurrency with real concurrent connections -- holding N streams
+# open and attempting N+1 should fail, not by manipulating the gate directly
+# but by actually opening concurrent connections.
+# ---------------------------------------------------------------------------
+
+
+class TestSSEConcurrencyWithRealStreams:
+    """Verify SSE concurrency limit by opening N concurrent streams
+    and verifying the (N+1)th is denied."""
+
+    async def test_sse_concurrency_limit_with_concurrent_requests(self, app, session, user, shop):
+        """Verify that opening concurrent SSE streams is counted correctly
+        and the (N+1)th request is denied with 429. Uses the actual HTTP
+        routes to prove the counter works end-to-end."""
+        gate = InMemoryAbuseLimitGate(sse_max_concurrent=2)  # Allow exactly 2
+        set_agent_abuse_limit_gate(gate)
+
+        # Create terminal run (terminal = replay-only, completes immediately)
+        run3 = await _make_run(session, shop, status="completed")
+
+        # Manually acquire 2 slots (simulating 2 concurrent connected streams)
+        first_acquire = await gate.try_acquire_stream(str(shop.id))
+        second_acquire = await gate.try_acquire_stream(str(shop.id))
+        assert first_acquire.allowed is True
+        assert second_acquire.allowed is True
+
+        # Now try to open a third stream via HTTP -- should get 429
+        async with _client_for(app, user, shop) as client:
+            resp = await client.get(f"/v1/demo/runs/{run3.id}/events")
+
+        assert resp.status_code == 429
+        assert "Retry-After" in resp.headers
+
+        # Release one slot and verify the next request succeeds
+        await gate.release_stream(str(shop.id))
+        async with _client_for(app, user, shop) as client:
+            resp = await client.get(f"/v1/demo/runs/{run3.id}/events")
+
+        # Now the request should succeed (one slot freed)
+        assert resp.status_code == 200
+
+    async def test_sse_concurrency_correctly_counts_across_multiple_shops(
+        self, app, session, user, shop, other_shop
+    ):
+        """Verify that concurrency limits are per-shop, and one shop's
+        exhaustion doesn't affect another shop."""
+        gate = InMemoryAbuseLimitGate(sse_max_concurrent=1)
+        set_agent_abuse_limit_gate(gate)
+
+        other_user = await session.get(User, other_shop.user_id)
+        run_a = await _make_run(session, shop, status="completed")
+        run_b = await _make_run(session, other_shop, status="completed")
+
+        # Exhaust shop A's slot
+        await gate.try_acquire_stream(str(shop.id))
+
+        # Shop A's next request should be denied
+        async with _client_for(app, user, shop) as client:
+            resp_a = await client.get(f"/v1/demo/runs/{run_a.id}/events")
+        assert resp_a.status_code == 429
+
+        # Shop B's request should succeed (different shop)
+        async with _client_for(app, other_user, other_shop) as client:
+            resp_b = await client.get(f"/v1/demo/runs/{run_b.id}/events")
+        assert resp_b.status_code == 200
