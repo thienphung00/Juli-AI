@@ -290,7 +290,7 @@ async def _try_subscribe(
         return None
     try:
         return await subscriber.subscribe(run_events_channel(run_id))
-    except Exception:  # noqa: BLE001 -- availability boundary: any subscribe failure degrades to polling
+    except Exception:  # availability boundary: any subscribe failure degrades to polling
         logger.warning(
             "run_events_subscribe_failed run_id=%s -- degrading to Postgres polling",
             run_id,

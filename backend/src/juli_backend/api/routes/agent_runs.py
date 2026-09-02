@@ -33,7 +33,7 @@ from juli_backend.database.database import ensure_worker_session_factory
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.services import agent_runs
 from juli_backend.services.agent import abuse_limits as agent_abuse_limits
-from juli_backend.services.agent_runs import (  # noqa: F401 -- re-exported for callers and tests
+from juli_backend.services.agent_runs import (
     DEFAULT_HEARTBEAT_INTERVAL_S,
     DEFAULT_POLL_INTERVAL_S,
     ERROR_CONFIRMATION_ALREADY_DECIDED,
@@ -315,7 +315,7 @@ async def list_demo_runs(
     """
     try:
         items = await agent_runs.list_runs(session, shop.id, limit=limit)
-    except Exception:  # noqa: BLE001 -- read-model boundary: degrade to empty, never 5xx a poll
+    except Exception:  # read-model boundary: degrade to empty rather than 5xx a poll
         logger.exception("agent_runs_list_failed", extra={"shop_id": str(shop.id)})
         return WorkflowRunListResponse(data=[])
 
@@ -343,3 +343,32 @@ async def list_demo_runs(
             for item in items
         ]
     )
+
+
+# Re-exported for callers and tests that import the transport vocabulary from the route.
+__all__ = [
+    "DEFAULT_HEARTBEAT_INTERVAL_S",
+    "DEFAULT_POLL_INTERVAL_S",
+    "ERROR_CONFIRMATION_ALREADY_DECIDED",
+    "ERROR_CONFIRMATION_EXPIRED",
+    "ERROR_CONFIRMATION_NOT_FOUND",
+    "ERROR_INVALID_DECISION",
+    "ERROR_OPTION_ID_REQUIRED",
+    "ERROR_PARAMS_SHA_MISMATCH",
+    "ERROR_RUN_NOT_AWAITING_CONFIRMATION",
+    "ERROR_RUN_STATE_NOT_RECONSTRUCTABLE",
+    "ERROR_UNKNOWN_OPTION_ID",
+    "TERMINAL_EVENT_TYPES",
+    "TERMINAL_RUN_STATUSES",
+    "EventSubscriber",
+    "cancel_run",
+    "event_stream",
+    "get_heartbeat_interval_s",
+    "get_poll_interval_s",
+    "get_run_event_subscriber",
+    "get_run_events_session_factory",
+    "list_demo_runs",
+    "router",
+    "stream_run_events",
+    "submit_confirmation_decision",
+]

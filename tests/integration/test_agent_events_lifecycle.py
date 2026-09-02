@@ -29,7 +29,7 @@ from juli_backend.services.agent.events.persisting_sink import (
     PersistingEventSink,
     run_events_channel,
 )
-from tests.integration.test_agent_events_streaming_matrix import (  # noqa: F401 -- fixture closure
+from tests.integration.test_agent_events_streaming_matrix import (
     FakeRedisBus,
     ScriptedEvent,
     ScriptedFakeRunner,
@@ -251,3 +251,22 @@ class TestCrashResume:
             with pytest.raises(IntegrityError):
                 await session.commit()
             await session.rollback()
+
+
+# Fixtures pytest resolves by module-global name (see the file-level note above).
+__all__ = [
+    "FakeRedisBus",
+    "ScriptedEvent",
+    "ScriptedFakeRunner",
+    "_disposable_postgres_url",
+    "_postgres_schema_ready",
+    "authenticated_client",
+    "build_app",
+    "parse_sse_block",
+    "pg_engine",
+    "pg_session_factory",
+    "record_ids",
+    "seed_run",
+    "seed_shop",
+    "standard_script",
+]
