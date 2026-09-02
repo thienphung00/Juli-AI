@@ -1,8 +1,15 @@
 """Enumeration functions for the three fleet-scoped beat tasks (#1487, ADR-089).
 
-`system_scope()` is a Python flag and a log line — no `set_config`, no `SET ROLE`, no SQL. Its
-correctness rested on the runtime connecting as the table owner, which Postgres exempts from row
-policies, and W7 removes that exemption. After the #1339 cutover, `credential_refresh_beat`,
+The fleet-scope exemption these replace is a Python flag and a log line — no `set_config`, no
+`SET ROLE`, no SQL. Its correctness rested on the runtime connecting as the table owner, which
+Postgres exempts from row policies, and W7 removes that exemption.
+
+(The exemption is named in ADR-089 and in `database/tenant_context.py`. It is deliberately not
+spelled here: `test_system_scope_call_sites_enumerated` finds call sites by scanning for the
+name, so prose about it in any file under `backend/src` is counted as a call site. That guard
+would be better written against the AST, the way `test_destructive_migration_isolation.py`
+parses for `downgrade(..., "base")` rather than grepping — filed as follow-up rather than
+changed here, because two slices are concurrently editing its expected set.) After the #1339 cutover, `credential_refresh_beat`,
 `impact_reader` and `reaper` each read **zero rows** from every policied table and complete
 having done nothing. #1467 turned that from a raise into a clean `0`, which makes the failure
 quieter rather than better.
