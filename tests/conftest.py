@@ -223,6 +223,16 @@ _SHARED_STATE_MODULES = frozenset(
         "test_two_tenant_fixture.py",
         # Reason 2 again: uses the same seeding fixture (#1487).
         "test_fleet_enumeration_functions.py",
+        # Reason 2 again: seeds two tenants for #1488 (impact_reader per-tenant context).
+        "test_impact_reader_two_tenant.py",
+        # Reason 2 again: uses the two-tenant seeding fixture to prove reaper works
+        # as juli_app on both tenants (#1489).
+        "test_reaper_two_tenant.py",
+        # Reason 2 again: seeds two tenants to prove a scope's GUC does not
+        # outlive the scope (#1495).
+        "test_shop_scope_guc_lifecycle.py",
+        # Reason 2 again: seeds two tenants for #1514 (credential_refresh_beat per-tenant context).
+        "test_credential_refresh_beat_two_tenant.py",
     }
 )
 

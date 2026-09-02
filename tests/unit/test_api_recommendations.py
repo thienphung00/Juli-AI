@@ -1,143 +1,71 @@
-"""GET /v1/recommendations — Issue #93 AC5 (extended host_product_match schema)."""
+"""GET /v1/recommendations -- extended ``host_product_match`` schema (#93 AC5)."""
+
+from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-import pytest
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.models import (
-    Creator,
-    InventoryItem,
-    Livestream,
-    Order,
-    Product,
-    Shop,
-    User,
-)
+from juli_backend.models.models import Creator, InventoryItem, Livestream, Shop
 from juli_backend.repositories.repos import GraphRepo
-
-pytestmark = pytest.mark.asyncio
-
-
-@pytest_asyncio.fixture
-async def app(engine, session):
-    from juli_backend.api.app import create_app
-    from juli_backend.database import get_session
-
-    application = create_app()
-
-    async def _test_session():
-        yield session
-
-    application.dependency_overrides[get_session] = _test_session
-    yield application
-    application.dependency_overrides.clear()
+from tests.support.builders import make_order, make_product, next_unique
 
 
-@pytest_asyncio.fixture
-async def authenticated_user(session, user_id):
-    user = User(id=user_id, phone="+84999888093")
-    session.add(user)
-    await session.flush()
-    return user
-
-
-@pytest_asyncio.fixture
-async def shop(session, authenticated_user):
-    s = Shop(
-        id=uuid.uuid4(),
-        user_id=authenticated_user.id,
-        shop_name="Reco API Shop 93",
-        tiktok_shop_id="tiktok_shop_093",
-    )
-    session.add(s)
-    await session.flush()
-    return s
-
-
-@pytest_asyncio.fixture
-async def auth_client(app, authenticated_user, shop):
-    from juli_backend.api.dependencies import get_active_shop
-    from juli_backend.core.security import get_current_user
-
-    app.dependency_overrides[get_current_user] = lambda: authenticated_user
-    app.dependency_overrides[get_active_shop] = lambda: shop
-
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as c:
-        yield c
-
-
-async def _seed_host_match_shop(session: AsyncSession, shop_id: uuid.UUID) -> tuple[Creator, Product]:
+async def seed_host_product_match(session: AsyncSession, shop: Shop) -> tuple[Creator, uuid.UUID]:
+    """A creator, a product and a ``potential_match`` graph edge between them,
+    plus enough livestream/inventory/order history for the matcher to score it."""
+    now = datetime.now(UTC)
     creator = Creator(
         id=uuid.uuid4(),
-        shop_id=shop_id,
-        tiktok_creator_id="creator_api_93",
+        shop_id=shop.id,
+        tiktok_creator_id=next_unique("creator"),
         name="Lan",
         commission_rate=Decimal("0.08"),
     )
-    product = Product(
-        id=uuid.uuid4(),
-        shop_id=shop_id,
-        tiktok_product_id="prod_api_93",
-        name="Serum dưỡng",
-        status="ACTIVE",
-        revenue=Decimal("3000000"),
-        units_sold=120,
-        update_time=datetime.now(timezone.utc),
-        created_at=datetime.now(timezone.utc),
-    )
-    live = Livestream(
-        id=uuid.uuid4(),
-        shop_id=shop_id,
-        tiktok_livestream_id="live_api_93",
-        creator_id=creator.id,
-        title="Live test",
-        start_time=datetime.now(timezone.utc) - timedelta(hours=3),
-        end_time=datetime.now(timezone.utc) - timedelta(hours=2),
-        viewer_count=800,
-        order_count=40,
-        revenue=Decimal("8000000"),
-        update_time=datetime.now(timezone.utc),
-        created_at=datetime.now(timezone.utc),
-    )
-    inv = InventoryItem(
-        id=uuid.uuid4(),
-        shop_id=shop_id,
-        tiktok_product_id=product.tiktok_product_id,
-        tiktok_sku_id="sku_api_93",
-        quantity=50,
-        velocity="medium",
-        update_time=datetime.now(timezone.utc),
-        created_at=datetime.now(timezone.utc),
-    )
-    session.add_all([creator, product, live, inv])
-
-    now = datetime.now(timezone.utc)
-    orders = [
-        Order(
+    session.add(creator)
+    product = await make_product(session, shop, revenue=Decimal("3000000"), units_sold=120)
+    session.add(
+        Livestream(
             id=uuid.uuid4(),
-            shop_id=shop_id,
-            tiktok_order_id=f"ord_{i}",
+            shop_id=shop.id,
+            tiktok_livestream_id=next_unique("live"),
+            creator_id=creator.id,
+            title="Live test",
+            start_time=now - timedelta(hours=3),
+            end_time=now - timedelta(hours=2),
+            viewer_count=800,
+            order_count=40,
+            revenue=Decimal("8000000"),
+            update_time=now,
+        )
+    )
+    session.add(
+        InventoryItem(
+            id=uuid.uuid4(),
+            shop_id=shop.id,
+            tiktok_product_id=product.tiktok_product_id,
+            tiktok_sku_id=next_unique("sku"),
+            quantity=50,
+            velocity="medium",
+            update_time=now,
+        )
+    )
+    # 14 distinct order days: get_velocity_changes needs >= 14 days of a SKU's
+    # daily-units series (forecaster._daily_units_series reads Order.created_at).
+    for i in range(14):
+        await make_order(
+            session,
+            shop,
             status="COMPLETED",
-            total_amount=Decimal("100.00"),
-            currency="VND",
-            update_time=now - timedelta(days=i),
+            update_time=now.replace(tzinfo=None) - timedelta(days=i),
             created_at=now - timedelta(days=i),
         )
-        for i in range(14)
-    ]
-    session.add_all(orders)
     await session.flush()
 
-    repo = GraphRepo(session)
-    await repo.upsert_edge(
-        shop_id,
+    await GraphRepo(session).upsert_edge(
+        shop.id,
         edge_type="potential_match",
         source_node_type="creator",
         source_node_id=creator.id,
@@ -145,53 +73,44 @@ async def _seed_host_match_shop(session: AsyncSession, shop_id: uuid.UUID) -> tu
         target_node_id=product.id,
         weight=Decimal("0.92"),
     )
-    return creator, product
+    return creator, product.id
 
 
-async def test_recommendations_host_product_match_extended_schema(
-    auth_client,
-    session,
-    shop,
-):
-    """AC5: GET /v1/recommendations returns predicted_outcome, match_score, action_type."""
-    await _seed_host_match_shop(session, shop.id)
+class TestHostProductMatchSchema:
+    """A refreshed ``host_product_match`` recommendation carries the extended
+    predicted-outcome and payload fields (#93 AC5)."""
 
-    resp = await auth_client.get(
-        "/v1/recommendations",
-        headers={"X-Shop-Id": str(shop.id)},
-    )
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body.get("success") is True
-    items = body["data"]
-    assert len(items) >= 1
+    async def test_response_carries_predicted_outcome_and_action_fields(
+        self, auth_client, session, shop
+    ):
+        creator, product_id = await seed_host_product_match(session, shop)
 
-    host_items = [
-        i for i in items if i["recommendation_type"] == "host_product_match"
-    ]
-    assert host_items, "expected refreshed host_product_match rows"
+        response = await auth_client.get("/v1/recommendations", headers={"X-Shop-Id": str(shop.id)})
 
-    item = host_items[0]
-    assert isinstance(item["match_score"], (int, float))
-    assert item["match_score"] > 0
-    assert item["action_type"] in (
-        "contact_creator",
-        "adjust_commission",
-        "schedule_live",
-    )
-    assert item["confidence"] in ("high", "medium", "low")
-    assert item["cta"]
-    assert item.get("source") in ("llm", "rules")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["success"] is True
+        items = body["data"]
+        assert items, "expected at least one recommendation"
 
-    predicted = item["predicted_outcome"]
-    assert predicted is not None
-    assert "low" in predicted["gmv_vnd_week"]
-    assert "high" in predicted["gmv_vnd_week"]
-    assert predicted["gmv_vnd_week"]["high"] >= predicted["gmv_vnd_week"]["low"]
-    assert isinstance(predicted["conversion_pct"], (int, float))
-    assert isinstance(predicted["engagement_index"], (int, float))
-    assert isinstance(predicted["risk_factors"], list)
+        host_items = [i for i in items if i["recommendation_type"] == "host_product_match"]
+        assert host_items, "expected a refreshed host_product_match row"
+        item = host_items[0]
 
-    payload = item.get("payload") or {}
-    assert payload.get("creator_id")
-    assert payload.get("tiktok_product_id")
+        assert isinstance(item["match_score"], (int, float))
+        assert item["match_score"] > 0
+        assert item["action_type"] in ("contact_creator", "adjust_commission", "schedule_live")
+        assert item["confidence"] in ("high", "medium", "low")
+        assert item["cta"]
+        assert item.get("source") in ("llm", "rules")
+
+        predicted = item["predicted_outcome"]
+        assert predicted is not None
+        assert predicted["gmv_vnd_week"]["high"] >= predicted["gmv_vnd_week"]["low"]
+        assert isinstance(predicted["conversion_pct"], (int, float))
+        assert isinstance(predicted["engagement_index"], (int, float))
+        assert isinstance(predicted["risk_factors"], list)
+
+        payload = item.get("payload") or {}
+        assert payload.get("creator_id")
+        assert payload.get("tiktok_product_id")

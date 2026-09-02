@@ -1,0 +1,87 @@
+{
+  "planId": "rep-1488-impact-reader-per-tenant-context",
+  "affectedPublicSurfaces": [
+    "Celery beat task: /workers/tasks/impact_reader — daily impact readings computation",
+    "No API changes; only the internal work pattern changes from fleet-wide (system_scope) to per-tenant loop"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicPercent": 0,
+    "restrictedRoute": "none",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "impact-reader-enumerates-via-security-definer-and-loops-per-tenant",
+        "entryUrl": "pytest on #1483's two-tenant fixture, as juli_app",
+        "assertions": [
+          "the task acts on both tenants' executions",
+          "the per-item context is the item's shop, not one shop for the whole run",
+          "it does NOT act on rows that don't qualify (fixture seeds qualifying and non-qualifying)",
+          "readings are written under the correct shop scope"
+        ]
+      },
+      {
+        "name": "system_scope-exemption-shrinks",
+        "entryUrl": "grep for system_scope() call sites and test_system_scope_call_sites_enumerated",
+        "assertions": [
+          "impact_reader.py is removed from the expected call sites",
+          "the list has NOT grown — only shrinkage is acceptable in this epic",
+          "no other beat task incorrectly added system_scope"
+        ]
+      },
+      {
+        "name": "idempotency-preserved",
+        "entryUrl": "pytest: run the task twice on identical state",
+        "assertions": [
+          "second run writes zero new readings (idempotent)",
+          "no errors or duplicate key violations",
+          "the pre-write existence checks still guard against duplicates"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": ["not-applicable: worker task"],
+    "discoverFromHtml": false,
+    "assetTypes": ["not-applicable"],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration in this slice. The enumeration function was added in #1487 (migration 051). This slice only rewires the task to call it and loop with per-tenant context."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "task reverts to system_scope and full ORM reads. Slightly less efficient, still correct for the owner-bypass runtime. On the new juli_app runtime post-#1339, reverting this breaks the task entirely.",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "DATABASE_URL=postgresql://postgres@localhost:5432/<freshly-created> JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=$PWD/backend/src:$PWD python -m pytest tests/integration/test_impact_reader_two_tenant.py -q",
+    "grep -n 'system_scope' backend/src/juli_backend/workers/tasks/impact_reader.py",
+    "python -m pytest tests/unit/test_tenant_context_seam.py::test_system_scope_call_sites_enumerated -q"
+  ],
+  "doNotInfer": [
+    "Do not use system_scope. The task must loop, setting with_shop_scope for each execution's shop.",
+    "'Completed without raising' is not evidence. A successful no-op is the exact failure mode ADR-089 exists for — the task finishes, logs success, does nothing.",
+    "Do not fetch payload_json and tool_name in the cross-tenant read. Those are per-execution values, fetched under shop context after the loop has enumerated.",
+    "Do not omit impact_reader.py from the system_scope call sites. If you leave it there, the test regression-checks against it will pass silently.",
+    "Do not weaken or delete the existing per-execution idempotency checks. They stay — load_written_kinds and load_existing_metric_pairs guard against duplicates.",
+    "Do not test against SQLite. The test must run on real Postgres with SET ROLE juli_app and RLS policies enforced."
+  ]
+}

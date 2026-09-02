@@ -1,168 +1,66 @@
-"""HTTP-level tests for the agent-run routes -- ADR-074 decisions 3 and 5,
-#1128 / AGT-W3B: the SSE wire format, tenant scoping (404 never 403), and
-cancel idempotency.
+"""HTTP-level tests for the agent-run transport routes -- ADR-074 decisions 3
+and 5, #1128 / AGT-W3B: the SSE wire format and cancel idempotency.
 
-`event_stream`'s internal mechanics (subscribe-before-replay, dedupe,
+``event_stream``'s internal mechanics (subscribe-before-replay, dedupe,
 heartbeat, poll fallback, terminal close) are proven directly against the
-generator in `test_agent_run_events_stream.py`; this file proves the
-FastAPI route wraps it correctly and enforces auth/tenant scoping.
-
-The confirmation-decision endpoint's own authorization ladder, consent
-binding and single-use behavior (ADR-075 decision 2, issue #1224 / AGT-W5A
--- this route used to be a reserved 501 shape only) has its own dedicated
-suite: `test_agent_confirmation_decision_route.py`. The one confirmations
-test that stays here, `test_cross_tenant_run_returns_404_never_403_on_confirmations`,
-is kept alongside its `/events` and `/cancel` siblings because all three
-prove the identical `_resolve_owned_run` tenant-scoping contract this file
-is otherwise about; `test_confirmations_route_requires_decision_field`
-stays for the same reason (a body-shape check, not a decision-ladder one).
+generator in ``test_agent_run_event_stream.py``; this file proves the FastAPI
+route wraps it correctly. The confirmation-decision endpoint's own
+authorization ladder has its own dedicated suites,
+``test_agent_run_confirmations.py`` (the ladder, no HTTP) and
+``test_agent_confirmation_decision_route.py`` (the HTTP mapping); the one
+thing about confirmations proven here is that it shares the identical
+``_resolve_owned_run`` tenant-scoping guard as ``/events`` and ``/cancel``,
+alongside those two in ``TestTenantScoping``.
 """
 
 from __future__ import annotations
 
 import json
 import uuid
-from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from juli_backend.models.models import Product, Shop, User
-from juli_backend.models.models import WorkflowRun as WorkflowRunRow
-from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
+from tests.support.api import build_app
+from tests.support.builders import make_run_event, make_tenant, make_workflow_run
 
-pytestmark = pytest.mark.asyncio
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+CROSS_TENANT_REQUESTS = [
+    pytest.param("GET", "/events", None, id="events"),
+    pytest.param("POST", "/cancel", None, id="cancel"),
+    pytest.param("POST", "/confirmations/tool-call-1", {"decision": "approve"}, id="confirmations"),
+]
 
 
 @pytest_asyncio.fixture
-async def app(engine, session):
-    from juli_backend.api.app import create_app
+async def app(session, engine):
+    """Adds the SSE stream's own dependency overrides on top of the base app.
+
+    The stream reads through its own session factory (never the request
+    session, which FastAPI closes before a ``StreamingResponse`` body
+    finishes) -- bound here to the same in-memory engine as ``session`` so a
+    seeded row is visible to it. Short intervals keep the poll-fallback and
+    heartbeat tests fast without a real sleep in the test body.
+    """
     from juli_backend.api.routes.agent_runs import (
         get_heartbeat_interval_s,
         get_poll_interval_s,
         get_run_event_subscriber,
         get_run_events_session_factory,
     )
-    from juli_backend.database import get_session
-    from juli_backend.services.agent.abuse_limits import (
-        InMemoryAbuseLimitGate,
-        set_agent_abuse_limit_gate,
-    )
 
-    application = create_app()
+    application = build_app(session)
     stream_session_factory = async_sessionmaker(engine, expire_on_commit=False)
-
-    async def _test_session():
-        yield session
 
     async def _stream_session_factory():
         return stream_session_factory
 
-    # Mock the abuse limit gate to avoid timing issues in tests
-    set_agent_abuse_limit_gate(
-        InMemoryAbuseLimitGate(
-            approve_max_requests=100_000,
-            approve_burst_max_requests=100_000,
-            confirmation_max_requests=100_000,
-            sse_max_concurrent=100_000,
-        )
-    )
-
-    application.dependency_overrides[get_session] = _test_session
     application.dependency_overrides[get_run_events_session_factory] = _stream_session_factory
     application.dependency_overrides[get_run_event_subscriber] = lambda: None
     application.dependency_overrides[get_heartbeat_interval_s] = lambda: 0.05
     application.dependency_overrides[get_poll_interval_s] = lambda: 0.02
     yield application
     application.dependency_overrides.clear()
-    set_agent_abuse_limit_gate(None)
-
-
-@pytest_asyncio.fixture
-async def user(session):
-    u = User(phone=f"+1555{uuid.uuid4().int % 10_000_000:07d}")
-    session.add(u)
-    await session.flush()
-    return u
-
-
-@pytest_asyncio.fixture
-async def shop(session, user):
-    s = Shop(user_id=user.id, shop_name="AGT-W3B P8-4 Shop")
-    session.add(s)
-    await session.flush()
-    return s
-
-
-@pytest_asyncio.fixture
-async def other_shop(session):
-    other_user = User(phone=f"+1555{uuid.uuid4().int % 10_000_000:07d}")
-    session.add(other_user)
-    await session.flush()
-    s = Shop(user_id=other_user.id, shop_name="AGT-W3B P8-4 Other Shop")
-    session.add(s)
-    await session.flush()
-    return s
-
-
-async def _make_run(session: AsyncSession, shop: Shop, status: str = "running") -> WorkflowRunRow:
-    product = Product(
-        shop_id=shop.id,
-        tiktok_product_id=f"agt-w3b-p8-4-{uuid.uuid4()}",
-        name="Test Widget",
-        status="active",
-        update_time=datetime.now(UTC).replace(tzinfo=None),
-    )
-    session.add(product)
-    await session.flush()
-    run = WorkflowRunRow(
-        shop_id=shop.id,
-        product_id=product.id,
-        state={},
-        status=status,
-        prompt_version="optimize_product.v1",
-        prompt_sha256="a" * 64,
-    )
-    session.add(run)
-    await session.flush()
-    await session.commit()
-    return run
-
-
-async def _add_event(
-    session: AsyncSession,
-    run_id: uuid.UUID,
-    seq: int,
-    event_type: str,
-    payload: dict,
-) -> None:
-    session.add(
-        WorkflowRunEventRow(
-            workflow_run_id=run_id,
-            sequence_number=seq,
-            event_type=event_type,
-            timestamp=datetime.now(UTC),
-            payload=payload,
-            v=1,
-        )
-    )
-    await session.commit()
-
-
-def _client_for(app, user: User, shop: Shop) -> AsyncClient:
-    from juli_backend.api.dependencies import get_active_shop
-    from juli_backend.core.security import get_current_user
-
-    app.dependency_overrides[get_current_user] = lambda: user
-    app.dependency_overrides[get_active_shop] = lambda: shop
-    return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 
 def _parse_sse(body: str) -> list[dict]:
@@ -170,276 +68,122 @@ def _parse_sse(body: str) -> list[dict]:
     for block in body.strip("\n").split("\n\n"):
         if not block or block.startswith(":"):
             continue
-        lines = block.split("\n")
         record: dict = {}
-        for line in lines:
+        for line in block.split("\n"):
             key, _, value = line.partition(": ")
             record[key] = value
         events.append(record)
     return events
 
 
-# ---------------------------------------------------------------------------
-# AC (ADR-074 d.2) -- SSE wire format
-# ---------------------------------------------------------------------------
+class TestSSEWireFormat:
+    """The ``events`` route wraps ``event_stream`` as SSE with the right headers."""
 
+    async def test_id_event_and_data_match_the_persisted_envelope(self, auth_client, session, shop):
+        run = await make_workflow_run(session, shop, status="completed")
+        await make_run_event(session, run.id, 1, payload={"phase_narration": "starting"})
+        await make_run_event(
+            session,
+            run.id,
+            2,
+            event_type="workflow.completed",
+            payload={"stop_reason": "final_response"},
+        )
 
-async def test_sse_wire_format_id_event_data(app, session, user, shop):
-    run = await _make_run(session, shop, status="running")
-    await _add_event(session, run.id, 1, "workflow.status", {"phase_narration": "starting"})
-    await _add_event(
-        session,
-        run.id,
-        2,
-        "workflow.completed",
-        {"stop_reason": "final_response"},
-    )
+        resp = await auth_client.get(f"/v1/demo/runs/{run.id}/events")
 
-    async with _client_for(app, user, shop) as client:
-        resp = await client.get(f"/v1/demo/runs/{run.id}/events")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/event-stream")
+        assert resp.headers.get("x-accel-buffering") == "no", (
+            "must not let an edge buffer it (#1292)"
+        )
 
-    assert resp.status_code == 200
-    assert resp.headers["content-type"].startswith("text/event-stream")
+        records = _parse_sse(resp.text)
+        assert [r["id"] for r in records] == ["1", "2"]
+        assert [r["event"] for r in records] == ["workflow.status", "workflow.completed"]
+        envelope0 = json.loads(records[0]["data"])
+        assert envelope0["workflow_run_id"] == str(run.id)
+        assert envelope0["payload"] == {"phase_narration": "starting"}
+        envelope1 = json.loads(records[1]["data"])
+        assert envelope1["payload"] == {"stop_reason": "final_response"}
 
-    records = _parse_sse(resp.text)
-    assert len(records) == 2
+    async def test_after_query_param_resolves_the_replay_cursor(self, auth_client, session, shop):
+        run = await make_workflow_run(session, shop, status="completed")
+        await make_run_event(session, run.id, 1)
+        await make_run_event(session, run.id, 2, event_type="workflow.completed")
 
-    assert records[0]["id"] == "1"
-    assert records[0]["event"] == "workflow.status"
-    envelope0 = json.loads(records[0]["data"])
-    assert envelope0["sequence_number"] == 1
-    assert envelope0["event_type"] == "workflow.status"
-    assert envelope0["workflow_run_id"] == str(run.id)
-    assert envelope0["payload"] == {"phase_narration": "starting"}
-    assert envelope0["v"] == 1
+        resp = await auth_client.get(f"/v1/demo/runs/{run.id}/events", params={"after": 1})
 
-    assert records[1]["id"] == "2"
-    assert records[1]["event"] == "workflow.completed"
-    envelope1 = json.loads(records[1]["data"])
-    assert envelope1["payload"] == {"stop_reason": "final_response"}
+        assert [r["id"] for r in _parse_sse(resp.text)] == ["2"]
 
+    async def test_last_event_id_header_beats_the_after_query_param(
+        self, auth_client, session, shop
+    ):
+        run = await make_workflow_run(session, shop, status="completed")
+        await make_run_event(session, run.id, 1)
+        await make_run_event(session, run.id, 2, event_type="workflow.completed")
 
-async def test_after_query_param_resolves_after_seq(app, session, user, shop):
-    run = await _make_run(session, shop, status="completed")
-    await _add_event(session, run.id, 1, "workflow.status", {"phase_narration": "a"})
-    await _add_event(session, run.id, 2, "workflow.completed", {"stop_reason": "final_response"})
-
-    async with _client_for(app, user, shop) as client:
-        resp = await client.get(f"/v1/demo/runs/{run.id}/events", params={"after": 1})
-
-    records = _parse_sse(resp.text)
-    assert [r["id"] for r in records] == ["2"]
-
-
-async def test_last_event_id_header_takes_priority_over_after_query_param(app, session, user, shop):
-    run = await _make_run(session, shop, status="completed")
-    await _add_event(session, run.id, 1, "workflow.status", {"phase_narration": "a"})
-    await _add_event(session, run.id, 2, "workflow.completed", {"stop_reason": "final_response"})
-
-    async with _client_for(app, user, shop) as client:
-        resp = await client.get(
+        resp = await auth_client.get(
             f"/v1/demo/runs/{run.id}/events",
             params={"after": 0},
             headers={"Last-Event-ID": "1"},
         )
 
-    records = _parse_sse(resp.text)
-    assert [r["id"] for r in records] == ["2"]
+        assert [r["id"] for r in _parse_sse(resp.text)] == ["2"]
 
 
-# ---------------------------------------------------------------------------
-# AC (ADR-074 d.5) -- tenant scoping: 404 never 403
-# ---------------------------------------------------------------------------
+class TestTenantScoping:
+    """``_resolve_owned_run`` 404s a run under another shop -- never 403 -- for
+    every route it guards."""
+
+    @pytest.mark.parametrize("method, suffix, body", CROSS_TENANT_REQUESTS)
+    async def test_cross_tenant_run_returns_404_never_403(
+        self, auth_client, session, shop, method, suffix, body
+    ):
+        _, other_shop = await make_tenant(session)
+        other_run = await make_workflow_run(session, other_shop, status="running")
+
+        resp = await auth_client.request(method, f"/v1/demo/runs/{other_run.id}{suffix}", json=body)
+
+        assert resp.status_code == 404
+        assert resp.status_code != 403
+
+    async def test_nonexistent_run_returns_404_on_events(self, auth_client):
+        resp = await auth_client.get(f"/v1/demo/runs/{uuid.uuid4()}/events")
+
+        assert resp.status_code == 404
 
 
-async def test_cross_tenant_run_returns_404_never_403_on_events(
-    app, session, user, other_shop, shop
-):
-    other_run = await _make_run(session, other_shop, status="running")
+class TestCancel:
+    """Cancel is an idempotent 202 that sets ``cancel_requested`` unconditionally."""
 
-    async with _client_for(app, user, shop) as client:
-        resp = await client.get(f"/v1/demo/runs/{other_run.id}/events")
+    async def test_repeat_and_terminal_calls_all_202_and_the_flag_stays_true(
+        self, auth_client, session, shop
+    ):
+        run = await make_workflow_run(session, shop, status="running")
+        assert run.cancel_requested is False
 
-    assert resp.status_code == 404
-    assert resp.status_code != 403
+        first = await auth_client.post(f"/v1/demo/runs/{run.id}/cancel")
+        second = await auth_client.post(f"/v1/demo/runs/{run.id}/cancel")
 
+        assert first.status_code == 202
+        assert second.status_code == 202
+        await session.refresh(run)
+        assert run.cancel_requested is True
 
-async def test_cross_tenant_run_returns_404_never_403_on_cancel(
-    app, session, user, other_shop, shop
-):
-    other_run = await _make_run(session, other_shop, status="running")
+        terminal_run = await make_workflow_run(session, shop, status="completed")
+        third = await auth_client.post(f"/v1/demo/runs/{terminal_run.id}/cancel")
 
-    async with _client_for(app, user, shop) as client:
-        resp = await client.post(f"/v1/demo/runs/{other_run.id}/cancel")
+        assert third.status_code == 202
+        await session.refresh(terminal_run)
+        assert terminal_run.cancel_requested is True
 
-    assert resp.status_code == 404
-    assert resp.status_code != 403
+    async def test_cross_tenant_cancel_never_sets_the_flag(self, auth_client, session, shop):
+        _, other_shop = await make_tenant(session)
+        other_run = await make_workflow_run(session, other_shop, status="running")
 
+        resp = await auth_client.post(f"/v1/demo/runs/{other_run.id}/cancel")
 
-async def test_cross_tenant_run_returns_404_never_403_on_confirmations(
-    app, session, user, other_shop, shop
-):
-    other_run = await _make_run(session, other_shop, status="waiting_approval")
-
-    async with _client_for(app, user, shop) as client:
-        resp = await client.post(
-            f"/v1/demo/runs/{other_run.id}/confirmations/tool-call-1",
-            json={"decision": "approve"},
-        )
-
-    assert resp.status_code == 404
-    assert resp.status_code != 403
-
-
-async def test_nonexistent_run_returns_404(app, user, shop):
-    async with _client_for(app, user, shop) as client:
-        resp = await client.get(f"/v1/demo/runs/{uuid.uuid4()}/events")
-
-    assert resp.status_code == 404
-
-
-# ---------------------------------------------------------------------------
-# AC (ADR-074 d.5) -- cancel is 202, idempotent
-# ---------------------------------------------------------------------------
-
-
-async def test_cancel_returns_202_twice_and_after_terminal(app, session, user, shop):
-    run = await _make_run(session, shop, status="running")
-
-    async with _client_for(app, user, shop) as client:
-        first = await client.post(f"/v1/demo/runs/{run.id}/cancel")
-        second = await client.post(f"/v1/demo/runs/{run.id}/cancel")
-
-    assert first.status_code == 202
-    assert second.status_code == 202
-
-    terminal_run = await _make_run(session, shop, status="completed")
-    async with _client_for(app, user, shop) as client:
-        third = await client.post(f"/v1/demo/runs/{terminal_run.id}/cancel")
-
-    assert third.status_code == 202
-
-
-# ---------------------------------------------------------------------------
-# AC (issue #1145 Gap 3) -- cancel writes workflow_runs.cancel_requested
-# ---------------------------------------------------------------------------
-
-
-async def test_cancel_sets_cancel_requested_flag(app, session, user, shop):
-    run = await _make_run(session, shop, status="running")
-    assert run.cancel_requested is False
-
-    async with _client_for(app, user, shop) as client:
-        resp = await client.post(f"/v1/demo/runs/{run.id}/cancel")
-
-    assert resp.status_code == 202
-    await session.refresh(run)
-    assert run.cancel_requested is True
-
-
-async def test_cancel_success_is_logged(app, session, user, shop, caplog):
-    run = await _make_run(session, shop, status="running")
-    run_id = run.id
-
-    with caplog.at_level("INFO", logger="juli_backend.api.routes.agent_runs"):
-        async with _client_for(app, user, shop) as client:
-            resp = await client.post(f"/v1/demo/runs/{run_id}/cancel")
-
-    assert resp.status_code == 202
-    records = [r for r in caplog.records if r.message == "agent_run_cancel_requested"]
-    assert len(records) == 1
-    record = records[0]
-    assert getattr(record, "shop_id", None) == str(shop.id)
-    assert getattr(record, "run_id", None) == str(run_id)
-
-
-async def test_cancel_twice_stays_202_and_flag_stays_true(app, session, user, shop):
-    run = await _make_run(session, shop, status="running")
-
-    async with _client_for(app, user, shop) as client:
-        first = await client.post(f"/v1/demo/runs/{run.id}/cancel")
-        second = await client.post(f"/v1/demo/runs/{run.id}/cancel")
-
-    assert first.status_code == 202
-    assert second.status_code == 202
-    await session.refresh(run)
-    assert run.cancel_requested is True
-
-
-async def test_cancel_on_terminal_run_still_sets_flag_without_error(app, session, user, shop):
-    run = await _make_run(session, shop, status="completed")
-
-    async with _client_for(app, user, shop) as client:
-        resp = await client.post(f"/v1/demo/runs/{run.id}/cancel")
-
-    assert resp.status_code == 202
-    await session.refresh(run)
-    assert run.cancel_requested is True
-
-
-async def test_cross_tenant_cancel_never_sets_flag_on_other_shops_run(
-    app, session, user, other_shop, shop
-):
-    other_run = await _make_run(session, other_shop, status="running")
-
-    async with _client_for(app, user, shop) as client:
-        resp = await client.post(f"/v1/demo/runs/{other_run.id}/cancel")
-
-    assert resp.status_code == 404
-    await session.refresh(other_run)
-    assert other_run.cancel_requested is False
-
-
-# ---------------------------------------------------------------------------
-# AC (ADR-075 d.2 / #1224) -- confirmations body-shape validation. The
-# route's own authorization ladder, consent binding and single-use tests
-# live in `test_agent_confirmation_decision_route.py`; the 501-only
-# "reserved shape" test this replaced is
-# `test_agent_confirmation_decision_route.py
-# ::test_endpoint_no_longer_returns_501_for_a_valid_request`.
-# ---------------------------------------------------------------------------
-
-
-async def test_confirmations_route_requires_decision_field(app, session, user, shop):
-    run = await _make_run(session, shop, status="waiting_approval")
-
-    async with _client_for(app, user, shop) as client:
-        resp = await client.post(
-            f"/v1/demo/runs/{run.id}/confirmations/tool-call-1",
-            json={},
-        )
-
-    assert resp.status_code == 422
-
-
-# ---------------------------------------------------------------------------
-# AC (issue #1292) -- SSE response carries X-Accel-Buffering: no header
-# ---------------------------------------------------------------------------
-
-
-async def test_events_response_carries_x_accel_buffering_no_header(app, session, user, shop):
-    """The events endpoint must set X-Accel-Buffering: no to prevent
-    edge/nginx buffering from delaying the first byte indefinitely
-    (issue #1292). Use a terminal run so the response finishes quickly."""
-    run = await _make_run(session, shop, status="completed")
-
-    async with _client_for(app, user, shop) as client:
-        resp = await client.get(f"/v1/demo/runs/{run.id}/events")
-
-    assert resp.status_code == 200
-    assert resp.headers.get("x-accel-buffering") == "no", (
-        "SSE response must carry X-Accel-Buffering: no to prevent edge buffering"
-    )
-
-
-async def test_events_response_has_sse_content_type(app, session, user, shop):
-    """The events endpoint must declare content-type as text/event-stream."""
-    run = await _make_run(session, shop, status="completed")
-
-    async with _client_for(app, user, shop) as client:
-        resp = await client.get(f"/v1/demo/runs/{run.id}/events")
-
-    assert resp.status_code == 200
-    assert resp.headers["content-type"].startswith("text/event-stream"), (
-        "SSE response must have text/event-stream content-type"
-    )
+        assert resp.status_code == 404
+        await session.refresh(other_run)
+        assert other_run.cancel_requested is False

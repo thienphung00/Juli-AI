@@ -111,7 +111,8 @@ def test_baseline_captures_394_suppression_identities() -> None:
     assert recorded["kind"] == IDENTITY_CLASS
     assert {i.key(): n for i, n in measured.occurrences.items()} == recorded["occurrences"], (
         "the committed baseline has drifted from the tree; regenerate it with "
-        "`python -m eval.ratchets measure --write` on merge, never mid-PR"
+        "`python -m eval.ratchets tighten --write` (never `measure --write`, which "
+        "skips the check and would ratify new debt) and commit it with the change"
     )
 
     # Every suppression in the tree is in the set — nothing is silently dropped.

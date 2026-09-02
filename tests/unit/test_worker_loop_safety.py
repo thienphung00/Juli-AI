@@ -82,9 +82,7 @@ def test_redis_client_is_cached_per_loop(monkeypatch):
     from juli_backend.services.gold_kpi_cache import cache as cache_mod
 
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6399/0")
-    monkeypatch.setattr(cache_mod, "_shared_client", None)
-    monkeypatch.setattr(cache_mod, "_shared_client_url", None)
-    monkeypatch.setattr(cache_mod, "_shared_client_loop", None)
+    cache_mod.reset_shared_redis_client_for_tests()
 
     async def grab_twice() -> tuple[int, int]:
         a = cache_mod.get_shared_redis_client()

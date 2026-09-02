@@ -7,6 +7,12 @@ Postgres remains the system of record; Redis accelerates Demo reads and is refre
 after successful Demo KPI envelope upserts. On compute failure, Demo falls back to
 last-good cached envelope (degraded path, never fabricates stale values).
 
+## Implementation
+
+Thin adapter over `services/kpi_cache` (shared Redis client lifecycle and the
+fail-open read-through). This module only names the key prefix, the repository
+read and the envelope type and adds the last-good fallback.
+
 ## Public API
 
 - ``envelope_cache_key(shop_id)`` → ``str`` — ``gold:kpi_envelope:{shop_id}``

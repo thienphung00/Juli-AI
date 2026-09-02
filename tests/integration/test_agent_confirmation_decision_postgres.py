@@ -21,7 +21,7 @@ cannot exercise:
    `test_credential_refresh_concurrency.py`'s own rationale: a shared
    pooled connection would silently make "concurrent" callers reuse the
    same backend session), must yield exactly one committed transition and
-   one enqueue -- `_transition_confirmation_or_none`'s atomic conditional
+   one enqueue -- `transition_confirmation_or_none`'s atomic conditional
    `UPDATE ... WHERE status = 'pending'` is what SQLite's single-process,
    single-connection unit suite could never actually contend on.
 
@@ -49,7 +49,6 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from juli_backend.api.routes.agent_runs import _transition_confirmation_or_none
 from juli_backend.core.config.runtime import async_database_url, sync_database_url
 from juli_backend.models.models import Product, RunConfirmation, Shop, User
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
@@ -66,6 +65,7 @@ from juli_backend.services.agent.tools import ToolRegistry
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
 from juli_backend.services.agent.tools.terminal import register_terminal_tools
+from juli_backend.services.agent_runs import transition_confirmation_or_none
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ALEMBIC_INI = os.path.join(REPO_ROOT, "alembic.ini")
@@ -239,8 +239,8 @@ class TestTwoSequentialConfirmStepsDoNotCollide:
     async def test_second_confirm_pause_does_not_raise_integrity_error(self, async_engine_factory):
         """Drives the REAL `OPTIMIZE_PRODUCT_PLAYBOOK` through both of its
         CONFIRM steps (`update_product_listing`, then `update_product_price`),
-        approving each through `_transition_confirmation_or_none` -- the
-        exact function `api/routes/agent_runs.py::submit_confirmation_decision`
+        approving each through `transition_confirmation_or_none` -- the
+        exact function `services/agent_runs/confirmations.py::decide_confirmation`
         calls -- between the two pauses. Before #1224, nothing transitioned
         the first `run_confirmations` row out of `pending`, so the second
         pause's INSERT collided with `uq_run_confirmations_pending_run` and
@@ -292,12 +292,12 @@ class TestTwoSequentialConfirmStepsDoNotCollide:
             confirmation_1_id = rows[0].id
             confirmation_1_tool_call_id = rows[0].tool_call_id
 
-        # --- Approve #1 by calling `_transition_confirmation_or_none` ITSELF
+        # --- Approve #1 by calling `transition_confirmation_or_none` ITSELF
         # -- the exact function `submit_confirmation_decision` calls, not an
         # equivalent hand-written `UPDATE` -- committed before anything
         # continues the run, exactly like the endpoint orders it. -----------
         async with factory() as session:
-            won = await _transition_confirmation_or_none(
+            won = await transition_confirmation_or_none(
                 session,
                 confirmation_1_id,
                 new_status="approved",
@@ -363,7 +363,7 @@ class TestTwoSequentialConfirmStepsDoNotCollide:
         # --- Approve #2, same real transition function, then drive to a
         # final response -- the run must reach a terminal state. ------------
         async with factory() as session:
-            won = await _transition_confirmation_or_none(
+            won = await transition_confirmation_or_none(
                 session,
                 confirmation_2_id,
                 new_status="approved",
