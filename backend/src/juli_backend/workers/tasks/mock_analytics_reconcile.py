@@ -185,7 +185,7 @@ def run_mock_analytics_reconcile_sync(
 
 async def _run_hourly_reconcile_async() -> None:
     """Run hourly reconciliation through SharedComputeOrchestrator."""
-    from juli_backend.database.tenant_context import system_scope
+    from juli_backend.database.tenant_context import with_shop_scope
 
     shop_id = get_demo_reference_shop_id()
     if shop_id is None:
@@ -203,7 +203,7 @@ async def _run_hourly_reconcile_async() -> None:
 
     factory = _ensure_session_factory()
     async with factory() as session:
-        async with system_scope(session, caller="mock_analytics_hourly_reconcile"):
+        async with with_shop_scope(session, shop_id):
             await run_mock_analytics_reconcile_orchestrated(
                 session=session,
                 shop_id=shop_id,

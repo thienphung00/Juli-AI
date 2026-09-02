@@ -402,6 +402,13 @@ async def test_hourly_and_material_enqueue_coexist_via_idempotency_key(
 # --- Issue #733: nested asyncio.run() in the Celery entrypoint ---
 
 
+class _FakeBind:
+    """Fake bind object for _FakeSession."""
+
+    class dialect:
+        name = "postgresql"
+
+
 class _FakeSession:
     async def __aenter__(self):
         return self
@@ -411,6 +418,14 @@ class _FakeSession:
 
     async def commit(self):
         """Fake commit for testing."""
+        pass
+
+    def get_bind(self):
+        """Return a fake bind with a dialect for the tenant context seam."""
+        return _FakeBind()
+
+    async def execute(self, statement):
+        """Fake execute for tenant context GUC setting."""
         pass
 
 
