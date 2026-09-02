@@ -27,11 +27,27 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CI_DIR = REPO_ROOT / "agent-runtime" / "scripts" / "ci"
 PROVIDER_DIR = CI_DIR / "capture_providers"
-sys.path.insert(0, str(CI_DIR))
 
-import capture_providers  # noqa: E402
-from capture_providers import CaptureContext  # noqa: E402
-from capture_providers import claim_vs_executed as provider  # noqa: E402
+
+def _load_seam():
+    """Import the capture seam, which lives outside any importable package root.
+
+    Done inside a function deliberately: hoisting the ``sys.path`` insert above
+    module-level imports needs three ``# noqa: E402`` suppressions, and the
+    repo's debt ratchet (#1462) counts suppression identities. Paying tracked
+    debt for import cosmetics is a bad trade.
+    """
+    if str(CI_DIR) not in sys.path:
+        sys.path.insert(0, str(CI_DIR))
+    import capture_providers
+    from capture_providers import claim_vs_executed
+
+    return capture_providers, claim_vs_executed
+
+
+capture_providers, provider = _load_seam()
+
+CaptureContext = capture_providers.CaptureContext
 
 # ---------------------------------------------------------------------------
 # fixtures / builders
