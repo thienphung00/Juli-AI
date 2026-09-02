@@ -11,7 +11,9 @@ path is a FAIL, never a silent pass.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -21,6 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CI_DIR = REPO_ROOT / "agent-runtime" / "scripts" / "ci"
 sys.path.insert(0, str(CI_DIR))
 
+from artifact_ref_resolution import is_shallow_repository  # noqa: E402
 from check_artifact_retention_guard import (  # noqa: E402
     GENERATE_COMMAND,
     evaluate,
@@ -389,22 +392,34 @@ def test_gateversion_1_record_from_the_real_status_dir_still_passes() -> None:
 
 def test_gateversion_2_record_with_run_block_passes(tmp_path: Path) -> None:
     """The post-#1438 shape: gateVersion 2 plus a run{} envelope whose blocks
-    the schema deliberately leaves open so a new provider needs no schema edit."""
+    the schema deliberately leaves open so a new provider needs no schema edit.
+
+    #1445: a gateVersion 2 record must also carry artifactRefs that actually
+    resolve, so this fixture commits the two verbose bodies and records their
+    true digests. The assertion under test is unchanged -- an unknown run{}
+    block is still accepted without a schema edit."""
+    issue = 1438
+    repo, digests = _make_repo_with_committed_artifacts(tmp_path, issue)
+    status_dir = tmp_path / "status"
     _write_record(
-        tmp_path,
-        1438,
+        status_dir,
+        issue,
         payload={
-            "issue": 1438,
+            "issue": issue,
             "wave": None,
             "review": {
                 "status": "PASS",
-                "artifactRef": "git-history:x",
-                "sha256": "a" * 64,
+                "artifactRef": (
+                    f"git-history:agent-runtime/artifacts/reviews/review-issue-{issue}.json"
+                ),
+                "sha256": digests["review"],
             },
             "validation": {
                 "status": "PASS",
-                "artifactRef": "git-history:y",
-                "sha256": "b" * 64,
+                "artifactRef": (
+                    f"git-history:agent-runtime/artifacts/validation/validation-issue-{issue}.json"
+                ),
+                "sha256": digests["validation"],
             },
             "run": {
                 "artifactBytes": {"reviewBytes": 512, "validationBytes": 256},
@@ -413,7 +428,7 @@ def test_gateversion_2_record_with_run_block_passes(tmp_path: Path) -> None:
             "gateVersion": 2,
         },
     )
-    passed, detail = evaluate(1438, status_dir=tmp_path)
+    passed, detail = evaluate(issue, status_dir=status_dir, repo_root=repo)
     assert passed is True, detail
 
 
@@ -433,3 +448,256 @@ def test_unknown_gate_version_fails_closed(tmp_path: Path) -> None:
     passed, detail = evaluate(1438, status_dir=tmp_path)
     assert passed is False
     assert "schema" in detail.lower()
+
+
+# --- #1445: an artifactRef that does not resolve fails the record ------------
+# 240 of 538 artifactRef/sha256 pairs in the committed corpus name a path that
+# exists in no commit on any branch -- #670 shipped the sha256 integrity chain
+# but never built the store it points into. From gateVersion 2 forward a ref
+# that does not resolve, or resolves to content that does not match its
+# recorded sha256, fails the record. gateVersion 1 records are MARKED
+# unresolvable and still pass: those files exist on no machine and the
+# Architect lock forbids rewriting history to invent them.
+
+
+def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", "-C", str(repo), *args],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
+def _make_repo_with_committed_artifacts(root: Path, issue: int) -> tuple[Path, dict[str, str]]:
+    """A real git repo whose history contains the two verbose artifact bodies.
+
+    Returns the repo root and the true sha256 of each committed body, so a test
+    can plant either the truth or a lie in the status record and see which one
+    the guard catches.
+    """
+    repo = root / "repo"
+    (repo / "agent-runtime" / "artifacts" / "reviews").mkdir(parents=True)
+    (repo / "agent-runtime" / "artifacts" / "validation").mkdir(parents=True)
+    bodies = {
+        "review": (
+            f"agent-runtime/artifacts/reviews/review-issue-{issue}.json",
+            b'{"id": "review-issue-%d", "status": "PASS"}' % issue,
+        ),
+        "validation": (
+            f"agent-runtime/artifacts/validation/validation-issue-{issue}.json",
+            b'{"id": "validation-issue-%d", "status": "PASS"}' % issue,
+        ),
+    }
+    digests: dict[str, str] = {}
+    for field, (rel, content) in bodies.items():
+        (repo / rel).write_bytes(content)
+        digests[field] = hashlib.sha256(content).hexdigest()
+
+    _git(repo.parent, "init", "--initial-branch=main", str(repo))
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test")
+    _git(repo, "config", "core.autocrlf", "false")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "--no-verify", "-m", "commit the verbose bodies")
+    return repo, digests
+
+
+def _v2_payload(issue: int, review_ref: str, review_sha: str, val_ref: str, val_sha: str) -> dict:
+    return {
+        "issue": issue,
+        "wave": None,
+        "review": {"status": "PASS", "artifactRef": review_ref, "sha256": review_sha},
+        "validation": {"status": "PASS", "artifactRef": val_ref, "sha256": val_sha},
+        "run": {"artifactBytes": {"reviewBytes": 512, "validationBytes": 256}},
+        "gateVersion": 2,
+    }
+
+
+def test_v2_resolving_ref_with_matching_hash_passes(tmp_path: Path) -> None:
+    """The honest case: both refs name a path that really is in history and the
+    recorded sha256 really is the digest of that content."""
+    issue = 1445
+    repo, digests = _make_repo_with_committed_artifacts(tmp_path, issue)
+    status_dir = tmp_path / "status"
+    _write_record(
+        status_dir,
+        issue,
+        payload=_v2_payload(
+            issue,
+            f"git-history:agent-runtime/artifacts/reviews/review-issue-{issue}.json",
+            digests["review"],
+            f"git-history:agent-runtime/artifacts/validation/validation-issue-{issue}.json",
+            digests["validation"],
+        ),
+    )
+    passed, detail = evaluate(issue, status_dir=status_dir, repo_root=repo)
+    assert passed is True, detail
+    assert "resolve" in detail.lower()
+    assert "match" in detail.lower()
+
+    # Non-vacuous: the pass is earned by the hashes, not by the guard ignoring them.
+    lying = json.loads((status_dir / f"issue-{issue}.json").read_text(encoding="utf-8"))
+    lying["review"]["sha256"] = "0" * 64
+    lying_dir = tmp_path / "status-lying"
+    _write_record(lying_dir, issue, payload=lying)
+    lying_passed, lying_detail = evaluate(issue, status_dir=lying_dir, repo_root=repo)
+    assert lying_passed is False, lying_detail
+
+
+def test_v2_unresolvable_ref_fails(tmp_path: Path) -> None:
+    """The lie: a gateVersion 2 record claims a sha256 for a path that exists in
+    no commit on any branch -- exactly the 240 dangling pairs #670 left behind."""
+    issue = 1445
+    repo, digests = _make_repo_with_committed_artifacts(tmp_path, issue)
+    status_dir = tmp_path / "status"
+    dangling = "git-history:agent-runtime/artifacts/validation/validation-issue-999999.json"
+    _write_record(
+        status_dir,
+        issue,
+        payload=_v2_payload(
+            issue,
+            f"git-history:agent-runtime/artifacts/reviews/review-issue-{issue}.json",
+            digests["review"],
+            dangling,
+            "c" * 64,
+        ),
+    )
+    passed, detail = evaluate(issue, status_dir=status_dir, repo_root=repo)
+    assert passed is False, detail
+    assert "validation-issue-999999.json" in detail
+    assert "no commit" in detail.lower()
+
+
+def test_v2_hash_mismatch_fails(tmp_path: Path) -> None:
+    """The other lie: the ref resolves, but the recorded sha256 is not the digest
+    of the content it resolves to -- an integrity claim that is simply false."""
+    issue = 1445
+    repo, digests = _make_repo_with_committed_artifacts(tmp_path, issue)
+    status_dir = tmp_path / "status"
+    _write_record(
+        status_dir,
+        issue,
+        payload=_v2_payload(
+            issue,
+            f"git-history:agent-runtime/artifacts/reviews/review-issue-{issue}.json",
+            "d" * 64,  # the lie: not the digest of the committed body
+            f"git-history:agent-runtime/artifacts/validation/validation-issue-{issue}.json",
+            digests["validation"],
+        ),
+    )
+    assert digests["review"] != "d" * 64
+    passed, detail = evaluate(issue, status_dir=status_dir, repo_root=repo)
+    assert passed is False, detail
+    assert f"review-issue-{issue}.json" in detail
+    assert "d" * 64 in detail
+    assert "match" in detail.lower()
+
+
+def test_v1_dangling_ref_is_marked_not_failed(tmp_path: Path) -> None:
+    """Architect lock: no backfill. A pre-#1438 record with the same dangling ref
+    that fails a v2 record is MARKED unresolvable and still passes, so nothing
+    forces history to be rewritten to invent files that exist on no machine."""
+    issue = 621
+    repo, _ = _make_repo_with_committed_artifacts(tmp_path, issue)
+    status_dir = tmp_path / "status"
+    dangling_review = "git-history:agent-runtime/artifacts/reviews/review-issue-999999.json"
+    _write_record(
+        status_dir,
+        issue,
+        payload={
+            "issue": issue,
+            "wave": None,
+            "review": {"status": "PASS", "artifactRef": dangling_review, "sha256": "e" * 64},
+            "validation": {
+                "status": "PASS",
+                "artifactRef": (
+                    "git-history:agent-runtime/artifacts/validation/validation-issue-999999.json"
+                ),
+                "sha256": "f" * 64,
+            },
+            "gateVersion": 1,
+        },
+    )
+    # The same record at gateVersion 2 must fail -- otherwise this test proves nothing.
+    v2 = json.loads((status_dir / f"issue-{issue}.json").read_text(encoding="utf-8"))
+    v2["gateVersion"] = 2
+    v2_dir = tmp_path / "status-v2"
+    _write_record(v2_dir, issue, payload=v2)
+    v2_passed, v2_detail = evaluate(issue, status_dir=v2_dir, repo_root=repo)
+    assert v2_passed is False, v2_detail
+
+    passed, detail = evaluate(issue, status_dir=status_dir, repo_root=repo)
+    assert passed is True, detail
+    assert "unresolvable" in detail.lower()
+    assert "review-issue-999999.json" in detail
+
+
+def test_shallow_checkout_reports_indeterminate_instead_of_a_wrong_verdict(
+    tmp_path: Path,
+) -> None:
+    """CI checks this repo out shallow for the retention-guard job (pr.yml uses a
+    bare actions/checkout there). History before the graft is absent, so 'this
+    path is in no commit' is unknowable -- the guard must say so rather than
+    emit an unresolvable verdict it cannot support."""
+    issue = 1445
+    repo, digests = _make_repo_with_committed_artifacts(tmp_path, issue)
+    # A second commit so depth-1 genuinely truncates history.
+    (repo / "later.txt").write_text("later", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "--no-verify", "-m", "later")
+
+    shallow = tmp_path / "shallow"
+    subprocess.run(
+        ["git", "clone", "--depth", "1", repo.as_uri(), str(shallow)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert is_shallow_repository(shallow) is True
+    assert is_shallow_repository(repo) is False
+
+    status_dir = tmp_path / "status"
+    dangling = "git-history:agent-runtime/artifacts/reviews/review-issue-999999.json"
+    _write_record(
+        status_dir,
+        issue,
+        payload=_v2_payload(
+            issue,
+            dangling,
+            "a" * 64,
+            f"git-history:agent-runtime/artifacts/validation/validation-issue-{issue}.json",
+            digests["validation"],
+        ),
+    )
+    # Full clone: the dangling ref is provably absent -> FAIL.
+    full_passed, full_detail = evaluate(issue, status_dir=status_dir, repo_root=repo)
+    assert full_passed is False, full_detail
+
+    # Shallow clone: absence is not provable -> explicit indeterminate, not a FAIL.
+    passed, detail = evaluate(issue, status_dir=status_dir, repo_root=shallow)
+    assert passed is True, detail
+    assert "shallow" in detail.lower()
+
+
+def test_unsupported_ref_scheme_fails_a_v2_record(tmp_path: Path) -> None:
+    """#670's schema still promises 'a CI run artifact URL fragment'. No such
+    store exists, so a ref in that form resolves to nothing and must not be
+    read as evidence."""
+    issue = 1445
+    repo, digests = _make_repo_with_committed_artifacts(tmp_path, issue)
+    status_dir = tmp_path / "status"
+    _write_record(
+        status_dir,
+        issue,
+        payload=_v2_payload(
+            issue,
+            "https://github.com/org/repo/actions/runs/1/artifacts/2",
+            "a" * 64,
+            f"git-history:agent-runtime/artifacts/validation/validation-issue-{issue}.json",
+            digests["validation"],
+        ),
+    )
+    passed, detail = evaluate(issue, status_dir=status_dir, repo_root=repo)
+    assert passed is False, detail
+    assert "scheme" in detail.lower()

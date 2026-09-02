@@ -32,7 +32,13 @@ import json
 from pathlib import Path
 from typing import Any
 
-from common import AGENT_RUNTIME_ROOT, STATUS_DIR, print_check_result
+from artifact_ref_resolution import (
+    INDETERMINATE,
+    MATCH,
+    RefResolution,
+    resolve_record_refs,
+)
+from common import AGENT_RUNTIME_ROOT, REPO_ROOT, STATUS_DIR, print_check_result
 from json_schema_validate import validate_json_schema
 
 STATUS_SCHEMA_PATH = (
@@ -77,14 +83,47 @@ def _load_status_schema() -> dict[str, Any] | None:
         return None
 
 
-def evaluate(issue: int, *, status_dir: Path = STATUS_DIR) -> tuple[bool, str]:
-    """Existence + PASS check for one issue's committed status record.
+def _summarise_refs(resolutions: list[RefResolution]) -> str:
+    return "; ".join(resolution.detail for resolution in resolutions)
+
+
+def _ref_verdict(
+    gate_version: object, resolutions: list[RefResolution], record_path: Path
+) -> tuple[bool, str] | None:
+    """#1445: fail a gateVersion 2 record whose refs do not resolve or whose
+    recorded sha256 does not match what they resolve to.
+
+    Returns ``(False, reason)`` to fail the record, or ``None`` to let it stand.
+    gateVersion 1 records never fail here: their verbose bodies exist on no
+    machine (#670 recorded an integrity chain into a store that was never built),
+    and the Architect lock on this slice forbids repairing history to invent them.
+    They are marked instead -- see the detail strings built in ``evaluate``.
+    """
+    if gate_version != 2:
+        return None
+    broken = [resolution for resolution in resolutions if resolution.is_failure]
+    if not broken:
+        return None
+    return False, (
+        f"{record_path}: gateVersion 2 record has {len(broken)} artifactRef integrity "
+        f"failure(s) — {_summarise_refs(broken)}"
+    )
+
+
+def evaluate(
+    issue: int,
+    *,
+    status_dir: Path = STATUS_DIR,
+    repo_root: Path = REPO_ROOT,
+) -> tuple[bool, str]:
+    """Existence + PASS + artifactRef-integrity check for one issue's status record.
 
     Returns ``(passed, detail)``. Every branch below either returns ``(False, <reason>)``
     or falls through to the single ``(True, ...)`` at the end, reached only after the
     record parsed as a JSON object, validated against the status-record schema, matched
-    the requested issue number, and both ``review.status`` and ``validation.status`` read
-    exactly ``"PASS"``.
+    the requested issue number, both ``review.status`` and ``validation.status`` read
+    ``"PASS"``, and -- from ``gateVersion`` 2 on -- every ``artifactRef`` resolved to
+    content matching its recorded ``sha256``.
     """
     record_path = status_record_path(issue, status_dir)
 
@@ -174,7 +213,26 @@ def evaluate(issue: int, *, status_dir: Path = STATUS_DIR) -> tuple[bool, str]:
             f"{record_path}: validation gate is {validation_status!r}, required exactly PASS"
         )
 
-    return True, f"{record_path}: review {review_status}, validation PASS"
+    gate_version = payload.get("gateVersion")
+    resolutions = resolve_record_refs(payload, repo_root=repo_root)
+    failed = _ref_verdict(gate_version, resolutions, record_path)
+    if failed is not None:
+        return failed
+
+    base = f"{record_path}: review {review_status}, validation PASS"
+    unresolved = [resolution for resolution in resolutions if resolution.status != MATCH]
+    if not unresolved:
+        return True, f"{base}; both artifactRefs resolve and match their recorded sha256"
+    if all(resolution.status == INDETERMINATE for resolution in unresolved):
+        return True, (
+            f"{base}; artifactRef integrity was NOT determined in this checkout — "
+            f"{_summarise_refs(unresolved)}"
+        )
+    return True, (
+        f"{base}; gateVersion {gate_version} artifactRefs marked unresolvable, not "
+        f"repaired (Architect lock, #1445: history is not rewritten to invent files "
+        f"that exist on no machine) — {_summarise_refs(unresolved)}"
+    )
 
 
 def main() -> int:
