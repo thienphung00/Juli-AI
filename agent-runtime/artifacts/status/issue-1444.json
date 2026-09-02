@@ -1,0 +1,431 @@
+{
+  "gateVersion": 2,
+  "issue": 1444,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 5,
+    "modulesTouched": [
+      "agent-runtime/scripts/ci/capture_providers/command_scope.py",
+      "tests/unit/test_command_subsumption_provider.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1444.json",
+    "ownerSignoffPresent": true,
+    "sha256": "aa5f38ffbe8e9ae6a817afba53284463b1b83035e6c92513beada46add55a66a",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "run": {
+    "artifactBytes": {
+      "reviewBytes": 29744,
+      "validationBytes": 20861
+    },
+    "commandScope": {
+      "ciSelectors": {
+        "mypy": {
+          "command": "mypy backend/src/juli_backend --ignore-missing-imports --disable-error-code=valid-type",
+          "deselectedMarkers": [],
+          "paths": [
+            "backend/src/juli_backend"
+          ]
+        },
+        "pytest": {
+          "command": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "deselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "paths": [
+            "tests"
+          ]
+        },
+        "ruff check": {
+          "command": "ruff check backend/src/juli_backend tests scripts",
+          "deselectedMarkers": [],
+          "paths": [
+            "backend/src/juli_backend",
+            "tests",
+            "scripts"
+          ]
+        }
+      },
+      "ciWorkflow": ".github/workflows/pr.yml",
+      "commandsCited": 40,
+      "invocations": [
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "'PYTHONPATH=$PWD/backend/src' python -m pytest tests/unit/test_command_subsumption_provider.py -q",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/unit/test_command_subsumption_provider.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "'PYTHONPATH=$PWD/backend/src' python -m pytest tests/unit/test_command_subsumption_provider.py -q",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/unit/test_command_subsumption_provider.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "'PYTHONPATH=$PWD/backend/src' python -m pytest tests/unit/test_ratchets.py tests/unit/test_status_record_gate.py -q",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/unit/test_ratchets.py tests/unit/test_status_record_gate.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciCommand": "ruff check backend/src/juli_backend tests scripts",
+          "ciDeselectedMarkers": [],
+          "ciSelector": "backend/src/juli_backend tests scripts",
+          "citedCommand": "ruff check backend/src/juli_backend tests scripts",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "backend/src/juli_backend tests scripts",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [],
+          "selectedMarkers": [],
+          "tool": "ruff check",
+          "verdict": "subsumes_CI"
+        },
+        {
+          "ciCommand": "ruff check backend/src/juli_backend tests scripts",
+          "ciDeselectedMarkers": [],
+          "ciSelector": "backend/src/juli_backend tests scripts",
+          "citedCommand": "ruff check agent-runtime/scripts/ci/capture_providers/command_scope.py",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "agent-runtime/scripts/ci/capture_providers/command_scope.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "ruff check",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciDeselectedMarkers": [],
+          "ciSelector": null,
+          "citedCommand": "ruff format --check agent-runtime/scripts/ci/capture_providers/command_scope.py tests/unit/test_command_subsumption_provider.py",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "agent-runtime/scripts/ci/capture_providers/command_scope.py tests/unit/test_command_subsumption_provider.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [],
+          "selectedMarkers": [],
+          "tool": "ruff format",
+          "verdict": "no_ci_reference"
+        },
+        {
+          "ciDeselectedMarkers": [],
+          "ciSelector": null,
+          "citedCommand": "ruff format --check backend/src/juli_backend tests scripts",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "backend/src/juli_backend tests scripts",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [],
+          "selectedMarkers": [],
+          "tool": "ruff format",
+          "verdict": "no_ci_reference"
+        },
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "'PYTHONPATH=$PWD/backend/src' python -m pytest tests/unit/test_command_subsumption_provider.py -q",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/unit/test_command_subsumption_provider.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "'PYTHONPATH=$PWD/backend/src' python -m pytest tests/unit/test_command_subsumption_provider.py -q '(with' '_covers()' neutered to 'return True)'",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/unit/test_command_subsumption_provider.py (with _covers() neutered to return True)",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "'PYTHONPATH=$PWD/backend/src' python -X faulthandler -m pytest tests/ -q -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold'",
+          "citedDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "citedSelector": "tests",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "subsumes_CI"
+        },
+        {
+          "ciCommand": "ruff check backend/src/juli_backend tests scripts",
+          "ciDeselectedMarkers": [],
+          "ciSelector": "backend/src/juli_backend tests scripts",
+          "citedCommand": "ruff check backend/src/juli_backend tests scripts",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "backend/src/juli_backend tests scripts",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [],
+          "selectedMarkers": [],
+          "tool": "ruff check",
+          "verdict": "subsumes_CI"
+        }
+      ],
+      "invocationsScored": 11,
+      "invocationsUnrecognised": 29,
+      "narrowerCount": 6,
+      "narrowerThanCI": [
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "'PYTHONPATH=$PWD/backend/src' python -m pytest tests/unit/test_command_subsumption_provider.py -q",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/unit/test_command_subsumption_provider.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "'PYTHONPATH=$PWD/backend/src' python -m pytest tests/unit/test_command_subsumption_provider.py -q",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/unit/test_command_subsumption_provider.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "'PYTHONPATH=$PWD/backend/src' python -m pytest tests/unit/test_ratchets.py tests/unit/test_status_record_gate.py -q",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/unit/test_ratchets.py tests/unit/test_status_record_gate.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciCommand": "ruff check backend/src/juli_backend tests scripts",
+          "ciDeselectedMarkers": [],
+          "ciSelector": "backend/src/juli_backend tests scripts",
+          "citedCommand": "ruff check agent-runtime/scripts/ci/capture_providers/command_scope.py",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "agent-runtime/scripts/ci/capture_providers/command_scope.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "ruff check",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "'PYTHONPATH=$PWD/backend/src' python -m pytest tests/unit/test_command_subsumption_provider.py -q",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/unit/test_command_subsumption_provider.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "'PYTHONPATH=$PWD/backend/src' python -m pytest tests/unit/test_command_subsumption_provider.py -q '(with' '_covers()' neutered to 'return True)'",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/unit/test_command_subsumption_provider.py (with _covers() neutered to return True)",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        }
+      ],
+      "unit": "invocation",
+      "unitRationale": "76 corpus commands chain 2-5 runs; scoring per command lets a broad first run launder a narrow second one, so each invocation is scored on its own selector."
+    }
+  },
+  "timestamp": "2026-09-02T02:45:00Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1444.json",
+    "sha256": "c0278f6ed53295ccd30e467108ab438216687bd1774f7682d684bf755a26afa3",
+    "status": "PASS"
+  },
+  "wave": "wave-harness-e-w2"
+}

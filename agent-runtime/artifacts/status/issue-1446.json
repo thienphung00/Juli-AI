@@ -1,0 +1,60 @@
+{
+  "gateVersion": 2,
+  "issue": 1446,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 8,
+    "modulesTouched": [
+      "agent-runtime/scripts/ci/transcript_store.py",
+      "agent-runtime/scripts/ci/capture_providers/transcripts.py",
+      "tests/unit/test_transcript_persistence_provider.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1446.json",
+    "ownerSignoffPresent": true,
+    "sha256": "a0575719867d558640e4117a86f358211064fdc4e0c6f7790be0f658b9f68e89",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "run": {
+    "artifactBytes": {
+      "reviewBytes": 44434,
+      "validationBytes": 24539
+    },
+    "transcripts": {
+      "commands": {
+        "executor": 0,
+        "executorCommands": [],
+        "includesExecutorCommands": false,
+        "parent": 0,
+        "parentCommands": []
+      },
+      "coverage": {
+        "complete": false,
+        "executorsExpected": 1,
+        "executorsPersisted": 0,
+        "gaps": [
+          {
+            "agent": "executor-backend",
+            "reason": "no-transcript-persisted"
+          }
+        ]
+      },
+      "executorCount": 0,
+      "executors": [],
+      "parentOnly": true,
+      "schemaVersion": 1,
+      "status": "not-persisted"
+    }
+  },
+  "timestamp": "2026-09-02T02:14:43Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1446.json",
+    "sha256": "320f36bb164b0bc0e60474f2a84e8f4aa33e62c902445e48f77ccae2019126e2",
+    "status": "PASS"
+  },
+  "wave": null
+}
