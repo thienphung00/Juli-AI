@@ -634,7 +634,21 @@ def test_reconciliation_reproduces_from_the_tree_it_describes() -> None:
         "the committed reconciliation no longer reproduces from this tree; "
         "re-run `python -m eval.quality_detectors scan` and update it"
     )
-    assert scan.test_functions == reconciliation["measuredCorpus"]
+    # The corpus total is the reconciliation's *denominator*, not its claim. It
+    # moves whenever any slice anywhere lands a test -- three concurrent peers did
+    # so while this branch was open (4389 -> 4390 -> 4401 -> 4406), and CI tests the
+    # merge result, so an exact pin here turns an unrelated peer's merge into a red
+    # build without ever having caught a wrong number. The committed figure is still
+    # held to a tolerance, so a grossly wrong denominator (a typo, or a reading taken
+    # over the wrong roots) still fails; what is no longer asserted is that no one
+    # else added a test.
+    assert (
+        abs(scan.test_functions - reconciliation["measuredCorpus"]) <= 0.02 * scan.test_functions
+    ), (
+        f"recorded corpus {reconciliation['measuredCorpus']} is more than 2% from the "
+        f"live reading {scan.test_functions}; re-run "
+        "`python -m eval.quality_detectors scan` and update the reconciliation"
+    )
 
     # Fail-closed matters most on the real corpus: an exception swallowed into
     # "0 findings" would report the repository as clean, which is exactly the
@@ -654,8 +668,10 @@ def test_reconciliation_reproduces_from_the_tree_it_describes() -> None:
     # And the reconciliation's actual claim: at the layer the prior measurement
     # was taken, the two readings agree once corpus growth is accounted for.
     prior_layer = reconciliation["layers"][reconciliation["priorFigureLayer"]]
+    # Scaled from the *live* corpus, not the committed one, so the claim is
+    # re-tested against the tree as it actually is on every run.
     scaled = qd.REPORTED_ZERO_ASSERTION_TESTS * (
-        reconciliation["measuredCorpus"] / reconciliation["reportedCorpus"]
+        scan.test_functions / reconciliation["reportedCorpus"]
     )
     assert abs(prior_layer - scaled) < 5, (
         "the prior ~97 figure no longer reconciles at the layer it was taken; "

@@ -1162,7 +1162,7 @@ def build_report(
 #: rather than reconciled away. Regenerate with
 #: ``python -m eval.quality_detectors scan`` and update both numbers together.
 MEASURED_ZERO_ASSERTION_TESTS = 51
-MEASURED_TEST_FUNCTIONS = 4401
+MEASURED_TEST_FUNCTIONS = 4406
 
 #: The measured decomposition that reconciles the two figures. Each layer
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
@@ -1189,12 +1189,12 @@ RECONCILIATION: dict[str, Any] = {
     "note": (
         "Neither figure is wrong; they count different things, and the layer "
         "decomposition above shows exactly where they part. Measured here: 51 "
-        "zero-assertion tests in a corpus of 4,401 test functions over tests/ "
+        "zero-assertion tests in a corpus of 4,406 test functions over tests/ "
         "backend/ scripts/ agent-runtime/ eval/ (441 test modules). The prior "
         "~97-of-4,048 reading corresponds to the `and_no_mock_assert_called` "
         "layer — a detector that credits `pytest.raises` and `mock.assert_called*` "
         "as assertions but not delegation to a same-file asserting helper. That "
-        "layer reads 108 today; scaled to the smaller corpus it is 97 * 4401/4048 "
+        "layer reads 108 today; scaled to the smaller corpus it is 97 * 4406/4048 "
         "= 105, and the two rates agree to within a tenth of a percentage point "
         "(2.40% then, 2.46% now). So the prior measurement reproduces, and the "
         "gap between 108 and 51 is 53 tests whose only assertion is inside a "
