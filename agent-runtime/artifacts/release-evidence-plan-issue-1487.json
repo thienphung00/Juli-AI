@@ -1,0 +1,86 @@
+{
+  "planId": "rep-1487-fleet-enumeration-functions",
+  "affectedPublicSurfaces": [
+    "none until a task calls them — three new SECURITY DEFINER functions and no caller in this change.",
+    "Once #1339 observation 1 cuts DATABASE_URL over, these are the only cross-tenant reads the runtime performs."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "none",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "each-function-returns-identifiers-and-nothing-else",
+        "entryUrl": "pytest against a database at head: information_schema.parameters for each function",
+        "assertions": [
+          "the returned column list is exactly the identifiers and scheduling metadata declared",
+          "no column carries a token, a payload, PII or an analytics value",
+          "asserted from the catalog so a later widening fails CI rather than review"
+        ]
+      },
+      {
+        "name": "execute-is-not-public",
+        "entryUrl": "pytest: has_function_privilege for PUBLIC and for juli_app",
+        "assertions": [
+          "PUBLIC cannot execute any of the three",
+          "juli_app can execute all three",
+          "a SECURITY DEFINER function left at the default PUBLIC grant would hand the RLS bypass to every role in the cluster"
+        ]
+      },
+      {
+        "name": "the-enumeration-crosses-tenants-and-the-caller-still-cannot",
+        "entryUrl": "pytest on #1483's two-tenant fixture, as juli_app",
+        "assertions": [
+          "the function returns rows for BOTH tenants — that is what makes it an enumeration",
+          "the same session reading the underlying table directly still sees only its own tenant",
+          "so the bypass is confined to the function and did not leak into the session"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": ["not-applicable: database functions"],
+    "discoverFromHtml": false,
+    "assetTypes": ["not-applicable"],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Adds three functions and changes no table, column, index or policy. Nothing calls them in this change, so the stable release is unaffected either side of it. One migration rather than three so the task-rewiring changes carry no migration at all and can land in any order — three down_revisions computed against a moving head is the branched-head outage the W7 locks warn about."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "downgrade drops all three functions and their grants go with them. Nothing deployed calls them yet, so a rollback is inert until the task-rewiring slices land.",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "DATABASE_URL=postgresql://postgres@localhost:5432/<freshly-created> JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=$PWD/backend/src:$PWD python -m pytest tests/integration/test_fleet_enumeration_functions.py -q",
+    "psql -At -c \"select proname, pg_get_function_result(oid) from pg_proc where proname like 'enumerate_%' order by 1\"",
+    "psql -At -c \"select proname, has_function_privilege('public', oid, 'EXECUTE') from pg_proc where proname like 'enumerate_%'\""
+  ],
+  "doNotInfer": [
+    "Do not leave EXECUTE at its default. Postgres grants EXECUTE to PUBLIC on a new function; on a SECURITY DEFINER function that reads across tenants that hands the bypass to every role in the cluster, including future read-only and per-developer roles. REVOKE FROM PUBLIC then GRANT to juli_app is the single most important part of this migration.",
+    "Do not return a token, a payload, an analytics value or any PII. list_expiring_within hydrates DECRYPTED tokens; the enumeration deliberately does not, and the loop re-fetches per shop under real tenant context.",
+    "Do not omit the pinned search_path. A definer function whose search_path a caller can influence is capturable by a schema earlier on that path.",
+    "Do not name an OUT parameter the same as a column it selects. Inside a function returning shop_id, an unqualified shop_id resolves to the OUT parameter and silently compares a column to itself; the OUT parameters are prefixed out_ for that reason.",
+    "Do not move the reaper's staleness threshold into SQL. It lives in a TerminationPolicy the existing tests inject, and a second copy in a migration is a value that drifts.",
+    "Do not treat 'the function returns rows' as sufficient. It must return rows for BOTH tenants while the calling session still sees only its own — otherwise the bypass has leaked out of the function."
+  ]
+}
