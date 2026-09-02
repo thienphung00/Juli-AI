@@ -554,7 +554,6 @@ def test_system_scope_call_sites_enumerated():
     # name reappearing here is a regression, and a new name is the growth
     # this test was written to catch.
     expected_call_sites = {
-        "workers/tasks/credential_refresh_beat.py",
         "workers/tasks/mock_analytics_reconcile.py",
     }
 

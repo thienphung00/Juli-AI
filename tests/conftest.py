@@ -228,6 +228,8 @@ _SHARED_STATE_MODULES = frozenset(
         # Reason 2 again: uses the two-tenant seeding fixture to prove reaper works
         # as juli_app on both tenants (#1489).
         "test_reaper_two_tenant.py",
+        # Reason 2 again: seeds two tenants for #1514 (credential_refresh_beat per-tenant context).
+        "test_credential_refresh_beat_two_tenant.py",
     }
 )
 
