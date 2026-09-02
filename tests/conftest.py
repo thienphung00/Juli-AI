@@ -223,6 +223,9 @@ _SHARED_STATE_MODULES = frozenset(
         "test_two_tenant_fixture.py",
         # Reason 2 again: uses the same seeding fixture (#1487).
         "test_fleet_enumeration_functions.py",
+        # Reason 2 again: uses the two-tenant seeding fixture to prove reaper works
+        # as juli_app on both tenants (#1489).
+        "test_reaper_two_tenant.py",
     }
 )
 

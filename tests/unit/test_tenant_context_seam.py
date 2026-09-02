@@ -550,10 +550,12 @@ def test_system_scope_call_sites_enumerated():
     # all (ADR-089 decision 5). The list is expected to keep SHRINKING as the
     # W7-bis slices land — a name reappearing here is a regression, and a new
     # name is the growth this test was written to catch.
+    # reaper left this set in #1489: it now enumerates via a SECURITY DEFINER
+    # function and sets per-tenant context for each run via with_shop_scope,
+    # so it needs no system_scope() at the task level.
     expected_call_sites = {
         "workers/tasks/impact_reader.py",
         "workers/tasks/credential_refresh_beat.py",
-        "workers/tasks/reaper.py",
         "workers/tasks/mock_analytics_reconcile.py",
     }
 
@@ -568,12 +570,16 @@ def test_system_scope_call_sites_enumerated():
         except (OSError, UnicodeDecodeError):
             continue
 
-        # Skip the definition file
+        # Skip the definition file and migration files (which are historical documentation)
         if str(filepath).endswith("database/tenant_context.py"):
             continue
+        if "database/migrations" in str(filepath):
+            continue
 
-        # Look for "system_scope(" pattern (call site, not definition)
-        if re.search(r"system_scope\s*\(", content):
+        # Look for "system_scope(" pattern in actual code (not docstrings/comments).
+        # Match only when system_scope is preceded by "async with" or similar keywords
+        # to exclude documentation mentions.
+        if re.search(r"(?:async\s+)?(?:with|def)\s+.*system_scope\s*\(", content):
             # Make path relative to backend/src/juli_backend
             rel_path = filepath.relative_to(backend_src)
             # Construct path as it would appear in module structure

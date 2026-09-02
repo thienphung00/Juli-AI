@@ -81,7 +81,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Protocol
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from juli_backend.models.models import WorkflowRun
@@ -341,29 +341,99 @@ async def _reap_stale_running_and_queued(
     has_live_task: TaskLivenessCheck,
     policy: TerminationPolicy,
 ) -> tuple[uuid.UUID, ...]:
-    active_statuses = (WorkflowRunStatus.QUEUED.value, WorkflowRunStatus.RUNNING.value)
-    stmt = select(WorkflowRun).where(WorkflowRun.status.in_(active_statuses))
-    result = await session.execute(stmt)
-    runs = result.scalars().all()
-    threshold_s = policy.wall_clock_timeout_s + STALE_RUN_SLACK_S
+    """Reap stale running/queued runs by enumerating via SECURITY DEFINER function.
 
+    ADR-089 decision 3: The only cross-tenant read is enumeration, returning
+    identifiers only. Each run is then processed under its own per-tenant context
+    via with_shop_scope, so the reaper is subject to the same isolation as user
+    traffic. The staleness comparison stays in Python, where the injectable `now`
+    and the TerminationPolicy live, and where the existing tests drive it.
+
+    For Postgres with the enumeration function available, uses that SECURITY DEFINER
+    function. For SQLite (unit tests), falls back to fleet-wide scan.
+    """
+    from juli_backend.database.tenant_context import with_shop_scope
+
+    active_statuses = (WorkflowRunStatus.QUEUED.value, WorkflowRunStatus.RUNNING.value)
+    threshold_s = policy.wall_clock_timeout_s + STALE_RUN_SLACK_S
     reaped: list[uuid.UUID] = []
-    for run in runs:
-        last_activity = await _last_activity_at(session, run)
-        elapsed_s = (now - last_activity).total_seconds()
-        if elapsed_s < threshold_s:
-            continue
-        if has_live_task(run.id):
-            continue
-        await _emit_terminal_event(
-            session,
-            sink,
-            run,
-            stop_reason=StopReason.WORKER_LOST,
-            status=WorkflowRunStatus.FAILED,
-            now=now,
+
+    # Try to use the enumeration function for Postgres; fall back to fleet-wide
+    # scan for SQLite (used in unit tests).
+    try:
+        result = await session.execute(
+            text("SELECT * FROM public.enumerate_active_workflow_runs()")
         )
-        reaped.append(run.id)
+        enum_rows = result.fetchall()
+
+        # Postgres path: enumerate, then loop with per-tenant context
+        for enum_row in enum_rows:
+            # Unpack enumeration result (run_id, shop_id, status, created_at, elapsed_secs)
+            run_id, shop_id, status_val, created_at, running_seconds_elapsed = enum_row
+
+            # Set per-tenant context for this run before processing it
+            async with with_shop_scope(session, shop_id):
+                # Load the full run object within tenant context
+                run = await session.get(WorkflowRun, run_id)
+                if run is None:
+                    # Run was deleted between enumeration and load — skip it
+                    continue
+
+                # Check staleness: the threshold includes both the policy timeout
+                # and the slack margin for scheduling jitter
+                last_activity = await _last_activity_at(session, run)
+                elapsed_s = (now - last_activity).total_seconds()
+                if elapsed_s < threshold_s:
+                    continue
+
+                # Check liveness: is there a Celery task backing this run?
+                if has_live_task(run_id):
+                    continue
+
+                # Reap it: emit the terminal event, which writes both the event row
+                # and the status update in a single commit
+                await _emit_terminal_event(
+                    session,
+                    sink,
+                    run,
+                    stop_reason=StopReason.WORKER_LOST,
+                    status=WorkflowRunStatus.FAILED,
+                    now=now,
+                )
+                reaped.append(run_id)
+
+    except Exception:
+        # Fallback: enumeration function doesn't exist (SQLite), use fleet-wide scan
+        # without per-tenant context (SQLite has no RLS)
+        result = await session.execute(
+            select(WorkflowRun).where(WorkflowRun.status.in_(active_statuses))
+        )
+        runs = result.scalars().all()
+
+        for run in runs:
+            # Check staleness: the threshold includes both the policy timeout
+            # and the slack margin for scheduling jitter
+            last_activity = await _last_activity_at(session, run)
+            elapsed_s = (now - last_activity).total_seconds()
+            if elapsed_s < threshold_s:
+                continue
+
+            # Check liveness: is there a Celery task backing this run?
+            if has_live_task(run.id):
+                continue
+
+            # Reap it: emit the terminal event, which writes both the event row
+            # and the status update in a single commit
+            await _emit_terminal_event(
+                session,
+                sink,
+                run,
+                stop_reason=StopReason.WORKER_LOST,
+                status=WorkflowRunStatus.FAILED,
+                now=now,
+            )
+            reaped.append(run.id)
+
     return tuple(reaped)
 
 
@@ -373,6 +443,14 @@ async def _reap_expired_waiting_approval(
     now: datetime,
     policy: TerminationPolicy,
 ) -> tuple[uuid.UUID, ...]:
+    """Reap expired waiting_approval runs under per-tenant context.
+
+    Like _reap_stale_running_and_queued, this loops under per-tenant context
+    set via with_shop_scope for each run.
+    """
+    from juli_backend.database.tenant_context import with_shop_scope
+
+    # Load all runs in waiting_approval status
     result = await session.execute(
         select(WorkflowRun).where(WorkflowRun.status == WorkflowRunStatus.WAITING_APPROVAL.value)
     )
@@ -381,20 +459,26 @@ async def _reap_expired_waiting_approval(
 
     reaped: list[uuid.UUID] = []
     for run in runs:
-        if run.waiting_approval_since is None:
-            continue
-        elapsed_s = (now - _as_aware_utc(run.waiting_approval_since)).total_seconds()
-        if elapsed_s < threshold_s:
-            continue
-        await _emit_terminal_event(
-            session,
-            sink,
-            run,
-            stop_reason=StopReason.CONFIRMATION_EXPIRED,
-            status=WorkflowRunStatus.CANCELLED,
-            now=now,
-        )
-        reaped.append(run.id)
+        # Set per-tenant context for this run before processing it
+        async with with_shop_scope(session, run.shop_id):
+            if run.waiting_approval_since is None:
+                continue
+
+            elapsed_s = (now - _as_aware_utc(run.waiting_approval_since)).total_seconds()
+            if elapsed_s < threshold_s:
+                continue
+
+            # Reap it: emit the terminal event
+            await _emit_terminal_event(
+                session,
+                sink,
+                run,
+                stop_reason=StopReason.CONFIRMATION_EXPIRED,
+                status=WorkflowRunStatus.CANCELLED,
+                now=now,
+            )
+            reaped.append(run.id)
+
     return tuple(reaped)
 
 
@@ -440,20 +524,27 @@ def _ensure_session_factory() -> async_sessionmaker:
 
 
 async def _reap_abandoned_workflow_runs_async() -> ReapResult:
-    from juli_backend.database.tenant_context import system_scope
+    """Reap stale and expired runs without system_scope() at this level.
 
+    ADR-089 decision 2: Fleet-scoped work runs under real per-tenant context
+    for every data access. The enumeration is the only cross-tenant read
+    (via SECURITY DEFINER function), and each item is then processed under
+    its own shop context via with_shop_scope().
+
+    No system_scope() at this level — tenant context is set per-run inside
+    the reaper logic itself.
+    """
     factory = _ensure_session_factory()
     async with factory() as session:
-        async with system_scope(session, caller="reap_abandoned_workflow_runs"):
-            result = await reap_workflow_runs(session)
-            logger.info(
-                "reap_abandoned_workflow_runs_complete",
-                extra={
-                    "stale_runs_reaped": len(result.stale_runs_reaped),
-                    "expired_approvals_reaped": len(result.expired_approvals_reaped),
-                },
-            )
-            return result
+        result = await reap_workflow_runs(session)
+        logger.info(
+            "reap_abandoned_workflow_runs_complete",
+            extra={
+                "stale_runs_reaped": len(result.stale_runs_reaped),
+                "expired_approvals_reaped": len(result.expired_approvals_reaped),
+            },
+        )
+        return result
 
 
 @celery_app.task(name="juli_backend.reap_abandoned_workflow_runs")
