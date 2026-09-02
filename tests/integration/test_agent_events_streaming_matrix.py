@@ -1,71 +1,34 @@
-"""AGT-W3B integration matrix -- ADR-074 decision 6, issue #1131.
+"""Real-Postgres, real-HTTP proof of the event-streaming contract (ADR-074 d.6, #1131).
 
-Every prior slice in this wave tested one side of the event-streaming
-contract against a fake: #1125 (envelope/table) against nothing external,
-#1127 (`PersistingEventSink`) against a fake Redis publisher, #1128 (the
-SSE/cancel/confirmations routes) against sqlite and a fake pub/sub. This
-file is the first place two real implementations meet: the real
-`PersistingEventSink`, real Postgres (not sqlite), the real FastAPI route
-wrapped in a real ASGI HTTP client, and a **scripted fake runner** standing
-in for #1119's not-yet-wired `WorkflowRunner` (ADR-074 d.6 explicitly calls
-for a scripted driver here, not the real runner -- the live wiring does not
-exist on this branch and this slice does not build it).
+Every prior slice tested one side against a fake: #1125 (envelope/table) against
+nothing external, #1127 (``PersistingEventSink``) against a fake publisher, #1128
+(the SSE/cancel/confirmations routes) against sqlite and a fake pub/sub. This is
+the first place two real implementations meet: the real ``PersistingEventSink``,
+real Postgres, the real FastAPI route behind a real ASGI client, and a
+**scripted fake runner** standing in for #1119's not-yet-wired ``WorkflowRunner``
+(ADR-074 d.6 asks for a scripted driver here, not the real runner).
 
-Skips the entire module when `DATABASE_URL` is not a reachable Postgres
-instance -- a skipped integration test proves nothing, and this module says
-so loudly in its skip reason rather than passing vacuously.
-
-Five ADR-074 d.6 matrix cases, one test (or tight group) apiece:
-
-- ``test_exact_replay_after_k_yields_k_plus_1_through_n_ordered_no_gaps_no_duplicates``
-- ``test_handoff_overlap_event_published_in_the_replay_subscribe_gap_arrives_exactly_once``
-- ``test_redis_subscribe_failure_degrades_to_postgres_polling_and_still_delivers``
-  paired with
-  ``test_redis_loss_mid_stream_reconnect_via_last_event_id_replays_gaplessly``
-- ``test_lifecycle_terminal_event_closes_the_live_stream_via_real_http``,
-  ``test_lifecycle_late_joiner_on_already_terminal_run_gets_full_replay_and_never_subscribes``,
-  ``test_lifecycle_cancel_at_checkpoint_is_visible_on_the_stream``
-- ``test_crash_resume_twice_against_one_blob_no_dupe_events_one_completion``
-
-Plus the explicit `Last-Event-ID` cases #1131's issue thread calls out
-(raised by #1132's intent-review, verified against #1128's route, but never
-proven against a real client/real Postgres until now):
-
-- ``test_redis_loss_mid_stream_reconnect_via_last_event_id_replays_gaplessly``
-  -- reconnect driven by the client's own cursor, end to end.
-- ``test_last_event_id_header_takes_priority_over_after_query_param_via_real_stack``
-- ``test_last_event_id_header_absent_falls_back_to_after_then_to_zero``
-- ``test_last_event_id_header_non_numeric_should_degrade_not_500`` -- was
-  `xfail(strict=True)` for a production defect (`int(last_event_id)`
-  unguarded in `api/routes/agent_runs.py`, see #1142); fixed and asserted
-  green now that the route degrades instead of 500ing.
-- ``test_last_event_id_header_huge_value_should_degrade_not_overflow``,
-  ``test_last_event_id_header_negative_value_should_clamp_to_zero``,
-  ``test_after_query_param_huge_value_should_degrade_not_overflow`` --
-  #1142 rework (Review CRITICAL/WARNING): `int()` has arbitrary precision,
-  so a value outside Postgres `int4`'s domain (the real type of
-  `sequence_number`) sailed past the non-numeric guard and overflowed at
-  asyncpg bind time -- a silently truncated HTTP 200, not a 500, since
-  `StreamingResponse` commits the status before the generator runs.
+Skips the whole module without a reachable Postgres ``DATABASE_URL`` -- a skipped
+integration test proves nothing, and `tests.support.postgres.requires_postgres`
+says so in its skip reason. Lifecycle and crash-resume cases live in the sibling
+module `test_agent_events_lifecycle.py`, which imports this module's Postgres
+fixtures and doubles rather than redefining them.
 """
 
 from __future__ import annotations
 
 import asyncio
-import os
 import uuid
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
 
 import pytest
 import pytest_asyncio
 import uvicorn
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from juli_backend.api.app import create_app
@@ -80,100 +43,36 @@ from juli_backend.core.config.runtime import async_database_url, sync_database_u
 from juli_backend.core.security import get_current_user
 from juli_backend.database import get_session
 from juli_backend.database.database import Base
-from juli_backend.models.models import Product, Shop, User
+from juli_backend.models.models import Shop, User
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
-from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 from juli_backend.services.agent.events.envelope import WorkflowRunEventAdapter
 from juli_backend.services.agent.events.persisting_sink import PersistingEventSink
 from juli_backend.services.agent_runs import events as stream_events
+from tests.support.builders import make_tenant, make_workflow_run
+from tests.support.event_stream import QueueSubscription
+from tests.support.postgres import database_url, requires_postgres
 
-# ---------------------------------------------------------------------------
-# Postgres reachability -- ADR-074 d.6 requires real Postgres, not sqlite.
-# Mirrors the `requires_postgres` pattern `tests/integration/test_migrations.py`
-# and `test_restore_drill.py` already use.
-# ---------------------------------------------------------------------------
-
-
-def _database_url() -> str:
-    return os.environ.get("DATABASE_URL", "").strip()
-
-
-def _postgres_reachable() -> bool:
-    url = _database_url()
-    if not url.startswith("postgresql"):
-        return False
-    try:
-        engine = create_engine(
-            sync_database_url(url),
-            pool_pre_ping=True,
-            connect_args={"connect_timeout": 3},
-        )
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        engine.dispose()
-        return True
-    except Exception:
-        return False
-
-
-requires_postgres = pytest.mark.skipif(
-    not _postgres_reachable(),
-    reason=(
-        "AGT-W3B integration matrix (#1131) requires a reachable Postgres "
-        "DATABASE_URL -- ADR-074 d.6 is explicit that this suite runs against "
-        "real Postgres, not sqlite/mocked. A skipped run here proves nothing; "
-        "see the executor's report for pass/skip counts with and without "
-        "DATABASE_URL set."
-    ),
-)
-
-pytestmark = [pytest.mark.asyncio, requires_postgres]
-
+pytestmark = requires_postgres
 
 # ---------------------------------------------------------------------------
 # A throwaway Postgres database, created from `DATABASE_URL`'s own connection
-# parameters (same host/port/credentials) but its own name, and dropped at
-# session teardown -- never `DATABASE_URL`'s own database directly.
-#
-# The first draft of this module ran `Base.metadata.create_all` straight
-# against `DATABASE_URL`. That collides with `tests/integration/test_migrations.py`
-# / `test_schema_parity.py`, which run a full Alembic `downgrade("base")` /
-# `upgrade("head")` round trip against that same database
-# (`postgres_at_head`): pytest collects `tests/integration/*.py`
-# alphabetically, so this module's session-scoped setup ran first and
-# pre-created tables Alembic then failed to create a second time
-# (`DuplicateTable`). Reproduced on a fresh database with
-# `pytest test_agent_events_streaming_matrix.py test_migrations.py
-# test_schema_parity.py` before this fix, and confirmed clean after it (see
-# the executor's report). `test_schema_parity.py`'s `schema_parity` marker is
-# NOT in `pr.yml`'s issue-tier deselect list, so this would have broken every
-# subsequent issue-tier PR's CI run.
-#
-# Fixed the way #1121's `tests/unit/test_agent_runner_ledger.py` (module
-# docstring, `_disposable_postgres_url` fixture) already solved the identical
-# collision: spin up one throwaway database per test session, run schema
-# setup against THAT, and drop it afterward via an admin connection to the
-# `postgres` maintenance database. `Base.metadata.create_all`/DDL setup is
-# still a plain SYNC engine (psycopg2), deliberately not async --
-# pytest-asyncio's default fixture-loop scope is per-function here (no
-# `asyncio_default_fixture_loop_scope` override in pytest.ini), so a
-# session-scoped asyncpg connection would be reused across event loops --
-# exactly the "Future attached to a different loop" failure mode
-# `tests/unit/conftest.py` already documents for Redis. Every async fixture
-# below is function-scoped and connects to the disposable database only.
+# parameters (own name, same server/credentials) and dropped at session
+# teardown -- never DATABASE_URL's own database. `tests/integration/test_migrations.py`
+# and `test_schema_parity.py` run a full Alembic downgrade/upgrade round trip
+# against that database; a session-scoped `Base.metadata.create_all` run straight
+# against it collides (`DuplicateTable`). Mirrors #1121's
+# `tests/unit/test_agent_runner_ledger.py` fix: one disposable database per test
+# session, dropped via an admin connection to the `postgres` maintenance database.
+# DDL setup is a plain sync engine (psycopg2) -- pytest-asyncio's fixture-loop
+# scope is per-function here, so a session-scoped asyncpg connection would be
+# reused across event loops (the same "Future attached to a different loop"
+# failure `tests/unit/conftest.py` documents for Redis).
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="session")
 def _disposable_postgres_url():
-    """Create a throwaway Postgres database from `DATABASE_URL`'s connection
-    parameters (own name, same server/credentials) and drop it at session
-    teardown -- see the module-level comment above for why this module never
-    runs DDL against `DATABASE_URL`'s own database. Tests never reach this
-    fixture's body when Postgres is unreachable: `requires_postgres` skips
-    the whole module before any fixture in this chain executes.
-    """
-    base_url = _database_url()
+    base_url = database_url()
     admin_url = make_url(sync_database_url(base_url)).set(database="postgres")
     db_name = f"juli_agt_w3b_1131_{uuid.uuid4().hex[:12]}"
 
@@ -184,11 +83,8 @@ def _disposable_postgres_url():
 
     disposable_url = make_url(sync_database_url(base_url)).set(database=db_name)
     try:
-        # `str(URL)` masks the password as `***` (SQLAlchemy renders it that
-        # way deliberately so URLs are log-safe) and this value is handed
-        # straight to the engine factories below, so the connection would
-        # authenticate with a literal `***` -- the same defect #1121's
-        # fixture carried.
+        # `str(URL)` masks the password as `***` -- render it explicitly or the
+        # connection authenticates with a literal `***` (#1121 carried this too).
         yield disposable_url.render_as_string(hide_password=False)
     finally:
         admin_engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
@@ -207,10 +103,9 @@ def _disposable_postgres_url():
 @pytest.fixture(scope="session")
 def _postgres_schema_ready(_disposable_postgres_url: str) -> None:
     engine = create_engine(_disposable_postgres_url, pool_pre_ping=True)
-    # `models/models.py` schema-qualifies some tables (bronze/silver/gold/
-    # ops) that only exist in a fully Alembic-migrated database -- a fresh
-    # disposable `CREATE DATABASE` never has them, so create them directly
-    # (mirrors #1121's `_build_postgres_engine` exactly).
+    # `models/models.py` schema-qualifies some tables that only exist in a
+    # fully Alembic-migrated database -- a fresh `CREATE DATABASE` never has
+    # them (mirrors #1121's `_build_postgres_engine`).
     with engine.begin() as conn:
         for schema_name in ("bronze", "silver", "gold", "ops"):
             conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {schema_name}"))
@@ -220,8 +115,7 @@ def _postgres_schema_ready(_disposable_postgres_url: str) -> None:
 
 @pytest_asyncio.fixture
 async def pg_engine(_disposable_postgres_url: str, _postgres_schema_ready: None):
-    url = async_database_url(_disposable_postgres_url)
-    engine = create_async_engine(url)
+    engine = create_async_engine(async_database_url(_disposable_postgres_url))
     yield engine
     await engine.dispose()
 
@@ -232,54 +126,29 @@ async def pg_session_factory(pg_engine) -> async_sessionmaker[AsyncSession]:
 
 
 # ---------------------------------------------------------------------------
-# Seeding helpers -- every row uses a fresh uuid4 so tests never collide
-# despite sharing one disposable database for the whole session (created and
-# dropped by `_disposable_postgres_url` above).
+# Seeding -- tests/support/builders.py, wrapped only to open+commit against
+# this module's disposable session factory (builders themselves only flush;
+# the caller owns the transaction, same contract as everywhere else).
 # ---------------------------------------------------------------------------
 
 
-async def _seed_shop(session_factory: async_sessionmaker[AsyncSession]) -> tuple[User, Shop]:
+async def seed_shop(session_factory: async_sessionmaker[AsyncSession]) -> tuple[User, Shop]:
     async with session_factory() as session:
-        user = User(phone=f"+1555{uuid.uuid4().int % 10_000_000:07d}")
-        session.add(user)
-        await session.flush()
-        shop = Shop(user_id=user.id, shop_name=f"AGT-W3B-1131-{uuid.uuid4()}")
-        session.add(shop)
-        await session.flush()
+        user, shop = await make_tenant(session)
         await session.commit()
         return user, shop
 
 
-async def _seed_run(
+async def seed_run(
     session_factory: async_sessionmaker[AsyncSession],
     shop: Shop,
     *,
     status: str = "running",
-    state: dict[str, Any] | None = None,
 ) -> WorkflowRunRow:
+    """A run whose ``state["next_sequence"]`` starts at 1 -- the only counter
+    `sequence_number` is ever minted from (ADR-074 decision 1)."""
     async with session_factory() as session:
-        product = Product(
-            shop_id=shop.id,
-            tiktok_product_id=f"agt-w3b-1131-{uuid.uuid4()}",
-            name="Integration Matrix Widget",
-            status="active",
-            # asyncpg rejects a tz-aware datetime on `update_time` -- that
-            # column has no explicit `DateTime(timezone=True)`, so it is a
-            # naive Postgres `timestamp` column; seed naive UTC (#1131 note).
-            update_time=datetime.now(UTC).replace(tzinfo=None),
-        )
-        session.add(product)
-        await session.flush()
-        run = WorkflowRunRow(
-            shop_id=shop.id,
-            product_id=product.id,
-            state=state if state is not None else {"next_sequence": 1},
-            status=status,
-            prompt_version="optimize_product.v1",
-            prompt_sha256="b" * 64,
-        )
-        session.add(run)
-        await session.flush()
+        run = await make_workflow_run(session, shop, status=status, state={"next_sequence": 1})
         await session.commit()
         await session.refresh(run)
         return run
@@ -287,24 +156,26 @@ async def _seed_run(
 
 # ---------------------------------------------------------------------------
 # The scripted fake runner (ADR-074 d.6) -- NOT #1119's real `WorkflowRunner`,
-# which does not exist on this branch and is out of scope for this slice.
-# Reproduces exactly the invariant the issue thread's crash-resume case
-# exists to prove: `sequence_number` is minted ONLY from
-# `workflow_runs.state["next_sequence"]` (ADR-074 decision 1; #1125 made the
-# envelope field non-defaultable so nothing downstream can mint one instead),
-# and that counter's persistence is what a pause/resume round trip (#1118)
-# and a crash-replay both hinge on.
+# which does not exist on this branch. Mints `sequence_number` from an
+# in-memory counter seeded from `starting_sequence` (standing in for reading
+# `workflow_runs.state["next_sequence"]`), builds a real envelope via
+# `WorkflowRunEventAdapter` for each step, and calls the real `EventSink.emit`.
+# `persist_state=False` models a crash: the write that would have advanced
+# `workflow_runs.state` never happens, so a second runner built with the same
+# `starting_sequence` reproduces a crash-redelivered Celery task
+# (`acks_late=True`, ADR-074 d.4) -- relying on the sink's unique-index no-op,
+# never on any state this class would have to fabricate.
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
 class ScriptedEvent:
     event_type: str
-    payload: dict[str, Any] = field(default_factory=dict)
+    payload: dict = field(default_factory=dict)
 
 
-def _standard_script(product_ref: str) -> list[ScriptedEvent]:
-    """A representative 3-event happy path: started -> status -> completed."""
+def standard_script(product_ref: str) -> list[ScriptedEvent]:
+    """A representative happy path: started -> status -> completed."""
     return [
         ScriptedEvent(
             "workflow.started",
@@ -320,23 +191,6 @@ def _standard_script(product_ref: str) -> list[ScriptedEvent]:
 
 
 class ScriptedFakeRunner:
-    """Mints `sequence_number` from an in-memory counter seeded from
-    `starting_sequence` (standing in for reading `workflow_runs.state[
-    "next_sequence"]`), builds a real `WorkflowRunEvent` union member via
-    `WorkflowRunEventAdapter` for each scripted step (so every event this
-    class emits satisfies the same Pydantic contract a real runner's emit
-    would), and calls the real `EventSink.emit` -- never lets the sink mint
-    a sequence number itself.
-
-    `persist_state=False` is how a crash is modeled: the write that would
-    have advanced `workflow_runs.state` never happens, so a second
-    `ScriptedFakeRunner` constructed with the same `starting_sequence`
-    reproduces exactly what a crash-redelivered Celery task (`acks_late=True`,
-    ADR-074 d.4) would do -- replay the identical script against the same
-    starting sequence, relying on the sink's unique-index no-op (ADR-074
-    decisions 1/3) rather than any state this class would have to fabricate.
-    """
-
     def __init__(
         self,
         *,
@@ -344,13 +198,11 @@ class ScriptedFakeRunner:
         sink: PersistingEventSink,
         run_id: uuid.UUID,
         starting_sequence: int,
-        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._session_factory = session_factory
         self._sink = sink
         self._run_id = run_id
         self._next_sequence = starting_sequence
-        self._clock = clock
 
     async def run(
         self,
@@ -367,7 +219,7 @@ class ScriptedFakeRunner:
                     "workflow_run_id": self._run_id,
                     "sequence_number": seq,
                     "event_type": scripted.event_type,
-                    "timestamp": self._clock(),
+                    "timestamp": datetime.now(UTC),
                     "payload": scripted.payload,
                     "v": 1,
                 }
@@ -385,36 +237,20 @@ class ScriptedFakeRunner:
 
 
 # ---------------------------------------------------------------------------
-# A fake Redis: one in-memory bus playing BOTH roles the real implementations
-# meet at -- `EventPublisher` (`persisting_sink.py`'s narrow `publish` seam)
-# and `EventSubscriber` (`agent_runs.py`'s narrow `subscribe` seam). A single
-# instance is handed to `PersistingEventSink` as `publisher` and to the route
-# as `subscriber`, exactly like production where both sides are the same
-# Redis deployment. Publishing to a channel with no live subscriber drops
-# the message -- real Redis pub/sub semantics, the same realism #1128's unit-
-# level `FakePubSub` established -- which is the property "handoff overlap"
-# exists to prove does not cost a client an event.
+# A fake Redis playing both roles the real implementations meet at --
+# `EventPublisher` (`persisting_sink.py`) and `EventSubscriber`
+# (`agent_runs.py`). Publishing to a channel with no live subscriber drops the
+# message, real Redis pub/sub semantics and the property the handoff-overlap
+# test depends on. `QueueSubscription` is `tests/support/event_stream.py`'s;
+# the outage simulation and the subscribed-signal below are specific to
+# proving a real Redis publisher/subscriber pair, so they stay local.
 # ---------------------------------------------------------------------------
-
-
-class QueueSubscription:
-    def __init__(self) -> None:
-        self.queue: asyncio.Queue[str] = asyncio.Queue()
-        self.closed = False
-
-    async def get_message(self, timeout: float) -> str | None:
-        try:
-            return await asyncio.wait_for(self.queue.get(), timeout=timeout)
-        except TimeoutError:
-            return None
-
-    async def close(self) -> None:
-        self.closed = True
 
 
 class FakeRedisBus:
     def __init__(self) -> None:
         self._channels: dict[str, list[QueueSubscription]] = {}
+        self._subscribed: dict[str, asyncio.Event] = {}
         self._down = False
         self.publish_log: list[tuple[str, str]] = []
         self.subscribe_calls = 0
@@ -434,47 +270,47 @@ class FakeRedisBus:
             raise ConnectionError("simulated Redis outage")
         sub = QueueSubscription()
         self._channels.setdefault(channel, []).append(sub)
+        self._subscribed.setdefault(channel, asyncio.Event()).set()
         return sub
 
+    async def wait_until_subscribed(self, channel: str, *, timeout: float = 2.0) -> None:
+        """Block until something has subscribed to ``channel`` -- the
+        deterministic trigger a background writer waits on instead of
+        sleeping a fixed duration and hoping the SSE route has connected."""
+        event = self._subscribed.setdefault(channel, asyncio.Event())
+        await asyncio.wait_for(event.wait(), timeout=timeout)
+
     def simulate_outage(self) -> None:
-        """From this point on: publish drops silently (no reachable
-        subscriber), and any NEW subscribe attempt fails -- a live SSE
-        connection made before the outage just stops receiving anything on
-        its already-open `QueueSubscription` (indistinguishable, from the
-        caller's side, from a real dead Redis TCP connection going quiet)."""
+        """From here: publish drops silently, any NEW subscribe fails --
+        indistinguishable, from an already-open SSE stream's side, from a
+        real dead Redis connection going quiet."""
         self._down = True
 
 
-class FailingSubscriber:
+class SignalingFailingSubscriber:
+    """Always fails to subscribe, but signals the attempt -- the deterministic
+    trigger a background writer waits on instead of sleeping a fixed duration
+    before assuming the route has already tried Redis and fallen back to
+    polling."""
+
+    def __init__(self) -> None:
+        self.attempted = asyncio.Event()
+
     async def subscribe(self, channel: str) -> QueueSubscription:
+        self.attempted.set()
         raise ConnectionError("redis subscribe failed")
 
 
-class CountingNullSubscriber:
-    """Never delivers anything; records how many times `subscribe()` was
-    called so a test can assert "never subscribed" without trusting a raise
-    from inside `subscribe()` -- `event_stream`'s own subscribe-failure
-    handling wraps that call in a blanket `except Exception`, so a raise
-    would be silently swallowed and indistinguishable from a real failure."""
-
-    def __init__(self) -> None:
-        self.subscribe_calls = 0
-
-    async def subscribe(self, channel: str) -> QueueSubscription:
-        self.subscribe_calls += 1
-        return QueueSubscription()
-
-
 # ---------------------------------------------------------------------------
-# App/client wiring -- one real ASGI app per test, every seam FastAPI already
-# exposes for override (`app.dependency_overrides`) wired to real Postgres.
+# App/client wiring -- every seam FastAPI already exposes for override,
+# wired to real Postgres.
 # ---------------------------------------------------------------------------
 
 
-def _build_app(
+def build_app(
     session_factory: async_sessionmaker[AsyncSession],
     *,
-    subscriber: Any,
+    subscriber,
     heartbeat_interval_s: float = 0.2,
     poll_interval_s: float = 0.03,
 ):
@@ -495,13 +331,13 @@ def _build_app(
     return app
 
 
-def _set_auth_overrides(app, user: User, shop: Shop) -> None:
+def set_auth_overrides(app, user: User, shop: Shop) -> None:
     app.dependency_overrides[get_current_user] = lambda: user
     app.dependency_overrides[get_active_shop] = lambda: shop
 
 
-def _authenticated_client(app, user: User, shop: Shop) -> AsyncClient:
-    _set_auth_overrides(app, user, shop)
+def authenticated_client(app, user: User, shop: Shop) -> AsyncClient:
+    set_auth_overrides(app, user, shop)
     return AsyncClient(
         transport=ASGITransport(app=app, raise_app_exceptions=False), base_url="http://test"
     )
@@ -510,16 +346,12 @@ def _authenticated_client(app, user: User, shop: Shop) -> AsyncClient:
 # ---------------------------------------------------------------------------
 # A REAL uvicorn server on an OS-assigned loopback port -- needed for exactly
 # one scenario: a genuine mid-stream client disconnect. `httpx.ASGITransport`
-# cannot support that (verified by reading
-# `httpx._transports.asgi.ASGITransport.handle_async_request`): it `await`s
-# the entire ASGI app call to completion before returning any `Response`
-# object at all, so an infinite live SSE generator (still-running run, no
-# terminal event yet) means that `await` never returns and the test hangs
-# forever -- not a production bug, a limitation of the in-process test
-# transport. Every other test in this module reads a full (finite) response
-# through the lighter `ASGITransport` path above, which never hits this.
-# `uvicorn` is already a direct dependency (`backend/pyproject.toml`) --
-# nothing new added for this.
+# `await`s the entire ASGI app call to completion before returning any
+# `Response` (verified by reading `httpx._transports.asgi.ASGITransport.
+# handle_async_request`), so an infinite live SSE generator (still-running
+# run) means that `await` never returns -- not a production bug, a limitation
+# of the in-process test transport. Every other test reads a full (finite)
+# response through the lighter `ASGITransport` path above.
 # ---------------------------------------------------------------------------
 
 
@@ -531,10 +363,13 @@ class _LiveUvicornServer:
 
     async def start(self) -> str:
         self._task = asyncio.create_task(self._server.serve())
-        while not self._server.started:
-            await asyncio.sleep(0.01)
+        await asyncio.wait_for(self._wait_started(), timeout=5.0)
         port = self._server.servers[0].sockets[0].getsockname()[1]
         return f"http://127.0.0.1:{port}"
+
+    async def _wait_started(self) -> None:
+        while not self._server.started:
+            await asyncio.sleep(0.01)
 
     async def stop(self) -> None:
         self._server.should_exit = True
@@ -544,9 +379,9 @@ class _LiveUvicornServer:
 
 @pytest_asyncio.fixture
 async def live_client_factory():
-    """Yields a callable `(app) -> AsyncClient` bound to a real, running
-    uvicorn server for that app -- a genuine TCP connection a test can
-    disconnect mid-stream, unlike the in-process `ASGITransport` path."""
+    """Yields a callable ``(app) -> AsyncClient`` bound to a real, running
+    uvicorn server -- a genuine TCP connection a test can disconnect
+    mid-stream, unlike the in-process ``ASGITransport`` path."""
     servers: list[_LiveUvicornServer] = []
     clients: list[AsyncClient] = []
 
@@ -567,17 +402,14 @@ async def live_client_factory():
 
 
 # ---------------------------------------------------------------------------
-# SSE parsing + a minimal real-cursor client. Not #1132's TypeScript
-# fetch-streaming client (`apps/demo/src/lib/` is outside this backend
-# slice's write path) -- this is only the piece of that contract this
-# slice's route owns and must prove end to end: track the last observed
-# `id:` and never deduplicate (ADR-074 decisions 3/5 -- dedupe is server-
-# side only), reconnecting via `Last-Event-ID` rather than a hand-set
-# `?after=`.
+# SSE parsing + a minimal real-cursor client -- the piece of #1132's
+# fetch-streaming contract this route owns: track the last observed `id:` and
+# never deduplicate client-side (ADR-074 d.3/d.5), reconnecting via
+# `Last-Event-ID` rather than a hand-set `?after=`.
 # ---------------------------------------------------------------------------
 
 
-def _parse_sse_block(block: str) -> dict[str, str] | None:
+def parse_sse_block(block: str) -> dict[str, str] | None:
     if not block or block.startswith(":"):
         return None
     record: dict[str, str] = {}
@@ -587,16 +419,12 @@ def _parse_sse_block(block: str) -> dict[str, str] | None:
     return record
 
 
-def _record_ids(body: str) -> list[int]:
-    ids = []
-    for block in body.strip("\n").split("\n\n"):
-        record = _parse_sse_block(block)
-        if record is not None:
-            ids.append(int(record["id"]))
-    return ids
+def record_ids(body: str) -> list[int]:
+    blocks = (parse_sse_block(b) for b in body.strip("\n").split("\n\n"))
+    return [int(record["id"]) for record in blocks if record is not None]
 
 
-def _is_terminal_record(record: dict[str, str]) -> bool:
+def is_terminal_record(record: dict[str, str]) -> bool:
     return record.get("event") in {"workflow.completed", "workflow.failed"}
 
 
@@ -614,13 +442,12 @@ class RealCursorClient:
         max_records: int | None = None,
         timeout: float = 5.0,
     ) -> None:
-        """Connects (sending `Last-Event-ID` if this client already has a
-        cursor -- never a hand-set `?after=`), and reads records until
-        `predicate` is satisfied, `max_records` new records have arrived, or
-        the server closes the stream on its own. Returning early inside the
-        `async with` block below cancels the underlying read, simulating a
-        client walking away / a network blip -- exactly the disconnect a
-        reconnect test needs to provoke."""
+        """Connects with ``Last-Event-ID`` set to this client's own cursor
+        (never a hand-set ``?after=``) and reads until ``predicate`` is met,
+        ``max_records`` new records have arrived, or the server closes the
+        stream. Returning early inside the ``async with`` below cancels the
+        read -- a client walking away / a network blip, the exact disconnect
+        a reconnect test needs."""
         headers = {}
         if self.last_event_id is not None:
             headers["Last-Event-ID"] = str(self.last_event_id)
@@ -634,7 +461,7 @@ class RealCursorClient:
                     buffer += chunk
                     while "\n\n" in buffer:
                         block, buffer = buffer.split("\n\n", 1)
-                        record = _parse_sse_block(block)
+                        record = parse_sse_block(block)
                         if record is None:
                             continue
                         self.received.append(record)
@@ -649,692 +476,278 @@ class RealCursorClient:
 
 
 # ---------------------------------------------------------------------------
-# AC (ADR-074 d.6) -- exact replay: after=k yields exactly k+1..N.
+# Tests
 # ---------------------------------------------------------------------------
 
 
-async def test_exact_replay_after_k_yields_k_plus_1_through_n_ordered_no_gaps_no_duplicates(
-    pg_session_factory,
-):
-    user, shop = await _seed_shop(pg_session_factory)
-    run = await _seed_run(pg_session_factory, shop, status="completed")
-    bus = FakeRedisBus()
-    sink = PersistingEventSink(pg_session_factory, bus)
-    runner = ScriptedFakeRunner(
-        session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
-    )
-    script = [
-        ScriptedEvent(
-            "workflow.started",
-            {"workflow_key": "optimize_product", "product_ref": "p1", "prompt_version": "v1"},
-        ),
-        ScriptedEvent("workflow.status", {"phase_narration": "a"}),
-        ScriptedEvent("tool.started", {"tool_call_id": "tc1", "tool_name": "update_price"}),
-        ScriptedEvent(
-            "tool.completed",
-            {"tool_call_id": "tc1", "tool_name": "update_price", "ok": True, "summary": "done"},
-        ),
-        ScriptedEvent("workflow.status", {"phase_narration": "b"}),
-        ScriptedEvent("workflow.completed", {"stop_reason": "final_response"}),
-    ]
-    await runner.run(script, final_status="completed")
+class TestReplay:
+    """``after=k`` replays exactly ``k+1..N``, ordered, with no gaps or duplicates."""
 
-    app = _build_app(pg_session_factory, subscriber=None)
-    async with _authenticated_client(app, user, shop) as client:
-        full = await client.get(f"/v1/demo/runs/{run.id}/events")
-        tail = await client.get(f"/v1/demo/runs/{run.id}/events", params={"after": 3})
-
-    all_ids = _record_ids(full.text)
-    assert all_ids == [1, 2, 3, 4, 5, 6]
-    assert len(set(all_ids)) == len(all_ids), "no duplicates in a full replay"
-
-    tail_ids = _record_ids(tail.text)
-    assert tail_ids == [4, 5, 6], "after=3 must yield exactly 4..6, ordered, no gaps"
-
-
-# ---------------------------------------------------------------------------
-# AC (ADR-074 d.6) -- handoff overlap: an event published during replay
-# arrives exactly once. Deterministic race control via a monkeypatched
-# `_replay_events` -- the same technique #1128's unit test proved this
-# property with, now backed by real Postgres, the real `PersistingEventSink`
-# (INSERT-commit-then-publish, for real), the real `FakeRedisBus` playing
-# both publisher and subscriber, and the real ASGI `StreamingResponse`
-# boundary -- none of which the unit-level version exercised.
-# ---------------------------------------------------------------------------
-
-
-async def test_handoff_overlap_event_published_in_the_replay_subscribe_gap_arrives_exactly_once(
-    pg_session_factory, monkeypatch
-):
-    user, shop = await _seed_shop(pg_session_factory)
-    run = await _seed_run(pg_session_factory, shop, status="running")
-    bus = FakeRedisBus()
-    sink = PersistingEventSink(pg_session_factory, bus)
-    opening = ScriptedFakeRunner(
-        session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
-    )
-    await opening.run(
-        [
+    async def test_full_and_tail_replay_are_exact(self, pg_session_factory):
+        user, shop = await seed_shop(pg_session_factory)
+        run = await seed_run(pg_session_factory, shop, status="completed")
+        bus = FakeRedisBus()
+        sink = PersistingEventSink(pg_session_factory, bus)
+        runner = ScriptedFakeRunner(
+            session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
+        )
+        script = [
             ScriptedEvent(
                 "workflow.started",
                 {"workflow_key": "optimize_product", "product_ref": "p1", "prompt_version": "v1"},
             ),
-            ScriptedEvent("workflow.status", {"phase_narration": "opening"}),
-        ],
-        persist_state=True,
-    )
+            ScriptedEvent("workflow.status", {"phase_narration": "a"}),
+            ScriptedEvent("tool.started", {"tool_call_id": "tc1", "tool_name": "update_price"}),
+            ScriptedEvent(
+                "tool.completed",
+                {"tool_call_id": "tc1", "tool_name": "update_price", "ok": True, "summary": "done"},
+            ),
+            ScriptedEvent("workflow.status", {"phase_narration": "b"}),
+            ScriptedEvent("workflow.completed", {"stop_reason": "final_response"}),
+        ]
+        await runner.run(script, final_status="completed")
 
-    original_replay = stream_events.replay_events
+        app = build_app(pg_session_factory, subscriber=None)
+        async with authenticated_client(app, user, shop) as client:
+            full = await client.get(f"/v1/demo/runs/{run.id}/events")
+            tail = await client.get(f"/v1/demo/runs/{run.id}/events", params={"after": 3})
 
-    async def hooked_replay(session_factory_arg, run_id_arg, after_seq_arg):
-        async for row in original_replay(session_factory_arg, run_id_arg, after_seq_arg):
-            yield row
-        # By construction this runs strictly after `event_stream` has already
-        # subscribed (subscribe-before-replay, ADR-074 decision 3) and
-        # strictly before it starts consuming the live subscription -- the
-        # exact window a naive replay-then-subscribe implementation would
-        # still be racing. These two events are committed AND published for
-        # real, through the real sink and the real bus, never yielded from
-        # this generator itself -- they must arrive via the live leg, or not
-        # at all.
-        gap_runner = ScriptedFakeRunner(
-            session_factory=session_factory_arg, sink=sink, run_id=run_id_arg, starting_sequence=3
+        all_ids = record_ids(full.text)
+        assert all_ids == [1, 2, 3, 4, 5, 6]
+        assert len(set(all_ids)) == len(all_ids), "no duplicates in a full replay"
+        assert record_ids(tail.text) == [4, 5, 6], "after=3 must yield exactly 4..6"
+
+
+class TestHandoffOverlap:
+    """An event published in the replay-end/subscribe-start gap arrives exactly once."""
+
+    async def test_event_published_in_the_gap_arrives_exactly_once(
+        self, pg_session_factory, monkeypatch
+    ):
+        user, shop = await seed_shop(pg_session_factory)
+        run = await seed_run(pg_session_factory, shop, status="running")
+        bus = FakeRedisBus()
+        sink = PersistingEventSink(pg_session_factory, bus)
+        opening = ScriptedFakeRunner(
+            session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
         )
-        await gap_runner.run(
+        await opening.run(
             [
-                ScriptedEvent("workflow.status", {"phase_narration": "in the gap"}),
+                ScriptedEvent(
+                    "workflow.started",
+                    {
+                        "workflow_key": "optimize_product",
+                        "product_ref": "p1",
+                        "prompt_version": "v1",
+                    },
+                ),
+                ScriptedEvent("workflow.status", {"phase_narration": "opening"}),
+            ],
+        )
+
+        original_replay = stream_events.replay_events
+
+        async def hooked_replay(session_factory_arg, run_id_arg, after_seq_arg):
+            async for row in original_replay(session_factory_arg, run_id_arg, after_seq_arg):
+                yield row
+            # By construction this runs strictly after `event_stream` has
+            # already subscribed (subscribe-before-replay, ADR-074 d.3) and
+            # strictly before it consumes the live subscription -- the exact
+            # window a naive replay-then-subscribe implementation would still
+            # be racing. Committed AND published for real; must arrive via
+            # the live leg, or not at all.
+            gap_runner = ScriptedFakeRunner(
+                session_factory=session_factory_arg,
+                sink=sink,
+                run_id=run_id_arg,
+                starting_sequence=3,
+            )
+            await gap_runner.run(
+                [
+                    ScriptedEvent("workflow.status", {"phase_narration": "in the gap"}),
+                    ScriptedEvent("workflow.completed", {"stop_reason": "final_response"}),
+                ],
+                final_status="completed",
+            )
+
+        monkeypatch.setattr(stream_events, "replay_events", hooked_replay)
+
+        app = build_app(pg_session_factory, subscriber=bus)
+        async with authenticated_client(app, user, shop) as client:
+            resp = await asyncio.wait_for(client.get(f"/v1/demo/runs/{run.id}/events"), timeout=5.0)
+
+        assert resp.status_code == 200
+        assert record_ids(resp.text) == [1, 2, 3, 4], (
+            "event 3, published in the replay-end/subscribe-start gap, must arrive "
+            "exactly once -- lost or duplicated are both a regression"
+        )
+        assert bus.publish_log, "the real bus's publish() must actually have been exercised"
+
+
+class TestRedisLoss:
+    """A subscribe failure, or Redis going quiet mid-stream, still delivers every event."""
+
+    async def test_subscribe_failure_degrades_to_polling_and_still_delivers(
+        self, pg_session_factory
+    ):
+        user, shop = await seed_shop(pg_session_factory)
+        run = await seed_run(pg_session_factory, shop, status="running")
+        bus = FakeRedisBus()
+        sink = PersistingEventSink(pg_session_factory, bus)
+        subscriber = SignalingFailingSubscriber()
+
+        async def _emit_after_subscribe_attempted() -> None:
+            await subscriber.attempted.wait()
+            runner = ScriptedFakeRunner(
+                session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
+            )
+            await runner.run(standard_script("p1"), final_status="completed")
+
+        app = build_app(pg_session_factory, subscriber=subscriber, poll_interval_s=0.02)
+        task = asyncio.create_task(_emit_after_subscribe_attempted())
+        try:
+            async with authenticated_client(app, user, shop) as client:
+                resp = await asyncio.wait_for(
+                    client.get(f"/v1/demo/runs/{run.id}/events"), timeout=5.0
+                )
+        finally:
+            await task
+
+        assert resp.status_code == 200
+        assert record_ids(resp.text) == [1, 2, 3], (
+            "subscribe failure must degrade to Postgres polling, not drop events"
+        )
+
+    async def test_mid_stream_loss_reconnect_via_last_event_id_replays_gaplessly(
+        self, pg_session_factory, live_client_factory
+    ):
+        user, shop = await seed_shop(pg_session_factory)
+        run = await seed_run(pg_session_factory, shop, status="running")
+        bus = FakeRedisBus()
+        sink = PersistingEventSink(pg_session_factory, bus)
+        runner = ScriptedFakeRunner(
+            session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
+        )
+        await runner.run(
+            [
+                ScriptedEvent(
+                    "workflow.started",
+                    {
+                        "workflow_key": "optimize_product",
+                        "product_ref": "p1",
+                        "prompt_version": "v1",
+                    },
+                ),
+                ScriptedEvent("workflow.status", {"phase_narration": "opening"}),
+            ],
+        )
+
+        # A genuine mid-stream client disconnect needs a real TCP connection
+        # (see `_LiveUvicornServer` above).
+        app = build_app(pg_session_factory, subscriber=bus, poll_interval_s=0.02)
+        set_auth_overrides(app, user, shop)
+        client = await live_client_factory(app)
+        reader = RealCursorClient(client, f"/v1/demo/runs/{run.id}/events")
+
+        # First connection: replay 1, 2 (nothing more exists yet), then the
+        # client walks away -- the network blip / Redis loss this case is about.
+        await reader.read_until(lambda r: False, max_records=2)
+        assert [int(r["id"]) for r in reader.received] == [1, 2]
+
+        # Redis is down for good. Two more events land while nobody is live-subscribed.
+        bus.simulate_outage()
+        await runner.run(
+            [
+                ScriptedEvent("workflow.status", {"phase_narration": "closing"}),
                 ScriptedEvent("workflow.completed", {"stop_reason": "final_response"}),
             ],
             final_status="completed",
         )
 
-    monkeypatch.setattr(stream_events, "replay_events", hooked_replay)
+        # Reconnect driven by the client's own cursor (`Last-Event-ID: 2`),
+        # never a hand-set `?after=`. subscribe() now fails, exercising the
+        # polling fallback too.
+        await reader.read_until(is_terminal_record)
 
-    app = _build_app(pg_session_factory, subscriber=bus)
-    async with _authenticated_client(app, user, shop) as client:
-        resp = await asyncio.wait_for(client.get(f"/v1/demo/runs/{run.id}/events"), timeout=5.0)
-
-    assert resp.status_code == 200
-    ids = _record_ids(resp.text)
-    assert ids == [1, 2, 3, 4], (
-        "event 3, published in the replay-end/subscribe-start gap, must arrive "
-        "exactly once -- lost (naive replay-then-subscribe) or duplicated "
-        "(no dedupe) are both a regression"
-    )
-    assert bus.publish_log, "the real bus's publish() must actually have been exercised"
+        ids = [int(r["id"]) for r in reader.received]
+        assert ids == [1, 2, 3, 4], "reconnect via Last-Event-ID must replay the gap gaplessly"
+        assert len(set(ids)) == len(ids), "no duplicates across the reconnect boundary"
 
 
-# ---------------------------------------------------------------------------
-# AC (ADR-074 d.6) -- Redis loss: fallback polling delivers.
-# ---------------------------------------------------------------------------
+class TestCursorResolution:
+    """``Last-Event-ID`` beats ``?after=`` beats ``0``; a malformed or
+    out-of-``int4``-range cursor degrades to the next source instead of
+    500ing or silently replaying nothing (#1131 issue thread, #1142 rework).
+    """
 
-
-async def test_redis_subscribe_failure_degrades_to_postgres_polling_and_still_delivers(
-    pg_session_factory,
-):
-    user, shop = await _seed_shop(pg_session_factory)
-    run = await _seed_run(pg_session_factory, shop, status="running")
-    bus = FakeRedisBus()  # publisher only in this test -- subscriber always fails
-    sink = PersistingEventSink(pg_session_factory, bus)
-
-    async def _emit_shortly() -> None:
-        await asyncio.sleep(0.1)
+    @pytest_asyncio.fixture
+    async def two_event_completed_run(self, pg_session_factory):
+        user, shop = await seed_shop(pg_session_factory)
+        run = await seed_run(pg_session_factory, shop, status="completed")
+        bus = FakeRedisBus()
+        sink = PersistingEventSink(pg_session_factory, bus)
         runner = ScriptedFakeRunner(
             session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
         )
-        await runner.run(_standard_script("p1"), final_status="completed")
+        await runner.run(
+            [
+                ScriptedEvent("workflow.status", {"phase_narration": "a"}),
+                ScriptedEvent("workflow.completed", {"stop_reason": "final_response"}),
+            ],
+            final_status="completed",
+        )
+        return user, shop, run
 
-    app = _build_app(pg_session_factory, subscriber=FailingSubscriber(), poll_interval_s=0.02)
-    task = asyncio.create_task(_emit_shortly())
-    try:
-        async with _authenticated_client(app, user, shop) as client:
-            resp = await asyncio.wait_for(client.get(f"/v1/demo/runs/{run.id}/events"), timeout=5.0)
-    finally:
-        await task
-
-    assert resp.status_code == 200
-    assert _record_ids(resp.text) == [1, 2, 3], (
-        "subscribe failure must degrade to Postgres polling, not drop the run's events"
-    )
-
-
-# ---------------------------------------------------------------------------
-# AC (ADR-074 d.6) -- Redis loss: reconnect replays gaplessly, driven by the
-# client's own `Last-Event-ID` cursor. This is also the flagship "reconnect
-# via the real header, end to end" case the #1131 issue thread asks for.
-# ---------------------------------------------------------------------------
-
-
-async def test_redis_loss_mid_stream_reconnect_via_last_event_id_replays_gaplessly(
-    pg_session_factory, live_client_factory
-):
-    user, shop = await _seed_shop(pg_session_factory)
-    run = await _seed_run(pg_session_factory, shop, status="running")
-    bus = FakeRedisBus()
-    sink = PersistingEventSink(pg_session_factory, bus)
-    runner = ScriptedFakeRunner(
-        session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
-    )
-    await runner.run(
+    @pytest.mark.parametrize(
+        ("params", "headers", "expected_ids"),
         [
-            ScriptedEvent(
-                "workflow.started",
-                {"workflow_key": "optimize_product", "product_ref": "p1", "prompt_version": "v1"},
+            pytest.param({"after": 0}, {"Last-Event-ID": "1"}, [2], id="header-outranks-after"),
+            pytest.param({"after": 1}, {}, [2], id="after-used-without-a-header"),
+            pytest.param({}, {}, [1, 2], id="zero-used-without-header-or-after"),
+            pytest.param(
+                {"after": 1},
+                {"Last-Event-ID": "not-a-number"},
+                [2],
+                id="non-numeric-header-degrades-to-after",
             ),
-            ScriptedEvent("workflow.status", {"phase_narration": "opening"}),
+            pytest.param(
+                {},
+                {"Last-Event-ID": "not-a-number"},
+                [1, 2],
+                id="non-numeric-header-degrades-to-zero",
+            ),
+            pytest.param(
+                {"after": 1},
+                {"Last-Event-ID": str(2**200)},
+                [2],
+                id="huge-header-degrades-to-after-not-overflow",
+            ),
+            pytest.param(
+                {},
+                {"Last-Event-ID": str(2**200)},
+                [1, 2],
+                id="huge-header-degrades-to-zero-not-overflow",
+            ),
+            pytest.param(
+                {"after": 1},
+                {"Last-Event-ID": "-5"},
+                [1, 2],
+                id="negative-header-clamps-to-zero-still-outranks-after",
+            ),
+            pytest.param(
+                {"after": 2**200}, {}, [1, 2], id="huge-after-degrades-to-zero-not-overflow"
+            ),
         ],
-        persist_state=True,
     )
-
-    # A genuine mid-stream client disconnect (below) needs a real TCP
-    # connection -- `httpx.ASGITransport` cannot support it (see the
-    # `_LiveUvicornServer` docstring above).
-    app = _build_app(pg_session_factory, subscriber=bus, poll_interval_s=0.02)
-    _set_auth_overrides(app, user, shop)
-    client = await live_client_factory(app)
-
-    reader = RealCursorClient(client, f"/v1/demo/runs/{run.id}/events")
-
-    # First connection: replay 1, 2 (nothing more exists yet), then the
-    # client walks away -- simulating exactly the network blip / Redis loss
-    # this case is about, from the client's point of view.
-    await reader.read_until(lambda r: False, max_records=2)
-    assert [int(r["id"]) for r in reader.received] == [1, 2]
-
-    # Redis is now down for good. Two more events land -- one non-terminal,
-    # one terminal -- while nobody is live-subscribed.
-    bus.simulate_outage()
-    await runner.run(
-        [
-            ScriptedEvent("workflow.status", {"phase_narration": "closing"}),
-            ScriptedEvent("workflow.completed", {"stop_reason": "final_response"}),
-        ],
-        final_status="completed",
-    )
-
-    # Reconnect driven by the client's own last-observed cursor
-    # (`Last-Event-ID: 2`), never a hand-set `?after=`. subscribe() now fails
-    # (Redis is down), so this exercises the polling fallback too.
-    await reader.read_until(_is_terminal_record)
-
-    ids = [int(r["id"]) for r in reader.received]
-    assert ids == [1, 2, 3, 4], "reconnect via Last-Event-ID must replay the gap gaplessly"
-    assert len(set(ids)) == len(ids), "no duplicates across the reconnect boundary"
-
-
-# ---------------------------------------------------------------------------
-# Last-Event-ID cases (#1131 issue thread) -- precedence, absent-header
-# fallback, and the malformed-header defect.
-# ---------------------------------------------------------------------------
-
-
-async def test_last_event_id_header_takes_priority_over_after_query_param_via_real_stack(
-    pg_session_factory,
-):
-    user, shop = await _seed_shop(pg_session_factory)
-    run = await _seed_run(pg_session_factory, shop, status="completed")
-    bus = FakeRedisBus()
-    sink = PersistingEventSink(pg_session_factory, bus)
-    runner = ScriptedFakeRunner(
-        session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
-    )
-    await runner.run(
-        [
-            ScriptedEvent("workflow.status", {"phase_narration": "a"}),
-            ScriptedEvent("workflow.completed", {"stop_reason": "final_response"}),
-        ],
-        final_status="completed",
-    )
-
-    app = _build_app(pg_session_factory, subscriber=None)
-    async with _authenticated_client(app, user, shop) as client:
-        resp = await client.get(
-            f"/v1/demo/runs/{run.id}/events",
-            params={"after": 0},
-            headers={"Last-Event-ID": "1"},
-        )
-
-    assert _record_ids(resp.text) == [2], "Last-Event-ID must win over ?after= when both present"
-
-
-async def test_last_event_id_header_absent_falls_back_to_after_then_to_zero(pg_session_factory):
-    user, shop = await _seed_shop(pg_session_factory)
-    run = await _seed_run(pg_session_factory, shop, status="completed")
-    bus = FakeRedisBus()
-    sink = PersistingEventSink(pg_session_factory, bus)
-    runner = ScriptedFakeRunner(
-        session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
-    )
-    await runner.run(
-        [
-            ScriptedEvent("workflow.status", {"phase_narration": "a"}),
-            ScriptedEvent("workflow.completed", {"stop_reason": "final_response"}),
-        ],
-        final_status="completed",
-    )
-
-    app = _build_app(pg_session_factory, subscriber=None)
-    async with _authenticated_client(app, user, shop) as client:
-        via_after = await client.get(f"/v1/demo/runs/{run.id}/events", params={"after": 1})
-        via_default = await client.get(f"/v1/demo/runs/{run.id}/events")
-
-    assert _record_ids(via_after.text) == [2], "no header -> falls back to ?after="
-    assert _record_ids(via_default.text) == [1, 2], "no header, no ?after= -> falls back to 0"
-
-
-async def test_last_event_id_header_non_numeric_should_degrade_not_500(pg_session_factory):
-    """**Production defect, found by this slice, deliberately not fixed
-    here** (this is a test-only slice -- see the executor's report).
-
-    `api/routes/agent_runs.py::stream_run_events` does
-    ``after_seq = int(last_event_id)`` with no `try`/`except` around it. The
-    #1131 issue thread asks explicitly: "confirm what an absent or
-    non-numeric header does -- `int(last_event_id)` is unguarded, so check
-    it degrades rather than 500s." It does not degrade: a non-numeric
-    `Last-Event-ID` raises `ValueError` inside the route handler, which
-    `api/middleware.py::install_error_boundary`'s catch-all turns into a
-    real HTTP 500 (`{"detail": "Internal server error"}`) -- proven against
-    the real ASGI stack here, not inferred from reading the source.
-
-    Asserts the *desired* degrade behaviour, not merely the absence of a
-    500: a "fix" that swallows the `ValueError` but then silently drops
-    every event (or always resets to sequence 0 regardless of `?after=`)
-    would satisfy a bare `status_code != 500` check while still being
-    wrong. The two requests below pin both halves of the issue thread's
-    spec -- "falls through to `?after=`, then to `0`" -- by checking the
-    actual replayed sequence ids, not just the HTTP status.
-
-    `xfail(strict=True)`: if a future change to the route (not this test
-    slice, per the hard constraint against touching production code here)
-    makes this degrade correctly, this test flips to an unexpected pass and
-    CI fails loudly until the marker is removed -- it cannot silently rot
-    into a false green.
-    """
-    user, shop = await _seed_shop(pg_session_factory)
-    run = await _seed_run(pg_session_factory, shop, status="completed")
-    bus = FakeRedisBus()
-    sink = PersistingEventSink(pg_session_factory, bus)
-    runner = ScriptedFakeRunner(
-        session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
-    )
-    await runner.run(
-        [
-            ScriptedEvent("workflow.status", {"phase_narration": "a"}),
-            ScriptedEvent("workflow.completed", {"stop_reason": "final_response"}),
-        ],
-        final_status="completed",
-    )
-
-    app = _build_app(pg_session_factory, subscriber=None)
-    async with _authenticated_client(app, user, shop) as client:
-        # Malformed header, ?after=1 also present: correct degrade falls
-        # through to ?after=, replaying exactly the events after it.
-        via_after = await client.get(
-            f"/v1/demo/runs/{run.id}/events",
-            params={"after": 1},
-            headers={"Last-Event-ID": "not-a-number"},
-        )
-        # Malformed header, no ?after= at all: falls all the way through to 0.
-        via_default = await client.get(
-            f"/v1/demo/runs/{run.id}/events",
-            headers={"Last-Event-ID": "not-a-number"},
-        )
-
-    assert via_after.status_code == 200, (
-        "malformed Last-Event-ID with ?after= present must not 500 -- got "
-        f"{via_after.status_code}: {via_after.text!r}"
-    )
-    assert _record_ids(via_after.text) == [2], (
-        "malformed Last-Event-ID must degrade to ?after=, replaying exactly "
-        f"the events after it -- got ids {_record_ids(via_after.text)}"
-    )
-    assert via_default.status_code == 200, (
-        "malformed Last-Event-ID with no ?after= must not 500 -- got "
-        f"{via_default.status_code}: {via_default.text!r}"
-    )
-    assert _record_ids(via_default.text) == [1, 2], (
-        "malformed Last-Event-ID with no ?after= must degrade all the way to "
-        f"0, replaying the full history -- got ids {_record_ids(via_default.text)}"
-    )
-
-
-async def test_last_event_id_header_huge_value_should_degrade_not_overflow(pg_session_factory):
-    """#1142 rework (Review CRITICAL): `int()` has arbitrary precision, so a
-    syntactically valid but impossibly large `Last-Event-ID` (bigger than
-    Postgres `int4`, the real type of `sequence_number`) sailed past the
-    `ValueError` guard this issue originally added, then overflowed at
-    asyncpg bind time inside `_replay_events`. Because `StreamingResponse`
-    commits HTTP 200 before the generator is ever consumed, the failure
-    mode is not a 500: it is a **silently truncated 200 with an empty
-    body** -- undetectable, unretryable, worse than the original defect.
-
-    A value this large can never correspond to any real `sequence_number`,
-    so clamping it *to* int4's max would be equally wrong: `sequence_number
-    > int4_max` never matches, silently replaying nothing while claiming
-    success. The honest degrade is the same as a malformed value -- fall
-    through to `?after=`, then to `0` -- pinned here exactly like the
-    non-numeric case above, by replayed sequence ids, not just status code.
-    """
-    user, shop = await _seed_shop(pg_session_factory)
-    run = await _seed_run(pg_session_factory, shop, status="completed")
-    bus = FakeRedisBus()
-    sink = PersistingEventSink(pg_session_factory, bus)
-    runner = ScriptedFakeRunner(
-        session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
-    )
-    await runner.run(
-        [
-            ScriptedEvent("workflow.status", {"phase_narration": "a"}),
-            ScriptedEvent("workflow.completed", {"stop_reason": "final_response"}),
-        ],
-        final_status="completed",
-    )
-
-    huge = str(2**200)  # far beyond int4's 2_147_483_647, well within Python int()
-
-    app = _build_app(pg_session_factory, subscriber=None)
-    async with _authenticated_client(app, user, shop) as client:
-        # Impossibly-huge header, ?after=1 also present: degrade falls
-        # through to ?after=, same as the malformed-header case.
-        via_after = await client.get(
-            f"/v1/demo/runs/{run.id}/events",
-            params={"after": 1},
-            headers={"Last-Event-ID": huge},
-        )
-        # Impossibly-huge header, no ?after= at all: falls all the way
-        # through to 0.
-        via_default = await client.get(
-            f"/v1/demo/runs/{run.id}/events",
-            headers={"Last-Event-ID": huge},
-        )
-
-    assert via_after.status_code == 200, (
-        "huge Last-Event-ID with ?after= present must not error -- got "
-        f"{via_after.status_code}: {via_after.text!r}"
-    )
-    assert _record_ids(via_after.text) == [2], (
-        "huge Last-Event-ID must degrade to ?after=, replaying exactly the "
-        f"events after it, not silently replay nothing -- got ids {_record_ids(via_after.text)}"
-    )
-    assert via_default.status_code == 200, (
-        "huge Last-Event-ID with no ?after= must not error -- got "
-        f"{via_default.status_code}: {via_default.text!r}"
-    )
-    assert _record_ids(via_default.text) == [1, 2], (
-        "huge Last-Event-ID with no ?after= must degrade all the way to 0, "
-        f"replaying the full history -- got ids {_record_ids(via_default.text)}"
-    )
-
-
-async def test_last_event_id_header_negative_value_should_clamp_to_zero(pg_session_factory):
-    """#1142 rework (Review WARNING): a negative `Last-Event-ID` (e.g.
-    `"-5"`) also parses cleanly under a bare `int()` and is functionally
-    harmless today since `sequence_number` starts at 1 -- but it is not a
-    real cursor either. Unlike the huge case, a negative value clamps down
-    to `0` rather than falling through to `?after=`: it is still a usable
-    (if too-low) cursor, and the header keeps its documented priority over
-    `?after=` even after clamping.
-    """
-    user, shop = await _seed_shop(pg_session_factory)
-    run = await _seed_run(pg_session_factory, shop, status="completed")
-    bus = FakeRedisBus()
-    sink = PersistingEventSink(pg_session_factory, bus)
-    runner = ScriptedFakeRunner(
-        session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
-    )
-    await runner.run(
-        [
-            ScriptedEvent("workflow.status", {"phase_narration": "a"}),
-            ScriptedEvent("workflow.completed", {"stop_reason": "final_response"}),
-        ],
-        final_status="completed",
-    )
-
-    app = _build_app(pg_session_factory, subscriber=None)
-    async with _authenticated_client(app, user, shop) as client:
-        # Negative header still outranks ?after=: clamps to 0, replaying
-        # everything, not falling through to ?after=1.
-        resp = await client.get(
-            f"/v1/demo/runs/{run.id}/events",
-            params={"after": 1},
-            headers={"Last-Event-ID": "-5"},
-        )
-
-    assert resp.status_code == 200, (
-        f"negative Last-Event-ID must not error -- got {resp.status_code}: {resp.text!r}"
-    )
-    assert _record_ids(resp.text) == [1, 2], (
-        "negative Last-Event-ID must clamp to 0 (full replay), keeping "
-        f"priority over ?after= rather than falling through to it -- got {_record_ids(resp.text)}"
-    )
-
-
-async def test_after_query_param_huge_value_should_degrade_not_overflow(pg_session_factory):
-    """#1142 rework (Review CRITICAL, `?after=` half): `after: int | None =
-    Query(default=None, ge=0)` bounds the low end but not the high end --
-    an impossibly large `?after=` hits the identical `int4` overflow at
-    `_replay_events` bind time, with the identical silently-truncated-200
-    failure mode. No header is sent, so `?after=` is the last explicit
-    cursor source; degrading it lands on the same `0` a missing/malformed
-    value would reach anyway.
-    """
-    user, shop = await _seed_shop(pg_session_factory)
-    run = await _seed_run(pg_session_factory, shop, status="completed")
-    bus = FakeRedisBus()
-    sink = PersistingEventSink(pg_session_factory, bus)
-    runner = ScriptedFakeRunner(
-        session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
-    )
-    await runner.run(
-        [
-            ScriptedEvent("workflow.status", {"phase_narration": "a"}),
-            ScriptedEvent("workflow.completed", {"stop_reason": "final_response"}),
-        ],
-        final_status="completed",
-    )
-
-    app = _build_app(pg_session_factory, subscriber=None)
-    async with _authenticated_client(app, user, shop) as client:
-        resp = await client.get(f"/v1/demo/runs/{run.id}/events", params={"after": 2**200})
-
-    assert resp.status_code == 200, (
-        f"huge ?after= must not error -- got {resp.status_code}: {resp.text!r}"
-    )
-    assert _record_ids(resp.text) == [1, 2], (
-        "huge ?after= must degrade to 0 (full replay), not silently replay "
-        f"nothing -- got ids {_record_ids(resp.text)}"
-    )
-
-
-# ---------------------------------------------------------------------------
-# AC (ADR-074 d.6) -- lifecycle: terminal close, late joiner, cancel at
-# checkpoint visible on the stream.
-# ---------------------------------------------------------------------------
-
-
-async def test_lifecycle_terminal_event_closes_the_live_stream_via_real_http(pg_session_factory):
-    user, shop = await _seed_shop(pg_session_factory)
-    run = await _seed_run(pg_session_factory, shop, status="running")
-    bus = FakeRedisBus()
-    sink = PersistingEventSink(pg_session_factory, bus)
-
-    async def _emit_shortly() -> None:
-        await asyncio.sleep(0.1)
-        runner = ScriptedFakeRunner(
-            session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
-        )
-        await runner.run(_standard_script("p1"), final_status="completed")
-
-    app = _build_app(pg_session_factory, subscriber=bus)
-    task = asyncio.create_task(_emit_shortly())
-    try:
-        async with _authenticated_client(app, user, shop) as client:
-            # Bounded well under the heartbeat interval: if the terminal
-            # event failed to close the stream, this would hang past the
-            # timeout instead of the request naturally completing.
-            resp = await asyncio.wait_for(client.get(f"/v1/demo/runs/{run.id}/events"), timeout=5.0)
-    finally:
-        await task
-
-    ids = _record_ids(resp.text)
-    assert ids == [1, 2, 3]
-    records = [b for b in resp.text.strip("\n").split("\n\n") if b and not b.startswith(":")]
-    assert "workflow.completed" in records[-1]
-
-
-async def test_lifecycle_late_joiner_on_already_terminal_run_gets_full_replay_and_never_subscribes(
-    pg_session_factory,
-):
-    user, shop = await _seed_shop(pg_session_factory)
-    run = await _seed_run(pg_session_factory, shop, status="running")
-    bus = FakeRedisBus()
-    sink = PersistingEventSink(pg_session_factory, bus)
-    runner = ScriptedFakeRunner(
-        session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
-    )
-    await runner.run(_standard_script("p1"), final_status="completed")
-
-    counting_subscriber = CountingNullSubscriber()
-    app = _build_app(pg_session_factory, subscriber=counting_subscriber)
-    async with _authenticated_client(app, user, shop) as client:
-        # A "late joiner": connects only after the run is already terminal.
-        resp = await asyncio.wait_for(client.get(f"/v1/demo/runs/{run.id}/events"), timeout=2.0)
-
-    assert _record_ids(resp.text) == [1, 2, 3]
-    assert counting_subscriber.subscribe_calls == 0, (
-        "a run already terminal at connect must never attempt to subscribe -- "
-        "late joiners are free (ADR-074 decision 3)"
-    )
-
-
-async def test_lifecycle_cancel_at_checkpoint_is_visible_on_the_stream(pg_session_factory):
-    """`POST /cancel`'s own contract (202, idempotent, transport-only) is
-    already proven at unit level (`test_agent_run_events_api.py`) -- the
-    actual checkpoint-cancellation signal into a runner's run-state blob is
-    W3-A/P9's concern, out of this route's and this slice's scope (see
-    `api/routes/agent_runs.py`'s module docstring). What this test proves
-    instead, end to end: once a run reaches a cancellation checkpoint (here,
-    simulated by the scripted runner emitting the failure-class terminal the
-    real runner would), that event is visible on an already-open SSE stream
-    and closes it -- the one piece of "cancel is visible on the stream" this
-    slice's transport layer actually owns.
-    """
-    user, shop = await _seed_shop(pg_session_factory)
-    run = await _seed_run(pg_session_factory, shop, status="running")
-    bus = FakeRedisBus()
-    sink = PersistingEventSink(pg_session_factory, bus)
-
-    app = _build_app(pg_session_factory, subscriber=bus)
-    async with _authenticated_client(app, user, shop) as client:
-        cancel_resp = await client.post(f"/v1/demo/runs/{run.id}/cancel")
-        assert cancel_resp.status_code == 202
-
-        async def _reach_checkpoint_shortly() -> None:
-            await asyncio.sleep(0.1)
-            runner = ScriptedFakeRunner(
-                session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
-            )
-            await runner.run(
-                [
-                    ScriptedEvent(
-                        "workflow.failed",
-                        {"status": "cancelled", "stop_reason": "cancelled_by_seller"},
-                    )
-                ],
-                final_status="cancelled",
+    async def test_cursor_source_and_degrade(
+        self, pg_session_factory, two_event_completed_run, params, headers, expected_ids
+    ):
+        user, shop, run = two_event_completed_run
+        app = build_app(pg_session_factory, subscriber=None)
+        async with authenticated_client(app, user, shop) as client:
+            resp = await client.get(
+                f"/v1/demo/runs/{run.id}/events", params=params, headers=headers
             )
 
-        task = asyncio.create_task(_reach_checkpoint_shortly())
-        try:
-            resp = await asyncio.wait_for(client.get(f"/v1/demo/runs/{run.id}/events"), timeout=5.0)
-        finally:
-            await task
-
-    records = [_parse_sse_block(b) for b in resp.text.strip("\n").split("\n\n")]
-    records = [r for r in records if r]
-    assert len(records) == 1
-    assert records[0]["event"] == "workflow.failed"
-    assert "cancelled_by_seller" in records[0]["data"]
-
-    async with pg_session_factory() as session:
-        refreshed = await session.get(WorkflowRunRow, run.id)
-        assert refreshed.status == "cancelled"
-
-
-# ---------------------------------------------------------------------------
-# AC (ADR-074 d.6) -- crash-resume: the task run twice against one blob
-# produces no duplicate events and exactly one completion. This is where
-# #1118's "next_sequence survives a pause/resume round trip" guarantee and
-# #1125's "sequence_number is non-defaultable" guarantee are exercised
-# together for the first time (#1131 issue thread).
-# ---------------------------------------------------------------------------
-
-
-async def test_crash_resume_twice_against_one_blob_no_dupe_events_one_completion(
-    pg_session_factory,
-):
-    user, shop = await _seed_shop(pg_session_factory)
-    run = await _seed_run(pg_session_factory, shop, status="running", state={"next_sequence": 1})
-    bus = FakeRedisBus()
-    sink = PersistingEventSink(pg_session_factory, bus)
-    script = _standard_script("crash-resume-ref")
-
-    # Attempt 1: the task runs to completion and persists the advanced blob.
-    attempt_1 = ScriptedFakeRunner(
-        session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
-    )
-    await attempt_1.run(script, final_status="completed", persist_state=True)
-
-    async with pg_session_factory() as session:
-        after_attempt_1 = await session.get(WorkflowRunRow, run.id)
-        assert after_attempt_1.state == {"next_sequence": 4}
-        assert after_attempt_1.status == "completed"
-
-    # Attempt 2: a crash-redelivered Celery task (acks_late=True, ADR-074
-    # d.4) that never observed attempt 1's write -- it reconstructs from the
-    # SAME starting next_sequence attempt 1 began with (not the now-advanced
-    # DB value) and re-emits the byte-identical script.
-    attempt_2 = ScriptedFakeRunner(
-        session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
-    )
-    await attempt_2.run(script, final_status="completed", persist_state=False)
-
-    async with pg_session_factory() as session:
-        rows = (
-            (
-                await session.execute(
-                    select(WorkflowRunEventRow)
-                    .where(WorkflowRunEventRow.workflow_run_id == run.id)
-                    .order_by(WorkflowRunEventRow.sequence_number)
-                )
-            )
-            .scalars()
-            .all()
-        )
-
-    assert [r.sequence_number for r in rows] == [1, 2, 3], (
-        "two full task attempts against the same starting sequence must leave no duplicate rows"
-    )
-    completed_rows = [r for r in rows if r.event_type == "workflow.completed"]
-    assert len(completed_rows) == 1, (
-        "exactly one completion must survive the crash-replayed attempt"
-    )
-    assert completed_rows[0].payload == {"stop_reason": "final_response"}
-
-    # Direct proof this is a REAL Postgres constraint, not app-level
-    # idempotency logic alone: a raw duplicate INSERT for the same
-    # (workflow_run_id, sequence_number) must be rejected by the database.
-    async with pg_session_factory() as session:
-        session.add(
-            WorkflowRunEventRow(
-                workflow_run_id=run.id,
-                sequence_number=1,
-                event_type="workflow.status",
-                timestamp=datetime.now(UTC),
-                payload={"phase_narration": "duplicate probe"},
-                v=1,
-            )
-        )
-        with pytest.raises(IntegrityError):
-            await session.commit()
-        await session.rollback()
+        assert resp.status_code == 200, resp.text
+        assert record_ids(resp.text) == expected_ids
