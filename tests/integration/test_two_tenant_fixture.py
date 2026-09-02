@@ -19,7 +19,7 @@ from __future__ import annotations
 import os
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import column, func, select, table, text
 
 from tests.integration.two_tenant import RUNTIME_ROLE, SEEDED_TABLES, juli_app_session
 
@@ -184,15 +184,18 @@ def test_the_seeder_covers_every_table_it_claims(owner_engine, two_tenants) -> N
 
     missing = []
     with owner_engine.connect() as conn:
-        for table in SEEDED_TABLES:
-            column = scoped_by.get(table, "shop_id")
-            value = tenant_a.user_id if table in scoped_by else tenant_a.shop_id
+        for name in SEEDED_TABLES:
+            key = scoped_by.get(name, "shop_id")
+            value = tenant_a.user_id if name in scoped_by else tenant_a.shop_id
+            # Core constructs rather than an f-string. The table name varies, so
+            # raw SQL here would need a suppression to excuse the interpolation;
+            # table()/column() quote the identifier and keep the value bound.
+            target = table(name, column(key), schema="public")
             count = conn.execute(
-                text(f"SELECT count(*) FROM public.{table} WHERE {column} = :v"),  # noqa: S608
-                {"v": str(value)},
+                select(func.count()).select_from(target).where(column(key) == str(value))
             ).scalar()
             if not count:
-                missing.append(table)
+                missing.append(name)
 
     assert not missing, (
         f"SEEDED_TABLES names these but no row exists for the seeded tenant: {missing}. "

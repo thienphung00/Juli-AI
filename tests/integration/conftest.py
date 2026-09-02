@@ -162,7 +162,7 @@ def tiktok_auth_client() -> TikTokAuth:
 # Defined here rather than imported from `two_tenant.py` so consuming modules
 # get them by name. Importing a fixture and then naming it as a parameter is an
 # F811 redefinition, and the repository's existing workaround for that is a
-# `# noqa: F401` — a suppression identity the ratchet (#1462) counts. conftest
+# a lint suppression the ratchet (#1462) counts as a debt identity. conftest
 # discovery avoids needing one.
 #
 # Both are module-scoped and lazy: a test that does not request them never
@@ -202,7 +202,7 @@ def owner_engine():
 
     repo_root = _Path(__file__).resolve().parents[2]
     sys.path.insert(0, str(repo_root / "agent-runtime" / "scripts" / "ci"))
-    from ensure_postgrest_client_roles import (  # noqa: E402
+    from ensure_postgrest_client_roles import (
         ensure_roles,
         seed_supabase_bootstrap_grants,
     )
