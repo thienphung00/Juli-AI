@@ -547,11 +547,12 @@ def test_system_scope_call_sites_enumerated():
     # Any new call site must be added here explicitly.
     # analytics_backfill_topup left this set in #1478: it runs for a single
     # reference shop and now uses with_shop_scope, so it needs no exemption at
-    # all (ADR-089 decision 5). The list is expected to keep SHRINKING as the
-    # W7-bis slices land — a name reappearing here is a regression, and a new
-    # name is the growth this test was written to catch.
+    # all (ADR-089 decision 5). impact_reader left this set in #1488: it
+    # enumerates via SECURITY DEFINER and loops with per-execution context.
+    # The list is expected to keep SHRINKING as the W7-bis slices land — a
+    # name reappearing here is a regression, and a new name is the growth
+    # this test was written to catch.
     expected_call_sites = {
-        "workers/tasks/impact_reader.py",
         "workers/tasks/credential_refresh_beat.py",
         "workers/tasks/reaper.py",
         "workers/tasks/mock_analytics_reconcile.py",
@@ -559,6 +560,7 @@ def test_system_scope_call_sites_enumerated():
 
     # Walk backend/src/juli_backend and find all files with system_scope( calls
     # But exclude database/tenant_context.py which defines system_scope
+    # and migrations/* which document system_scope in docstrings but are not runtime code
     actual_call_sites = set()
     backend_src = Path(__file__).parent.parent.parent / "backend" / "src" / "juli_backend"
 
@@ -570,6 +572,11 @@ def test_system_scope_call_sites_enumerated():
 
         # Skip the definition file
         if str(filepath).endswith("database/tenant_context.py"):
+            continue
+
+        # Skip migration files — they document system_scope in docstrings
+        # but are not runtime call sites
+        if "database/migrations/versions" in str(filepath):
             continue
 
         # Look for "system_scope(" pattern (call site, not definition)

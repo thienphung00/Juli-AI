@@ -1,5 +1,5 @@
 """Celery task entrypoint for the daily impact-reader beat task — ADR-077
-decision 5 (#1044).
+decision 5 (#1044), rewritten per ADR-089 for per-tenant context (#1488).
 
 Scheduled after ``analytics-backfill-topup`` (``workers/celery_app.py``) so
 the reference shop's daily analytics partitions are as fresh as that day's
@@ -9,9 +9,13 @@ reference-shop gap (the daily topup is hardcoded to
 every other shop's ``analytics_performance_intervals`` stays whatever it was
 left at by the last manual refresh. That is exactly the missing-daily-rows
 case ``workers/impact_reader/pipeline.py`` degrades to a ``suppressed``
-reading for, never a crash — this task itself is not shop-scoped; it scans
-terminal executions across every shop and lets the per-metric confidence
-pipeline decide.
+reading for, never a crash.
+
+The task enumerates measurable executions via a SECURITY DEFINER function
+that returns identifiers and scheduling metadata only, then loops over them
+setting per-execution context (the execution's shop). Every data access is
+then under the execution's shop scope, not fleet-wide system_scope, so RLS
+policies are satisfied and the two-tenant proof covers the whole work.
 """
 
 from __future__ import annotations
@@ -40,23 +44,23 @@ def _ensure_session_factory() -> async_sessionmaker:
 
 
 async def _run_daily_impact_reader_async() -> None:
-    from juli_backend.database.tenant_context import system_scope
-
     factory = _ensure_session_factory()
     reference_date = datetime.now(UTC).date()
     async with factory() as session:
-        async with system_scope(session, caller="daily_impact_reader"):
-            result = await run_daily_impact_reader(session, reference_date)
-            await session.commit()
-            logger.info(
-                "daily_impact_reader_complete",
-                extra={
-                    "reference_date": reference_date.isoformat(),
-                    "executions_scanned": result.executions_scanned,
-                    "readings_written": result.readings_written,
-                    "executions_skipped_unclassified": result.executions_skipped_unclassified,
-                },
-            )
+        # Per ADR-089 decision 2: impact_reader enumerates via SECURITY DEFINER
+        # function, then loops with per-execution context. No system_scope
+        # exemption needed — every data access is under the execution's shop context.
+        result = await run_daily_impact_reader(session, reference_date)
+        await session.commit()
+        logger.info(
+            "daily_impact_reader_complete",
+            extra={
+                "reference_date": reference_date.isoformat(),
+                "executions_scanned": result.executions_scanned,
+                "readings_written": result.readings_written,
+                "executions_skipped_unclassified": result.executions_skipped_unclassified,
+            },
+        )
 
 
 @celery_app.task(name="juli_backend.daily_impact_reader")

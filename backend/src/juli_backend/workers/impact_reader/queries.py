@@ -12,10 +12,11 @@ from __future__ import annotations
 import json
 import uuid
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import (
@@ -78,16 +79,75 @@ _MAX_CANDIDATE_PRODUCTS = 50
 TERMINAL_SUCCEEDED = "succeeded"
 
 
-async def load_measurable_executions(session: AsyncSession) -> Sequence[ToolExecution]:
-    """Every terminal (succeeded) execution of a tool this reader can
-    classify mutations for — the raw candidate pool the pipeline then
-    filters by elapsed time and already-written kinds."""
-    stmt = select(ToolExecution).where(
-        ToolExecution.status == TERMINAL_SUCCEEDED,
-        ToolExecution.tool_name.in_(measurable_tool_names()),
-    )
+@dataclass(frozen=True)
+class MeasurableExecution:
+    """Result from enumerate_measurable_executions SECURITY DEFINER function.
+
+    The enumeration returns only identifiers and scheduling metadata, never full rows.
+    Per-execution data (payload_json, tool_name) is fetched per-item under tenant context.
+    """
+
+    execution_id: uuid.UUID
+    shop_id: uuid.UUID
+    updated_at: datetime
+
+
+async def load_measurable_executions(session: AsyncSession) -> Sequence[MeasurableExecution]:
+    """Enumerate measurable executions via the SECURITY DEFINER function.
+
+    Returns identifiers and scheduling metadata only — no full ORM rows, no
+    cross-tenant data leakage beyond identifiers. The pipeline loops over
+    these, setting per-tenant context for each item to fetch and process it.
+
+    Replaces the former `select(ToolExecution)` fleet-wide read per ADR-089
+    decision 3 (enumeration via SECURITY DEFINER).
+
+    On SQLite (unit tests only), falls back to a direct query since the
+    function does not exist in in-memory SQLite. In production (Postgres),
+    the function call executes with table-owner privileges to read across
+    tenants; the caller then loops with per-tenant context.
+    """
+    # Detect if we're on SQLite by checking the dialect
+    bind = session.get_bind()
+    dialect_name = bind.dialect.name if hasattr(bind, "dialect") else "postgresql"
+
+    if dialect_name == "sqlite":
+        # Unit test fallback: direct query on SQLite
+        stmt = select(ToolExecution).where(
+            ToolExecution.status == TERMINAL_SUCCEEDED,
+            ToolExecution.tool_name.in_(measurable_tool_names()),
+        )
+        result = await session.execute(stmt)
+        executions = []
+        for execution in result.scalars().all():
+            executions.append(
+                MeasurableExecution(
+                    execution_id=execution.id,
+                    shop_id=execution.shop_id,
+                    updated_at=execution.updated_at,
+                )
+            )
+        return executions
+
+    # Production (Postgres): call the SECURITY DEFINER function
+    stmt = text(
+        """
+        SELECT out_execution_id, out_shop_id, out_updated_at
+        FROM public.enumerate_measurable_executions(:measurable_names)
+        """
+    ).bindparams(measurable_names=list(measurable_tool_names()))
+
     result = await session.execute(stmt)
-    return result.scalars().all()
+    executions = []
+    for row in result.all():
+        executions.append(
+            MeasurableExecution(
+                execution_id=uuid.UUID(row[0]) if isinstance(row[0], str) else row[0],
+                shop_id=uuid.UUID(row[1]) if isinstance(row[1], str) else row[1],
+                updated_at=row[2],
+            )
+        )
+    return executions
 
 
 async def load_written_kinds(session: AsyncSession, tool_execution_id: uuid.UUID) -> set[str]:

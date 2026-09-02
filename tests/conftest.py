@@ -223,6 +223,8 @@ _SHARED_STATE_MODULES = frozenset(
         "test_two_tenant_fixture.py",
         # Reason 2 again: uses the same seeding fixture (#1487).
         "test_fleet_enumeration_functions.py",
+        # Reason 2 again: seeds two tenants for #1488 (impact_reader per-tenant context).
+        "test_impact_reader_two_tenant.py",
     }
 )
 
