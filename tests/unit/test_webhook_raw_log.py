@@ -1,4 +1,17 @@
-"""Unit tests for TikTok webhook raw audit log (#392)."""
+"""TikTok webhook raw audit log: fail-safe recording of every delivery (#392).
+
+Two things are proven here: end to end, every response the webhook app can
+return (auth failure, malformed body, catalog match, deferred, unknown) hands
+the injected :class:`RawWebhookEventRecorder` a matching ``processing_status``,
+and a failure inside the recorder never changes that response; and the
+concrete implementation (:class:`DatabaseRawWebhookEventRecorder` over
+:class:`WebhookRawEventsRepo`) redacts the body and the header allowlist
+before either reaches the table.
+
+HTTP status codes and event routing themselves (auth, malformed JSON, catalog
+dispatch) are ``test_webhook.py``'s contract; this module only adds the
+recorder-wiring proof on top.
+"""
 
 from __future__ import annotations
 
@@ -8,12 +21,11 @@ import json
 from dataclasses import dataclass, field
 
 import pytest
-import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
 from juli_backend.models.models import WebhookRawEvent
-from juli_backend.repositories.repos import WebhookRawEventsRepo
+from juli_backend.repositories import WebhookRawEventsRepo
 from juli_backend.services.tiktok.webhook_raw_log import DatabaseRawWebhookEventRecorder
 from juli_backend.services.webhook.app import create_app
 
@@ -22,17 +34,10 @@ APP_SECRET = "test_app_secret"
 WEBHOOK_PATH = "/webhooks/tiktok"
 
 
-def _sign(app_key: str, app_secret: str, body: bytes) -> str:
-    """Compute HMAC-SHA256 signature for webhook: HMAC-SHA256(app_secret, app_key + body).
-
-    The path is NOT included in webhook signatures (unlike API request signing).
-    """
-    sign_string = f"{app_key}{body.decode()}"
-    return hmac.new(
-        app_secret.encode(),
-        sign_string.encode(),
-        hashlib.sha256,
-    ).hexdigest()
+def _sign(body: bytes) -> str:
+    """``HMAC-SHA256(app_secret, app_key + body)`` -- the path is not signed."""
+    sign_string = f"{APP_KEY}{body.decode()}"
+    return hmac.new(APP_SECRET.encode(), sign_string.encode(), hashlib.sha256).hexdigest()
 
 
 def _order_body() -> bytes:
@@ -52,6 +57,8 @@ def _order_body() -> bytes:
 
 @dataclass
 class CapturingRecorder:
+    """Stands in for :class:`DatabaseRawWebhookEventRecorder` -- same signature."""
+
     calls: list[dict] = field(default_factory=list)
     raise_on_record: bool = False
 
@@ -102,97 +109,86 @@ def app(handoff_calls, recorder):
     )
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client(app):
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
 
 
-class TestRawLogRecording:
-    @pytest.mark.asyncio
+class TestEveryOutcomeIsRecorded:
+    """Each response the webhook app can return reaches the recorder with a matching status."""
+
     async def test_missing_signature_records_401(self, client, recorder):
-        body = _order_body()
         resp = await client.post(
-            WEBHOOK_PATH,
-            content=body,
-            headers={"Content-Type": "application/json"},
+            WEBHOOK_PATH, content=_order_body(), headers={"Content-Type": "application/json"}
         )
+
         assert resp.status_code == 401
         assert len(recorder.calls) == 1
         assert recorder.calls[0]["http_status"] == 401
         assert recorder.calls[0]["processing_status"] == "missing_signature"
 
-    @pytest.mark.asyncio
     async def test_invalid_signature_records_401(self, client, recorder):
-        body = _order_body()
         resp = await client.post(
             WEBHOOK_PATH,
-            content=body,
+            content=_order_body(),
             headers={"Authorization": "bad", "Content-Type": "application/json"},
         )
+
         assert resp.status_code == 401
         assert recorder.calls[0]["processing_status"] == "invalid_signature"
 
-    @pytest.mark.asyncio
     async def test_malformed_json_records_400(self, client, recorder):
         body = b"not-json"
-        sig = _sign(APP_KEY, APP_SECRET, body)
         resp = await client.post(
             WEBHOOK_PATH,
             content=body,
-            headers={"Authorization": sig, "Content-Type": "application/json"},
+            headers={"Authorization": _sign(body), "Content-Type": "application/json"},
         )
+
         assert resp.status_code == 400
         assert recorder.calls[0]["processing_status"] == "malformed_json"
 
-    @pytest.mark.asyncio
     async def test_missing_fields_records_400(self, client, recorder):
         body = json.dumps({"shop_id": "s1", "timestamp": 1, "data": {}}).encode()
-        sig = _sign(APP_KEY, APP_SECRET, body)
         resp = await client.post(
             WEBHOOK_PATH,
             content=body,
-            headers={"Authorization": sig, "Content-Type": "application/json"},
+            headers={"Authorization": _sign(body), "Content-Type": "application/json"},
         )
+
         assert resp.status_code == 400
         assert recorder.calls[0]["processing_status"] == "missing_fields"
 
-    @pytest.mark.asyncio
-    async def test_catalog_match_records_handler_name(self, client, recorder):
+    async def test_catalog_match_records_the_handler_name_and_the_parsed_event(
+        self, client, recorder
+    ):
         body = _order_body()
-        sig = _sign(APP_KEY, APP_SECRET, body)
         resp = await client.post(
             WEBHOOK_PATH,
             content=body,
-            headers={"Authorization": sig, "Content-Type": "application/json"},
+            headers={"Authorization": _sign(body), "Content-Type": "application/json"},
         )
+
         assert resp.status_code == 200
         assert recorder.calls[0]["http_status"] == 200
         assert recorder.calls[0]["processing_status"] == "order_status_change"
         assert recorder.calls[0]["event"] is not None
 
-    @pytest.mark.asyncio
-    async def test_deferred_records_deferred_status(self, client, recorder):
+    async def test_out_of_scope_event_records_deferred_status(self, client, recorder):
         body = json.dumps(
-            {
-                "type": "LIVESTREAM_SESSION_END",
-                "shop_id": "shop_ls_1",
-                "timestamp": 1,
-                "data": {},
-            }
+            {"type": "LIVESTREAM_SESSION_END", "shop_id": "shop_ls_1", "timestamp": 1, "data": {}}
         ).encode()
-        sig = _sign(APP_KEY, APP_SECRET, body)
         resp = await client.post(
             WEBHOOK_PATH,
             content=body,
-            headers={"Authorization": sig, "Content-Type": "application/json"},
+            headers={"Authorization": _sign(body), "Content-Type": "application/json"},
         )
+
         assert resp.status_code == 200
         assert recorder.calls[0]["processing_status"] == "deferred_out_of_scope"
 
-    @pytest.mark.asyncio
-    async def test_unknown_records_unknown_status(self, client, recorder):
+    async def test_unrecognized_event_type_records_unknown_status(self, client, recorder):
         body = json.dumps(
             {
                 "type": "TOTALLY_UNKNOWN_EVENT_XYZ",
@@ -201,35 +197,39 @@ class TestRawLogRecording:
                 "data": {},
             }
         ).encode()
-        sig = _sign(APP_KEY, APP_SECRET, body)
         resp = await client.post(
             WEBHOOK_PATH,
             content=body,
-            headers={"Authorization": sig, "Content-Type": "application/json"},
+            headers={"Authorization": _sign(body), "Content-Type": "application/json"},
         )
+
         assert resp.status_code == 200
         assert recorder.calls[0]["processing_status"] == "unknown_event"
 
-    @pytest.mark.asyncio
-    async def test_recorder_failure_does_not_change_response(self, handoff_calls, client, recorder):
+
+class TestRecorderFailureIsFailSafe:
+    async def test_a_raising_recorder_does_not_change_the_response(
+        self, handoff_calls, client, recorder
+    ):
+        """The audit log is best-effort: a broken recorder must never turn a
+        successful delivery into an error the vendor retries forever."""
         recorder.raise_on_record = True
         body = _order_body()
-        sig = _sign(APP_KEY, APP_SECRET, body)
+
         resp = await client.post(
             WEBHOOK_PATH,
             content=body,
-            headers={"Authorization": sig, "Content-Type": "application/json"},
+            headers={"Authorization": _sign(body), "Content-Type": "application/json"},
         )
+
         assert resp.status_code == 200
         assert resp.json() == {"code": 0}
         assert len(handoff_calls) == 1
 
 
 class TestWebhookRawEventsRepo:
-    @pytest.mark.asyncio
-    async def test_insert_persists_row(self, session):
-        repo = WebhookRawEventsRepo(session)
-        row = await repo.insert(
+    async def test_insert_persists_the_row(self, session):
+        row = await WebhookRawEventsRepo(session).insert(
             tiktok_shop_id="shop_1",
             event_type="ORDER_STATUS_CHANGE",
             event_id="evt_1",
@@ -239,10 +239,10 @@ class TestWebhookRawEventsRepo:
             http_status=200,
             processing_status="order_status_change",
         )
-        await session.commit()
 
-        result = await session.execute(select(WebhookRawEvent).where(WebhookRawEvent.id == row.id))
-        loaded = result.scalar_one()
+        loaded = (
+            await session.execute(select(WebhookRawEvent).where(WebhookRawEvent.id == row.id))
+        ).scalar_one()
         assert loaded.tiktok_shop_id == "shop_1"
         assert loaded.event_type == "ORDER_STATUS_CHANGE"
         assert loaded.http_status == 200
@@ -251,10 +251,10 @@ class TestWebhookRawEventsRepo:
 
 
 class TestDatabaseRawWebhookEventRecorder:
-    @pytest.mark.asyncio
-    async def test_records_redacted_body_and_skips_malformed(self, session):
+    async def test_redacts_the_body_and_the_header_allowlist_and_skips_malformed_bodies(
+        self, session
+    ):
         recorder = DatabaseRawWebhookEventRecorder(session)
-
         good = json.dumps(
             {
                 "type": "ORDER_STATUS_CHANGE",
@@ -263,6 +263,7 @@ class TestDatabaseRawWebhookEventRecorder:
                 "data": {"buyer_name": "Alice", "order_id": "o1"},
             }
         ).encode()
+
         await recorder.record(
             body=good,
             signature="sig",
@@ -271,7 +272,6 @@ class TestDatabaseRawWebhookEventRecorder:
             event=None,
             headers={"Content-Type": "application/json", "X-Secret": "nope"},
         )
-
         await recorder.record(
             body=b"not-json",
             signature="sig",
@@ -280,18 +280,17 @@ class TestDatabaseRawWebhookEventRecorder:
             event=None,
             headers=None,
         )
-        await session.commit()
 
-        result = await session.execute(select(WebhookRawEvent))
-        rows = {row.processing_status: row for row in result.scalars().all()}
+        rows = {
+            row.processing_status: row
+            for row in (await session.execute(select(WebhookRawEvent))).scalars().all()
+        }
         assert set(rows) == {"order_status_change", "malformed_json"}
-        ok = rows["order_status_change"]
-        bad = rows["malformed_json"]
+        ok, bad = rows["order_status_change"], rows["malformed_json"]
         assert ok.raw_body is not None
         assert "Alice" not in ok.raw_body
         assert "[REDACTED]" in ok.raw_body
-        assert ok.headers is not None
-        assert "content-type" in ok.headers.lower()
+        assert "content-type" in (ok.headers or "").lower()
         assert "X-Secret" not in (ok.headers or "")
         assert bad.raw_body is None
         assert bad.processing_status == "malformed_json"
