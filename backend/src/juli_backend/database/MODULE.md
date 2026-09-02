@@ -12,7 +12,7 @@ Import from the package root only:
 from juli_backend.database import Shop, ShopsRepo, get_session, ...
 ```
 
-Deep imports of ``models.models``, ``repositories.repos``, and
+Deep imports of ``models.models``, the ``repositories.<aggregate>`` submodules, and
 ``services.etl.persistence.ingest`` are internal unless re-exported below.
 
 ### Package facade (`__init__.py`)
