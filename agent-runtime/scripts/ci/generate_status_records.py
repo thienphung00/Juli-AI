@@ -43,6 +43,26 @@ from common import (  # noqa: E402
     warnings_require_signoff,
 )
 
+
+def _ref_scheme_seam() -> tuple[str, Any, Any]:
+    """Load the artifactRef scheme vocabulary (#1497) from ``artifact_ref_resolution``.
+
+    Imported inside a function, not at module scope: a third module-level import
+    after the ``sys.path`` insert above would add a third ``# noqa: E402`` unit to
+    this file, and the repo's debt ratchet counts suppression *units*, not just
+    distinct identities (``tests/unit/test_ratchets.py``). Import cosmetics are not
+    worth a unit of tracked debt -- the pattern is the one
+    ``tests/unit/test_command_subsumption_provider.py::_load_seam`` uses.
+    """
+    from artifact_ref_resolution import (
+        GIT_HISTORY_SCHEME,
+        is_policy_local_path,
+        policy_local_ref,
+    )
+
+    return GIT_HISTORY_SCHEME, is_policy_local_path, policy_local_ref
+
+
 WAVES_DIR = STATUS_DIR.parent / "waves"
 # 2 (#1438): records carry the run{} capture envelope. v1 records are NOT
 # backfilled — see the schema's gateVersion description.
@@ -99,6 +119,7 @@ def build_status_record(issue: int) -> dict[str, Any] | None:
     if not review_path.is_file() or not validation_path.is_file():
         return None
 
+    _, _, policy_local_ref = _ref_scheme_seam()
     review_bytes = review_path.read_bytes()
     validation_bytes = validation_path.read_bytes()
     review = json.loads(review_bytes)
@@ -151,19 +172,22 @@ def build_status_record(issue: int) -> dict[str, Any] | None:
             # derived here from the same `common` helpers the validate gates use,
             # never hand-written.
             "signoffRequired": warnings_require_signoff(review),
-            "warningsAcknowledged": not unacknowledged_findings(
-                normalize_review_findings(review)
-            ),
+            "warningsAcknowledged": not unacknowledged_findings(normalize_review_findings(review)),
             "ownerSignoffPresent": owner_signoff_valid(review)[0],
-            "artifactRef": (
-                f"git-history:agent-runtime/artifacts/reviews/review-issue-{issue}.json"
+            # #1497: NOT git-history:. .gitignore forbids committing this body by
+            # policy (ADR-003: emit is not commit), so a git-history claim about it
+            # can never be satisfied -- which is exactly what made every gateVersion
+            # 2 record unpassable once #1445 began checking. local-only: claims only
+            # what is true: the body existed on this machine and this is its sha256.
+            "artifactRef": policy_local_ref(
+                f"agent-runtime/artifacts/reviews/review-issue-{issue}.json"
             ),
             "sha256": _sha256_bytes(review_bytes),
         },
         "validation": {
             "status": effective_validation_status,
-            "artifactRef": (
-                f"git-history:agent-runtime/artifacts/validation/validation-issue-{issue}.json"
+            "artifactRef": policy_local_ref(
+                f"agent-runtime/artifacts/validation/validation-issue-{issue}.json"
             ),
             "sha256": _sha256_bytes(validation_bytes),
         },
@@ -194,6 +218,63 @@ def migrate(*, dry_run: bool = False) -> list[int]:
     return generated
 
 
+def relabel_policy_local_refs(*, dry_run: bool = False) -> list[int]:
+    """One-off correction for records committed before #1497.
+
+    #1438's generator stamped ``git-history:`` onto body paths ``.gitignore``
+    forbids committing. Those records cannot simply be regenerated -- their
+    bodies are gitignored and long gone from the machines that wrote them -- but
+    the wrong part of them is only the *label*. The ``sha256`` is still the
+    digest of the body that existed, and stays byte-for-byte untouched here; all
+    this does is replace a retrievability claim that was never true with the one
+    that is.
+
+    Two deliberate exclusions:
+
+    * ``gateVersion`` 1 records are left alone. The Architect lock on #1445 says
+      history is not backfilled, and those records are already handled by the
+      guard's mark-don't-fail path.
+    * A ``git-history:`` ref to a path outside the five body directories is left
+      alone. Nothing forbids committing it, so its claim is checkable and must
+      stay checked -- relabelling is a correction, never a way to silence a
+      genuinely dangling ref.
+
+    Returns the issue numbers whose records changed; idempotent.
+    """
+    git_history_scheme, is_policy_local_path, policy_local_ref = _ref_scheme_seam()
+    changed: list[int] = []
+    if not STATUS_DIR.is_dir():
+        return changed
+    for path in sorted(STATUS_DIR.glob("issue-*.json")):
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(record, dict) or record.get("gateVersion") != GATE_VERSION:
+            continue
+        touched = False
+        for name in ("review", "validation"):
+            block = record.get(name)
+            if not isinstance(block, dict):
+                continue
+            ref = str(block.get("artifactRef", ""))
+            if not ref.startswith(git_history_scheme):
+                continue
+            target = ref[len(git_history_scheme) :]
+            if not is_policy_local_path(target):
+                continue
+            block["artifactRef"] = policy_local_ref(target)
+            touched = True
+        if not touched:
+            continue
+        if not dry_run:
+            path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        issue = record.get("issue")
+        if isinstance(issue, int):
+            changed.append(issue)
+    return changed
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -201,7 +282,22 @@ def main() -> int:
         action="store_true",
         help="Report what would be generated without writing files",
     )
+    parser.add_argument(
+        "--relabel-policy-local-refs",
+        action="store_true",
+        help=(
+            "#1497 one-off: rewrite git-history: artifactRefs on gateVersion 2 "
+            "records to local-only: where the path is a gitignored artifact body. "
+            "sha256 values are never touched."
+        ),
+    )
     args = parser.parse_args()
+
+    if args.relabel_policy_local_refs:
+        changed = relabel_policy_local_refs(dry_run=args.dry_run)
+        verb = "would relabel" if args.dry_run else "relabelled"
+        print(f"status records: {verb} {len(changed)} for issues {changed}")
+        return 0
 
     generated = migrate(dry_run=args.dry_run)
     verb = "would generate" if args.dry_run else "generated"
