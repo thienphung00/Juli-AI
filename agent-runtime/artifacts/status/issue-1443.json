@@ -1,0 +1,84 @@
+{
+  "gateVersion": 2,
+  "issue": 1443,
+  "metrics": {
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "agent-runtime/scripts/ci/capture_providers",
+      "tests/unit"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1443.json",
+    "ownerSignoffPresent": true,
+    "sha256": "a4b6d056faab08333efe7d34b66c8a13e5cc22af5d59a76712d0600f8c31b567",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "run": {
+    "artifactBytes": {
+      "reviewBytes": 10877,
+      "validationBytes": 24623
+    },
+    "claimVsExecuted": {
+      "citedCommandCount": 6,
+      "invokedCommandCount": 9054,
+      "matchedCommandCount": 0,
+      "reason": "6 of 6 cited commands have no matching invocation in the session transcripts",
+      "recordPasses": false,
+      "status": "FAIL",
+      "transcriptSources": [
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-codebase-audit-refactor-b9b867",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-open-terminal-in-code-08e55d"
+      ],
+      "transcriptsScanned": 43,
+      "unmatchedCommandCount": 6,
+      "unmatchedCommands": [
+        {
+          "command": "cd /Users/macos/Juli-AI-v2/.worktrees/w2-1443 && PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_claim_vs_executed_provider.py -q 2>&1 | tail -15; echo \"EXIT=${pipestatus[1]}\"",
+          "cycle": 1,
+          "exitCode": 2
+        },
+        {
+          "command": "cd /Users/macos/Juli-AI-v2/.worktrees/w2-1443 && PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_claim_vs_executed_provider.py -q 2>&1 | tail -30; echo \"EXIT=${pipestatus[1]}\"",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "cd /Users/macos/Juli-AI-v2/.worktrees/w2-1443 && PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_claim_vs_executed_provider.py -q; echo \"DOD_EXIT=$?\"",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "cd /Users/macos/Juli-AI-v2/.worktrees/w2-1443 && PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_claim_vs_executed_provider.py tests/unit/test_status_record_gate.py tests/unit/test_implementation_tdd_evidence.py -q 2>&1 | tail -6; echo \"EXIT=${pipestatus[1]}\"",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "cd /Users/macos/Juli-AI-v2/.worktrees/w2-1443 && FAKEHOME=$(mktemp -d) && HOME=\"$FAKEHOME\" PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_claim_vs_executed_provider.py -q 2>&1 | tail -6; echo \"EMPTY_HOME_EXIT=${pipestatus[1]}\"",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "cd /Users/macos/Juli-AI-v2/.worktrees/w2-1443 && python -m ruff format agent-runtime/scripts/ci/capture_providers/claim_vs_executed.py tests/unit/test_claim_vs_executed_provider.py && python -m ruff check agent-runtime/scripts/ci/capture_providers/claim_vs_executed.py tests/unit/test_claim_vs_executed_provider.py && python -m ruff format --check agent-runtime/scripts/ci/capture_providers/claim_vs_executed.py tests/unit/test_claim_vs_executed_provider.py; echo \"EXIT=$?\"",
+          "cycle": 1,
+          "exitCode": 0
+        }
+      ],
+      "unmatchedCommandsTruncated": false,
+      "verified": true
+    }
+  },
+  "timestamp": "2026-09-02T06:19:49Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1443.json",
+    "sha256": "5042cf993192bccdced77a3d59b437b39facda0c405a1d23052e24d7fda0ac6c",
+    "status": "PASS"
+  },
+  "wave": null
+}
