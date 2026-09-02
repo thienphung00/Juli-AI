@@ -33,12 +33,19 @@ produce, so it is recorded rather than resolved.
 a missing transcript: the latter is expected and is data, not failure.
 Everything that can fail is contained here and surfaces as a gap.
 
-Attribution is by branch and by the worktree the agent actually wrote to,
-never by "the newest session". A session commonly holds several concurrent
-executors on different issues; crediting all of them to whichever issue asked
-would inflate this record with a neighbour's work. Each attributed agent
-records *which* signal tied it to the issue, so a reader can weigh a branch
-match against a path match rather than taking both as equal.
+Attribution is by the worktree the agent operated on, never by the session's
+``gitBranch`` and never by "the newest session" (#1508). A session commonly
+holds several concurrent executors on different issues; crediting all of them
+to whichever issue asked inflates this record with a neighbour's work, and did
+— by 3.3x, measured. ``task_transcripts`` carries the evidence.
+
+**A multi-agent match is ambiguous, not a sum.** Adding several agents together
+asserts they were one run, which nothing on disk establishes: an agent that
+merely read another's tree is indistinguishable from one that worked in it. A
+sum would produce a total no process ever spent — a fabricated number, which is
+strictly worse than an absent one. So the headline goes unavailable, and every
+candidate keeps its own measured figures under ``agents[]`` where a reader can
+see them.
 """
 
 from __future__ import annotations
@@ -90,6 +97,13 @@ MAX_LISTED_AGENTS = 25
 NO_TRANSCRIPT_REASON = (
     "no persisted task transcript was found for this issue; recorded unavailable "
     "rather than 0 so an unmeasured field cannot read as a measured zero"
+)
+
+AMBIGUOUS_REASON = (
+    "ambiguous attribution: {count} agents were tied to this issue and nothing on "
+    "disk establishes they were one run, so no headline is reported — summing them "
+    "would invent a total no process ever spent. Per-agent readings are listed "
+    "under agents[]"
 )
 
 
@@ -266,6 +280,7 @@ def _strip(agent: dict[str, Any]) -> dict[str, Any]:
         "agentId": agent["agentId"],
         "transcriptRef": agent["transcriptRef"],
         "sessionIds": agent["sessionIds"],
+        "settled": agent.get("settled", True),
         "branches": agent["branches"],
         "workspaces": agent["workspaces"],
         "attributedBy": agent.get("attributedBy"),
@@ -302,6 +317,7 @@ def capture(
 
     gaps: list[dict[str, Any]] = []
     agents: list[dict[str, Any]] = []
+    in_flight: list[str] = []
     task_dirs: list[Path] = []
     # A broken store is a gap, not an abort: this provider must never raise, so
     # the catch is deliberately blind. BLE001 is not in the selected rule set,
@@ -327,12 +343,53 @@ def capture(
             )
             continue
         scanned += len(found)
-        agents.extend(task_transcripts.agents_for_issue(found, context.issue))
+        for agent in task_transcripts.agents_for_issue(found, context.issue):
+            # A transcript still being appended to is a run in progress, not a
+            # measurement — and reading one makes two generations of the same
+            # record disagree, breaking capture_run_block's idempotency promise.
+            if agent.get("settled", True):
+                agents.append(agent)
+            else:
+                in_flight.append(str(agent["agentId"]))
 
     agents.sort(key=lambda agent: str(agent["agentId"]))
-    measured = _merge(agents) if agents else None
+    if in_flight:
+        gaps.append(
+            {
+                "reason": "in-flight-transcript",
+                "detail": (
+                    "attributed agents whose transcript is still being written; a "
+                    "running agent has not yet spent what it will spend, so its "
+                    "reading is a lower bound and is not reported as a measurement"
+                ),
+                "agents": sorted(in_flight),
+            }
+        )
 
-    if measured is None:
+    # Exactly one attributed agent is a reading. Zero is an absence. More than
+    # one is an ambiguity, and all three are distinct states in the record —
+    # collapsing the last two into "not measured" would hide that candidates
+    # exist, and collapsing it into a sum would invent a number.
+    measured = _merge(agents) if len(agents) == 1 else None
+    tools_used: list[dict[str, Any]] = []
+
+    if len(agents) > 1:
+        status = "ambiguous"
+        reason = AMBIGUOUS_REASON.format(count=len(agents))
+        gaps.append(
+            {
+                "reason": "ambiguous-attribution",
+                "detail": reason,
+                "candidates": [str(agent["agentId"]) for agent in agents],
+            }
+        )
+        readings = {
+            "tokenUsage": unavailable(reason),
+            "toolInvocationCount": unavailable(reason),
+            "executionDurationMs": unavailable(reason),
+        }
+    elif measured is None:
+        status = "not-measured"
         gaps.append(
             {
                 "reason": "no-transcript-for-issue" if scanned else "no-persisted-task-transcripts",
@@ -345,8 +402,8 @@ def capture(
             "toolInvocationCount": unavailable(NO_TRANSCRIPT_REASON),
             "executionDurationMs": unavailable(NO_TRANSCRIPT_REASON),
         }
-        tools_used: list[dict[str, Any]] = []
     else:
+        status = "measured"
         readings = {
             "tokenUsage": observed(measured["tokenUsage"]),
             "toolInvocationCount": observed(measured["toolInvocationCount"]),
@@ -359,7 +416,7 @@ def capture(
 
     return {
         "schemaVersion": BLOCK_SCHEMA_VERSION,
-        "status": "measured" if measured else "not-measured",
+        "status": status,
         "executorDomain": domain,
         "executorDomainSource": domain_source,
         "source": {
@@ -367,7 +424,7 @@ def capture(
             "taskDirs": [str(path) for path in task_dirs[:MAX_LISTED_AGENTS]],
             "agentsScanned": scanned,
             "agentsAttributed": len(agents),
-            "attributedBy": f"gitBranch or .worktrees path naming issue-{context.issue}",
+            "attributedBy": f".worktrees path naming issue-{context.issue}",
         },
         **readings,
         "toolsUsed": tools_used,

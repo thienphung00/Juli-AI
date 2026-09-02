@@ -131,7 +131,9 @@ def _split_across_blocks(record: dict, copies: int) -> list[dict]:
 _SLOT = itertools.count()
 
 
-def _write_tasks(tmp_path: Path, files: dict[str, list[dict] | str]) -> tuple[Path, Path]:
+def _write_tasks(
+    tmp_path: Path, files: dict[str, list[dict] | str], *, in_flight: bool = False
+) -> tuple[Path, Path]:
     """Lay out ``<base>/claude-<uid>/<slug>/<session>/tasks/<agent>.output``.
 
     Returns ``(base, repo_root)``. The real directory layout is built so
@@ -152,6 +154,12 @@ def _write_tasks(tmp_path: Path, files: dict[str, list[dict] | str]) -> tuple[Pa
             (tasks / name).write_text(
                 "\n".join(json.dumps(record) for record in body) + "\n", encoding="utf-8"
             )
+    if not in_flight:
+        # Backdate, so these read as finished runs. A freshly written file is by
+        # definition still in flight, and every test that wants a *measurement*
+        # needs a settled one.
+        for path in tasks.glob("*.output"):
+            os.utime(path, (0, 0))
     return base, repo_root
 
 
@@ -194,6 +202,7 @@ def test_metrics_are_read_from_the_persisted_transcript(tmp_path: Path) -> None:
         timestamp="2026-09-02T01:00:00.000Z",
         usage=_usage(10, 20, 300, 4000),
         tools=("Bash", "Edit"),
+        worktree=f"w3-{ISSUE}",
     )
     second = _assistant(
         message_id="msg_b",
@@ -202,6 +211,7 @@ def test_metrics_are_read_from_the_persisted_transcript(tmp_path: Path) -> None:
         timestamp="2026-09-02T01:00:30.000Z",
         usage=_usage(1, 2, 3, 4),
         tools=("Bash",),
+        worktree=f"w3-{ISSUE}",
     )
     records = _split_across_blocks(first, 3) + _split_across_blocks(second, 2)
 
@@ -248,6 +258,8 @@ def test_the_assigned_executor_domain_travels_with_the_metrics(tmp_path: Path) -
             branch=BRANCH,
             timestamp="2026-09-02T01:00:00.000Z",
             usage=_usage(1, 1, 1, 1),
+            tools=("Bash",),
+            worktree=f"w3-{ISSUE}",
         )
     ]
 
@@ -275,6 +287,7 @@ def test_measured_wins_and_disagreement_is_preserved(tmp_path: Path) -> None:
             timestamp="2026-09-02T01:00:00.000Z",
             usage=_usage(100, 200, 300, 400),
             tools=("Bash",),
+            worktree=f"w3-{ISSUE}",
         ),
         _assistant(
             message_id="msg_b",
@@ -283,6 +296,7 @@ def test_measured_wins_and_disagreement_is_preserved(tmp_path: Path) -> None:
             timestamp="2026-09-02T01:01:00.000Z",
             usage=_usage(0, 0, 0, 0),
             tools=("Bash", "Read"),
+            worktree=f"w3-{ISSUE}",
         ),
     ]
     claims = {
@@ -364,6 +378,7 @@ def test_a_foreign_issues_transcript_is_not_counted(tmp_path: Path) -> None:
         timestamp="2026-09-02T01:00:00.000Z",
         usage=_usage(1, 1, 1, 1),
         tools=("Bash",),
+        worktree=f"w3-{ISSUE}",
     )
     theirs = _assistant(
         message_id="msg_theirs",
@@ -372,6 +387,7 @@ def test_a_foreign_issues_transcript_is_not_counted(tmp_path: Path) -> None:
         timestamp="2026-09-02T01:00:00.000Z",
         usage=_usage(1_000_000, 1_000_000, 1_000_000, 1_000_000),
         tools=("Bash", "Bash", "Bash"),
+        worktree="w3-9999",
     )
 
     block = _capture(
@@ -438,19 +454,26 @@ def test_the_worktree_path_attributes_an_agent_the_branch_cannot(tmp_path: Path)
     assert block["tokenUsage"]["value"]["total"] == 4
 
 
-def test_a_branch_match_outranks_a_path_match_in_the_record(tmp_path: Path) -> None:
-    """Both signals can fire; the record must name the stronger one."""
-    record = _assistant(
+def test_the_session_branch_never_outranks_a_contradicting_workspace(tmp_path: Path) -> None:
+    """An agent on this issue's session branch, working someone else's tree.
+
+    This inverts an earlier version of this test, which asserted ``gitBranch``
+    was "the stronger claim". It is the weaker one, and asserting otherwise
+    encoded the defect as an expectation.
+    """
+    interloper = _assistant(
         message_id="m",
-        agent_id="agent-one",
+        agent_id="agent-elsewhere",
         branch=BRANCH,
         timestamp="2026-09-02T01:00:00.000Z",
-        usage=_usage(1, 1, 1, 1),
+        usage=_usage(9_000_000, 0, 0, 0),
         tools=("Bash",),
-        worktree=f"w3-{ISSUE}",
+        worktree="w3-1497",
     )
-    block = _capture(tmp_path, {"agent-one.output": [record]})
-    assert block["agents"][0]["attributedBy"] == "gitBranch"
+    block = _capture(tmp_path, {"agent-elsewhere.output": [interloper]})
+    assert block["agents"] == []
+    assert block["status"] == "not-measured"
+    assert "value" not in block["tokenUsage"]
 
 
 def test_prose_mentioning_the_issue_does_not_attribute_an_agent(tmp_path: Path) -> None:
@@ -478,6 +501,179 @@ def test_prose_mentioning_the_issue_does_not_attribute_an_agent(tmp_path: Path) 
     assert "value" not in block["tokenUsage"]
 
 
+def test_a_shared_session_branch_does_not_attribute_every_concurrent_agent(
+    tmp_path: Path,
+) -> None:
+    """The #1508 defect, in the exact shape it was reproduced in.
+
+    ``gitBranch`` is a *session-wide* field, not the agent's. Measured on the
+    live store while this slice was under review: five concurrent agents all
+    recording BOTH ``main`` and ``feature/issue-1441-measured-run-metrics``,
+    because one tree in the session moved onto that branch and the field
+    flipped for everyone at once. Attributing on it summed a peer reviewer and
+    three unrelated executors into this issue's total — 34,200,395 reported
+    against 10,134,878 real, a 3.3x fabrication that grew in real time.
+
+    The genuine executor is identifiable *only* by the tree it worked in. Two
+    of the impostors here carry this test file's own fixture worktrees, which
+    is how the reviewer's transcript acquired them: it read this file.
+    """
+    session_branch = BRANCH
+    agents = {
+        # The real executor: the only one that worked in this issue's tree.
+        "agent-executor.output": [
+            _assistant(
+                message_id="m-exec",
+                agent_id="agent-executor",
+                branch=session_branch,
+                timestamp="2026-09-02T01:00:00.000Z",
+                usage=_usage(4, 6, 10, 80),
+                tools=("Bash",),
+                worktree=f"w3-{ISSUE}",
+            )
+        ],
+        # A peer reviewer that merely read this file — hence the fixture names.
+        "agent-reviewer.output": [
+            _assistant(
+                message_id="m-rev",
+                agent_id="agent-reviewer",
+                branch=session_branch,
+                timestamp="2026-09-02T01:00:00.000Z",
+                usage=_usage(5_000_000, 0, 0, 0),
+                tools=("Bash",),
+                worktree="w3-1463",
+            )
+        ],
+        # Two unrelated concurrent executors on their own slices.
+        "agent-peer-1497.output": [
+            _assistant(
+                message_id="m-1497",
+                agent_id="agent-peer-1497",
+                branch=session_branch,
+                timestamp="2026-09-02T01:00:00.000Z",
+                usage=_usage(6_000_000, 0, 0, 0),
+                tools=("Bash",),
+                worktree="w3-1497",
+            )
+        ],
+        "agent-peer-1498.output": [
+            _assistant(
+                message_id="m-1498",
+                agent_id="agent-peer-1498",
+                branch=session_branch,
+                timestamp="2026-09-02T01:00:00.000Z",
+                usage=_usage(6_200_000, 0, 0, 0),
+                tools=("Bash",),
+                worktree="w3-1498",
+            )
+        ],
+    }
+
+    block = _capture(tmp_path, agents)
+
+    assert [agent["agentId"] for agent in block["agents"]] == ["agent-executor"]
+    assert block["agents"][0]["attributedBy"] == "worktreePath"
+    assert block["tokenUsage"]["value"]["total"] == 100
+    # The fabricated headline the defect produced must be nowhere in the block.
+    assert block["tokenUsage"]["value"]["total"] != 17_200_100
+
+
+def test_several_attributed_agents_are_listed_and_never_summed(tmp_path: Path) -> None:
+    """Two agents in one tree is ambiguous, and a sum would invent a run.
+
+    Summing is only right if the agents *are* one run, and nothing on disk says
+    they are. Adding them produces a total no single process ever spent, which
+    is the fabrication this epic exists to end — so the headline goes
+    unavailable and every candidate is listed with its own real figures.
+    """
+    shared = {
+        "agent-a.output": [
+            _assistant(
+                message_id="m-a",
+                agent_id="agent-a",
+                branch="main",
+                timestamp="2026-09-02T01:00:00.000Z",
+                usage=_usage(1, 1, 1, 1),
+                tools=("Bash",),
+                worktree=f"w3-{ISSUE}",
+            )
+        ],
+        "agent-b.output": [
+            _assistant(
+                message_id="m-b",
+                agent_id="agent-b",
+                branch="main",
+                timestamp="2026-09-02T01:00:00.000Z",
+                usage=_usage(2, 2, 2, 2),
+                tools=("Bash",),
+                worktree=f"w3-{ISSUE}",
+            )
+        ],
+    }
+
+    block = _capture(tmp_path, shared)
+
+    assert block["status"] == "ambiguous"
+    for field in ("tokenUsage", "toolInvocationCount", "executionDurationMs"):
+        assert block[field]["available"] is False, field
+        # The sum, 12, must not appear under any guise.
+        assert "value" not in block[field], field
+        assert "ambiguous" in block[field]["reason"]
+
+    # Nothing is lost: both candidates keep their own measured figures.
+    listed = {agent["agentId"]: agent["tokenUsage"]["total"] for agent in block["agents"]}
+    assert listed == {"agent-a": 4, "agent-b": 8}
+    assert any(gap["reason"] == "ambiguous-attribution" for gap in block["gaps"])
+
+
+def test_a_still_running_agent_is_in_flight_and_not_measured(tmp_path: Path) -> None:
+    """A live transcript has no final total, and reading one breaks idempotency.
+
+    ``capture_run_block`` promises ``generate_status_records`` byte-idempotent
+    output. A transcript still being appended to breaks that promise: two
+    generations seconds apart disagree, which surfaced here as an intermittent
+    failure of ``test_status_record_gate::test_migration_is_idempotent``.
+
+    It is also wrong on its own terms. An agent that has not finished has not
+    yet spent what it will spend, so any figure read from it is a lower bound
+    reported as a measurement. In-flight is its own state.
+    """
+    records = [
+        _assistant(
+            message_id="m",
+            agent_id="agent-live",
+            branch="main",
+            timestamp="2026-09-02T01:00:00.000Z",
+            usage=_usage(1, 1, 1, 1),
+            tools=("Bash",),
+            worktree=f"w3-{ISSUE}",
+        )
+    ]
+    base, repo_root = _write_tasks(tmp_path, {"agent-live.output": records}, in_flight=True)
+    # The file was just written, so it is by definition still in flight.
+    block = run_metrics.capture(
+        _context(), repo_root=repo_root, temp_bases=(str(base),), environ={}, claims=None
+    )
+
+    assert block["agents"] == []
+    assert block["status"] == "not-measured"
+    assert "value" not in block["tokenUsage"]
+    assert any(gap["reason"] == "in-flight-transcript" for gap in block["gaps"])
+
+    # Two reads of a settled store must be byte-identical — the property the
+    # status-record generator depends on.
+    old = _write_tasks(tmp_path, {"agent-done.output": records})
+    first = run_metrics.capture(
+        _context(), repo_root=old[1], temp_bases=(str(old[0]),), environ={}, claims=None
+    )
+    second = run_metrics.capture(
+        _context(), repo_root=old[1], temp_bases=(str(old[0]),), environ={}, claims=None
+    )
+    assert first == second
+    assert first["status"] == "measured"
+    assert first["tokenUsage"]["value"]["total"] == 4
+
+
 def test_non_transcript_output_files_are_ignored(tmp_path: Path) -> None:
     """The tasks dir also holds plain-text tool output. It is not a transcript.
 
@@ -491,6 +687,8 @@ def test_non_transcript_output_files_are_ignored(tmp_path: Path) -> None:
         branch=BRANCH,
         timestamp="2026-09-02T01:00:00.000Z",
         usage=_usage(5, 5, 5, 5),
+        tools=("Bash",),
+        worktree=f"w3-{ISSUE}",
     )
     block = _capture(
         tmp_path,

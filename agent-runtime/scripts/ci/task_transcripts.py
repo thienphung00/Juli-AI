@@ -33,21 +33,33 @@ tool output as plain text. A file with no parseable JSON object is not an empty
 transcript, it is not a transcript; treating it as one would invent an agent
 with a measured-looking zero.
 
-Attribution needs two signals, not one. Records carry ``gitBranch``, which is
-the obvious key — but it is the *session's* branch, not the agent's, so an
-executor working in ``.worktrees/w3-1441`` off a session parked on ``main``
-records ``main`` on every row. Measured on a live run: six concurrent
-executors, all six recording ``main``. Branch alone would have attributed
-nothing and reported the whole slice unmeasured.
+Attribution is by the worktree the agent actually touched, and by nothing else.
 
-The second signal is the worktree the agent actually touched, taken from the
-paths in its ``tool_use`` inputs. Tool inputs are used rather than the
-transcript text because prose is not evidence of work: a neighbour that greps
-for ``1441`` mentions the number without ever writing to that tree, and would
-be credited by a naive text match.
+``gitBranch`` looks like the obvious key and is a trap (#1508). It is a
+*session-wide* field, not the agent's: it reports whatever branch the session
+is on, so every concurrent agent carries the same value and it changes for all
+of them at once. Both failure directions were measured on the live store while
+this module was under review.
 
-Without either signal a session holding four concurrent executors would credit
-every one of them to whichever issue asked.
+*False negative* — six concurrent executors, each in its own worktree, all
+recording ``main``. Attributing on the branch finds none of them.
+
+*False positive*, the dangerous one — once any tree in the session moved onto
+``feature/issue-1441-…``, all five agents then running recorded that branch.
+Attributing on it swept in a peer reviewer and three unrelated executors and
+reported 34,200,395 tokens against 10,134,878 real: a 3.3x fabrication that
+grew in real time as the neighbours worked. A number that large and that wrong
+is worse than no number, which is the whole thesis of this epic.
+
+So the branch is recorded as context and never attributes. The signal that
+works is the worktree named in the agent's ``tool_use`` **inputs** — the tree
+it actually operated on. Tool inputs rather than transcript text because prose
+is not evidence of work: a neighbour that greps for ``1441`` mentions the
+number without ever touching that tree.
+
+That signal is not perfect either — an agent that merely *reads* another's tree
+picks up its name — so more than one attributed agent is reported as ambiguous
+rather than summed. See :func:`agents_for_issue`.
 
 Stdlib only, by policy: this module is imported during status-record generation
 in CI, where the dependency set is ``./backend[dev] -c backend/constraints.txt``.
@@ -58,6 +70,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -78,6 +91,11 @@ DEFAULT_TEMP_BASES: tuple[str, ...] = ("/tmp", "/private/tmp", "/var/tmp")
 #: listing is capped, so one long session cannot bloat the single artifact that
 #: survives to ``main``.
 MAX_LISTED_TOOLS = 40
+
+#: Seconds a transcript must go untouched before its reading is treated as
+#: final. A file still being appended to has no total yet, and reading one makes
+#: status-record generation non-idempotent: two passes seconds apart disagree.
+SETTLE_SECONDS = 300
 
 _SLUG_RE = re.compile(r"[^A-Za-z0-9]")
 
@@ -321,13 +339,25 @@ def _rank_tools(tools: dict[str, int]) -> list[dict[str, Any]]:
     return [{"toolName": name, "count": count} for name, count in ranked[:MAX_LISTED_TOOLS]]
 
 
-def read_task_dir(tasks_dir: Path | str) -> list[dict[str, Any]]:
+def read_task_dir(
+    tasks_dir: Path | str,
+    *,
+    now: float | None = None,
+    settle_seconds: float = SETTLE_SECONDS,
+) -> list[dict[str, Any]]:
     """Measure every agent transcript in ``tasks_dir``, sorted by agent id.
 
     Files that hold no JSON object are skipped outright: the directory also
     carries raw tool output, and a text file reported as an agent with zero
     tokens is precisely the measured-looking zero this module exists to end.
+
+    Each agent carries ``settled``, false while its transcript is still being
+    appended to. The reading is still returned — dropping it here would hide
+    that the agent exists — but a caller must not treat an unsettled one as a
+    measurement: it is a lower bound on a run still in progress, and reading it
+    is what makes two status-record generations disagree.
     """
+    clock = time.time() if now is None else now
     directory = Path(tasks_dir)
     try:
         entries = sorted(directory.glob("*.output"))
@@ -345,6 +375,12 @@ def read_task_dir(tasks_dir: Path | str) -> list[dict[str, Any]]:
             target = str(path.resolve())
         except OSError:
             target = str(path)
+        try:
+            # follow_symlinks: the tasks entry is a link to the real transcript,
+            # and it is the transcript that is being written.
+            age = clock - path.stat().st_mtime
+        except OSError:
+            age = 0.0
         agents.append(
             {
                 "agentId": agent_id,
@@ -352,6 +388,7 @@ def read_task_dir(tasks_dir: Path | str) -> list[dict[str, Any]]:
                 # repository and only its path travels into the record.
                 "transcriptRef": str(path),
                 "resolvedRef": target,
+                "settled": age >= settle_seconds,
                 **{k: v for k, v in measured.items() if k != "agentIds"},
             }
         )
@@ -377,13 +414,11 @@ def issue_workspace_pattern(issue: int) -> re.Pattern[str]:
 def attribution_for(agent: dict[str, Any], issue: int) -> str | None:
     """How ``agent`` is tied to ``issue``, or ``None`` if it is not.
 
-    Returned rather than a bool so the record can state *which* signal fired.
-    The branch is the stronger claim and is reported when both apply.
+    Returned rather than a bool so the record can state which signal fired,
+    even though there is currently one. ``gitBranch`` is deliberately *not*
+    consulted: it is session-wide, so it cannot distinguish concurrent agents
+    and attributing on it fabricated a 3.3x total (see the module docstring).
     """
-    branch_pattern = issue_branch_pattern(issue)
-    for branch in agent.get("branches", []):
-        if branch_pattern.search(branch):
-            return "gitBranch"
     workspace_pattern = issue_workspace_pattern(issue)
     for workspace in agent.get("workspaces", []):
         if workspace_pattern.search(workspace):
@@ -392,7 +427,13 @@ def attribution_for(agent: dict[str, Any], issue: int) -> str | None:
 
 
 def agents_for_issue(agents: list[dict[str, Any]], issue: int) -> list[dict[str, Any]]:
-    """Those agents tied to ``issue``, each tagged with the signal that tied it."""
+    """Those agents tied to ``issue``, each tagged with the signal that tied it.
+
+    May legitimately return more than one — an agent that only read another's
+    tree is indistinguishable here from one that worked in it. Callers must not
+    sum across the result without deciding what a multi-agent match means;
+    ``run_metrics.capture`` reports it as ambiguous rather than adding them up.
+    """
     attributed: list[dict[str, Any]] = []
     for agent in agents:
         signal = attribution_for(agent, issue)
@@ -405,6 +446,7 @@ __all__ = [
     "DEFAULT_TEMP_BASES",
     "MAX_LISTED_TOOLS",
     "SESSION_ENV_VAR",
+    "SETTLE_SECONDS",
     "STORE_ENV_VAR",
     "agents_for_issue",
     "attribution_for",
