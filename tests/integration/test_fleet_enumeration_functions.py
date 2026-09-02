@@ -31,7 +31,7 @@ from datetime import datetime
 import pytest
 from sqlalchemy import text
 
-from tests.integration.two_tenant import juli_app_session
+from tests.integration.two_tenant import ACTIVE_RUNS_PER_TENANT, juli_app_session
 
 requires_postgres = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL", "").strip().startswith("postgresql"),
@@ -178,14 +178,16 @@ async def test_the_bypass_does_not_leak_into_the_calling_session(two_tenants) ->
             )
         ).scalar()
 
-    assert enumerated >= 4, (
-        f"the enumeration returned {enumerated} rows; both tenants seeded two active runs each, "
-        "so fewer than four means it is not crossing tenants"
+    assert enumerated >= 2 * ACTIVE_RUNS_PER_TENANT, (
+        f"the enumeration returned {enumerated} rows; both tenants seeded "
+        f"{ACTIVE_RUNS_PER_TENANT} active runs each, so fewer than "
+        f"{2 * ACTIVE_RUNS_PER_TENANT} means it is not crossing tenants"
     )
-    assert direct == 2, (
+    assert direct == ACTIVE_RUNS_PER_TENANT, (
         f"a direct read returned {direct} rows. The session should still see only its own "
-        f"tenant's two runs — {enumerated} through the function and 2 without it. Seeing more "
-        "means the definer right leaked out of the function into the session."
+        f"tenant's {ACTIVE_RUNS_PER_TENANT} runs — {enumerated} through the function and "
+        f"{ACTIVE_RUNS_PER_TENANT} without it. Seeing more means the definer right leaked "
+        "out of the function into the session."
     )
     assert other == 0, "the calling session could read the other tenant's runs directly"
 
