@@ -10,6 +10,8 @@
 ``postgres``     ``database_url`` / ``postgres_reachable`` / ``requires_postgres`` -- the one
                  definition of "this test needs a real database"
 ``clock``        ``SteppingClock`` -- a controllable ``now()`` so no test sleeps
+``event_stream`` ``FakePubSub`` and the subscriber doubles for the SSE stream
+``tiktok_fakes`` contract-shaped TikTok resource and rate-limiter doubles for polling
 ===============  ==========================================================
 
 Conventions the suite follows (``.cursor/skills/domain/testing-patterns/python-testing.md``

@@ -118,10 +118,7 @@ def module_path_from_file(path: Path) -> str:
 
 
 def _is_allowed(module: str, allowed_prefixes: Iterable[str]) -> bool:
-    return any(
-        module == prefix or module.startswith(f"{prefix}.")
-        for prefix in allowed_prefixes
-    )
+    return any(module == prefix or module.startswith(f"{prefix}.") for prefix in allowed_prefixes)
 
 
 class _RepoWriteVisitor(ast.NodeVisitor):
@@ -164,9 +161,7 @@ class _RepoWriteVisitor(ast.NodeVisitor):
                     and target.value.id == "self"
                     and self._current_class is not None
                 ):
-                    self._class_attr_bindings[self._current_class][target.attr] = (
-                        repo_class
-                    )
+                    self._class_attr_bindings[self._current_class][target.attr] = repo_class
         self.generic_visit(node)
 
     def visit_Call(self, node: ast.Call) -> None:
@@ -196,9 +191,7 @@ class _RepoWriteVisitor(ast.NodeVisitor):
             and receiver.value.id == "self"
             and self._current_class is not None
         ):
-            return self._class_attr_bindings.get(self._current_class, {}).get(
-                receiver.attr
-            )
+            return self._class_attr_bindings.get(self._current_class, {}).get(receiver.attr)
         direct = self._repo_from_call(receiver)
         if direct is not None:
             return direct
@@ -297,9 +290,7 @@ def validate_module_docs() -> list[str]:
         if "One-writer" not in etl_text and "one-writer" not in etl_text:
             errors.append("services/etl/MODULE.md missing one-writer cross-link")
         if "Shared Compute" not in etl_text:
-            errors.append(
-                "services/etl/MODULE.md missing Shared Compute orchestrator note"
-            )
+            errors.append("services/etl/MODULE.md missing Shared Compute orchestrator note")
 
     return errors
 

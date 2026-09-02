@@ -11,6 +11,7 @@ behaviour. The exemplar modules (copy their shape, not just their ideas):
 | two implementations of one contract | `tests/unit/test_kpi_caches.py` (one parametrized class, both adapters) |
 | an async generator / stream | `tests/unit/test_agent_run_event_stream.py` with `tests/support/event_stream.py` |
 | a route | `tests/unit/test_agent_confirmation_decision_route.py` on the `auth_client` fixture |
+| code driving an external client | `tests/unit/test_analytics_poll_cycle.py` — contract-shaped fakes instead of `MagicMock` |
 
 # Core Principles
 
@@ -45,6 +46,7 @@ Per [PRD #550 Testing Decisions](docs/product/phases/modular-monolith-upgrade/PR
 | Postgres gate | `tests.support.postgres.requires_postgres` — the only definition |
 | time | `tests.support.clock.SteppingClock` — inject as `now`; never `asyncio.sleep` to wait |
 | the SSE stream | `tests.support.event_stream` — `FakePubSub`, subscriber doubles, `sse_ids`, `drain` |
+| TikTok polling collaborators | `tests.support.tiktok_fakes` — resources and rate limiter with the real signatures, recording calls |
 
 A module that defines its own `shop` fixture, `_database_url()`, or `FakeAsyncRedis`
 is repeating something that exists. Delete it and import.
