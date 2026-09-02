@@ -13,19 +13,19 @@
   "review": {
     "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1443.json",
     "ownerSignoffPresent": true,
-    "sha256": "fffca1fce00a169bfbe598fc86e88ac68008da2f0ac7110705761bb2447474f4",
+    "sha256": "a4b6d056faab08333efe7d34b66c8a13e5cc22af5d59a76712d0600f8c31b567",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 8347,
-      "validationBytes": 24387
+      "reviewBytes": 10877,
+      "validationBytes": 24623
     },
     "claimVsExecuted": {
       "citedCommandCount": 6,
-      "invokedCommandCount": 8967,
+      "invokedCommandCount": 9054,
       "matchedCommandCount": 0,
       "reason": "6 of 6 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
@@ -36,7 +36,7 @@
         "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-codebase-audit-refactor-b9b867",
         "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-open-terminal-in-code-08e55d"
       ],
-      "transcriptsScanned": 42,
+      "transcriptsScanned": 43,
       "unmatchedCommandCount": 6,
       "unmatchedCommands": [
         {
@@ -74,11 +74,11 @@
       "verified": true
     }
   },
-  "timestamp": "2026-09-02T02:11:53Z",
+  "timestamp": "2026-09-02T06:19:49Z",
   "validation": {
     "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1443.json",
-    "sha256": "46f6aa65b9582506e29cad9e5a9e092c9af7d8b78bfe13c8280423c1144e0a43",
-    "status": "FAIL"
+    "sha256": "5042cf993192bccdced77a3d59b437b39facda0c405a1d23052e24d7fda0ac6c",
+    "status": "PASS"
   },
   "wave": null
 }
