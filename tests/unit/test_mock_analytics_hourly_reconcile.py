@@ -402,6 +402,13 @@ async def test_hourly_and_material_enqueue_coexist_via_idempotency_key(
 # --- Issue #733: nested asyncio.run() in the Celery entrypoint ---
 
 
+class _FakeCurrentSettingResult:
+    """The row `current_setting(...)` returns: NULL for a parameter never set."""
+
+    def one(self) -> tuple[None, None]:
+        return (None, None)
+
+
 class _FakeBind:
     """Fake bind object for _FakeSession."""
 
@@ -425,8 +432,15 @@ class _FakeSession:
         return _FakeBind()
 
     async def execute(self, statement):
-        """Fake execute for tenant context GUC setting."""
-        pass
+        """Stand in for the statements the tenant-context seam issues.
+
+        `with_shop_scope` reads the current GUC pair on entry so it can put it
+        back on exit (#1495), and that read calls `.one()` on the result.
+        Returning None makes every scope raise AttributeError inside this fake
+        rather than in the code under test — a double that cannot honour the
+        real call's contract proves nothing.
+        """
+        return _FakeCurrentSettingResult()
 
 
 def test_hourly_reconcile_task_resolves_shop_key_without_nested_event_loop(
