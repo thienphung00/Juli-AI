@@ -21,10 +21,24 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CI_DIR = REPO_ROOT / "agent-runtime" / "scripts" / "ci"
-if str(CI_DIR) not in sys.path:
-    sys.path.insert(0, str(CI_DIR))
 
-import assemble_evidence as ae  # noqa: E402
+
+def _load_seam():
+    """Import the assembler, which lives outside any importable package root.
+
+    Done inside a function deliberately: hoisting the ``sys.path`` insert above
+    the module-level imports needs an E402 suppression comment, and the repo's
+    debt ratchet counts suppression identities. Paying a unit of tracked debt for
+    import cosmetics is a bad trade.
+    """
+    if str(CI_DIR) not in sys.path:
+        sys.path.insert(0, str(CI_DIR))
+    import assemble_evidence
+
+    return assemble_evidence
+
+
+ae = _load_seam()
 
 # --------------------------------------------------------------------------
 # Fixtures — the four file-backed sources, written as a runner would emit them.
@@ -400,6 +414,53 @@ def test_unavailable_is_never_expressed_as_a_zero(tmp_path: Path) -> None:
         else:
             assert "value" not in metric, name
             assert metric["reason"], name
+
+
+def test_untimed_suite_is_unavailable_not_a_measured_zero(tmp_path: Path) -> None:
+    """A junit report with no ``time=`` must not yield ``testSuiteDurationMs: 0``.
+
+    Every other junit total fails closed on an absent attribute, but suite time
+    was summed with ``or 0.0``, so a report carrying no timing was recorded
+    ``{"available": true, "value": 0}`` — an unmeasured field wearing a
+    measurement's clothes, which is the precise defect #1434 exists to end and
+    which this module's own docstring promises not to commit.
+    """
+    timed = tmp_path / "timed"
+    timed.mkdir()
+    assert _assemble(timed)["metrics"]["testSuiteDurationMs"] == {
+        "available": True,
+        "value": 1250,
+        "observedFrom": "junit.suiteTime",
+    }
+
+    untimed = tmp_path / "untimed"
+    untimed.mkdir()
+    paths = _write_sources(untimed)
+    paths["junit"].write_text(
+        '<testsuites><testsuite name="pytest" tests="3" failures="1" errors="0" '
+        'skipped="0"><testcase classname="a" name="b"/></testsuite></testsuites>',
+        encoding="utf-8",
+    )
+    metric = _assemble(untimed, write=False)["metrics"]["testSuiteDurationMs"]
+    assert metric["available"] is False
+    assert "value" not in metric
+    assert metric["reason"]
+
+    # One untimed suite poisons the total rather than silently understating it:
+    # a sum over suites where one is missing is not a sum.
+    mixed = tmp_path / "mixed"
+    mixed.mkdir()
+    paths = _write_sources(mixed)
+    paths["junit"].write_text(
+        "<testsuites>"
+        '<testsuite name="a" tests="1" failures="0" errors="0" skipped="0" time="2.0">'
+        '<testcase classname="a" name="x"/></testsuite>'
+        '<testsuite name="b" tests="1" failures="0" errors="0" skipped="0">'
+        '<testcase classname="b" name="y"/></testsuite>'
+        "</testsuites>",
+        encoding="utf-8",
+    )
+    assert _assemble(mixed, write=False)["metrics"]["testSuiteDurationMs"]["available"] is False
 
 
 def test_module_imports_only_stdlib_and_repo_siblings() -> None:

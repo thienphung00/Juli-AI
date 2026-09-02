@@ -199,14 +199,22 @@ def load_junit(path: Path) -> dict[str, Any]:
         raise EvidenceAssemblyError(source, "contains no <testsuite>; no run was recorded")
 
     totals = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
-    seconds = 0.0
+    seconds: float | None = 0.0
     cases: list[dict[str, Any]] = []
     for suite in suites:
         totals["tests"] += _int_attr(source, suite, "tests", default=None)
         totals["failures"] += _int_attr(source, suite, "failures")
         totals["errors"] += _int_attr(source, suite, "errors")
         totals["skipped"] += _int_attr(source, suite, "skipped")
-        seconds += _float_attr(source, suite, "time") or 0.0
+        suite_seconds = _float_attr(source, suite, "time")
+        if suite_seconds is None:
+            # A suite with no time= contributes no timing. Summing it as 0.0
+            # would turn "not measured" into "measured as zero" - the exact
+            # defect this module exists to end (#1434 lock 2). The total is
+            # discarded instead, so testSuiteDurationMs reports unavailable.
+            seconds = None
+        elif seconds is not None:
+            seconds += suite_seconds
         for case in suite.findall("testcase"):
             cases.append(
                 {
@@ -428,7 +436,12 @@ def load_environment(fingerprint: Callable[[], dict[str, Any]] | None = None) ->
     provider = fingerprint or default_fingerprint
     try:
         value = provider()
-    except Exception as exc:  # noqa: BLE001 — re-raised, named, never swallowed
+    # Broad on purpose: the provider is third-party to this module and any
+    # failure of it must fail the 'environment' source by name. Re-raised,
+    # named, never swallowed. No suppression needed - ruff.toml selects
+    # E4/E7/E9/F, so BLE001 is not an enforced rule here and a suppression
+    # comment for it would be a tracked ratchet identity paying for nothing.
+    except Exception as exc:
         raise EvidenceAssemblyError(source, exc) from exc
     if not isinstance(value, dict):
         raise EvidenceAssemblyError(
@@ -653,8 +666,13 @@ def assemble_evidence(
             sources["trace"]["totals"]["durationMs"], "trace.sumOfCommandDurations"
         ),
         # Also observable, and independently: pytest's own suite timing.
-        "testSuiteDurationMs": observed(
-            round(sources["junit"]["durationSeconds"] * 1000), "junit.suiteTime"
+        "testSuiteDurationMs": (
+            observed(round(sources["junit"]["durationSeconds"] * 1000), "junit.suiteTime")
+            if sources["junit"]["durationSeconds"] is not None
+            else unavailable(
+                "the junit report carries no suite time= attribute; recorded unavailable "
+                "rather than 0 so an untimed suite cannot read as an instant one"
+            )
         ),
         # Not observable anywhere in this pipeline. Recorded as such, not as 0.
         "tokenUsage": unavailable(TOKEN_USAGE_UNAVAILABLE),
