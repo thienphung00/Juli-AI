@@ -41,6 +41,17 @@ class _Bind:
     dialect = _Dialect()
 
 
+class _CurrentSettingResult:
+    """Stands in for the row `current_setting(...)` returns.
+
+    Both values are NULL, which is what Postgres returns for a parameter never
+    set in this session, and is the state these tests start from.
+    """
+
+    def one(self) -> tuple[None, None]:
+        return (None, None)
+
+
 class _RecordingSession:
     """Captures the GUCs a scope sets, without a database.
 
@@ -58,7 +69,11 @@ class _RecordingSession:
 
     async def execute(self, statement, *args, **kwargs):
         self.statements.append((str(statement), dict(statement.compile().params)))
-        return None
+        # The seam reads the current GUC pair on entry so it can put it back on
+        # exit (#1495). Returning None here would make every scope raise
+        # AttributeError inside the double rather than in the code under test —
+        # a fake that cannot honour the real call's contract proves nothing.
+        return _CurrentSettingResult()
 
     def gucs_set(self) -> set[str]:
         return {
@@ -89,9 +104,16 @@ def test_shop_scope_sets_the_shop_guc() -> None:
 def test_shop_scope_withholds_the_user_guc() -> None:
     """The half that makes this safe rather than merely convenient.
 
-    A shop-level task must not be able to read `users` or `shops`. Leaving the
-    user GUC unset is what produces that denial, so it is asserted directly —
-    a scope that quietly set both would pass the test above and defeat the point.
+    A shop-level task must not be able to read `users` or `shops`, and it is a
+    NULL `app.current_user_id` that produces that denial.
+
+    ASSERTED AS AN OUTCOME, NOT AS AN ABSENT STATEMENT. Until #1495 this checked
+    that no statement mentioned the user GUC, which is a proxy for the real
+    property and a leaky one: under an enclosing `with_tenant_scope`, or on a
+    later pass through a per-item loop, a real user id was already in force and
+    this scope inherited it — no statement of its own mentioned the GUC, so the
+    old form passed while the promise was false. The scope now clears it
+    explicitly, so what must hold is that no REAL user id is ever left in force.
     """
     session = _RecordingSession()
 
@@ -101,9 +123,18 @@ def test_shop_scope_withholds_the_user_guc() -> None:
 
     asyncio.run(run())
 
-    assert "app.current_user_id" not in session.gucs_set(), (
-        "with_shop_scope must leave app.current_user_id unset so user-keyed policies deny; "
-        "setting it would grant a shop-level beat task access to users and shops"
+    # `user_val` is the bound parameter carrying whatever the scope put into
+    # app.current_user_id — see _write_tenant_gucs.
+    user_values = [
+        params["user_val"] for _text, params in session.statements if "user_val" in params
+    ]
+    assert user_values, (
+        "with_shop_scope must take an explicit position on app.current_user_id "
+        "rather than inheriting whatever was already set"
+    )
+    assert all(v == "" for v in user_values), (
+        f"with_shop_scope put a real user id in force: {user_values}. A shop-level "
+        "beat task would then be able to read users and shops."
     )
 
 
