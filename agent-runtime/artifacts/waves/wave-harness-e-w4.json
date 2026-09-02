@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "wave_manifest",
+  "waveId": "wave-harness-e-w4",
+  "branch": "feature/harness-e-w4-wave",
+  "issues": [
+    1505,
+    1509,
+    1512,
+    1515
+  ]
+}
