@@ -1,0 +1,97 @@
+{
+  "gateVersion": 2,
+  "issue": 1442,
+  "metrics": {
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 8,
+    "modulesTouched": [
+      "agent-runtime/scripts/ci/capture_providers/environment.py",
+      "tests/unit/test_environment_provider.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1442.json",
+    "ownerSignoffPresent": true,
+    "sha256": "f3bac41981c9e9035eb49b946c4392aa01fc9e54b4223e7bf14188ec7ba2ec31",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "run": {
+    "artifactBytes": {
+      "reviewBytes": 13577,
+      "validationBytes": 26449
+    },
+    "environment": {
+      "cwd": "/Users/macos/Juli-AI-v2/.worktrees/w2-1442",
+      "dependencies": {
+        "constraints": "/Users/macos/Juli-AI-v2/.worktrees/w2-1442/backend/constraints.txt",
+        "drift": [
+          {
+            "installed": "3.18",
+            "package": "idna",
+            "pinned": "3.19"
+          },
+          {
+            "installed": "2.24.0",
+            "package": "narwhals",
+            "pinned": "2.25.0"
+          },
+          {
+            "installed": "1.26.4",
+            "package": "numpy",
+            "pinned": "2.5.2"
+          },
+          {
+            "installed": "0.16.3",
+            "package": "ruff",
+            "pinned": "0.16.4"
+          },
+          {
+            "installed": "1.13.1",
+            "package": "scipy",
+            "pinned": "1.18.1"
+          },
+          {
+            "installed": "5.9.0",
+            "package": "stevedore",
+            "pinned": "5.9.1"
+          },
+          {
+            "installed": "0.52.3",
+            "package": "uvicorn",
+            "pinned": "0.52.4"
+          }
+        ],
+        "matched": 75,
+        "missing": [],
+        "pinned": 82
+      },
+      "executable": "/opt/homebrew/anaconda3/bin/python",
+      "git": {
+        "baseDistanceUnavailable": null,
+        "behindOriginMain": 2,
+        "branch": "feature/issue-1442-env-fingerprint",
+        "head": "59dd1e98f589ea18a41fb74788a37c35fdbc1d69",
+        "shallow": false
+      },
+      "moduleResolution": {
+        "error": null,
+        "expectedPrefix": "/Users/macos/Juli-AI-v2/.worktrees/w2-1442/backend/src/juli_backend",
+        "insideRepo": true,
+        "module": "juli_backend",
+        "resolved": "/Users/macos/Juli-AI-v2/.worktrees/w2-1442/backend/src/juli_backend/__init__.py"
+      },
+      "python": "3.12.9",
+      "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/w2-1442"
+    }
+  },
+  "timestamp": "2026-09-02T06:17:59Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1442.json",
+    "sha256": "019e735ab2229da6f043c94c1a472b29a5340eb35e14a66784802eb3b97d31ed",
+    "status": "PASS"
+  },
+  "wave": "wave-harness-e-w2"
+}

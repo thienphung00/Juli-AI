@@ -216,6 +216,18 @@ _SHARED_STATE_MODULES = frozenset(
         # row. Same defect as the seam module; found by the #1425 map rather than
         # by another red build (#1429).
         "test_tenant_context_integration.py",
+        # Reason 2 again: seeds two full tenants for the W7-bis evidence fixture
+        # (#1483). test_rls_policies.py was isolated for asserting unscoped
+        # global counts, and these rows would corrupt exactly that class of
+        # assertion from any module sharing the database.
+        "test_two_tenant_fixture.py",
+        # Reason 2 again: uses the same seeding fixture (#1487).
+        "test_fleet_enumeration_functions.py",
+        # Reason 2 again: seeds two tenants for #1488 (impact_reader per-tenant context).
+        "test_impact_reader_two_tenant.py",
+        # Reason 2 again: uses the two-tenant seeding fixture to prove reaper works
+        # as juli_app on both tenants (#1489).
+        "test_reaper_two_tenant.py",
     }
 )
 

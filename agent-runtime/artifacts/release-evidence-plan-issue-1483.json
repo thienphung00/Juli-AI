@@ -1,0 +1,84 @@
+{
+  "planId": "rep-1483-two-tenant-fixture",
+  "affectedPublicSurfaces": [
+    "none — test infrastructure only. No product code, no route, no migration, no runtime path.",
+    "It is the evidence substrate for the remaining W7-bis slices, which do reach production behaviour."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "none",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "a-shop-scoped-session-reads-its-own-tenant-and-not-the-other",
+        "entryUrl": "pytest: tests/integration/test_two_tenant_fixture.py",
+        "assertions": [
+          "as juli_app with tenant A's shop context, rows belonging to A are returned",
+          "the same session returns ZERO of tenant B's rows",
+          "both halves on the same fixture, so a deny-all cannot pass as isolation",
+          "the positive control is asserted first, because 'denied' and 'empty' are otherwise indistinguishable"
+        ]
+      },
+      {
+        "name": "shop-scope-cannot-reach-user-keyed-tables",
+        "entryUrl": "pytest: the same module",
+        "assertions": [
+          "a shop-scoped session reads zero rows from public.users",
+          "a shop-scoped session reads zero rows from public.shops",
+          "closes the two acceptance criteria #1478 deferred for want of this fixture"
+        ]
+      },
+      {
+        "name": "the-seeder-covers-what-it-claims",
+        "entryUrl": "pytest: the same module",
+        "assertions": [
+          "every table the seeder names has at least one row for the tenant it seeded",
+          "the claim is asserted from the database rather than stated in a docstring — the helper this extends claimed 'all tenant-scoped tables' and seeded three"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": ["not-applicable: test fixture"],
+    "discoverFromHtml": false,
+    "assetTypes": ["not-applicable"],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration and no product code. The fixture seeds rows into an isolated database, which is why the consuming module joins _ISOLATED_DATABASE_MODULES: test_rls_policies.py was isolated for asserting unscoped global counts (#1425), and seeded rows would otherwise leak into that class of assertion."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "nothing deployed changes; reverting removes a test fixture and the three remaining W7-bis slices lose their evidence substrate.",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "DATABASE_URL=postgresql://postgres@localhost:5432/<freshly-created> JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=$PWD/backend/src:$PWD python -m pytest tests/integration/test_two_tenant_fixture.py -q",
+    "DATABASE_URL=postgresql://postgres@localhost:5432/<freshly-created> JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=$PWD/backend/src:$PWD python -m pytest tests/unit/test_destructive_migration_isolation.py tests/integration/test_two_tenant_isolation_proof.py -q"
+  ],
+  "doNotInfer": [
+    "Do not build this on tests/integration/conftest.py's `engine`/`session` fixtures. They are SQLite in-memory with a schema_translate_map, and SQLite cannot express roles, RLS or row locks — anything built on them proves nothing about isolation.",
+    "Do not try to connect as juli_app with a password. The role is NOLOGIN in CI by design (ADR-086 decision 7); `SET ROLE juli_app` on a superuser connection is how RLS is applied, and it is what #1329's proof already does.",
+    "Do not assert only the denial. A session that can read nothing at all passes a denial-only test and fails the feature. The positive control — reading the tenant's own rows — is what separates isolation from deny-all, and it is the exact failure mode ADR-089 exists for.",
+    "Do not trust the seeder's docstring. The helper this extends claimed to seed 'across all tenant-scoped tables' and seeded three; coverage is asserted from the database instead.",
+    "Do not seed into the shared database. test_rls_policies.py was isolated for asserting unscoped global counts (#1425); seeded rows would leak into that class of assertion from any module that shares the database."
+  ]
+}

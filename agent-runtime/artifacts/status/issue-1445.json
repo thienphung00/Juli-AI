@@ -1,0 +1,35 @@
+{
+  "gateVersion": 2,
+  "issue": 1445,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 10,
+    "modulesTouched": [
+      "agent-runtime/scripts/ci/artifact_ref_resolution.py",
+      "agent-runtime/scripts/ci/check_artifact_retention_guard.py",
+      "tests/unit/test_check_artifact_retention_guard.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1445.json",
+    "ownerSignoffPresent": true,
+    "sha256": "2ebdc9b143a75e27f0bddddafb5fd7249a47fc24b245bb715faa83ca26d7dc34",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "run": {
+    "artifactBytes": {
+      "reviewBytes": 21259,
+      "validationBytes": 26607
+    }
+  },
+  "timestamp": "2026-09-02T02:27:29Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1445.json",
+    "sha256": "1ed31f58ea076260de20fbc49d534b2987f86f6a0d231b10945de6c834ef65ea",
+    "status": "PASS"
+  },
+  "wave": "wave-harness-e-w2"
+}
