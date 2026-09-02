@@ -50,18 +50,24 @@ async def test_impact_reader_acts_on_both_tenants(owner_engine):
 
     # Verify via direct query that both tenants' executions were processed
     # by checking that impact_readings were written for both shops
-    async with juli_app_session() as session:
-        # Query impact_readings, which is joined through tool_executions
-        stmt = text(
-            """
-            SELECT DISTINCT te.shop_id
-            FROM public.impact_readings ir
-            JOIN public.tool_executions te ON ir.tool_execution_id = te.id
-            ORDER BY te.shop_id
-            """
-        )
-        result_rows = await session.execute(stmt)
-        processed_shops = [str(row[0]) for row in result_rows.all()]
+    # Verified as the OWNER, deliberately. "Did the task write for BOTH tenants"
+    # is inherently a cross-tenant question, and a runtime session with no
+    # tenant context returns nothing by design — that is RLS working, not a
+    # missing write. Asserting it through a context-less juli_app session makes
+    # a correct denial look like a silent no-op, which is the failure this whole
+    # module exists to distinguish.
+    with owner_engine.connect() as conn:
+        processed_shops = [
+            str(row[0])
+            for row in conn.execute(
+                text(
+                    "SELECT DISTINCT te.shop_id "
+                    "  FROM public.impact_readings ir "
+                    "  JOIN public.tool_executions te ON ir.tool_execution_id = te.id "
+                    " ORDER BY te.shop_id"
+                )
+            ).all()
+        ]
 
     # Expect both tenants' shops to have readings
     assert str(tenant_a.shop_id) in processed_shops, (

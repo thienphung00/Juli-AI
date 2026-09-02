@@ -560,7 +560,6 @@ def test_system_scope_call_sites_enumerated():
 
     # Walk backend/src/juli_backend and find all files with system_scope( calls
     # But exclude database/tenant_context.py which defines system_scope
-    # and migrations/* which document system_scope in docstrings but are not runtime code
     actual_call_sites = set()
     backend_src = Path(__file__).parent.parent.parent / "backend" / "src" / "juli_backend"
 
@@ -572,11 +571,6 @@ def test_system_scope_call_sites_enumerated():
 
         # Skip the definition file
         if str(filepath).endswith("database/tenant_context.py"):
-            continue
-
-        # Skip migration files — they document system_scope in docstrings
-        # but are not runtime call sites
-        if "database/migrations/versions" in str(filepath):
             continue
 
         # Look for "system_scope(" pattern (call site, not definition)
