@@ -25,7 +25,9 @@ The two load-bearing discrimination tests:
 
 from __future__ import annotations
 
+import os
 import subprocess
+import sys
 import textwrap
 from pathlib import Path
 
@@ -464,6 +466,64 @@ def test_mutation_run_reports_killed_and_survived_against_real_pytest(tmp_path: 
     assert 0.0 < outcome.score < 1.0
     assert outcome.killed + outcome.survived + outcome.errored == outcome.total
     assert {m.path for m in outcome.surviving} == {"src/classify.py"}
+
+
+def test_configured_plugins_actually_register_under_disabled_autoload(tmp_path: Path) -> None:
+    """The named plugins must be *module* paths, or every mutant reports ``errored``.
+
+    ``run_mutations`` sets ``PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`` for speed and then
+    re-adds what the corpus needs with ``-p``. ``-p pytest_asyncio`` imports a
+    package whose ``__init__`` registers no hooks: ``asyncio_mode`` stays an
+    unknown ini option, every async fixture errors at setup, and the campaign
+    reports 0 killed / 0 survived / N errored — a zero-denominator score of 0.0
+    that looks like a result and is not one. Measured on this repository the
+    difference was 40/40 errored versus 29 killed / 10 survived.
+
+    The lie planted is a corpus shaped like this repository's — an ``asyncio_mode
+    = auto`` ini plus an autouse async fixture in ``conftest.py`` — which the
+    synthetic single-file repo in the mutation-run test above never exercises.
+    That is why that test stayed green while the runner could not score anything.
+    """
+    (tmp_path / "pytest.ini").write_text("[pytest]\nasyncio_mode = auto\n", encoding="utf-8")
+    _write(
+        tmp_path,
+        "conftest.py",
+        """
+        import pytest
+
+
+        @pytest.fixture(autouse=True)
+        async def _autouse_async_fixture():
+            yield
+        """,
+    )
+    _write(tmp_path, "tests/test_async.py", "def test_ok():\n    assert True\n")
+
+    env = {
+        **os.environ,
+        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
+    plugin_args: list[str] = ["-p", "no:cacheprovider"]
+    for plugin in qd.MUTATION_PYTEST_PLUGINS:
+        plugin_args += ["-p", plugin]
+
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", *plugin_args, "tests/test_async.py"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    # Exit 0 is the only outcome that proves the plugin registered. An errored
+    # setup exits 1 with "no plugin or hook that handled it", which the runner
+    # would bucket as `errored` for every single mutant.
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Unknown config option: asyncio_mode" not in (result.stdout + result.stderr), (
+        "asyncio_mode was not recognised, so the plugin named in "
+        "MUTATION_PYTEST_PLUGINS did not actually register its ini options"
+    )
 
 
 def test_mutation_score_min_is_unenforced(tmp_path: Path) -> None:

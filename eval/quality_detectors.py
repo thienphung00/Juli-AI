@@ -965,7 +965,15 @@ def mutation_verdict(outcome: MutationOutcome) -> str:
 #: and on a developer machine with a crowded site-packages it is ~10s of the
 #: ~10.4s a trivial run takes. Naming the two the corpus depends on turns a
 #: 200-mutant campaign from half an hour of import into about a minute.
-MUTATION_PYTEST_PLUGINS: tuple[str, ...] = ("pytest_asyncio",)
+#:
+#: These must be *module* paths, not distribution names. ``-p pytest_asyncio``
+#: imports a package whose ``__init__`` registers no hooks, so ``asyncio_mode``
+#: stays an unknown ini option and every async fixture in ``tests/unit/conftest.py``
+#: errors at setup — turning every mutant into ``errored`` and the score into a
+#: zero-denominator 0.0. Measured on this repo: ``("pytest_asyncio",)`` gives
+#: 40/40 errored, ``("pytest_asyncio.plugin",)`` gives 29 killed / 10 survived.
+#: A campaign that reports no kills and no survivors has not run.
+MUTATION_PYTEST_PLUGINS: tuple[str, ...] = ("pytest_asyncio.plugin",)
 
 #: pytest's own exit codes. Only 1 — "tests failed" — is a kill. 4 (usage
 #: error) and 5 (no tests collected) must never be read as a kill: they are the
@@ -1154,7 +1162,7 @@ def build_report(
 #: rather than reconciled away. Regenerate with
 #: ``python -m eval.quality_detectors scan`` and update both numbers together.
 MEASURED_ZERO_ASSERTION_TESTS = 51
-MEASURED_TEST_FUNCTIONS = 4389
+MEASURED_TEST_FUNCTIONS = 4390
 
 #: The measured decomposition that reconciles the two figures. Each layer
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
@@ -1181,12 +1189,12 @@ RECONCILIATION: dict[str, Any] = {
     "note": (
         "Neither figure is wrong; they count different things, and the layer "
         "decomposition above shows exactly where they part. Measured here: 51 "
-        "zero-assertion tests in a corpus of 4,389 test functions over tests/ "
+        "zero-assertion tests in a corpus of 4,390 test functions over tests/ "
         "backend/ scripts/ agent-runtime/ eval/ (441 test modules). The prior "
         "~97-of-4,048 reading corresponds to the `and_no_mock_assert_called` "
         "layer — a detector that credits `pytest.raises` and `mock.assert_called*` "
         "as assertions but not delegation to a same-file asserting helper. That "
-        "layer reads 108 today; scaled to the smaller corpus it is 97 * 4389/4048 "
+        "layer reads 108 today; scaled to the smaller corpus it is 97 * 4390/4048 "
         "= 105, and the two rates agree to within a tenth of a percentage point "
         "(2.40% then, 2.46% now). So the prior measurement reproduces, and the "
         "gap between 108 and 51 is 53 tests whose only assertion is inside a "
