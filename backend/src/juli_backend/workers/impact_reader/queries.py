@@ -129,15 +129,18 @@ async def load_measurable_executions(session: AsyncSession) -> Sequence[Measurab
             )
         return executions
 
-    # Production (Postgres): call the SECURITY DEFINER function
-    stmt = text(
+    # Production (Postgres): call the SECURITY DEFINER function.
+    # Named separately from the SQLite branch's `stmt`: that one is a
+    # `Select[tuple[ToolExecution]]` and this is a `TextClause`, so reusing the
+    # name is an incompatible assignment under mypy.
+    enumeration_stmt = text(
         """
         SELECT out_execution_id, out_shop_id, out_updated_at
         FROM public.enumerate_measurable_executions(:measurable_names)
         """
     ).bindparams(measurable_names=list(measurable_tool_names()))
 
-    result = await session.execute(stmt)
+    result = await session.execute(enumeration_stmt)
     executions = []
     for row in result.all():
         executions.append(
