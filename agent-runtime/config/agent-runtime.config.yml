@@ -495,6 +495,9 @@ workflow_prompt_cache:
       childSlices:
         "1478": AGT-W7BIS
         "1483": AGT-W7BIS
+        "1487": AGT-W7BIS
+        "1488": AGT-W7BIS
+        "1489": AGT-W7BIS
       doNotLoad:
         - "apps/"
         - "ios/"
