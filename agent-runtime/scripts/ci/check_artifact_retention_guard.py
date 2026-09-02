@@ -35,15 +35,14 @@ from typing import Any
 from artifact_ref_resolution import (
     INDETERMINATE,
     MATCH,
+    POLICY_LOCAL,
     RefResolution,
     resolve_record_refs,
 )
 from common import AGENT_RUNTIME_ROOT, REPO_ROOT, STATUS_DIR, print_check_result
 from json_schema_validate import validate_json_schema
 
-STATUS_SCHEMA_PATH = (
-    AGENT_RUNTIME_ROOT / "docs" / "schemas" / "status-record.schema.json"
-)
+STATUS_SCHEMA_PATH = AGENT_RUNTIME_ROOT / "docs" / "schemas" / "status-record.schema.json"
 
 # The command an Executor/Review agent runs to (re)produce a missing record from the
 # review + validation artifacts already written to the working tree during the loop.
@@ -122,8 +121,10 @@ def evaluate(
     or falls through to the single ``(True, ...)`` at the end, reached only after the
     record parsed as a JSON object, validated against the status-record schema, matched
     the requested issue number, both ``review.status`` and ``validation.status`` read
-    ``"PASS"``, and -- from ``gateVersion`` 2 on -- every ``artifactRef`` resolved to
-    content matching its recorded ``sha256``.
+    ``"PASS"``, and -- from ``gateVersion`` 2 on -- every ``artifactRef`` either
+    resolved to content matching its recorded ``sha256`` (``git-history:``) or
+    honestly declared itself unretrievable by policy (``local-only:``, #1497).
+    Either way the refs are named in the returned detail, never swallowed.
     """
     record_path = status_record_path(issue, status_dir)
 
@@ -155,9 +156,7 @@ def evaluate(
 
     schema_errors = validate_json_schema(payload, schema)
     if schema_errors:
-        return False, (
-            f"{record_path} does not match the status-record schema: {schema_errors[0]}"
-        )
+        return False, (f"{record_path} does not match the status-record schema: {schema_errors[0]}")
 
     if payload.get("issue") != issue:
         return False, (
@@ -223,6 +222,17 @@ def evaluate(
     unresolved = [resolution for resolution in resolutions if resolution.status != MATCH]
     if not unresolved:
         return True, f"{base}; both artifactRefs resolve and match their recorded sha256"
+    # #1497: a ref that correctly declares its body unretrievable-by-policy is not
+    # an unresolved integrity claim, it is a different and weaker claim that was
+    # honoured. It is still NAMED here rather than swallowed, so a reader can see
+    # exactly which evidence this record does and does not stand behind.
+    policy_local = [r for r in unresolved if r.status == POLICY_LOCAL]
+    if policy_local and all(r.status in {POLICY_LOCAL, INDETERMINATE} for r in unresolved):
+        return True, (
+            f"{base}; {len(policy_local)} artifactRef(s) name bodies that are "
+            f"unretrievable by policy, never committed (ADR-003: emit is not commit) — "
+            f"{_summarise_refs(unresolved)}"
+        )
     if all(resolution.status == INDETERMINATE for resolution in unresolved):
         return True, (
             f"{base}; artifactRef integrity was NOT determined in this checkout — "

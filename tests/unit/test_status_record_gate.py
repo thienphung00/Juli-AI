@@ -481,3 +481,144 @@ def test_shipped_provider_directory_is_discoverable() -> None:
         discovered = capture_providers.discover_providers()
 
     assert "artifactBytes" in discovered
+
+
+# --- #1497: the generator must not claim git-history for a gitignored body ---
+# `git-history:agent-runtime/artifacts/reviews/...` asserts retrievability that
+# .gitignore:82 forbids by policy (ADR-003: emit is not commit). The honest
+# claim is `local-only:` -- the body existed locally, here is its sha256, it is
+# not retrievable. See tests/unit/test_check_artifact_retention_guard.py for
+# the reading half.
+
+
+def test_gitignored_body_gets_policy_local_scheme(tmp_path: Path, monkeypatch) -> None:
+    issue = 1497
+    gsr = _seed_bodies(tmp_path, issue, monkeypatch)
+    record = gsr.build_status_record(issue)
+    assert record is not None
+
+    for field, body_dir, prefix in (
+        ("review", "reviews", "review"),
+        ("validation", "validation", "validation"),
+    ):
+        ref = record[field]["artifactRef"]
+        rel = f"agent-runtime/artifacts/{body_dir}/{prefix}-issue-{issue}.json"
+        # git itself agrees this path is uncommittable, so a git-history claim
+        # about it can never be true.
+        assert _git("check-ignore", "--quiet", rel).returncode == 0, rel
+        assert not ref.startswith("git-history:"), (
+            f"{field}.artifactRef claims git history for {rel}, which .gitignore "
+            "forbids committing — the claim can never be satisfied"
+        )
+        assert ref == f"local-only:{rel}", ref
+
+    # The hash claim is unchanged and still honest: it is the digest of the body
+    # that was on disk, only the retrievability claim was corrected.
+    body = (tmp_path / "reviews" / f"review-issue-{issue}.json").read_bytes()
+    assert record["review"]["sha256"] == hashlib.sha256(body).hexdigest()
+
+
+def test_generated_record_with_policy_local_refs_still_validates_against_schema(
+    tmp_path: Path, monkeypatch
+) -> None:
+    gsr = _seed_bodies(tmp_path, 1497, monkeypatch)
+    record = gsr.build_status_record(1497)
+    schema = json.loads(STATUS_SCHEMA_PATH.read_text(encoding="utf-8"))
+    assert validate_json_schema(record, schema) == []
+
+
+def test_relabel_corrects_only_v2_policy_local_refs(tmp_path: Path, monkeypatch) -> None:
+    """The one-off migration for records already committed under #1438: their
+    bodies are gone, so they cannot be regenerated, but their `git-history:`
+    label is provably wrong and their sha256 is not. Relabel corrects the label
+    and touches nothing else -- and it must leave gateVersion 1 records alone
+    (Architect lock, #1445: no backfill) and leave a `git-history:` ref to a
+    genuinely committable path alone (it is not a policy-local body)."""
+    import generate_status_records as gsr
+
+    status_dir = tmp_path / "status"
+    status_dir.mkdir()
+    monkeypatch.setattr(gsr, "STATUS_DIR", status_dir)
+
+    def _record(issue: int, gate_version: int, review_ref: str, validation_ref: str) -> dict:
+        return {
+            "issue": issue,
+            "wave": None,
+            "review": {"status": "PASS", "artifactRef": review_ref, "sha256": "a" * 64},
+            "validation": {
+                "status": "PASS",
+                "artifactRef": validation_ref,
+                "sha256": "b" * 64,
+            },
+            "gateVersion": gate_version,
+        }
+
+    def _body_refs(issue: int) -> tuple[str, str]:
+        return (
+            f"git-history:agent-runtime/artifacts/reviews/review-issue-{issue}.json",
+            f"git-history:agent-runtime/artifacts/validation/validation-issue-{issue}.json",
+        )
+
+    v2 = _record(2001, 2, *_body_refs(2001))
+    v1 = _record(2002, 1, *_body_refs(2002))
+    committable = _record(
+        2003,
+        2,
+        "git-history:backend/src/juli_backend/api/app.py",
+        "git-history:backend/src/juli_backend/api/routes/__init__.py",
+    )
+    for record in (v2, v1, committable):
+        (status_dir / f"issue-{record['issue']}.json").write_text(
+            json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+
+    changed = gsr.relabel_policy_local_refs()
+    assert changed == [2001], changed
+
+    after_v2 = load_json(status_dir / "issue-2001.json")
+    assert after_v2["review"]["artifactRef"] == (
+        "local-only:agent-runtime/artifacts/reviews/review-issue-2001.json"
+    )
+    assert after_v2["validation"]["artifactRef"] == (
+        "local-only:agent-runtime/artifacts/validation/validation-issue-2001.json"
+    )
+    # sha256 untouched: relabelling corrects a retrievability claim, never a hash.
+    assert after_v2["review"]["sha256"] == "a" * 64
+    assert after_v2["validation"]["sha256"] == "b" * 64
+
+    # gateVersion 1 is not backfilled.
+    assert load_json(status_dir / "issue-2002.json")["review"]["artifactRef"] == (
+        "git-history:agent-runtime/artifacts/reviews/review-issue-2002.json"
+    )
+    # Committable paths keep their git-history claim, and therefore keep failing
+    # the guard if they do not resolve. Relabelling is not a laundering tool.
+    untouched = load_json(status_dir / "issue-2003.json")
+    assert untouched["review"]["artifactRef"] == ("git-history:backend/src/juli_backend/api/app.py")
+    assert untouched["validation"]["artifactRef"] == (
+        "git-history:backend/src/juli_backend/api/routes/__init__.py"
+    )
+
+    # Idempotent: a second pass changes nothing.
+    assert gsr.relabel_policy_local_refs() == []
+
+
+def test_no_committed_status_record_claims_git_history_for_a_gitignored_body() -> None:
+    """Corpus-level invariant: no gateVersion 2 record may assert retrievability
+    for a path policy forbids committing. (gateVersion 1 records are exempt --
+    they are not backfilled.)"""
+    status_dir = REPO_ROOT / "agent-runtime" / "artifacts" / "status"
+    offenders = []
+    for path in sorted(status_dir.glob("issue-*.json")):
+        record = load_json(path)
+        if not isinstance(record, dict) or record.get("gateVersion") != 2:
+            continue
+        for field in ("review", "validation"):
+            ref = (record.get(field) or {}).get("artifactRef", "")
+            if not ref.startswith("git-history:"):
+                continue
+            rel = ref[len("git-history:") :]
+            if _git("check-ignore", "--quiet", rel).returncode == 0:
+                offenders.append(f"{path.name}:{field} -> {ref}")
+    assert not offenders, (
+        "gateVersion 2 records claiming git history for gitignored bodies: " + ", ".join(offenders)
+    )

@@ -35,6 +35,32 @@ from pathlib import Path
 
 GIT_HISTORY_SCHEME = "git-history:"
 
+#: #1497. ``git-history:`` asserts retrievability from history. For the five
+#: artifact body directories that assertion can never be true: ``.gitignore``
+#: forbids committing them BY POLICY (ADR-003, "emit is not commit"), so a
+#: ``git-history:`` ref to one is a claim the repository is structurally unable
+#: to satisfy -- which made every ``gateVersion: 2`` record unpassable the moment
+#: #1445 started checking. ``local-only:`` is the honest claim for those bodies:
+#: *this file existed on the machine that ran the loop, this is its sha256, and
+#: it is not retrievable from here by policy.* It is deliberately a WEAKER claim,
+#: and it is admissible only for the paths policy really does forbid committing
+#: -- see ``POLICY_LOCAL_BODY_DIRS``. Anywhere else it is an unsupported scheme,
+#: so it cannot be used to launder a dangling ``git-history:`` ref into a pass.
+LOCAL_ONLY_SCHEME = "local-only:"
+
+#: The repo-relative directory prefixes whose contents ``.gitignore`` keeps out
+#: of every commit (the five verbose artifact body dirs of ADR-052's #670 P1
+#: Option A amendment). Kept in step with ``.gitignore``; the corpus test
+#: ``test_no_committed_status_record_claims_git_history_for_a_gitignored_body``
+#: cross-checks this list against ``git check-ignore`` on the real tree.
+POLICY_LOCAL_BODY_DIRS = (
+    "agent-runtime/artifacts/reviews/",
+    "agent-runtime/artifacts/implementations/",
+    "agent-runtime/artifacts/intent-reviews/",
+    "agent-runtime/artifacts/validation/",
+    "agent-runtime/artifacts/optimization/",
+)
+
 #: The ref resolves and the content it resolves to hashes to the recorded sha256.
 MATCH = "MATCH"
 #: The ref names a path that exists in no commit on any branch.
@@ -47,8 +73,16 @@ UNSUPPORTED_SCHEME = "UNSUPPORTED_SCHEME"
 #: Resolution could not be attempted here -- shallow checkout, or no git repository.
 #: Explicitly *not* a verdict about the ref.
 INDETERMINATE = "INDETERMINATE"
+#: #1497: the ref names a body inside a policy-local directory and says so with
+#: the ``local-only:`` scheme. Known-unretrievable BY DESIGN, not an integrity
+#: failure -- the record never claimed it could be read back. Answered without
+#: consulting git at all, because it is a statement about policy rather than
+#: about this checkout's history (so it survives CI's shallow checkout).
+POLICY_LOCAL = "POLICY_LOCAL"
 
-#: Statuses that are a positive finding of a broken integrity claim.
+#: Statuses that are a positive finding of a broken integrity claim. ``POLICY_LOCAL``
+#: is deliberately absent: nothing is broken about a ref that correctly declares
+#: its target unretrievable.
 FAILING_STATUSES = frozenset({UNRESOLVABLE, HASH_MISMATCH, UNSUPPORTED_SCHEME})
 
 #: The two blocks of a status record that carry an artifactRef/sha256 pair.
@@ -174,12 +208,68 @@ def reset_ref_index_cache() -> None:
     _INDEX_CACHE.clear()
 
 
+def is_policy_local_path(path: str) -> bool:
+    """True when ``path`` lies inside one of the five gitignored body directories,
+    i.e. when policy forbids it ever reaching a commit."""
+    normalised = (path or "").strip().lstrip("./")
+    return any(normalised.startswith(prefix) for prefix in POLICY_LOCAL_BODY_DIRS)
+
+
+def policy_local_ref(path: str) -> str:
+    """Build the honest ref for a body policy forbids committing (#1497)."""
+    return f"{LOCAL_ONLY_SCHEME}{path}"
+
+
+def _resolve_local_only(field_name: str, ref: str, expected: str) -> RefResolution:
+    path = ref[len(LOCAL_ONLY_SCHEME) :].strip()
+    if not path:
+        return RefResolution(
+            field_name,
+            ref,
+            UNSUPPORTED_SCHEME,
+            f"{field_name}.artifactRef {ref!r} carries the {LOCAL_ONLY_SCHEME} scheme "
+            "with an empty path",
+        )
+    if not is_policy_local_path(path):
+        # The laundering guard. `local-only:` excuses a ref from resolution, so it
+        # must only ever be reachable for the paths policy genuinely forbids
+        # committing -- otherwise any dangling `git-history:` ref could be
+        # relabelled into a pass and #1445 would be worth nothing.
+        return RefResolution(
+            field_name,
+            ref,
+            UNSUPPORTED_SCHEME,
+            (
+                f"{field_name}.artifactRef names {path} with the {LOCAL_ONLY_SCHEME} "
+                "scheme, but that path is not inside any of the gitignored artifact "
+                f"body directories ({', '.join(POLICY_LOCAL_BODY_DIRS)}) — nothing "
+                "stops it being committed, so it may not claim to be unretrievable "
+                "by policy"
+            ),
+        )
+    return RefResolution(
+        field_name,
+        ref,
+        POLICY_LOCAL,
+        (
+            f"{field_name}.artifactRef names {path}, a body .gitignore forbids "
+            "committing (ADR-003: emit is not commit) — the record claims only that "
+            f"it existed locally with sha256 {expected[:12]}…, not that it can be read "
+            "back here; unretrievable by policy, not an integrity failure"
+        ),
+    )
+
+
 def resolve_ref(
     field_name: str, ref: str, expected_sha256: str, *, repo_root: Path
 ) -> RefResolution:
     """Resolve one ``artifactRef`` and check it against its recorded ``sha256``."""
     ref = (ref or "").strip()
     expected = (expected_sha256 or "").strip().lower()
+
+    if ref.startswith(LOCAL_ONLY_SCHEME):
+        # Answered before any git call: policy, not history, decides this one.
+        return _resolve_local_only(field_name, ref, expected)
 
     if not ref.startswith(GIT_HISTORY_SCHEME):
         return RefResolution(
@@ -188,9 +278,10 @@ def resolve_ref(
             UNSUPPORTED_SCHEME,
             (
                 f"{field_name}.artifactRef {ref!r} uses no scheme this guard can follow "
-                f"(expected {GIT_HISTORY_SCHEME}<repo-relative-path>) — #670's promised "
-                "CI artifact-retention store was never built, so such a ref points at "
-                "nothing that can be read back"
+                f"(expected {GIT_HISTORY_SCHEME}<repo-relative-path> for a committed "
+                f"path, or {LOCAL_ONLY_SCHEME}<repo-relative-path> for a body policy "
+                "forbids committing) — #670's promised CI artifact-retention store was "
+                "never built, so such a ref points at nothing that can be read back"
             ),
         )
 
