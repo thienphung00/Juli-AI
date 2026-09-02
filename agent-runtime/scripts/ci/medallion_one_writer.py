@@ -14,9 +14,14 @@ from common import REPO_ROOT  # noqa: E402
 BACKEND_ROOT = REPO_ROOT / "backend" / "src" / "juli_backend"
 DATABASE_MODULE_MD = BACKEND_ROOT / "database" / "MODULE.md"
 ETL_MODULE_MD = BACKEND_ROOT / "services" / "etl" / "MODULE.md"
-REPOS_FILE = BACKEND_ROOT / "repositories" / "repos.py"
+REPOSITORIES_DIR = BACKEND_ROOT / "repositories"
 
-REPO_DEFINITIONS_MODULE = "juli_backend.repositories.repos"
+# Repository *definitions* live under this package and are never call sites.
+REPO_DEFINITIONS_PACKAGE = "juli_backend.repositories"
+
+
+def _is_repository_module(module: str) -> bool:
+    return module == REPO_DEFINITIONS_PACKAGE or module.startswith(f"{REPO_DEFINITIONS_PACKAGE}.")
 
 
 @dataclass(frozen=True)
@@ -132,7 +137,7 @@ class _RepoWriteVisitor(ast.NodeVisitor):
         self._current_class: str | None = None
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
-        if node.module and node.module.endswith("repositories.repos"):
+        if node.module and _is_repository_module(node.module):
             for alias in node.names:
                 name = alias.asname or alias.name
                 if alias.name in _RULE_BY_REPO:
@@ -231,7 +236,7 @@ def scan_medallion_write_violations(
     for path in paths:
         if path.name == "__init__.py" and path.parent == root:
             continue
-        if path.resolve() == REPOS_FILE.resolve():
+        if REPOSITORIES_DIR.resolve() in path.resolve().parents:
             continue
         module = module_path_from_file(path)
         violations.extend(_scan_source(module, path.read_text(encoding="utf-8")))
@@ -240,7 +245,7 @@ def scan_medallion_write_violations(
 
 
 def _scan_source(module: str, source: str) -> list[str]:
-    if module == REPO_DEFINITIONS_MODULE:
+    if _is_repository_module(module):
         return []
     try:
         tree = ast.parse(source, filename=module)
