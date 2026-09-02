@@ -44,6 +44,24 @@ def _git(*args: str) -> subprocess.CompletedProcess:
     )
 
 
+@pytest.fixture(autouse=True)
+def _unlatch_settle_clock():
+    """Every test in this file starts and ends with an unlatched settle clock.
+
+    ``task_transcripts.settle_clock`` latches one instant per process, which is
+    right for the short-lived generation scripts that import it and wrong for a
+    pytest session that outlives the 300s settle window. Resetting around each
+    test keeps every test judging transcript ages against an instant from its
+    own run, and stops a test that *places* the clock from pinning its
+    neighbours to a fabricated one.
+    """
+    import task_transcripts
+
+    task_transcripts.reset_settle_clock()
+    yield
+    task_transcripts.reset_settle_clock()
+
+
 # --- AC1: verbose body untracked/ignored, status record tracked -----------
 
 
@@ -173,6 +191,155 @@ def test_migration_is_idempotent(tmp_path: Path, monkeypatch) -> None:
     assert first == [42]
     assert second == [42]
     assert first_bytes == second_bytes
+
+
+class _Straddle:
+    """A ``time`` stand-in that moves only when the test says so.
+
+    Two fixed instants, half a second either side of the settle boundary,
+    selected by ``index`` — so which side of the boundary a transcript falls on
+    is chosen by the test rather than by how long the test took to run.
+    """
+
+    def __init__(self, ticks: tuple[float, ...]) -> None:
+        self.ticks = ticks
+        self.index = 0
+
+    def time(self) -> float:
+        return self.ticks[self.index]
+
+
+def _plant_transcript(tasks_dir: Path, *, agent_id: str, issue: int) -> None:
+    """One JSONL transcript, backdated to the epoch.
+
+    Backdating makes the file's age exactly whatever the clock reads, which is
+    what lets the test place it on the boundary instead of hoping to land there.
+    """
+    import os
+
+    tasks_dir.mkdir(parents=True, exist_ok=True)
+    record = {
+        "type": "assistant",
+        "agentId": agent_id,
+        "sessionId": "session-under-test",
+        "gitBranch": "main",
+        "isSidechain": True,
+        "timestamp": "2026-09-02T01:00:00.000Z",
+        "message": {
+            "id": "m-1",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "tool_use",
+                    "name": "Bash",
+                    "id": "tu_1",
+                    "input": {"command": f"ls /repo/.worktrees/w4-{issue}"},
+                }
+            ],
+            "usage": {
+                "input_tokens": 1,
+                "output_tokens": 1,
+                "cache_creation_input_tokens": 1,
+                "cache_read_input_tokens": 1,
+            },
+        },
+    }
+    path = tasks_dir / f"{agent_id}.output"
+    path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+    os.utime(path, (0, 0))
+
+
+def test_record_generation_is_idempotent_across_the_settle_boundary(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Two generations of one record agree even on a transcript sitting on 300s.
+
+    ``test_migration_is_idempotent`` above cannot see this. It reads whatever
+    session store the machine happens to have, so the bug only bites when some
+    transcript's age falls inside the gap between the two ``migrate()`` calls —
+    a few seconds out of 300. It was measured failing about 1 run in 5, and only
+    on the slow runs; the fix that preceded this one was accepted on "3/3 green",
+    which is roughly a coin flip with the bug fully present.
+
+    So this test plants its own store and places the clock rather than sampling
+    it. The transcript is backdated to the epoch and the clock reads 299.5s on
+    one generation and 300.5s on the next. Before #1515 that alone flipped the
+    record between ``not-measured`` and ``measured``, on bytes that are supposed
+    to be identical.
+    """
+    import generate_status_records as gsr
+    import task_transcripts
+
+    reviews = tmp_path / "reviews"
+    validation = tmp_path / "validation"
+    status_dir = tmp_path / "status"
+    reviews.mkdir()
+    validation.mkdir()
+
+    (reviews / "review-issue-42.json").write_text(
+        json.dumps(
+            {
+                "issue": 42,
+                "status": "PASS",
+                "criticalFindings": [],
+                "modulesTouched": ["web"],
+                "testCoverage": {"acceptance": {"total": 3, "mapped": 3}},
+                "timestamp": "2026-08-02T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (validation / "validation-issue-42.json").write_text(
+        json.dumps(
+            {
+                "issue": 42,
+                "status": "PASS",
+                "readyForMerge": True,
+                "timestamp": "2026-08-02T00:01:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(gsr, "REVIEWS_DIR", reviews)
+    monkeypatch.setattr(gsr, "VALIDATION_DIR", validation)
+    monkeypatch.setattr(gsr, "STATUS_DIR", status_dir)
+    monkeypatch.setattr(gsr, "WAVES_DIR", tmp_path / "waves")
+
+    tasks_dir = tmp_path / "session" / "tasks"
+    _plant_transcript(tasks_dir, agent_id="agent-astride", issue=42)
+    # The documented override, so this reads the planted store and never the
+    # machine's real session — hermetic, and the same code path CI takes.
+    monkeypatch.setenv(task_transcripts.STORE_ENV_VAR, str(tasks_dir))
+
+    settle = task_transcripts.SETTLE_SECONDS
+    straddle = _Straddle((settle - 0.5, settle + 0.5))
+    monkeypatch.setattr(task_transcripts, "time", straddle)
+
+    def _generate() -> tuple[bytes, str]:
+        migrate()
+        raw = (status_dir / "issue-42.json").read_bytes()
+        return raw, json.loads(raw)["run"]["metrics"]["status"]
+
+    task_transcripts.reset_settle_clock()
+    straddle.index = 0
+    short_first = _generate()
+    straddle.index = 1
+    short_second = _generate()
+    assert short_first == short_second
+    assert short_first[1] == "not-measured"
+
+    task_transcripts.reset_settle_clock()
+    straddle.index = 1
+    past_first = _generate()
+    straddle.index = 0
+    past_second = _generate()
+    assert past_first == past_second
+    assert past_first[1] == "measured"
+
+    # And the two latches really do disagree — without that, the pair of
+    # assertions above would be satisfied by a boundary that never fires.
+    assert short_first[0] != past_first[0]
 
 
 # --- AC3: gate reads status record, fails on missing/non-PASS -------------
