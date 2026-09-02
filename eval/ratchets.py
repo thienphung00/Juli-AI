@@ -15,8 +15,8 @@ never a count. A count is gameable two ways, and both reward the wrong move:
    alone cannot see this, which is why ``mypy_statement_coverage`` is measured
    beside it as a scalar that **must not fall**.
 
-An identity may leave the set — that is a fix, and on merge the baseline tightens
-to exclude it. An identity entering the set is a failure.
+An identity may leave the set — that is a fix, and the PR that retires it runs
+``tighten`` so the baseline excludes it. An identity entering the set is a failure.
 
 Ratchets are **factual** gates: ``check`` compares two recorded sets and cannot
 infer intent, so it blocks from day one with no false-positive risk. Even the
@@ -24,8 +24,10 @@ classes whose measurer is a heuristic (``unused_ts_exports``) are factual as
 ratchets, because both sides of the comparison are produced by the same measurer
 — an over-broad reading is already in the baseline and can only ever depart.
 
-**Tighten only on merge, never mid-PR.** ``check`` never writes. ``tighten`` is a
-separate call, and it refuses to run on a measurement that does not pass.
+**Rewrite the baseline only through ``tighten``.** ``check`` never writes.
+``tighten`` refuses to run on a measurement that does not pass, so a branch can
+lower the floor but never raise it; ``measure --write`` bypasses that guard and
+is for bootstrapping only.
 
 **Fail closed.** A class whose measurement raises is recorded in ``errors`` and
 produces an ``unmeasurable`` violation. It is never folded into "clean". A class
@@ -40,7 +42,8 @@ CLI::
 
     python -m eval.ratchets measure            # print the current reading
     python -m eval.ratchets check              # compare tree to committed baseline
-    python -m eval.ratchets measure --write    # regenerate the baseline (merge only)
+    python -m eval.ratchets tighten --write    # lower the baseline to a passing tree
+    python -m eval.ratchets measure --write    # bootstrap a baseline (no check; first time only)
 """
 
 from __future__ import annotations
@@ -909,11 +912,16 @@ def check(baseline: Mapping[str, Any], measurement: Measurement) -> RatchetResul
 
 
 def tighten(baseline: Mapping[str, Any], measurement: Measurement) -> dict[str, Any]:
-    """Lower the floor to the current reading. **Merge only.**
+    """Lower the floor to the current reading. The only sanctioned way to rewrite it.
 
-    Separate from ``check`` on purpose: mid-PR tightening would let a branch
-    ratify its own regressions. It refuses outright on a measurement that does
-    not pass, so debt can never be tightened *upwards*.
+    Separate from ``check`` on purpose, and safe to run on a branch: it refuses
+    outright on a measurement that does not pass, so a branch can never ratify
+    its own regressions -- an entering identity, a moved identity or a scalar
+    moving the wrong way all fail ``check`` first. ``measure --write`` has no
+    such guard and is for bootstrapping a baseline that does not exist yet.
+    A PR that retires debt runs this and commits the result, because the
+    equality test in ``tests/unit/test_ratchets.py`` runs on the merge queue
+    too; there is no later moment at which "regenerate on merge" could happen.
     """
     result = check(baseline, measurement)
     if not result.ok:
@@ -952,7 +960,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--write",
         action="store_true",
-        help="write the baseline (merge only; never mid-PR)",
+        help="write the baseline (use with tighten; measure --write skips the check)",
     )
     args = parser.parse_args(argv)
 

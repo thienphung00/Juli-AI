@@ -1,50 +1,83 @@
 ---
-description: Code quality — style, readability, modularity (Focus-triggered)
+description: Code quality — the Python standard every backend change follows (Focus-triggered)
 alwaysApply: false
 ---
 
 # Code Quality
 
-Load via Focus for any code change. Review checklists: `.cursor/skills/standalone/intent-review/SKILL.md (structure) and `.cursor/skills/standalone/guardrails/SKILL.md` (domains)`.
+Load via Focus for any code change. The long form with worked before/after
+examples is `docs/architecture/code-standard.md`; the test half is
+`.cursor/skills/domain/testing-patterns/python-testing.md`. Review checklists:
+`.cursor/skills/standalone/intent-review/SKILL.md` (structure) and
+`.cursor/skills/standalone/guardrails/SKILL.md` (domains).
 
-## Core Principles
+## Copy these, do not invent a shape
 
-- **KISS**: prefer the simplest solution that works.
-- **DRY**: extract repetition when it is real and stable.
-- **YAGNI**: avoid speculative generality; refactor when pressure is real.
+The codebase already contains one worked example of each layer. When you add
+something of the same kind, open the exemplar first and match it.
 
-## Style & Naming
+| Adding a… | Copy | The rule it demonstrates |
+|-----------|------|--------------------------|
+| repository | `backend/src/juli_backend/repositories/_base.py`, then `commerce.py` | borrowed session, structural tenant scoping, `get` raises / `find` returns `None`, idempotent upsert |
+| service behind a route | `backend/src/juli_backend/services/agent_runs/` | behaviour lives in `services`; typed exceptions carry the error code; the service never commits |
+| route | `backend/src/juli_backend/api/routes/agent_runs.py` | resolve tenant, apply gates, call the service, map its exception to HTTP, commit, enqueue |
+| shared infrastructure used by two features | `backend/src/juli_backend/services/kpi_cache/` | one copy with the fixes from both; the features become thin adapters |
+| module docstring | any of the above | what the module owns, the rules it enforces, and *why* each rule exists |
 
-- Variables/functions: `camelCase` with descriptive names.
-- Booleans: `is*`, `has*`, `can*`, `should*`.
-- Types/classes/components: `PascalCase`.
-- Constants: `UPPER_SNAKE_CASE`.
-- Prefer immutable updates over in-place mutation when it reduces side effects and improves testability.
+## Python style (ruff enforces the mechanical parts)
 
-## Readability & Modularity
+- `snake_case` functions and variables, `PascalCase` classes, `UPPER_SNAKE_CASE` module
+  constants. Booleans read as predicates: `is_stale`, `has_recent`, `allowed`.
+- `from __future__ import annotations` at the top of every module. Full type hints on every
+  public function, including the return. `Any` is a boundary type (vendor JSON, Redis
+  payloads), not a way to skip a decision.
+- Keyword-only arguments (`*,`) for anything past the first one or two positional parameters.
+- Line length 100. Imports sorted (ruff `I`). No unused code.
+- Constants over repeated literals: a status string used twice becomes a module constant
+  next to the code that owns it (`SHIPPED`, `PENDING_CONFIRMATION_STATUS`).
 
-- Prefer clear, self-documenting code over clever one-liners.
-- Use descriptive names — if a function needs a comment to explain *what* it does, rename or restructure it.
-- Each function/module should have a single responsibility; prefer composition over inheritance.
-- Extract shared logic into reusable utilities; split large modules.
-- Prefer high cohesion, low coupling; keep functions focused and readable.
+## Structure
 
-## Error Handling & Validation
+- **One aggregate per module.** A module over ~600 lines or a function over ~80 lines is
+  mixing responsibilities. Split by *what it owns*, not by verb.
+- **Layering is enforced** (`.importlinter.toml`, `check_import_boundaries.py`):
+  `api → services → {repositories, models, database}`; `repositories → {models, database}`
+  only. `api` may only import `juli_backend.<package>.<child>` — if a route needs something
+  deeper, move the behaviour into a depth-2 `services` package instead of copying it.
+- **Repositories borrow the session and never commit.** The transaction belongs to the
+  request or task that opened it. Everything under a shop extends `ShopScopedRepo`.
+- **Routes are thin.** Tenant resolution, gates, exception→HTTP mapping, commit, enqueue.
+  State machines, ordering guarantees and read models are services and are tested without
+  HTTP.
+- **Time at the persistence edge is naive UTC** (`utc_now_naive()`); columns are
+  `TIMESTAMP WITHOUT TIME ZONE` and asyncpg rejects aware values at flush (#1138).
+- **Env is read in one place per concern.** A module that reads `os.getenv` for a value
+  `core/config` or an existing helper already resolves is a bug.
 
-- Handle errors explicitly at boundaries; never silently swallow exceptions.
-- In server-side code: log structured, non-sensitive context.
-- Validate and sanitize at system boundaries (HTTP requests, webhooks, events, file inputs).
-- Fail fast with clear errors; never trust external data.
+## Errors
+
+- Never a bare `except:`. A broad `except Exception` is allowed only at a named boundary,
+  with `# noqa: BLE001 -- <what boundary and what the degrade is>` on the same line.
+- Domain failures are typed exceptions carrying a machine-readable code
+  (`ConfirmationRejected(error_code, message)`); the route maps them to HTTP. Callers
+  never parse message text.
+- `NotFound` messages name the entity and id, and nothing else — never a token or payload.
+- Log structured event names (`agent_confirmation_decided`) with ids in `extra=`; never
+  tokens, PII or request bodies.
 
 ## Documentation
 
-- Comment on *why*, not *what* — the code explains the what.
-- Keep `README.md` current; record significant design decisions (ADRs or inline rationale).
+- Module docstring first: what the module owns, the rules it enforces, and why. Cite the
+  ADR or issue that decided each rule (`(ADR-074 decision 3)`, `(#1138)`).
+- Comments explain *why*, never *what*. A comment that restates the next line is deleted.
+- `MODULE.md` beside any package with a public API: purpose, public API, must-nots.
 
 ## Common Patterns
 
-- **Repository pattern**: encapsulate data access behind a consistent interface so business logic doesn't depend on storage details.
-- **API response envelope**: consistent shape — `status`, `data` (nullable on error), `error` (nullable on success), `metadata` (pagination when listing).
+- **Repository pattern**: `SessionRepo` / `ShopScopedRepo` in `repositories/_base.py`.
+- **API response envelope**: consistent shape — `status`, `data` (nullable on error),
+  `error` (nullable on success), `metadata` (pagination when listing). Error details from a
+  service carry `{"message", "error_code"}`.
 
 ## Automation (Cursor Hooks)
 

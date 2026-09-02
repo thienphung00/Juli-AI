@@ -1,13 +1,13 @@
 """Persistence layer facade.
 
 Historically this package eagerly re-exported ``models.models`` and
-``repositories.repos`` for convenience (``from juli_backend.database import
+``repositories`` for convenience (``from juli_backend.database import
 Shop, ShopsRepo``). Those modules import back into ``juli_backend.database.*``
 (``Base``, ``NotFound``, ``token_crypto``), so eager re-export created an import
-cycle: whenever ``repositories.repos`` was the *first* module to touch this
+cycle: whenever ``repositories`` was the *first* module to touch this
 package (e.g. the FastAPI entrypoint imports it via
 ``core.security.credential_resolver`` before anything imports the facade), this
-package's ``__init__`` re-entered ``repositories.repos`` while it was still
+package's ``__init__`` re-entered ``repositories`` while it was still
 initializing and crashed with a partial-import ``ImportError``.
 
 The leaf, dependency-free symbols (``Base``, session helpers, ``NotFound``) are
@@ -52,7 +52,7 @@ if TYPE_CHECKING:
         TikTokCredential,
         User,
     )
-    from juli_backend.repositories.repos import (
+    from juli_backend.repositories import (
         ActionCardsRepo,
         AlertConfigsRepo,
         AlertHistoryRepo,
@@ -97,23 +97,23 @@ _LAZY_EXPORTS = {
     "TikTokCredential": "juli_backend.models.models",
     "User": "juli_backend.models.models",
     # Repositories
-    "ActionCardsRepo": "juli_backend.repositories.repos",
-    "AlertConfigsRepo": "juli_backend.repositories.repos",
-    "AlertHistoryRepo": "juli_backend.repositories.repos",
-    "CreatorsRepo": "juli_backend.repositories.repos",
-    "GraphRepo": "juli_backend.repositories.repos",
-    "InventoryRepo": "juli_backend.repositories.repos",
-    "LivestreamsRepo": "juli_backend.repositories.repos",
-    "OrdersRepo": "juli_backend.repositories.repos",
+    "ActionCardsRepo": "juli_backend.repositories",
+    "AlertConfigsRepo": "juli_backend.repositories",
+    "AlertHistoryRepo": "juli_backend.repositories",
+    "CreatorsRepo": "juli_backend.repositories",
+    "GraphRepo": "juli_backend.repositories",
+    "InventoryRepo": "juli_backend.repositories",
+    "LivestreamsRepo": "juli_backend.repositories",
+    "OrdersRepo": "juli_backend.repositories",
     "ProcessedEventsRepo": "juli_backend.services.etl.persistence.ingest",
-    "ProductionWriteAuthorizationsRepo": "juli_backend.repositories.repos",
-    "ProductsRepo": "juli_backend.repositories.repos",
-    "RecommendationsRepo": "juli_backend.repositories.repos",
-    "SettlementsRepo": "juli_backend.repositories.repos",
-    "ShopScopedRepo": "juli_backend.repositories.repos",
-    "ShopsRepo": "juli_backend.repositories.repos",
-    "TikTokCredentialRepo": "juli_backend.repositories.repos",
-    "UsersRepo": "juli_backend.repositories.repos",
+    "ProductionWriteAuthorizationsRepo": "juli_backend.repositories",
+    "ProductsRepo": "juli_backend.repositories",
+    "RecommendationsRepo": "juli_backend.repositories",
+    "SettlementsRepo": "juli_backend.repositories",
+    "ShopScopedRepo": "juli_backend.repositories",
+    "ShopsRepo": "juli_backend.repositories",
+    "TikTokCredentialRepo": "juli_backend.repositories",
+    "UsersRepo": "juli_backend.repositories",
 }
 
 

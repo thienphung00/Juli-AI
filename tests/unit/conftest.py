@@ -181,3 +181,43 @@ def _no_live_vendor_identity_lookup(monkeypatch):
         _fake_resolve,
         raising=False,
     )
+
+
+# ---------------------------------------------------------------------------
+# Tenant + API fixtures (tests/support). A module that needs a different shape
+# defines its own fixture of the same name; pytest's nearest definition wins.
+# ---------------------------------------------------------------------------
+
+
+@pytest_asyncio.fixture
+async def tenant(session):
+    """``(user, shop)`` -- one seller and the shop they own."""
+    from tests.support.builders import make_tenant
+
+    return await make_tenant(session)
+
+
+@pytest_asyncio.fixture
+async def shop(tenant):
+    return tenant[1]
+
+
+@pytest_asyncio.fixture
+async def app(session):
+    """The real app with every route's session dependency yielding ``session``."""
+    from tests.support.api import build_app
+
+    application = build_app(session)
+    yield application
+    application.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def auth_client(app, tenant):
+    """An ``httpx.AsyncClient`` acting as the tenant's user on the tenant's shop."""
+    from tests.support.api import authenticate, client_for
+
+    user, shop = tenant
+    authenticate(app, user=user, shop=shop)
+    async with client_for(app) as client:
+        yield client

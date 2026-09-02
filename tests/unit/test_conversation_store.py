@@ -4,7 +4,7 @@ ADR-073 decision 5, issue #1118 / AGT-W3A.
 The protocol-shape tests need no database. The `JsonbConversationStore`
 round-trip tests use the shared in-memory `session` fixture from
 `tests/unit/conftest.py` (sqlite+aiosqlite, `Base.metadata.create_all`) —
-the same fixture `test_repos.py` uses for its repository tests — so the
+the same fixture the repository tests use — so the
 `workflow_runs.state` column really is exercised, without needing a real
 Postgres instance.
 """
