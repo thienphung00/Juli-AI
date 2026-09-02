@@ -340,9 +340,14 @@ async def _enumerate_active_runs(
 ) -> list[tuple[uuid.UUID, uuid.UUID]]:
     """Return (run_id, shop_id) for every active run in the fleet.
 
-    ADR-089 decision 3: this is the *only* cross-tenant read, and it returns
-    identifiers and nothing else. Every field the reaper actually decides on is
-    then loaded per-run under that run's own tenant context.
+    ADR-089 decision 3: this is the *only* cross-tenant read. It is projected
+    here to identifiers only — run id and shop id — and every field the reaper
+    decides on is then loaded per-run under that run's own tenant context.
+
+    The projection is narrower than the function. `enumerate_active_workflow_runs`
+    also returns status, created_at and running_seconds_elapsed, which no caller
+    reads; #1510 tracks narrowing the signature, which needs DROP + CREATE
+    rather than CREATE OR REPLACE and so is not this slice's migration.
 
     The branch is on dialect, deliberately, and not on `try: enumerate /
     except: scan fleet-wide`. That shape is wrong twice over. On Postgres a
@@ -359,7 +364,11 @@ async def _enumerate_active_runs(
         )
     else:
         # SQLite (unit tests) has neither the function nor RLS, so an ordinary
-        # query is the same read with the same result set.
+        # query stands in. NOT the same result set: this branch filters on the
+        # caller's `statuses`, while the Postgres function always returns all
+        # three active statuses and each caller re-filters below. Both loops end
+        # up acting on the same runs; the Postgres path just does one extra
+        # `session.get` per non-matching run per tick.
         result = await session.execute(
             select(WorkflowRun.id, WorkflowRun.shop_id).where(WorkflowRun.status.in_(statuses))
         )
