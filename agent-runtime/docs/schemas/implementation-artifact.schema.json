@@ -63,13 +63,34 @@
       "minimum": 0
     },
     "tokenUsage": {
+      "description": "#1441: exactly two shapes. A measured reading carries {input, output, total}; an unmeasured run carries {available: false, reason} and NO value key, matching assemble_evidence.unavailable(). Before this the field was optional but, when present, admitted only the measured shape — jointly unsatisfiable with check_implementation_artifact's hard requirement on tokenUsage.total, which is how an annotated {0,0,0} sentinel entered the corpus this epic measures. A zero is exactly as unsourceable as 1800000 and is the more convincing lie, so 'unavailable' now has a shape of its own and the value key is excluded from it by construction.",
       "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "input": { "type": "integer", "minimum": 0 },
-        "output": { "type": "integer", "minimum": 0 },
-        "total": { "type": "integer", "minimum": 0 }
-      }
+      "oneOf": [
+        {
+          "title": "measured",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["total"],
+          "properties": {
+            "input": { "type": "integer", "minimum": 0 },
+            "output": { "type": "integer", "minimum": 0 },
+            "cacheCreation": { "type": "integer", "minimum": 0 },
+            "cacheRead": { "type": "integer", "minimum": 0 },
+            "total": { "type": "integer", "minimum": 0 },
+            "observedFrom": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "title": "unavailable",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["available", "reason"],
+          "properties": {
+            "available": { "const": false },
+            "reason": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
     },
     "toolsUsed": {
       "type": "array",

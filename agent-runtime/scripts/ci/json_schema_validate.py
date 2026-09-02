@@ -22,6 +22,30 @@ def validate_json_schema(instance: Any, schema: dict[str, Any], *, path: str = "
         err("schema must be an object")
         return errors
 
+    # ``oneOf`` — added for #1441, where ``tokenUsage`` must admit exactly two
+    # shapes (a measured reading, or ``{available: false, reason}`` with no
+    # ``value`` key) and nothing else. Unsupported keywords are silently ignored
+    # by this validator, so a schema using one it does not know reads as
+    # *permissive* rather than as an error. That is the failure mode this
+    # branch exists to avoid: without it the two-shape contract would be
+    # published in the schema file and enforced nowhere.
+    branches = schema.get("oneOf")
+    if isinstance(branches, list) and branches:
+        matched = [
+            index
+            for index, branch in enumerate(branches)
+            if not validate_json_schema(instance, branch, path=path)
+        ]
+        if len(matched) != 1:
+            titles = [
+                str(b.get("title") or i) for i, b in enumerate(branches) if isinstance(b, dict)
+            ]
+            err(
+                f"matched {len(matched)} of {len(branches)} oneOf branches "
+                f"({', '.join(titles)}); exactly one must match"
+            )
+            return errors
+
     schema_type = schema.get("type")
     if schema_type is not None:
         if not _type_matches(instance, schema_type):
