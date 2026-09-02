@@ -234,3 +234,160 @@ def test_vacuous_probe_is_caught_as_non_discriminating(tmp_path: Path) -> None:
     verdict, reason = classify_probe(base_exit, head_exit)
     assert verdict == VERDICT_NO_DISCRIMINATION
     assert "does not discriminate" in reason
+
+
+# --- node ids are the canonical testsAdded format (#1498) ---------------
+#
+# `check_differential_tdd` — the only gate in this harness that executes
+# anything — reported "No test files in testsAdded/testsUpdated to probe" and
+# returned without judging, because `testsAdded` carries pytest *node ids*
+# (`tests/unit/test_x.py::test_y`) and the selector dropped every entry whose
+# basename did not end in `.py`. The gate passed by never looking.
+
+
+def _load_gate_seam():
+    """Import the gate module lazily (keeps the E402 suppression out of scope)."""
+    import importlib
+
+    validate_dir = str(REPO_ROOT / "agent-runtime" / "scripts" / "validate")
+    if validate_dir not in sys.path:
+        sys.path.insert(0, validate_dir)
+    return importlib.import_module("check_differential_tdd")
+
+
+def _load_differential_seam():
+    import importlib
+
+    return importlib.import_module("differential_tdd")
+
+
+def _gate_repo(tmp_path: Path) -> Path:
+    """A repo the gate can resolve a base against: origin/main points at base."""
+    repo, base_sha = _build_repo_with_fix(tmp_path)
+    _git(repo, "update-ref", "refs/remotes/origin/main", base_sha)
+    return repo
+
+
+def _impl_artifact(**overrides: Any) -> dict[str, Any]:
+    artifact: dict[str, Any] = {
+        "issueId": 1498,
+        "executorDomain": "backend",
+        # A real code change: this is what makes TDD evidence required.
+        "filesModified": ["backend/src/widget/pricing.py"],
+        "testsAdded": [],
+        "testsUpdated": [],
+        # The narration that satisfied the predecessor gate. It must not
+        # satisfy this one.
+        "redGreenRefactorEvidence": [
+            {"cycle": 1, "commands": [{"command": "pytest -q", "exitCode": 0}]}
+        ],
+    }
+    artifact.update(overrides)
+    return artifact
+
+
+def _run_gate(tmp_path: Path, monkeypatch: Any, repo: Path, artifact: dict[str, Any]) -> Any:
+    import json
+
+    import common
+
+    impl_dir = tmp_path / "impl"
+    impl_dir.mkdir(parents=True, exist_ok=True)
+    (impl_dir / "implementation-issue-1498.json").write_text(json.dumps(artifact))
+    monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", impl_dir)
+    return _load_gate_seam().run_check(1498, repo_root=repo)
+
+
+def test_node_ids_are_split_and_probed(tmp_path: Path, monkeypatch: Any) -> None:
+    """A node id must resolve to its file and the probe must actually execute.
+
+    The lie: `testsAdded` holds only node ids, which the selector used to drop
+    silently, so the gate returned "nothing to probe" for a change that in fact
+    carried a discriminating test.
+    """
+    node_ids = [
+        "tests/test_pricing.py::test_discount_is_applied",
+        # a second id in the same file must not produce a duplicate probe
+        "tests/test_pricing.py::test_discount_is_applied[edge::case]",
+    ]
+    assert select_probe_tests({"testsAdded": node_ids, "testsUpdated": []}) == [
+        "tests/test_pricing.py"
+    ]
+
+    repo = _gate_repo(tmp_path)
+    passed, description, details = _run_gate(
+        tmp_path, monkeypatch, repo, _impl_artifact(testsAdded=node_ids)
+    )
+
+    assert details["probes"] == ["tests/test_pricing.py"]
+    assert details["verdict"] == VERDICT_RED_GREEN, description
+    # The probe genuinely ran on both trees — not a judgement made from JSON.
+    assert details["baseExit"] not in (0, None)
+    assert details["headExit"] == 0
+    assert "test_discount_is_applied" in details["baseEvidence"]
+    assert passed is True
+
+
+def test_no_discrimination_is_distinct_from_nothing_to_probe(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Both fail — but conflating them is how the gate hid for an entire epic.
+
+    The lie: a vacuous `assert True` submitted as a node id. It must be reported
+    as *probed and non-discriminating*, never as *nothing to probe*, because the
+    second reads as "the gate had no opinion" and got waved through.
+    """
+    differential = _load_differential_seam()
+    assert differential.VERDICT_NOTHING_TO_PROBE != VERDICT_NO_DISCRIMINATION
+    assert differential.VERDICT_NOTHING_TO_PROBE not in differential.PASSING_VERDICTS
+
+    repo = _gate_repo(tmp_path)
+    (repo / "tests" / "test_vacuous.py").write_text("def test_nothing():\n    assert True\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "vacuous probe")
+
+    probed, _, probed_details = _run_gate(
+        tmp_path,
+        monkeypatch,
+        repo,
+        _impl_artifact(testsAdded=["tests/test_vacuous.py::test_nothing"]),
+    )
+    assert probed is False
+    assert probed_details["verdict"] == VERDICT_NO_DISCRIMINATION
+    # It really ran: exit codes exist, which "nothing to probe" can never have.
+    assert probed_details["baseExit"] == 0
+    assert probed_details["headExit"] == 0
+
+    unprobed, _, unprobed_details = _run_gate(
+        tmp_path, monkeypatch, repo, _impl_artifact(testsAdded=[], testsUpdated=[])
+    )
+    assert unprobed is False
+    assert unprobed_details["verdict"] == differential.VERDICT_NOTHING_TO_PROBE
+    assert unprobed_details["verdict"] != probed_details["verdict"]
+    assert "baseExit" not in unprobed_details
+
+
+def test_empty_test_list_fails_closed(tmp_path: Path, monkeypatch: Any) -> None:
+    """No test entries at all must fail, not pass silently.
+
+    The lie: an artifact that changed code, listed no tests, and attested
+    `exitCode: 0` by hand. The predecessor gate accepted exactly that.
+    """
+    differential = _load_differential_seam()
+    repo = _gate_repo(tmp_path)
+
+    for tests_added, tests_updated in (
+        ([], []),
+        (None, None),
+        # entries present, but none of them name a test file
+        (["backend/src/widget/pricing.py"], []),
+    ):
+        passed, description, details = _run_gate(
+            tmp_path,
+            monkeypatch,
+            repo,
+            _impl_artifact(testsAdded=tests_added, testsUpdated=tests_updated),
+        )
+        assert passed is False, description
+        assert details["verdict"] == differential.VERDICT_NOTHING_TO_PROBE
+        assert details["requiresTddEvidence"] is True

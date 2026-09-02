@@ -28,8 +28,10 @@ from common import (  # noqa: E402
 )
 from differential_tdd import (  # noqa: E402
     VERDICT_INCONCLUSIVE,
+    VERDICT_NOTHING_TO_PROBE,
     VERDICT_RED_GREEN,
     classify_probe,
+    declared_test_entries,
     materialize_base_tree,
     overlay_probes,
     resolve_base_sha,
@@ -61,10 +63,29 @@ def run_check(issue: int, repo_root: Path | None = None) -> tuple[bool, str, dic
         details["skipped"] = True
         return True, "No in-scope code changes — differential TDD not required", details
 
+    declared = declared_test_entries(artifact)
     probes = select_probe_tests(artifact)
+    details["declaredTestEntries"] = declared
     details["probes"] = probes
     if not probes:
-        return False, "No test files in testsAdded/testsUpdated to probe", details
+        # Fail closed, and say *which* kind of nothing this is. `verdict` is set
+        # here so a consumer can never mistake "we never probed" for one of the
+        # measured verdicts; no baseExit/headExit is recorded because nothing ran.
+        details["verdict"] = VERDICT_NOTHING_TO_PROBE
+        if not declared:
+            return (
+                False,
+                "Nothing to probe: the artifact declares no tests in "
+                "testsAdded/testsUpdated for an in-scope code change",
+                details,
+            )
+        return (
+            False,
+            f"Nothing to probe: {len(declared)} declared test "
+            f"entr{'y' if len(declared) == 1 else 'ies'} but none resolves to a test file "
+            "(expected pytest node ids like tests/unit/test_x.py::test_y)",
+            details,
+        )
 
     python_probes = [p for p in probes if p.endswith(".py")]
     if not python_probes:

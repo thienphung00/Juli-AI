@@ -15,6 +15,16 @@ the degenerate case), and is reported as such rather than counted as evidence.
 
 The base tree is materialised with ``git archive`` into a temp directory, so no
 worktree is registered and the caller's checkout is never mutated.
+
+Canonical ``testsAdded``/``testsUpdated`` format
+------------------------------------------------
+Pytest **node ids** — ``tests/unit/test_x.py::test_y``. That is what the
+Executor contract asks for and what real artifacts contain. A bare file path
+remains valid; every reader of the field must accept both. ``implementation_tdd
+.tests_added_or_updated`` only counts entries and so is format-agnostic
+already; this module's :func:`select_probe_tests` resolves a node id to its
+file via :func:`node_id_to_path`. Before #1498 it did not, dropped every node
+id, and the gate reported "nothing to probe" instead of judging anything.
 """
 
 from __future__ import annotations
@@ -30,6 +40,11 @@ VERDICT_RED_GREEN = "red_green"
 VERDICT_NO_DISCRIMINATION = "no_discrimination"
 VERDICT_STILL_FAILING = "still_failing"
 VERDICT_INCONCLUSIVE = "inconclusive"
+# Distinct from every verdict above on purpose: nothing was executed, so there
+# is no measurement to report. Conflating "we probed and found no
+# discrimination" with "we never probed" is precisely how this gate hid — the
+# second reads as "the gate had no opinion" and got waved through. Both fail.
+VERDICT_NOTHING_TO_PROBE = "nothing_to_probe"
 
 PASSING_VERDICTS = frozenset({VERDICT_RED_GREEN})
 
@@ -56,12 +71,52 @@ def _is_test_path(path: str) -> bool:
     return False
 
 
+def node_id_to_path(entry: str) -> str:
+    """Return the file part of a pytest node id; a bare path is returned as-is.
+
+    ``tests/unit/test_x.py::test_y`` and ``tests/unit/test_x.py::test_y[a::b]``
+    both yield ``tests/unit/test_x.py`` — split on the *first* separator so a
+    parametrisation id containing ``::`` cannot truncate the path.
+    """
+    return entry.split("::", 1)[0].strip()
+
+
+def declared_test_entries(artifact: Any) -> list[str]:
+    """Every string entry the artifact lists under testsAdded/testsUpdated.
+
+    Format-agnostic and unfiltered: this answers "did the Executor claim any
+    tests at all", which is a different question from "which of those can we
+    probe". The gate needs both to keep its two failure modes apart.
+    """
+    if not isinstance(artifact, dict):
+        return []
+
+    entries: list[str] = []
+    for field in ("testsAdded", "testsUpdated"):
+        value = artifact.get(field)
+        if not isinstance(value, list):
+            continue
+        entries.extend(item for item in value if isinstance(item, str) and item.strip())
+    return entries
+
+
 def select_probe_tests(artifact: Any) -> list[str]:
     """Return the ordered, de-duplicated test files this change added or updated.
 
-    Added tests come first, then updated ones. Non-test paths and malformed
-    entries are dropped rather than raising — a bad artifact yields no probes,
-    which the gate treats as inconclusive, never as a pass.
+    **Canonical format.** ``testsAdded``/``testsUpdated`` hold pytest *node ids*
+    (``tests/unit/test_x.py::test_y``) — that is what the Executor prompt and
+    ``docs/benchmarks/task-type-b-bug-fix.md`` ask for, and what artifacts in
+    the wild actually contain. A bare file path stays valid and is accepted
+    unchanged, so both readers of the field agree. Before #1498 this selector
+    required the *whole* entry to end in ``.py``, so every node id was dropped
+    and the gate reported "nothing to probe" for changes that had real
+    discriminating tests — it passed by never looking.
+
+    Added tests come first, then updated ones; de-duplication is on the
+    resolved file, so two node ids in one file yield one probe. Non-test paths
+    and malformed entries are dropped rather than raising — a bad artifact
+    yields no probes, which the gate treats as nothing-to-probe and fails
+    closed on, never as a pass.
     """
     if not isinstance(artifact, dict):
         return []
@@ -76,12 +131,13 @@ def select_probe_tests(artifact: Any) -> list[str]:
         for entry in entries:
             if not isinstance(entry, str):
                 continue
-            if not _is_test_path(entry):
+            path = node_id_to_path(entry)
+            if not path or not _is_test_path(path):
                 continue
-            if entry in seen:
+            if path in seen:
                 continue
-            seen.add(entry)
-            probes.append(entry)
+            seen.add(path)
+            probes.append(path)
 
     return probes
 
