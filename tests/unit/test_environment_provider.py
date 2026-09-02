@@ -29,10 +29,25 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CI_DIR = REPO_ROOT / "agent-runtime" / "scripts" / "ci"
-sys.path.insert(0, str(CI_DIR))
 
-import capture_providers  # noqa: E402
-from capture_providers import environment as env  # noqa: E402
+
+def _load_seam():
+    """Import the capture seam, which lives outside any importable package root.
+
+    Done inside a function deliberately: hoisting the ``sys.path`` insert above
+    the module-level imports needs two ``# noqa: E402`` suppressions, and the
+    repo's debt ratchet (#1462) counts suppression identities. Paying two units
+    of tracked debt for import cosmetics is a bad trade.
+    """
+    if str(CI_DIR) not in sys.path:
+        sys.path.insert(0, str(CI_DIR))
+    import capture_providers
+    from capture_providers import environment
+
+    return capture_providers, environment
+
+
+capture_providers, env = _load_seam()
 
 
 def _fake_git(answers: dict[tuple[str, ...], str]):
@@ -203,6 +218,39 @@ def test_module_resolved_outside_worktree_fails_through_the_registry(
 
     assert excinfo.value.provider == "environment"
     assert str(foreign_module) in str(excinfo.value)
+
+
+def test_unresolvable_module_is_recorded_with_its_error_not_silently_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The non-fatal branch, which is the one that could rot into a silent pass.
+
+    A lookup that fails is deliberately *not* fatal, so that record generation
+    works in an interpreter without the backend installed. The lie planted here
+    is the one that failure mode would tell if it were sloppy: a record that
+    simply omits the resolution and reads as "nothing to report".
+    """
+    root, _ = _plant_worktree(tmp_path, "w2-1442")
+
+    def explode() -> Path | None:
+        raise ImportError("No module named 'juli_backend'")
+
+    monkeypatch.setattr(env, "_resolve_module_file", explode)
+
+    fingerprint = env.fingerprint(
+        repo_root=root,
+        git=_fake_git({("rev-parse", "--is-shallow-repository"): "false"}),
+        constraints_text="",
+        installed_versions={},
+        cwd=root,
+    )
+
+    resolution = fingerprint["moduleResolution"]
+    assert resolution["resolved"] is None
+    assert resolution["insideRepo"] is False
+    # Absent must never be readable as fine: the reason is carried verbatim.
+    assert resolution["error"] == "ImportError: No module named 'juli_backend'"
+    assert resolution["expectedPrefix"] == str(root / "backend" / "src" / "juli_backend")
 
 
 # --- AC3 ------------------------------------------------------------------

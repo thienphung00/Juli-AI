@@ -38,6 +38,7 @@ already-installed backend can be assumed.
 
 from __future__ import annotations
 
+import importlib.util
 import re
 import subprocess
 import sys
@@ -61,7 +62,17 @@ MODULE_RELPATH = Path("backend") / "src" / TRACKED_MODULE
 _PIN_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)==([^\s;#]+)")
 _NORMALIZE_RE = re.compile(r"[-_.]+")
 
-_UNSET = object()
+
+class _Unset:
+    """Sentinel for "the caller passed nothing", distinct from an explicit ``None``.
+
+    A typed class rather than ``object()`` so the keyword's annotation can name
+    it: ``module_file=None`` means "resolved to nothing" and must stay
+    distinguishable from "resolve it yourself".
+    """
+
+
+_UNSET = _Unset()
 
 GitRunner = Callable[..., "str | None"]
 
@@ -85,12 +96,26 @@ def _repo_root() -> Path:
 
 
 def _resolve_module_file() -> Path | None:
-    """Import the tracked module and return the file it actually came from."""
-    import importlib
+    """Return the file the tracked module resolves to, without executing it.
 
-    module = importlib.import_module(TRACKED_MODULE)
-    origin = getattr(module, "__file__", None)
-    return Path(origin).resolve() if origin else None
+    ``find_spec`` rather than ``import_module``: the origin is the only fact
+    wanted here, and running a foreign tree's package body just to learn where
+    it lives is both a side effect during record generation and a way for the
+    lookup to fail for reasons that have nothing to do with resolution. When
+    the module is already imported, ``find_spec`` returns its live ``__spec__``,
+    so this still reports where the running process actually got it from.
+    """
+    spec = importlib.util.find_spec(TRACKED_MODULE)
+    if spec is None:
+        # Not "resolved to nothing" -- not found at all. The two read very
+        # differently to whoever is holding a failing record, so they are not
+        # allowed to collapse into one message.
+        raise ModuleNotFoundError(f"No module named {TRACKED_MODULE!r}")
+    if not spec.origin:
+        # A namespace package: found, but backed by no single file. That is
+        # what the caller's generic "exposes no __file__" reason describes.
+        return None
+    return Path(spec.origin).resolve()
 
 
 def _run_git(*args: str, cwd: Path) -> str | None:
@@ -219,7 +244,7 @@ def _dependency_block(
 def fingerprint(
     *,
     repo_root: Path | str | None = None,
-    module_file: Path | str | None = _UNSET,  # type: ignore[assignment]
+    module_file: Path | str | None | _Unset = _UNSET,
     git: GitRunner | None = None,
     constraints_text: str | None = None,
     installed_versions: Mapping[str, str] | None = None,
@@ -235,10 +260,13 @@ def fingerprint(
     root = _repo_root() if repo_root is None else Path(repo_root).resolve()
 
     resolution_error: str | None = None
-    if module_file is _UNSET:
+    if isinstance(module_file, _Unset):
+        # The lookup itself can fail: no such distribution (ImportError), a
+        # module in sys.modules with no __spec__ (ValueError), or a broken
+        # editable finder (OSError). Each is recorded, never guessed at.
         try:
             resolved = _resolve_module_file()
-        except Exception as exc:  # noqa: BLE001 - recorded, see module docstring
+        except (ImportError, ValueError, OSError) as exc:
             resolved = None
             resolution_error = f"{type(exc).__name__}: {exc}"
     else:
