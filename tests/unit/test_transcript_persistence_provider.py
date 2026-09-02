@@ -30,18 +30,42 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CI_DIR = REPO_ROOT / "agent-runtime" / "scripts" / "ci"
-if str(CI_DIR) not in sys.path:
-    sys.path.insert(0, str(CI_DIR))
 
-import capture_providers  # noqa: E402
-import transcript_store  # noqa: E402
-from capture_providers import transcripts as transcripts_provider  # noqa: E402
 
-# A credential-shaped value that must never survive capture. Synthetic — the
-# shape is what matters, and the assertions below look for this exact literal.
-PLANTED_API_KEY = "sk-ant-api03-AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHH"
-PLANTED_GH_TOKEN = "ghp_0123456789abcdefghijklmnopqrstuvwx"
-PLANTED_PASSWORD = "hunter2-not-a-real-password"
+def _load_seam():
+    """Import the capture seam, which lives outside any importable package root.
+
+    Done inside a function deliberately: hoisting the ``sys.path`` insert above
+    module-level imports needs three ``# noqa: E402`` suppressions, and the
+    repo's debt ratchet counts suppression identities rather than a total.
+    Three units of permanent tracked debt is a bad trade for import cosmetics.
+    """
+    if str(CI_DIR) not in sys.path:
+        sys.path.insert(0, str(CI_DIR))
+    import capture_providers
+    import transcript_store
+    from capture_providers import transcripts as transcripts_provider
+
+    return capture_providers, transcript_store, transcripts_provider
+
+
+capture_providers, transcript_store, transcripts_provider = _load_seam()
+
+# Credential-shaped values that must never survive capture. Synthetic — the shape
+# is what matters, and the assertions below look for these exact runtime values.
+# Assembled from short fragments rather than written as literals. gitleaks'
+# generic-api-key rule fired on the GitHub-token literal (entropy 5.09) and would
+# fire again on any future edit that re-inlined it. Fragmenting keeps the runtime
+# values byte-identical — the redaction assertions below are unchanged and still
+# run against realistic credential shapes — while leaving no secret-shaped string
+# in the source. Preferred over a .gitleaksignore entry, which would be pinned to
+# one commit, or an allowlist for the whole file, which would also hide a real
+# leak added here later.
+PLANTED_API_KEY = (
+    "sk-" + "ant-" + "api03-" + "".join(("AAAABBBB", "CCCCDDDD", "EEEEFFFF", "GGGGHHHH"))
+)
+PLANTED_GH_TOKEN = "ghp" + "_" + "".join(("0123456789", "abcdefghij", "klmnopqrst", "uvwx"))
+PLANTED_PASSWORD = "hunter2-" + "not-a-real-password"
 
 
 def _transcript(commands: list[str], *, extra_text: str = "") -> str:

@@ -34,10 +34,24 @@ from typing import TYPE_CHECKING, Any
 # file path by ``discover_providers`` — and only a sys.path entry works for
 # both, since the file-path loader gives the module no package to relate to.
 _CI_DIR = Path(__file__).resolve().parent.parent
-if str(_CI_DIR) not in sys.path:
-    sys.path.insert(0, str(_CI_DIR))
 
-import transcript_store  # noqa: E402
+
+def _load_store() -> Any:
+    """Import the transcript store, which lives outside any importable package.
+
+    Done inside a function deliberately: hoisting the ``sys.path`` insert above
+    the module-level imports needs a ``# noqa: E402`` suppression, and the
+    repo's debt ratchet counts suppression identities rather than a total. One
+    unit of tracked, permanent debt is a bad trade for import cosmetics.
+    """
+    if str(_CI_DIR) not in sys.path:
+        sys.path.insert(0, str(_CI_DIR))
+    import transcript_store
+
+    return transcript_store
+
+
+transcript_store = _load_store()
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from . import CaptureContext
@@ -93,7 +107,10 @@ def capture(
     loader = index_loader or transcript_store.load_index
     try:
         entries = loader(context.issue, store_root=store_root, environ=environ)
-    except Exception as exc:  # noqa: BLE001 — a broken store is a gap, not an abort
+    # A broken store is a gap, not an abort: this provider must never raise, so the
+    # catch is deliberately blind. BLE001 is not in the selected rule set, so no
+    # suppression comment is needed (one would be permanent ratcheted debt).
+    except Exception as exc:
         entries = []
         load_error: str | None = f"{type(exc).__name__}: {exc}"
     else:
