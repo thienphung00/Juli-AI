@@ -25,8 +25,10 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.models import ToolExecution
 from juli_backend.services.impact import (
     METRIC_MAP,
@@ -231,50 +233,71 @@ async def run_daily_impact_reader(
     ``impact_readings`` whose elapse boundary has passed and are not yet
     written. Does not commit — the caller (the Celery task) owns the
     transaction boundary.
+
+    Per ADR-089 decision 2:
+    - Enumerates via SECURITY DEFINER function (cross-tenant, identifiers only)
+    - Loops over results, setting per-execution context
+    - Fetches and processes each execution under its own shop scope
     """
-    executions = await load_measurable_executions(session)
+    enumerated = await load_measurable_executions(session)
     computed_at = datetime.now(UTC)
 
     scanned = 0
     written_total = 0
     skipped_unclassified = 0
 
-    for execution in executions:
+    for enum_result in enumerated:
         scanned += 1
-        t = execution_t(execution)
-        due = _due_kinds(reference_date, t)
-        if not due:
-            continue
 
-        written_kinds = await load_written_kinds(session, execution.id)
-        pending_kinds = [kind for kind in due if kind not in written_kinds]
-        if not pending_kinds:
-            continue
+        # Set per-execution context: this execution's shop (ADR-089 decision 2)
+        async with with_shop_scope(session, enum_result.shop_id):
+            # Fetch the full execution row under shop scope
+            stmt = select(ToolExecution).where(ToolExecution.id == enum_result.execution_id)
+            result = await session.execute(stmt)
+            execution = result.scalar_one_or_none()
 
-        payload = extract_payload(execution)
-        tiktok_product_id = str(payload.get("product_id") or "")
-        mutations = classify_mutation_kinds(payload)
-        if not mutations or not tiktok_product_id:
-            skipped_unclassified += 1
-            logger.info(
-                "impact_reader_execution_unclassified",
-                extra={"execution_id": str(execution.id), "tool_name": execution.tool_name},
-            )
-            continue
+            # Should always exist (enumeration returned it), but fail safe
+            if execution is None:
+                logger.warning(
+                    "impact_reader_execution_vanished",
+                    extra={"execution_id": str(enum_result.execution_id)},
+                )
+                continue
 
-        rollup_metric_key = rollup_metric_for(mutations).key
+            t = execution_t(execution)
+            due = _due_kinds(reference_date, t)
+            if not due:
+                continue
 
-        for kind in pending_kinds:
-            written_total += await _process_kind(
-                session,
-                execution=execution,
-                tiktok_product_id=tiktok_product_id,
-                kind=kind,
-                t=t,
-                mutations=mutations,
-                rollup_metric_key=rollup_metric_key,
-                computed_at=computed_at,
-            )
+            written_kinds = await load_written_kinds(session, execution.id)
+            pending_kinds = [kind for kind in due if kind not in written_kinds]
+            if not pending_kinds:
+                continue
+
+            payload = extract_payload(execution)
+            tiktok_product_id = str(payload.get("product_id") or "")
+            mutations = classify_mutation_kinds(payload)
+            if not mutations or not tiktok_product_id:
+                skipped_unclassified += 1
+                logger.info(
+                    "impact_reader_execution_unclassified",
+                    extra={"execution_id": str(execution.id), "tool_name": execution.tool_name},
+                )
+                continue
+
+            rollup_metric_key = rollup_metric_for(mutations).key
+
+            for kind in pending_kinds:
+                written_total += await _process_kind(
+                    session,
+                    execution=execution,
+                    tiktok_product_id=tiktok_product_id,
+                    kind=kind,
+                    t=t,
+                    mutations=mutations,
+                    rollup_metric_key=rollup_metric_key,
+                    computed_at=computed_at,
+                )
 
     return ImpactReaderRunResult(
         executions_scanned=scanned,
