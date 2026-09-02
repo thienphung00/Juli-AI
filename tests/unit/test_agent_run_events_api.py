@@ -4,7 +4,7 @@ cancel idempotency.
 
 `event_stream`'s internal mechanics (subscribe-before-replay, dedupe,
 heartbeat, poll fallback, terminal close) are proven directly against the
-generator in `test_agent_run_events_stream.py`; this file proves the
+generator in `test_agent_run_event_stream.py`; this file proves the
 FastAPI route wraps it correctly and enforces auth/tenant scoping.
 
 The confirmation-decision endpoint's own authorization ladder, consent
