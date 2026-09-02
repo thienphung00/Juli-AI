@@ -13,17 +13,28 @@ reaping it. This test proves:
 
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import UTC, datetime
 
+import pytest
 import pytest_asyncio
 from sqlalchemy import text
 
 from juli_backend.workers.tasks import reaper
 from tests.integration.two_tenant import Tenant, juli_app_session, seed_tenant
 
-# Staleness threshold from the reaper module, used to verify runs are reaped correctly
-STALE_THRESHOLD_S = reaper.STALE_RUN_SLACK_S + 600  # default policy wall_clock_timeout_s
+# Both sibling two-tenant modules carry these. Without the skipif this module
+# ERRORs rather than skipping in the supported local mode where
+# `tests/conftest.py` clears DATABASE_URL, and without `migration_heavy` it
+# runs in the PR-safe lane whose own comment says it excludes heavy suites —
+# while doing a full `alembic upgrade head` and a CREATE DATABASE.
+requires_postgres = pytest.mark.skipif(
+    not os.environ.get("DATABASE_URL", "").strip().startswith("postgresql"),
+    reason="DATABASE_URL is not set to a Postgres instance",
+)
+
+pytestmark = [requires_postgres, pytest.mark.migration_heavy]
 
 
 def _never_live(_run_id: uuid.UUID) -> bool:
@@ -100,15 +111,51 @@ async def test_reaper_reaps_stale_runs_from_both_tenants_as_juli_app(two_tenants
             f"{statuses[tenant.fresh_run_id]!r}"
         )
 
+    # The status flip alone does not prove the reaper went through the sink.
+    # ADR-074 decision 4: no side-channel UPDATE ever runs without the event row
+    # landing in the same commit — it is what lets an SSE client watch a run die
+    # rather than find it silently gone. A sink that set status/stop_reason
+    # directly and never inserted the event would satisfy every assertion above.
+    # Asserted here specifically because the unit suite proves it on SQLite as
+    # the OWNER, so an RLS INSERT denial on workflow_run_events as juli_app
+    # would surface nowhere else.
+    with owner_engine.connect() as conn:
+        events = {
+            row[0]: row[1]
+            for row in conn.execute(
+                text(
+                    "SELECT workflow_run_id, event_type FROM public.workflow_run_events "
+                    " WHERE event_type = 'workflow.failed'"
+                )
+            ).all()
+        }
+
+    for tenant in (tenant1, tenant2):
+        assert tenant.stale_run_id in events, (
+            f"stale run {tenant.stale_run_id} reads 'failed' but has no "
+            "workflow.failed event row — the status was written by a side channel"
+        )
+        assert tenant.fresh_run_id not in events, (
+            f"fresh run {tenant.fresh_run_id} must have no terminal event"
+        )
+
 
 async def test_reaper_expires_waiting_approval_for_both_tenants(two_tenants, owner_engine):
     """AC3/AC4 for the second reap path.
 
     `waiting_approval` reaches the reaper through the same enumeration (widened
     by migration 052). Before that, this path ran a context-less
-    `select(WorkflowRun)`, which as `juli_app` under RLS reads zero rows — the
-    reap would report success having expired nothing. This test fails on that
-    behaviour rather than passing quietly.
+    `select(WorkflowRun)`.
+
+    WHAT THAT SELECT ACTUALLY RETURNED, since the obvious answer is wrong.
+    Not zero rows. `with_shop_scope` never unsets the GUC on exit (#1495), and
+    SET LOCAL only clears at transaction end, so by the time loop 2 ran,
+    `app.current_shop_id` was still whichever shop loop 1 touched last. The
+    reverted select therefore read exactly ONE tenant's rows — measured, not
+    reasoned about.
+
+    That is why this test asserts on BOTH tenants. Narrow it to one and it
+    stops being load-bearing: a context-less select would satisfy it.
     """
     tenant1, tenant2 = two_tenants
     now = datetime.now(UTC)
