@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from typing import cast
 
 import pytest
 
@@ -27,6 +28,17 @@ from juli_backend.database.tenant_context import (
     TenantContextRequiredError,
     with_shop_scope,
 )
+
+
+class _Dialect:
+    name = "postgresql"
+
+
+class _Bind:
+    # SQLAlchemy exposes this as an attribute named `dialect`. Both live at
+    # module level because a class body does not create an enclosing scope for a
+    # nested class, so `_Bind` could not see a `_Dialect` defined beside it.
+    dialect = _Dialect()
 
 
 class _RecordingSession:
@@ -38,15 +50,11 @@ class _RecordingSession:
     a Postgres claim and belongs in the integration suite.
     """
 
-    class _Bind:
-        class dialect:  # noqa: N801 - mimics SQLAlchemy's attribute shape
-            name = "postgresql"
-
     def __init__(self) -> None:
         self.statements: list[tuple[str, dict]] = []
 
     def get_bind(self):
-        return self._Bind()
+        return _Bind()
 
     async def execute(self, statement, *args, **kwargs):
         self.statements.append((str(statement), dict(statement.compile().params)))
@@ -109,7 +117,10 @@ def test_shop_scope_requires_a_shop_before_any_sql() -> None:
     session = _RecordingSession()
 
     async def run() -> None:
-        async with with_shop_scope(session, None):  # type: ignore[arg-type]
+        # `cast` rather than a checker suppression: the point of the test is
+        # that the runtime guard holds even when the type contract is violated,
+        # and a cast states that where a suppression would only silence it.
+        async with with_shop_scope(session, cast(uuid.UUID, None)):
             pass
 
     with pytest.raises(TenantContextRequiredError):
