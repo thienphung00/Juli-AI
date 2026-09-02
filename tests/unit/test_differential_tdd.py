@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CI_DIR = REPO_ROOT / "agent-runtime" / "scripts" / "ci"
 sys.path.insert(0, str(CI_DIR))
@@ -194,6 +196,15 @@ def _build_repo_with_fix(tmp_path: Path) -> tuple[Path, str]:
     return repo, base_sha
 
 
+# Spawns a real pytest run (twice: base tree and head tree), each paying full
+# interpreter + conftest import cost. Unloaded these take 11-19s against
+# pytest.ini's `timeout = 30` — 1.6x headroom, which contention eats: under
+# 8-way CPU load they hit 25-30s and pytest-timeout kills the subprocess wait.
+# The gate under test then reports `still_failing` for code that is green, so
+# the timeout budget is load-bearing evidence, not test hygiene. The assertions
+# below are unchanged; only the wall-clock budget is (repo precedent:
+# tests/integration/test_agent_live_smoke_read_only.py).
+@pytest.mark.timeout(180)
 def test_probe_goes_red_at_base_and_green_at_head(tmp_path: Path) -> None:
     """The whole point: red and green are measured, not asserted by the author."""
     repo, base_sha = _build_repo_with_fix(tmp_path)
@@ -214,6 +225,15 @@ def test_probe_goes_red_at_base_and_green_at_head(tmp_path: Path) -> None:
     assert classify_probe(base_exit, head_exit)[0] == VERDICT_RED_GREEN
 
 
+# Spawns a real pytest run (twice: base tree and head tree), each paying full
+# interpreter + conftest import cost. Unloaded these take 11-19s against
+# pytest.ini's `timeout = 30` — 1.6x headroom, which contention eats: under
+# 8-way CPU load they hit 25-30s and pytest-timeout kills the subprocess wait.
+# The gate under test then reports `still_failing` for code that is green, so
+# the timeout budget is load-bearing evidence, not test hygiene. The assertions
+# below are unchanged; only the wall-clock budget is (repo precedent:
+# tests/integration/test_agent_live_smoke_read_only.py).
+@pytest.mark.timeout(180)
 def test_vacuous_probe_is_caught_as_non_discriminating(tmp_path: Path) -> None:
     """``assert True`` satisfies the old gate. It must not satisfy this one."""
     repo, base_sha = _build_repo_with_fix(tmp_path)
@@ -298,6 +318,15 @@ def _run_gate(tmp_path: Path, monkeypatch: Any, repo: Path, artifact: dict[str, 
     return _load_gate_seam().run_check(1498, repo_root=repo)
 
 
+# Spawns a real pytest run (twice: base tree and head tree), each paying full
+# interpreter + conftest import cost. Unloaded these take 11-19s against
+# pytest.ini's `timeout = 30` — 1.6x headroom, which contention eats: under
+# 8-way CPU load they hit 25-30s and pytest-timeout kills the subprocess wait.
+# The gate under test then reports `still_failing` for code that is green, so
+# the timeout budget is load-bearing evidence, not test hygiene. The assertions
+# below are unchanged; only the wall-clock budget is (repo precedent:
+# tests/integration/test_agent_live_smoke_read_only.py).
+@pytest.mark.timeout(180)
 def test_node_ids_are_split_and_probed(tmp_path: Path, monkeypatch: Any) -> None:
     """A node id must resolve to its file and the probe must actually execute.
 
@@ -328,6 +357,15 @@ def test_node_ids_are_split_and_probed(tmp_path: Path, monkeypatch: Any) -> None
     assert passed is True
 
 
+# Spawns a real pytest run (twice: base tree and head tree), each paying full
+# interpreter + conftest import cost. Unloaded these take 11-19s against
+# pytest.ini's `timeout = 30` — 1.6x headroom, which contention eats: under
+# 8-way CPU load they hit 25-30s and pytest-timeout kills the subprocess wait.
+# The gate under test then reports `still_failing` for code that is green, so
+# the timeout budget is load-bearing evidence, not test hygiene. The assertions
+# below are unchanged; only the wall-clock budget is (repo precedent:
+# tests/integration/test_agent_live_smoke_read_only.py).
+@pytest.mark.timeout(180)
 def test_no_discrimination_is_distinct_from_nothing_to_probe(
     tmp_path: Path, monkeypatch: Any
 ) -> None:
@@ -391,3 +429,77 @@ def test_empty_test_list_fails_closed(tmp_path: Path, monkeypatch: Any) -> None:
         assert passed is False, description
         assert details["verdict"] == differential.VERDICT_NOTHING_TO_PROBE
         assert details["requiresTddEvidence"] is True
+
+
+# --- a probe may not escape the repository (review finding, #1498) -------
+#
+# The probe list comes from an artifact the *graded agent* writes, and every
+# probe is (a) copied across trees by overlay_probes and (b) handed to pytest as
+# an argument. `_is_test_path` only inspects the basename, so
+# "../../OUTSIDE/test_evil.py" cleared it. Latent before #1498 — the selector
+# then required the whole entry to end in ".py", so a traversal *node id* was
+# dropped along with every other node id. Teaching the selector to read node ids
+# is exactly what made it reachable in the canonical artifact format, so the
+# guard lands in the same slice.
+
+
+def test_probe_outside_the_repo_is_rejected() -> None:
+    """The lie: a traversal path whose basename looks like an ordinary test."""
+    for escape in (
+        "../../OUTSIDE/test_evil.py",
+        "../test_evil.py",
+        "tests/../../test_evil.py",
+        "/etc/test_evil.py",
+        "//host/share/test_evil.py",
+        "C:/Windows/test_evil.py",
+        r"..\..\OUTSIDE\test_evil.py",
+    ):
+        assert select_probe_tests({"testsAdded": [escape]}) == [], escape
+        assert select_probe_tests({"testsAdded": [f"{escape}::test_a"]}) == [], escape
+
+    # The guard must not over-reach: ordinary repo-relative entries still pass,
+    # including a dotted directory that merely *contains* the characters "..".
+    assert select_probe_tests({"testsAdded": ["tests/unit/test_alpha.py::test_a"]}) == [
+        "tests/unit/test_alpha.py"
+    ]
+    assert select_probe_tests({"testsAdded": ["tests/..hidden/test_alpha.py"]}) == [
+        "tests/..hidden/test_alpha.py"
+    ]
+
+
+def test_overlay_refuses_to_write_outside_the_base_tree(tmp_path: Path) -> None:
+    """Defence in depth: overlay_probes re-checks rather than trusting its caller.
+
+    The lie: a caller that hands overlay_probes a traversal path directly. The
+    payload really exists at head, so the only thing standing between it and a
+    write outside the base tree is the containment check.
+
+    Layout matters here: head and base are nested at different depths so the
+    escape resolves to two *distinct* paths — the source under tmp_path/OUTSIDE
+    (which this test creates on purpose) and the would-be target under
+    tmp_path/base/OUTSIDE (which must never appear). Asserting on the source
+    would pass no matter what the code did.
+    """
+    escape = "../OUTSIDE/test_evil.py"
+    head = tmp_path / "head"
+    base = tmp_path / "base" / "inner"
+    head.mkdir(parents=True)
+    base.mkdir(parents=True)
+
+    source = head / escape
+    target = base / escape
+    assert source.resolve() != target.resolve(), "layout must separate source from target"
+
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text("raise SystemExit('pwned')\n")
+    assert source.is_file(), "precondition: the payload really exists at head"
+
+    assert overlay_probes(head, base, [escape]) == []
+    assert not target.exists(), "overlay wrote outside the base tree"
+    assert not (tmp_path / "base" / "OUTSIDE").exists()
+
+    # The guard is not simply refusing all work: a legitimate probe still copies.
+    (head / "tests").mkdir()
+    (head / "tests" / "test_ok.py").write_text("def test_ok():\n    assert True\n")
+    assert overlay_probes(head, base, ["tests/test_ok.py"]) == ["tests/test_ok.py"]
+    assert (base / "tests" / "test_ok.py").is_file()
