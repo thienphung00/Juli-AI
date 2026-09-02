@@ -8,6 +8,7 @@ import json
 import os
 import re
 import subprocess
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -469,6 +470,47 @@ def default_phase_run_id() -> str:
     return now.strftime("%Y-%m-%dT%H%MZ")
 
 
+#: Why the template says "unavailable" rather than 0 (#1441, #1505). No
+#: instrumented token reading is exposed to an executor, so the previous default
+#: of ``{"input": 0, "output": 0, "total": 0}`` handed every unmeasured run a
+#: number indistinguishable from a measurement — and, once #1441 taught the gate
+#: to reject exactly that, made the generator's own default output fail its own
+#: gate.
+TOKEN_USAGE_UNAVAILABLE_REASON = (
+    "no instrumented token reading is exposed to the runner; recorded unavailable "
+    "rather than 0 so an unmeasured field cannot read as a measured zero"
+)
+
+
+def unavailable_token_usage(
+    reason: str = TOKEN_USAGE_UNAVAILABLE_REASON,
+) -> dict[str, Any]:
+    """The unmeasured ``tokenUsage`` shape, mirroring ``assemble_evidence.unavailable``.
+
+    Deliberately carries no ``value`` key at all: a consumer that forgets to
+    check ``available`` gets a ``KeyError`` rather than a plausible number.
+    """
+    return {"available": False, "reason": reason}
+
+
+def _is_unavailable_token_usage(token_usage: Any) -> bool:
+    return isinstance(token_usage, dict) and "available" in token_usage
+
+
+def _merge_implementation_layer(artifact: dict[str, Any], layer: dict[str, Any]) -> dict[str, Any]:
+    """Deep-merge one layer, but replace ``tokenUsage`` wholesale.
+
+    ``tokenUsage`` is a tagged union: ``{input, output, total}`` or
+    ``{available, reason}``. Deep-merging a caller's branch onto the template's
+    other branch yields the union of both key sets, which matches neither and is
+    rejected by the schema and by the gate alike (#1505).
+    """
+    merged = deep_merge_under(artifact, layer)
+    if "tokenUsage" in layer:
+        merged["tokenUsage"] = deepcopy(layer["tokenUsage"])
+    return merged
+
+
 def implementation_artifact_template(
     issue: int,
     executor_domain: str,
@@ -488,7 +530,7 @@ def implementation_artifact_template(
         "startedAt": now,
         "completedAt": now,
         "executionDurationMs": 0,
-        "tokenUsage": {"input": 0, "output": 0, "total": 0},
+        "tokenUsage": unavailable_token_usage(),
         "toolsUsed": [],
         "toolInvocationCount": 0,
         "contextFilesLoaded": [],
@@ -520,10 +562,9 @@ def build_implementation_artifact(
         executor_domain,
         phase_run_id=phase_run_id,
     )
-    if existing and not fresh:
-        artifact = deep_merge_under(artifact, existing)
-    if overrides:
-        artifact = deep_merge_under(artifact, overrides)
+    for layer in (None if fresh else existing, overrides):
+        if layer:
+            artifact = _merge_implementation_layer(artifact, layer)
     artifact["issueId"] = issue
     artifact["executorDomain"] = executor_domain
     if phase_run_id:
@@ -533,7 +574,10 @@ def build_implementation_artifact(
     artifact.setdefault("schemaVersion", RUNTIME_SCHEMA_VERSION)
     artifact.setdefault("artifactType", "implementation")
     token_usage = artifact.get("tokenUsage") or {}
-    if isinstance(token_usage, dict):
+    # Only the measured branch gets a derived total. Deriving one for the
+    # unavailable branch would read ``total`` as ``None`` and write 0 back,
+    # re-creating the sentinel inside a document matching neither oneOf branch.
+    if isinstance(token_usage, dict) and not _is_unavailable_token_usage(token_usage):
         input_tokens = int(token_usage.get("input", 0))
         output_tokens = int(token_usage.get("output", 0))
         computed_total = input_tokens + output_tokens
