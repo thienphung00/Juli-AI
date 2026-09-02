@@ -275,7 +275,21 @@ def seed_tenant(engine: Engine, *, label: str) -> Tenant:
                 "shop_id": str(tenant.shop_id),
                 "approval": f"approval-{tenant.execution_id.hex[:8]}",
                 "tool": "update_product_price",
-                "payload": json.dumps({"tiktok_product_id": f"tt-{tenant.product_id.hex[:10]}"}),
+                # `product_id` and `price_update`, not `tiktok_product_id`:
+                # impact_reader's pipeline reads `payload["product_id"]` and
+                # classify_mutation_kinds keys off `price_update`. A payload
+                # missing either is logged `impact_reader_execution_unclassified`
+                # and skipped, so the task completes having written nothing —
+                # which is the exact silent no-op this fixture exists to expose.
+                # The first version of this seeder used the wrong key and the
+                # coverage test did not notice: it asserted a row EXISTS, not
+                # that the row is usable by the task that reads it (#1483).
+                "payload": json.dumps(
+                    {
+                        "product_id": f"tt-{tenant.product_id.hex[:10]}",
+                        "price_update": {"new_price": "19.99"},
+                    }
+                ),
                 # Far enough back that impact_reader's elapse gate has passed.
                 "then": now - timedelta(days=30),
             },

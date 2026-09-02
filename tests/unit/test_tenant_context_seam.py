@@ -547,14 +547,13 @@ def test_system_scope_call_sites_enumerated():
     # Any new call site must be added here explicitly.
     # analytics_backfill_topup left this set in #1478: it runs for a single
     # reference shop and now uses with_shop_scope, so it needs no exemption at
-    # all (ADR-089 decision 5). The list is expected to keep SHRINKING as the
-    # W7-bis slices land — a name reappearing here is a regression, and a new
-    # name is the growth this test was written to catch.
-    # reaper left this set in #1489: it now enumerates via a SECURITY DEFINER
-    # function and sets per-tenant context for each run via with_shop_scope,
-    # so it needs no system_scope() at the task level.
+    # all (ADR-089 decision 5). impact_reader left this set in #1488 and
+    # reaper in #1489: both now enumerate via a SECURITY DEFINER function and
+    # loop with per-item context rather than taking a fleet-wide exemption.
+    # The list is expected to keep SHRINKING as the W7-bis slices land — a
+    # name reappearing here is a regression, and a new name is the growth
+    # this test was written to catch.
     expected_call_sites = {
-        "workers/tasks/impact_reader.py",
         "workers/tasks/credential_refresh_beat.py",
         "workers/tasks/mock_analytics_reconcile.py",
     }
