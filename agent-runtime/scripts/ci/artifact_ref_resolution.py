@@ -210,8 +210,32 @@ def reset_ref_index_cache() -> None:
 
 def is_policy_local_path(path: str) -> bool:
     """True when ``path`` lies inside one of the five gitignored body directories,
-    i.e. when policy forbids it ever reaching a commit."""
-    normalised = (path or "").strip().lstrip("./")
+    i.e. when policy forbids it ever reaching a commit.
+
+    This is the whole of the laundering guard, so it answers about the path the
+    ref *denotes*, never about the string's spelling. Two spellings would
+    otherwise smuggle a checkable path into the unchecked class:
+
+    * ``..`` segments. ``agent-runtime/artifacts/reviews/../status/issue-1.json``
+      begins with a body-directory prefix but denotes a tracked, committed file,
+      so a bare ``startswith`` would waive a ref whose ``sha256`` is fully
+      checkable. Any ``..`` segment is rejected outright rather than resolved --
+      a body ref has no legitimate reason to climb.
+    * A leading ``/``. An absolute path is not repo-relative, so this repo's
+      ``.gitignore`` does not govern it and it may not claim policy protection.
+
+    Everything admissible here is a repo-relative path that stays inside one of
+    the five directories; anything else is an unsupported scheme, which fails.
+    """
+    raw = (path or "").strip()
+    if not raw or raw.startswith("/"):
+        return False
+    segments = raw.split("/")
+    if any(segment == ".." for segment in segments):
+        return False
+    # Only ``.`` and empty segments are left to collapse, so this cannot change
+    # which directory the path denotes -- it just normalises ``./`` and ``//``.
+    normalised = "/".join(segment for segment in segments if segment not in ("", "."))
     return any(normalised.startswith(prefix) for prefix in POLICY_LOCAL_BODY_DIRS)
 
 

@@ -865,3 +865,75 @@ def test_every_committed_gateversion_2_record_passes_the_guard() -> None:
         if not passed:
             failures.append(detail)
     assert not failures, "gateVersion 2 records still failing: " + " | ".join(failures)
+
+
+def test_local_only_cannot_launder_a_committable_path_by_spelling_it_through_a_body_dir(
+    tmp_path: Path,
+) -> None:
+    """The laundering guard must answer about the path a ref DENOTES, not about
+    how the string is spelled.
+
+    ``local-only:agent-runtime/artifacts/reviews/../status/issue-1442.json``
+    begins with a gitignored body directory but denotes a tracked, committed
+    file whose sha256 is entirely checkable. If a prefix match alone decided
+    admissibility, any dangling or hash-mismatched ``git-history:`` ref could be
+    respelled through a body directory and waived -- and #1445 would be worth
+    nothing. Same for an absolute path, which this repo's .gitignore does not
+    govern at all.
+    """
+    from artifact_ref_resolution import POLICY_LOCAL, UNSUPPORTED_SCHEME, resolve_ref
+
+    repo, _ = _make_repo_with_committed_artifacts(tmp_path, 1497)
+
+    laundering_spellings = [
+        # Climbs out of the body directory into tracked, committable territory.
+        "local-only:agent-runtime/artifacts/reviews/../status/issue-1442.json",
+        "local-only:agent-runtime/artifacts/reviews/../../../backend/src/juli_backend/app.py",
+        "local-only:agent-runtime/artifacts/reviews/../../../.github/workflows/pr.yml",
+        # Not repo-relative, so .gitignore does not govern it.
+        "local-only:/agent-runtime/artifacts/reviews/review-issue-1442.json",
+        "local-only:../agent-runtime/artifacts/reviews/review-issue-1442.json",
+        "local-only:../../../agent-runtime/artifacts/reviews/review-issue-1442.json",
+    ]
+    for ref in laundering_spellings:
+        resolution = resolve_ref("review", ref, "a" * 64, repo_root=repo)
+        assert resolution.status == UNSUPPORTED_SCHEME, f"{ref} was admitted: {resolution}"
+        assert resolution.is_failure is True, ref
+
+    # ...while the spellings that genuinely denote a body inside the five
+    # directories still resolve, so the hardening did not break the fix.
+    for ref in (
+        "local-only:agent-runtime/artifacts/reviews/review-issue-1442.json",
+        "local-only:./agent-runtime/artifacts/reviews/review-issue-1442.json",
+        "local-only:agent-runtime/artifacts/validation/validation-issue-1442.json",
+    ):
+        resolution = resolve_ref("review", ref, "a" * 64, repo_root=repo)
+        assert resolution.status == POLICY_LOCAL, f"{ref} was rejected: {resolution}"
+
+
+def test_a_record_cannot_pass_by_respelling_a_hash_mismatched_ref_as_local_only(
+    tmp_path: Path,
+) -> None:
+    """End-to-end at the guard, not just the resolver: a committed path whose
+    recorded sha256 is wrong must not become passable by relabelling the ref
+    ``local-only:`` and routing it through a body directory."""
+    issue = 1497
+    repo, digests = _make_repo_with_committed_artifacts(tmp_path, issue)
+    status_dir = tmp_path / "status"
+    _write_record(
+        status_dir,
+        issue,
+        payload=_v2_payload(
+            issue,
+            # Denotes the committed review body, but claims policy protection so
+            # the deliberately wrong sha256 below would never be checked.
+            "local-only:agent-runtime/artifacts/reviews/../reviews/../../../"
+            f"agent-runtime/artifacts/reviews/review-issue-{issue}.json",
+            "d" * 64,
+            f"git-history:agent-runtime/artifacts/validation/validation-issue-{issue}.json",
+            digests["validation"],
+        ),
+    )
+    passed, detail = evaluate(issue, status_dir=status_dir, repo_root=repo)
+    assert passed is False, detail
+    assert "scheme" in detail.lower()
