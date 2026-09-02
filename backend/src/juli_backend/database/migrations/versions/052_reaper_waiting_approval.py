@@ -38,7 +38,9 @@ _BODY_051 = "('queued', 'running')"
 
 
 def _replace(statuses: str) -> None:
-    op.execute(f"""
+    # nosec B608: `statuses` is one of the two module constants above — never a
+    # parameter, never reachable from a request.
+    body = f"""
     CREATE OR REPLACE FUNCTION public.enumerate_active_workflow_runs()
     RETURNS TABLE (
         out_run_id uuid,
@@ -56,8 +58,8 @@ def _replace(statuses: str) -> None:
           FROM public.workflow_runs AS r
          WHERE r.status IN {statuses}
       $fn$;
-    """)  # nosec B608: `statuses` is one of the two module constants above —
-    # never a parameter, never reachable from a request.
+    """  # nosec B608
+    op.execute(body)
 
 
 def _restrict_execute() -> None:
@@ -66,8 +68,12 @@ def _restrict_execute() -> None:
     Guarded on the role existing for the same reason 043 guards CREATE ROLE:
     roles are cluster-global while migrations are per-database.
     """
-    op.execute(f"REVOKE ALL ON FUNCTION public.{_SIGNATURE} FROM PUBLIC;")
-    op.execute(f"""
+    # nosec B608: _SIGNATURE is the module constant above — never a parameter,
+    # never reachable from a request. A function signature cannot be bound as a
+    # query parameter.
+    revoke = f"REVOKE ALL ON FUNCTION public.{_SIGNATURE} FROM PUBLIC;"  # nosec B608
+    op.execute(revoke)
+    grant = f"""
     DO $$
     BEGIN
         IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'juli_app') THEN
@@ -75,7 +81,8 @@ def _restrict_execute() -> None:
         END IF;
     END
     $$;
-    """)
+    """  # nosec B608
+    op.execute(grant)
 
 
 def upgrade() -> None:
