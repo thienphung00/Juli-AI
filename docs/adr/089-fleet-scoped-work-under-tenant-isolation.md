@@ -18,7 +18,7 @@ It says nothing about work that has no tenant. The words "system scope", "fleet"
 |---|---|
 | `credential_refresh_beat` | refresh vendor tokens expiring across the fleet |
 | `impact_reader` | compute `impact_readings` for every measurable execution (ADR-077) |
-| `reaper` | terminate runs past their wall-clock timeout |
+| `reaper` | terminate runs past their wall-clock timeout (enumerates `workflow_runs` fleet-wide; see the correction in decision 5) |
 | `analytics_backfill_topup` | daily top-up (single reference shop) |
 | `mock_analytics_reconcile` | demo reconcile |
 
@@ -87,9 +87,27 @@ nothing because it processed nothing.
    defect, not a convenience.
 
 5. **A task that does not need a cross-tenant read does not get one.**
-   `analytics_backfill_topup` runs for a single reference shop and needs no exemption at all;
-   `reaper` receives run identifiers from Celery rather than a database scan. The exemption list
-   is justified per task, not granted to "the beat lane".
+   `analytics_backfill_topup` runs for a single reference shop and needs no exemption at all.
+   The exemption list is justified per task, not granted to "the beat lane".
+
+   **Correction, 2026-09-01.** This decision originally also named `reaper` as needing no
+   exemption, on the grounds that it takes run identifiers from Celery. That is wrong, and the
+   error is recorded rather than quietly deleted because it is the kind that widens an
+   exemption list by accident. `_reap_stale_running_and_queued` enumerates from the database,
+   fleet-wide and unfiltered:
+
+   ```python
+   stmt = select(WorkflowRun).where(WorkflowRun.status.in_(active_statuses))
+   ```
+
+   Celery's `active`/`reserved`/`scheduled` inspection is the *liveness probe* applied to each
+   candidate run (`_default_has_live_task(run_id)`), not the source of the work list. The
+   original claim came from reading the probe and inferring the enumeration.
+
+   `reaper` therefore needs an enumeration exemption on the same terms as
+   `credential_refresh_beat` and `impact_reader`: a `SECURITY DEFINER` function returning run
+   ids, their shop ids and the timestamps the staleness comparison needs — never payloads or
+   event bodies. Only `analytics_backfill_topup` is exempt from needing an exemption.
 
 6. **`BYPASSRLS` is not granted to any role the application connects as.** ADR-086 decision 1
    names owner-exemption and `BYPASSRLS` as the two ways to escape row policies; W7 removed the

@@ -1,0 +1,77 @@
+{
+  "planId": "rep-1478-with-shop-scope",
+  "affectedPublicSurfaces": [
+    "none in the request path — a new context manager in the tenant seam and one beat task rewired to use it.",
+    "It changes what analytics_backfill_topup can read once #1339 observation 1 cuts DATABASE_URL over to juli_app: shop-scoped rows instead of nothing."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "none",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "shop-scope-grants-a-shop-and-withholds-a-user",
+        "entryUrl": "pytest: tests/unit/test_with_shop_scope.py",
+        "assertions": [
+          "app.current_shop_id is set, and set to the shop the caller named",
+          "app.current_user_id is NOT set, so user-keyed policies deny — asserted directly, not inferred",
+          "a missing shop id raises before any statement reaches the database",
+          "the scope does not leak between concurrent tasks in one event loop"
+        ]
+      },
+      {
+        "name": "the-exemption-list-shrank",
+        "entryUrl": "pytest: tests/unit/test_tenant_context_seam.py::test_system_scope_call_sites_enumerated",
+        "assertions": [
+          "analytics_backfill_topup no longer appears among the system_scope call sites",
+          "the four remaining tasks still do, so the change is a removal rather than a rewrite of the guard",
+          "the guard fired on this change unprompted, which is the behaviour #1327 built it for"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": ["not-applicable: worker and seam change"],
+    "discoverFromHtml": false,
+    "assetTypes": ["not-applicable"],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration. The stable release connects as postgres, the table owner, which is exempt from RLS — so setting one GUC instead of none changes nothing for it. A candidate connected as juli_app gains shop-scoped rows where it previously had none."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "reverting returns analytics_backfill_topup to system_scope, which under juli_app reads zero rows and completes silently. Nothing deployed breaks; the task resumes doing nothing.",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src:$PWD python -m pytest tests/unit/test_with_shop_scope.py -q",
+    "PYTHONPATH=$PWD/backend/src:$PWD python -m pytest tests/unit/test_tenant_context_seam.py tests/unit/test_tenant_context_integration.py tests/unit/test_beat_schedule_registration.py tests/unit/test_worker_analytics_backfill_topup.py -q",
+    "grep -c system_scope backend/src/juli_backend/workers/tasks/analytics_backfill_topup.py"
+  ],
+  "doNotInfer": [
+    "Do not claim reaper needs no exemption. It enumerates workflow_runs fleet-wide and unfiltered; Celery's active/reserved/scheduled inspection is the per-run LIVENESS PROBE, not the work list. ADR-089 decision 5 originally said otherwise and is corrected in this change — four of the five tasks need an exemption, not three.",
+    "Do not have with_shop_scope set the user GUC to keep a user-keyed query working. Withholding it is the property being bought: a shop-level beat task must not be able to read users or shops. If a query needs a user, it is not shop-scoped work.",
+    "Do not resolve a user id to satisfy with_tenant_scope instead. Reading shops.user_id requires app.current_user_id already set, so the lookup needs the context it is trying to produce; a SECURITY DEFINER owner lookup would grant an exemption to a task that needs none (ADR-089 decision 5).",
+    "Do not make _shop_scope_active a module global to match _system_scope_active. That global is a known concurrency hazard — two coroutines in one event loop share it and one can clear the other's exemption. The ContextVar is asserted by a concurrency test; copying the global makes that test fail.",
+    "Do not treat a green run of this task as evidence after the cutover. The failure mode is a successful no-op, so the integration proof must show rows written for the intended shop and none for another."
+  ]
+}

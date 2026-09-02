@@ -49,6 +49,18 @@ _current_user_id: contextvars.ContextVar[uuid.UUID | None] = contextvars.Context
 # Global flag: when True, system_scope() is active and fail-closed is bypassed
 _system_scope_active = False
 
+# When True, `with_shop_scope()` is active: a shop id is still required, a user
+# id is not.
+#
+# A ContextVar rather than a module global, deliberately. `_system_scope_active`
+# above is a plain global, so two coroutines in the same event loop share it and
+# one can clear the other's exemption while it is still inside its own scope.
+# That hazard is pre-existing and recorded rather than copied — this flag is
+# per-context and cannot leak between concurrent tasks.
+_shop_scope_active: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "shop_scope_active", default=False
+)
+
 
 class TenantContextRequiredError(RuntimeError):
     """Raised when a tenant-scoped unit of work is attempted without
@@ -116,8 +128,24 @@ async def _apply_tenant_context_to_session(
     """
     global _system_scope_active
 
-    # Fail-closed in Python before any SQL
-    if not _system_scope_active and (shop_id is None or user_id is None):
+    # Fail-closed in Python before any SQL.
+    #
+    # Three modes, narrowest first:
+    #   - shop scope  — a shop id is required, a user id is not. The user GUC is
+    #     left unset, so after #1467 it reads NULL and every user-keyed policy
+    #     denies. That denial is the point, not a shortfall.
+    #   - system scope — neither is required. A named, logged exemption for
+    #     fleet work; ADR-089 is the constraint on what it may then read.
+    #   - otherwise — both are required.
+    shop_scope = _shop_scope_active.get()
+    if shop_scope:
+        if shop_id is None:
+            raise TenantContextRequiredError(
+                "Shop context required: with_shop_scope() was entered without a shop_id. "
+                "A shop-scoped unit of work must name its shop; use system_scope() if the "
+                "work is genuinely fleet-wide."
+            )
+    elif not _system_scope_active and (shop_id is None or user_id is None):
         raise TenantContextRequiredError(
             f"Tenant context required: shop_id={shop_id}, user_id={user_id}, "
             f"system_scope_active={_system_scope_active}"
@@ -183,6 +211,50 @@ async def with_tenant_scope(
     finally:
         # GUCs are automatically cleared when the transaction ends due to SET LOCAL
         pass
+
+
+@asynccontextmanager
+async def with_shop_scope(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+) -> AsyncIterator[None]:
+    """Set shop context only, for work that has a shop but no user (ADR-089).
+
+    The narrowest of the three scopes. `app.current_shop_id` is set with
+    SET LOCAL; `app.current_user_id` is deliberately left unset, so it reads
+    NULL and every user-keyed policy — `users`, `shops` — denies. A shop-level
+    background task has no business reading either, and this makes that
+    structural rather than a convention.
+
+    WHY THIS EXISTS RATHER THAN RESOLVING A USER.
+
+    `with_tenant_scope` requires both ids. A beat task that operates on one
+    shop has no user, and looking one up is circular: reading `shops.user_id`
+    needs `app.current_user_id` already set. The alternative — a
+    SECURITY DEFINER owner lookup — would hand an exemption to tasks that need
+    none, against ADR-089 decision 5.
+
+    WHAT IT DOES NOT DO.
+
+    It confers no cross-tenant access. A task that must see more than one shop
+    needs an enumeration exemption (ADR-089 decision 3), not this. And it is not
+    `system_scope`: the shop id is mandatory, so "which shop" stays a decision
+    in the code rather than an omission.
+
+    Args:
+        session: AsyncSession to set the GUC on
+        shop_id: the shop this unit of work belongs to
+
+    Raises:
+        TenantContextRequiredError: if shop_id is None, before any SQL is
+            emitted.
+    """
+    token = _shop_scope_active.set(True)
+    try:
+        await _apply_tenant_context_to_session(session, shop_id, None)
+        yield
+    finally:
+        _shop_scope_active.reset(token)
 
 
 @asynccontextmanager
