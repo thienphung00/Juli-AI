@@ -221,6 +221,8 @@ _SHARED_STATE_MODULES = frozenset(
         # global counts, and these rows would corrupt exactly that class of
         # assertion from any module sharing the database.
         "test_two_tenant_fixture.py",
+        # Reason 2 again: uses the same seeding fixture (#1487).
+        "test_fleet_enumeration_functions.py",
     }
 )
 
