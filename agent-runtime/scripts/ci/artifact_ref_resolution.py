@@ -96,7 +96,8 @@ _INDEX_CACHE: dict[str, RefIndex] = {}
 
 
 def _git(repo_root: Path, *args: str, text: bool = True) -> subprocess.CompletedProcess:
-    return subprocess.run(  # noqa: S603 - fixed argv, no shell
+    # Fixed argv, no shell: nothing here is interpolated from record content.
+    return subprocess.run(
         ["git", "-C", str(repo_root), *args],
         capture_output=True,
         text=text,

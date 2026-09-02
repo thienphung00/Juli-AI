@@ -23,7 +23,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CI_DIR = REPO_ROOT / "agent-runtime" / "scripts" / "ci"
 sys.path.insert(0, str(CI_DIR))
 
-from artifact_ref_resolution import is_shallow_repository  # noqa: E402
 from check_artifact_retention_guard import (  # noqa: E402
     GENERATE_COMMAND,
     evaluate,
@@ -654,6 +653,12 @@ def test_shallow_checkout_reports_indeterminate_instead_of_a_wrong_verdict(
         text=True,
         check=True,
     )
+    # Imported here, not at module scope: a second module-level import after the
+    # sys.path insert would need its own E402 suppression, and the repo's debt
+    # ratchet counts suppression identities (#1462). One import site is not worth
+    # a unit of tracked debt.
+    from artifact_ref_resolution import is_shallow_repository
+
     assert is_shallow_repository(shallow) is True
     assert is_shallow_repository(repo) is False
 
