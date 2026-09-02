@@ -16,19 +16,19 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1441.json",
     "ownerSignoffPresent": true,
-    "sha256": "a5ea5d28168e9ffc4dac69a3a05d8fb896508b42688ef6cadfd476089c92796b",
+    "sha256": "ae72fa9cb78be896f8a042e80ad3e7532747098be28b0780170e714b6540d16b",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 16878,
-      "validationBytes": 27633
+      "reviewBytes": 18188,
+      "validationBytes": 27793
     },
     "claimVsExecuted": {
       "citedCommandCount": 7,
-      "invokedCommandCount": 9389,
+      "invokedCommandCount": 9450,
       "matchedCommandCount": 1,
       "reason": "6 of 7 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
@@ -167,7 +167,7 @@
         "baseDistanceUnavailable": null,
         "behindOriginMain": 4,
         "branch": "feature/issue-1441-measured-run-metrics",
-        "head": "d6d0defa377171b17216c57edc7e4b84144aedca",
+        "head": "23f66e931855116344c328a5147d67517209cb6f",
         "shallow": false
       },
       "moduleResolution": {
@@ -269,12 +269,12 @@
       "schemaVersion": 1,
       "source": {
         "agentsAttributed": 1,
-        "agentsScanned": 199,
+        "agentsScanned": 201,
         "attributedBy": ".worktrees path naming issue-1441",
         "kind": "task-transcript",
         "taskDirs": [
-          "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
@@ -350,10 +350,10 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-02T12:32:20Z",
+  "timestamp": "2026-09-02T13:31:07Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1441.json",
-    "sha256": "b5d8d120c6eaac5639759438e4f06ac0703115fb6160f0fdc3e239fa90d1bc27",
+    "sha256": "15097d3c69f17976643a0b7a785fa1e372d03aa656f319442a95338f09f24f00",
     "status": "PASS"
   },
   "wave": "wave-harness-e-w3"
