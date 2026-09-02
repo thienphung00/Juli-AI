@@ -216,6 +216,11 @@ _SHARED_STATE_MODULES = frozenset(
         # row. Same defect as the seam module; found by the #1425 map rather than
         # by another red build (#1429).
         "test_tenant_context_integration.py",
+        # Reason 2 again: seeds two full tenants for the W7-bis evidence fixture
+        # (#1483). test_rls_policies.py was isolated for asserting unscoped
+        # global counts, and these rows would corrupt exactly that class of
+        # assertion from any module sharing the database.
+        "test_two_tenant_fixture.py",
     }
 )
 

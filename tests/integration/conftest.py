@@ -154,3 +154,86 @@ def user_id():
 @pytest.fixture
 def tiktok_auth_client() -> TikTokAuth:
     return TikTokAuth(app_key=sandbox_app_key(), app_secret=sandbox_app_secret())
+
+
+# --------------------------------------------------------------------------
+# Two-tenant Postgres fixtures (#1483 / ADR-089).
+#
+# Defined here rather than imported from `two_tenant.py` so consuming modules
+# get them by name. Importing a fixture and then naming it as a parameter is an
+# F811 redefinition, and the repository's existing workaround for that is a
+# `# noqa: F401` — a suppression identity the ratchet (#1462) counts. conftest
+# discovery avoids needing one.
+#
+# Both are module-scoped and lazy: a test that does not request them never
+# opens a connection, so this costs nothing to the SQLite-backed majority of
+# the integration suite.
+# --------------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def owner_engine():
+    """A sync engine connected as the table owner, on a database at head.
+
+    Seeding runs as the owner deliberately: it is set-up, not the thing under
+    test, and doing it under RLS would make a fixture failure look like an
+    isolation failure.
+
+    The migration is this fixture's job, not the session fixture's. A module
+    using these fixtures is in `_ISOLATED_DATABASE_MODULES`, and
+    `_isolated_migration_database` hands it an EMPTY database — it provisions,
+    it does not migrate, because the destructive modules it was built for each
+    run their own upgrade. Without this the first query is `UndefinedTable`.
+
+    `ensure_roles` and `seed_supabase_bootstrap_grants` run before the upgrade
+    for the same reason `tests/conftest.py` does it: `juli_app` has to exist
+    before `SET ROLE` can reach it, and the CI substrate needs the grants.
+    """
+    import os
+    import sys
+    from pathlib import Path as _Path
+
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine as _create_engine
+
+    from juli_backend.core.config.runtime import sync_database_url as _sync_url
+
+    url = os.environ.get("DATABASE_URL", "").strip()
+    sync_url = _sync_url(url)
+
+    repo_root = _Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(repo_root / "agent-runtime" / "scripts" / "ci"))
+    from ensure_postgrest_client_roles import (  # noqa: E402
+        ensure_roles,
+        seed_supabase_bootstrap_grants,
+    )
+
+    ensure_roles(url)
+    seed_supabase_bootstrap_grants(url)
+
+    cfg = Config(str(repo_root / "alembic.ini"))
+    cfg.set_main_option(
+        "script_location", str(repo_root / "backend/src/juli_backend/database/migrations")
+    )
+    cfg.set_main_option("sqlalchemy.url", sync_url)
+    command.upgrade(cfg, "head")
+
+    engine = _create_engine(sync_url)
+    try:
+        yield engine
+    finally:
+        engine.dispose()
+
+
+@pytest.fixture(scope="module")
+def two_tenants(owner_engine):
+    """Two fully seeded tenants.
+
+    Two, not one: with a single tenant "returned rows" and "returned every row"
+    are the same observation, and telling them apart is the entire point.
+    """
+    from tests.integration.two_tenant import seed_tenant
+
+    return (
+        seed_tenant(owner_engine, label="tenant-a"),
+        seed_tenant(owner_engine, label="tenant-b"),
+    )
