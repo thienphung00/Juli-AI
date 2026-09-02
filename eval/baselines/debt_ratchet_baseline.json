@@ -1,13 +1,13 @@
 {
   "issue": 1462,
   "schema": "debt-ratchet-baseline/1",
-  "generatedAt": "2026-09-01T10:10:38Z",
+  "generatedAt": "2026-09-02T11:40:00Z",
   "generator": "python -m eval.ratchets measure --write",
   "classes": {
     "broken_doc_refs": {
       "kind": "identities",
       "stats": {
-        "docs_scanned": 647,
+        "docs_scanned": 650,
         "relative_links_checked": 2168,
         "occurrences": 467,
         "docs_with_broken_refs": 110
@@ -365,9 +365,9 @@
     "mypy_statement_coverage": {
       "kind": "scalar",
       "stats": {
-        "files_scanned": 418,
-        "checked_statements": 20674,
-        "total_statements": 20674,
+        "files_scanned": 436,
+        "checked_statements": 20729,
+        "total_statements": 20729,
         "unchecked_modules": [],
         "exclude_patterns": [],
         "ignore_errors_patterns": [],
@@ -381,19 +381,18 @@
     "suppressions": {
       "kind": "identities",
       "stats": {
-        "files_scanned": 965,
-        "lines": 412,
-        "occurrences": 416,
-        "distinct_identities": 217,
-        "lines_in_reported_roots": 408,
+        "files_scanned": 995,
+        "lines": 410,
+        "occurrences": 412,
+        "distinct_identities": 213,
+        "lines_in_reported_roots": 406,
         "by_rule_code": {
           "noqa:ARG001": 5,
           "noqa:BLE001": 13,
-          "noqa:E402": 214,
+          "noqa:E402": 213,
           "noqa:E712": 1,
-          "noqa:F401": 26,
-          "noqa:F403": 3,
-          "noqa:I001": 1,
+          "noqa:F401": 25,
+          "noqa:F403": 2,
           "noqa:N802": 4,
           "noqa:PLC0415": 1,
           "noqa:S608": 2,
@@ -486,10 +485,6 @@
         "suppressions\tbackend/src/juli_backend/models/__init__.py\t<module>\tnoqa:F403": 1,
         "suppressions\tbackend/src/juli_backend/models/models.py\t<module>\tnoqa:E402": 1,
         "suppressions\tbackend/src/juli_backend/models/models.py\t<module>\tnoqa:F401": 1,
-        "suppressions\tbackend/src/juli_backend/repositories/__init__.py\t<module>\tnoqa:F403": 1,
-        "suppressions\tbackend/src/juli_backend/repositories/repos.py\t<module>\tnoqa:E402": 1,
-        "suppressions\tbackend/src/juli_backend/repositories/repos.py\t<module>\tnoqa:F401": 1,
-        "suppressions\tbackend/src/juli_backend/repositories/repos.py\t<module>\tnoqa:I001": 1,
         "suppressions\tbackend/src/juli_backend/services/agent/sanitize/chokepoints.py\tfind_banned_pattern_hits\tnoqa:BLE001": 1,
         "suppressions\tbackend/src/juli_backend/services/alerts/channels/fcm.py\tFcmAdapter.send\tnoqa:BLE001": 1,
         "suppressions\tbackend/src/juli_backend/services/alerts/channels/zalo.py\tZaloOaAdapter.send\tnoqa:BLE001": 1,
@@ -629,15 +624,15 @@
       },
       "reportedLineDivergence": {
         "reported": 394,
-        "measured": 408,
-        "delta": 14,
+        "measured": 406,
+        "delta": 12,
         "reportedRoots": [
           "backend",
           "tests",
           "scripts",
           "agent-runtime"
         ],
-        "measuredAllRoots": 412,
+        "measuredAllRoots": 410,
         "allRoots": [
           "backend",
           "tests",
@@ -847,5 +842,6 @@
         "unused_ts_exports\tpackages/ui/src/overlay-utils.ts\tgetFocusableElements\tunreferenced": 1
       }
     }
-  }
+  },
+  "tightenedFrom": "2026-09-01T10:10:38Z"
 }
