@@ -41,7 +41,7 @@ AC -> test map (issue #1224):
   review finding: three different 409s were indistinguishable except by
   parsing free text) -> an `error_code` assertion on every failing-path
   test above, plus `test_race_loser_at_transition_returns_confirmation_already_decided_code`
-  for the one condition (`_transition_confirmation_or_none` losing a race)
+  for the one condition (`transition_confirmation_or_none` losing a race)
   no sequential test path reaches on its own -- it shares
   `ERROR_CONFIRMATION_ALREADY_DECIDED` with the sequential "already
   decided" 409 deliberately (see that constant's docstring in
@@ -606,7 +606,7 @@ async def test_second_decision_on_same_confirmation_returns_409_and_does_not_enq
 async def test_race_loser_at_transition_returns_confirmation_already_decided_code(
     app, session, user, shop, monkeypatch
 ):
-    """`_transition_confirmation_or_none` losing a race (its `UPDATE`'s
+    """`transition_confirmation_or_none` losing a race (its `UPDATE`'s
     `rowcount` comes back 0 because a concurrent request already won) is a
     DIFFERENT code path than rung 3's sequential "already decided" read --
     but the exact same client-observable fact. This pins that both paths
@@ -619,14 +619,14 @@ async def test_race_loser_at_transition_returns_confirmation_already_decided_cod
     `tests/integration/test_agent_confirmation_decision_postgres.py
     ::TestSingleUseUnderConcurrentDecisions`'s job).
     """
-    from juli_backend.api.routes import agent_runs as agent_runs_module
+    from juli_backend.services.agent_runs import confirmations as confirmations_module
 
     run, confirmation = await _seed_pending(session, shop)
 
     async def _always_lose(*args, **kwargs) -> bool:
         return False
 
-    monkeypatch.setattr(agent_runs_module, "_transition_confirmation_or_none", _always_lose)
+    monkeypatch.setattr(confirmations_module, "transition_confirmation_or_none", _always_lose)
 
     mock_task = _mock_resume_task()
     with patch("juli_backend.workers.tasks.agent_workflow.resume_agent_workflow", mock_task):

@@ -33,12 +33,12 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from juli_backend.api.routes import agent_runs
 from juli_backend.api.routes.agent_runs import event_stream
 from juli_backend.models.models import Product, Shop, User
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 from juli_backend.services.agent.events.persisting_sink import run_events_channel
+from juli_backend.services.agent_runs import events as stream_events
 
 pytestmark = pytest.mark.asyncio
 
@@ -252,7 +252,7 @@ async def test_subscribe_before_replay_closes_the_gap(session_factory, monkeypat
     subscriber = RecordingSubscriber(pubsub, call_log)
     channel = run_events_channel(run_id)
 
-    original_replay = agent_runs._replay_events
+    original_replay = stream_events.replay_events
 
     async def hooked_replay(session_factory_arg, run_id_arg, after_seq_arg):
         # By the time replay runs, subscribe must already have happened --
@@ -280,7 +280,7 @@ async def test_subscribe_before_replay_closes_the_gap(session_factory, monkeypat
             _envelope_json(run_id_arg, 4, "workflow.completed", {"stop_reason": "final_response"}),
         )
 
-    monkeypatch.setattr(agent_runs, "_replay_events", hooked_replay)
+    monkeypatch.setattr(stream_events, "replay_events", hooked_replay)
 
     chunks = await _drain(
         event_stream(

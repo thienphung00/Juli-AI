@@ -70,7 +70,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from juli_backend.api.app import create_app
 from juli_backend.api.dependencies import get_active_shop
-from juli_backend.api.routes import agent_runs
 from juli_backend.api.routes.agent_runs import (
     get_heartbeat_interval_s,
     get_poll_interval_s,
@@ -86,6 +85,7 @@ from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 from juli_backend.services.agent.events.envelope import WorkflowRunEventAdapter
 from juli_backend.services.agent.events.persisting_sink import PersistingEventSink
+from juli_backend.services.agent_runs import events as stream_events
 
 # ---------------------------------------------------------------------------
 # Postgres reachability -- ADR-074 d.6 requires real Postgres, not sqlite.
@@ -724,7 +724,7 @@ async def test_handoff_overlap_event_published_in_the_replay_subscribe_gap_arriv
         persist_state=True,
     )
 
-    original_replay = agent_runs._replay_events
+    original_replay = stream_events.replay_events
 
     async def hooked_replay(session_factory_arg, run_id_arg, after_seq_arg):
         async for row in original_replay(session_factory_arg, run_id_arg, after_seq_arg):
@@ -748,7 +748,7 @@ async def test_handoff_overlap_event_published_in_the_replay_subscribe_gap_arriv
             final_status="completed",
         )
 
-    monkeypatch.setattr(agent_runs, "_replay_events", hooked_replay)
+    monkeypatch.setattr(stream_events, "replay_events", hooked_replay)
 
     app = _build_app(pg_session_factory, subscriber=bus)
     async with _authenticated_client(app, user, shop) as client:
