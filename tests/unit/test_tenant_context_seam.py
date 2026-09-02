@@ -570,16 +570,12 @@ def test_system_scope_call_sites_enumerated():
         except (OSError, UnicodeDecodeError):
             continue
 
-        # Skip the definition file and migration files (which are historical documentation)
+        # Skip the definition file
         if str(filepath).endswith("database/tenant_context.py"):
             continue
-        if "database/migrations" in str(filepath):
-            continue
 
-        # Look for "system_scope(" pattern in actual code (not docstrings/comments).
-        # Match only when system_scope is preceded by "async with" or similar keywords
-        # to exclude documentation mentions.
-        if re.search(r"(?:async\s+)?(?:with|def)\s+.*system_scope\s*\(", content):
+        # Look for "system_scope(" pattern (call site, not definition)
+        if re.search(r"system_scope\s*\(", content):
             # Make path relative to backend/src/juli_backend
             rel_path = filepath.relative_to(backend_src)
             # Construct path as it would appear in module structure

@@ -21,7 +21,12 @@ import os
 import pytest
 from sqlalchemy import column, func, select, table, text
 
-from tests.integration.two_tenant import RUNTIME_ROLE, SEEDED_TABLES, juli_app_session
+from tests.integration.two_tenant import (
+    ACTIVE_RUNS_PER_TENANT,
+    RUNTIME_ROLE,
+    SEEDED_TABLES,
+    juli_app_session,
+)
 
 requires_postgres = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL", "").strip().startswith("postgresql"),
@@ -76,7 +81,9 @@ async def test_a_shop_scoped_session_reads_its_own_rows(two_tenants) -> None:
             )
         ).scalar()
 
-    assert runs == 2, f"expected tenant A's two seeded runs, got {runs}"
+    assert runs == ACTIVE_RUNS_PER_TENANT, (
+        f"expected tenant A's {ACTIVE_RUNS_PER_TENANT} seeded runs, got {runs}"
+    )
     assert credentials == 2, f"expected tenant A's two seeded credentials, got {credentials}"
 
 
@@ -106,8 +113,9 @@ async def test_a_shop_scoped_session_reads_none_of_the_other_tenant(two_tenants)
 
     assert leaked_runs == 0, f"tenant A saw {leaked_runs} of tenant B's runs"
     assert leaked_credentials == 0, f"tenant A saw {leaked_credentials} of tenant B's credentials"
-    assert all_visible_runs == 2, (
-        f"an unfiltered SELECT returned {all_visible_runs} runs; tenant A seeded 2, so the "
+    assert all_visible_runs == ACTIVE_RUNS_PER_TENANT, (
+        f"an unfiltered SELECT returned {all_visible_runs} runs; tenant A seeded "
+        f"{ACTIVE_RUNS_PER_TENANT}, so the "
         "policy is not scoping reads that do not name a shop"
     )
 
@@ -131,8 +139,9 @@ async def test_switching_the_context_switches_what_is_visible(two_tenants) -> No
             await session.execute(text("SELECT count(*) FROM public.workflow_runs"))
         ).scalar()
 
-    assert seen_by_a == 2 and seen_by_b == 2, (
-        f"each tenant should see its own two runs; got A={seen_by_a} B={seen_by_b}"
+    assert seen_by_a == ACTIVE_RUNS_PER_TENANT and seen_by_b == ACTIVE_RUNS_PER_TENANT, (
+        f"each tenant should see its own {ACTIVE_RUNS_PER_TENANT} runs; "
+        f"got A={seen_by_a} B={seen_by_b}"
     )
 
 

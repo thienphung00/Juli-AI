@@ -69,8 +69,18 @@ _EXPIRING_SOON = timedelta(hours=1)
 _EXPIRING_LATER = timedelta(days=30)
 
 # `reaper` compares against a staleness threshold, so the same applies to runs.
+# How many rows in an active status `seed_tenant` writes per tenant: two
+# RUNNING and two WAITING_APPROVAL. Consumers assert against this rather than a
+# literal, so adding a row to the seeder does not silently turn an isolation
+# assertion elsewhere into a failure about arithmetic.
+ACTIVE_RUNS_PER_TENANT = 4
+
 _STALE_AGE = timedelta(hours=6)
 _FRESH_AGE = timedelta(minutes=1)
+# OPTIMIZE_PRODUCT_TERMINATION_POLICY.approval_timeout_h is 4, so 6h is
+# expired and 1 minute is not.
+_EXPIRED_APPROVAL_AGE = timedelta(hours=6)
+_FRESH_APPROVAL_AGE = timedelta(minutes=1)
 
 
 @dataclass(frozen=True)
@@ -85,10 +95,17 @@ class Tenant:
     # schema is right and the first version of this seeder was wrong.
     product_id: uuid.UUID
     second_product_id: uuid.UUID
+    # A third, for the expired-approval run. `waiting_approval` counts as
+    # active in `uq_workflow_runs_active_shop_product` (034), so it cannot
+    # share a product with either of the two RUNNING rows.
+    third_product_id: uuid.UUID
+    fourth_product_id: uuid.UUID
     expiring_credential_id: uuid.UUID
     fresh_credential_id: uuid.UUID
     stale_run_id: uuid.UUID
     fresh_run_id: uuid.UUID
+    expired_approval_run_id: uuid.UUID
+    fresh_approval_run_id: uuid.UUID
     execution_id: uuid.UUID
 
 
@@ -110,10 +127,14 @@ def seed_tenant(engine: Engine, *, label: str) -> Tenant:
         shop_id=uuid.uuid4(),
         product_id=uuid.uuid4(),
         second_product_id=uuid.uuid4(),
+        third_product_id=uuid.uuid4(),
+        fourth_product_id=uuid.uuid4(),
         expiring_credential_id=uuid.uuid4(),
         fresh_credential_id=uuid.uuid4(),
         stale_run_id=uuid.uuid4(),
         fresh_run_id=uuid.uuid4(),
+        expired_approval_run_id=uuid.uuid4(),
+        fresh_approval_run_id=uuid.uuid4(),
         execution_id=uuid.uuid4(),
     )
 
@@ -167,7 +188,12 @@ def seed_tenant(engine: Engine, *, label: str) -> Tenant:
                 },
             )
 
-        for product_id in (tenant.product_id, tenant.second_product_id):
+        for product_id in (
+            tenant.product_id,
+            tenant.second_product_id,
+            tenant.third_product_id,
+            tenant.fourth_product_id,
+        ):
             conn.execute(
                 text(
                     "INSERT INTO public.products (id, shop_id, tiktok_product_id, name, status, "
@@ -183,20 +209,38 @@ def seed_tenant(engine: Engine, *, label: str) -> Tenant:
                 },
             )
 
-        # Two runs: one past the staleness threshold, one inside it. Same
-        # reasoning as the credentials — a reaper that terminates everything
-        # must fail.
-        for run_id, product_id, age, status in (
-            (tenant.stale_run_id, tenant.product_id, _STALE_AGE, "running"),
-            (tenant.fresh_run_id, tenant.second_product_id, _FRESH_AGE, "running"),
+        # Four runs, in two qualifying/non-qualifying pairs — one pair per
+        # reaper path. Same reasoning as the credentials: a reaper that
+        # terminates everything must fail, and so must one that terminates
+        # nothing. `waiting_approval` is an active status in
+        # `uq_workflow_runs_active_shop_product` (034), which is why each run
+        # gets its own product.
+        for run_id, product_id, age, status, approval_age in (
+            (tenant.stale_run_id, tenant.product_id, _STALE_AGE, "running", None),
+            (tenant.fresh_run_id, tenant.second_product_id, _FRESH_AGE, "running", None),
+            (
+                tenant.expired_approval_run_id,
+                tenant.third_product_id,
+                _STALE_AGE,
+                "waiting_approval",
+                _EXPIRED_APPROVAL_AGE,
+            ),
+            (
+                tenant.fresh_approval_run_id,
+                tenant.fourth_product_id,
+                _FRESH_AGE,
+                "waiting_approval",
+                _FRESH_APPROVAL_AGE,
+            ),
         ):
             conn.execute(
                 text(
                     "INSERT INTO public.workflow_runs "
                     "(id, shop_id, product_id, state, status, prompt_version, prompt_sha256, "
-                    " running_seconds_elapsed, cancel_requested, created_at, updated_at) "
+                    " running_seconds_elapsed, cancel_requested, waiting_approval_since, "
+                    " created_at, updated_at) "
                     "VALUES (:id, :shop_id, :product_id, :state, :status, 'v1', :sha, "
-                    " :elapsed, false, :created, :created)"
+                    " :elapsed, false, :approval_since, :created, :created)"
                 ),
                 {
                     "id": str(run_id),
@@ -206,6 +250,15 @@ def seed_tenant(engine: Engine, *, label: str) -> Tenant:
                     "status": status,
                     "sha": "0" * 64,
                     "elapsed": int(age.total_seconds()),
+                    # Aware, unlike every other stamp here. `waiting_approval_since`
+                    # is `timestamp with time zone` while `created_at` is not, so a
+                    # naive UTC value would be read in the server's TimeZone — under
+                    # `Asia/Ho_Chi_Minh` that stores an instant 7h earlier and pushes
+                    # an intentionally-fresh row past the 4h approval timeout. CI runs
+                    # UTC, so the bug would surface only on a developer's machine.
+                    "approval_since": (
+                        None if approval_age is None else (now - approval_age).replace(tzinfo=UTC)
+                    ),
                     "created": now - age,
                 },
             )
@@ -263,6 +316,21 @@ async def juli_app_session(shop_id: uuid.UUID | None = None) -> AsyncIterator[As
             session = AsyncSession(bind=conn)
             try:
                 yield session
+                # Commit the CONNECTION, not just the session.
+                #
+                # The session is bound to a connection opened with
+                # `engine.connect()`, which in SQLAlchemy 2.0 is
+                # commit-as-you-go: `session.commit()` ends the session's
+                # transaction but leaves the connection's open, and closing the
+                # block rolls it back. Without this, every write made through
+                # this fixture is silently discarded — the caller sees its own
+                # success counters and the database has nothing.
+                #
+                # That is exactly how it shipped in #1483: the fixture was
+                # verified only with reads, so nothing noticed. #1488's
+                # impact_reader test found it by reporting 30 written readings
+                # against a table holding zero rows.
+                await conn.commit()
             finally:
                 await session.close()
     finally:

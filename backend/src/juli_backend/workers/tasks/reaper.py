@@ -334,6 +334,38 @@ async def _emit_terminal_event(
     await sink.emit(event)
 
 
+async def _enumerate_active_runs(
+    session: AsyncSession,
+    statuses: tuple[str, ...],
+) -> list[tuple[uuid.UUID, uuid.UUID]]:
+    """Return (run_id, shop_id) for every active run in the fleet.
+
+    ADR-089 decision 3: this is the *only* cross-tenant read, and it returns
+    identifiers and nothing else. Every field the reaper actually decides on is
+    then loaded per-run under that run's own tenant context.
+
+    The branch is on dialect, deliberately, and not on `try: enumerate /
+    except: scan fleet-wide`. That shape is wrong twice over. On Postgres a
+    failed statement aborts the transaction, so the fallback could not run
+    anyway; and because the `try` would wrap the whole reaping loop, any error
+    raised *after* some runs were already reaped would fall through to a
+    second, context-less pass that re-reaps them and emits duplicate terminal
+    events. A genuine error must surface, not silently downgrade to the
+    unfiltered scan this issue exists to remove.
+    """
+    if session.get_bind().dialect.name == "postgresql":
+        result = await session.execute(
+            text("SELECT out_run_id, out_shop_id FROM public.enumerate_active_workflow_runs()")
+        )
+    else:
+        # SQLite (unit tests) has neither the function nor RLS, so an ordinary
+        # query is the same read with the same result set.
+        result = await session.execute(
+            select(WorkflowRun.id, WorkflowRun.shop_id).where(WorkflowRun.status.in_(statuses))
+        )
+    return [(row[0], row[1]) for row in result.all()]
+
+
 async def _reap_stale_running_and_queued(
     session: AsyncSession,
     sink: _TerminalEventSink,
@@ -341,16 +373,11 @@ async def _reap_stale_running_and_queued(
     has_live_task: TaskLivenessCheck,
     policy: TerminationPolicy,
 ) -> tuple[uuid.UUID, ...]:
-    """Reap stale running/queued runs by enumerating via SECURITY DEFINER function.
+    """Reap stale running/queued runs, one per-tenant context per run.
 
-    ADR-089 decision 3: The only cross-tenant read is enumeration, returning
-    identifiers only. Each run is then processed under its own per-tenant context
-    via with_shop_scope, so the reaper is subject to the same isolation as user
-    traffic. The staleness comparison stays in Python, where the injectable `now`
-    and the TerminationPolicy live, and where the existing tests drive it.
-
-    For Postgres with the enumeration function available, uses that SECURITY DEFINER
-    function. For SQLite (unit tests), falls back to fleet-wide scan.
+    ADR-089 decisions 2-4. The staleness comparison stays in Python, where the
+    injectable `now` and the TerminationPolicy live, and where the existing
+    tests drive it.
     """
     from juli_backend.database.tenant_context import with_shop_scope
 
@@ -358,72 +385,26 @@ async def _reap_stale_running_and_queued(
     threshold_s = policy.wall_clock_timeout_s + STALE_RUN_SLACK_S
     reaped: list[uuid.UUID] = []
 
-    # Try to use the enumeration function for Postgres; fall back to fleet-wide
-    # scan for SQLite (used in unit tests).
-    try:
-        result = await session.execute(
-            text("SELECT * FROM public.enumerate_active_workflow_runs()")
-        )
-        enum_rows = result.fetchall()
+    for run_id, shop_id in await _enumerate_active_runs(session, active_statuses):
+        async with with_shop_scope(session, shop_id):
+            run = await session.get(WorkflowRun, run_id)
+            if run is None:
+                # Deleted between enumeration and load, or — the case that
+                # matters — invisible to this shop's policies. Either way there
+                # is nothing to reap under a context that cannot see it.
+                continue
+            # The enumeration also carries `waiting_approval` for the other
+            # path, so this one filters rather than trusting the work list.
+            if run.status not in active_statuses:
+                continue
 
-        # Postgres path: enumerate, then loop with per-tenant context
-        for enum_row in enum_rows:
-            # Unpack enumeration result (run_id, shop_id, status, created_at, elapsed_secs)
-            run_id, shop_id, status_val, created_at, running_seconds_elapsed = enum_row
-
-            # Set per-tenant context for this run before processing it
-            async with with_shop_scope(session, shop_id):
-                # Load the full run object within tenant context
-                run = await session.get(WorkflowRun, run_id)
-                if run is None:
-                    # Run was deleted between enumeration and load — skip it
-                    continue
-
-                # Check staleness: the threshold includes both the policy timeout
-                # and the slack margin for scheduling jitter
-                last_activity = await _last_activity_at(session, run)
-                elapsed_s = (now - last_activity).total_seconds()
-                if elapsed_s < threshold_s:
-                    continue
-
-                # Check liveness: is there a Celery task backing this run?
-                if has_live_task(run_id):
-                    continue
-
-                # Reap it: emit the terminal event, which writes both the event row
-                # and the status update in a single commit
-                await _emit_terminal_event(
-                    session,
-                    sink,
-                    run,
-                    stop_reason=StopReason.WORKER_LOST,
-                    status=WorkflowRunStatus.FAILED,
-                    now=now,
-                )
-                reaped.append(run_id)
-
-    except Exception:
-        # Fallback: enumeration function doesn't exist (SQLite), use fleet-wide scan
-        # without per-tenant context (SQLite has no RLS)
-        result = await session.execute(
-            select(WorkflowRun).where(WorkflowRun.status.in_(active_statuses))
-        )
-        runs = result.scalars().all()
-
-        for run in runs:
-            # Check staleness: the threshold includes both the policy timeout
-            # and the slack margin for scheduling jitter
             last_activity = await _last_activity_at(session, run)
-            elapsed_s = (now - last_activity).total_seconds()
-            if elapsed_s < threshold_s:
+            if (now - last_activity).total_seconds() < threshold_s:
                 continue
 
-            # Check liveness: is there a Celery task backing this run?
-            if has_live_task(run.id):
+            if has_live_task(run_id):
                 continue
 
-            # Reap it: emit the terminal event, which writes both the event row
-            # and the status update in a single commit
             await _emit_terminal_event(
                 session,
                 sink,
@@ -432,7 +413,7 @@ async def _reap_stale_running_and_queued(
                 status=WorkflowRunStatus.FAILED,
                 now=now,
             )
-            reaped.append(run.id)
+            reaped.append(run_id)
 
     return tuple(reaped)
 
@@ -443,24 +424,28 @@ async def _reap_expired_waiting_approval(
     now: datetime,
     policy: TerminationPolicy,
 ) -> tuple[uuid.UUID, ...]:
-    """Reap expired waiting_approval runs under per-tenant context.
+    """Reap expired waiting_approval runs, one per-tenant context per run.
 
-    Like _reap_stale_running_and_queued, this loops under per-tenant context
-    set via with_shop_scope for each run.
+    This path goes through the same enumeration as the stale path. A plain
+    fleet-wide `select(WorkflowRun)` would read zero rows as `juli_app` with no
+    shop context — the reap would report success having done nothing, which is
+    the exact failure mode ADR-089 exists to remove. `waiting_approval` is not
+    terminal, so migration 052 widened the enumeration to include it rather
+    than leaving this path with no fleet-wide read available to it.
     """
     from juli_backend.database.tenant_context import with_shop_scope
 
-    # Load all runs in waiting_approval status
-    result = await session.execute(
-        select(WorkflowRun).where(WorkflowRun.status == WorkflowRunStatus.WAITING_APPROVAL.value)
-    )
-    runs = result.scalars().all()
+    waiting = (WorkflowRunStatus.WAITING_APPROVAL.value,)
     threshold_s = policy.approval_timeout_h * 3600
-
     reaped: list[uuid.UUID] = []
-    for run in runs:
-        # Set per-tenant context for this run before processing it
-        async with with_shop_scope(session, run.shop_id):
+
+    for run_id, shop_id in await _enumerate_active_runs(session, waiting):
+        async with with_shop_scope(session, shop_id):
+            run = await session.get(WorkflowRun, run_id)
+            if run is None:
+                continue
+            if run.status != WorkflowRunStatus.WAITING_APPROVAL.value:
+                continue
             if run.waiting_approval_since is None:
                 continue
 
@@ -468,7 +453,6 @@ async def _reap_expired_waiting_approval(
             if elapsed_s < threshold_s:
                 continue
 
-            # Reap it: emit the terminal event
             await _emit_terminal_event(
                 session,
                 sink,
@@ -477,7 +461,7 @@ async def _reap_expired_waiting_approval(
                 status=WorkflowRunStatus.CANCELLED,
                 now=now,
             )
-            reaped.append(run.id)
+            reaped.append(run_id)
 
     return tuple(reaped)
 
@@ -524,14 +508,14 @@ def _ensure_session_factory() -> async_sessionmaker:
 
 
 async def _reap_abandoned_workflow_runs_async() -> ReapResult:
-    """Reap stale and expired runs without system_scope() at this level.
+    """Reap stale and expired runs without a fleet-wide scope at this level.
 
     ADR-089 decision 2: Fleet-scoped work runs under real per-tenant context
     for every data access. The enumeration is the only cross-tenant read
     (via SECURITY DEFINER function), and each item is then processed under
     its own shop context via with_shop_scope().
 
-    No system_scope() at this level — tenant context is set per-run inside
+    No fleet-wide scope at this level — tenant context is set per-run inside
     the reaper logic itself.
     """
     factory = _ensure_session_factory()
