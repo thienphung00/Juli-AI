@@ -34,7 +34,23 @@ MIGRATION_ALLOW_COMMENT = re.compile(
 
 
 def migration_db_url() -> str:
-    """Prefer direct Postgres URL for pg_dump/migrations; fall back to pooler."""
+    """Prefer direct Postgres URL for pg_dump/migrations; fail closed if
+    the resolved role lacks UPDATE on alembic_version.
+
+    The fallback to DATABASE_URL was written for pooler-vs-direct. Since
+    #1339, DATABASE_URL points to the non-owner runtime role juli_app.
+    A silent fallback would cause pg_dump to succeed while dumping zero
+    rows under RLS — a backup that looks complete but contains nothing.
+
+    This guard covers the backup path (pg_dump, row_counts, token verification).
+    Note: alembic upgrade reads DATABASE_URL directly in env.py, so this check
+    does not cover alembic's own connection — that runs as the same role and
+    will fail loudly if it lacks UPDATE. See env.py:15.
+
+    This function verifies the resolved role can actually perform read operations,
+    naming the role in the error and pointing at DATABASE_DIRECT_URL if the
+    check fails. Connection failures are reported separately.
+    """
     direct = os.environ.get("DATABASE_DIRECT_URL", "").strip()
     pooled = os.environ.get("DATABASE_URL", "").strip()
     raw = direct or pooled
@@ -42,7 +58,47 @@ def migration_db_url() -> str:
         raise RuntimeError(
             "DATABASE_URL (or DATABASE_DIRECT_URL) must be set for safe migration"
         )
-    return sync_database_url(raw)
+
+    url = sync_database_url(raw)
+
+    # Verify the resolved role can UPDATE alembic_version (used by alembic during
+    # the upgrade, and by this role if running migrations locally). More importantly,
+    # test that the connection provides actual row visibility: a role can hold
+    # UPDATE on alembic_version but still see zero rows under RLS, which is the
+    # failure mode that causes silent data loss.
+    try:
+        engine = create_engine(url, pool_pre_ping=True)
+        with engine.connect() as conn:
+            can_update = conn.execute(
+                text(
+                    "SELECT has_table_privilege("
+                    "  current_user, "
+                    "  'public.alembic_version', "
+                    "  'UPDATE'"
+                    ")"
+                )
+            ).scalar_one()
+
+            if not can_update:
+                current_user = conn.execute(
+                    text("SELECT current_user")
+                ).scalar_one()
+                raise RuntimeError(
+                    f"role '{current_user}' cannot UPDATE public.alembic_version. "
+                    "Migrations require owner privileges. "
+                    "Set DATABASE_DIRECT_URL to a URL with owner credentials."
+                )
+        engine.dispose()
+    except RuntimeError:
+        # Re-raise our privilege check failure as-is
+        raise
+    except Exception as exc:
+        raise RuntimeError(
+            f"could not verify migration privileges: {exc}. "
+            "Check that DATABASE_URL (or DATABASE_DIRECT_URL) is reachable."
+        ) from exc
+
+    return url
 
 
 def resolve_db_identity(raw_url: str | None = None) -> dict[str, str]:
@@ -155,7 +211,7 @@ def current_revision() -> str | None:
             return None
 
 
-def head_revision(alembic_ini: Path) -> str:
+def head_revision(alembic_ini: Path) -> str | None:
     cfg = Config(str(alembic_ini))
     script_location = cfg.get_main_option("script_location")
     if script_location:

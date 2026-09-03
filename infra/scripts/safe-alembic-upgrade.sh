@@ -119,6 +119,35 @@ log "alembic revision before: ${FROM_REV:-<base>} -> target head: ${HEAD_REV}; p
 PRE_COUNTS="$("${HELPER[@]}" row-counts)"
 log "pre-migration row counts: ${PRE_COUNTS}"
 
+# A zero baseline is not a baseline (#1552).
+#
+# `compare()` flags only `after < before`, so 0 -> 0 prints OK and exits 0. Under
+# RLS a non-owner connection reads 0 from every tenant-scoped table, which means
+# the row-count guard reports success precisely when it can see nothing.
+#
+# `users` and `shops` are the floor: any database that has ever served a request
+# has both, and neither is transactional. `orders` is deliberately NOT checked —
+# it is legitimately empty on a fresh install and on test databases, so flooring
+# it would block first deploys rather than catch invisibility.
+#
+# SAFE_MIGRATE_ALLOW_EMPTY=1 is the documented escape for a genuinely new
+# database. It must be set deliberately; the default refuses.
+if [ "${SAFE_MIGRATE_ALLOW_EMPTY:-0}" != "1" ]; then
+    for table in users shops; do
+        count="$(printf '%s' "${PRE_COUNTS}" | "${VENV_PYTHON}" -c \
+            "import json,sys; print(json.load(sys.stdin)['${table}'])" 2>/dev/null)" \
+            || fail "could not read '${table}' from the pre-migration row counts — \
+refusing to migrate on an unverifiable baseline"
+        if [ "${count}" = "0" ]; then
+            fail "pre-migration row count for '${table}' is 0. Either this connection \
+cannot see the data (a non-owner role under RLS reads 0 from every tenant-scoped \
+table, which makes the row-count guard vacuous and the pg_dump backup empty), or \
+the database really is empty. Point DATABASE_DIRECT_URL at the owner, or set \
+SAFE_MIGRATE_ALLOW_EMPTY=1 if this database is genuinely new."
+        fi
+    done
+fi
+
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 # -Fc (custom format): smaller/faster restore than plain SQL for typical OLTP DBs;
 # tradeoff: requires pg_restore instead of psql, not human-readable in an editor.
