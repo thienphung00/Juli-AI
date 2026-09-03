@@ -22,14 +22,19 @@ bestseller / slow-moving / uncompetitive). Edits: *upcoming* — window, price, 
 limits; *ongoing* — cannot switch limit type, **can only increase** limits. Band 1%–90%.
 
 **2. Shop Flash Sale (Flash Sale của shop / Deal chớp nhoáng)** — `.../flash-sale-cua-shop-6837782307768065.md`
-[policy-gated]. Eligibility **first**: Shop Rating **≥ 2.5 (VN)** *and* Violation Points **< 36** *and*
-balance > −100 USD; refreshed daily; failing blocks create *and* edit in desktop, app "and TTS Open API",
-but already-scheduled promos keep running. Channel: all-channel / LIVE / creator-LIVE (the last two
+[policy-gated]. Eligibility **first**, refreshed daily; failing blocks create *and* edit in desktop, app
+"and TTS Open API", but already-scheduled promos keep running. ⚠️ **The VN rating cell is malformed in the
+crawled table** — six columns, eight values, so it reads as either **≥ 3.0** or **≥ 2.5** depending on how
+the row is aligned; do not encode a rating number from this source. The **unambiguous** gates are
+**Violation Points < 36**, **balance > −100 USD**, **official accounts only** for the LIVE and creator-LIVE
+channels, and **sellers with no rating have no rating requirement at all**. Channel: all-channel / LIVE / creator-LIVE (the last two
 official- or affiliate-account only, with shared vs reserved creator stock). Windows: all-channel
 **10 min–3 days**, LIVE 1 min–3 days, creator LIVE 10 min–14 days. **Price floor: below the product's
 lowest price in the last 14 days *including the seller's own product discount*; with no 14-day order
 history, below the original price.** LIVE variant: ≤ 14-day low including campaign price and co-funded
-offers. Seller Center shows a warning plus a suggested price on violation. Edits: *upcoming* — anything;
+offers. ⚠️ **Lookback conflict:** this newer product page says **14 days**; the older LIVE flash-sale page
+says **30**. Treat **30 days** as the conservative bound until one is verified.
+Seller Center shows a warning plus a suggested price on violation. Edits: *upcoming* — anything;
 *ongoing* — **extend the window only**. ⚠️ This page's comparison table says "API không được hỗ trợ" for
 all three flash-sale types, yet its eligibility text names TTS Open API and `contract-collection.md` §B-5
 has a verified sandbox `createActivity` with `"activity_type":"FLASHSALE"` — open verification item.
@@ -110,7 +115,8 @@ Discount bands (`.../huong-dan-ve-muc-giam-gia-khuyen-mai-do-nha-ban-hang-tai-tr
 normal → eligible-holiday: product discount 1–90% → 1–90%; new arrival 30–50% both; flash sale (all
 variants) 1–50% → **1–99%**; bundle 1–50%; BMSM 1–50% → 1–99%; seller vouchers 1–99%; private vouchers
 (chat, repeat, CRM, promo code) 1–50%. Holidays are legally defined VN dates and the promo window must fall
-**entirely** inside them; timezone GMT+7.
+**entirely** inside them; timezone GMT+7. ⚠️ **The 99 % holiday-band table lists 2025 dates only** — it
+cannot decide whether a 2026 window is eligible without a refreshed source.
 
 Price-history rules: flash sale below the 14-day low *including seller discount*; campaign thresholds may
 be % below retail, below the seller's discounted price, below the **L30/60/90/180-day low**, inside a band,
@@ -145,7 +151,7 @@ chiến dịch — YTD plus a **real-time in-campaign dashboard**
 |---|---|
 | 4.1 Inventory Search (`:190`), 4.2 Get Activity (`:190`) | MATCH |
 | **4.3 Update Price — "baseline markdown, applied regardless of which promotion lever is chosen"** (`:191`) | **WRONG-ORDER / harmful.** A fixed-price product discount *freezes* the original price, so the update is blocked while it runs; a % promo recomputes off the new lower list price, so markdown + promo **compounds**; marking down today *raises* the 14-day floor a flash sale must beat; and it permanently tightens L30–180-day campaign price thresholds. |
-| 4.4 Create Activity, Seller Flash Sale, "eligibility guard" (`:192`, rationale `:180-186`) | **GAP** — right instinct, wrong predicate. Stated gate is "past-order-history and pricing checks"; the real gate is Rating ≥ 2.5 (VN) **and** VP < 36 **and** balance > −100 USD, daily-refreshed, with in-flight promos grandfathered. Order history only selects *which* price floor applies. |
+| 4.4 Create Activity, Seller Flash Sale, "eligibility guard" (`:192`, rationale `:180-186`) | **GAP** — right instinct, wrong predicate. Stated gate is "past-order-history and pricing checks"; the real gates are **VP < 36**, **balance > −100 USD** and **official accounts only** (LIVE channels), daily-refreshed, with in-flight promos grandfathered. The VN **rating** threshold is **not** usable — the crawled cell is malformed (see §A.2) and no-rating sellers have no rating requirement. Order history only selects *which* price floor applies. |
 | 4.4 `activity_type` enum `FIXED_PRICE\|DIRECT_DISCOUNT\|FLASHSALE\|SHIPPING_DISCOUNT\|BUY_MORE_SAVE_MORE` (`:192`) | Partial — only `FIXED_PRICE` (A-25) and `FLASHSALE` (B-5) verified in `contract-collection.md`; the other three unverified. Vouchers correctly absent. |
 | 4.5 Update Activity Product (`:193`); 4.5.5 / 4.7 webhook #39 + Deactivate (`:194,:197`) | MATCH (`quantity_limit` / `quantity_per_user` = total & per-buyer limits) |
 | 4 overall — no price-floor, discount-band or duration precheck | **MISSING PREREQUISITE** — Seller Center warns a human with a suggested price; the API just rejects |
@@ -172,8 +178,11 @@ read-only pre-flight checks (eligibility, 14-day low, discount band, duration bo
 1. **Make `Update Price` (4.3) conditional and post-decision** — "markdown *or* promotion, not both". As
    written it compounds discounts, is blocked under a fixed-price promo, raises the flash-sale floor, and
    damages future campaign-price eligibility.
-2. **Replace the flash-sale eligibility predicate** with Rating ≥ 2.5 (VN) ∧ VP < 36 ∧ balance > −100 USD,
-   wired to the account-health signals in `tiktok_platform/seller/account-health.md`.
+2. **Replace the flash-sale eligibility predicate** with the gates that are actually unambiguous —
+   VP < 36 ∧ balance > −100 USD ∧ official-account (LIVE channels) — wired to the account-health signals in
+   `tiktok_platform/seller/account-health.md`. **Do not encode a VN rating threshold**: the crawled table's
+   rating cell is malformed (6 columns, 8 values; reads ≥ 3.0 or ≥ 2.5), and sellers without a rating have
+   no rating requirement. Re-crawl before any rating gate ships.
 3. **Add a pre-submit validator to 7a/7c** encoding discount bands per tool, duration min/max per tool, the
    14-day-lowest floor, layer-1 stacking collisions, and the ongoing-edit matrix (extend/raise only).
 4. **Split the family into three declared lanes** — API-automatable (product discount, flash sale, shipping

@@ -31,7 +31,7 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 11d | P-PROD — Production-write unlock (NEW) | 🟨 **W7 — planned and filed 2026-08-25**, in parallel with W6. Design [ADR-085](../../adr/085-production-write-preconditions.md), amending ADR-061 d.1 (its RLS deferral's trigger has fired). PRD [#1325](https://github.com/thienphung00/Juli-AI/issues/1325); thirteen slices + gate [#1339](https://github.com/thienphung00/Juli-AI/issues/1339) — see [Wave 7](#wave-7--the-owner-can-authorize-one-real-change-and-prove-it-was-safe-2026-08-25). **Scope corrected:** RLS is absent-not-deferred (policies key off a GUC nothing sets, and the app connects as the table *owner*, which Postgres exempts); the table count is 37, not 13; ADR-050 C2 is removed from this wave. Gates P-IM's real reading and P10's business-impact metric | ⬜ |
 | 12 | P10 — Observability baseline | ⬜ **W8** | ⬜ |
 | 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ **W9-B** (with P7), over the path W9-A realigns | ⬜ |
-| 14 | P13 — Family charter, seller journeys + rollout of the remaining workflows | 🟨 **charter recorded 2026-09-03** — four families (Product, Inventory, Campaign & Promotion, Customer Service), Livestream removed, **Process Order (5) + Handle Split Package (6) restored as an Operations item** after Create Hero Product and before Returns/Refunds (owner, 2026-09-03), eight seller-journey corrections, automation/monitoring NFR grades — see [P13](#14-p13--family-charter-seller-journeys-and-rollout-of-the-remaining-workflows-charter-grilled-2026-09-03-supersedes-rollout-to-remaining-10-workflows); grill in progress. Design-order items 0–1 (template hardening + the Optimize Product pricing realignment) land in **W9-A** — see [where it lands](#where-the-optimize-product-pricing-realignment-lands-2026-09-03); items 2–8 roll out in **W10** | ⬜ |
+| 14 | P13 — Family charter, seller journeys + rollout of the remaining workflows | 🟨 **charter recorded 2026-09-03** — four families (Product, Inventory, Campaign & Promotion, Customer Service), Livestream removed, **Process Order (5) + Handle Split Package (6) promoted to design-order item 3** with sustained mega-sale volume as its non-functional requirement, and a new **Mega Sale Readiness** workflow at item 5 as its preparation companion (owner, 2026-09-03), six seller-journey reports and eight corrections, automation/monitoring NFR grades — see [P13](#14-p13--family-charter-seller-journeys-and-rollout-of-the-remaining-workflows-charter-grilled-2026-09-03-supersedes-rollout-to-remaining-10-workflows); grill in progress. Design-order items 0–1 (template hardening + the Optimize Product pricing realignment) land in **W9-A** — see [where it lands](#where-the-optimize-product-pricing-realignment-lands-2026-09-03); items 2–9 roll out in **W10** | ⬜ |
 | 15 | P6 — Documentation retrieval tool (deferred, optional) | ⬜ | ⬜ |
 
 ## Wave 2 status — re-run inside the harness contract (2026-08-14)
@@ -682,7 +682,7 @@ named for the phases they implement.
 | **W8 — P10** | 12 | Logging baseline re-verification, per-run rollup, the five-link outcome chain, the four unconflated metrics · closes #1226's second half | — |
 | **W9-A — template hardening + Optimize Product pricing realignment** | 14 (design-order items 0–1) | The part of P13 step 0 the realignment needs (`workflow_key`, bound subject, tool dispatcher, shared prompt sections) · seller-journey finding 1's correction: reprice through a Product Discount instead of `prices/update`, diagnostics first, title-length and listing-bundle guards, prompt v4 · HITL sandbox re-proof — see [Where the Optimize Product pricing realignment lands](#where-the-optimize-product-pricing-realignment-lands-2026-09-03) | — |
 | **W9-B — P15 + P7** | 13, 9 | Hardening pass over the whole — now realigned — Optimize Product path; extract the per-workflow config template (prompt + allowlist + **output schema**) · P7 structured output contract | — |
-| **W10 — P13** | 14 (design-order items 2–8) | Edge-case matrix; register the 4 unregistered tool handlers; onboard the remaining workflows via the template **in the P13 design order** (Clear Excess → Promotion family → Replenish FBS → Create Hero Product → **Process Order + Split Package** → 8a–8c → CS responses). Item 1, the Optimize Product pricing realignment, has moved to **W9-A** | — |
+| **W10 — P13** | 14 (design-order items 2–9) | Edge-case matrix; register the 4 unregistered tool handlers; onboard the remaining workflows via the template **in the P13 design order** (Clear Excess → **Process Order + Split Package** → Replenish FBS → **Mega Sale Readiness** → Create Hero Product → Promotion family → 8a–8c → CS responses). Item 1, the Optimize Product pricing realignment, has moved to **W9-A** | — |
 
 ### Filed work — W4 and W5
 
@@ -1451,10 +1451,12 @@ approval-gated end-to-end execution, in this priority order: **Product** (create
   every live-related call is an analytics read, and ADR-067 already fixed livestream as
   recommendation-only. Do not design a livestream execution workflow.
 - **Process Order (5) and Handle Split Package (6) are an Operations item, not a fifth family.**
-  Owner decision 2026-09-03: they enter the design order between Create Hero Product and Customer
-  Service, on the evidence in [`seller-journeys/order-shipping.md`](seller-journeys/order-shipping.md).
+  Owner decision 2026-09-03: they are **design-order item 3 (Operations)**, ahead of Replenish,
+  Mega Sale Readiness, Create Hero Product and the Promotion family, on the evidence in
+  [`seller-journeys/order-shipping.md`](seller-journeys/order-shipping.md) and the family-by-phase
+  scoring in [`seller-journeys/mega-sale-prep.md`](seller-journeys/mega-sale-prep.md).
   A shop that misses TikTok's shipping clock loses its licence to operate before any listing
-  optimisation matters, so they are designed before the after-sales workflows, not after them.
+  optimisation matters, and a mega sale multiplies the order volume without moving the clock.
 - **FBS before FBT.** FBT appears once in 839 Vietnamese academy pages, needs the
   `seller.fbt.inbound` OAuth scope Juli does not hold, an FBT-onboarded merchant and a goods-binding
   step, and no FBT call has ever been captured. FBT branches stay deferred until all three exist.
@@ -1470,19 +1472,22 @@ judgment call once, with consent, and carry it through.
 |---|---|---|---|---|
 | **Product** | Get found and get chosen — the product page is the only surface a buyer sees before paying | CTOR | Product Optimizer diagnostic tags, title optimizer with search-volume scores, Price Diagnostics tiers, 14 card-diagnostic recommendations | Decide *which* suggestion to accept and *whether* a price move is safe, then execute it as one consented change. Reprice through a Product Discount, never the base price |
 | **Inventory** | Never sell what you do not have; never hold what will not sell | GMV (replenish), AOV (clear excess) | 30-day forecast, recommended replenishment quantity, days of supply, four alert channels, the Sản phẩm thanh lý clearance label | Reconcile to TikTok's numbers instead of competing with them; guard the stock write against auto-restock, the Luôn sẵn hàng lock and multi-warehouse; relay the supplier as a seller-attested fact; clear through the label, not zero stock |
-| **Campaign & Promotion** | Spend margin only where it buys sales — every promo is seller-funded and price-remembered | CTOR | Discount bands, duration bounds, the 14-day floor, stacking priority, a pricing simulator — all enforced for a human in the UI, only rejected for an API caller | Pre-submit validation, lever chosen by eligibility (rating ≥ 2.5 ∧ VP < 36 ∧ balance > −100 USD), safe monotonic edits (extend, raise limits/budget, deactivate expired); vouchers and campaigns as guided checklists since they have no API |
+| **Campaign & Promotion** | Spend margin only where it buys sales — every promo is seller-funded and price-remembered | CTOR | Discount bands, duration bounds, the 14-day floor, stacking priority, a pricing simulator — all enforced for a human in the UI, only rejected for an API caller | Pre-submit validation, lever chosen by eligibility (VP < 36 ∧ balance > −100 USD ∧ official account — the VN rating cell is malformed in the crawl, see [`seller-journeys/promotion.md`](seller-journeys/promotion.md) §A.2), safe monotonic edits (extend, raise limits/budget, deactivate expired); vouchers and campaigns as guided checklists since they have no API |
 | **Customer Service** | Protect the licence to operate — rating, Account Health, campaign and CRM access | Cancellation rate, AHT, 12HRR | Its own clocks (48h / 1d / 2d / 12h), platform pre-approval, Fast Refund, a chatbot, FAQ auto-send, proactive shipping messages and the Trợ lý Nhà Bán Hàng copilot | Triage by time-to-breach, two-decision return model, evidenced rejections and one-shot negotiation/appeal drafted for confirmation, evidence packs for the sanctioned repair paths. Never auto-send, never auto-reject |
 
 **Process Order sits beside these four as an Operations workflow**, not inside them: Main KPI
 **cancellation rate**, seller purpose "ship on time inside TikTok's clock", per
 [`seller-journeys/order-shipping.md`](seller-journeys/order-shipping.md). It borrows Customer
-Service's clock mechanics without sharing its licence-protection framing.
+Service's clock mechanics without sharing its licence-protection framing. **Mega Sale Readiness**
+(design-order item 5) sits in the same Operations slot and reaches across into Promotion: it
+prepares the campaign event that Process Order then has to survive.
 
 #### Seller-journey evidence
 
 Five Opus scouts read ~120 bodies from the TikTok Academy VN corpus (ADR-051 protocol) and
-aligned each journey to `execution_layer.md` step by step. The reports are committed beside this
-plan and are the source of truth for the corrections below:
+aligned each journey to `execution_layer.md` step by step. A sixth scout (mega-sale preparation,
+2026-09-03) swept the campaign/mega filter across both the academy and partner corpora. The reports
+are committed beside this plan and are the source of truth for the corrections below:
 
 | Journey | Report | Juli workflows aligned |
 |---|---|---|
@@ -1491,6 +1496,7 @@ plan and are the source of truth for the corrections below:
 | Order & Shipping, warehouses, capacity | [`seller-journeys/order-shipping.md`](seller-journeys/order-shipping.md) | 5, 6, 3 (warehouse touchpoints) |
 | Returns, refunds, cancellation | [`seller-journeys/returns-refunds.md`](seller-journeys/returns-refunds.md) | 8a, 8b, 8c |
 | Customers & customer service | [`seller-journeys/customers.md`](seller-journeys/customers.md) | Resolve Recurring Complaints (deferred), future responses |
+| Mega Sale preparation and peak-day operations | [`seller-journeys/mega-sale-prep.md`](seller-journeys/mega-sale-prep.md) | 5, 3, 7a–7c, 8; platform-campaign registration has NO Partner API |
 
 Eight findings change workflows rather than annotate them:
 
@@ -1521,20 +1527,52 @@ Eight findings change workflows rather than annotate them:
 Reordered from the 2026-09-02 proposal because Optimize Product — the template every later
 workflow copies — is misaligned on the one mechanism (pricing) that the Inventory and Promotion
 families share. Amended 2026-09-03 by owner decision: items 0 and 1 move into **W9-A**, ahead of
-P15's template extraction, and Process Order + Handle Split Package enter as an Operations item
-before the after-sales workflows.
+P15's template extraction, and Process Order + Handle Split Package enter the order as an
+Operations item (their position superseded by the 2026-09-03 reorder below).
+
+**Reordered again 2026-09-03 (owner), on the mega-sale scout's family-by-phase scoring.** Scoring the
+four families plus Operations separately for the two phases of a mega sale splits the answer. *During*
+the sale, Order Processing is the highest-scoring family on every axis (impact 5, pain 5, repetition 5,
+API reach 5) and Inventory is second (held back only by reach 3). *Preparation* pain is real but
+mostly **unreachable**: platform-campaign registration has no Partner API, and TikTok already ships
+one-click registration, recommended campaign price and stock, and a 30-day forecast. So Process Order
+becomes item 3 with mega-sale volume as its non-functional requirement, Mega Sale Readiness enters at
+item 5 as its preparation companion, and the Campaign & Promotion family moves back to item 7.
+
+*Preparation (T-30 → T-1)*
+
+| Family | Impact | Pain | Repetition | Reach | Composite |
+|---|---|---|---|---|---|
+| Promotion | 5 | 5 | 5 | 1 | 125 |
+| Inventory | 5 | 4 | 5 | 3 | 300 |
+| Product | 4 | 3 | 4 | 4 | 192 |
+| Order Processing | 3 | 2 | 3 | 1 | 18 |
+| Customer Service | 3 | 2 | 2 | 1 | 12 |
+
+*During the sale (T-day → T+3)*
+
+| Family | Impact | Pain | Repetition | Reach | Composite |
+|---|---|---|---|---|---|
+| Order Processing | 5 | 5 | 5 | 5 | 625 |
+| Inventory | 5 | 5 | 5 | 3 | 375 |
+| Customer Service | 4 | 4 | 5 | 2 | 160 |
+| Promotion | 3 | 2 | 3 | 4 | 72 |
+| Product | 2 | 1 | 1 | 2 | 4 |
+
+Composite is the product of the four columns — a ranking device only, not a unit of anything.
 
 | # | Item | Family | Wave | Scope |
 |---|---|---|---|---|
 | 0 | Template hardening | shared | **W9-A** (T-1..T-3); the rest with the first W10 workflow that needs it | `workflow_key` on `workflow_runs`; polymorphic bound subject (nullable `product_id`, active-run index on `(shop_id, workflow_key, subject_ref)`); domain-registered tool dispatcher replacing `ProductToolExecutor`'s literal handler dicts; shared prompt sections extracted per ADR-072 d.1; the two gate tests de-pinned from `optimize_product_2`; step input contracts (deferred-design half 1). **Also the deadline clock, the `waiting_external` run state and the autonomy ladder** (see NFR reference) — Inventory and Customer Service cannot ship without them |
 | 1 | Optimize Product pricing realignment | Product | **W9-A** — see [where it lands](#where-the-optimize-product-pricing-realignment-lands-2026-09-03) | Read TikTok's diagnostics first (before `get_seo_keywords`); reprice via Product Discount with the campaign/Flash-Deal precheck; title-length gate; never bundle the four listing fields. Introduces the first Promotion write tool. **design: [ADR-090](../../adr/090-optimize-product-realignment.md)** |
-| 2 | Clear Excess Inventory (4) | Inventory | W10 | Drop the markdown; lever chosen by eligibility; pre-submit validator (bands, duration, 14-day floor, stacking); end with the Thanh lý label. First workflow to exercise N > 1 decision options |
-| 3 | Campaign & Promotion family (7a–7c) | Promotion | W10 | Create / end / optimize across the four API lanes; monotonic edits as level-1 autonomy candidates; vouchers and campaigns as human checklists |
+| 2 | Clear Excess Inventory (4) | Inventory | W10 | Drop the markdown; pre-submit validator (bands, duration, floor, stacking); end with the Thanh lý label. First workflow to need `waiting_external`. **design: [ADR-091](../../adr/091-clear-excess-inventory-design.md)** |
+| 3 | Process Order (5) + Handle Split Package (6) | Operations | W10 | An everyday operations workflow whose **non-functional requirement is sustained high-volume processing during a mega sale**: order volume multiplies while the 14:00 cutoff, the 2–3-working-day auto-cancel, the 48 h cancellation window and LDR/FDR do not move. The deadline clock is the run's spine; `waiting_external` and its intervention guard are reused from ADR-091; inventory webhooks (#27/#68) drive an **oversell guard** that pauses dispatch proposals for a SKU whose available stock has reached zero; packing and handover are presented as a timed human checklist. Combine/split is decided at Create Packages, not downstream; an Update Delivery Status step for Ship-by-Seller; a failed-delivery terminal branch; OHC capacity and Holiday Mode as capacity levers; multi-warehouse modelled — [`seller-journeys/order-shipping.md`](seller-journeys/order-shipping.md) and [`seller-journeys/mega-sale-prep.md`](seller-journeys/mega-sale-prep.md) §B/§E |
 | 4 | Replenish Inventory (3), FBS | Inventory | W10 | Consume TikTok's recommended quantity; three write guards; supplier as a human-relayed **attested report**; `waiting_external` for the delivery wait; `received_quantity` stays a post-execution field |
-| 5 | Create Hero Product (1) | Product | W10 | Image → title → suggested category → attributes; draft vs submit; rejection loop distinguishing *Không thành công* (resubmit) from *Đóng băng* (terminal); 2026-03-20 licence attributes |
-| 6 | Process Order (5) + Handle Split Package (6) | Operations | W10 | SLA clock as first-class state (14:00 cutoff, 2–3 working-day auto-cancel, 48h cancel request, 15-day Ship-by-Seller); combine/split decided at Create Packages, not downstream; Update Delivery Status step for Ship-by-Seller; failed-delivery terminal branch; OHC capacity and Holiday Mode as capacity levers; multi-warehouse modelled — [`seller-journeys/order-shipping.md`](seller-journeys/order-shipping.md) |
-| 7 | Returns, Refunds, Cancellation (8a–8c) | Customer Service | W10 | Two-decision return model; TikTok timers as run state; every reject and negotiation offer prepared with evidence and paused for CONFIRM; AHT as the optimisation target |
-| 8 | Customer Service responses | Customer Service | W10 | Subscribe webhooks #13/#14; ingest 12HRR/CSAT/NRR; draft-only replies over the unanswered queue ranked by time-to-breach; evidence packs for report-invalid-review and report-abusive-buyer |
+| 5 | Mega Sale Readiness | Operations/Promotion | W10 | **New.** The T-10 preparation companion to item 3: one card per campaign event (the subject is the campaign, not a product), carrying a **read-only briefing** — eligibility pre-flight, a per-SKU max-safe campaign price computed from the seller's own margin floor and 30–180-day price memory, a stock reservation plan, and the registration deadline on the deadline clock — that ends in a Seller Center checklist. The single write is post-approval **promo-stacking cleanup**: deactivate the seller promotions the campaign price silences. **Platform-campaign registration has no Partner API**, so nothing about registration is ever a write Juli performs — [`seller-journeys/mega-sale-prep.md`](seller-journeys/mega-sale-prep.md) §E |
+| 6 | Create Hero Product (1) | Product | W10 | Image → title → suggested category → attributes; draft vs submit; rejection loop distinguishing *Không thành công* (resubmit) from *Đóng băng* (terminal); 2026-03-20 licence attributes |
+| 7 | Campaign & Promotion family (7a–7c) | Promotion | W10 | Create / end / optimize across the four API lanes; monotonic edits as level-1 autonomy candidates; vouchers and campaigns as human checklists. *Proposed, not yet grilled:* the family's first workflow is **Optimize Promotion** over existing seller-created activities, whose subject already exists under ADR-087; standalone creation is deferred behind it |
+| 8 | Returns, Refunds, Cancellation (8a–8c) | Customer Service | W10 | Two-decision return model; TikTok timers as run state; every reject and negotiation offer prepared with evidence and paused for CONFIRM; AHT as the optimisation target |
+| 9 | Customer Service responses | Customer Service | W10 | Subscribe webhooks #13/#14; ingest 12HRR/CSAT/NRR; draft-only replies over the unanswered queue ranked by time-to-breach; evidence packs for report-invalid-review and report-abusive-buyer |
 | — | Deferred | — | — | FBT replenishment (scope + onboarded shop); Livestream (no write API) |
 
 #### Automation vs monitoring — non-functional-requirement reference
@@ -1568,7 +1606,11 @@ hours. The always-on layer is therefore an **event and deadline layer**, and aut
 4. **`waiting_external` run state.** A run that must wait days (supplier delivery, campaign
    review, return ship-back) suspends with its own reaper policy and resumes on a seller-attested
    report or a webhook — never by reusing `waiting_approval`, whose 4h reaper and paused
-   wall-clock are load-bearing for consent expiry.
+   wall-clock are load-bearing for consent expiry. The **intervention guard** — snapshot what the
+   run created, compare on every external change event, and close the run when the seller has
+   changed it — is part of `waiting_external`, not a per-workflow rule
+   ([ADR-091](../../adr/091-clear-excess-inventory-design.md) d.5). **Clear Excess is the first
+   workflow that needs `waiting_external`**, so it lands with design-order item 0, ahead of item 2.
 
 Per-family plan:
 
@@ -1601,6 +1643,8 @@ Per-family plan:
 | Product video ≤ 5 MB (policy) vs ≤ 20 MB (guide) | listing policy vs feature guide | 5 MB |
 | Response rate 24h (Store Rating, analytics tile) vs 12h (enforcement) | chat feature page vs communication policy | Model both; enforce on 12h |
 | 7c Update Activity `POST` vs `PUT` | `execution_layer.md:301-306` vs `contract-collection.md:1201` | `PUT` |
+| Flash-sale price-floor lookback 14 days vs 30 days | newer product flash-sale page vs older LIVE flash-sale page | **30 days** (conservative) |
+| `Search Activities` "does not exist" vs documented in the Partner API | `execution_layer.md:290-293` vs `partner-catalog.json` `POST /promotion/202309/activities/search` | Capture it on the sandbox before relying on it either way |
 
 #### Edge-case matrix — unchanged
 
