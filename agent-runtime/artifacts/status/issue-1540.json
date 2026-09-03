@@ -4,7 +4,7 @@
   "metrics": {
     "acceptanceMapped": 4,
     "acceptanceTotal": 4,
-    "criticalFindings": 4,
+    "criticalFindings": 6,
     "modulesTouched": [
       "agent-runtime/scripts/ci",
       "agent-runtime/config",
@@ -14,19 +14,19 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1540.json",
     "ownerSignoffPresent": true,
-    "sha256": "1ad7fa072502fe7b93064d326ca5bf9d8ba5abb000619447eb58e696a1b09dc5",
+    "sha256": "39144fa045ee9edd747342dacc831d4662bebb4c57b2ab5c4f393b5c33623654",
     "signoffRequired": false,
-    "status": "PASS",
+    "status": "FAIL",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 10013,
-      "validationBytes": 22489
+      "reviewBytes": 14170,
+      "validationBytes": 25298
     },
     "claimVsExecuted": {
       "citedCommandCount": 11,
-      "invokedCommandCount": 10065,
+      "invokedCommandCount": 10090,
       "matchedCommandCount": 0,
       "reason": "11 of 11 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
@@ -132,59 +132,11 @@
       },
       "ciWorkflow": ".github/workflows/pr.yml",
       "commandsCited": 1,
-      "invocations": [
-        {
-          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
-          "ciDeselectedMarkers": [
-            "demo_contract",
-            "live",
-            "migration_heavy",
-            "phase_scaffold"
-          ],
-          "ciSelector": "tests",
-          "citedCommand": "'PYTHONPATH=$PWD/backend/src' python -m pytest tests/unit/test_harness_bootstrap_pin.py tests/unit/test_ensure_workflow_cache.py tests/unit/test_harness_config.py tests/unit/test_public_release_meta_gates.py tests/unit/test_ratchets.py -q",
-          "citedDeselectedMarkers": [],
-          "citedSelector": "tests/unit/test_harness_bootstrap_pin.py tests/unit/test_ensure_workflow_cache.py tests/unit/test_harness_config.py tests/unit/test_public_release_meta_gates.py tests/unit/test_ratchets.py",
-          "extraDeselectedMarkers": [],
-          "keywordFilter": null,
-          "nodeIds": [],
-          "pathsFromTestpaths": false,
-          "reasons": [
-            "paths_not_subsuming"
-          ],
-          "selectedMarkers": [],
-          "tool": "pytest",
-          "verdict": "narrower_than_CI"
-        }
-      ],
-      "invocationsScored": 1,
-      "invocationsUnrecognised": 0,
-      "narrowerCount": 1,
-      "narrowerThanCI": [
-        {
-          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
-          "ciDeselectedMarkers": [
-            "demo_contract",
-            "live",
-            "migration_heavy",
-            "phase_scaffold"
-          ],
-          "ciSelector": "tests",
-          "citedCommand": "'PYTHONPATH=$PWD/backend/src' python -m pytest tests/unit/test_harness_bootstrap_pin.py tests/unit/test_ensure_workflow_cache.py tests/unit/test_harness_config.py tests/unit/test_public_release_meta_gates.py tests/unit/test_ratchets.py -q",
-          "citedDeselectedMarkers": [],
-          "citedSelector": "tests/unit/test_harness_bootstrap_pin.py tests/unit/test_ensure_workflow_cache.py tests/unit/test_harness_config.py tests/unit/test_public_release_meta_gates.py tests/unit/test_ratchets.py",
-          "extraDeselectedMarkers": [],
-          "keywordFilter": null,
-          "nodeIds": [],
-          "pathsFromTestpaths": false,
-          "reasons": [
-            "paths_not_subsuming"
-          ],
-          "selectedMarkers": [],
-          "tool": "pytest",
-          "verdict": "narrower_than_CI"
-        }
-      ],
+      "invocations": [],
+      "invocationsScored": 0,
+      "invocationsUnrecognised": 1,
+      "narrowerCount": 0,
+      "narrowerThanCI": [],
       "unit": "invocation",
       "unitRationale": "76 corpus commands chain 2-5 runs; scoring per command lets a broad first run launder a narrow second one, so each invocation is scored on its own selector."
     },
@@ -238,7 +190,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1540-bootstrap-pin",
-        "head": "029cae7188078859251be01d8c19323863d9e4ef",
+        "head": "02dc41294f6785adb10f97766876828df5da08d7",
         "shallow": true
       },
       "moduleResolution": {
@@ -387,11 +339,11 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-03T09:29:34Z",
+  "timestamp": "2026-09-03T09:49:01Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1540.json",
-    "sha256": "21eb57e88e43003d5a7d11221e9013c57a7479035fed05f710848d72cd566195",
-    "status": "PASS"
+    "sha256": "57edae09b19cc303cbd5e3342d79bc30ea87ec44177e1fabe57d863c1c167e2f",
+    "status": "FAIL"
   },
   "wave": "wave-harness-e-w5"
 }
