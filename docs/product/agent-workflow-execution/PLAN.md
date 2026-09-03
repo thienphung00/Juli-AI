@@ -31,7 +31,7 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 11d | P-PROD — Production-write unlock (NEW) | 🟨 **W7 — planned and filed 2026-08-25**, in parallel with W6. Design [ADR-085](../../adr/085-production-write-preconditions.md), amending ADR-061 d.1 (its RLS deferral's trigger has fired). PRD [#1325](https://github.com/thienphung00/Juli-AI/issues/1325); thirteen slices + gate [#1339](https://github.com/thienphung00/Juli-AI/issues/1339) — see [Wave 7](#wave-7--the-owner-can-authorize-one-real-change-and-prove-it-was-safe-2026-08-25). **Scope corrected:** RLS is absent-not-deferred (policies key off a GUC nothing sets, and the app connects as the table *owner*, which Postgres exempts); the table count is 37, not 13; ADR-050 C2 is removed from this wave. Gates P-IM's real reading and P10's business-impact metric | ⬜ |
 | 12 | P10 — Observability baseline | ⬜ **W8** | ⬜ |
 | 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ **W9** (with P7) | ⬜ |
-| 14 | P13 — Edge cases + rollout to remaining 10 workflows | ⬜ **W10** | ⬜ |
+| 14 | P13 — Family charter, seller journeys + rollout of the remaining workflows | 🟨 **charter recorded 2026-09-03** — four families (Product, Inventory, Campaign & Promotion, Customer Service), Livestream and Process Order removed from the design order, eight seller-journey corrections, automation/monitoring NFR grades — see [P13](#14-p13--family-charter-seller-journeys-and-rollout-of-the-remaining-workflows-charter-grilled-2026-09-03-supersedes-rollout-to-remaining-10-workflows); grill in progress; **W10** for rollout | ⬜ |
 | 15 | P6 — Documentation retrieval tool (deferred, optional) | ⬜ | ⬜ |
 
 ## Wave 2 status — re-run inside the harness contract (2026-08-14)
@@ -681,7 +681,7 @@ named for the phases they implement.
 | **W7 — P-PROD** | 11d (NEW) | 🟨 **PLANNED AND FILED 2026-08-25** · PRD #1325, ADR-085 · W7-A isolation #1326–#1330 · W7-B red-team harness #1331–#1334 · W7-C write machinery #1335–#1337 · W7-D measurement #1338 · gate #1339 — see [Wave 7](#wave-7--the-owner-can-authorize-one-real-change-and-prove-it-was-safe-2026-08-25). **ADR-050 C2 removed from this wave** and deferred with its own trigger | **W6** |
 | **W8 — P10** | 12 | Logging baseline re-verification, per-run rollup, the five-link outcome chain, the four unconflated metrics · closes #1226's second half | — |
 | **W9 — P15 + P7** | 13, 9 | Hardening pass over the whole Optimize Product path; extract the per-workflow config template (prompt + allowlist + **output schema**) · P7 structured output contract | — |
-| **W10 — P13** | 14 | Edge-case matrix; register the 4 unregistered tool handlers; onboard the remaining ten workflows via the template | — |
+| **W10 — P13** | 14 | Edge-case matrix; register the 4 unregistered tool handlers; onboard the remaining workflows via the template **in the P13 design order** (Optimize Product realignment → Clear Excess → Promotion family → Replenish FBS → Create Hero Product → 8a–8c → CS responses) | — |
 
 ### Filed work — W4 and W5
 
@@ -1376,10 +1376,176 @@ Minimal specs: hardening pass over the full Optimize Product path (frontend + ba
 
 Gate: demo-able, repeatable, documented run; template extraction reviewed.
 
-### 14. P13 — Edge cases + rollout to remaining 10 workflows
-Minimal specs: work the edge-case matrix (API down/timeouts, malformed LLM output, unavailable tool, rate limits, cancellation, disconnects, duplicates, partial completion) against Optimize Product; then onboard each remaining workflow via the template, registering the 4 missing tool handlers as their workflows land.
+### 14. P13 — Family charter, seller journeys, and rollout of the remaining workflows *(charter grilled 2026-09-03; supersedes "rollout to remaining 10 workflows")*
 
-Gate: edge-case matrix green; each workflow onboarded with its own prompt/allowlist/schema + tests.
+**Status: charter recorded, design order proposed, grill in progress.** This section is the
+reference for every workflow designed after Optimize Product: the family purpose below is the
+context for each workflow's **functional** requirements, and the automation/monitoring grades
+are the reference for its **non-functional** requirements. Read this before `to-prd` on any
+workflow issue.
+
+#### Positioning — four families, two removals
+
+Juli is an AI assistant that automates and monitors a TikTok Shop through analytics and
+approval-gated end-to-end execution, in this priority order: **Product** (create, optimize),
+**Inventory** (replenish, clear excess), **Campaign & Promotion** (create, end, optimize), and
+**Customer Service** (returns/refunds/cancellations, then responses) last.
+
+- **Livestream is not an automation target.** The Partner API has no livestream write endpoint;
+  every live-related call is an analytics read, and ADR-067 already fixed livestream as
+  recommendation-only. Do not design a livestream execution workflow.
+- **Process Order (5) and Handle Split Package (6) are outside the four families.** Their
+  seller-journey findings are kept in [`seller-journeys/order-shipping.md`](seller-journeys/order-shipping.md)
+  for accuracy, but they are not in the design order.
+- **FBS before FBT.** FBT appears once in 839 Vietnamese academy pages, needs the
+  `seller.fbt.inbound` OAuth scope Juli does not hold, an FBT-onboarded merchant and a goods-binding
+  step, and no FBT call has ever been captured. FBT branches stay deferred until all three exist.
+
+#### What each family is for — functional-requirement context
+
+The seller is not short of information: Seller Center already grades every listing, tiers every
+price, forecasts every SKU and clocks every chat. The seller is short of time, and one wrong
+automated write costs more than a missed opportunity. Each family exists to make one class of
+judgment call once, with consent, and carry it through.
+
+| Family | Seller's purpose | Main KPI | What TikTok already gives the seller | Where Juli adds value |
+|---|---|---|---|---|
+| **Product** | Get found and get chosen — the product page is the only surface a buyer sees before paying | CTOR | Product Optimizer diagnostic tags, title optimizer with search-volume scores, Price Diagnostics tiers, 14 card-diagnostic recommendations | Decide *which* suggestion to accept and *whether* a price move is safe, then execute it as one consented change. Reprice through a Product Discount, never the base price |
+| **Inventory** | Never sell what you do not have; never hold what will not sell | GMV (replenish), AOV (clear excess) | 30-day forecast, recommended replenishment quantity, days of supply, four alert channels, the Sản phẩm thanh lý clearance label | Reconcile to TikTok's numbers instead of competing with them; guard the stock write against auto-restock, the Luôn sẵn hàng lock and multi-warehouse; relay the supplier as a seller-attested fact; clear through the label, not zero stock |
+| **Campaign & Promotion** | Spend margin only where it buys sales — every promo is seller-funded and price-remembered | CTOR | Discount bands, duration bounds, the 14-day floor, stacking priority, a pricing simulator — all enforced for a human in the UI, only rejected for an API caller | Pre-submit validation, lever chosen by eligibility (rating ≥ 2.5 ∧ VP < 36 ∧ balance > −100 USD), safe monotonic edits (extend, raise limits/budget, deactivate expired); vouchers and campaigns as guided checklists since they have no API |
+| **Customer Service** | Protect the licence to operate — rating, Account Health, campaign and CRM access | Cancellation rate, AHT, 12HRR | Its own clocks (48h / 1d / 2d / 12h), platform pre-approval, Fast Refund, a chatbot, FAQ auto-send, proactive shipping messages and the Trợ lý Nhà Bán Hàng copilot | Triage by time-to-breach, two-decision return model, evidenced rejections and one-shot negotiation/appeal drafted for confirmation, evidence packs for the sanctioned repair paths. Never auto-send, never auto-reject |
+
+#### Seller-journey evidence
+
+Five Opus scouts read ~120 bodies from the TikTok Academy VN corpus (ADR-051 protocol) and
+aligned each journey to `execution_layer.md` step by step. The reports are committed beside this
+plan and are the source of truth for the corrections below:
+
+| Journey | Report | Juli workflows aligned |
+|---|---|---|
+| Product — create, optimize, stock | [`seller-journeys/product.md`](seller-journeys/product.md) | 1, 2, 3, 4 |
+| Campaign & Promotion | [`seller-journeys/promotion.md`](seller-journeys/promotion.md) | 4, 7a–7c |
+| Order & Shipping, warehouses, capacity | [`seller-journeys/order-shipping.md`](seller-journeys/order-shipping.md) | 5, 6, 3 (warehouse touchpoints) |
+| Returns, refunds, cancellation | [`seller-journeys/returns-refunds.md`](seller-journeys/returns-refunds.md) | 8a, 8b, 8c |
+| Customers & customer service | [`seller-journeys/customers.md`](seller-journeys/customers.md) | Resolve Recurring Complaints (deferred), future responses |
+
+Eight findings change workflows rather than annotate them:
+
+1. **TikTok reprices through discounts and vouchers, not the base price.** Optimize Product step 6
+   and Clear Excess step 3 both call `prices/update`; Price Diagnostics applies a Product Discount
+   (SKU) or Seller Voucher (product), 30-day default, held ≥ 1 day. This affects the working
+   `optimize_product_2` playbook.
+2. **Clear Excess's "baseline markdown before every promotion" is harmful** — it compounds with
+   percentage promos, is blocked under fixed-price promos, raises the 14-day flash-sale floor and
+   tightens 30–180-day campaign thresholds permanently.
+3. **TikTok already computes the replenishment number** (forecast × period − available) and days
+   of supply; T1/T10 must reconcile to it.
+4. **Clearance has a native end state** — the Sản phẩm thanh lý label; a 0-stock SKU cannot be
+   labelled and adding stock strips it. Clear Excess step 6a is the wrong end state.
+5. **After-sales is a race against TikTok's clocks** — 48h cancellation auto-cancel, 1-day
+   intake auto-approve, 2-day inspection auto-approve that also forfeits the appeal; VN window is
+   15 days (6 for several categories), not 30; returns carry two seller decisions, not one.
+6. **The enforced service metric is a 12-hour response rate ≥ 85 %** graded every Monday
+   (−10/−20 AHR). Juli's curated `account-health.md:67` still records a legacy 24h figure.
+7. **Promotion has three lanes** — API-automatable (product discount, shop flash sale, shipping
+   discount, BMSM), Seller-Center-only (all vouchers), human-only (campaigns). Ongoing edits are
+   monotonic only. Analytics are D-1. 7c is `PUT`, not `POST`.
+8. **Never edit title, category, images and description together** — that is the fingerprint of
+   the listing-repurposing violation. Title ≥ 25 characters is enforced on the next edit.
+
+#### Workflow design order
+
+Reordered from the 2026-09-02 proposal because Optimize Product — the template every later
+workflow copies — is misaligned on the one mechanism (pricing) that the Inventory and Promotion
+families share.
+
+| # | Item | Family | Scope |
+|---|---|---|---|
+| 0 | Template hardening | shared | `workflow_key` on `workflow_runs`; polymorphic bound subject (nullable `product_id`, active-run index on `(shop_id, workflow_key, subject_ref)`); domain-registered tool dispatcher replacing `ProductToolExecutor`'s literal handler dicts; shared prompt sections extracted per ADR-072 d.1; the two gate tests de-pinned from `optimize_product_2`; step input contracts (deferred-design half 1). **Also the deadline clock, the `waiting_external` run state and the autonomy ladder** (see NFR reference) — Inventory and Customer Service cannot ship without them |
+| 1 | Optimize Product realignment | Product | Read TikTok's diagnostics first (before `get_seo_keywords`); reprice via Product Discount with the campaign/Flash-Deal precheck; title-length gate; never bundle the four listing fields. Introduces the first Promotion write tool |
+| 2 | Clear Excess Inventory (4) | Inventory | Drop the markdown; lever chosen by eligibility; pre-submit validator (bands, duration, 14-day floor, stacking); end with the Thanh lý label. First workflow to exercise N > 1 decision options |
+| 3 | Campaign & Promotion family (7a–7c) | Promotion | Create / end / optimize across the four API lanes; monotonic edits as level-1 autonomy candidates; vouchers and campaigns as human checklists |
+| 4 | Replenish Inventory (3), FBS | Inventory | Consume TikTok's recommended quantity; three write guards; supplier as a human-relayed **attested report**; `waiting_external` for the delivery wait; `received_quantity` stays a post-execution field |
+| 5 | Create Hero Product (1) | Product | Image → title → suggested category → attributes; draft vs submit; rejection loop distinguishing *Không thành công* (resubmit) from *Đóng băng* (terminal); 2026-03-20 licence attributes |
+| 6 | Returns, Refunds, Cancellation (8a–8c) | Customer Service | Two-decision return model; TikTok timers as run state; every reject and negotiation offer prepared with evidence and paused for CONFIRM; AHT as the optimisation target |
+| 7 | Customer Service responses | Customer Service | Subscribe webhooks #13/#14; ingest 12HRR/CSAT/NRR; draft-only replies over the unanswered queue ranked by time-to-breach; evidence packs for report-invalid-review and report-abusive-buyer |
+| — | Deferred | — | Process Order, Handle Split Package; FBT replenishment (scope + onboarded shop); Livestream (no write API) |
+
+#### Automation vs monitoring — non-functional-requirement reference
+
+Scale: **A** — the family's value depends on it; **B** — matters but is bounded by TikTok's rules
+or data cadence; **C** — deliberately weak.
+
+| Family | Monitoring | Automation | Why the balance sits there |
+|---|---|---|---|
+| Product | B | A | Listings change slowly; daily cadence suffices. Value is executing a judged change well, once, with consent. No write is ever pre-approved |
+| Inventory | A | B | Stock is the fastest-moving state after orders and depletes at night. Juli cannot execute the supplier step, so watching and prompting is most of the value. Clear Excess is the exception and automates fully behind one CONFIRM |
+| Campaign & Promotion | B | A | Analytics are D-1, so no intraday optimizer. TikTok's ongoing-edit matrix (extend window, raise limits/budget, deactivate expired/exhausted) defines the highest pre-approval ceiling of any family |
+| Customer Service | A | C | The family is clocks graded automatically; 24/7 monitoring *is* the product. Sending, rejecting, negotiating and appealing are one-shot, policy-exposed acts that stay human |
+
+What "24/7" means on TikTok Shop: at night and on weekends the shop still receives orders, chats,
+cancellation and return requests, stock depletion from a creator's video, and promos that expire
+or exhaust their limit. Listing edits, campaign registrations and reorders happen in business
+hours. The always-on layer is therefore an **event and deadline layer**, and automation is a
+**consent ladder** on top of it. Four shared mechanisms carry all four families:
+
+1. **Event spine.** The webhook-first spine (ADR-048) already ingests 16 event types; add #13
+   New conversation and #14 New message. Each event revises the subject-scoped action card
+   (ADR-087) rather than minting a new one.
+2. **Deadline clock.** One beat task computes time-to-breach for every open request and order
+   from TikTok's real timers (48h / 1d / 2d / 12h / 14:00 cutoff / 2–3 working days) and escalates
+   by push, then email. Depends on the W7-bis fix (#1469) so beat tasks can read tenant rows.
+3. **Autonomy ladder tied to Repeat consent (ADR-055 d.19).** Level 0 notifies. Level 1 is
+   pre-approval with notification, granted once per workflow kind after a `completed` run, and
+   only for reversible or monotonic writes. There is no level 2. Price setting, stock writes,
+   rejections and anything one-shot never leave level 0. No-auto-act copy still bars the ask.
+4. **`waiting_external` run state.** A run that must wait days (supplier delivery, campaign
+   review, return ship-back) suspends with its own reaper policy and resumes on a seller-attested
+   report or a webhook — never by reusing `waiting_approval`, whose 4h reaper and paused
+   wall-clock are load-bearing for consent expiry.
+
+Per-family plan:
+
+- **Product.** Monitoring: nightly scoring over CTOR drift, price tier and TikTok's own listing
+  diagnostics; product status (#5) and audit (#37) webhooks. Automation: card → approve → run →
+  CONFIRM per write → impact reading. Success metric: approval rate on well-reasoned single changes.
+- **Inventory.** Monitoring: inventory webhooks #27/#68 plus days-of-supply, reconciled against
+  TikTok's recommended reorder number; night-time depletion triggers a push, not a run.
+  Automation: Replenish auto-safe steps are exporting the replenishment list and drafting the
+  purchase request; the quantity write only after the seller attests receipt and passes the three
+  guards. Clear Excess automates fully behind one CONFIRM.
+- **Campaign & Promotion.** Monitoring: activity webhooks #39/#63, daily eligibility signals,
+  stock-limit exhaustion, expiry, and the campaign calendar surfaced 14 days ahead. Automation:
+  creation and any price-bearing change CONFIRM-only; extend/raise/deactivate as level-1
+  candidates; optimisation on a daily loop.
+- **Customer Service.** Monitoring: a live queue ordered by time-to-breach across cancellations,
+  returns, refunds and chats, with 12h and Monday grading modelled explicitly and rolling AHT.
+  Automation: level 1 only for acts TikTok already performs (intake-stage approvals inside the
+  seller's configured envelope). Rejections, partial-refund offers, appeals and any reply beyond a
+  status restatement are drafted with evidence and paused for CONFIRM. Nothing is auto-sent.
+
+#### Documentation conflicts to resolve before implementation
+
+| Conflict | Sources | Safe bound |
+|---|---|---|
+| Fulfilment cutoff 14:00 (academy, crawled 2026-07) vs 18:00 "effective Dec 1, 2025" | academy fulfilment-timeframe policy vs `tiktok_platform/seller/operational-limits.md:97-99` | Resolve before T5 Deadline Rule ships |
+| Return appeal window 7 vs 15 calendar days | dispute rules vs refund FAQ | 7 days |
+| Platform refund-only appeal 7 calendar days vs 3 business days | feature guide vs agreement §4.2.1 | 3 business days |
+| Flash sale "API không được hỗ trợ" vs verified sandbox `FLASHSALE` create | VN flash-sale page vs `contract-collection.md` §B-5 | Verify on the sandbox before relying on it |
+| Product video ≤ 5 MB (policy) vs ≤ 20 MB (guide) | listing policy vs feature guide | 5 MB |
+| Response rate 24h (Store Rating, analytics tile) vs 12h (enforcement) | chat feature page vs communication policy | Model both; enforce on 12h |
+| 7c Update Activity `POST` vs `PUT` | `execution_layer.md:301-306` vs `contract-collection.md:1201` | `PUT` |
+
+#### Edge-case matrix — unchanged
+
+Work the matrix (API down/timeouts, malformed LLM output, unavailable tool, rate limits,
+cancellation, disconnects, duplicates, partial completion) against Optimize Product first, then
+carry it into each onboarded workflow; register the 4 missing tool handlers as their workflows land.
+
+**Gate (revised):** edge-case matrix green; `execution_layer.md` corrected for the eight findings;
+each workflow designed against its family charter and its seller-journey report, with its NFR
+grades stated in the PRD; the four shared mechanisms landed in step 0 before any workflow that
+needs them.
 
 ### 15. P6 — Documentation retrieval (deferred)
 Optional `search_juli_documentation` tool over curated docs (ADR-051 catalog pattern, not embeddings). Only if agent answers need it.
