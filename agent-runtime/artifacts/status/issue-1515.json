@@ -24,7 +24,7 @@
     },
     "claimVsExecuted": {
       "citedCommandCount": 2,
-      "invokedCommandCount": 9604,
+      "invokedCommandCount": 9623,
       "matchedCommandCount": 0,
       "reason": "2 of 2 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
@@ -286,9 +286,9 @@
       "executable": "/Users/macos/Juli-AI-v2/.venv/bin/python",
       "git": {
         "baseDistanceUnavailable": null,
-        "behindOriginMain": 0,
+        "behindOriginMain": 2,
         "branch": "feature/issue-1515-settle-boundary",
-        "head": "bc916423e850389c6e5bcab6940fd0db5861a3ea",
+        "head": "d28bc55a23f5c036b8ccbcb3a296c66be7a41088",
         "shallow": false
       },
       "moduleResolution": {
@@ -446,10 +446,10 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-03T00:42:59Z",
+  "timestamp": "2026-09-03T00:48:58Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1515.json",
-    "sha256": "26553c75d50518a1da34bc1ecc17921c606e7e730831998faf20cf200a46f28a",
+    "sha256": "8f0bdfda7bd73615db6bb80859ab5f34379ff693e70f9853570e7790c0381b4c",
     "status": "PASS"
   },
   "wave": "wave-harness-e-w4"
