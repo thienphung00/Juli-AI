@@ -83,7 +83,11 @@ turns on. *Write/Edit-to-Read ratio* is a proxy with no ground truth behind it.
 The directive was cross-checked against the artifact-write signal over all 203
 transcripts on the live store: zero contradictions — no directive-classified
 executor wrote a review artifact without also writing an implementation one,
-and no directive-classified reviewer wrote an implementation artifact.
+and no directive-classified reviewer wrote an implementation artifact. That
+cross-check was a one-off offline measurement taken while choosing the signal.
+It is **not** shipped: nothing below reads artifact writes, and no test asserts
+the agreement. Re-run it by hand before trusting it again, and do not read the
+paragraph above as a guard that is still running.
 
 Only the **head** of the directive is read, and that bound is load-bearing. An
 executor's brief routinely quotes the reviewer who filed the issue, and a
@@ -174,7 +178,10 @@ _ROLE_MARKERS: tuple[tuple[str, re.Pattern[str]], ...] = (
 #: with an imperative ("Implement issue #N", "Review issue #N") or with a
 #: self-description ("You are the ui-ux Executor for ..."), and on the live
 #: store the role word lands within eight tokens in every prompt this module
-#: classifies — the deepest is token five. Reading further is what lets a
+#: classifies — but only just: the deepest sits at token seven ("You are
+#: performing an ADVERSARIAL correctness review of ...", "You are doing a
+#: FINAL, TIGHT re-review of ..."), so the headroom is one token, not three.
+#: Widen this only against a fresh measurement. Reading further is what lets a
 #: quoted reviewer or a named executor deeper in the brief flip the answer.
 DIRECTIVE_TOKENS = 8
 
