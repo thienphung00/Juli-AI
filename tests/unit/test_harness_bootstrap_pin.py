@@ -154,6 +154,76 @@ def test_self_referential_anchor_specs_are_all_rejected(
     assert "symbolic" in description.lower()
 
 
+@pytest.mark.parametrize(
+    "spec",
+    [
+        "merge-base:HEAD",
+        "merge-base:@",
+        "merge-base:HEAD~1",
+        "feature/issue-1540-bootstrap-pin",
+        "refs/heads/feature/issue-1540-bootstrap-pin",
+        "merge-base:feature/issue-1540-bootstrap-pin",
+    ],
+)
+def test_self_reference_cannot_return_through_the_new_syntax(
+    harness_repo: tuple[Path, str], spec: str
+) -> None:
+    """The defect must not be reachable by a one-line config edit.
+
+    Two shapes the string guard alone does not see. ``merge-base:HEAD`` slips
+    past a check applied only to the whole spec, because the prefix is stripped
+    afterwards and ``git merge-base HEAD HEAD`` is HEAD. Naming the checked-out
+    branch does the same without the word HEAD appearing at all. Both restore
+    exactly the bug #1540 exists to remove, so both must fail closed at the
+    resolver, not merely be caught by the shipped-config assertion below.
+    """
+    repo, fork_point = harness_repo
+    passed, description, _ = _validate(repo, _parent(spec, fork_point))
+    assert passed is False
+    assert "symbolic" in description.lower() or "checked-out branch" in description
+
+
+def test_self_referential_specs_are_refused_at_cache_write_time(
+    harness_repo: tuple[Path, str],
+) -> None:
+    """Fail closed when the pin is *written*, not only when it is read.
+
+    Architect lock 2: recording a ref that will re-resolve differently is the
+    thing that must never happen, so ``bootstrap_ref_from_git`` refuses rather
+    than storing a pin the reader will later reject.
+    """
+    repo, _ = harness_repo
+    for spec in ("HEAD", "merge-base:HEAD", "feature/issue-1540-bootstrap-pin"):
+        with pytest.raises(RuntimeError):
+            pin.bootstrap_ref_from_git(spec, repo)
+
+
+def test_a_self_referential_spec_cannot_launder_committed_harness_drift(
+    harness_repo: tuple[Path, str],
+) -> None:
+    """The end-to-end lock-6 assertion: real drift, re-pinned, must stay red.
+
+    Anchoring to the branch tip and regenerating the cache would make every
+    change made before *now* invisible — clearing a red by editing gate
+    configuration, which is precisely what lock 6 forbids.
+    """
+    repo, fork_point = harness_repo
+    _write(repo, SKILL_REL, "# backend skill\nreal committed harness drift\n")
+    _commit(repo, "chore: drift the harness")
+
+    # The correct anchor bites.
+    passed, description, _ = _validate(repo, _parent("merge-base:main", fork_point))
+    assert passed is False
+    assert SKILL_REL in description
+
+    # And no self-referential re-pin can un-bite it, at write time or read time.
+    for spec in ("merge-base:HEAD", "feature/issue-1540-bootstrap-pin"):
+        with pytest.raises(RuntimeError):
+            pin.bootstrap_ref_from_git(spec, repo)
+        laundered, _, _ = _validate(repo, _parent(spec, _git(repo, "rev-parse", "HEAD")))
+        assert laundered is False
+
+
 def test_pin_survives_branch_commits_without_harness_drift(
     harness_repo: tuple[Path, str],
 ) -> None:

@@ -37,6 +37,52 @@ def is_self_referential_anchor(spec: str) -> bool:
     return candidate.startswith(_SELF_REFERENTIAL_PREFIXES)
 
 
+def current_branch_names(repo_root: Path) -> frozenset[str]:
+    """Every spelling of the branch currently checked out, or empty when detached.
+
+    Pinning to the branch you are standing on is the same defect as pinning to
+    ``HEAD``, spelled differently: the anchor tracks the tip it is meant to
+    measure against. The string guard cannot see it, so resolve it.
+    """
+    try:
+        name = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=repo_root,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+        ).strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return frozenset()
+    if not name or name == "HEAD":  # detached: no branch name to collide with
+        return frozenset()
+    return frozenset({name, f"refs/heads/{name}", f"heads/{name}"})
+
+
+def reject_self_referential_ref(ref: str, spec: str, repo_root: Path) -> None:
+    """Raise when ``ref`` resolves to the checked-out branch's own tip.
+
+    Applied to the whole spec *and*, after the prefix is stripped, to the base
+    ref of a ``merge-base:`` spec. Checking only the whole spec leaves
+    ``merge-base:HEAD`` accepted, which is the original defect wearing the new
+    syntax: ``git merge-base HEAD HEAD`` is HEAD.
+    """
+    if is_self_referential_anchor(ref):
+        raise RuntimeError(
+            f"bootstrap pin spec {spec!r} is symbolic: it re-resolves at check time to "
+            "the checked-out branch's own tip, so the gate would compare the branch against "
+            "itself and could never detect harness drift. Use 'merge-base:<base-ref>' "
+            "(recommended) or an explicit commit SHA."
+        )
+    if ref in current_branch_names(repo_root):
+        raise RuntimeError(
+            f"bootstrap pin spec {spec!r} names the checked-out branch {ref!r}, so it "
+            "resolves to that branch's own tip and moves with every commit. The gate would "
+            "compare the branch against itself and could never detect harness drift. Use "
+            "'merge-base:<base-ref>' against an integration base instead."
+        )
+
+
 def git_rev_parse(ref: str, repo_root: Path) -> str:
     try:
         output = subprocess.check_output(
@@ -84,8 +130,9 @@ def resolve_bootstrap_anchor_with_note(spec: str, repo_root: Path) -> tuple[str,
     ``<ref>`` or ``<sha>``
         Any ref or explicit SHA that is not tied to the checked-out branch.
 
-    Rejected: symbolic self-references (``HEAD``, ``@``, ``HEAD~1``, …). Failing
-    closed here is the point — the previous behaviour silently accepted ``HEAD``
+    Rejected: symbolic self-references (``HEAD``, ``@``, ``HEAD~1``, …), the
+    checked-out branch's own name, and both of those as the base of a
+    ``merge-base:`` spec. Failing closed here is the point — the previous behaviour silently accepted ``HEAD``
     and produced a gate that could only pass on a branch that had done no work.
 
     Returns ``(sha, degradation_note)``. The note is non-``None`` when the fork
@@ -101,19 +148,16 @@ def resolve_bootstrap_anchor_with_note(spec: str, repo_root: Path) -> tuple[str,
         raise RuntimeError(
             "bootstrap pin spec is empty; set workflow_prompt_cache.bootstrap.pinBranch"
         )
-    if is_self_referential_anchor(candidate):
-        raise RuntimeError(
-            f"bootstrap pin spec {candidate!r} is symbolic: it re-resolves at check time to "
-            "the checked-out branch's own tip, so the gate would compare the branch against "
-            "itself and could never detect harness drift. Use 'merge-base:<base-ref>' "
-            "(recommended) or an explicit commit SHA."
-        )
+    reject_self_referential_ref(candidate, candidate, repo_root)
     if not candidate.startswith(MERGE_BASE_PREFIX):
         return git_rev_parse(candidate, repo_root), None
 
     base_ref = candidate[len(MERGE_BASE_PREFIX) :].strip()
     if not base_ref:
         raise RuntimeError(f"bootstrap pin spec {candidate!r} names no base ref")
+    # The base of a merge-base spec is a ref in its own right and gets the same
+    # scrutiny: `merge-base:HEAD` resolves to HEAD and would restore the defect.
+    reject_self_referential_ref(base_ref, candidate, repo_root)
     # Resolve the base first: if it is missing the anchor is unknowable, and a
     # gate with no anchor must be red, not lenient.
     base_sha = git_rev_parse(base_ref, repo_root)
