@@ -317,9 +317,18 @@ async def with_shop_scope(
 
     The narrowest of the three scopes. `app.current_shop_id` is set with
     SET LOCAL; `app.current_user_id` is deliberately left unset, so it reads
-    NULL and every user-keyed policy — `users`, `shops` — denies. A shop-level
-    background task has no business reading either, and this makes that
+    NULL and every USER-keyed policy denies. `users` is the clearest case:
+    nothing shop-scoped needs to read a user, and the withheld GUC makes that
     structural rather than a convention.
+
+    `shops` IS READABLE, but only the caller's own row. This paragraph used to
+    name it alongside `users` as something a shop-level task "has no business"
+    reading; #1518 found that too broad. `mock_analytics_reconcile` must
+    resolve its own shop's vendor key, and under the user-keyed policy alone it
+    read zero rows as `juli_app` and silently did nothing. Migration 053 adds
+    `shops_shop_scope_select (id = app_current_shop_id())` — one row, the
+    caller's own, and only when a shop context is set. Reading your own shop
+    under your own scope is what tenancy means; its absence was the anomaly.
 
     WHY THIS EXISTS RATHER THAN RESOLVING A USER.
 

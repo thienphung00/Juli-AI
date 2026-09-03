@@ -100,6 +100,8 @@ class Tenant:
     # share a product with either of the two RUNNING rows.
     third_product_id: uuid.UUID
     fourth_product_id: uuid.UUID
+    # The vendor key on the shop row, resolved by tasks that need it (#1518).
+    tiktok_shop_key: str
     expiring_credential_id: uuid.UUID
     fresh_credential_id: uuid.UUID
     stale_run_id: uuid.UUID
@@ -122,13 +124,15 @@ def seed_tenant(engine: Engine, *, label: str) -> Tenant:
     legible when a failing assertion prints them; nothing keys off it.
     """
     now = datetime.now(UTC).replace(tzinfo=None)
+    shop_id = uuid.uuid4()
     tenant = Tenant(
         user_id=uuid.uuid4(),
-        shop_id=uuid.uuid4(),
+        shop_id=shop_id,
         product_id=uuid.uuid4(),
         second_product_id=uuid.uuid4(),
         third_product_id=uuid.uuid4(),
         fourth_product_id=uuid.uuid4(),
+        tiktok_shop_key=f"tt-shop-{shop_id.hex[:10]}",
         expiring_credential_id=uuid.uuid4(),
         fresh_credential_id=uuid.uuid4(),
         stale_run_id=uuid.uuid4(),
@@ -153,13 +157,17 @@ def seed_tenant(engine: Engine, *, label: str) -> Tenant:
         )
         conn.execute(
             text(
-                "INSERT INTO public.shops (id, user_id, shop_name, created_at, updated_at) "
-                "VALUES (:id, :user_id, :name, :now, :now)"
+                "INSERT INTO public.shops "
+                "(id, user_id, shop_name, tiktok_shop_id, created_at, updated_at) "
+                "VALUES (:id, :user_id, :name, :tiktok_shop_id, :now, :now)"
             ),
             {
                 "id": str(tenant.shop_id),
                 "user_id": str(tenant.user_id),
                 "name": f"{label} shop",
+                # Seeded so a task that resolves its vendor key from `shops`
+                # can be tested against a real value rather than a NULL (#1518).
+                "tiktok_shop_id": tenant.tiktok_shop_key,
                 "now": now,
             },
         )

@@ -18,6 +18,7 @@ from collections.abc import Callable
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.models.models import Shop
 from juli_backend.services.cdp_speed import (
     FetchResource,
     SharedComputeJob,
@@ -44,32 +45,6 @@ def get_demo_reference_shop_id() -> uuid.UUID | None:
     return uuid.UUID(raw)
 
 
-def get_demo_reference_shop_key() -> str | None:
-    """Return the configured TikTok shop key for the demo reference shop.
-
-    WHY THIS IS CONFIGURATION RATHER THAN A LOOKUP (#1518).
-
-    The key used to be read from `public.shops`, which is user-keyed:
-
-        shops | SELECT | (user_id = app_current_user_id())
-
-    This task has a shop but no user, and `with_shop_scope` withholds the user
-    GUC by design, so as `juli_app` that read returns zero rows — measured, not
-    assumed. The task then returned early and did nothing, with a warning and
-    no error, which is the successful no-op ADR-089 exists to remove.
-
-    It cannot be fixed by widening the scope either: resolving the user means
-    reading `shops.user_id`, which is the denied read. That circularity is
-    called out in `with_shop_scope`'s own docstring.
-
-    So the read is removed rather than authorized, per ADR-089 decision 5 — a
-    task that does not need a cross-tenant read does not get one. The shop id
-    beside it is already server-bound configuration; its key now is too.
-    """
-    raw = os.getenv("DEMO_REFERENCE_SHOP_KEY", "").strip()
-    return raw or None
-
-
 def _database_url() -> str:
     return get_async_database_url()
 
@@ -78,6 +53,47 @@ def _ensure_session_factory():
     from juli_backend.database.database import ensure_worker_session_factory
 
     return ensure_worker_session_factory(_database_url())
+
+
+async def _lookup_tiktok_shop_key_async(
+    shop_id: uuid.UUID, session: AsyncSession | None = None
+) -> str | None:
+    """Resolve the shop's TikTok key, under the caller's tenant context (#1518).
+
+    TAKES A SESSION, RATHER THAN OPENING ONE. It used to open its own, which
+    meant the read happened outside every scope. `shops` answered only to
+    user-keyed policies then, so as `juli_app` it returned zero rows, this
+    returned None, and the task ended having done nothing — a warning, no
+    error, and a cycle that looked clean.
+
+    Migration 053 adds `shops_shop_scope_select` (`id = app_current_shop_id()`)
+    so a shop-scoped session can read its own shop, and passing the caller's
+    session is what puts this read inside that context.
+
+    `session=None` keeps the old behaviour for callers that have no scope of
+    their own to lend.
+    """
+    if session is not None:
+        return await _read_shop_key(session, shop_id)
+
+    factory = _ensure_session_factory()
+    async with factory() as owned_session:
+        return await _read_shop_key(owned_session, shop_id)
+
+
+async def _read_shop_key(session: AsyncSession, shop_id: uuid.UUID) -> str | None:
+    shop = await session.get(Shop, shop_id)
+    if shop is None or not shop.tiktok_shop_id:
+        logger.warning(
+            "mock_analytics_reconcile_unknown_shop",
+            extra={"shop_id": str(shop_id)},
+        )
+        return None
+    return shop.tiktok_shop_id
+
+
+def _lookup_tiktok_shop_key(shop_id: uuid.UUID) -> str | None:
+    return asyncio.run(_lookup_tiktok_shop_key_async(shop_id))
 
 
 def _make_hourly_gap_fetch_plan(shop_key: str) -> TargetedFetchPlan:
@@ -183,15 +199,8 @@ def run_mock_analytics_reconcile_sync(
         )
         return
 
-    shop_key = get_demo_reference_shop_key()
+    shop_key = _lookup_tiktok_shop_key(shop_id)
     if shop_key is None:
-        logger.warning(
-            "mock_analytics_reconcile_skipped",
-            extra={
-                "reason": "missing_demo_reference_shop_key",
-                "shop_id": str(shop_id),
-            },
-        )
         return
 
     compute = precompute_fn or material_analytics_precompute_sync
@@ -210,24 +219,19 @@ async def _run_hourly_reconcile_async() -> None:
         )
         return
 
-    shop_key = get_demo_reference_shop_key()
-    if shop_key is None:
-        # Fail closed and say so. Silently falling back to the database read
-        # would restore exactly the no-op this issue exists to remove: as
-        # `juli_app` that read returns nothing, and the task would report a
-        # clean cycle having recomputed no envelopes at all.
-        logger.warning(
-            "mock_analytics_reconcile_skipped",
-            extra={
-                "reason": "missing_demo_reference_shop_key",
-                "shop_id": str(shop_id),
-            },
-        )
-        return
-
     factory = _ensure_session_factory()
     async with factory() as session:
         async with with_shop_scope(session, shop_id):
+            # Resolved INSIDE the scope, on this session. Outside it, `shops`
+            # is unreadable as `juli_app` and this returns None (#1518).
+            #
+            # The sync `_lookup_tiktok_shop_key` wrapper is still avoided here:
+            # its own `asyncio.run` raises inside this already-running loop
+            # (#733).
+            shop_key = await _lookup_tiktok_shop_key_async(shop_id, session)
+            if shop_key is None:
+                return
+
             await run_mock_analytics_reconcile_orchestrated(
                 session=session,
                 shop_id=shop_id,

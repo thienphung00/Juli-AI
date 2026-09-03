@@ -6,25 +6,27 @@
     "acceptanceTotal": 4,
     "criticalFindings": 0,
     "modulesTouched": [
+      "backend/src/juli_backend/database/migrations/versions/053_shops_shop_scope_select.py",
       "backend/src/juli_backend/workers/tasks/mock_analytics_reconcile.py",
-      "tests/unit/test_mock_analytics_hourly_reconcile.py",
+      "backend/src/juli_backend/database/tenant_context.py",
+      "tests/integration/two_tenant.py",
       "tests/integration/test_mock_analytics_reconcile_two_tenant.py",
-      "infra/scripts/env/api.env.example",
-      "backend/src/juli_backend/workers/MODULE.md"
+      "tests/integration/test_two_tenant_fixture.py",
+      "tests/unit/test_mock_analytics_hourly_reconcile.py"
     ]
   },
   "review": {
     "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1518.json",
     "ownerSignoffPresent": true,
-    "sha256": "3731ae84e76e0d0c3ab7b4d683b448e1542522a9beca4d322032b956d7be0875",
+    "sha256": "b4ab809ce30ce08aff92f3cc2bcb0301eaa1bc1bcf4c7b2c1eee9e07d4777b09",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 3869,
-      "validationBytes": 1842
+      "reviewBytes": 4453,
+      "validationBytes": 2033
     },
     "claimVsExecuted": {
       "citedCommandCount": null,
@@ -131,7 +133,7 @@
         "baseDistanceUnavailable": null,
         "behindOriginMain": 0,
         "branch": "feature/demo-shop-key-issue-1518",
-        "head": "9215ad0cef65894c083a7f0c9dac08214375547b",
+        "head": "b1fb6dfa4af339fe93685475ec7168a7092257e4",
         "shallow": false
       },
       "moduleResolution": {
@@ -173,7 +175,7 @@
   "timestamp": "2026-09-03T01:10:00Z",
   "validation": {
     "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1518.json",
-    "sha256": "41dbb08697025a9d6b46eb72121c2ebcba740bf64e23f8182203af6ba09618eb",
+    "sha256": "aca83913631ccec33728dcd5d9ba74ad5b44d1501110cd0f815062abc1ea0f29",
     "status": "PASS"
   },
   "wave": null
