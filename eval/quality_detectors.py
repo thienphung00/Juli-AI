@@ -625,6 +625,85 @@ def scan_corpus(repo_root: Path, roots: Sequence[str] | None = TEST_ROOTS) -> Sc
     return Scan(findings=tuple(sorted(findings)), test_functions=tests, files=files)
 
 
+#: The order the reconciliation peels evidence off in. Each entry names one kind
+#: of thing that can fail a test; the union of all six is exactly what
+#: ``_classify`` accepts as "this test can fail", so the last layer is the
+#: headline by construction rather than by coincidence.
+RECONCILIATION_LAYER_ORDER: tuple[str, ...] = (
+    "no_assert_statement",
+    "and_no_pytest_raises",
+    "and_no_mock_assert_called",
+    "and_no_unittest_self_assert",
+    "and_no_same_file_asserting_helper",
+    "and_no_raise_assertionerror",
+)
+
+
+def _raises_assertionerror(node: ast.AST) -> bool:
+    if not isinstance(node, ast.Raise):
+        return False
+    exc = node.exc
+    name = _dotted(exc.func) if isinstance(exc, ast.Call) else _dotted(exc) if exc else ""
+    return name.endswith("AssertionError")
+
+
+def reconciliation_identities(
+    repo_root: Path, roots: Sequence[str] | None = TEST_ROOTS
+) -> dict[str, set[tuple[str, str]]]:
+    """The ``(path, qualname)`` set surviving each reconciliation layer.
+
+    Derived, never recorded. The decomposition is arithmetic over the corpus --
+    there is no state of the world in which a committed layer legitimately
+    differs from the computed one -- so committing the six integers by hand made
+    five of them unfalsifiable and the sixth the only one ever checked. Two of
+    the three figures recorded alongside them in #1503 were wrong on the day they
+    were written (#1535); this exists so that cannot recur.
+
+    Uses the same walk and the same predicates as :func:`scan_corpus`, including
+    ``_iter_tests``' direct-children-only enumeration. An independent ``ast.walk``
+    reads two extra functions -- a dependency-override generator and a route
+    handler nested inside a test -- and lands on a final layer that does not
+    equal the headline it is supposed to explain.
+    """
+    repo_root = Path(repo_root)
+    survivors: dict[str, set[tuple[str, str]]] = {
+        name: set() for name in RECONCILIATION_LAYER_ORDER
+    }
+
+    for path in _walk_python(repo_root, roots):
+        rel = _rel(repo_root, path)
+        if not is_test_path(rel):
+            continue
+        tree = _parse(path)
+        helpers = _asserting_helper_names(tree)
+        for qualname, func in _iter_tests(tree):
+            nodes = list(_body_nodes(func))
+            key = (rel, qualname)
+            # Ordered so each test drops out at the first kind of evidence it has.
+            for layer, has_evidence in (
+                ("no_assert_statement", any(isinstance(n, ast.Assert) for n in nodes)),
+                ("and_no_pytest_raises", any(_is_pytest_raising_call(n) for n in nodes)),
+                ("and_no_mock_assert_called", any(_is_mock_assert_call(n) for n in nodes)),
+                ("and_no_unittest_self_assert", any(_is_unittest_assert_call(n) for n in nodes)),
+                (
+                    "and_no_same_file_asserting_helper",
+                    any(isinstance(n, ast.Call) and _root_name(n.func) in helpers for n in nodes),
+                ),
+                ("and_no_raise_assertionerror", any(_raises_assertionerror(n) for n in nodes)),
+            ):
+                if has_evidence:
+                    break
+                survivors[layer].add(key)
+    return survivors
+
+
+def reconciliation_layers(
+    repo_root: Path, roots: Sequence[str] | None = TEST_ROOTS
+) -> dict[str, int]:
+    """The layer decomposition, re-derived from the tree it describes."""
+    return {name: len(ids) for name, ids in reconciliation_identities(repo_root, roots).items()}
+
+
 def scan_tree(repo_root: Path, roots: Sequence[str] | None = TEST_ROOTS) -> tuple[Finding, ...]:
     return scan_corpus(repo_root, roots).findings
 
@@ -1163,6 +1242,9 @@ def build_report(
 #: ``python -m eval.quality_detectors scan`` and update both numbers together.
 MEASURED_ZERO_ASSERTION_TESTS = 50
 MEASURED_TEST_FUNCTIONS = 4470
+#: Test modules the corpus figure is spread over. Like the corpus it is a
+#: denominator, not a claim, so it is held to a tolerance rather than pinned.
+MEASURED_TEST_MODULES = 450
 
 #: The measured decomposition that reconciles the two figures. Each layer
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
