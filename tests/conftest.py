@@ -231,6 +231,8 @@ _SHARED_STATE_MODULES = frozenset(
         # Reason 2 again: seeds two tenants to prove a scope's GUC does not
         # outlive the scope (#1495).
         "test_shop_scope_guc_lifecycle.py",
+        # Reason 2 again: seeds two tenants for #1514 (credential_refresh_beat per-tenant context).
+        "test_credential_refresh_beat_two_tenant.py",
         # Reason 2 again: seeds two tenants for #1513 (mock_analytics_reconcile per-shop
         # context via with_shop_scope).
         "test_mock_analytics_reconcile_two_tenant.py",

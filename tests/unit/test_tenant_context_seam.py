@@ -556,9 +556,14 @@ def test_system_scope_call_sites_enumerated():
     # The list is expected to keep SHRINKING as the W7-bis slices land — a
     # name reappearing here is a regression, and a new name is the growth
     # this test was written to catch.
-    expected_call_sites = {
-        "workers/tasks/credential_refresh_beat.py",
-    }
+    # EMPTY, and that is the point. Every fleet-scoped beat task now either
+    # enumerates through a SECURITY DEFINER function and loops under per-item
+    # context (impact_reader #1488, reaper #1489, credential_refresh_beat
+    # #1514) or never needed a fleet read at all (analytics_backfill_topup
+    # #1478, mock_analytics_reconcile #1513). A name appearing here again is a
+    # regression: it means something took a fleet-wide exemption instead of
+    # naming the tenant it works on.
+    expected_call_sites: set[str] = set()
 
     # Walk backend/src/juli_backend and find all files with system_scope( calls
     # But exclude database/tenant_context.py which defines system_scope
