@@ -210,6 +210,22 @@ def _write_tasks(
     return base, repo_root
 
 
+@pytest.fixture(autouse=True)
+def _unlatch_settle_clock():
+    """Every test in this file starts and ends with an unlatched settle clock.
+
+    ``task_transcripts.settle_clock`` latches one instant per process, which is
+    right for the short-lived generation scripts that import it and wrong for a
+    pytest session that outlives the 300s settle window. Resetting around each
+    test keeps every test judging transcript ages against an instant from its
+    own run, and stops a test that *places* the clock from pinning its
+    neighbours to a fabricated one.
+    """
+    task_transcripts.reset_settle_clock()
+    yield
+    task_transcripts.reset_settle_clock()
+
+
 def _context(review: dict | None = None) -> CaptureContext:
     review = review or {"issueId": ISSUE, "status": "PASS"}
     return CaptureContext(
@@ -1071,6 +1087,56 @@ def test_a_transcript_with_no_spawn_record_degrades_rather_than_requiring_one(
             branch=BRANCH,
             timestamp="2026-09-02T01:00:00.000Z",
             usage=_usage(7, 7, 7, 7),
+class _Straddle:
+    """A ``time`` stand-in whose reading changes only between generations.
+
+    A real wall clock advances continuously, so a test written against it can
+    only *hope* to land on the boundary. This one is placed on it: two fixed
+    instants, half a second either side of ``SETTLE_SECONDS``, selected by
+    ``index``. Nothing about the outcome depends on how long the test takes.
+    """
+
+    def __init__(self, ticks: tuple[float, ...]) -> None:
+        self.ticks = ticks
+        self.index = 0
+
+    def time(self) -> float:
+        return self.ticks[self.index]
+
+
+def test_two_generations_agree_on_an_agent_astride_the_settle_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The settle boundary is evaluated once per process, not once per read.
+
+    The defect this pins: ``settled`` was ``time.time() - mtime >= 300``, with
+    ``time.time()`` sampled afresh inside every read. Two generations of the
+    same record therefore judged the same unchanged transcript against two
+    different instants, and an agent whose transcript sat near 300s old was
+    settled in one and unsettled in the other — a byte difference in an output
+    that ``generate_status_records`` promises is idempotent.
+
+    Repetition cannot demonstrate this. The window in which it bites is the gap
+    between the two generations, a few seconds out of 300, so a green run is
+    roughly as likely with the bug present as without it — the prior fix was
+    signed off on "passes 3/3", which a computation put at ~51% under the bug.
+    So the boundary is pinned instead of sampled: the transcript is backdated to
+    the epoch, making its age exactly whatever the clock reads, and the clock is
+    placed one half-second short of the boundary and then one half-second past.
+
+    Both directions are asserted, and that pairing is what makes the test
+    load-bearing. Agreeing at 299.5 alone would also be satisfied by code that
+    never settles anything; agreeing at 300.5 alone by code that always does.
+    Together they say the boundary is live *and* that whichever instant the
+    process latched first governs both generations.
+    """
+    records = [
+        _assistant(
+            message_id="m",
+            agent_id="agent-astride",
+            branch="main",
+            timestamp="2026-09-02T01:00:00.000Z",
+            usage=_usage(1, 1, 1, 1),
             tools=("Bash",),
             worktree=f"w3-{ISSUE}",
         )
@@ -1127,3 +1193,47 @@ def test_role_classification_holds_on_the_live_store(tmp_path: Path) -> None:
 
     classified = [a for a in agents if a["role"] != task_transcripts.ROLE_UNKNOWN]
     assert classified, "a store full of unclassifiable directives is a classifier bug"
+    base, repo_root = _write_tasks(tmp_path, {"agent-astride.output": records})
+    settle = task_transcripts.SETTLE_SECONDS
+    straddle = _Straddle((settle - 0.5, settle + 0.5))
+    monkeypatch.setattr(task_transcripts, "time", straddle)
+
+    def _generate() -> dict:
+        return run_metrics.capture(
+            _context(), repo_root=repo_root, temp_bases=(str(base),), environ={}, claims=None
+        )
+
+    # Latch short of the boundary: both generations must read in-flight.
+    task_transcripts.reset_settle_clock()
+    straddle.index = 0
+    unsettled_first = _generate()
+    straddle.index = 1
+    unsettled_second = _generate()
+    assert unsettled_first == unsettled_second
+    assert unsettled_first["status"] == "not-measured"
+    assert any(gap["reason"] == "in-flight-transcript" for gap in unsettled_first["gaps"])
+
+    # Latch past it: both generations must read measured. Same store, same
+    # files, same mtimes — only the latched instant differs.
+    task_transcripts.reset_settle_clock()
+    straddle.index = 1
+    settled_first = _generate()
+    straddle.index = 0
+    settled_second = _generate()
+    assert settled_first == settled_second
+    assert settled_first["status"] == "measured"
+    assert settled_first["tokenUsage"]["value"]["total"] == 4
+
+
+def test_an_explicit_now_overrides_the_latch_without_disturbing_it() -> None:
+    """A caller that supplies its own instant already has a shared one.
+
+    ``read_task_dir(now=...)`` is the pre-existing seam and must keep meaning
+    exactly what it says, rather than being silently replaced by the latch. It
+    must also not *become* the latch: a one-off read against a hypothetical
+    instant would otherwise pin every later read in the process to it.
+    """
+    task_transcripts.reset_settle_clock()
+    latched = task_transcripts.settle_clock()
+    assert task_transcripts.settle_clock(now=1.0) == 1.0
+    assert task_transcripts.settle_clock() == latched
