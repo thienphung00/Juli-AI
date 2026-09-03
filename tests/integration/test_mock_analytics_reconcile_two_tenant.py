@@ -21,7 +21,12 @@ import os
 import pytest
 from sqlalchemy import text
 
+from juli_backend.database.tenant_context import with_shop_scope
+from juli_backend.workers.tasks.mock_analytics_reconcile import (
+    _lookup_tiktok_shop_key_async,
+)
 from tests.integration.two_tenant import (
+    juli_app_session,
     seed_tenant,
 )
 
@@ -45,13 +50,11 @@ async def test_mock_analytics_reconcile_writes_for_demo_shop_only(owner_engine, 
     assertion reads it back through a SEPARATE owner connection, so it is
     persistence rather than a success flag.
 
-    The lookup is stubbed because it CANNOT run as `juli_app`: `public.shops`
-    is user-keyed and `with_shop_scope` withholds the user GUC, so the real
-    `_lookup_tiktok_shop_key_async` returns None and the task returns early.
-    That is #1518 — a pre-existing gap this slice neither introduces nor fixes,
-    since the lookup happens before any scope and in its own session. Until it
-    is resolved, an end-to-end run of this task as `juli_app` is not possible,
-    and a test claiming otherwise would be claiming more than it checks.
+    The orchestrator is stubbed so the assertion is about the scope wiring
+    rather than envelope maths. The shop-key lookup is NOT stubbed any more:
+    #1518 moved it inside the scope and migration 053 lets a shop-scoped
+    session read its own shop, so the real resolution path runs here as
+    `juli_app`. Before that it returned None and the task ended early.
     """
     from juli_backend.workers.tasks.mock_analytics_reconcile import (
         _run_hourly_reconcile_async,
@@ -85,25 +88,18 @@ async def test_mock_analytics_reconcile_writes_for_demo_shop_only(owner_engine, 
         mock_orchestrator_writes_row,
     )
 
-    # Mock the tiktok shop key lookup
-    async def mock_lookup_shop_key(shop_id_arg):
-        return "test-shop-1513"
-
-    monkeypatch.setattr(
-        "juli_backend.workers.tasks.mock_analytics_reconcile._lookup_tiktok_shop_key_async",
-        mock_lookup_shop_key,
-    )
-
-    # Mock the session factory to use test database
-    def mock_session_factory():
-        from juli_backend.database.database import ensure_worker_session_factory
-        from juli_backend.workers.tasks.database import get_async_database_url
-
-        return ensure_worker_session_factory(get_async_database_url())
-
+    # AS `juli_app`, NOT AS THE OWNER.
+    #
+    # This used to hand the task a factory built from DATABASE_URL, which in
+    # tests is the table owner — and Postgres exempts a table's owner from RLS.
+    # The task then ran with every policy inert, so this test passed with
+    # migration 053 removed and proved nothing about the role the runtime will
+    # actually connect as. `juli_app_session` is itself an async context
+    # manager taking no required argument, so it substitutes for `factory()`
+    # directly.
     monkeypatch.setattr(
         "juli_backend.workers.tasks.mock_analytics_reconcile._ensure_session_factory",
-        mock_session_factory,
+        lambda: juli_app_session,
     )
 
     # Run the task
@@ -166,4 +162,51 @@ async def test_mock_analytics_reconcile_skips_when_demo_shop_is_none(monkeypatch
     # Assert: session factory was never called
     assert len(session_factory_called) == 0, (
         "Session factory should not be called when shop_id is None"
+    )
+
+
+@pytest.mark.asyncio
+async def test_the_shop_key_resolves_as_juli_app_under_shop_scope(owner_engine):
+    """#1518 directly: the read that used to return None now returns the key.
+
+    Before migration 053 this was zero rows — `shops` answered only to a
+    user-keyed policy and this task has a shop but no user — so the task logged
+    `mock_analytics_reconcile_unknown_shop` and returned. No exception, which is
+    why observation 1's "completes a cycle without a scoping error" would have
+    recorded a pass for a task that did nothing.
+    """
+    tenant_a = seed_tenant(owner_engine, label="key_a")
+    tenant_b = seed_tenant(owner_engine, label="key_b")
+
+    async with juli_app_session() as session:
+        async with with_shop_scope(session, tenant_a.shop_id):
+            resolved = await _lookup_tiktok_shop_key_async(tenant_a.shop_id, session)
+            # The same call for the OTHER tenant, from inside A's scope, must
+            # not resolve — otherwise the lookup is reading across tenants and
+            # the policy is not doing the work.
+            cross = await _lookup_tiktok_shop_key_async(tenant_b.shop_id, session)
+
+    assert resolved == tenant_a.tiktok_shop_key, (
+        f"expected {tenant_a.tiktok_shop_key!r} as juli_app under shop scope, got {resolved!r}"
+    )
+    assert cross is None, (
+        f"resolved another tenant's shop key ({cross!r}) from inside tenant A's scope"
+    )
+
+
+@pytest.mark.asyncio
+async def test_the_shop_key_does_not_resolve_without_a_shop_scope(owner_engine):
+    """The policy is keyed to the context, not granted to the role.
+
+    If 053 had been written as a blanket grant, the test above would still pass
+    and tenancy would be gone. This is the assertion that separates them.
+    """
+    tenant = seed_tenant(owner_engine, label="key_noctx")
+
+    async with juli_app_session() as session:
+        resolved = await _lookup_tiktok_shop_key_async(tenant.shop_id, session)
+
+    assert resolved is None, (
+        f"the shop key resolved with no tenant context at all ({resolved!r}); "
+        "the policy must fail closed rather than grant the role blanket read"
     )

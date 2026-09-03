@@ -1767,8 +1767,12 @@ def test_juli_app_not_member_of_table_owning_roles(postgres_at_head: Engine):
 
 
 @requires_postgres
-def test_juli_app_bronze_tables_insert_only(postgres_at_head: Engine):
-    """Bronze tables (raw payloads) grant INSERT only to juli_app."""
+def test_juli_app_bronze_tables_insert_and_select(postgres_at_head: Engine):
+    """Bronze tables (raw payloads) grant INSERT and SELECT to juli_app (issue #1548).
+
+    INSERT: ingest path (migration 043)
+    SELECT: medallion read path — silver promotion and reconcile (migration 054)
+    """
     bronze_tables = [
         "order_raw_payloads",
         "return_raw_payloads",
@@ -1787,8 +1791,8 @@ def test_juli_app_bronze_tables_insert_only(postgres_at_head: Engine):
                 {"table_name": table},
             ).fetchall()
             granted_verbs = {row[0] for row in result}
-            assert granted_verbs == {"INSERT"}, (
-                f"bronze.{table}: expected {{'INSERT'}}, got {granted_verbs}"
+            assert granted_verbs == {"INSERT", "SELECT"}, (
+                f"bronze.{table}: expected {{'INSERT', 'SELECT'}}, got {granted_verbs}"
             )
 
 
