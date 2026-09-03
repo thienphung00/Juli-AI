@@ -18,6 +18,31 @@ repos:
         files: ^(backend/|tests/|scripts/).+\.py$
         args: [--config, backend/pyproject.toml]
 
+      # #1528 (CI-WAVE-1): the harness itself. agent-runtime/scripts holds
+      # every gate, generator and schema validator and was covered by neither
+      # the regex above nor pr.yml's Ruff step, which is how
+      # validate/check_workflow_cache.py drifted four hunks from `ruff format`
+      # unnoticed. Split into its own pair of hooks because the config differs:
+      # these pass the repo-root ruff.toml, which is what pr.yml's Ruff step
+      # resolves for this path via Ruff's nearest-config rule. Passing
+      # backend/pyproject.toml here instead would reintroduce exactly the
+      # local-vs-CI split the `rev` comment above exists to prevent — it would
+      # block commits on 98 findings (70 E501) that CI does not check.
+      #
+      # `ruff format` is enforced here and not in CI on purpose: 35 of the 89
+      # files are currently unformatted, so a CI --check would demand one
+      # sweeping reformat. Staged-file formatting cleans them up as they are
+      # touched instead. Backlog: widen the repo-root profile to E,F,I,UP and
+      # add `ruff format --check` to pr.yml in a change of its own.
+      - id: ruff-check
+        name: ruff check (staged harness Python)
+        files: ^agent-runtime/scripts/.+\.py$
+        args: [--fix, --config, ruff.toml]
+      - id: ruff-format
+        name: ruff format (staged harness Python)
+        files: ^agent-runtime/scripts/.+\.py$
+        args: [--config, ruff.toml]
+
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.4.0
     hooks:
