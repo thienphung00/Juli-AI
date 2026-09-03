@@ -24,7 +24,14 @@ SCRATCH_DB_PREFIX="${SCRATCH_DB_PREFIX:-juli_restore_drill_}"
 SCRATCH_DB=""
 ADMIN_URL=""
 SCRATCH_URL=""
+# Starts as fail and only becomes pass at the very end, and only when nothing
+# recorded a failure. #1553 removed an unconditional DRILL_RESULT="pass" — which
+# made the drill pass on an empty dump — but left nothing to set it on success,
+# so the drill could never pass at all. A counter keeps both properties: an
+# early exit or a crash leaves "fail", and "pass" requires every check to have
+# run and none to have failed.
 DRILL_RESULT="fail"
+DRILL_FAILURES=0
 
 log() {
     printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"
@@ -133,7 +140,7 @@ SOURCE_REV="$("${HELPER[@]}" current-revision)"
 RESTORED_REV="$("${HELPER[@]}" current-revision --url "${SCRATCH_URL}")"
 if [ "${RESTORED_REV}" != "${SOURCE_REV}" ]; then
     log "FAIL: restored database revision ${RESTORED_REV} != source ${SOURCE_REV}"
-    DRILL_RESULT="fail"
+    DRILL_FAILURES=$((DRILL_FAILURES + 1))
 fi
 
 log "verifying restored row counts meet expectations"
@@ -147,7 +154,7 @@ COMPARE_EXIT=$?
 set -e
 if [ "${COMPARE_EXIT}" -ne 0 ]; then
     log "FAIL: row count verification failed: ${COMPARE_OUTPUT}"
-    DRILL_RESULT="fail"
+    DRILL_FAILURES=$((DRILL_FAILURES + 1))
 fi
 
 set +e
@@ -156,7 +163,7 @@ DECRYPT_EXIT=$?
 set -e
 if [ "${DECRYPT_EXIT}" -ne 0 ]; then
     log "FAIL: tiktok_credentials decrypt check failed on restored copy: ${DECRYPT_JSON}"
-    DRILL_RESULT="fail"
+    DRILL_FAILURES=$((DRILL_FAILURES + 1))
 fi
 log "token decrypt check on restored copy: ${DECRYPT_JSON}"
 
@@ -176,7 +183,7 @@ OWNS_EXIT=$?
 set -e
 if [ "${OWNS_EXIT}" -ne 0 ]; then
     log "FAIL: ${OWNS_JSON}"
-    DRILL_RESULT="fail"
+    DRILL_FAILURES=$((DRILL_FAILURES + 1))
 fi
 log "runtime-role ownership check: ${OWNS_JSON}"
 
@@ -187,9 +194,13 @@ RLS_EXIT=$?
 set -e
 if [ "${RLS_EXIT}" -ne 0 ]; then
     log "FAIL: RLS enforcement check failed: ${RLS_JSON}"
-    DRILL_RESULT="fail"
+    DRILL_FAILURES=$((DRILL_FAILURES + 1))
 fi
 log "RLS enforcement check on restored copy: ${RLS_JSON}"
+
+if [ "${DRILL_FAILURES}" -eq 0 ]; then
+    DRILL_RESULT="pass"
+fi
 
 if [ "${DRILL_RESULT}" = "pass" ]; then
     log "restore-drill verification succeeded for ${BACKUP_FILE}"
