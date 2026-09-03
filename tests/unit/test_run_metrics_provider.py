@@ -42,6 +42,22 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CI_DIR = REPO_ROOT / "agent-runtime" / "scripts" / "ci"
 
 
+@pytest.fixture(autouse=True)
+def _unlatch_settle_clock():
+    """Every test in this file starts and ends with an unlatched settle clock.
+
+    ``task_transcripts.settle_clock`` latches one instant per process, which is
+    right for the short-lived generation scripts that import it and wrong for a
+    pytest session that outlives the 300s settle window. Resetting around each
+    test keeps every test judging transcript ages against an instant from its
+    own run, and stops a test that *places* the clock from pinning its
+    neighbours to a fabricated one.
+    """
+    task_transcripts.reset_settle_clock()
+    yield
+    task_transcripts.reset_settle_clock()
+
+
 def _load_seam():
     """Import the capture seam, which lives outside any importable package root.
 
@@ -128,11 +144,52 @@ def _split_across_blocks(record: dict, copies: int) -> list[dict]:
     return [json.loads(json.dumps(record)) for _ in range(copies)]
 
 
+def _spawn(*, agent_id: str, text: str, timestamp: str = "2026-09-02T01:00:00.000Z") -> dict:
+    """The first record of a real subagent transcript: the prompt it was given.
+
+    Measured on the live store: 203 of 204 parsed transcripts carry one, and
+    189 carry it as the literal first record — ``type: "user"``, a plain-string
+    content, written by the orchestrator before the agent has run a single
+    turn. It is the one place the *role* is stated by something other than the
+    agent being measured.
+
+    Timestamped at the run's first instant by default. Every ``user`` record
+    already participates in the wall clock on real data, so dating this one
+    earlier than the turns would quietly restate what ``durationMs`` measures
+    while claiming to be a test of role.
+    """
+    return {
+        "type": "user",
+        "userType": "external",
+        "agentId": agent_id,
+        "sessionId": "session-under-test",
+        "gitBranch": BRANCH,
+        "isSidechain": True,
+        "timestamp": timestamp,
+        "message": {"role": "user", "content": text},
+    }
+
+
+#: Directives copied in shape from the live store, not invented for the test.
+EXECUTOR_PROMPT = f"Implement GitHub issue #{ISSUE}. Meta gate passed: readyForExecutor: true."
+REVIEWER_PROMPT = f"Review issue #{ISSUE}: `intent-review` -> `guardrails` -> `validate`."
+UNROLED_PROMPT = f"Work in the existing worktree `.worktrees/w3-{ISSUE}`, on the wave branch."
+FOREIGN_EXECUTOR_PROMPT = "Implement GitHub issue #9999. Meta gate passed."
+
+
+def _run(agent_id: str, prompt: str, records: list[dict]) -> list[dict]:
+    """A transcript as it is actually written: the spawn prompt, then the turns."""
+    return [_spawn(agent_id=agent_id, text=prompt), *records]
+
+
 _SLOT = itertools.count()
 
 
 def _write_tasks(
-    tmp_path: Path, files: dict[str, list[dict] | str], *, in_flight: bool = False
+    tmp_path: Path,
+    files: dict[str, list[dict] | str],
+    *,
+    in_flight: bool | tuple[str, ...] = False,
 ) -> tuple[Path, Path]:
     """Lay out ``<base>/claude-<uid>/<slug>/<session>/tasks/<agent>.output``.
 
@@ -140,6 +197,10 @@ def _write_tasks(
     discovery is exercised end to end rather than handed the answer. Each call
     gets a fresh base, so a test that captures twice cannot have the second
     reading contaminated by the first one's files.
+
+    ``in_flight`` takes a tuple of file names as well as a bool, because the
+    defect this module now guards against is *mixed*: one agent still running
+    while another has gone quiet. A per-store flag cannot express that.
     """
     repo_root = tmp_path / "checkout" / "Juli-AI-v2"
     repo_root.mkdir(parents=True, exist_ok=True)
@@ -154,29 +215,15 @@ def _write_tasks(
             (tasks / name).write_text(
                 "\n".join(json.dumps(record) for record in body) + "\n", encoding="utf-8"
             )
-    if not in_flight:
+    if in_flight is not True:
         # Backdate, so these read as finished runs. A freshly written file is by
         # definition still in flight, and every test that wants a *measurement*
         # needs a settled one.
+        still_running = set(in_flight) if isinstance(in_flight, tuple) else set()
         for path in tasks.glob("*.output"):
-            os.utime(path, (0, 0))
+            if path.name not in still_running:
+                os.utime(path, (0, 0))
     return base, repo_root
-
-
-@pytest.fixture(autouse=True)
-def _unlatch_settle_clock():
-    """Every test in this file starts and ends with an unlatched settle clock.
-
-    ``task_transcripts.settle_clock`` latches one instant per process, which is
-    right for the short-lived generation scripts that import it and wrong for a
-    pytest session that outlives the 300s settle window. Resetting around each
-    test keeps every test judging transcript ages against an instant from its
-    own run, and stops a test that *places* the clock from pinning its
-    neighbours to a fabricated one.
-    """
-    task_transcripts.reset_settle_clock()
-    yield
-    task_transcripts.reset_settle_clock()
 
 
 def _context(review: dict | None = None) -> CaptureContext:
@@ -229,7 +276,11 @@ def test_metrics_are_read_from_the_persisted_transcript(tmp_path: Path) -> None:
         tools=("Bash",),
         worktree=f"w3-{ISSUE}",
     )
-    records = _split_across_blocks(first, 3) + _split_across_blocks(second, 2)
+    records = _run(
+        "agent-one",
+        EXECUTOR_PROMPT,
+        _split_across_blocks(first, 3) + _split_across_blocks(second, 2),
+    )
 
     block = _capture(tmp_path, {"agent-one.output": records})
 
@@ -267,17 +318,21 @@ def test_metrics_are_read_from_the_persisted_transcript(tmp_path: Path) -> None:
 
 def test_the_assigned_executor_domain_travels_with_the_metrics(tmp_path: Path) -> None:
     """The domain is read from the artifact, and its absence is not invented."""
-    records = [
-        _assistant(
-            message_id="m",
-            agent_id="agent-one",
-            branch=BRANCH,
-            timestamp="2026-09-02T01:00:00.000Z",
-            usage=_usage(1, 1, 1, 1),
-            tools=("Bash",),
-            worktree=f"w3-{ISSUE}",
-        )
-    ]
+    records = _run(
+        "agent-one",
+        EXECUTOR_PROMPT,
+        [
+            _assistant(
+                message_id="m",
+                agent_id="agent-one",
+                branch=BRANCH,
+                timestamp="2026-09-02T01:00:00.000Z",
+                usage=_usage(1, 1, 1, 1),
+                tools=("Bash",),
+                worktree=f"w3-{ISSUE}",
+            )
+        ],
+    )
 
     block = _capture(
         tmp_path,
@@ -295,26 +350,30 @@ def test_the_assigned_executor_domain_travels_with_the_metrics(tmp_path: Path) -
 
 def test_measured_wins_and_disagreement_is_preserved(tmp_path: Path) -> None:
     """A self-reported figure loses to the measurement and is kept beside it."""
-    records = [
-        _assistant(
-            message_id="msg_a",
-            agent_id="agent-one",
-            branch=BRANCH,
-            timestamp="2026-09-02T01:00:00.000Z",
-            usage=_usage(100, 200, 300, 400),
-            tools=("Bash",),
-            worktree=f"w3-{ISSUE}",
-        ),
-        _assistant(
-            message_id="msg_b",
-            agent_id="agent-one",
-            branch=BRANCH,
-            timestamp="2026-09-02T01:01:00.000Z",
-            usage=_usage(0, 0, 0, 0),
-            tools=("Bash", "Read"),
-            worktree=f"w3-{ISSUE}",
-        ),
-    ]
+    records = _run(
+        "agent-one",
+        EXECUTOR_PROMPT,
+        [
+            _assistant(
+                message_id="msg_a",
+                agent_id="agent-one",
+                branch=BRANCH,
+                timestamp="2026-09-02T01:00:00.000Z",
+                usage=_usage(100, 200, 300, 400),
+                tools=("Bash",),
+                worktree=f"w3-{ISSUE}",
+            ),
+            _assistant(
+                message_id="msg_b",
+                agent_id="agent-one",
+                branch=BRANCH,
+                timestamp="2026-09-02T01:01:00.000Z",
+                usage=_usage(0, 0, 0, 0),
+                tools=("Bash", "Read"),
+                worktree=f"w3-{ISSUE}",
+            ),
+        ],
+    )
     claims = {
         "executorDomain": "backend",
         "tokenUsage": {"input": 1, "output": 2, "total": 1_800_000},
@@ -408,7 +467,10 @@ def test_a_foreign_issues_transcript_is_not_counted(tmp_path: Path) -> None:
 
     block = _capture(
         tmp_path,
-        {"agent-mine.output": [mine], "agent-theirs.output": [theirs]},
+        {
+            "agent-mine.output": _run("agent-mine", EXECUTOR_PROMPT, [mine]),
+            "agent-theirs.output": _run("agent-theirs", FOREIGN_EXECUTOR_PROMPT, [theirs]),
+        },
     )
 
     assert [agent["agentId"] for agent in block["agents"]] == ["agent-mine"]
@@ -459,9 +521,9 @@ def test_the_worktree_path_attributes_an_agent_the_branch_cannot(tmp_path: Path)
     block = _capture(
         tmp_path,
         {
-            "agent-mine.output": [mine],
-            "agent-neighbour.output": [neighbour],
-            "agent-lookalike.output": [lookalike],
+            "agent-mine.output": _run("agent-mine", EXECUTOR_PROMPT, [mine]),
+            "agent-neighbour.output": _run("agent-neighbour", FOREIGN_EXECUTOR_PROMPT, [neighbour]),
+            "agent-lookalike.output": _run("agent-lookalike", FOREIGN_EXECUTOR_PROMPT, [lookalike]),
         },
     )
 
@@ -537,52 +599,68 @@ def test_a_shared_session_branch_does_not_attribute_every_concurrent_agent(
     session_branch = BRANCH
     agents = {
         # The real executor: the only one that worked in this issue's tree.
-        "agent-executor.output": [
-            _assistant(
-                message_id="m-exec",
-                agent_id="agent-executor",
-                branch=session_branch,
-                timestamp="2026-09-02T01:00:00.000Z",
-                usage=_usage(4, 6, 10, 80),
-                tools=("Bash",),
-                worktree=f"w3-{ISSUE}",
-            )
-        ],
+        "agent-executor.output": _run(
+            "agent-executor",
+            EXECUTOR_PROMPT,
+            [
+                _assistant(
+                    message_id="m-exec",
+                    agent_id="agent-executor",
+                    branch=session_branch,
+                    timestamp="2026-09-02T01:00:00.000Z",
+                    usage=_usage(4, 6, 10, 80),
+                    tools=("Bash",),
+                    worktree=f"w3-{ISSUE}",
+                )
+            ],
+        ),
         # A peer reviewer that merely read this file — hence the fixture names.
-        "agent-reviewer.output": [
-            _assistant(
-                message_id="m-rev",
-                agent_id="agent-reviewer",
-                branch=session_branch,
-                timestamp="2026-09-02T01:00:00.000Z",
-                usage=_usage(5_000_000, 0, 0, 0),
-                tools=("Bash",),
-                worktree="w3-1463",
-            )
-        ],
+        "agent-reviewer.output": _run(
+            "agent-reviewer",
+            REVIEWER_PROMPT,
+            [
+                _assistant(
+                    message_id="m-rev",
+                    agent_id="agent-reviewer",
+                    branch=session_branch,
+                    timestamp="2026-09-02T01:00:00.000Z",
+                    usage=_usage(5_000_000, 0, 0, 0),
+                    tools=("Bash",),
+                    worktree="w3-1463",
+                )
+            ],
+        ),
         # Two unrelated concurrent executors on their own slices.
-        "agent-peer-1497.output": [
-            _assistant(
-                message_id="m-1497",
-                agent_id="agent-peer-1497",
-                branch=session_branch,
-                timestamp="2026-09-02T01:00:00.000Z",
-                usage=_usage(6_000_000, 0, 0, 0),
-                tools=("Bash",),
-                worktree="w3-1497",
-            )
-        ],
-        "agent-peer-1498.output": [
-            _assistant(
-                message_id="m-1498",
-                agent_id="agent-peer-1498",
-                branch=session_branch,
-                timestamp="2026-09-02T01:00:00.000Z",
-                usage=_usage(6_200_000, 0, 0, 0),
-                tools=("Bash",),
-                worktree="w3-1498",
-            )
-        ],
+        "agent-peer-1497.output": _run(
+            "agent-peer-1497",
+            FOREIGN_EXECUTOR_PROMPT,
+            [
+                _assistant(
+                    message_id="m-1497",
+                    agent_id="agent-peer-1497",
+                    branch=session_branch,
+                    timestamp="2026-09-02T01:00:00.000Z",
+                    usage=_usage(6_000_000, 0, 0, 0),
+                    tools=("Bash",),
+                    worktree="w3-1497",
+                )
+            ],
+        ),
+        "agent-peer-1498.output": _run(
+            "agent-peer-1498",
+            FOREIGN_EXECUTOR_PROMPT,
+            [
+                _assistant(
+                    message_id="m-1498",
+                    agent_id="agent-peer-1498",
+                    branch=session_branch,
+                    timestamp="2026-09-02T01:00:00.000Z",
+                    usage=_usage(6_200_000, 0, 0, 0),
+                    tools=("Bash",),
+                    worktree="w3-1498",
+                )
+            ],
+        ),
     }
 
     block = _capture(tmp_path, agents)
@@ -603,28 +681,36 @@ def test_several_attributed_agents_are_listed_and_never_summed(tmp_path: Path) -
     unavailable and every candidate is listed with its own real figures.
     """
     shared = {
-        "agent-a.output": [
-            _assistant(
-                message_id="m-a",
-                agent_id="agent-a",
-                branch="main",
-                timestamp="2026-09-02T01:00:00.000Z",
-                usage=_usage(1, 1, 1, 1),
-                tools=("Bash",),
-                worktree=f"w3-{ISSUE}",
-            )
-        ],
-        "agent-b.output": [
-            _assistant(
-                message_id="m-b",
-                agent_id="agent-b",
-                branch="main",
-                timestamp="2026-09-02T01:00:00.000Z",
-                usage=_usage(2, 2, 2, 2),
-                tools=("Bash",),
-                worktree=f"w3-{ISSUE}",
-            )
-        ],
+        "agent-a.output": _run(
+            "agent-a",
+            EXECUTOR_PROMPT,
+            [
+                _assistant(
+                    message_id="m-a",
+                    agent_id="agent-a",
+                    branch="main",
+                    timestamp="2026-09-02T01:00:00.000Z",
+                    usage=_usage(1, 1, 1, 1),
+                    tools=("Bash",),
+                    worktree=f"w3-{ISSUE}",
+                )
+            ],
+        ),
+        "agent-b.output": _run(
+            "agent-b",
+            f"Fix round for issue #{ISSUE} after review.",
+            [
+                _assistant(
+                    message_id="m-b",
+                    agent_id="agent-b",
+                    branch="main",
+                    timestamp="2026-09-02T01:00:00.000Z",
+                    usage=_usage(2, 2, 2, 2),
+                    tools=("Bash",),
+                    worktree=f"w3-{ISSUE}",
+                )
+            ],
+        ),
     }
 
     block = _capture(tmp_path, shared)
@@ -640,6 +726,10 @@ def test_several_attributed_agents_are_listed_and_never_summed(tmp_path: Path) -
     listed = {agent["agentId"]: agent["tokenUsage"]["total"] for agent in block["agents"]}
     assert listed == {"agent-a": 4, "agent-b": 8}
     assert any(gap["reason"] == "ambiguous-attribution" for gap in block["gaps"])
+    # Both were named executors — an original and its fix round. Role selection
+    # narrowed nothing here, and must not have licensed a sum as compensation.
+    assert block["source"]["executorsIdentified"] == 2
+    assert block["source"]["roleSelectedAgentId"] is None
 
 
 def test_a_still_running_agent_is_in_flight_and_not_measured(tmp_path: Path) -> None:
@@ -654,17 +744,21 @@ def test_a_still_running_agent_is_in_flight_and_not_measured(tmp_path: Path) -> 
     yet spent what it will spend, so any figure read from it is a lower bound
     reported as a measurement. In-flight is its own state.
     """
-    records = [
-        _assistant(
-            message_id="m",
-            agent_id="agent-live",
-            branch="main",
-            timestamp="2026-09-02T01:00:00.000Z",
-            usage=_usage(1, 1, 1, 1),
-            tools=("Bash",),
-            worktree=f"w3-{ISSUE}",
-        )
-    ]
+    records = _run(
+        "agent-live",
+        EXECUTOR_PROMPT,
+        [
+            _assistant(
+                message_id="m",
+                agent_id="agent-live",
+                branch="main",
+                timestamp="2026-09-02T01:00:00.000Z",
+                usage=_usage(1, 1, 1, 1),
+                tools=("Bash",),
+                worktree=f"w3-{ISSUE}",
+            )
+        ],
+    )
     base, repo_root = _write_tasks(tmp_path, {"agent-live.output": records}, in_flight=True)
     # The file was just written, so it is by definition still in flight.
     block = run_metrics.capture(
@@ -709,7 +803,7 @@ def test_non_transcript_output_files_are_ignored(tmp_path: Path) -> None:
     block = _capture(
         tmp_path,
         {
-            "agent-one.output": [real],
+            "agent-one.output": _run("agent-one", EXECUTOR_PROMPT, [real]),
             "b9d29ydj4.output": "total 440\ndrwxr-xr-x 15 macos wheel 480 Sep 2 09:27 .\n",
             "empty.output": "",
         },
@@ -780,6 +874,277 @@ def test_measures_this_repository_when_a_session_is_present() -> None:
         assert re.fullmatch(r"[A-Za-z0-9._\-]+", agent["agentId"])
 
 
+# ---------------------------------------------------------------------------
+# #1512 — role. Attribution says *which tree*; it never said *which job*.
+# ---------------------------------------------------------------------------
+
+
+def _reviewer_and_executor(tmp_path: Path, *, executor_in_flight: bool) -> dict:
+    """The reviewer's reproduction from #1512, laid out on disk.
+
+    A reviewer and an executor both worked in this issue's tree — the normal
+    shape of a reviewed issue, not a contrivance. The reviewer is cheap
+    (400,000 tokens); the executor is the run (9,000,000).
+    """
+    reviewer = _run(
+        "agent-reviewer",
+        REVIEWER_PROMPT,
+        [
+            _assistant(
+                message_id="m-rev",
+                agent_id="agent-reviewer",
+                branch=BRANCH,
+                timestamp="2026-09-02T02:00:00.000Z",
+                usage=_usage(400_000, 0, 0, 0),
+                tools=("Read",),
+                worktree=f"w3-{ISSUE}",
+            )
+        ],
+    )
+    executor = _run(
+        "agent-executor",
+        EXECUTOR_PROMPT,
+        [
+            _assistant(
+                message_id="m-exec",
+                agent_id="agent-executor",
+                branch=BRANCH,
+                timestamp="2026-09-02T01:00:00.000Z",
+                usage=_usage(9_000_000, 0, 0, 0),
+                tools=("Edit", "Bash"),
+                worktree=f"w3-{ISSUE}",
+            )
+        ],
+    )
+    base, repo_root = _write_tasks(
+        tmp_path,
+        {"agent-reviewer.output": reviewer, "agent-executor.output": executor},
+        in_flight=("agent-executor.output",) if executor_in_flight else False,
+    )
+    return run_metrics.capture(
+        _context(),
+        repo_root=repo_root,
+        temp_bases=(str(base),),
+        environ={},
+        claims={"executorDomain": "backend", "tokenUsage": {"total": 9_000_000}},
+    )
+
+
+def test_a_reviewer_is_never_reported_as_the_executors_run(tmp_path: Path) -> None:
+    """#1512, in the exact shape the reviewer reproduced it in.
+
+    Executor in flight, reviewer settled. Attribution alone leaves exactly one
+    settled candidate — the reviewer — so the block reported ``measured`` with
+    the reviewer's 400,000 as the run's tokens, and filed the executor's honest
+    9,000,000 self-report in ``disagreements[]`` as a 22x over-claim.
+
+    Every number in that block was real. The role was wrong, which made the
+    whole reading wrong, and made the eval label this epic exists to produce a
+    fabrication pointing at an honest agent.
+    """
+    block = _reviewer_and_executor(tmp_path, executor_in_flight=True)
+
+    assert block["status"] != "measured"
+    for field in ("tokenUsage", "toolInvocationCount", "executionDurationMs"):
+        assert block[field]["available"] is False, field
+        assert "value" not in block[field], field
+
+    # The specific wrong number must be nowhere in the block's headline.
+    assert json.dumps(block["tokenUsage"]).find("400000") == -1
+
+    # No agent was identified as the executor, and the block says so by name.
+    assert any(gap["reason"] == "no-executor-role-identified" for gap in block["gaps"])
+    # The in-flight executor is still declared, not silently dropped.
+    assert any(gap["reason"] == "in-flight-transcript" for gap in block["gaps"])
+
+    # The false eval label is the worst consequence: an honest self-report
+    # recorded as contradicted by a measurement of somebody else.
+    resolved = [entry for entry in block["disagreements"] if entry["resolution"] == "observed"]
+    assert resolved == [], "the executor's claim was contradicted by another agent's figures"
+
+    # The reviewer's own reading is preserved, tagged with the role that
+    # excluded it, so nothing is lost by declining to report it.
+    listed = {agent["agentId"]: agent["role"] for agent in block["agents"]}
+    assert listed == {"agent-reviewer": "reviewer"}
+
+
+def test_the_executor_is_distinguished_from_the_reviewer(tmp_path: Path) -> None:
+    """Both settled: the executor is the headline, the reviewer is listed only.
+
+    This is the *common* shape of a reviewed issue, and before role selection
+    it produced no headline at all — two attributed agents read as ambiguous.
+    The lie a careless fix would tell is the sum, 9,400,000: a total no process
+    ever spent. It must appear nowhere.
+    """
+    block = _reviewer_and_executor(tmp_path, executor_in_flight=False)
+
+    assert block["status"] == "measured"
+    assert block["tokenUsage"]["available"] is True
+    assert block["tokenUsage"]["value"]["total"] == 9_000_000
+    assert block["tokenUsage"]["value"]["total"] != 9_400_000
+    assert block["toolInvocationCount"]["value"] == 2
+
+    roles = {agent["agentId"]: agent["role"] for agent in block["agents"]}
+    assert roles == {"agent-executor": "executor", "agent-reviewer": "reviewer"}
+
+    # The role came off the spawn prompt, which the measured agent cannot write.
+    selected = next(a for a in block["agents"] if a["agentId"] == "agent-executor")
+    assert selected["roleSignal"]
+    assert block["source"]["roleSelectedAgentId"] == "agent-executor"
+    assert block["source"]["executorsIdentified"] == 1
+
+    # The reviewer keeps its own figures and contributes to no total.
+    reviewer = next(a for a in block["agents"] if a["agentId"] == "agent-reviewer")
+    assert reviewer["tokenUsage"]["total"] == 400_000
+
+    # An honest self-report that matches the measurement is not a disagreement.
+    assert block["disagreements"] == []
+
+
+def test_an_unrecognised_role_is_never_guessed_into_the_headline(tmp_path: Path) -> None:
+    """One candidate, no role evidence. The honest answer is still unavailable.
+
+    Not every prompt names a job — "Work in the existing worktree ..." is a
+    real executor directive from the live store that this classifier cannot
+    read. Reporting the lone candidate anyway would be a guess dressed as a
+    measurement, and it is exactly the guess that reported a reviewer as the
+    run. Sparser and right beats denser and wrong.
+    """
+    records = _run(
+        "agent-mystery",
+        UNROLED_PROMPT,
+        [
+            _assistant(
+                message_id="m",
+                agent_id="agent-mystery",
+                branch=BRANCH,
+                timestamp="2026-09-02T01:00:00.000Z",
+                usage=_usage(5, 5, 5, 5),
+                tools=("Bash",),
+                worktree=f"w3-{ISSUE}",
+            )
+        ],
+    )
+
+    block = _capture(tmp_path, {"agent-mystery.output": records})
+
+    assert block["status"] == "ambiguous"
+    for field in ("tokenUsage", "toolInvocationCount", "executionDurationMs"):
+        assert block[field]["available"] is False, field
+        assert "value" not in block[field], field
+    assert block["agents"][0]["role"] == "unknown"
+    assert block["agents"][0]["roleSignal"] is None
+    assert block["agents"][0]["tokenUsage"]["total"] == 20
+    assert any(gap["reason"] == "no-executor-role-identified" for gap in block["gaps"])
+
+
+def test_the_role_is_read_from_the_directive_not_from_stray_prose(tmp_path: Path) -> None:
+    """The classifier reads the job it was given, not every word in the prompt.
+
+    Both lies here are taken from real prompts on the live store. An executor's
+    brief routinely quotes the reviewer that filed the issue; a reviewer's
+    brief routinely mentions the executor whose work it is reading. A
+    whole-prompt keyword search flips both, and flipping the first is precisely
+    the #1512 defect with extra steps.
+    """
+    executor_quoting_a_reviewer = (
+        f"Implement GitHub issue #{ISSUE}. The reviewer that found this defect "
+        "reproduced its sharpest form and the review artifact records it."
+    )
+    reviewer_naming_the_executor = (
+        f"Round-2 review of issue #{ISSUE} after the executor's fix round. "
+        "Confirm the implementation is complete."
+    )
+
+    assert task_transcripts.classify_role(executor_quoting_a_reviewer)[0] == "executor"
+    assert task_transcripts.classify_role(reviewer_naming_the_executor)[0] == "reviewer"
+    # "Prepare issue #N for implementation" is Meta, not an executor, even
+    # though the word "implementation" is right there in the directive.
+    assert task_transcripts.classify_role(f"Prepare issue #{ISSUE} for implementation.")[0] == (
+        "meta"
+    )
+    # Absence of evidence is not evidence: no directive at all is not a role.
+    assert task_transcripts.classify_role("") == ("unknown", None)
+    assert task_transcripts.classify_role(None) == ("unknown", None)
+
+
+def test_a_transcript_with_no_spawn_record_degrades_rather_than_requiring_one(
+    tmp_path: Path,
+) -> None:
+    """The directive is not guaranteed, so its absence must fail closed.
+
+    Measured on the live store: 203 of 204 parsed transcripts carry a spawn
+    directive and 1 carries none at all. A classifier that *required* the field
+    would raise on that one; a classifier that treated its absence as
+    permission to report the only candidate would be the #1512 defect with a
+    different trigger. Neither: no directive is no role, no role is no
+    executor, and no executor is unavailable — with the reading still listed.
+    """
+    bare = [
+        _assistant(
+            message_id="m",
+            agent_id="agent-silent",
+            branch=BRANCH,
+            timestamp="2026-09-02T01:00:00.000Z",
+            usage=_usage(7, 7, 7, 7),
+            tools=("Bash",),
+            worktree=f"w3-{ISSUE}",
+        )
+    ]
+
+    block = _capture(tmp_path, {"agent-silent.output": bare})
+
+    assert block["status"] == "ambiguous"
+    for field in ("tokenUsage", "toolInvocationCount", "executionDurationMs"):
+        assert block[field]["available"] is False, field
+        assert "value" not in block[field], field
+    assert block["agents"][0]["role"] == "unknown"
+    assert block["agents"][0]["spawnDirective"] is None
+    # Nothing is lost by declining to report it.
+    assert block["agents"][0]["tokenUsage"]["total"] == 28
+    assert block["source"]["executorsIdentified"] == 0
+    assert block["source"]["roleSelectedAgentId"] is None
+    assert any(gap["reason"] == "no-executor-role-identified" for gap in block["gaps"])
+
+
+def test_role_classification_holds_on_the_live_store(tmp_path: Path) -> None:
+    """Not a fixture: classify this machine's real transcripts, if it has any.
+
+    Guards the two properties the fixtures cannot: that the directive is
+    actually present at the rate claimed, and that classification never raises
+    on a real prompt. Skipped where no session temp dir exists (CI), which is
+    the honest outcome rather than a synthetic pass.
+    """
+    dirs = task_transcripts.discover_task_dirs(repo_root=REPO_ROOT, environ=dict(os.environ))
+    if not dirs:
+        pytest.skip("no persisted task transcripts on this machine")
+
+    agents = [agent for directory in dirs for agent in task_transcripts.read_task_dir(directory)]
+    if not agents:
+        pytest.skip("no parseable agent transcripts on this machine")
+
+    roles = {
+        task_transcripts.ROLE_EXECUTOR,
+        task_transcripts.ROLE_REVIEWER,
+        task_transcripts.ROLE_META,
+        task_transcripts.ROLE_PLANNER,
+        task_transcripts.ROLE_UNKNOWN,
+    }
+    for agent in agents:
+        assert agent["role"] in roles, agent["agentId"]
+        # A named role always cites the word that named it; unknown never does.
+        if agent["role"] == task_transcripts.ROLE_UNKNOWN:
+            assert agent["roleSignal"] is None, agent["agentId"]
+        else:
+            assert agent["roleSignal"], agent["agentId"]
+        # The directive is bounded before it can reach a committed record.
+        if agent["spawnDirective"] is not None:
+            assert len(agent["spawnDirective"]) <= task_transcripts.MAX_DIRECTIVE_CHARS
+
+    classified = [a for a in agents if a["role"] != task_transcripts.ROLE_UNKNOWN]
+    assert classified, "a store full of unclassifiable directives is a classifier bug"
+
+
 class _Straddle:
     """A ``time`` stand-in whose reading changes only between generations.
 
@@ -824,6 +1189,10 @@ def test_two_generations_agree_on_an_agent_astride_the_settle_boundary(
     process latched first governs both generations.
     """
     records = [
+        _spawn(
+            agent_id="agent-astride",
+            text=f"Implement GitHub issue #{ISSUE}.",
+        ),
         _assistant(
             message_id="m",
             agent_id="agent-astride",
@@ -832,7 +1201,7 @@ def test_two_generations_agree_on_an_agent_astride_the_settle_boundary(
             usage=_usage(1, 1, 1, 1),
             tools=("Bash",),
             worktree=f"w3-{ISSUE}",
-        )
+        ),
     ]
     base, repo_root = _write_tasks(tmp_path, {"agent-astride.output": records})
     settle = task_transcripts.SETTLE_SECONDS

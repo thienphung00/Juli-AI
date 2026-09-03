@@ -46,6 +46,25 @@ sum would produce a total no process ever spent — a fabricated number, which i
 strictly worse than an absent one. So the headline goes unavailable, and every
 candidate keeps its own measured figures under ``agents[]`` where a reader can
 see them.
+
+**The run is the executor's, and role is selected for (#1512).** Attribution
+answers which *tree*; it never answered which *job*, and on a normal issue the
+reviewer worked in the tree too. Left role-blind this block reported a settled
+reviewer beside an in-flight executor as ``measured`` — the reviewer's 400,000
+tokens as the run's, and the executor's honest 9,000,000 self-report filed in
+``disagreements[]`` as a 22x over-claim against an agent that had told the
+truth. So the headline is now the single agent whose spawn directive named it
+this issue's executor; ``task_transcripts.classify_role`` carries that reading.
+
+Selection narrows candidates and never licenses adding what survives. Zero
+identified executors is ``ambiguous`` even with exactly one candidate present,
+because "the only agent here" is not evidence that it implemented anything —
+that inference is what reported a read-only audit scout as the run on #1298 and
+#1300, and a Meta prepare agent on #1448. Two identified executors — an
+original and a fix round — is ambiguous for the #1441 reason, unchanged.
+
+Non-executor candidates stay listed under ``agents[]`` with their role and
+their own figures, so declining to report them costs the record nothing.
 """
 
 from __future__ import annotations
@@ -100,10 +119,17 @@ NO_TRANSCRIPT_REASON = (
 )
 
 AMBIGUOUS_REASON = (
-    "ambiguous attribution: {count} agents were tied to this issue and nothing on "
-    "disk establishes they were one run, so no headline is reported — summing them "
-    "would invent a total no process ever spent. Per-agent readings are listed "
-    "under agents[]"
+    "ambiguous attribution: {count} agents were tied to this issue and named as its "
+    "executor, and nothing on disk establishes they were one run, so no headline is "
+    "reported — summing them would invent a total no process ever spent. Per-agent "
+    "readings are listed under agents[]"
+)
+
+NO_EXECUTOR_REASON = (
+    "no attributed agent's spawn directive named it this issue's executor, so there "
+    "is no run to report: {count} candidate(s) were tied to the issue with roles "
+    "{roles}. Reporting one anyway is how a settled reviewer came to be recorded as "
+    "the run (#1512). Per-agent readings are listed under agents[]"
 )
 
 
@@ -281,6 +307,11 @@ def _strip(agent: dict[str, Any]) -> dict[str, Any]:
         "transcriptRef": agent["transcriptRef"],
         "sessionIds": agent["sessionIds"],
         "settled": agent.get("settled", True),
+        # The role, the word that named it, and the directive it was read from
+        # — a reader can check the classification without the transcript.
+        "role": agent.get("role", task_transcripts.ROLE_UNKNOWN),
+        "roleSignal": agent.get("roleSignal"),
+        "spawnDirective": agent.get("spawnDirective"),
         "branches": agent["branches"],
         "workspaces": agent["workspaces"],
         "attributedBy": agent.get("attributedBy"),
@@ -366,21 +397,49 @@ def capture(
             }
         )
 
-    # Exactly one attributed agent is a reading. Zero is an absence. More than
-    # one is an ambiguity, and all three are distinct states in the record —
-    # collapsing the last two into "not measured" would hide that candidates
-    # exist, and collapsing it into a sum would invent a number.
-    measured = _merge(agents) if len(agents) == 1 else None
+    # Attribution gave the candidates; role decides which of them is the run.
+    # Exactly one identified executor is a reading. Zero attributed agents is
+    # an absence. Anything else is an ambiguity, and the three are distinct
+    # states in the record — collapsing them into "not measured" would hide
+    # that candidates exist, and collapsing any into a sum would invent a
+    # number no process ever spent.
+    executors = [agent for agent in agents if agent.get("role") == task_transcripts.ROLE_EXECUTOR]
+    measured = _merge(executors) if len(executors) == 1 else None
     tools_used: list[dict[str, Any]] = []
+    selected = str(executors[0]["agentId"]) if len(executors) == 1 else None
 
-    if len(agents) > 1:
+    if len(executors) > 1:
         status = "ambiguous"
-        reason = AMBIGUOUS_REASON.format(count=len(agents))
+        reason = AMBIGUOUS_REASON.format(count=len(executors))
         gaps.append(
             {
                 "reason": "ambiguous-attribution",
                 "detail": reason,
-                "candidates": [str(agent["agentId"]) for agent in agents],
+                "candidates": [str(agent["agentId"]) for agent in executors],
+            }
+        )
+        readings = {
+            "tokenUsage": unavailable(reason),
+            "toolInvocationCount": unavailable(reason),
+            "executionDurationMs": unavailable(reason),
+        }
+    elif agents and not executors:
+        # Candidates exist but none was told to implement this issue. The lone
+        # survivor of a settle window is not the run by default — that default
+        # is the #1512 defect.
+        status = "ambiguous"
+        reason = NO_EXECUTOR_REASON.format(
+            count=len(agents),
+            roles=sorted({str(agent.get("role")) for agent in agents}),
+        )
+        gaps.append(
+            {
+                "reason": "no-executor-role-identified",
+                "detail": reason,
+                "candidates": [
+                    {"agentId": str(agent["agentId"]), "role": agent.get("role")}
+                    for agent in agents
+                ],
             }
         )
         readings = {
@@ -425,6 +484,11 @@ def capture(
             "agentsScanned": scanned,
             "agentsAttributed": len(agents),
             "attributedBy": f".worktrees path naming issue-{context.issue}",
+            "executorsIdentified": len(executors),
+            # None unless exactly one agent was identified — the field names
+            # whose transcript the headline came from, or nothing at all.
+            "roleSelectedAgentId": selected,
+            "roleSelectedBy": "spawn-directive",
         },
         **readings,
         "toolsUsed": tools_used,

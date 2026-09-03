@@ -218,6 +218,18 @@ def _plant_transcript(tasks_dir: Path, *, agent_id: str, issue: int) -> None:
     import os
 
     tasks_dir.mkdir(parents=True, exist_ok=True)
+    # #1512 reads the spawn directive to tell an executor from a reviewer, and
+    # only an executor is reported as the run. Without one this agent classifies
+    # `unknown`, the block goes `ambiguous`, and the boundary this test exists to
+    # pin is never reached.
+    spawn = {
+        "type": "user",
+        "agentId": agent_id,
+        "sessionId": "session-under-test",
+        "isSidechain": True,
+        "timestamp": "2026-09-02T00:59:00.000Z",
+        "message": {"role": "user", "content": f"Implement GitHub issue #{issue}."},
+    }
     record = {
         "type": "assistant",
         "agentId": agent_id,
@@ -245,7 +257,7 @@ def _plant_transcript(tasks_dir: Path, *, agent_id: str, issue: int) -> None:
         },
     }
     path = tasks_dir / f"{agent_id}.output"
-    path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(spawn) + "\n" + json.dumps(record) + "\n", encoding="utf-8")
     os.utime(path, (0, 0))
 
 
