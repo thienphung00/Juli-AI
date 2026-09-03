@@ -185,6 +185,9 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         "test_juli_app_role_downgrade_cross_database.py",
         "test_migrations.py",
         "test_restore_drill.py",
+        # Same reason: it calls command.downgrade(cfg, "base") twice against
+        # DATABASE_URL while proving a restore preserves tenant isolation (#1554).
+        "test_rls_restore_integrity.py",
         "test_safe_alembic_upgrade.py",
         "test_safe_alembic_upgrade_local.py",
         # Downgrades to base twice (`:98`, `:142`) — but never writes the word,

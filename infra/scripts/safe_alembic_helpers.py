@@ -27,6 +27,10 @@ PROTECTED_TABLES: tuple[str, ...] = (
     "tiktok_sync_state",
 )
 
+# Tables that must have at least one row in production/drill
+# Do NOT include tables that are legitimately empty (e.g., orders on fresh installs)
+FLOORED_TABLES: tuple[str, ...] = ("users", "shops")
+
 MIGRATION_ALLOW_COMMENT = re.compile(
     r"^\s*#\s*safe-migrate:\s*allow-decrease\s+(?P<table>[a-z_]+)\s*$",
     re.IGNORECASE,
@@ -212,8 +216,14 @@ def row_counts(url: str | None = None) -> dict[str, int]:
     return counts
 
 
-def current_revision() -> str | None:
-    with _engine().connect() as conn:
+def current_revision(url: str | None = None) -> str | None:
+    """The database's stamped revision, or None if it cannot be read.
+
+    Takes an optional url so the restore drill can ask the RESTORED copy for
+    its revision and compare it against the source (#1553). Without it the
+    drill could only ever ask the live database about itself.
+    """
+    with _engine(url).connect() as conn:
         try:
             return conn.execute(
                 text("SELECT version_num FROM alembic_version")
@@ -325,11 +335,125 @@ def verify_token_decryption(url: str | None = None) -> dict[str, str | bool]:
     return {"checked": True, "reason": "decrypt ok"}
 
 
+def verify_rls_enforced(url: str | None = None) -> dict[str, str | bool]:
+    """Verify RLS is enforced by checking juli_app can't read tenant-scoped tables.
+
+    Returns dict with checked=True/False and reason. Raises on test failure.
+    """
+    with _engine(url).connect() as conn:
+        # Check if a tenant-scoped table exists
+        shops_exist = conn.execute(
+            text("SELECT 1 FROM information_schema.tables WHERE table_name = 'shops'")
+        ).scalar()
+        if not shops_exist:
+            return {"checked": False, "reason": "shops table does not exist"}
+
+        # Count rows in shops as superuser
+        shops_count = conn.execute(text("SELECT count(*) FROM shops")).scalar_one()
+        if shops_count == 0:
+            return {"checked": False, "reason": "shops table is empty"}
+
+        # Try to read as juli_app with no tenant context
+        # This should return 0 rows if RLS is working
+        # SET ROLE needs no LOGIN attribute — an earlier version granted it here
+        # as a side effect of a read-only check, which permanently widened the
+        # runtime role every time the drill ran.
+
+        # Now set role and try to read
+        conn.execute(text("SET ROLE juli_app"))
+        conn.execute(text("SET app.current_shop_id = ''"))
+        shops_as_juli_app = conn.execute(text("SELECT count(*) FROM shops")).scalar_one()
+
+        if shops_as_juli_app == 0:
+            return {"checked": True, "reason": "RLS enforced: juli_app without context sees 0 rows"}
+        else:
+            raise RuntimeError(
+                f"RLS IS INERT: juli_app without tenant context read {shops_as_juli_app} rows "
+                f"from shops (should be 0). Tables may be owned by juli_app, "
+                f"exempting them from RLS policies."
+            )
+
+
+def verify_runtime_role_owns_nothing(
+    url: str | None = None, role: str = "juli_app"
+) -> dict[str, object]:
+    """The runtime role must own no table and no SECURITY DEFINER function.
+
+    Two silent restore defects share one symptom, and this is the cheapest query
+    that sees both:
+
+    * Tables owned by the runtime role are exempt from their own RLS policies.
+      The policies restore, are visible in `pg_policies`, and are inert — a
+      cross-tenant read simply succeeds.
+    * `pg_restore --no-owner` reassigns FUNCTIONS too. A SECURITY DEFINER
+      enumeration owned by the runtime role executes AS a non-owner, so RLS
+      applies inside its body and it returns the empty set forever. Every
+      existing assertion still passes: prosecdef is true, PUBLIC still lacks
+      EXECUTE, and the isolation proof is green.
+
+    ASKS ABOUT THE ROLE BY NAME, not about `current_user`. An earlier version
+    keyed on the connected role, which meant it had to be run AS `juli_app` — and
+    run as anyone else it inverted, reporting every table on a perfectly healthy
+    database. That also made it unusable where no passwordless `juli_app` login
+    exists, which is every CI Postgres. Naming the role asks the same question
+    from any connection and cannot invert.
+    """
+    with _engine(url).connect() as conn:
+        exists = conn.execute(
+            text("SELECT count(*) FROM pg_roles WHERE rolname = :r").bindparams(r=role)
+        ).scalar_one()
+        if not exists:
+            return {"checked": False, "role": role, "reason": "role does not exist"}
+        owned = conn.execute(
+            text(
+                "SELECT count(*) FROM ("
+                "  SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace"
+                "   WHERE c.relkind = 'r'"
+                "     AND n.nspname IN ('public','bronze','silver','gold','ops')"
+                "     AND c.relowner = (SELECT oid FROM pg_roles WHERE rolname = :r)"
+                "  UNION ALL"
+                "  SELECT 1 FROM pg_proc"
+                "   WHERE prosecdef"
+                "     AND proowner = (SELECT oid FROM pg_roles WHERE rolname = :r)"
+                ") x"
+            ).bindparams(r=role)
+        ).scalar_one()
+
+    if owned:
+        raise RuntimeError(
+            f"the runtime role '{role}' owns {owned} table(s) and/or SECURITY DEFINER "
+            "function(s). Tables it owns are exempt from their own RLS policies, and a "
+            "SECURITY DEFINER function it owns runs as a non-owner and returns nothing. "
+            "Restore as the OWNER without --no-owner."
+        )
+    return {"checked": True, "role": role, "owned": 0}
+
+
 def estimate_database_bytes() -> int:
     with _engine().connect() as conn:
         return int(
             conn.execute(text("SELECT pg_database_size(current_database())")).scalar_one()
         )
+
+
+def verify_backup_size_floor(backup_bytes: int, min_mb: int = 1) -> bool:
+    """Return True if backup size is >= min_mb (default 1 MB)."""
+    min_bytes = min_mb * 1024 * 1024
+    return backup_bytes >= min_bytes
+
+
+def verify_restored_row_counts(counts_after: dict[str, int]) -> tuple[bool, list[str]]:
+    """Verify restored row counts meet minimum expectations.
+
+    Checks that:
+    - Floored tables (users, shops) have at least 1 row after restore
+    """
+    errors: list[str] = []
+    for table in FLOORED_TABLES:
+        count = counts_after.get(table, 0)
+        if count == 0:
+            errors.append(f"{table}: has 0 rows after restore (floor is 1 row)")
+    return len(errors) == 0, errors
 
 
 def main() -> int:
@@ -342,7 +466,8 @@ def main() -> int:
         help="Postgres URL to inspect (defaults to DATABASE_URL / DATABASE_DIRECT_URL)",
     )
 
-    sub.add_parser("current-revision")
+    p_rev = sub.add_parser("current-revision")
+    p_rev.add_argument("--url", help="Postgres URL to read the revision from")
     sub.add_parser("estimate-db-bytes")
     p_priv = sub.add_parser("verify-migration-privileges")
     p_priv.add_argument("--url", help="Postgres URL to verify (default: migration-db-url)")
@@ -351,6 +476,19 @@ def main() -> int:
 
     p_verify = sub.add_parser("verify-token-decrypt")
     p_verify.add_argument(
+        "--url",
+        help="Postgres URL to inspect (defaults to DATABASE_URL / DATABASE_DIRECT_URL)",
+    )
+
+    p_owns = sub.add_parser("runtime-role-owns-nothing")
+    p_owns.add_argument(
+        "--url",
+        help="Postgres URL to inspect. MUST authenticate as the runtime role — "
+        "run as the owner it inverts and always reports failure.",
+    )
+
+    p_rls = sub.add_parser("verify-rls-enforced")
+    p_rls.add_argument(
         "--url",
         help="Postgres URL to inspect (defaults to DATABASE_URL / DATABASE_DIRECT_URL)",
     )
@@ -386,13 +524,20 @@ def main() -> int:
     p_allowed.add_argument("--allowlist-file", required=True)
     p_allowed.add_argument("--migrations-dir", required=True)
 
+    p_compare = sub.add_parser("verify-restored-row-counts")
+    p_compare.add_argument("--counts", required=True, help="JSON row counts from restored DB")
+
+    p_backup = sub.add_parser("verify-backup-size-floor")
+    p_backup.add_argument("--bytes", type=int, required=True)
+    p_backup.add_argument("--min-mb", type=int, default=1)
+
     args = parser.parse_args()
 
     if args.command == "row-counts":
         print(json.dumps(row_counts(args.url)))
         return 0
     if args.command == "current-revision":
-        print(current_revision() or "")
+        print(current_revision(getattr(args, "url", None)) or "")
         return 0
     if args.command == "estimate-db-bytes":
         print(estimate_database_bytes())
@@ -413,6 +558,22 @@ def main() -> int:
             result = verify_token_decryption(args.url)
         except Exception as exc:
             print(f"decrypt failed: {exc}", file=sys.stderr)
+            return 1
+        print(json.dumps(result))
+        return 0
+    if args.command == "runtime-role-owns-nothing":
+        try:
+            result = verify_runtime_role_owns_nothing(args.url)
+        except Exception as exc:
+            print(f"runtime role ownership check failed: {exc}", file=sys.stderr)
+            return 1
+        print(json.dumps(result))
+        return 0
+    if args.command == "verify-rls-enforced":
+        try:
+            result = verify_rls_enforced(args.url)
+        except Exception as exc:
+            print(f"rls verification failed: {exc}", file=sys.stderr)
             return 1
         print(json.dumps(result))
         return 0
@@ -446,6 +607,22 @@ def main() -> int:
         )
         print("yes" if allowed else "no")
         return 0
+    if args.command == "verify-restored-row-counts":
+        counts = json.loads(args.counts)
+        is_valid, errors = verify_restored_row_counts(counts)
+        if not is_valid:
+            for error in errors:
+                print(error, file=sys.stderr)
+            return 1
+        return 0
+    if args.command == "verify-backup-size-floor":
+        if verify_backup_size_floor(args.bytes, args.min_mb):
+            return 0
+        print(
+            f"backup size {args.bytes} bytes < {args.min_mb} MB",
+            file=sys.stderr,
+        )
+        return 1
 
     return 1
 
