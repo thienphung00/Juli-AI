@@ -135,7 +135,19 @@ log "pg_dump complete: ${BACKUP_FILE} (${BACKUP_SIZE} bytes)"
 
 print_restore_command() {
     log "To restore data from this backup (human review required — migration may have partially applied):"
-    log "  pg_restore --no-owner --no-acl -d \"\${DATABASE_DIRECT_URL:-\$DATABASE_URL}\" --clean --if-exists \"${BACKUP_FILE}\""
+    log "  Restore AS THE OWNER (DATABASE_DIRECT_URL), never as the runtime role."
+    log "  Use NEITHER --no-owner NOR --no-acl. Both were measured to be harmful:"
+    log "    --no-owner hands every table AND the three SECURITY DEFINER enumerations"
+    log "      to the restoring role. Tables it owns are exempt from their own RLS"
+    log "      policies, so the policies restore and are inert; and a SECURITY DEFINER"
+    log "      function it owns runs as a non-owner and returns the empty set forever."
+    log "    --no-acl drops migration 051's REVOKE ALL FROM PUBLIC, so those functions"
+    log "      become EXECUTE-to-PUBLIC and any role can read across every tenant."
+    log "  --no-owner is a no-op anyway when restoring as the dump's owner."
+    log "  If the role does not exist yet, CREATE ROLE juli_app NOLOGIN first —"
+    log "    pg_dump does not carry roles, and this repo never uses pg_dumpall."
+    log "  pg_restore -e -d \"\${DATABASE_DIRECT_URL}\" --clean --if-exists \"${BACKUP_FILE}\""
+    log "  Then verify, as juli_app: safe_alembic_helpers.py runtime-role-owns-nothing"
     log "Then reconcile alembic_version manually if the migration partially applied."
 }
 
