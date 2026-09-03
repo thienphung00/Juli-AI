@@ -381,7 +381,7 @@ def build_run_record(
     this" is a claim no reader can check after the fact, which is the
     self-assessment this slice replaces with evidence.
     """
-    record = {
+    record: dict[str, object] = {
         "harnessRef": resolution.ref or None,
         "harnessSha": resolution.sha,
         "harnessStatus": resolution.status,
