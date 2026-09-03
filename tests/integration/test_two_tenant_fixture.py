@@ -146,25 +146,72 @@ async def test_switching_the_context_switches_what_is_visible(two_tenants) -> No
 
 
 @pytest.mark.asyncio
-async def test_a_shop_scoped_session_cannot_reach_users_or_shops(two_tenants) -> None:
-    """#1478 AC4, deferred until this fixture existed.
+async def test_a_shop_scoped_session_cannot_reach_users(two_tenants) -> None:
+    """#1478 AC4, narrowed by #1518.
 
     `with_shop_scope` withholds `app.current_user_id` so user-keyed policies
     deny. This is that denial observed in Postgres rather than inferred from
     which GUCs the seam emits.
+
+    ORIGINALLY THIS ASSERTED `shops` DENIED TOO, and #1518 deliberately changed
+    that. The claim in `with_shop_scope`'s docstring — that a shop-level task
+    "has no business" reading `shops` — turned out to be too broad:
+    `mock_analytics_reconcile` must resolve its own shop's vendor key, and
+    under the old policy set read zero rows and silently did nothing.
+
+    Migration 053 adds `shops_shop_scope_select (id = app_current_shop_id())`.
+    That is not a widening of tenancy: a session scoped to shop X may read shop
+    X, and only shop X. The next test pins that boundary. `users` stays closed,
+    because nothing shop-scoped needs a user, and that is the half of AC4 the
+    withheld GUC still enforces.
     """
     tenant_a, _tenant_b = two_tenants
 
     async with juli_app_session(tenant_a.shop_id) as session:
         users = (await session.execute(text("SELECT count(*) FROM public.users"))).scalar()
-        shops = (await session.execute(text("SELECT count(*) FROM public.shops"))).scalar()
 
     assert users == 0, (
         f"a shop-scoped session read {users} rows from public.users. It withholds "
         "app.current_user_id precisely so that table denies; a non-zero count means either "
         "the user GUC leaked in or the policy is not keyed to it (#1478)."
     )
-    assert shops == 0, f"a shop-scoped session read {shops} rows from public.shops"
+
+
+@pytest.mark.asyncio
+async def test_a_shop_scoped_session_reads_its_own_shop_and_no_other(two_tenants) -> None:
+    """The boundary migration 053 actually draws (#1518).
+
+    The point of the policy is that it is keyed to the CALLER's shop. If it
+    were written as a blanket `USING (true)` for the runtime role, the first
+    assertion here would still pass and the tenancy would be gone; the second
+    and third are what make this test worth having.
+    """
+    tenant_a, tenant_b = two_tenants
+
+    async with juli_app_session(tenant_a.shop_id) as session:
+        own = (
+            await session.execute(
+                text("SELECT count(*) FROM public.shops WHERE id = :i"),
+                {"i": str(tenant_a.shop_id)},
+            )
+        ).scalar()
+        other = (
+            await session.execute(
+                text("SELECT count(*) FROM public.shops WHERE id = :i"),
+                {"i": str(tenant_b.shop_id)},
+            )
+        ).scalar()
+        total = (await session.execute(text("SELECT count(*) FROM public.shops"))).scalar()
+
+    async with juli_app_session() as session:
+        unscoped = (await session.execute(text("SELECT count(*) FROM public.shops"))).scalar()
+
+    assert own == 1, "a shop-scoped session must be able to read its own shop row"
+    assert other == 0, f"it read {other} rows of another tenant's shop — the policy is not keyed"
+    assert total == 1, (
+        f"an unfiltered SELECT returned {total} rows; only the caller's own is visible"
+    )
+    assert unscoped == 0, f"with no shop context at all it read {unscoped} rows; must fail closed"
 
 
 @pytest.mark.asyncio
