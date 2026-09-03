@@ -190,6 +190,45 @@ DIRECTIVE_TOKENS = 8
 MAX_DIRECTIVE_CHARS = 160
 
 
+def settle_clock(now: float | None = None) -> float:
+    """The single instant every settle decision in this process is measured against.
+
+    ``now`` is passed straight back when given: a caller that supplies an
+    instant already holds a shared one, and substituting the latch for it would
+    make the parameter a lie. Supplying one deliberately does *not* latch —
+    a one-off read against a hypothetical instant must not pin every later read
+    in the process to it.
+
+    Otherwise the first call latches the wall clock and every later call returns
+    that same reading. This is what makes repeated generation idempotent by
+    construction rather than by luck: with the clock fixed and the file's mtime
+    fixed, ``settled`` is a pure function of the store, so two generations over
+    an unchanged store cannot disagree — there is no longer a quantity left that
+    could differ between them.
+
+    Latching for the process lifetime is safe for the way this module is used:
+    it is imported by short-lived generation scripts. Long-lived callers (a test
+    session) reset it explicitly.
+    """
+    global _settle_clock
+    if now is not None:
+        return float(now)
+    if _settle_clock is None:
+        _settle_clock = time.time()
+    return _settle_clock
+
+
+def reset_settle_clock() -> None:
+    """Forget the latched instant; the next unpinned read latches a fresh one.
+
+    Exists for tests, which run many generations in one process and must be able
+    to place the clock rather than inherit whatever the first test in the file
+    happened to latch.
+    """
+    global _settle_clock
+    _settle_clock = None
+
+
 def project_slug(path: Path | str) -> str:
     """The on-disk directory name a project path is stored under.
 
@@ -521,7 +560,7 @@ def read_task_dir(
     measurement: it is a lower bound on a run still in progress, and reading it
     is what makes two status-record generations disagree.
     """
-    clock = time.time() if now is None else now
+    clock = settle_clock(now)
     directory = Path(tasks_dir)
     try:
         entries = sorted(directory.glob("*.output"))
