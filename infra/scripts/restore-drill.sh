@@ -166,12 +166,12 @@ log "token decrypt check on restored copy: ${DECRYPT_JSON}"
 # non-owner and returns the empty set forever — which no existing assertion
 # catches, because prosecdef and the PUBLIC revoke both still look correct.
 #
-# It MUST use the runtime role's URL. Run as the owner it inverts: a correct
-# database then reports 47 owned objects and the drill would fail on a healthy
-# restore.
+# Asks about juli_app BY NAME, so any connection can run it and it cannot
+# invert. Keying on current_user would require a juli_app login, which no CI
+# Postgres provides.
 log "verifying the runtime role owns nothing in the restored copy"
 set +e
-OWNS_JSON="$("${HELPER[@]}" runtime-role-owns-nothing --url "${RUNTIME_SCRATCH_URL:-${SCRATCH_URL}}" 2>&1)"
+OWNS_JSON="$("${HELPER[@]}" runtime-role-owns-nothing --url "${SCRATCH_URL}" 2>&1)"
 OWNS_EXIT=$?
 set -e
 if [ "${OWNS_EXIT}" -ne 0 ]; then

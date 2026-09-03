@@ -307,7 +307,9 @@ def verify_rls_enforced(url: str | None = None) -> dict[str, str | bool]:
             )
 
 
-def verify_runtime_role_owns_nothing(url: str | None = None) -> dict[str, object]:
+def verify_runtime_role_owns_nothing(
+    url: str | None = None, role: str = "juli_app"
+) -> dict[str, object]:
     """The runtime role must own no table and no SECURITY DEFINER function.
 
     Two silent restore defects share one symptom, and this is the cheapest query
@@ -320,28 +322,35 @@ def verify_runtime_role_owns_nothing(url: str | None = None) -> dict[str, object
       enumeration owned by the runtime role executes AS a non-owner, so RLS
       applies inside its body and it returns the empty set forever. Every
       existing assertion still passes: prosecdef is true, PUBLIC still lacks
-      EXECUTE, and the isolation proof is green. `credential_refresh_beat` then
-      refreshes nothing and every tenant's tokens quietly expire.
+      EXECUTE, and the isolation proof is green.
 
-    Must be run AS THE RUNTIME ROLE. Run as the owner against a correct database
-    it returns a large number, which inverts the check.
+    ASKS ABOUT THE ROLE BY NAME, not about `current_user`. An earlier version
+    keyed on the connected role, which meant it had to be run AS `juli_app` — and
+    run as anyone else it inverted, reporting every table on a perfectly healthy
+    database. That also made it unusable where no passwordless `juli_app` login
+    exists, which is every CI Postgres. Naming the role asks the same question
+    from any connection and cannot invert.
     """
     with _engine(url).connect() as conn:
+        exists = conn.execute(
+            text("SELECT count(*) FROM pg_roles WHERE rolname = :r").bindparams(r=role)
+        ).scalar_one()
+        if not exists:
+            return {"checked": False, "role": role, "reason": "role does not exist"}
         owned = conn.execute(
             text(
                 "SELECT count(*) FROM ("
                 "  SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace"
                 "   WHERE c.relkind = 'r'"
                 "     AND n.nspname IN ('public','bronze','silver','gold','ops')"
-                "     AND c.relowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)"
+                "     AND c.relowner = (SELECT oid FROM pg_roles WHERE rolname = :r)"
                 "  UNION ALL"
                 "  SELECT 1 FROM pg_proc"
                 "   WHERE prosecdef"
-                "     AND proowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)"
+                "     AND proowner = (SELECT oid FROM pg_roles WHERE rolname = :r)"
                 ") x"
-            )
+            ).bindparams(r=role)
         ).scalar_one()
-        role = conn.execute(text("SELECT current_user")).scalar_one()
 
     if owned:
         raise RuntimeError(
