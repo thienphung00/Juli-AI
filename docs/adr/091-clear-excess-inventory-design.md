@@ -5,8 +5,8 @@
 **Deciders:** grill-with-docs (Architect) with user
 
 **Amends:** [`execution_layer.md`](../product/execution_layer.md) §4 steps 3, 4, 6a and 7;
-[ADR-049](049-demo-analytics-main-kpi-override.md)'s Demo KPI tie for `clear_excess_4`
-(AOV → Stock Health), as recorded in [ADR-055](055-decision-plan-review.md) d.15.
+[ADR-055](055-decision-plan-review.md) d.19's Repeat-consent exclusion list, which bars
+`clear_excess_4` on the strength of copy this design removes (d.8).
 **Builds on:** [ADR-090](090-optimize-product-realignment.md) — discount-only reprice, a
 deterministic price the model may not invent, honest end states — plus
 [ADR-087](087-subject-scoped-action-cards-and-card-revisions.md)'s subject taxonomy and card
@@ -143,15 +143,22 @@ Get Activity (§A-25) are captured.
    invents. *Rejected:* reconciling Juli's intent onto the seller's edit — it overwrites a
    deliberate human act with a stale plan.
 
-6. **Success is goal progress; impact is revenue on the cleared SKUs; the card KPI becomes Stock
-   Health.** The did-the-job fact is `units cleared ÷ units to clear` — a fact, unhedged, feeding
-   execution quality in `CONTEXT.md`'s four-metric separation. The **impact reading** is revenue on
-   the cleared SKUs against the pre-discount baseline through ADR-077's existing reader, hedged as
-   an estimate like every other reading. The card's KPI tie moves from **AOV** to **Stock Health**
-   (days of supply), directional goal **down** — AOV was always the wrong reading, since clearing
-   excess deliberately *lowers* average order value, and the backend catalog already ties
-   `clear_excess_4` to `dsi` and `inventory_turnover`. **Margin recovered is out of scope** until a
-   per-SKU cost exists. *Rejected:* keeping AOV.
+6. **Success is goal progress; impact is revenue on the cleared SKUs; the card KPI stays AOV and
+   Stock Health is the run's internal measure.** The did-the-job fact is
+   `units cleared ÷ units to clear` — a fact, unhedged, feeding execution quality in `CONTEXT.md`'s
+   four-metric separation. The **impact reading** is revenue on the cleared SKUs against the
+   pre-discount baseline through ADR-077's existing reader, hedged as an estimate like every other
+   reading. The card's KPI tie is **unchanged — AOV**, per ADR-055 d.15's `analyticsMetricKey`
+   table; ADR-049's five-KPI catalog is **not** amended here. **Stock Health** (days of supply) is
+   the run's *internal* measure instead: days of supply **before and after** is recorded on the run
+   and stated in the completion copy, where it is the honest reading of what the discount did to
+   the stock position, without spending the one card KPI slot on a metric outside the five.
+   **Margin recovered is out of scope** until a per-SKU cost exists.
+   *Observed, not resolved here:* the backend's `KPI_WORKFLOW_KEYS` already maps `clear_excess_4`
+   to `dsi` and `inventory_turnover` while the card ties to AOV — a pre-existing disagreement
+   between two tables that predates this design and that this ADR neither creates nor fixes.
+   *Rejected:* moving the card KPI to Stock Health — it would require amending ADR-049's five-KPI
+   cap (Stock Health is not one of the five) for a reading the run already carries internally.
 
 7. **Honest end states**, reusing ADR-090 d.7's vocabulary and
    [ADR-088](088-consent-pause-is-a-runner-guarantee.md)'s terminal tool with a cause:
@@ -170,6 +177,26 @@ Get Activity (§A-25) are captured.
    A vendor failure after a passing validator stays on the existing terminal failure path; a run
    that wrote nothing produces **no impact reading** and counts separately from a failure.
    *Rejected:* one generic "nothing to do", which makes eight different facts indistinguishable.
+
+8. **The irreversibility copy goes, and with it the no-auto-act bar.** The shipped `clear_excess_4`
+   seller copy — *"Việc xoá tồn kho về 0 là bước không thể hoàn tác — chỉ thực hiện sau khi có xác
+   nhận thực tế"* — describes the **stock write** that decision 4 deletes. In this design the only
+   write is a **30-day Product Discount**: deactivation ends it (d.4) and `Republish Activity`
+   revives it within 7 days. Nothing here is irreversible and nothing waits on a physical count, so
+   the statement is not merely redundant — it is **false**, and false safety copy is worse than
+   none. It is removed, and with it the **No-auto-act promise** it constitutes (`CONTEXT.md`), so
+   `clear_excess_4` becomes **eligible for Repeat consent** once the autonomy ladder exists. The
+   first pre-approvable act is the **goal-triggered deactivation**, which d.4 already performs with
+   no fresh CONFIRM; ending an expired activity follows later. What stays consent-bound is
+   unchanged: the discount create still pauses at CONFIRM, params-hash bound (d.3), because setting
+   a price never leaves level 0 of `PLAN.md`'s ladder.
+   *Rejected:* keeping the sentence as a generic caution — it names a step this workflow no longer
+   has, and a promise the product cannot point at is a promise it cannot keep.
+
+   > This **narrows [ADR-055](055-decision-plan-review.md) d.19**, in the opposite direction from
+   > [ADR-090](090-optimize-product-realignment.md) d.6: ADR-090 takes `optimize_product_2` **out**
+   > of the Repeat-consent-eligible set, and this decision puts `clear_excess_4` **in**. d.19's
+   > exclusion of `clear_excess_4` was assessed against the stock write, which no longer exists.
 
 ## End-to-end steps
 
@@ -207,7 +234,8 @@ Get Activity (§A-25) are captured.
 
 **Stage E — measurement.** E1 `units cleared ÷ units to clear`, unhedged, into execution quality;
 E2 revenue on the cleared SKUs vs the pre-discount baseline through the ADR-077 reader, hedged as
-an estimate; E3 the card's KPI reads **Stock Health** (days of supply), directional goal down.
+an estimate; E3 the card's KPI tie stays **AOV** (ADR-055 d.15), while **days of supply before and
+after** is recorded on the run and stated in the completion copy as the run's internal measure.
 
 ## Consequences
 
@@ -219,8 +247,20 @@ an estimate; E3 the card's KPI reads **Stock Health** (days of supply), directio
   private version.
 - **Card and approval shape.** A `stock_goal` field on the card, snapshotted into the approval and
   carried in run state; a checklist item type for the Thanh lý step Juli cannot perform.
-- **KPI catalog change.** `clear_excess_4`'s tie moves AOV → Stock Health in the card's
-  `analyticsMetricKey` mapping — the ADR-055 d.15 table, not `KPI_WORKFLOW_KEYS`.
+- **No KPI catalog change.** `clear_excess_4`'s `analyticsMetricKey` stays **AOV** (ADR-055 d.15)
+  and ADR-049's five-KPI cap is untouched. What is new is a **days-of-supply before/after** pair
+  recorded on the run and rendered in the completion copy (d.6).
+- **Copy removal is its own slice.** The `clear_excess_4` irreversibility statement and the
+  Repeat-consent exclusion built on it live in code, not in this ADR. The slice edits
+  `apps/demo/src/lib/recommendations.ts` (the `clear_excess_4` entry's `risks` field),
+  `apps/demo/src/lib/repeat-consent.ts` (flip `clear_excess_4` to `eligible: true`, clear its
+  `note`), `apps/demo/src/lib/workflows/clear-excess/review.ts` and
+  `apps/demo/src/lib/workflows/clear-excess/execution.ts` (the zero-inventory step copy, which d.4
+  deletes outright), and the four tests that currently assert the string —
+  `apps/demo/src/lib/workflows/clear-excess/__tests__/{plan,review,execution}.test.ts` and
+  `apps/demo/src/__tests__/repeat-consent.test.tsx`. `packages/contracts` carries none of this
+  copy. Removing the sentence without also removing the stock write it describes would be the
+  wrong order — the slice follows the d.4 rewrite.
 - **`execution_layer.md` §4 rewrite** (its own slice): step 3 deleted; step 4 becomes a
   `DIRECT_DISCOUNT` create behind the validator; step 6a becomes the Thanh lý checklist item;
   step 7 becomes goal-or-expiry close-out.
