@@ -1,6 +1,9 @@
 # Purpose
 
-Use when writing/reviewing Python in this repo (FastAPI, async services, modules under `src/`).
+Use when writing/reviewing Python under `backend/src/juli_backend`. This is the general
+guidance; the repo-specific standard is `docs/architecture/code-standard.md` and
+`.cursor/rules/code-quality.mdc`, and where they differ the standard wins. Each kind of
+change has an exemplar module to copy (listed in `CLAUDE.md`, "Code standard").
 
 # Core Principles
 
@@ -29,11 +32,12 @@ Use when writing/reviewing Python in this repo (FastAPI, async services, modules
 - **Async I/O**
   - Use async HTTP clients and DB drivers; don’t call `requests` in async.
   - Keep timeouts explicit; propagate cancellation (don’t blanket-catch `CancelledError`).
-- **Package organization**
-  - `api/`: request/response shapes + routing only.
-  - `use_cases/`: orchestration + transaction boundaries.
-  - `domain/`: pure business rules + entities + policies.
-  - `infrastructure/`: external systems (DB, HTTP, queues) behind interfaces.
+- **Package organization** (this repo; the edge matrix is `.importlinter.toml`)
+  - `api/`: routes only — tenant, gates, call the service, map its exception, commit, enqueue.
+  - `services/`: behaviour, one aggregate per package with a `MODULE.md`; owns transactions.
+  - `repositories/`: one module per aggregate on `_base.py`; borrows the session, never commits.
+  - `models/`, `database/`: ORM and session plumbing; `integrations/`: vendor I/O; `workers/`: Celery.
+  - `api` may import only `juli_backend.<package>.<child>`; deeper needs move into `services`.
 - **Separation of concerns**
   - Parsing/validation at boundaries; domain functions accept typed inputs.
   - Side effects live at edges; domain stays deterministic.
@@ -43,10 +47,11 @@ Use when writing/reviewing Python in this repo (FastAPI, async services, modules
 - Business logic in FastAPI routes.
 - “God services” that do everything (HTTP + DB + rules + formatting).
 - Deep inheritance for “frameworky” reuse; prefer composition + helpers.
-- Premature abstractions (generic repositories, over-general base classes).
+- A second repository base. `ShopScopedRepo` in `repositories/_base.py` is the one; extend it.
 - Hidden global state (singletons, mutable module-level caches).
 - Blocking I/O inside `async def` (file, network, DB).
-- Broad `except Exception:` without re-raise + context.
+- Broad `except Exception:` anywhere but a named boundary, and there only with a same-line
+  comment saying what boundary and what the degrade is.
 - Unbounded results in list endpoints (always paginate/bound).
 
 # Code Review Checklist
