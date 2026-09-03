@@ -1,0 +1,360 @@
+{
+  "gateVersion": 2,
+  "issue": 1441,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "agent-runtime/scripts/ci/task_transcripts.py",
+      "agent-runtime/scripts/ci/capture_providers/run_metrics.py",
+      "agent-runtime/scripts/ci/json_schema_validate.py",
+      "agent-runtime/scripts/validate/check_implementation_artifact.py",
+      "agent-runtime/docs/schemas/implementation-artifact.schema.json"
+    ]
+  },
+  "review": {
+    "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1441.json",
+    "ownerSignoffPresent": true,
+    "sha256": "a5ea5d28168e9ffc4dac69a3a05d8fb896508b42688ef6cadfd476089c92796b",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "run": {
+    "artifactBytes": {
+      "reviewBytes": 16878,
+      "validationBytes": 27633
+    },
+    "claimVsExecuted": {
+      "citedCommandCount": 7,
+      "invokedCommandCount": 9389,
+      "matchedCommandCount": 1,
+      "reason": "6 of 7 cited commands have no matching invocation in the session transcripts",
+      "recordPasses": false,
+      "status": "FAIL",
+      "transcriptSources": [
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-codebase-audit-refactor-b9b867",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-open-terminal-in-code-08e55d"
+      ],
+      "transcriptsScanned": 43,
+      "unmatchedCommandCount": 6,
+      "unmatchedCommands": [
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_run_metrics_provider.py tests/unit/test_implementation_artifact_contract.py -q",
+          "cycle": 1,
+          "exitCode": 1
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_run_metrics_provider.py tests/unit/test_implementation_artifact_contract.py tests/unit/test_ratchets.py -q",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_status_record_gate.py tests/unit/test_mutants.py tests/unit/test_implementation_schema_valid.py tests/unit/test_implementation_artifact.py tests/unit/test_wave_manifest.py tests/unit/test_check_artifact_retention_guard.py tests/unit/test_run_metrics_provider.py tests/unit/test_implementation_artifact_contract.py tests/unit/test_ratchets.py tests/unit/test_assemble_evidence.py tests/unit/test_claim_vs_executed_provider.py tests/unit/test_command_subsumption_provider.py tests/unit/test_implementation_tdd_evidence.py tests/unit/test_harness_runtime.py -q -p no:randomly",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=/tmp/shadow1441:... python -c 'import task_transcripts, json_schema_validate, check_implementation_artifact; from capture_providers import run_metrics'",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_run_metrics_provider.py -q",
+          "cycle": 2,
+          "exitCode": 1
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_run_metrics_provider.py tests/unit/test_implementation_artifact_contract.py -q",
+          "cycle": 2,
+          "exitCode": 0
+        }
+      ],
+      "unmatchedCommandsTruncated": false,
+      "verified": true
+    },
+    "commandScope": {
+      "ciSelectors": {
+        "mypy": {
+          "command": "mypy backend/src/juli_backend --ignore-missing-imports --disable-error-code=valid-type",
+          "deselectedMarkers": [],
+          "paths": [
+            "backend/src/juli_backend"
+          ]
+        },
+        "pytest": {
+          "command": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "deselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "paths": [
+            "tests"
+          ]
+        },
+        "ruff check": {
+          "command": "ruff check backend/src/juli_backend tests scripts",
+          "deselectedMarkers": [],
+          "paths": [
+            "backend/src/juli_backend",
+            "tests",
+            "scripts"
+          ]
+        }
+      },
+      "ciWorkflow": ".github/workflows/pr.yml",
+      "commandsCited": 0,
+      "invocations": [],
+      "invocationsScored": 0,
+      "invocationsUnrecognised": 0,
+      "narrowerCount": 0,
+      "narrowerThanCI": [],
+      "unit": "invocation",
+      "unitRationale": "76 corpus commands chain 2-5 runs; scoring per command lets a broad first run launder a narrow second one, so each invocation is scored on its own selector."
+    },
+    "environment": {
+      "cwd": "/Users/macos/Juli-AI-v2/.worktrees/w3-1441",
+      "dependencies": {
+        "constraints": "/Users/macos/Juli-AI-v2/.worktrees/w3-1441/backend/constraints.txt",
+        "drift": [
+          {
+            "installed": "3.18",
+            "package": "idna",
+            "pinned": "3.19"
+          },
+          {
+            "installed": "2.24.0",
+            "package": "narwhals",
+            "pinned": "2.25.0"
+          },
+          {
+            "installed": "1.26.4",
+            "package": "numpy",
+            "pinned": "2.5.2"
+          },
+          {
+            "installed": "0.16.3",
+            "package": "ruff",
+            "pinned": "0.16.4"
+          },
+          {
+            "installed": "1.13.1",
+            "package": "scipy",
+            "pinned": "1.18.1"
+          },
+          {
+            "installed": "5.9.0",
+            "package": "stevedore",
+            "pinned": "5.9.1"
+          },
+          {
+            "installed": "0.52.3",
+            "package": "uvicorn",
+            "pinned": "0.52.4"
+          }
+        ],
+        "matched": 75,
+        "missing": [],
+        "pinned": 82
+      },
+      "executable": "/opt/homebrew/anaconda3/bin/python",
+      "git": {
+        "baseDistanceUnavailable": null,
+        "behindOriginMain": 4,
+        "branch": "feature/issue-1441-measured-run-metrics",
+        "head": "d6d0defa377171b17216c57edc7e4b84144aedca",
+        "shallow": false
+      },
+      "moduleResolution": {
+        "error": "ModuleNotFoundError: No module named 'juli_backend'",
+        "expectedPrefix": "/Users/macos/Juli-AI-v2/.worktrees/w3-1441/backend/src/juli_backend",
+        "insideRepo": false,
+        "module": "juli_backend",
+        "resolved": null
+      },
+      "python": "3.12.9",
+      "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/w3-1441"
+    },
+    "metrics": {
+      "agents": [
+        {
+          "agentId": "adc9813b9ae1a5ead",
+          "attributedBy": "worktreePath",
+          "branches": [
+            "feature/issue-1441-measured-run-metrics",
+            "main"
+          ],
+          "durationMs": 19515429,
+          "messageCount": 111,
+          "recordCount": 330,
+          "sessionIds": [
+            "3035598a-f8d1-4c62-bc80-6838edda31d6"
+          ],
+          "settled": true,
+          "sidechainRecordCount": 330,
+          "tokenUsage": {
+            "cacheCreation": 364469,
+            "cacheRead": 14532153,
+            "input": 222,
+            "output": 11682,
+            "total": 14908526
+          },
+          "toolInvocationCount": 115,
+          "toolsUsed": [
+            {
+              "count": 103,
+              "toolName": "Bash"
+            },
+            {
+              "count": 6,
+              "toolName": "Edit"
+            },
+            {
+              "count": 4,
+              "toolName": "Write"
+            },
+            {
+              "count": 1,
+              "toolName": "Read"
+            },
+            {
+              "count": 1,
+              "toolName": "Skill"
+            }
+          ],
+          "transcriptRef": "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks/adc9813b9ae1a5ead.output",
+          "workspaces": [
+            "w3-",
+            "w3-1441"
+          ]
+        }
+      ],
+      "disagreements": [
+        {
+          "claimed": 110,
+          "field": "toolInvocationCount",
+          "observed": 115,
+          "observedFrom": "task-transcript",
+          "resolution": "observed"
+        },
+        {
+          "claimed": 19416841,
+          "field": "executionDurationMs",
+          "observed": 19515429,
+          "observedFrom": "task-transcript",
+          "resolution": "observed"
+        }
+      ],
+      "executionDurationMs": {
+        "available": true,
+        "observedFrom": "task-transcript",
+        "value": 19515429
+      },
+      "executorDomain": "backend",
+      "executorDomainSource": "implementation-artifact",
+      "gaps": [
+        {
+          "agents": [
+            "a140f25fec7436e83"
+          ],
+          "detail": "attributed agents whose transcript is still being written; a running agent has not yet spent what it will spend, so its reading is a lower bound and is not reported as a measurement",
+          "reason": "in-flight-transcript"
+        }
+      ],
+      "schemaVersion": 1,
+      "source": {
+        "agentsAttributed": 1,
+        "agentsScanned": 199,
+        "attributedBy": ".worktrees path naming issue-1441",
+        "kind": "task-transcript",
+        "taskDirs": [
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/cb047053-ee20-4e00-925f-7ebf36c0417b/tasks",
+          "/tmp/claude-501/-Users-macos/61a4eb31-9294-45c2-a803-0c26980300c6/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/491f9d6b-185a-43a4-bbea-f1fcd906bf1d/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/03369828-07b8-46b9-8587-8b7e97d289c1/tasks"
+        ]
+      },
+      "status": "measured",
+      "tokenUsage": {
+        "available": true,
+        "observedFrom": "task-transcript",
+        "value": {
+          "cacheCreation": 364469,
+          "cacheRead": 14532153,
+          "input": 222,
+          "output": 11682,
+          "total": 14908526
+        }
+      },
+      "toolInvocationCount": {
+        "available": true,
+        "observedFrom": "task-transcript",
+        "value": 115
+      },
+      "toolsUsed": [
+        {
+          "count": 103,
+          "toolName": "Bash"
+        },
+        {
+          "count": 6,
+          "toolName": "Edit"
+        },
+        {
+          "count": 4,
+          "toolName": "Write"
+        },
+        {
+          "count": 1,
+          "toolName": "Read"
+        },
+        {
+          "count": 1,
+          "toolName": "Skill"
+        }
+      ]
+    },
+    "transcripts": {
+      "commands": {
+        "executor": 0,
+        "executorCommands": [],
+        "includesExecutorCommands": false,
+        "parent": 0,
+        "parentCommands": []
+      },
+      "coverage": {
+        "complete": false,
+        "executorsExpected": 1,
+        "executorsPersisted": 0,
+        "gaps": [
+          {
+            "agent": "executor-review agent (Opus 5)",
+            "reason": "no-transcript-persisted"
+          }
+        ]
+      },
+      "executorCount": 0,
+      "executors": [],
+      "parentOnly": true,
+      "schemaVersion": 1,
+      "status": "not-persisted"
+    }
+  },
+  "timestamp": "2026-09-02T12:32:20Z",
+  "validation": {
+    "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1441.json",
+    "sha256": "b5d8d120c6eaac5639759438e4f06ac0703115fb6160f0fdc3e239fa90d1bc27",
+    "status": "PASS"
+  },
+  "wave": "wave-harness-e-w3"
+}
