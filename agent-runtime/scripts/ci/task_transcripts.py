@@ -61,6 +61,39 @@ That signal is not perfect either — an agent that merely *reads* another's tre
 picks up its name — so more than one attributed agent is reported as ambiguous
 rather than summed. See :func:`agents_for_issue`.
 
+Attribution says which *tree*; role says which *job* (#1512)
+------------------------------------------------------------
+The tree an agent worked in cannot tell an executor from the reviewer that
+read the same tree, and on a normal issue both are there. Left role-blind, a
+settled reviewer beside an in-flight executor read as the run: measured, with
+the reviewer's 400,000 tokens as the headline and the executor's honest
+9,000,000 filed as a 22x over-claim. Every figure real, the role wrong, so the
+reading was wrong.
+
+The role is read from the transcript's **first record** — the prompt the
+orchestrator handed the agent before it ran a turn. Measured on the live store:
+188 of 203 transcripts open with it. It is the harness stating the job, in a
+record the measured agent cannot write, which is the same property that makes
+the usage counts a measurement rather than a claim.
+
+Two weaker signals were measured and rejected as the primary. *Which agent
+wrote the implementation artifact* cannot classify an agent that has not
+written one yet — and an in-flight executor is exactly the case the defect
+turns on. *Write/Edit-to-Read ratio* is a proxy with no ground truth behind it.
+The directive was cross-checked against the artifact-write signal over all 203
+transcripts on the live store: zero contradictions — no directive-classified
+executor wrote a review artifact without also writing an implementation one,
+and no directive-classified reviewer wrote an implementation artifact.
+
+Only the **head** of the directive is read, and that bound is load-bearing. An
+executor's brief routinely quotes the reviewer who filed the issue, and a
+reviewer's brief routinely names the executor whose work it is reading, so a
+whole-prompt keyword search flips both. See :func:`classify_role`.
+
+Classification fails to ``unknown``, never to a guess: a directive this module
+cannot read is not an executor, and a lone unclassifiable candidate keeps its
+figures under ``agents[]`` while the headline goes unavailable.
+
 Stdlib only, by policy: this module is imported during status-record generation
 in CI, where the dependency set is ``./backend[dev] -c backend/constraints.txt``.
 """
@@ -104,6 +137,51 @@ _SLUG_RE = re.compile(r"[^A-Za-z0-9]")
 #: matched here is a tree the agent actually operated on.
 _WORKTREE_RE = re.compile(r"\.worktrees/([A-Za-z0-9._-]+)")
 
+ROLE_EXECUTOR = "executor"
+ROLE_REVIEWER = "reviewer"
+ROLE_META = "meta"
+ROLE_PLANNER = "planner"
+ROLE_UNKNOWN = "unknown"
+
+#: Words in a spawn directive that name the *addressee's* job. Every pattern
+#: here was fixed against the 203 transcripts on the live store rather than
+#: guessed; anything unmatched stays :data:`ROLE_UNKNOWN`, which is a state and
+#: not a fallback role.
+_ROLE_MARKERS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    # Meta first only in listing order — precedence is by position in the text,
+    # which is what makes "Prepare issue #N for implementation" read as Meta
+    # despite "implementation" sitting three words later.
+    (ROLE_META, re.compile(r"\bprepare[sd]?\b", re.IGNORECASE)),
+    (ROLE_PLANNER, re.compile(r"\bplan(?:s|ned|ning)?\b", re.IGNORECASE)),
+    (
+        ROLE_REVIEWER,
+        re.compile(
+            r"\b(?:re-?)?review(?:s|ed|ing|er|ers)?\b|\baudit(?:s|ed|ing|or|ors)?\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        ROLE_EXECUTOR,
+        re.compile(
+            r"\bexecutor\b|\bimplement(?:s|ed|ing|ation)?\b|\bfix(?:es|ed|ing)?\b"
+            r"|\bfinish(?:es|ed|ing)?\b|\btaking over\b|\brepair(?:s|ed|ing)?\b",
+            re.IGNORECASE,
+        ),
+    ),
+)
+
+#: Words of the directive that carry the job. Every harness prompt opens either
+#: with an imperative ("Implement issue #N", "Review issue #N") or with a
+#: self-description ("You are the ui-ux Executor for ..."), and on the live
+#: store the role word lands within eight tokens in every prompt this module
+#: classifies — the deepest is token five. Reading further is what lets a
+#: quoted reviewer or a named executor deeper in the brief flip the answer.
+DIRECTIVE_TOKENS = 8
+
+#: Bounded so a full spawn prompt — which can be thousands of words of scope,
+#: prohibitions and file paths — never travels into the committed record.
+MAX_DIRECTIVE_CHARS = 160
+
 
 def project_slug(path: Path | str) -> str:
     """The on-disk directory name a project path is stored under.
@@ -126,6 +204,78 @@ def slug_candidates(repo_root: Path | str) -> tuple[str, ...]:
     """
     resolved = Path(repo_root).resolve()
     return tuple(dict.fromkeys(project_slug(p) for p in (resolved, *resolved.parents)))
+
+
+def spawn_directive(record: dict[str, Any]) -> str | None:
+    """The prompt text of ``record``, if it is an agent's spawn record.
+
+    A transcript's first ``user`` row is the brief the orchestrator handed the
+    agent. Later ``user`` rows are tool results, whose content blocks carry no
+    ``text``, so they yield nothing here and cannot be mistaken for a directive.
+    """
+    if record.get("type") != "user":
+        message = record.get("message")
+        if not isinstance(message, dict) or message.get("role") != "user":
+            return None
+    message = record.get("message")
+    if not isinstance(message, dict):
+        return None
+    content = message.get("content")
+    if isinstance(content, str):
+        text = content
+    elif isinstance(content, list):
+        text = " ".join(
+            block.get("text", "")
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        )
+    else:
+        return None
+    text = text.strip()
+    return text or None
+
+
+def directive_head(directive: str | None) -> str:
+    """The opening words of a directive, with markdown noise removed.
+
+    Bounded to :data:`DIRECTIVE_TOKENS` words because the role is stated at the
+    front and contradicted further in: a brief that opens "Implement issue #N"
+    goes on to quote the reviewer who filed it, and one that opens "Round-2
+    review of issue #N" names the executor whose fix round it follows.
+    """
+    if not directive:
+        return ""
+    cleaned = directive.replace("*", " ").replace("`", " ").replace("#", " ")
+    return " ".join(cleaned.split()[:DIRECTIVE_TOKENS])
+
+
+def classify_role(directive: str | None) -> tuple[str, str | None]:
+    """The role a spawn directive names, and the word that named it.
+
+    Precedence is by **position in the text**, not by rule order: the job is
+    whatever the directive says first. That is what separates "Round-2 review
+    of issue #N after the executor's fix round" (a reviewer) from "You are
+    fixing a real defect the Review found" (an executor) without either
+    keyword needing to outrank the other in the abstract.
+
+    Returns ``(ROLE_UNKNOWN, None)`` for a directive naming no job, which is a
+    real state on the live store — "Work in the existing worktree ..." is an
+    executor brief this cannot read. Unknown must never be resolved into a
+    role: a guessed executor is the same class of error as a reported reviewer.
+    """
+    head = directive_head(directive)
+    if not head:
+        return ROLE_UNKNOWN, None
+    hits = []
+    for role, pattern in _ROLE_MARKERS:
+        match = pattern.search(head)
+        if match is not None:
+            hits.append((match.start(), role, match.group(0)))
+    if not hits:
+        return ROLE_UNKNOWN, None
+    hits.sort()
+    _, role, signal = hits[0]
+    return role, signal
 
 
 def _timestamp_ms(raw: Any) -> int | None:
@@ -239,8 +389,11 @@ def measure_records(records: list[dict[str, Any]]) -> dict[str, Any]:
     agent_ids: list[str] = []
     session_ids: set[str] = set()
     sidechain = 0
+    directive: str | None = None
 
     for index, record in enumerate(records):
+        if directive is None:
+            directive = spawn_directive(record)
         stamp = _timestamp_ms(record.get("timestamp"))
         if stamp is not None:
             stamps.append(stamp)
@@ -295,9 +448,13 @@ def measure_records(records: list[dict[str, Any]]) -> dict[str, Any]:
 
     total = sum(tokens.values())
     duration = (max(stamps) - min(stamps)) if len(stamps) >= 2 else 0
+    role, role_signal = classify_role(directive)
 
     return {
         "agentIds": agent_ids,
+        "role": role,
+        "roleSignal": role_signal,
+        "spawnDirective": directive_head(directive)[:MAX_DIRECTIVE_CHARS] or None,
         "sessionIds": sorted(session_ids),
         "branches": sorted(branches),
         "workspaces": sorted(workspaces),
@@ -430,9 +587,13 @@ def agents_for_issue(agents: list[dict[str, Any]], issue: int) -> list[dict[str,
     """Those agents tied to ``issue``, each tagged with the signal that tied it.
 
     May legitimately return more than one — an agent that only read another's
-    tree is indistinguishable here from one that worked in it. Callers must not
-    sum across the result without deciding what a multi-agent match means;
-    ``run_metrics.capture`` reports it as ambiguous rather than adding them up.
+    tree is indistinguishable here from one that worked in it, and on a normal
+    issue the *reviewer* worked in it too. Every entry carries the ``role`` its
+    spawn directive named, so a caller can select rather than conflate, but
+    this function stays a filter: it neither ranks the result nor drops a
+    non-executor, since both would be selection decisions made where the record
+    cannot show them. Callers must not sum across the result;
+    ``run_metrics.capture`` selects the one executor or reports ambiguous.
     """
     attributed: list[dict[str, Any]] = []
     for agent in agents:
@@ -444,12 +605,21 @@ def agents_for_issue(agents: list[dict[str, Any]], issue: int) -> list[dict[str,
 
 __all__ = [
     "DEFAULT_TEMP_BASES",
+    "DIRECTIVE_TOKENS",
+    "MAX_DIRECTIVE_CHARS",
     "MAX_LISTED_TOOLS",
+    "ROLE_EXECUTOR",
+    "ROLE_META",
+    "ROLE_PLANNER",
+    "ROLE_REVIEWER",
+    "ROLE_UNKNOWN",
     "SESSION_ENV_VAR",
     "SETTLE_SECONDS",
     "STORE_ENV_VAR",
     "agents_for_issue",
     "attribution_for",
+    "classify_role",
+    "directive_head",
     "discover_task_dirs",
     "issue_branch_pattern",
     "issue_workspace_pattern",
@@ -457,4 +627,5 @@ __all__ = [
     "project_slug",
     "read_task_dir",
     "slug_candidates",
+    "spawn_directive",
 ]
