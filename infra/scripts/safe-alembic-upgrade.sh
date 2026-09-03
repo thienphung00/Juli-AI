@@ -119,12 +119,37 @@ log "alembic revision before: ${FROM_REV:-<base>} -> target head: ${HEAD_REV}; p
 PRE_COUNTS="$("${HELPER[@]}" row-counts)"
 log "pre-migration row counts: ${PRE_COUNTS}"
 
+# NO ROW-COUNT FLOOR HERE, deliberately (#1552).
+#
+# The reviewed hazard was that `compare()` flags only `after < before`, so a
+# baseline of 0 makes the guard vacuous — and a non-owner connection under RLS
+# reads 0 from every tenant-scoped table.
+#
+# A floor cannot fix that, because it cannot tell an invisible database from a
+# small one. Two attempts proved it: flooring `users`/`shops` unconditionally
+# broke every synthetic database the test suite builds, and flooring them only
+# when other tables hold rows still broke fixtures that populate one table and
+# not another. Both were false positives on legitimate databases, and a third
+# heuristic would be another guess.
+#
+# The hazard is closed upstream instead, at its cause. verify-migration-privileges
+# refuses a connection that cannot UPDATE alembic_version, so by the time counts
+# are taken the connection is the owner and a zero is a real zero. With a real
+# baseline, `after < before` catches genuine loss, which is what it was for.
+
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 # -Fc (custom format): smaller/faster restore than plain SQL for typical OLTP DBs;
 # tradeoff: requires pg_restore instead of psql, not human-readable in an editor.
 BACKUP_FILE="${BACKUP_DIR}/juli-pre-migrate-${TS}.dump"
 log "starting pg_dump to ${BACKUP_FILE} (-Fc custom format)"
 
+# Vouch for the connection BEFORE anything depends on it. Separate from
+# resolving the URL: a pure resolver that opens a connection makes every caller
+# pay for it and fail in the wrong place.
+if ! PRIV_JSON="$("${HELPER[@]}" verify-migration-privileges 2>&1)"; then
+    fail "${PRIV_JSON}"
+fi
+log "migration privileges: ${PRIV_JSON}"
 MIGRATION_URL="$("${HELPER[@]}" migration-db-url)"
 if ! pg_dump -Fc -f "${BACKUP_FILE}" "${MIGRATION_URL}"; then
     rm -f "${BACKUP_FILE}"
