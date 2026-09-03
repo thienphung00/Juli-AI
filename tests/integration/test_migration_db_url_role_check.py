@@ -77,7 +77,11 @@ def test_it_accepts_a_role_that_can_update_alembic_version():
     """Alone this proves little — it held before the fix too. It earns its place
     beside the refusal above, by showing the check is selective."""
     helpers = _load()
-    helpers._decide_migration_privilege("postgres", can_update=True)
+
+    # Asserted rather than left as "does not raise": the contract is that an
+    # accepted role returns None, and a bare call records nothing about what
+    # was checked.
+    assert helpers._decide_migration_privilege("postgres", can_update=True) is None
 
 
 @requires_postgres
