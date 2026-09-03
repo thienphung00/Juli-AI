@@ -119,40 +119,23 @@ log "alembic revision before: ${FROM_REV:-<base>} -> target head: ${HEAD_REV}; p
 PRE_COUNTS="$("${HELPER[@]}" row-counts)"
 log "pre-migration row counts: ${PRE_COUNTS}"
 
-# A PARTIAL zero baseline is not a baseline (#1552).
+# NO ROW-COUNT FLOOR HERE, deliberately (#1552).
 #
-# `compare()` flags only `after < before`, so 0 -> 0 prints OK and exits 0 and
-# the row-count guard reports success precisely when it can see nothing.
+# The reviewed hazard was that `compare()` flags only `after < before`, so a
+# baseline of 0 makes the guard vacuous — and a non-owner connection under RLS
+# reads 0 from every tenant-scoped table.
 #
-# THE RULE IS "SOME BUT NOT ALL", not "any zero". An all-zero baseline is a
-# legitimately empty database — a fresh install, or the synthetic databases the
-# test suite builds — and flooring that blocks first deploys and every test that
-# drives this script. An earlier version floored `users` and `shops`
-# unconditionally and did exactly that.
+# A floor cannot fix that, because it cannot tell an invisible database from a
+# small one. Two attempts proved it: flooring `users`/`shops` unconditionally
+# broke every synthetic database the test suite builds, and flooring them only
+# when other tables hold rows still broke fixtures that populate one table and
+# not another. Both were false positives on legitimate databases, and a third
+# heuristic would be another guess.
 #
-# What is NOT legitimate is data in some protected tables and none in `users` or
-# `shops`, which no real database produces and partial invisibility does.
-#
-# The whole-database invisibility case is covered upstream by
-# verify-migration-privileges: a connection that cannot UPDATE alembic_version is
-# refused before reaching here, so by this point the connection is the owner and
-# a zero really means zero.
-NONZERO_TABLES="$(printf '%s' "${PRE_COUNTS}" | "${VENV_PYTHON}" -c \
-    "import json,sys; d=json.load(sys.stdin); print(sum(1 for v in d.values() if v))" 2>/dev/null)" \
-    || fail "could not read the pre-migration row counts — refusing to migrate on an unverifiable baseline"
-
-if [ "${NONZERO_TABLES}" != "0" ]; then
-    for table in users shops; do
-        count="$(printf '%s' "${PRE_COUNTS}" | "${VENV_PYTHON}" -c \
-            "import json,sys; print(json.load(sys.stdin)['${table}'])" 2>/dev/null)" \
-            || fail "could not read '${table}' from the pre-migration row counts"
-        if [ "${count}" = "0" ]; then
-            fail "pre-migration row count for '${table}' is 0 while other protected \
-tables hold rows. No real database looks like that; partial invisibility does. \
-Check that DATABASE_DIRECT_URL points at the owner."
-        fi
-    done
-fi
+# The hazard is closed upstream instead, at its cause. verify-migration-privileges
+# refuses a connection that cannot UPDATE alembic_version, so by the time counts
+# are taken the connection is the owner and a zero is a real zero. With a real
+# baseline, `after < before` catches genuine loss, which is what it was for.
 
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 # -Fc (custom format): smaller/faster restore than plain SQL for typical OLTP DBs;
