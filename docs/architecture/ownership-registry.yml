@@ -119,28 +119,31 @@ databaseTables:
     notes: Idempotency ledger — ETL exclusive.
   order_raw_payloads:
     owner: Data Pipeline
-    access: write
+    access: read+append
     notes: >
-      Append-only bronze order payloads (webhook and targeted fetch landing). The exact
-      services/cdp_batch/partition_checkpoints.py A2 coordinator may append reconcile
-      pages in the same transaction as its ops checkpoint.
+      Append-only bronze order payloads (webhook and targeted fetch landing).
+      Read by silver promotion (shared_compute_orchestrator.py) and reconcile cursor
+      recovery (partition_checkpoints.py). The exact services/cdp_batch/partition_checkpoints.py
+      A2 coordinator may append reconcile pages in the same transaction as its ops checkpoint.
   return_raw_payloads:
     owner: Data Pipeline
-    access: write
-    notes: Append-only bronze return/cancellation payloads (webhook landing).
+    access: read+append
+    notes: >
+      Append-only bronze return/cancellation payloads (webhook landing).
+      Read by silver promotion (shared_compute_orchestrator.py).
   ctor_performance_raw_payloads:
     owner: Data Pipeline
-    access: write
+    access: read+append
     notes: >
       Append-only bronze A-34 product performance rows (ctor Demo Main KPI domain,
-      targeted-fetch landing, #880).
+      targeted-fetch landing, #880). Read by silver promotion (shared_compute_orchestrator.py).
   live_hours_raw_payloads:
     owner: Data Pipeline
-    access: write
+    access: read+append
     notes: >
       Append-only bronze A-28 LIVE performance rows — per-session plus the derived
       shop-grain daily rollup (live_hours Demo Main KPI domain, targeted-fetch
-      landing, #880).
+      landing, #880). Read by silver promotion (shared_compute_orchestrator.py).
   kpi_envelopes:
     owner: Intelligence
     access: write

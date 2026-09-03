@@ -421,6 +421,37 @@ deploy_lane_api() {
     # Migrations: additive-gate + apply BEFORE the candidate starts. Never reverted.
     set -a; # shellcheck disable=SC1090
     source "${API_ENV_FILE}"; set +a
+
+    # Run the additive migration gate: refuse non-additive schema changes before
+    # the candidate starts. This gate must run BEFORE safe-alembic-upgrade.sh.
+    # Exit codes: 0 accepted, 3 refused, 1 usage/IO error. All non-zero exits
+    # abort the deploy.
+    log "checking pending migrations for additive-only changes"
+    # An unresolvable current revision must ABORT, not pass an empty
+    # --from-revision. Empty means "walk the entire history", and the gate then
+    # refuses on migrations 022/024/025 — data-moving and destructive steps that
+    # were applied long ago and are not pending. That refusal names the wrong
+    # cause and would read as "this release is unsafe" when the real fault is a
+    # database the deploy could not query. Measured: empty -> exit 3; from the
+    # real revision -> exit 0, inspecting only what is actually pending.
+    if ! FROM_REV="$("${release_dir}/.venv/bin/python" \
+        "${CANONICAL_ROOT}/infra/scripts/safe_alembic_helpers.py" current-revision)"; then
+        record_step api migrations "gate_revision_unresolved"
+        log "FAIL: could not read the database's current alembic revision, so the additive gate cannot know which migrations are pending. Check DATABASE_DIRECT_URL points at a role that can read public.alembic_version."
+        return 1
+    fi
+    if [ -z "${FROM_REV}" ]; then
+        record_step api migrations "gate_revision_empty"
+        log "FAIL: the database reported an empty alembic revision. Refusing to run the additive gate against the entire migration history, which would refuse for the wrong reason."
+        return 1
+    fi
+    if ! python3 "${CANONICAL_ROOT}/infra/scripts/migration_additive_gate.py" \
+        --alembic-ini "${release_dir}/alembic.ini" \
+        --from-revision "${FROM_REV}"; then
+        record_step api migrations "gate_refused"
+        return 1
+    fi
+
     RELEASE_DIR="${release_dir}" API_ENV_FILE="${API_ENV_FILE}" \
         "${CANONICAL_ROOT}/infra/scripts/safe-alembic-upgrade.sh"
     record_step api migrations "applied"

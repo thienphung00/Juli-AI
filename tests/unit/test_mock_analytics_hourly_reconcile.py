@@ -457,7 +457,7 @@ def test_hourly_reconcile_task_resolves_shop_key_without_nested_event_loop(
     """
     monkeypatch.setenv("DEMO_REFERENCE_SHOP_ID", str(reference_shop_id))
 
-    async def fake_lookup_async(shop_id: uuid.UUID) -> str | None:
+    async def fake_lookup_async(shop_id: uuid.UUID, session=None) -> str | None:
         return "shop-key-733"
 
     orchestrated: list[dict] = []
@@ -487,7 +487,7 @@ def test_sync_lookup_wrapper_still_usable_outside_an_event_loop(
 ):
     """``_lookup_tiktok_shop_key`` is retained for the non-orchestrated sync path."""
 
-    async def fake_lookup_async(shop_id: uuid.UUID) -> str | None:
+    async def fake_lookup_async(shop_id: uuid.UUID, session=None) -> str | None:
         return "shop-key-sync"
 
     monkeypatch.setattr(
@@ -596,7 +596,7 @@ async def test_hourly_reconcile_is_durable_across_new_session(monkeypatch):
         # _run_hourly_reconcile_async should commit
 
     # Monkeypatch shop key lookup
-    async def mock_lookup_shop_key(shop_id_arg):
+    async def mock_lookup_shop_key(shop_id_arg, session=None):
         return "shop_752"
 
     monkeypatch.setattr(
@@ -733,7 +733,7 @@ async def test_hourly_reconcile_exception_rolls_back_uncommitted_writes(
     def mock_ensure_session_factory():
         return factory
 
-    async def mock_lookup_shop_key(shop_id_arg):
+    async def mock_lookup_shop_key(shop_id_arg, session=None):
         return "shop_752"
 
     monkeypatch.setattr(
