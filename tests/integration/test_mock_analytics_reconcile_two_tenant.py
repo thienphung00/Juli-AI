@@ -17,11 +17,13 @@ nothing about this task.
 from __future__ import annotations
 
 import os
+import uuid
 
 import pytest
 from sqlalchemy import text
 
 from tests.integration.two_tenant import (
+    juli_app_session,
     seed_tenant,
 )
 
@@ -45,13 +47,10 @@ async def test_mock_analytics_reconcile_writes_for_demo_shop_only(owner_engine, 
     assertion reads it back through a SEPARATE owner connection, so it is
     persistence rather than a success flag.
 
-    The lookup is stubbed because it CANNOT run as `juli_app`: `public.shops`
-    is user-keyed and `with_shop_scope` withholds the user GUC, so the real
-    `_lookup_tiktok_shop_key_async` returns None and the task returns early.
-    That is #1518 — a pre-existing gap this slice neither introduces nor fixes,
-    since the lookup happens before any scope and in its own session. Until it
-    is resolved, an end-to-end run of this task as `juli_app` is not possible,
-    and a test claiming otherwise would be claiming more than it checks.
+    The orchestrator is stubbed so the assertion is about the scope wiring
+    rather than about envelope maths. The shop-key lookup is no longer stubbed
+    and no longer exists: #1518 removed it, so this now runs the real
+    resolution path end to end as `juli_app`.
     """
     from juli_backend.workers.tasks.mock_analytics_reconcile import (
         _run_hourly_reconcile_async,
@@ -85,14 +84,7 @@ async def test_mock_analytics_reconcile_writes_for_demo_shop_only(owner_engine, 
         mock_orchestrator_writes_row,
     )
 
-    # Mock the tiktok shop key lookup
-    async def mock_lookup_shop_key(shop_id_arg):
-        return "test-shop-1513"
-
-    monkeypatch.setattr(
-        "juli_backend.workers.tasks.mock_analytics_reconcile._lookup_tiktok_shop_key_async",
-        mock_lookup_shop_key,
-    )
+    monkeypatch.setenv("DEMO_REFERENCE_SHOP_KEY", "test-shop-1513")
 
     # Mock the session factory to use test database
     def mock_session_factory():
@@ -167,3 +159,70 @@ async def test_mock_analytics_reconcile_skips_when_demo_shop_is_none(monkeypatch
     assert len(session_factory_called) == 0, (
         "Session factory should not be called when shop_id is None"
     )
+
+
+@pytest.mark.asyncio
+async def test_reconcile_resolves_its_shop_key_without_reading_shops(owner_engine, monkeypatch):
+    """#1518: the shop key comes from configuration, not from a user-keyed table.
+
+    `public.shops` is keyed on `user_id = app_current_user_id()`, and this task
+    has a shop but no user. Measured as `juli_app` before the fix: zero rows
+    with no context AND zero under shop scope. The task read None, returned
+    early, and logged a warning — no error, so a gate observation asking that
+    the beats "complete a cycle without a scoping error" would have recorded a
+    pass for a task that did nothing.
+
+    This asserts the property directly: `shops` is unreadable by this task's
+    role, and the task nonetheless resolves its key and runs. If someone
+    reintroduces the lookup, the first assertion still passes and the run
+    stops producing rows — which the AC2 test above then catches.
+    """
+    tenant = seed_tenant(owner_engine, label="key_from_config")
+    monkeypatch.setenv("DEMO_REFERENCE_SHOP_ID", str(tenant.shop_id))
+    monkeypatch.setenv("DEMO_REFERENCE_SHOP_KEY", "configured-key")
+
+    # The read the old implementation depended on, from this task's own role.
+    async with juli_app_session(shop_id=tenant.shop_id) as session:
+        visible = (
+            await session.execute(
+                text("SELECT count(*) FROM public.shops WHERE id = :i"),
+                {"i": str(tenant.shop_id)},
+            )
+        ).scalar()
+    assert visible == 0, (
+        "shops is expected to be unreadable under shop-only context — if this "
+        "starts returning rows the policy changed and #1518's reasoning needs revisiting"
+    )
+
+    from juli_backend.workers.tasks.mock_analytics_reconcile import (
+        get_demo_reference_shop_key,
+    )
+
+    assert get_demo_reference_shop_key() == "configured-key", (
+        "the key must resolve from configuration despite shops being unreadable"
+    )
+
+
+@pytest.mark.asyncio
+async def test_reconcile_skips_loudly_when_the_shop_key_is_not_configured(monkeypatch):
+    """A missing key must skip with a named reason, not fall back to the database.
+
+    Falling back would restore the exact no-op #1518 removes: the read returns
+    nothing as `juli_app`, and the task reports a clean cycle having recomputed
+    no envelopes.
+    """
+    from juli_backend.workers.tasks import mock_analytics_reconcile
+
+    monkeypatch.setenv("DEMO_REFERENCE_SHOP_ID", str(uuid.uuid4()))
+    monkeypatch.delenv("DEMO_REFERENCE_SHOP_KEY", raising=False)
+
+    opened: list[str] = []
+    monkeypatch.setattr(
+        mock_analytics_reconcile,
+        "_ensure_session_factory",
+        lambda: opened.append("session") or (_ for _ in ()).throw(AssertionError("no session")),
+    )
+
+    await mock_analytics_reconcile._run_hourly_reconcile_async()
+
+    assert opened == [], "the task must skip before opening a session"
