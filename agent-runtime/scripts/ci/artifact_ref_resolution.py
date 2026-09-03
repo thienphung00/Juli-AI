@@ -20,8 +20,12 @@ invent them is out of scope (Architect lock: no backfill).
 **Shallow checkouts.** CI checks this repo out shallow for the retention-guard job
 (a bare ``actions/checkout`` with no ``fetch-depth``), so history before the graft is
 simply absent. "This path is in no commit" is then unknowable, and answering
-UNRESOLVABLE would be a verdict the data does not support. Every ref in a shallow
-checkout is reported ``INDETERMINATE`` with the reason printed, never a wrong verdict.
+UNRESOLVABLE would be a verdict the data does not support. A ``git-history:`` ref to a
+path nothing forbids committing is therefore reported ``INDETERMINATE`` with the reason
+printed, never a wrong verdict. The one exception is decided by policy rather than by
+history (#1522): a ``git-history:`` ref naming one of the five gitignored body
+directories is wrong at *any* depth, because no amount of extra history could make it
+true, so it fails here rather than deferring.
 
 Stdlib only, like every other module under ``agent-runtime/scripts/ci/``.
 """
@@ -117,8 +121,9 @@ class RefIndex:
     entered history through a merge commit.
 
     ``available=False`` means the index could not be built at all (shallow checkout,
-    or not a git repository); ``reason`` says which, and every ref then resolves to
-    ``INDETERMINATE``.
+    or not a git repository); ``reason`` says which, and a ref then resolves to
+    ``INDETERMINATE`` unless policy alone already decides it -- a ``git-history:``
+    claim over a gitignored body fails without consulting the index (#1522).
     """
 
     available: bool
