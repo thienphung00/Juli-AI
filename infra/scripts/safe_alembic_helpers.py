@@ -149,8 +149,14 @@ def row_counts(url: str | None = None) -> dict[str, int]:
     return counts
 
 
-def current_revision() -> str | None:
-    with _engine().connect() as conn:
+def current_revision(url: str | None = None) -> str | None:
+    """The database's stamped revision, or None if it cannot be read.
+
+    Takes an optional url so the restore drill can ask the RESTORED copy for
+    its revision and compare it against the source (#1553). Without it the
+    drill could only ever ask the live database about itself.
+    """
+    with _engine(url).connect() as conn:
         try:
             return conn.execute(
                 text("SELECT version_num FROM alembic_version")
@@ -384,7 +390,8 @@ def main() -> int:
         help="Postgres URL to inspect (defaults to DATABASE_URL / DATABASE_DIRECT_URL)",
     )
 
-    sub.add_parser("current-revision")
+    p_rev = sub.add_parser("current-revision")
+    p_rev.add_argument("--url", help="Postgres URL to read the revision from")
     sub.add_parser("estimate-db-bytes")
     sub.add_parser("migration-db-url")
 
@@ -451,7 +458,7 @@ def main() -> int:
         print(json.dumps(row_counts(args.url)))
         return 0
     if args.command == "current-revision":
-        print(current_revision() or "")
+        print(current_revision(getattr(args, "url", None)) or "")
         return 0
     if args.command == "estimate-db-bytes":
         print(estimate_database_bytes())

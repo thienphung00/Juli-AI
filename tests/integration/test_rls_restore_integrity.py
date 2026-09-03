@@ -98,6 +98,15 @@ def test_rls_is_inert_when_restored_with_no_owner_as_runtime_role():
     tenant1 = seed_tenant(engine, label="Tenant1")
     tenant2 = seed_tenant(engine, label="Tenant2")
 
+    for _tool in ("pg_dump", "pg_restore", "psql"):
+        _out = subprocess.run([_tool, "--version"], capture_output=True, text=True, check=False)
+        if " 16." not in _out.stdout:
+            pytest.skip(
+                "pg_dump/pg_restore/psql 16 required — this test restores with -e, "
+                "so a client/server version mismatch aborts it. Start safe-alembic-pg "
+                "or install postgresql-client-16."
+            )
+
     # Create a dump before any restore happens
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = Path(tmpdir)
@@ -129,15 +138,6 @@ def test_rls_is_inert_when_restored_with_no_owner_as_runtime_role():
         )
         assert admin_url_result.returncode == 0, admin_url_result.stderr
         admin_url = admin_url_result.stdout.strip()
-
-    for _tool in ("pg_dump", "pg_restore", "psql"):
-        _out = subprocess.run([_tool, "--version"], capture_output=True, text=True, check=False)
-        if " 16." not in _out.stdout:
-            pytest.skip(
-                "pg_dump/pg_restore/psql 16 required — this test restores with -e, "
-                "so a client/server version mismatch aborts it. Start safe-alembic-pg "
-                "or install postgresql-client-16."
-            )
 
         scratch_db = f"juli_rls_test_{int(datetime.now().timestamp() * 1000)}"
         create_db = subprocess.run(
