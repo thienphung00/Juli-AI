@@ -11,7 +11,7 @@
     ]
   },
   "review": {
-    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1444.json",
+    "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1444.json",
     "ownerSignoffPresent": true,
     "sha256": "aa5f38ffbe8e9ae6a817afba53284463b1b83035e6c92513beada46add55a66a",
     "signoffRequired": false,
@@ -423,7 +423,7 @@
   },
   "timestamp": "2026-09-02T02:45:00Z",
   "validation": {
-    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1444.json",
+    "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1444.json",
     "sha256": "c0278f6ed53295ccd30e467108ab438216687bd1774f7682d684bf755a26afa3",
     "status": "PASS"
   },

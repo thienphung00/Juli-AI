@@ -22,16 +22,65 @@ REQUIRED_FIELDS = (
     "phaseRunId",
     "executionDurationMs",
     "toolInvocationCount",
-    "tokenUsage",
     "contextFilesLoaded",
     "skillsLoaded",
     "rulesLoaded",
     "mcpsUsed",
 )
 
+#: #1441. ``tokenUsage`` used to sit in ``REQUIRED_FIELDS`` above and be
+#: hard-required to carry ``total``, while the schema admitted only the measured
+#: shape. The two were jointly unsatisfiable for an unmeasured run, and the
+#: escape an agent actually took was an annotated ``{0, 0, 0}`` sentinel written
+#: into the corpus this epic exists to measure. It is optional here now, and
+#: ``{"available": false, "reason": ...}`` says "unmeasured" out loud.
+TOKEN_USAGE_GUIDANCE = (
+    'record {"available": false, "reason": "..."} (no "value" key) when the run '
+    "was not measured, or {input, output, total} when it was"
+)
 
-def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:
-    path = implementation_artifact_path(issue)
+
+def check_token_usage(token_usage: Any) -> tuple[bool, str]:
+    """Validate the two admissible shapes, and only those.
+
+    Returns ``(ok, detail)``. A third shape fails closed rather than being read
+    on a guess, and a zero total is rejected outright: it is exactly as
+    unsourceable as any other invented number and now has an honest
+    alternative, so there is no longer a reason to write one.
+    """
+    if not isinstance(token_usage, dict):
+        return False, f"tokenUsage must be an object; {TOKEN_USAGE_GUIDANCE}"
+
+    if "available" in token_usage:
+        if token_usage["available"] is not False:
+            return False, f"tokenUsage.available may only be false; {TOKEN_USAGE_GUIDANCE}"
+        if "value" in token_usage:
+            return False, (
+                'tokenUsage carries "value" alongside available:false — the unavailable '
+                "shape omits the key so a consumer that skips the check raises rather "
+                "than reading a plausible number"
+            )
+        reason = token_usage.get("reason")
+        if not isinstance(reason, str) or not reason.strip():
+            return False, f"tokenUsage.reason required when unavailable; {TOKEN_USAGE_GUIDANCE}"
+        extra = set(token_usage) - {"available", "reason"}
+        if extra:
+            return False, f"unexpected tokenUsage keys {sorted(extra)}; {TOKEN_USAGE_GUIDANCE}"
+        return True, ""
+
+    total = token_usage.get("total")
+    if not isinstance(total, int) or isinstance(total, bool):
+        return False, f"tokenUsage.total must be an integer; {TOKEN_USAGE_GUIDANCE}"
+    if total <= 0:
+        return False, (
+            "tokenUsage.total is 0, which reads as a measurement and is not one — "
+            f"{TOKEN_USAGE_GUIDANCE}"
+        )
+    return True, ""
+
+
+def run_check(issue: int, *, path: Path | None = None) -> tuple[bool, str, dict[str, Any]]:
+    path = path if path is not None else implementation_artifact_path(issue)
     if not path.exists():
         return False, "Implementation artifact missing", {
             "path": f"agent-runtime/artifacts/implementations/implementation-issue-{issue}.json"
@@ -73,21 +122,36 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:
             "mcpsUsed": mcps_used,
         }
 
-    token_usage = artifact.get("tokenUsage") or {}
-    if not isinstance(token_usage, dict) or "total" not in token_usage:
-        return False, "tokenUsage.total required for harness baseline metrics", {
-            "tokenUsage": token_usage,
-        }
-
-    return True, f"Implementation artifact present; domain {domain}", {
+    details: dict[str, Any] = {
         "executorDomain": domain,
         "phaseRunId": artifact.get("phaseRunId"),
         "executionDurationMs": artifact.get("executionDurationMs"),
         "contextFileCount": len(context_files),
         "rulesLoadedCount": len(rules_loaded),
         "mcpsUsedCount": len(mcps_used),
-        "tokenUsageTotal": token_usage.get("total"),
     }
+
+    # Absent is allowed: the schema makes the field optional, and a run with no
+    # persisted transcript has nothing honest to put here (#1441).
+    if "tokenUsage" not in artifact:
+        details["tokenUsageAvailable"] = False
+        return True, f"Implementation artifact present; domain {domain}", details
+
+    token_usage = artifact["tokenUsage"]
+    ok, detail = check_token_usage(token_usage)
+    if not ok:
+        return False, detail, {"tokenUsage": token_usage}
+
+    available = "available" not in token_usage
+    details["tokenUsageAvailable"] = available
+    if available:
+        # Only a measured reading gets a number reported. Emitting 0 for an
+        # unmeasured one would be the same lie one layer down.
+        details["tokenUsageTotal"] = token_usage["total"]
+    else:
+        details["tokenUsageUnavailableReason"] = token_usage["reason"]
+
+    return True, f"Implementation artifact present; domain {domain}", details
 
 
 def main() -> int:

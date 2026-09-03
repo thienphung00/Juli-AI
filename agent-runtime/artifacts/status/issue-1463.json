@@ -1,43 +1,81 @@
 {
   "gateVersion": 2,
-  "issue": 1514,
+  "issue": 1463,
   "metrics": {
     "acceptanceMapped": 5,
     "acceptanceTotal": 5,
     "criticalFindings": 0,
     "modulesTouched": [
-      "backend/src/juli_backend/workers/tasks/credential_refresh_beat.py",
-      "tests/unit/test_tenant_context_seam.py",
-      "tests/conftest.py",
-      "tests/integration/test_credential_refresh_beat_two_tenant.py"
+      "harness"
     ]
   },
   "review": {
-    "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1514.json",
+    "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1463.json",
     "ownerSignoffPresent": true,
-    "sha256": "b003c939df91a4be80f1d817ae2b6f05634b402f509ff77935c217757827afde",
+    "sha256": "ad049b59458d23485831276cefebdedd4ee1efebda1f2e3a2c36ba3ee2591a1d",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 4240,
-      "validationBytes": 1905
+      "reviewBytes": 9327,
+      "validationBytes": 6830
     },
     "claimVsExecuted": {
-      "citedCommandCount": null,
-      "invokedCommandCount": 0,
-      "matchedCommandCount": null,
-      "reason": "implementation artifact for issue 1514 could not be read at /Users/macos/Juli-AI-v2/.worktrees/w-1514/agent-runtime/artifacts/implementations/implementation-issue-1514.json",
+      "citedCommandCount": 7,
+      "invokedCommandCount": 9399,
+      "matchedCommandCount": 0,
+      "reason": "7 of 7 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
-      "status": "MISSING_SOURCE",
-      "transcriptSources": [],
-      "transcriptsScanned": 0,
-      "unmatchedCommandCount": null,
-      "unmatchedCommands": [],
+      "status": "FAIL",
+      "transcriptSources": [
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-codebase-audit-refactor-b9b867",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-open-terminal-in-code-08e55d"
+      ],
+      "transcriptsScanned": 43,
+      "unmatchedCommandCount": 7,
+      "unmatchedCommands": [
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_test_quality.py -q",
+          "cycle": 1,
+          "exitCode": 2
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_test_quality.py tests/unit/test_ratchets.py -q",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "python -m eval.ratchets check",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "ruff check eval tests scripts backend/src/juli_backend",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "ruff format --check eval/quality_detectors.py tests/unit/test_test_quality.py",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "python -c 'import differential_tdd as dt' driving materialize_base_tree(8adf4103d) + overlay_probes + run_python_probes on tests/unit/test_test_quality.py",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m eval.quality_detectors scan",
+          "cycle": 1,
+          "exitCode": 0
+        }
+      ],
       "unmatchedCommandsTruncated": false,
-      "verified": false
+      "verified": true
     },
     "commandScope": {
       "ciSelectors": {
@@ -81,9 +119,9 @@
       "unitRationale": "76 corpus commands chain 2-5 runs; scoring per command lets a broad first run launder a narrow second one, so each invocation is scored on its own selector."
     },
     "environment": {
-      "cwd": "/Users/macos/Juli-AI-v2/.worktrees/w-1514",
+      "cwd": "/Users/macos/Juli-AI-v2/.worktrees/w3-1463",
       "dependencies": {
-        "constraints": "/Users/macos/Juli-AI-v2/.worktrees/w-1514/backend/constraints.txt",
+        "constraints": "/Users/macos/Juli-AI-v2/.worktrees/w3-1463/backend/constraints.txt",
         "drift": [
           {
             "installed": "3.18",
@@ -125,23 +163,23 @@
         "missing": [],
         "pinned": 82
       },
-      "executable": "/opt/homebrew/anaconda3/bin/python",
+      "executable": "/opt/homebrew/anaconda3/bin/python3",
       "git": {
         "baseDistanceUnavailable": null,
-        "behindOriginMain": 0,
-        "branch": "feature/credential-beat-scope-issue-1514",
-        "head": "b4a918ad1c8be30a4979ceb3aba3a4b5d163fb9c",
+        "behindOriginMain": 4,
+        "branch": "feature/issue-1463-test-quality",
+        "head": "871402275025974ab914a40cf7beacd4bb5cf841",
         "shallow": false
       },
       "moduleResolution": {
         "error": "ModuleNotFoundError: No module named 'juli_backend'",
-        "expectedPrefix": "/Users/macos/Juli-AI-v2/.worktrees/w-1514/backend/src/juli_backend",
+        "expectedPrefix": "/Users/macos/Juli-AI-v2/.worktrees/w3-1463/backend/src/juli_backend",
         "insideRepo": false,
         "module": "juli_backend",
         "resolved": null
       },
       "python": "3.12.9",
-      "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/w-1514"
+      "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/w3-1463"
     },
     "transcripts": {
       "commands": {
@@ -157,7 +195,7 @@
         "executorsPersisted": 0,
         "gaps": [
           {
-            "agent": "executor-guardrails",
+            "agent": "executor-review-agent",
             "reason": "no-transcript-persisted"
           }
         ]
@@ -169,11 +207,11 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-02T19:30:00Z",
+  "timestamp": "2026-09-02T00:00:00Z",
   "validation": {
-    "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1514.json",
-    "sha256": "1a07ba70cbeb8b5068af36aa8a06cfe6217d18d1ad1697f593b0a9b5c437efb3",
+    "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1463.json",
+    "sha256": "8edf781ab09faf784e8da47c147d1bfe51e6c585cdc95252a0b95d46a6f6d37f",
     "status": "PASS"
   },
-  "wave": null
+  "wave": "wave-harness-e-w3"
 }

@@ -1,43 +1,58 @@
 {
   "gateVersion": 2,
-  "issue": 1514,
+  "issue": 1498,
   "metrics": {
-    "acceptanceMapped": 5,
-    "acceptanceTotal": 5,
-    "criticalFindings": 0,
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 5,
     "modulesTouched": [
-      "backend/src/juli_backend/workers/tasks/credential_refresh_beat.py",
-      "tests/unit/test_tenant_context_seam.py",
-      "tests/conftest.py",
-      "tests/integration/test_credential_refresh_beat_two_tenant.py"
+      "agent-runtime/scripts/ci/differential_tdd.py",
+      "agent-runtime/scripts/validate/check_differential_tdd.py",
+      "tests/unit/test_differential_tdd.py"
     ]
   },
   "review": {
-    "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1514.json",
+    "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1498.json",
     "ownerSignoffPresent": true,
-    "sha256": "b003c939df91a4be80f1d817ae2b6f05634b402f509ff77935c217757827afde",
+    "sha256": "f57d5168604ab3ebf9d367f4e794c269c3c02277d3a1bc61dd545f4fe0590c91",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 4240,
-      "validationBytes": 1905
+      "reviewBytes": 28670,
+      "validationBytes": 27233
     },
     "claimVsExecuted": {
-      "citedCommandCount": null,
-      "invokedCommandCount": 0,
-      "matchedCommandCount": null,
-      "reason": "implementation artifact for issue 1514 could not be read at /Users/macos/Juli-AI-v2/.worktrees/w-1514/agent-runtime/artifacts/implementations/implementation-issue-1514.json",
+      "citedCommandCount": 2,
+      "invokedCommandCount": 9367,
+      "matchedCommandCount": 0,
+      "reason": "2 of 2 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
-      "status": "MISSING_SOURCE",
-      "transcriptSources": [],
-      "transcriptsScanned": 0,
-      "unmatchedCommandCount": null,
-      "unmatchedCommands": [],
+      "status": "FAIL",
+      "transcriptSources": [
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-codebase-audit-refactor-b9b867",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-open-terminal-in-code-08e55d"
+      ],
+      "transcriptsScanned": 43,
+      "unmatchedCommandCount": 2,
+      "unmatchedCommands": [
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_differential_tdd.py -q -k 'node_ids_are_split or no_discrimination_is_distinct or empty_test_list_fails_closed'",
+          "cycle": 1,
+          "exitCode": 1
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_differential_tdd.py tests/unit/test_ratchets.py -q",
+          "cycle": 1,
+          "exitCode": 0
+        }
+      ],
       "unmatchedCommandsTruncated": false,
-      "verified": false
+      "verified": true
     },
     "commandScope": {
       "ciSelectors": {
@@ -81,9 +96,9 @@
       "unitRationale": "76 corpus commands chain 2-5 runs; scoring per command lets a broad first run launder a narrow second one, so each invocation is scored on its own selector."
     },
     "environment": {
-      "cwd": "/Users/macos/Juli-AI-v2/.worktrees/w-1514",
+      "cwd": "/Users/macos/Juli-AI-v2/.worktrees/w3-1498",
       "dependencies": {
-        "constraints": "/Users/macos/Juli-AI-v2/.worktrees/w-1514/backend/constraints.txt",
+        "constraints": "/Users/macos/Juli-AI-v2/.worktrees/w3-1498/backend/constraints.txt",
         "drift": [
           {
             "installed": "3.18",
@@ -128,20 +143,20 @@
       "executable": "/opt/homebrew/anaconda3/bin/python",
       "git": {
         "baseDistanceUnavailable": null,
-        "behindOriginMain": 0,
-        "branch": "feature/credential-beat-scope-issue-1514",
-        "head": "b4a918ad1c8be30a4979ceb3aba3a4b5d163fb9c",
+        "behindOriginMain": 2,
+        "branch": "feature/issue-1498-probe-node-ids",
+        "head": "3bb8452741475552a1085aabfd3767506eb14a36",
         "shallow": false
       },
       "moduleResolution": {
         "error": "ModuleNotFoundError: No module named 'juli_backend'",
-        "expectedPrefix": "/Users/macos/Juli-AI-v2/.worktrees/w-1514/backend/src/juli_backend",
+        "expectedPrefix": "/Users/macos/Juli-AI-v2/.worktrees/w3-1498/backend/src/juli_backend",
         "insideRepo": false,
         "module": "juli_backend",
         "resolved": null
       },
       "python": "3.12.9",
-      "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/w-1514"
+      "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/w3-1498"
     },
     "transcripts": {
       "commands": {
@@ -157,7 +172,7 @@
         "executorsPersisted": 0,
         "gaps": [
           {
-            "agent": "executor-guardrails",
+            "agent": "executor-guardrails skill",
             "reason": "no-transcript-persisted"
           }
         ]
@@ -169,11 +184,11 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-02T19:30:00Z",
+  "timestamp": "2026-09-02T12:08:31Z",
   "validation": {
-    "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1514.json",
-    "sha256": "1a07ba70cbeb8b5068af36aa8a06cfe6217d18d1ad1697f593b0a9b5c437efb3",
+    "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1498.json",
+    "sha256": "42171b52bd8562ea41fc064d9c7baa08e85b5d377e7f16f6484af7ea47481d19",
     "status": "PASS"
   },
-  "wave": null
+  "wave": "wave-harness-e-w3"
 }
