@@ -321,6 +321,35 @@ def resolve_ref(
 
     index = get_ref_index(Path(repo_root))
     if not index.available:
+        if is_policy_local_path(path):
+            # #1522. The index is unavailable (shallow checkout), so history has
+            # no answer here -- but policy does, and it is the same answer at any
+            # depth: .gitignore forbids this path ever reaching a commit, so no
+            # amount of extra history could make a `git-history:` claim over it
+            # true. Answering INDETERMINATE would call an impossible claim merely
+            # undetermined, and that is precisely the hole four records went
+            # through: `pr.yml` checks out shallow for this job, so issues 1488,
+            # 1489, 1495 and 1514 each passed their own issue-tier PR and only
+            # failed once the wave was assembled against a full checkout.
+            # Deciding it here moves detection back to the PR that introduces it.
+            #
+            # This does not weaken `git-history:` -- it removes an escape from
+            # it. A ref to a path nothing forbids committing is still
+            # INDETERMINATE below, because for those absence really is unknowable
+            # from a truncated history (#1445's honesty rule stands).
+            return RefResolution(
+                field_name,
+                ref,
+                UNSUPPORTED_SCHEME,
+                (
+                    f"{field_name}.artifactRef claims {GIT_HISTORY_SCHEME} for {path}, a "
+                    "body .gitignore forbids committing (ADR-003: emit is not commit) — "
+                    "no history can satisfy that claim, so it is wrong independently of "
+                    f"this checkout's depth; use {LOCAL_ONLY_SCHEME}{path} to state what "
+                    "is actually true, that the body existed locally with the recorded "
+                    f"sha256 {expected[:12]}… and is not retrievable from here"
+                ),
+            )
         return RefResolution(
             field_name,
             ref,
