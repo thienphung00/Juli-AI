@@ -194,8 +194,13 @@ def test_self_referential_specs_are_refused_at_cache_write_time(
     """
     repo, _ = harness_repo
     for spec in ("HEAD", "merge-base:HEAD", "feature/issue-1540-bootstrap-pin"):
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RuntimeError) as excinfo:
             pin.bootstrap_ref_from_git(spec, repo)
+        message = str(excinfo.value)
+        # Naming the spec is the point: a refusal that does not say which value
+        # was refused sends the next reader back to the config to guess.
+        assert spec in message
+        assert "symbolic" in message or "checked-out branch" in message
 
 
 def test_a_self_referential_spec_cannot_launder_committed_harness_drift(
@@ -413,8 +418,11 @@ def test_shallow_fallback_still_detects_drift(
 def test_missing_base_ref_fails_closed(harness_repo: tuple[Path, str]) -> None:
     """No anchor means no measurement. Red, not lenient."""
     repo, _ = harness_repo
-    with pytest.raises(RuntimeError, match="rev-parse"):
+    with pytest.raises(RuntimeError, match="rev-parse") as excinfo:
         pin.resolve_bootstrap_anchor("merge-base:origin/nonexistent", repo)
+    # The unresolvable ref must appear, not just the failing git subcommand,
+    # or the operator cannot tell which side of the anchor spec is broken.
+    assert "origin/nonexistent" in str(excinfo.value)
 
 
 # ---------------------------------------------------------------------------
