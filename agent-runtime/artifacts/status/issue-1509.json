@@ -4,7 +4,7 @@
   "metrics": {
     "acceptanceMapped": 2,
     "acceptanceTotal": 2,
-    "criticalFindings": 7,
+    "criticalFindings": 8,
     "modulesTouched": [
       "agent-runtime/scripts/ci/json_schema_validate.py",
       "tests/unit/test_json_schema_validator_keyword_coverage.py"
@@ -13,19 +13,19 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1509.json",
     "ownerSignoffPresent": true,
-    "sha256": "5aa3e19cb214df4199e85edf256bd4c37021f9dd923a78b5a9fcbf6ee45209d8",
+    "sha256": "00a00660798ca16edae9b7ff27e14858db30e8a7f8c3fc161451af9f07887ce1",
     "signoffRequired": true,
     "status": "PASS_WITH_WARNINGS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 13610,
-      "validationBytes": 10650
+      "reviewBytes": 14586,
+      "validationBytes": 12860
     },
     "claimVsExecuted": {
       "citedCommandCount": 5,
-      "invokedCommandCount": 9598,
+      "invokedCommandCount": 9641,
       "matchedCommandCount": 1,
       "reason": "4 of 5 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
@@ -152,9 +152,9 @@
       "executable": "/opt/homebrew/anaconda3/bin/python",
       "git": {
         "baseDistanceUnavailable": null,
-        "behindOriginMain": 0,
+        "behindOriginMain": 2,
         "branch": "feature/issue-1509-schema-keywords",
-        "head": "2a38e9a02701208af3e9d4c0543364a067ff9b75",
+        "head": "741679595154f0b7de1f96b8070afbed7c4bbb7e",
         "shallow": false
       },
       "moduleResolution": {
@@ -255,9 +255,9 @@
         "kind": "task-transcript",
         "taskDirs": [
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
-          "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/cb047053-ee20-4e00-925f-7ebf36c0417b/tasks",
           "/tmp/claude-501/-Users-macos/61a4eb31-9294-45c2-a803-0c26980300c6/tasks",
@@ -330,7 +330,7 @@
   "timestamp": "2026-09-03T02:40:00Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1509.json",
-    "sha256": "abfa0fedd8940be6b93b353e534b28d5a30fb49d7f5cad2bed3e8991e8b9fc9e",
+    "sha256": "00463eb87ebb58d4e1412bfba9c9252aa048d76dd03d7ce63f50fbe7cf26e767",
     "status": "PASS"
   },
   "wave": "wave-harness-e-w4"
