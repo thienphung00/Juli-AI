@@ -625,6 +625,85 @@ def scan_corpus(repo_root: Path, roots: Sequence[str] | None = TEST_ROOTS) -> Sc
     return Scan(findings=tuple(sorted(findings)), test_functions=tests, files=files)
 
 
+#: The order the reconciliation peels evidence off in. Each entry names one kind
+#: of thing that can fail a test; the union of all six is exactly what
+#: ``_classify`` accepts as "this test can fail", so the last layer is the
+#: headline by construction rather than by coincidence.
+RECONCILIATION_LAYER_ORDER: tuple[str, ...] = (
+    "no_assert_statement",
+    "and_no_pytest_raises",
+    "and_no_mock_assert_called",
+    "and_no_unittest_self_assert",
+    "and_no_same_file_asserting_helper",
+    "and_no_raise_assertionerror",
+)
+
+
+def _raises_assertionerror(node: ast.AST) -> bool:
+    if not isinstance(node, ast.Raise):
+        return False
+    exc = node.exc
+    name = _dotted(exc.func) if isinstance(exc, ast.Call) else _dotted(exc) if exc else ""
+    return name.endswith("AssertionError")
+
+
+def reconciliation_identities(
+    repo_root: Path, roots: Sequence[str] | None = TEST_ROOTS
+) -> dict[str, set[tuple[str, str]]]:
+    """The ``(path, qualname)`` set surviving each reconciliation layer.
+
+    Derived, never recorded. The decomposition is arithmetic over the corpus --
+    there is no state of the world in which a committed layer legitimately
+    differs from the computed one -- so committing the six integers by hand made
+    five of them unfalsifiable and the sixth the only one ever checked. Two of
+    the three figures recorded alongside them in #1503 were wrong on the day they
+    were written (#1535); this exists so that cannot recur.
+
+    Uses the same walk and the same predicates as :func:`scan_corpus`, including
+    ``_iter_tests``' direct-children-only enumeration. An independent ``ast.walk``
+    reads two extra functions -- a dependency-override generator and a route
+    handler nested inside a test -- and lands on a final layer that does not
+    equal the headline it is supposed to explain.
+    """
+    repo_root = Path(repo_root)
+    survivors: dict[str, set[tuple[str, str]]] = {
+        name: set() for name in RECONCILIATION_LAYER_ORDER
+    }
+
+    for path in _walk_python(repo_root, roots):
+        rel = _rel(repo_root, path)
+        if not is_test_path(rel):
+            continue
+        tree = _parse(path)
+        helpers = _asserting_helper_names(tree)
+        for qualname, func in _iter_tests(tree):
+            nodes = list(_body_nodes(func))
+            key = (rel, qualname)
+            # Ordered so each test drops out at the first kind of evidence it has.
+            for layer, has_evidence in (
+                ("no_assert_statement", any(isinstance(n, ast.Assert) for n in nodes)),
+                ("and_no_pytest_raises", any(_is_pytest_raising_call(n) for n in nodes)),
+                ("and_no_mock_assert_called", any(_is_mock_assert_call(n) for n in nodes)),
+                ("and_no_unittest_self_assert", any(_is_unittest_assert_call(n) for n in nodes)),
+                (
+                    "and_no_same_file_asserting_helper",
+                    any(isinstance(n, ast.Call) and _root_name(n.func) in helpers for n in nodes),
+                ),
+                ("and_no_raise_assertionerror", any(_raises_assertionerror(n) for n in nodes)),
+            ):
+                if has_evidence:
+                    break
+                survivors[layer].add(key)
+    return survivors
+
+
+def reconciliation_layers(
+    repo_root: Path, roots: Sequence[str] | None = TEST_ROOTS
+) -> dict[str, int]:
+    """The layer decomposition, re-derived from the tree it describes."""
+    return {name: len(ids) for name, ids in reconciliation_identities(repo_root, roots).items()}
+
+
 def scan_tree(repo_root: Path, roots: Sequence[str] | None = TEST_ROOTS) -> tuple[Finding, ...]:
     return scan_corpus(repo_root, roots).findings
 
@@ -1161,19 +1240,22 @@ def build_report(
 #: This module's own reading of the repository, recorded beside the prior figure
 #: rather than reconciled away. Regenerate with
 #: ``python -m eval.quality_detectors scan`` and update both numbers together.
-MEASURED_ZERO_ASSERTION_TESTS = 51
-MEASURED_TEST_FUNCTIONS = 4406
+MEASURED_ZERO_ASSERTION_TESTS = 50
+MEASURED_TEST_FUNCTIONS = 4472
+#: Test modules the corpus figure is spread over. Like the corpus it is a
+#: denominator, not a claim, so it is held to a tolerance rather than pinned.
+MEASURED_TEST_MODULES = 450
 
 #: The measured decomposition that reconciles the two figures. Each layer
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
 #: the third layer, this module's headline on the fifth.
 RECONCILIATION_LAYERS: dict[str, int] = {
-    "no_assert_statement": 399,
-    "and_no_pytest_raises": 125,
-    "and_no_mock_assert_called": 108,
-    "and_no_unittest_self_assert": 108,
-    "and_no_same_file_asserting_helper": 55,
-    "and_no_raise_assertionerror": 51,
+    "no_assert_statement": 404,
+    "and_no_pytest_raises": 124,
+    "and_no_mock_assert_called": 107,
+    "and_no_unittest_self_assert": 107,
+    "and_no_same_file_asserting_helper": 54,
+    "and_no_raise_assertionerror": 50,
 }
 
 RECONCILIATION: dict[str, Any] = {
@@ -1182,22 +1264,23 @@ RECONCILIATION: dict[str, Any] = {
     "measured": MEASURED_ZERO_ASSERTION_TESTS,
     "measuredCorpus": MEASURED_TEST_FUNCTIONS,
     "delta": MEASURED_ZERO_ASSERTION_TESTS - REPORTED_ZERO_ASSERTION_TESTS,
-    "measuredAt": "2026-09-02",
+    "measuredAt": "2026-09-03",
     "roots": list(TEST_ROOTS),
     "layers": dict(RECONCILIATION_LAYERS),
     "priorFigureLayer": "and_no_mock_assert_called",
     "note": (
         "Neither figure is wrong; they count different things, and the layer "
-        "decomposition above shows exactly where they part. Measured here: 51 "
-        "zero-assertion tests in a corpus of 4,406 test functions over tests/ "
-        "backend/ scripts/ agent-runtime/ eval/ (441 test modules). The prior "
+        "decomposition above shows exactly where they part. Measured here: 50 "
+        "zero-assertion tests in a corpus of 4,472 test functions over tests/ "
+        "backend/ scripts/ agent-runtime/ eval/ (450 test modules). The prior "
         "~97-of-4,048 reading corresponds to the `and_no_mock_assert_called` "
         "layer — a detector that credits `pytest.raises` and `mock.assert_called*` "
         "as assertions but not delegation to a same-file asserting helper. That "
-        "layer reads 108 today; scaled to the smaller corpus it is 97 * 4406/4048 "
-        "= 105, and the two rates agree to within a tenth of a percentage point "
-        "(2.40% then, 2.46% now). So the prior measurement reproduces, and the "
-        "gap between 108 and 51 is 53 tests whose only assertion is inside a "
+        "layer reads 107 today; scaled to this corpus it is 97 * 4472/4048 = 107, "
+        "matching that layer exactly, and the two rates agree to within a tenth of "
+        "a percentage point (2.40% then, 2.39% now). So the prior measurement "
+        "reproduces, and the gap between 107 and 50 is 53 tests whose only "
+        "assertion is inside a "
         "same-file `_assert_*` helper plus 4 that raise AssertionError directly. "
         "Both were inspected: `tests/unit/test_agent_prompt_budget_gate.py` and "
         "`tests/integration/test_two_tenant_isolation_proof.py` are typical, and "

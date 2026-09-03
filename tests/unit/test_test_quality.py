@@ -678,6 +678,105 @@ def test_reconciliation_reproduces_from_the_tree_it_describes() -> None:
         "neither number may be assumed correct until it does"
     )
 
+    # #1535: the three assertions below are the ones whose absence let this
+    # constant ship wrong. Before them the test checked only that the layers
+    # narrowed and that the LAST one matched -- so five of the six were
+    # unfalsifiable, and every figure in the prose note had no oracle at all.
+    # Two of the three figures recorded with the layers in #1503 were already
+    # wrong on the day they were written (the tree measured 4429 functions and
+    # 443 modules against a recorded 4406 and 441) and survived because only the
+    # figure a test checks was ever right.
+
+    # AC1 (#1535): the final layer must be the headline as a SET, not merely as a
+    # count. Two equal counts over different tests would be a coincidence dressed
+    # as an explanation, and a count-only check cannot tell the two apart.
+    identities = qd.reconciliation_identities(REPO_ROOT, roots=qd.TEST_ROOTS)
+    zero_assertion_ids = {
+        (f.path, f.symbol) for f in scan.findings if f.rule_code == qd.RULE_ZERO_ASSERTION
+    }
+    assert identities[qd.RECONCILIATION_LAYER_ORDER[-1]] == zero_assertion_ids, (
+        "the last layer and the detector's own zero_assertion findings agree on "
+        "count but not on which tests they are"
+    )
+
+
+def test_reconciliation_layers_are_derived_and_every_one_matches_the_committed_value() -> None:
+    """AC2 (#1535). Every layer is recomputed, not just the last one.
+
+    Before this existed the guard checked only that the layers narrowed and that
+    the final one equalled the headline, so five of the six were unfalsifiable:
+    any set of counts consistent with monotonicity would pass. A committed layer
+    can never legitimately differ from the computed one -- the decomposition is
+    arithmetic over the corpus, not a judgement -- so it is derived here and
+    required to agree exactly.
+    """
+    derived = qd.reconciliation_layers(REPO_ROOT, roots=qd.TEST_ROOTS)
+
+    assert derived == qd.RECONCILIATION_LAYERS, (
+        "the committed layer decomposition no longer reproduces from this tree; "
+        f"derived {derived}, committed {qd.RECONCILIATION_LAYERS} -- re-run "
+        "`python -m eval.quality_detectors scan` and update both together"
+    )
+    assert list(derived) == list(qd.RECONCILIATION_LAYER_ORDER)
+    counts = list(derived.values())
+    assert counts == sorted(counts, reverse=True)
+
+
+def test_reconciliation_note_states_no_stale_corpus_layer_or_ratio_figure() -> None:
+    """AC3 (#1535). Every figure the prose states must be the current one.
+
+    The note is prose, so nothing read it, so this branch's first commit shipped
+    three stale numbers inside it: a scaled ratio still computed from the
+    superseded corpus, a rate belonging to the previous layer values, and a gap
+    quoted between two pre-fix figures. Review caught them by hand. A module
+    whose subject is numbers that do not reproduce must not itself state numbers
+    that do not reproduce.
+    """
+    reconciliation = qd.RECONCILIATION
+    note = reconciliation["note"]
+    layers_by_name = reconciliation["layers"]
+    prior_layer = layers_by_name[reconciliation["priorFigureLayer"]]
+
+    then_rate = 100 * qd.REPORTED_ZERO_ASSERTION_TESTS / qd.REPORTED_TEST_FUNCTIONS
+    now_rate = 100 * prior_layer / qd.MEASURED_TEST_FUNCTIONS
+    scaled_to_corpus = int(
+        qd.REPORTED_ZERO_ASSERTION_TESTS * qd.MEASURED_TEST_FUNCTIONS / qd.REPORTED_TEST_FUNCTIONS
+    )
+    helper_credited = (
+        layers_by_name["and_no_unittest_self_assert"]
+        - layers_by_name["and_no_same_file_asserting_helper"]
+    )
+    raise_credited = (
+        layers_by_name["and_no_same_file_asserting_helper"]
+        - layers_by_name["and_no_raise_assertionerror"]
+    )
+
+    for figure in (
+        f"Measured here: {qd.MEASURED_ZERO_ASSERTION_TESTS} zero-assertion tests",
+        f"corpus of {qd.MEASURED_TEST_FUNCTIONS:,} test functions",
+        f"({qd.MEASURED_TEST_MODULES} test modules)",
+        f"layer reads {prior_layer} today",
+        f"{qd.REPORTED_ZERO_ASSERTION_TESTS} * {qd.MEASURED_TEST_FUNCTIONS}/"
+        f"{qd.REPORTED_TEST_FUNCTIONS} = {scaled_to_corpus}",
+        f"({then_rate:.2f}% then, {now_rate:.2f}% now)",
+        f"gap between {prior_layer} and {qd.MEASURED_ZERO_ASSERTION_TESTS} "
+        f"is {helper_credited} tests",
+        f"plus {raise_credited} that raise AssertionError",
+    ):
+        assert figure in note, (
+            f"the reconciliation note no longer states {figure!r}; a figure in the "
+            "prose has gone stale against the constants beside it"
+        )
+
+    # The module count is a denominator like the corpus, so it gets the same
+    # tolerance rather than an exact pin -- an unrelated peer adding a test file
+    # must not turn this red.
+    scan = qd.scan_corpus(REPO_ROOT, roots=qd.TEST_ROOTS)
+    assert abs(scan.files - qd.MEASURED_TEST_MODULES) <= 0.02 * scan.files, (
+        f"recorded module count {qd.MEASURED_TEST_MODULES} is more than 2% from "
+        f"the live reading {scan.files}"
+    )
+
 
 def test_this_slice_adds_no_debt_to_the_thing_it_measures() -> None:
     """The detector's own tests must not be instances of what it detects.
