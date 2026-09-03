@@ -638,9 +638,18 @@ def test_shallow_checkout_reports_indeterminate_instead_of_a_wrong_verdict(
     """CI checks this repo out shallow for the retention-guard job (pr.yml uses a
     bare actions/checkout there). History before the graft is absent, so 'this
     path is in no commit' is unknowable -- the guard must say so rather than
-    emit an unresolvable verdict it cannot support."""
+    emit an unresolvable verdict it cannot support.
+
+    #1522 note: this fixture used to spell its dangling refs through the
+    gitignored body directories. That made it accidentally overlap the case
+    ``test_git_history_ref_to_a_policy_local_body_fails_even_in_a_shallow_checkout``
+    now owns, where the verdict is decided by policy at any depth. The refs below
+    name tracked, committable paths instead, which is what this test was always
+    about: absence that is genuinely unknowable from truncated history. The
+    intent and both assertions are unchanged.
+    """
     issue = 1445
-    repo, digests = _make_repo_with_committed_artifacts(tmp_path, issue)
+    repo, _ = _make_repo_with_committed_artifacts(tmp_path, issue)
     # A second commit so depth-1 genuinely truncates history.
     (repo / "later.txt").write_text("later", encoding="utf-8")
     _git(repo, "add", "-A")
@@ -663,7 +672,7 @@ def test_shallow_checkout_reports_indeterminate_instead_of_a_wrong_verdict(
     assert is_shallow_repository(repo) is False
 
     status_dir = tmp_path / "status"
-    dangling = "git-history:agent-runtime/artifacts/reviews/review-issue-999999.json"
+    dangling = "git-history:docs/adr/999-absent.md"
     _write_record(
         status_dir,
         issue,
@@ -671,8 +680,8 @@ def test_shallow_checkout_reports_indeterminate_instead_of_a_wrong_verdict(
             issue,
             dangling,
             "a" * 64,
-            f"git-history:agent-runtime/artifacts/validation/validation-issue-{issue}.json",
-            digests["validation"],
+            f"git-history:agent-runtime/artifacts/status/issue-{issue}.json",
+            "b" * 64,
         ),
     )
     # Full clone: the dangling ref is provably absent -> FAIL.
@@ -706,3 +715,374 @@ def test_unsupported_ref_scheme_fails_a_v2_record(tmp_path: Path) -> None:
     passed, detail = evaluate(issue, status_dir=status_dir, repo_root=repo)
     assert passed is False, detail
     assert "scheme" in detail.lower()
+
+
+# --- #1497: git-history: asserts something .gitignore forbids ----------------
+# #1438's generator wrote `git-history:agent-runtime/artifacts/reviews/...` while
+# .gitignore:82 makes exactly that path uncommittable BY POLICY (ADR-003: emit is
+# not commit). #1445's (correct) strictness then made every gateVersion 2 record
+# unpassable. The fix is an honest scheme for policy-local bodies: `local-only:`
+# claims the body existed locally and its sha256 was taken there, and does NOT
+# claim retrievability. `git-history:` keeps its full #1445 strictness.
+
+
+def _policy_local_v2_payload(issue: int) -> dict:
+    return _v2_payload(
+        issue,
+        f"local-only:agent-runtime/artifacts/reviews/review-issue-{issue}.json",
+        "a" * 64,
+        f"local-only:agent-runtime/artifacts/validation/validation-issue-{issue}.json",
+        "b" * 64,
+    )
+
+
+def test_policy_local_refs_pass_and_are_named(tmp_path: Path) -> None:
+    """A gateVersion 2 record whose bodies live in the five gitignored body
+    directories passes, and the detail NAMES both refs as unretrievable by
+    policy rather than silently ignoring them."""
+    issue = 1497
+    repo, _ = _make_repo_with_committed_artifacts(tmp_path, issue)
+    status_dir = tmp_path / "status"
+    _write_record(status_dir, issue, payload=_policy_local_v2_payload(issue))
+
+    passed, detail = evaluate(issue, status_dir=status_dir, repo_root=repo)
+    assert passed is True, detail
+    # Named, not swallowed: both refs appear in the detail...
+    assert f"review-issue-{issue}.json" in detail
+    assert f"validation-issue-{issue}.json" in detail
+    # ...and the detail says what the class actually is.
+    assert "policy" in detail.lower()
+
+    # Non-vacuous: the pass is earned by the honest scheme, not by the guard
+    # having stopped checking refs. The SAME paths under the `git-history:`
+    # label still fail, because that label makes a claim history cannot back.
+    lying = _v2_payload(
+        issue,
+        f"git-history:agent-runtime/artifacts/reviews/review-issue-{issue}.json",
+        "a" * 64,
+        f"git-history:agent-runtime/artifacts/validation/validation-issue-{issue}.json",
+        "b" * 64,
+    )
+    lying_dir = tmp_path / "status-lying"
+    _write_record(lying_dir, issue, payload=lying)
+    lying_passed, lying_detail = evaluate(issue, status_dir=lying_dir, repo_root=repo)
+    assert lying_passed is False, lying_detail
+
+
+def test_v2_unresolvable_git_history_ref_still_fails(tmp_path: Path) -> None:
+    """#1445 is preserved for genuinely committable paths: a `git-history:` ref
+    naming a path that is in no commit is still an integrity failure. The new
+    scheme must not have loosened the old one."""
+    issue = 1497
+    repo, digests = _make_repo_with_committed_artifacts(tmp_path, issue)
+    status_dir = tmp_path / "status"
+    _write_record(
+        status_dir,
+        issue,
+        payload=_v2_payload(
+            issue,
+            # A committable path (no policy forbids committing backend source)
+            # that nevertheless exists in no commit in this repo.
+            "git-history:backend/src/juli_backend/never_committed.py",
+            "c" * 64,
+            f"git-history:agent-runtime/artifacts/validation/validation-issue-{issue}.json",
+            digests["validation"],
+        ),
+    )
+    passed, detail = evaluate(issue, status_dir=status_dir, repo_root=repo)
+    assert passed is False, detail
+    assert "never_committed.py" in detail
+    assert "no commit" in detail.lower()
+
+
+def test_local_only_scheme_cannot_launder_a_committable_path(tmp_path: Path) -> None:
+    """The lie the new scheme could enable: relabel any dangling `git-history:`
+    ref as `local-only:` and it stops failing. It must not. `local-only:` is
+    admissible ONLY for a path inside the five gitignored body directories --
+    the paths policy really does forbid committing."""
+    issue = 1497
+    repo, digests = _make_repo_with_committed_artifacts(tmp_path, issue)
+    status_dir = tmp_path / "status"
+    _write_record(
+        status_dir,
+        issue,
+        payload=_v2_payload(
+            issue,
+            "local-only:backend/src/juli_backend/never_committed.py",
+            "c" * 64,
+            f"git-history:agent-runtime/artifacts/validation/validation-issue-{issue}.json",
+            digests["validation"],
+        ),
+    )
+    passed, detail = evaluate(issue, status_dir=status_dir, repo_root=repo)
+    assert passed is False, detail
+    assert "never_committed.py" in detail
+
+
+def test_policy_local_refs_resolve_without_git_so_a_shallow_checkout_still_passes(
+    tmp_path: Path,
+) -> None:
+    """CI runs the retention guard on a bare `actions/checkout` (no fetch-depth),
+    so history is shallow and every `git-history:` ref there is INDETERMINATE.
+    A `local-only:` ref is a statement about policy, not about this checkout's
+    history, so it is answerable anyway -- and the answer must not degrade to
+    the shallow-checkout wording."""
+    issue = 1497
+    repo, _ = _make_repo_with_committed_artifacts(tmp_path, issue)
+    (repo / "later.txt").write_text("later", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "--no-verify", "-m", "later")
+    shallow = tmp_path / "shallow"
+    subprocess.run(
+        ["git", "clone", "--depth", "1", repo.as_uri(), str(shallow)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    from artifact_ref_resolution import is_shallow_repository
+
+    assert is_shallow_repository(shallow) is True
+
+    status_dir = tmp_path / "status"
+    _write_record(status_dir, issue, payload=_policy_local_v2_payload(issue))
+    passed, detail = evaluate(issue, status_dir=status_dir, repo_root=shallow)
+    assert passed is True, detail
+    assert "policy" in detail.lower()
+    assert "shallow" not in detail.lower()
+
+
+def test_every_committed_gateversion_2_record_passes_the_guard() -> None:
+    """The acceptance test that matters: on the real repo, every committed
+    gateVersion 2 status record passes. Before #1497 all of them failed,
+    because every one of them carried `git-history:` refs into gitignored
+    body directories."""
+    from common import STATUS_DIR as REAL_STATUS_DIR
+
+    v2_issues = []
+    for path in sorted(REAL_STATUS_DIR.glob("issue-*.json")):
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(record, dict) and record.get("gateVersion") == 2:
+            v2_issues.append(int(record["issue"]))
+
+    assert v2_issues, "expected at least one committed gateVersion 2 record"
+    failures = []
+    for issue in v2_issues:
+        passed, detail = evaluate(issue)
+        if not passed:
+            failures.append(detail)
+    assert not failures, "gateVersion 2 records still failing: " + " | ".join(failures)
+
+
+def test_local_only_cannot_launder_a_committable_path_by_spelling_it_through_a_body_dir(
+    tmp_path: Path,
+) -> None:
+    """The laundering guard must answer about the path a ref DENOTES, not about
+    how the string is spelled.
+
+    ``local-only:agent-runtime/artifacts/reviews/../status/issue-1442.json``
+    begins with a gitignored body directory but denotes a tracked, committed
+    file whose sha256 is entirely checkable. If a prefix match alone decided
+    admissibility, any dangling or hash-mismatched ``git-history:`` ref could be
+    respelled through a body directory and waived -- and #1445 would be worth
+    nothing. Same for an absolute path, which this repo's .gitignore does not
+    govern at all.
+    """
+    from artifact_ref_resolution import POLICY_LOCAL, UNSUPPORTED_SCHEME, resolve_ref
+
+    repo, _ = _make_repo_with_committed_artifacts(tmp_path, 1497)
+
+    laundering_spellings = [
+        # Climbs out of the body directory into tracked, committable territory.
+        "local-only:agent-runtime/artifacts/reviews/../status/issue-1442.json",
+        "local-only:agent-runtime/artifacts/reviews/../../../backend/src/juli_backend/app.py",
+        "local-only:agent-runtime/artifacts/reviews/../../../.github/workflows/pr.yml",
+        # Not repo-relative, so .gitignore does not govern it.
+        "local-only:/agent-runtime/artifacts/reviews/review-issue-1442.json",
+        "local-only:../agent-runtime/artifacts/reviews/review-issue-1442.json",
+        "local-only:../../../agent-runtime/artifacts/reviews/review-issue-1442.json",
+    ]
+    for ref in laundering_spellings:
+        resolution = resolve_ref("review", ref, "a" * 64, repo_root=repo)
+        assert resolution.status == UNSUPPORTED_SCHEME, f"{ref} was admitted: {resolution}"
+        assert resolution.is_failure is True, ref
+
+    # ...while the spellings that genuinely denote a body inside the five
+    # directories still resolve, so the hardening did not break the fix.
+    for ref in (
+        "local-only:agent-runtime/artifacts/reviews/review-issue-1442.json",
+        "local-only:./agent-runtime/artifacts/reviews/review-issue-1442.json",
+        "local-only:agent-runtime/artifacts/validation/validation-issue-1442.json",
+    ):
+        resolution = resolve_ref("review", ref, "a" * 64, repo_root=repo)
+        assert resolution.status == POLICY_LOCAL, f"{ref} was rejected: {resolution}"
+
+
+def test_a_record_cannot_pass_by_respelling_a_hash_mismatched_ref_as_local_only(
+    tmp_path: Path,
+) -> None:
+    """End-to-end at the guard, not just the resolver: a committed path whose
+    recorded sha256 is wrong must not become passable by relabelling the ref
+    ``local-only:`` and routing it through a body directory."""
+    issue = 1497
+    repo, digests = _make_repo_with_committed_artifacts(tmp_path, issue)
+    status_dir = tmp_path / "status"
+    _write_record(
+        status_dir,
+        issue,
+        payload=_v2_payload(
+            issue,
+            # Denotes the committed review body, but claims policy protection so
+            # the deliberately wrong sha256 below would never be checked.
+            "local-only:agent-runtime/artifacts/reviews/../reviews/../../../"
+            f"agent-runtime/artifacts/reviews/review-issue-{issue}.json",
+            "d" * 64,
+            f"git-history:agent-runtime/artifacts/validation/validation-issue-{issue}.json",
+            digests["validation"],
+        ),
+    )
+    passed, detail = evaluate(issue, status_dir=status_dir, repo_root=repo)
+    assert passed is False, detail
+    assert "scheme" in detail.lower()
+
+
+def test_no_committed_v2_record_claims_git_history_for_a_gitignored_body() -> None:
+    """#1522. The corpus invariant #1497 established, stated where the guard lives.
+
+    A ``git-history:`` ref asserts retrievability from history. For the five
+    gitignored body directories that assertion is one the repository is
+    structurally unable to satisfy, so no committed ``gateVersion: 2`` record may
+    make it. #1497 relabelled the ten records that existed then; four more
+    (1488, 1489, 1495, 1514) were written afterwards by a generator running on
+    ``main``, which had not yet received #1497 -- it lived on the wave branch.
+    This test is the corpus-level backstop for that class of regression.
+    """
+    from artifact_ref_resolution import GIT_HISTORY_SCHEME, is_policy_local_path
+    from common import STATUS_DIR as REAL_STATUS_DIR
+
+    offenders = []
+    for path in sorted(REAL_STATUS_DIR.glob("issue-*.json")):
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(record, dict) or record.get("gateVersion") != 2:
+            continue
+        for field in ("review", "validation"):
+            block = record.get(field)
+            if not isinstance(block, dict):
+                continue
+            ref = str(block.get("artifactRef", ""))
+            if not ref.startswith(GIT_HISTORY_SCHEME):
+                continue
+            if is_policy_local_path(ref[len(GIT_HISTORY_SCHEME) :]):
+                offenders.append(f"{path.name}:{field} -> {ref}")
+
+    assert not offenders, (
+        "gateVersion 2 records claiming git history for a body .gitignore forbids "
+        "committing: " + ", ".join(offenders)
+    )
+
+
+def test_git_history_ref_to_a_policy_local_body_fails_even_in_a_shallow_checkout(
+    tmp_path: Path,
+) -> None:
+    """#1522, the standing guard: the hole that let four bad records through CI.
+
+    ``pr.yml`` checks the repo out shallow for the retention-guard job, so the
+    ref index cannot be built and every ``git-history:`` ref used to come back
+    INDETERMINATE -- a pass. That is why issues 1488/1489/1495/1514 were merged
+    green one at a time and only detonated when the wave was assembled against a
+    full checkout.
+
+    But for a path inside the five gitignored body directories, depth is
+    irrelevant: *policy* forbids it ever reaching a commit, so "not retrievable"
+    is knowable without consulting history at all -- exactly as ``local-only:``
+    is already answered. The guard must therefore FAIL such a ref at any depth,
+    which moves detection from the wave->main merge back to the issue PR that
+    introduces it.
+    """
+    issue = 1445
+    repo, digests = _make_repo_with_committed_artifacts(tmp_path, issue)
+    (repo / "later.txt").write_text("later", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "--no-verify", "-m", "later")
+
+    shallow = tmp_path / "shallow"
+    subprocess.run(
+        ["git", "clone", "--depth", "1", repo.as_uri(), str(shallow)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    from artifact_ref_resolution import is_shallow_repository
+
+    assert is_shallow_repository(shallow) is True
+
+    status_dir = tmp_path / "status"
+    _write_record(
+        status_dir,
+        issue,
+        payload=_v2_payload(
+            issue,
+            # Exactly the shape all four regressed records carry.
+            f"git-history:agent-runtime/artifacts/reviews/review-issue-{issue}.json",
+            digests["review"],
+            f"git-history:agent-runtime/artifacts/validation/validation-issue-{issue}.json",
+            digests["validation"],
+        ),
+    )
+
+    passed, detail = evaluate(issue, status_dir=status_dir, repo_root=shallow)
+    assert passed is False, (
+        "a git-history: claim over a gitignored body must fail regardless of "
+        f"checkout depth, got a pass: {detail}"
+    )
+    assert "review-issue-1445.json" in detail
+    # It must fail for the right reason -- policy, not an absence it cannot see.
+    assert "shallow" not in detail.lower(), detail
+
+
+def test_shallow_checkout_stays_indeterminate_for_a_committable_path(tmp_path: Path) -> None:
+    """The other half of #1522: the new policy check must not swallow the
+    shallow-checkout honesty #1445 built.
+
+    For a path nothing forbids committing, absence really is unknowable in a
+    shallow clone, and INDETERMINATE remains the only verdict the data supports.
+    Without this test the fix above could be over-applied into "shallow means
+    fail", which would be a wrong verdict wearing a strict costume.
+    """
+    issue = 1445
+    repo, _ = _make_repo_with_committed_artifacts(tmp_path, issue)
+    (repo / "later.txt").write_text("later", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "--no-verify", "-m", "later")
+
+    shallow = tmp_path / "shallow"
+    subprocess.run(
+        ["git", "clone", "--depth", "1", repo.as_uri(), str(shallow)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    status_dir = tmp_path / "status"
+    # Both refs name tracked, committable paths: nothing forbids either reaching
+    # a commit, so absence is checkable in principle -- just not from this
+    # truncated history. Neither may be decided by the policy branch above.
+    _write_record(
+        status_dir,
+        issue,
+        payload=_v2_payload(
+            issue,
+            "git-history:docs/adr/999-absent.md",
+            "a" * 64,
+            f"git-history:agent-runtime/artifacts/status/issue-{issue}.json",
+            "b" * 64,
+        ),
+    )
+    passed, detail = evaluate(issue, status_dir=status_dir, repo_root=shallow)
+    assert passed is True, detail
+    assert "shallow" in detail.lower(), detail
