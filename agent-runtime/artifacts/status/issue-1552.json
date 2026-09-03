@@ -130,7 +130,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/migration-url-fail-closed-issue-1552",
-        "head": "f425b8e6582ba399f8f6f04e71303156dcb354dd",
+        "head": "85ea435508238b1b6751295ebe7bc6f935e6cbd8",
         "shallow": true
       },
       "moduleResolution": {
@@ -155,12 +155,12 @@
       "gaps": [
         {
           "detail": "NameError: name '_settle_clock' is not defined",
-          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
           "reason": "task-dir-unreadable"
         },
         {
           "detail": "NameError: name '_settle_clock' is not defined",
-          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
           "reason": "task-dir-unreadable"
         },
         {
@@ -218,8 +218,8 @@
         "roleSelectedAgentId": null,
         "roleSelectedBy": "spawn-directive",
         "taskDirs": [
-          "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",

@@ -154,6 +154,13 @@ TS="$(date -u +%Y%m%dT%H%M%SZ)"
 BACKUP_FILE="${BACKUP_DIR}/juli-pre-migrate-${TS}.dump"
 log "starting pg_dump to ${BACKUP_FILE} (-Fc custom format)"
 
+# Vouch for the connection BEFORE anything depends on it. Separate from
+# resolving the URL: a pure resolver that opens a connection makes every caller
+# pay for it and fail in the wrong place.
+if ! PRIV_JSON="$("${HELPER[@]}" verify-migration-privileges 2>&1)"; then
+    fail "${PRIV_JSON}"
+fi
+log "migration privileges: ${PRIV_JSON}"
 MIGRATION_URL="$("${HELPER[@]}" migration-db-url)"
 if ! pg_dump -Fc -f "${BACKUP_FILE}" "${MIGRATION_URL}"; then
     rm -f "${BACKUP_FILE}"

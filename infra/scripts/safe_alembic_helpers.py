@@ -33,23 +33,74 @@ MIGRATION_ALLOW_COMMENT = re.compile(
 )
 
 
+def _decide_migration_privilege(role: str, can_update: bool) -> None:
+    """Raise unless `role` can actually perform a migration.
+
+    Pure, so the decision is testable without a database and without a
+    connection as some other role — which no CI Postgres will hand you.
+
+    The remedy deliberately does NOT mention granting UPDATE on
+    alembic_version. A role can hold that grant and still read zero rows under
+    RLS on every other table: measured in a rolled-back transaction, the grant
+    turns this check green while users, shops, tiktok_credentials and products
+    all return 0. Pointing DATABASE_DIRECT_URL at the owner is the only remedy
+    that fixes what is actually broken.
+    """
+    if not can_update:
+        raise RuntimeError(
+            f"role '{role}' cannot UPDATE public.alembic_version. Migrations and "
+            "pg_dump must run as the owner. Set DATABASE_DIRECT_URL to a URL with "
+            "owner credentials."
+        )
+
+
+def verify_migration_privileges(url: str | None = None) -> dict[str, object]:
+    """Refuse a connection that cannot migrate, before anything relies on it.
+
+    SEPARATE FROM `migration_db_url()` ON PURPOSE. An earlier version of this
+    fix folded the check into the resolver, which turned a pure string function
+    into one that opens a connection. Every caller then paid a round trip, and
+    callers that only wanted the URL — including three test suites driving the
+    script with deliberately unreachable URLs — started failing at a different
+    point with a misleading message. Resolving a URL and vouching for it are
+    different jobs.
+    """
+    target = sync_database_url(url) if url else migration_db_url()
+    engine = create_engine(target, pool_pre_ping=True)
+    try:
+        with engine.connect() as conn:
+            role = conn.execute(text("SELECT current_user")).scalar_one()
+            can_update = conn.execute(
+                text(
+                    "SELECT has_table_privilege("
+                    "current_user, 'public.alembic_version', 'UPDATE')"
+                )
+            ).scalar_one()
+    except RuntimeError:
+        raise
+    except Exception as exc:
+        raise RuntimeError(
+            f"could not verify migration privileges: {exc}. "
+            "Check that DATABASE_URL (or DATABASE_DIRECT_URL) is reachable."
+        ) from exc
+    finally:
+        engine.dispose()
+
+    _decide_migration_privilege(str(role), bool(can_update))
+    return {"checked": True, "role": role}
+
+
 def migration_db_url() -> str:
-    """Prefer direct Postgres URL for pg_dump/migrations; fail closed if
-    the resolved role lacks UPDATE on alembic_version.
+    """Prefer the direct Postgres URL for pg_dump and migrations.
 
-    The fallback to DATABASE_URL was written for pooler-vs-direct. Since
-    #1339, DATABASE_URL points to the non-owner runtime role juli_app.
-    A silent fallback would cause pg_dump to succeed while dumping zero
-    rows under RLS — a backup that looks complete but contains nothing.
+    PURE — it resolves a string and opens nothing. `verify_migration_privileges`
+    is the separate step that vouches for the role, and `safe-alembic-upgrade.sh`
+    calls it before pg_dump.
 
-    This guard covers the backup path (pg_dump, row_counts, token verification).
-    Note: alembic upgrade reads DATABASE_URL directly in env.py, so this check
-    does not cover alembic's own connection — that runs as the same role and
-    will fail loudly if it lacks UPDATE. See env.py:15.
-
-    This function verifies the resolved role can actually perform read operations,
-    naming the role in the error and pointing at DATABASE_DIRECT_URL if the
-    check fails. Connection failures are reported separately.
+    The name predates the distinction that matters. `DIRECT` was about
+    direct-vs-pooler; since #1339 the live question is owner-vs-runtime, because
+    DATABASE_URL now points at the RLS-bound `juli_app`. Falling back to it
+    silently would make pg_dump succeed while dumping zero rows.
     """
     direct = os.environ.get("DATABASE_DIRECT_URL", "").strip()
     pooled = os.environ.get("DATABASE_URL", "").strip()
@@ -58,47 +109,7 @@ def migration_db_url() -> str:
         raise RuntimeError(
             "DATABASE_URL (or DATABASE_DIRECT_URL) must be set for safe migration"
         )
-
-    url = sync_database_url(raw)
-
-    # Verify the resolved role can UPDATE alembic_version (used by alembic during
-    # the upgrade, and by this role if running migrations locally). More importantly,
-    # test that the connection provides actual row visibility: a role can hold
-    # UPDATE on alembic_version but still see zero rows under RLS, which is the
-    # failure mode that causes silent data loss.
-    try:
-        engine = create_engine(url, pool_pre_ping=True)
-        with engine.connect() as conn:
-            can_update = conn.execute(
-                text(
-                    "SELECT has_table_privilege("
-                    "  current_user, "
-                    "  'public.alembic_version', "
-                    "  'UPDATE'"
-                    ")"
-                )
-            ).scalar_one()
-
-            if not can_update:
-                current_user = conn.execute(
-                    text("SELECT current_user")
-                ).scalar_one()
-                raise RuntimeError(
-                    f"role '{current_user}' cannot UPDATE public.alembic_version. "
-                    "Migrations require owner privileges. "
-                    "Set DATABASE_DIRECT_URL to a URL with owner credentials."
-                )
-        engine.dispose()
-    except RuntimeError:
-        # Re-raise our privilege check failure as-is
-        raise
-    except Exception as exc:
-        raise RuntimeError(
-            f"could not verify migration privileges: {exc}. "
-            "Check that DATABASE_URL (or DATABASE_DIRECT_URL) is reachable."
-        ) from exc
-
-    return url
+    return sync_database_url(raw)
 
 
 def resolve_db_identity(raw_url: str | None = None) -> dict[str, str]:
@@ -333,6 +344,9 @@ def main() -> int:
 
     sub.add_parser("current-revision")
     sub.add_parser("estimate-db-bytes")
+    p_priv = sub.add_parser("verify-migration-privileges")
+    p_priv.add_argument("--url", help="Postgres URL to verify (default: migration-db-url)")
+
     sub.add_parser("migration-db-url")
 
     p_verify = sub.add_parser("verify-token-decrypt")
@@ -382,6 +396,14 @@ def main() -> int:
         return 0
     if args.command == "estimate-db-bytes":
         print(estimate_database_bytes())
+        return 0
+    if args.command == "verify-migration-privileges":
+        try:
+            result = verify_migration_privileges(getattr(args, "url", None))
+        except Exception as exc:
+            print(f"{exc}", file=sys.stderr)
+            return 1
+        print(json.dumps(result))
         return 0
     if args.command == "migration-db-url":
         print(migration_db_url())
