@@ -27,6 +27,11 @@
   },
   "staticAssetChecks": {
     "required": false,
+    "assetTypes": [
+      "none"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false,
     "htmlRoutes": [
       "GitHub Actions run summary for the helper unit and integration tests"
     ],
@@ -36,12 +41,16 @@
     "schemaChangeInScope": false,
     "expandContractOnly": true,
     "stableAndCandidateCompatible": true,
-    "destructiveMigrationAllowed": false
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. This slice edits the guard that runs BEFORE alembic, not any migration. Its effect is to refuse a migration whose connection cannot UPDATE alembic_version, which is strictly narrowing: every upgrade that succeeds today still succeeds, and ones that would have run against the RLS-bound runtime role now fail loudly instead of producing an empty backup."
   },
   "rollbackAssertion": {
     "preCutoverFailureBehavior": "Do not merge. migration_db_url() continues to fall back from DATABASE_DIRECT_URL to DATABASE_URL, so on any host where the former is unset, pg_dump runs as the RLS-bound juli_app and produces a backup containing zero rows while reporting success, and the row-count guard compares 0 to 0 and passes vacuously.",
     "rollbackMechanism": "Revert the commit. No schema, data or deployed state changes, so revert is complete by itself.",
-    "dataLossRisk": "None from this slice. It strictly narrows what is accepted before a migration runs."
+    "dataLossRisk": "None from this slice. It strictly narrows what is accepted before a migration runs.",
+    "postCutoverFailureBehavior": "Revert the commit. The guard runs only during deploy-time migration, so reverting restores the previous fall-back behaviour immediately with no schema, data or runtime state to unwind.",
+    "retainedStableRequired": false,
+    "automatic": false
   },
   "requiredArtifacts": {
     "implementation": true,
