@@ -1,0 +1,186 @@
+{
+  "gateVersion": 2,
+  "issue": 1548,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/database/migrations/versions/054_juli_app_bronze_select.py",
+      "tests/integration/test_juli_app_bronze_select_1548.py",
+      "tests/integration/test_migrations.py",
+      "tests/integration/test_runtime_role_grant_coverage.py",
+      "docs/architecture/ownership-registry.yml",
+      "tests/conftest.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1548.json",
+    "ownerSignoffPresent": true,
+    "sha256": "04c9feaba05e422e96f5422128d668c26fcc60445ca2d0c75396ff6c4575af20",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "run": {
+    "artifactBytes": {
+      "reviewBytes": 4669,
+      "validationBytes": 1989
+    },
+    "claimVsExecuted": {
+      "citedCommandCount": 0,
+      "invokedCommandCount": 9832,
+      "matchedCommandCount": 0,
+      "reason": "the implementation artifact cites no commands under redGreenRefactorEvidence[].commands; there is nothing to verify",
+      "recordPasses": false,
+      "status": "NO_CLAIMS",
+      "transcriptSources": [
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-codebase-audit-refactor-b9b867",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-open-terminal-in-code-08e55d"
+      ],
+      "transcriptsScanned": 43,
+      "unmatchedCommandCount": 0,
+      "unmatchedCommands": [],
+      "unmatchedCommandsTruncated": false,
+      "verified": true
+    },
+    "commandScope": {
+      "ciSelectors": {
+        "mypy": {
+          "command": "mypy backend/src/juli_backend --ignore-missing-imports --disable-error-code=valid-type",
+          "deselectedMarkers": [],
+          "paths": [
+            "backend/src/juli_backend"
+          ]
+        },
+        "pytest": {
+          "command": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "deselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "paths": [
+            "tests"
+          ]
+        },
+        "ruff check": {
+          "command": "ruff check backend/src/juli_backend tests scripts",
+          "deselectedMarkers": [],
+          "paths": [
+            "backend/src/juli_backend",
+            "tests",
+            "scripts"
+          ]
+        }
+      },
+      "ciWorkflow": ".github/workflows/pr.yml",
+      "commandsCited": 0,
+      "invocations": [],
+      "invocationsScored": 0,
+      "invocationsUnrecognised": 0,
+      "narrowerCount": 0,
+      "narrowerThanCI": [],
+      "unit": "invocation",
+      "unitRationale": "76 corpus commands chain 2-5 runs; scoring per command lets a broad first run launder a narrow second one, so each invocation is scored on its own selector."
+    },
+    "environment": {
+      "cwd": "/Users/macos/Juli-AI-v2/.worktrees/w-1548",
+      "dependencies": {
+        "constraints": "/Users/macos/Juli-AI-v2/.worktrees/w-1548/backend/constraints.txt",
+        "drift": [
+          {
+            "installed": "3.18",
+            "package": "idna",
+            "pinned": "3.19"
+          },
+          {
+            "installed": "2.24.0",
+            "package": "narwhals",
+            "pinned": "2.25.0"
+          },
+          {
+            "installed": "1.26.4",
+            "package": "numpy",
+            "pinned": "2.5.2"
+          },
+          {
+            "installed": "0.16.3",
+            "package": "ruff",
+            "pinned": "0.16.4"
+          },
+          {
+            "installed": "1.13.1",
+            "package": "scipy",
+            "pinned": "1.18.1"
+          },
+          {
+            "installed": "5.9.0",
+            "package": "stevedore",
+            "pinned": "5.9.1"
+          },
+          {
+            "installed": "0.52.3",
+            "package": "uvicorn",
+            "pinned": "0.52.4"
+          }
+        ],
+        "matched": 75,
+        "missing": [],
+        "pinned": 82
+      },
+      "executable": "/opt/homebrew/anaconda3/bin/python",
+      "git": {
+        "baseDistanceUnavailable": null,
+        "behindOriginMain": 0,
+        "branch": "feature/bronze-select-grant-issue-1548",
+        "head": "947393bef83dca0f8cde65bc60c0acc8aca0ad56",
+        "shallow": false
+      },
+      "moduleResolution": {
+        "error": "ModuleNotFoundError: No module named 'juli_backend'",
+        "expectedPrefix": "/Users/macos/Juli-AI-v2/.worktrees/w-1548/backend/src/juli_backend",
+        "insideRepo": false,
+        "module": "juli_backend",
+        "resolved": null
+      },
+      "python": "3.12.9",
+      "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/w-1548"
+    },
+    "transcripts": {
+      "commands": {
+        "executor": 0,
+        "executorCommands": [],
+        "includesExecutorCommands": false,
+        "parent": 0,
+        "parentCommands": []
+      },
+      "coverage": {
+        "complete": false,
+        "executorsExpected": 1,
+        "executorsPersisted": 0,
+        "gaps": [
+          {
+            "agent": "executor-guardrails",
+            "reason": "no-transcript-persisted"
+          }
+        ]
+      },
+      "executorCount": 0,
+      "executors": [],
+      "parentOnly": true,
+      "schemaVersion": 1,
+      "status": "not-persisted"
+    }
+  },
+  "timestamp": "2026-09-03T05:10:00Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1548.json",
+    "sha256": "d376ebedd73ae52727d93a6917f9bd12382ecaab124c50972aaf1a496274a9ce",
+    "status": "PASS"
+  },
+  "wave": null
+}
