@@ -86,5 +86,3 @@ schema changes → `data-platform`.
 ## Must not
 
 Vendor HTTP/webhooks/analytics fetch; migrations/repos/ETL dedup; ship or validate.
-
-<!-- planted harness drift: issue 1540 proof -->
