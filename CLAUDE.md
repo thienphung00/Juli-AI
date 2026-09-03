@@ -58,6 +58,27 @@ For every non-trivial task, run the `focus` skill first and produce a **Context 
 (docs / rules / skills / MCPs, with an explicit *DO NOT load* list). Ad-hoc chat stops at
 Focus — do not auto-enter review, validate, or ship pipelines unless asked.
 
+## Code standard
+
+Backend Python follows one explicit standard, demonstrated by exemplar modules already in
+the tree. Before adding a repository, service, route, or test, open the exemplar for that
+kind of change and match its shape. Do not invent a second shape.
+
+| Adding a… | Copy |
+|-----------|------|
+| repository | `backend/src/juli_backend/repositories/_base.py`, then `backend/src/juli_backend/repositories/commerce.py` |
+| service behind a route | `backend/src/juli_backend/services/agent_runs/` |
+| route | `backend/src/juli_backend/api/routes/agent_runs.py` |
+| infrastructure shared by two features | `backend/src/juli_backend/services/kpi_cache/` |
+| test | `tests/unit/test_repositories_base.py`, `tests/unit/test_kpi_caches.py`, `tests/unit/test_agent_run_event_stream.py`; fixtures and doubles from `tests/support/` |
+
+Rules: [`.cursor/rules/code-quality.mdc`](.cursor/rules/code-quality.mdc) (Focus loads it
+for every code change). Long form with before/after excerpts:
+[`docs/architecture/code-standard.md`](docs/architecture/code-standard.md). Tests:
+[`python-testing.md`](.cursor/skills/domain/testing-patterns/python-testing.md).
+`tests/unit/test_code_standard_exemplars.py` fails CI when a path these documents name
+stops existing, so the pointers cannot rot silently.
+
 ## Agent phase model
 
 | Phase | Agent | Model | Sequence |

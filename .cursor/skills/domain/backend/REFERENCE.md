@@ -31,11 +31,13 @@ app.dependency_overrides[get_settings] = get_settings_override
 app.dependency_overrides.clear()
 ```
 
-Repo pattern (`tests/unit/test_api.py`):
+Repo pattern — do not hand-roll the override stack; it lives in `tests/support/api.py`:
 
 ```python
-application.dependency_overrides[get_session] = _test_session
-application.dependency_overrides[get_current_user] = lambda: authenticated_user
+# tests/unit: the conftest fixtures `app`, `tenant`, `shop`, `auth_client` do this for you.
+# A second tenant, or an integration test:
+async with authenticated_client(session, user=other_user, shop=other_shop) as client:
+    r = await client.get("/v1/demo/runs")
 ```
 
 ---
@@ -51,7 +53,7 @@ async with httpx.AsyncClient(transport=transport, base_url="http://test") as cli
     assert r.status_code == 401
 ```
 
-- Prefer **async** client + `pytest.mark.asyncio` (repo convention).
+- `asyncio_mode = auto` (`pytest.ini`): an `async def test_` needs no marker.
 - Assert **status + envelope** (`detail`, list shape, pagination bounds) — not internal call order.
 - SQLite in-memory engine from `tests/unit/conftest.py` for repo-backed routes.
 
@@ -83,6 +85,12 @@ class ShopResponse(BaseModel):
 
 **Boundary:** product services must not import `integrations.tiktok.client` for new features —
 accept data via repos or injected callables from integration handoff.
+
+**Exemplar:** `services/agent_runs/` — the SSE stream contract, the confirmation ladder as
+`decide_confirmation()` raising `ConfirmationRejected(error_code, message)`, and a read model
+as dataclasses; `api/routes/agent_runs.py` is the thin HTTP skin over it. A route that needs a
+definition deeper than `juli_backend.<package>.<child>` moves the behaviour into a depth-2
+`services` package rather than copying the literal (`.importlinter.toml`).
 
 ---
 
