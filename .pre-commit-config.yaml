@@ -21,8 +21,10 @@ repos:
       # #1528 (CI-WAVE-1): the harness itself. agent-runtime/scripts holds
       # every gate, generator and schema validator and was covered by neither
       # the regex above nor pr.yml's Ruff step, which is how
-      # validate/check_workflow_cache.py drifted four hunks from `ruff format`
-      # unnoticed. Split into its own pair of hooks because the config differs:
+      # ci/json_schema_validate.py drifted from `ruff format` unnoticed until
+      # #1509's executor re-canonicalised it as a side errand while editing the
+      # file for another reason (PR #1524, commit 32e5beeef).
+      # Split into its own pair of hooks because the config differs:
       # these pass the repo-root ruff.toml, which is what pr.yml's Ruff step
       # resolves for this path via Ruff's nearest-config rule. Passing
       # backend/pyproject.toml here instead would reintroduce exactly the

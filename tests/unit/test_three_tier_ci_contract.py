@@ -829,9 +829,10 @@ def test_validate_gates_job_fails_closed_on_gate_error() -> None:
 # pr.yml's Ruff step listed `backend/src/juli_backend tests scripts` and the
 # pre-commit `files:` regex listed `^(backend/|tests/|scripts/)`. Neither named
 # `agent-runtime/`, so ~89 Python files holding every harness gate, generator
-# and schema validator were linted by nothing. The drift is not theoretical: a
-# W4 reviewer found check_workflow_cache.py had diverged from `ruff format` by
-# four hunks and only noticed while reading the file for another reason.
+# and schema validator were linted by nothing. The drift is not theoretical:
+# agent-runtime/scripts/ci/json_schema_validate.py had diverged from
+# `ruff format` and was only re-canonicalised because #1509's executor (PR
+# #1524) happened to be editing that file for an unrelated reason.
 #
 # These tests plant a real violation in the real tree and run the real command,
 # because asserting that "agent-runtime/scripts" appears in the YAML would prove
@@ -936,8 +937,8 @@ def test_precommit_ruff_check_enforces_agent_runtime_scripts() -> None:
 
 def test_precommit_ruff_format_enforces_agent_runtime_scripts() -> None:
     """AC2: format drift in a staged agent-runtime/scripts file is caught —
-    this is the exact W4 defect (four hunks of silent drift)."""
-    hook = _hook_matching("ruff-format", "agent-runtime/scripts/validate/check_workflow_cache.py")
+    this is the exact defect json_schema_validate.py hit (silent drift)."""
+    hook = _hook_matching("ruff-format", "agent-runtime/scripts/ci/json_schema_validate.py")
 
     args = hook.get("args", [])
     config = args[args.index("--config") + 1] if "--config" in args else None
