@@ -435,6 +435,12 @@ jobs:
       PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v7
+        with:
+          # #1540/#1570: a depth-1 checkout makes origin/main an unknown
+          # revision, so any gate anchored to a base ref fails for a reason
+          # unrelated to the change under test. Full history keeps merge-base
+          # resolvable for differential_tdd and harness_bootstrap_pin.
+          fetch-depth: 0
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
