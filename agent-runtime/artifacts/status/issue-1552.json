@@ -13,7 +13,7 @@
     ]
   },
   "review": {
-    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1552.json",
+    "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1552.json",
     "ownerSignoffPresent": true,
     "sha256": "67870f852a23abbb09b5b1fe9f2a700e7156a2b173863693af787a53272b17d1",
     "signoffRequired": false,
@@ -127,21 +127,118 @@
       },
       "executable": "/opt/homebrew/anaconda3/bin/python",
       "git": {
-        "baseDistanceUnavailable": null,
-        "behindOriginMain": 2,
+        "baseDistanceUnavailable": "shallow-clone",
+        "behindOriginMain": null,
         "branch": "feature/migration-url-fail-closed-issue-1552",
-        "head": "32c1b82f7222959e8dac8d8797b228a5e465c290",
-        "shallow": false
+        "head": "f425b8e6582ba399f8f6f04e71303156dcb354dd",
+        "shallow": true
       },
       "moduleResolution": {
-        "error": "ModuleNotFoundError: No module named 'juli_backend'",
+        "error": null,
         "expectedPrefix": "/Users/macos/Juli-AI-v2/.worktrees/w-1552/backend/src/juli_backend",
-        "insideRepo": false,
+        "insideRepo": true,
         "module": "juli_backend",
-        "resolved": null
+        "resolved": "/Users/macos/Juli-AI-v2/.worktrees/w-1552/backend/src/juli_backend/__init__.py"
       },
       "python": "3.12.9",
       "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/w-1552"
+    },
+    "metrics": {
+      "agents": [],
+      "disagreements": [],
+      "executionDurationMs": {
+        "available": false,
+        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+      },
+      "executorDomain": null,
+      "executorDomainSource": "unknown",
+      "gaps": [
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/cb047053-ee20-4e00-925f-7ebf36c0417b/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos/61a4eb31-9294-45c2-a803-0c26980300c6/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/491f9d6b-185a-43a4-bbea-f1fcd906bf1d/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/03369828-07b8-46b9-8587-8b7e97d289c1/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "agentsScanned": 0,
+          "detail": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "reason": "no-persisted-task-transcripts"
+        },
+        {
+          "detail": "no artifact named a domain",
+          "reason": "executor-domain-unknown"
+        }
+      ],
+      "schemaVersion": 1,
+      "source": {
+        "agentsAttributed": 0,
+        "agentsScanned": 0,
+        "attributedBy": ".worktrees path naming issue-1552",
+        "executorsIdentified": 0,
+        "kind": "task-transcript",
+        "roleSelectedAgentId": null,
+        "roleSelectedBy": "spawn-directive",
+        "taskDirs": [
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/cb047053-ee20-4e00-925f-7ebf36c0417b/tasks",
+          "/tmp/claude-501/-Users-macos/61a4eb31-9294-45c2-a803-0c26980300c6/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/491f9d6b-185a-43a4-bbea-f1fcd906bf1d/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/03369828-07b8-46b9-8587-8b7e97d289c1/tasks"
+        ]
+      },
+      "status": "not-measured",
+      "tokenUsage": {
+        "available": false,
+        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+      },
+      "toolInvocationCount": {
+        "available": false,
+        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+      },
+      "toolsUsed": []
     },
     "transcripts": {
       "commands": {
@@ -171,7 +268,7 @@
   },
   "timestamp": "2026-09-03T06:05:00Z",
   "validation": {
-    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1552.json",
+    "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1552.json",
     "sha256": "5d354f23b39254cb5bd489098eeeca9b032b1f3e62ce6460bd98b05ea0f04a39",
     "status": "PASS"
   },
