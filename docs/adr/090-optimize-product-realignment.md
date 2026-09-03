@@ -41,11 +41,13 @@ confirms the app holds that scope. So the agent today re-derives a verdict that 
 the one already on the seller's screen.
 
 **Platform locks are structurally invisible.** A Product Discount is unavailable while the SKU
-sits in a campaign or Flash Deal. Juli cannot enumerate those: `Search Activities` is not
-available (`execution_layer.md:289-292` — investigated, absent from the Promotion API Testing
-Tool), so `GET /promotion/202309/activities/{activity_id}` reads only activities whose id Juli
-already tracks, i.e. ones Juli created. A precheck can be honest about the collisions it can
-see, and cannot be omniscient.
+sits in a campaign or Flash Deal. Juli cannot reliably enumerate those. `Search Activities`
+(`POST /promotion/202309/activities/search`) **is** documented in the Partner API but was absent
+from the Promotion API Testing Tool (`execution_layer.md:290-293`) and has never been captured
+live, so today the only lifecycle read is
+`GET /promotion/202309/activities/{activity_id}`, which reads activities whose id Juli already
+tracks — i.e. ones Juli created. A precheck can be honest about the collisions it can see, and
+cannot be omniscient.
 
 **Two more constraints from §B/§E, unguarded today.** Editing title, category, images and
 description together is the fingerprint of prohibited listing repurposing (listing-guide
@@ -65,7 +67,13 @@ description together is the fingerprint of prohibited listing repurposing (listi
    locked — it re-opens the harmful path exactly when the agent is most motivated to take it.
 
 2. **Lock detection is fail-safe, not omniscient.** The precheck refuses a discount that
-   collides with an activity Juli can see, and Juli can see only what it created. **The
+   collides with an activity Juli can see, and today Juli can see only what it created. The
+   premise is *unverified reach*, not a missing endpoint: **`Search Activities`
+   (`POST /promotion/202309/activities/search`) is documented in the Partner API but was absent
+   from the Promotion API Testing Tool** (`execution_layer.md:290-293`) and is unverified live.
+   If it captures on the sandbox it becomes the **primary lock check for seller-created
+   activities**; the vendor rejection stays the backstop either way, and **platform campaigns
+   remain invisible whichever way it goes**, since no endpoint enumerates them. **The
    vendor's rejection of the discount create is the authoritative lock signal.** On rejection
    the run continues with a content lever if one has a diagnosis code behind it, and otherwise
    ends `completed` per decision 7. Designing as if the precheck were complete would encode a
@@ -73,7 +81,8 @@ description together is the fingerprint of prohibited listing repurposing (listi
    authority where the information is. *Consequence:* the `proposed_change` shown at CONFIRM
    must state that a Product Discount counts toward the 14-day low a later flash sale has to
    beat — the seller consents to a constraint on their next promotion, not only to a price.
-   *Rejected:* polling every product's activities into a local lock table — no endpoint to poll.
+   *Rejected:* polling every product's activities into a local lock table — no *verified* endpoint
+   to poll, and none at all for platform campaigns.
 
 3. **Diagnosis first.** Playbook step order becomes **diagnosis read → SEO words → suggestions
    → one lever**. A field with no returned diagnosis code is never edited. The POST variant

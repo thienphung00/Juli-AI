@@ -1470,7 +1470,7 @@ judgment call once, with consent, and carry it through.
 |---|---|---|---|---|
 | **Product** | Get found and get chosen — the product page is the only surface a buyer sees before paying | CTOR | Product Optimizer diagnostic tags, title optimizer with search-volume scores, Price Diagnostics tiers, 14 card-diagnostic recommendations | Decide *which* suggestion to accept and *whether* a price move is safe, then execute it as one consented change. Reprice through a Product Discount, never the base price |
 | **Inventory** | Never sell what you do not have; never hold what will not sell | GMV (replenish), AOV (clear excess) | 30-day forecast, recommended replenishment quantity, days of supply, four alert channels, the Sản phẩm thanh lý clearance label | Reconcile to TikTok's numbers instead of competing with them; guard the stock write against auto-restock, the Luôn sẵn hàng lock and multi-warehouse; relay the supplier as a seller-attested fact; clear through the label, not zero stock |
-| **Campaign & Promotion** | Spend margin only where it buys sales — every promo is seller-funded and price-remembered | CTOR | Discount bands, duration bounds, the 14-day floor, stacking priority, a pricing simulator — all enforced for a human in the UI, only rejected for an API caller | Pre-submit validation, lever chosen by eligibility (rating ≥ 2.5 ∧ VP < 36 ∧ balance > −100 USD), safe monotonic edits (extend, raise limits/budget, deactivate expired); vouchers and campaigns as guided checklists since they have no API |
+| **Campaign & Promotion** | Spend margin only where it buys sales — every promo is seller-funded and price-remembered | CTOR | Discount bands, duration bounds, the 14-day floor, stacking priority, a pricing simulator — all enforced for a human in the UI, only rejected for an API caller | Pre-submit validation, lever chosen by eligibility (VP < 36 ∧ balance > −100 USD ∧ official account — the VN rating cell is malformed in the crawl, see [`seller-journeys/promotion.md`](seller-journeys/promotion.md) §A.2), safe monotonic edits (extend, raise limits/budget, deactivate expired); vouchers and campaigns as guided checklists since they have no API |
 | **Customer Service** | Protect the licence to operate — rating, Account Health, campaign and CRM access | Cancellation rate, AHT, 12HRR | Its own clocks (48h / 1d / 2d / 12h), platform pre-approval, Fast Refund, a chatbot, FAQ auto-send, proactive shipping messages and the Trợ lý Nhà Bán Hàng copilot | Triage by time-to-breach, two-decision return model, evidenced rejections and one-shot negotiation/appeal drafted for confirmation, evidence packs for the sanctioned repair paths. Never auto-send, never auto-reject |
 
 **Process Order sits beside these four as an Operations workflow**, not inside them: Main KPI
@@ -1528,7 +1528,7 @@ before the after-sales workflows.
 |---|---|---|---|---|
 | 0 | Template hardening | shared | **W9-A** (T-1..T-3); the rest with the first W10 workflow that needs it | `workflow_key` on `workflow_runs`; polymorphic bound subject (nullable `product_id`, active-run index on `(shop_id, workflow_key, subject_ref)`); domain-registered tool dispatcher replacing `ProductToolExecutor`'s literal handler dicts; shared prompt sections extracted per ADR-072 d.1; the two gate tests de-pinned from `optimize_product_2`; step input contracts (deferred-design half 1). **Also the deadline clock, the `waiting_external` run state and the autonomy ladder** (see NFR reference) — Inventory and Customer Service cannot ship without them |
 | 1 | Optimize Product pricing realignment | Product | **W9-A** — see [where it lands](#where-the-optimize-product-pricing-realignment-lands-2026-09-03) | Read TikTok's diagnostics first (before `get_seo_keywords`); reprice via Product Discount with the campaign/Flash-Deal precheck; title-length gate; never bundle the four listing fields. Introduces the first Promotion write tool. **design: [ADR-090](../../adr/090-optimize-product-realignment.md)** |
-| 2 | Clear Excess Inventory (4) | Inventory | W10 | Drop the markdown; lever chosen by eligibility; pre-submit validator (bands, duration, 14-day floor, stacking); end with the Thanh lý label. First workflow to exercise N > 1 decision options |
+| 2 | Clear Excess Inventory (4) | Inventory | W10 | Drop the markdown; pre-submit validator (bands, duration, floor, stacking); end with the Thanh lý label. First workflow to need `waiting_external`. **design: [ADR-091](../../adr/091-clear-excess-inventory-design.md)** |
 | 3 | Campaign & Promotion family (7a–7c) | Promotion | W10 | Create / end / optimize across the four API lanes; monotonic edits as level-1 autonomy candidates; vouchers and campaigns as human checklists |
 | 4 | Replenish Inventory (3), FBS | Inventory | W10 | Consume TikTok's recommended quantity; three write guards; supplier as a human-relayed **attested report**; `waiting_external` for the delivery wait; `received_quantity` stays a post-execution field |
 | 5 | Create Hero Product (1) | Product | W10 | Image → title → suggested category → attributes; draft vs submit; rejection loop distinguishing *Không thành công* (resubmit) from *Đóng băng* (terminal); 2026-03-20 licence attributes |
@@ -1568,7 +1568,11 @@ hours. The always-on layer is therefore an **event and deadline layer**, and aut
 4. **`waiting_external` run state.** A run that must wait days (supplier delivery, campaign
    review, return ship-back) suspends with its own reaper policy and resumes on a seller-attested
    report or a webhook — never by reusing `waiting_approval`, whose 4h reaper and paused
-   wall-clock are load-bearing for consent expiry.
+   wall-clock are load-bearing for consent expiry. The **intervention guard** — snapshot what the
+   run created, compare on every external change event, and close the run when the seller has
+   changed it — is part of `waiting_external`, not a per-workflow rule
+   ([ADR-091](../../adr/091-clear-excess-inventory-design.md) d.5). **Clear Excess is the first
+   workflow that needs `waiting_external`**, so it lands with design-order item 0, ahead of item 2.
 
 Per-family plan:
 
@@ -1601,6 +1605,8 @@ Per-family plan:
 | Product video ≤ 5 MB (policy) vs ≤ 20 MB (guide) | listing policy vs feature guide | 5 MB |
 | Response rate 24h (Store Rating, analytics tile) vs 12h (enforcement) | chat feature page vs communication policy | Model both; enforce on 12h |
 | 7c Update Activity `POST` vs `PUT` | `execution_layer.md:301-306` vs `contract-collection.md:1201` | `PUT` |
+| Flash-sale price-floor lookback 14 days vs 30 days | newer product flash-sale page vs older LIVE flash-sale page | **30 days** (conservative) |
+| `Search Activities` "does not exist" vs documented in the Partner API | `execution_layer.md:290-293` vs `partner-catalog.json` `POST /promotion/202309/activities/search` | Capture it on the sandbox before relying on it either way |
 
 #### Edge-case matrix — unchanged
 
