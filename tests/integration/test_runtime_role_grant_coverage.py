@@ -58,17 +58,13 @@ _RUNTIME_WRITE_VERBS: dict[str, str] = {
 # Tables classified tenant-scoped that the runtime legitimately never reads.
 # Each needs a reason, because "it is not read" is exactly what someone would
 # claim about a table whose grant they forgot — which is #1453 itself. An entry
-# here is a claim that the migration's INSERT-only grant is deliberate, and
-# 043's GRANT_MAP is where that claim is checked.
+# here is a claim that the migration's grant is deliberate, and 043/054's
+# GRANT_MAP is where that claim is checked.
 _NOT_READ_BY_RUNTIME: dict[str, str] = {
-    # 043's GRANT_MAP gives each of these ("INSERT",) and nothing else: raw
-    # vendor payloads are written by ingest and read back by ETL through a
-    # different path. Every other entry in that map carries a caller citation
-    # for its verbs; these four carry INSERT alone, deliberately.
-    "bronze.order_raw_payloads": "write-only ingest — GRANT_MAP gives INSERT only",
-    "bronze.return_raw_payloads": "write-only ingest — GRANT_MAP gives INSERT only",
-    "bronze.ctor_performance_raw_payloads": "write-only ingest — GRANT_MAP gives INSERT only",
-    "bronze.live_hours_raw_payloads": "write-only ingest — GRANT_MAP gives INSERT only",
+    # All tables in public/bronze/silver/ops/gold that carry explicit grants
+    # are either read by runtime or deliberately read-protected (e.g. webhook_raw_events).
+    # Bronze raw payloads were removed here in #1548: they are append-only
+    # (043 INSERT), read by the medallion path (054 SELECT).
 }
 
 
