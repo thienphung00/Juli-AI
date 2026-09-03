@@ -745,6 +745,11 @@ must split the reason or carry a discriminator.
 **Decision: W9-A** — a new first sub-wave of W9, ahead of P15 and P7. It carries P13 design-order
 item 1 and the part of item 0 that item 1 depends on.
 
+**The realignment's design is [ADR-090](../../adr/090-optimize-product-realignment.md)** — seven
+decisions covering the discount-only price lever, diagnosis-first step order, one lever per run,
+the single-option decision request, no Repeat consent with a lapse revision, and the honest
+no-change end states. Read it before `to-prd` on any W9-A slice below.
+
 Three of this plan's own constraints pick the wave:
 
 - **It must precede template extraction.** W9's deliverable *is* the per-workflow config template.
@@ -1522,7 +1527,7 @@ before the after-sales workflows.
 | # | Item | Family | Wave | Scope |
 |---|---|---|---|---|
 | 0 | Template hardening | shared | **W9-A** (T-1..T-3); the rest with the first W10 workflow that needs it | `workflow_key` on `workflow_runs`; polymorphic bound subject (nullable `product_id`, active-run index on `(shop_id, workflow_key, subject_ref)`); domain-registered tool dispatcher replacing `ProductToolExecutor`'s literal handler dicts; shared prompt sections extracted per ADR-072 d.1; the two gate tests de-pinned from `optimize_product_2`; step input contracts (deferred-design half 1). **Also the deadline clock, the `waiting_external` run state and the autonomy ladder** (see NFR reference) — Inventory and Customer Service cannot ship without them |
-| 1 | Optimize Product pricing realignment | Product | **W9-A** — see [where it lands](#where-the-optimize-product-pricing-realignment-lands-2026-09-03) | Read TikTok's diagnostics first (before `get_seo_keywords`); reprice via Product Discount with the campaign/Flash-Deal precheck; title-length gate; never bundle the four listing fields. Introduces the first Promotion write tool |
+| 1 | Optimize Product pricing realignment | Product | **W9-A** — see [where it lands](#where-the-optimize-product-pricing-realignment-lands-2026-09-03) | Read TikTok's diagnostics first (before `get_seo_keywords`); reprice via Product Discount with the campaign/Flash-Deal precheck; title-length gate; never bundle the four listing fields. Introduces the first Promotion write tool. **design: [ADR-090](../../adr/090-optimize-product-realignment.md)** |
 | 2 | Clear Excess Inventory (4) | Inventory | W10 | Drop the markdown; lever chosen by eligibility; pre-submit validator (bands, duration, 14-day floor, stacking); end with the Thanh lý label. First workflow to exercise N > 1 decision options |
 | 3 | Campaign & Promotion family (7a–7c) | Promotion | W10 | Create / end / optimize across the four API lanes; monotonic edits as level-1 autonomy candidates; vouchers and campaigns as human checklists |
 | 4 | Replenish Inventory (3), FBS | Inventory | W10 | Consume TikTok's recommended quantity; three write guards; supplier as a human-relayed **attested report**; `waiting_external` for the delivery wait; `received_quantity` stays a post-execution field |
