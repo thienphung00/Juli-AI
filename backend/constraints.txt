@@ -192,7 +192,7 @@ requests==2.34.2
     # via
     #   juli-backend (pyproject.toml)
     #   responses
-responses==0.26.2
+responses==0.26.3
     # via juli-backend (pyproject.toml)
 rich==15.0.0
     # via bandit
