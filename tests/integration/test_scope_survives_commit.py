@@ -31,7 +31,12 @@ requires_postgres = pytest.mark.skipif(
     reason="DATABASE_URL is not set to a Postgres instance",
 )
 
-pytestmark = [requires_postgres, pytest.mark.migration_heavy]
+# NOT in _ISOLATED_DATABASE_MODULES, deliberately. These tests set GUCs and
+# commit; they create no schema, write no rows, and downgrade nothing, so they
+# are safe on the shared database. Registering them for isolation cost a fresh
+# database migrated through every revision and pushed full-regression past its
+# 20-minute job timeout — 20:16 against a 12:18 baseline.
+pytestmark = [requires_postgres]
 
 _GUC = text("SELECT current_setting('app.current_shop_id', true)")
 
