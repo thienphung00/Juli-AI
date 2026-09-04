@@ -458,8 +458,23 @@ jobs:
       # an unknown revision at any depth (live proof: PR #1561, run
       # 33848493670). Bounded to the same 200, so the clone stays shallow --
       # see the comment above; --depth 0 would flip history_is_complete().
+      #
+      # #1604 follow-up: this fetch is a second, independent depth-bounded
+      # fetch against an already-shallow checkout. That combination moves the
+      # shallow boundary and can drop a commit `actions/checkout`'s own fetch
+      # had made reachable back out of `git rev-list --all` (measured:
+      # fix_commits/957d94212a58b698's commit stayed `git cat-file -t`-visible
+      # but became unreachable). A single fetch naming both refspecs together
+      # avoids it, but actions/checkout owns the first fetch opaquely, so the
+      # two calls cannot be merged into one invocation. Re-fetching the
+      # checked-out commit by its own sha immediately after restores the
+      # boundary this fetch moves -- verified empirically in a faithful
+      # checkout repro (origin/main resolves, is-shallow-repository stays
+      # true, merge-base resolves, and the #943 commit stays reachable).
       - name: Fetch base ref (origin/main)
-        run: git fetch --depth=200 origin +refs/heads/main:refs/remotes/origin/main
+        run: |
+          git fetch --depth=200 origin +refs/heads/main:refs/remotes/origin/main
+          git fetch --depth=200 origin "$(git rev-parse HEAD)"
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -1221,9 +1236,13 @@ jobs:
           # Bounded, not 0: see `test`.
           fetch-depth: 200
       # #1604: see `test` for why this is needed -- fetch-depth alone does
-      # not create `origin/main`.
+      # not create `origin/main`. The follow-up re-fetch of the checked-out
+      # sha is likewise explained there (restores the shallow boundary this
+      # step's main fetch moves).
       - name: Fetch base ref (origin/main)
-        run: git fetch --depth=200 origin +refs/heads/main:refs/remotes/origin/main
+        run: |
+          git fetch --depth=200 origin +refs/heads/main:refs/remotes/origin/main
+          git fetch --depth=200 origin "$(git rev-parse HEAD)"
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
