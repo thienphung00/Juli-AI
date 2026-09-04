@@ -4,7 +4,7 @@
   "metrics": {
     "acceptanceMapped": 2,
     "acceptanceTotal": 2,
-    "criticalFindings": 1,
+    "criticalFindings": 2,
     "modulesTouched": [
       ".github/workflows/pr.yml",
       "tests/unit/test_three_tier_ci_contract.py",
@@ -14,19 +14,19 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1604.json",
     "ownerSignoffPresent": true,
-    "sha256": "f2827ffc7f49cd03d3c2091f00a8d119a4de5388293b2feccbea939875e4da3d",
+    "sha256": "b07830e9abb38cdca2004fe160b68257f640383fe043573b3856f6b25e7cc01f",
     "signoffRequired": false,
-    "status": "PASS",
+    "status": "FAIL",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 5502,
-      "validationBytes": 22267
+      "reviewBytes": 10760,
+      "validationBytes": 22309
     },
     "claimVsExecuted": {
       "citedCommandCount": 7,
-      "invokedCommandCount": 10514,
+      "invokedCommandCount": 10556,
       "matchedCommandCount": 0,
       "reason": "7 of 7 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
@@ -171,7 +171,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1604-base-ref-fetch",
-        "head": "dae2dfa46dff068b1c33acff46c3044ee354bd9f",
+        "head": "76ce5b8194eb11052089118b0f78d4493888be11",
         "shallow": true
       },
       "moduleResolution": {
@@ -320,11 +320,11 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-04T08:02:20Z",
+  "timestamp": "2026-09-04T08:10:14Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1604.json",
-    "sha256": "6b335e45d359270516150016b160cb5a668ce77eb01e7791ac9eb6a7d77b6b7f",
-    "status": "PASS"
+    "sha256": "5f39cb6493b44b6fe0378d17def1329a72ff9058f7883bcabe4e632a997534c5",
+    "status": "FAIL"
   },
   "wave": "wave-harness-e-w5"
 }
