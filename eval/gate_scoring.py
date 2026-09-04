@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "agent-runtime" / "scripts"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "agent-runtime" / "scripts" / "ci"))
 
 from eval.artifact_mutants import (  # noqa: E402
@@ -148,7 +149,25 @@ class Fixture:
 
 #: The fixture's own bootstrap pin. Must match `bootstrapRef.branch` in
 #: `parent-cache.template.json` exactly — see `_bootstrap_anchor_sha`.
-BOOTSTRAP_ANCHOR_SPEC = "merge-base:origin/main"
+#:
+#: #1608: read from the shipped `agent-runtime.config.yml`, never duplicated
+#: as a second literal here. A literal copy is exactly the kind of second
+#: place a fix to the config's `pinBranch` could fail to reach: this fixture
+#: would keep exercising the *old* spec forever, and the
+#: `check_harness_bootstrap_pin` clean-arm score would silently stop meaning
+#: anything -- which is precisely how PR #1561's live failure survived a
+#: config edit landing in a sibling branch.
+def _bootstrap_anchor_spec() -> str:
+    from build_runtime import load_simple_yaml
+
+    config = load_simple_yaml(REPO_ROOT / "agent-runtime" / "config" / "agent-runtime.config.yml")
+    spec = config["workflow_prompt_cache"]["bootstrap"]["pinBranch"]
+    if not isinstance(spec, str) or not spec.strip():
+        raise RuntimeError(
+            "agent-runtime.config.yml workflow_prompt_cache.bootstrap.pinBranch is missing "
+            "or empty; the fixture has nothing to pin its bootstrapRef to"
+        )
+    return spec
 
 
 def _bootstrap_anchor_sha() -> str:
@@ -160,10 +179,11 @@ def _bootstrap_anchor_sha() -> str:
     detect drift), so a fixture that still wrote `HEAD` would have
     `check_harness_bootstrap_pin` FAIL on the clean arm rather than PASS on it.
 
-    Resolving here through the shipped `resolve_bootstrap_anchor` -- rather than
-    reimplementing `merge-base:<ref>` parsing or hand-pinning a SHA -- keeps this
-    fixture's notion of "what does `merge-base:origin/main` mean" identical to
-    the resolver's own, so the two can never drift apart from each other.
+    Resolving here through the shipped `resolve_bootstrap_anchor`, against the
+    shipped config's own spec (`_bootstrap_anchor_spec`) -- rather than
+    reimplementing `merge-base:<ref>` parsing or hand-pinning a SHA -- keeps
+    this fixture's notion of "what does the pin mean" identical to the
+    resolver's own and the config's own, so none of the three can drift apart.
 
     Imported locally: `harness_bootstrap_pin` only becomes importable once the
     `agent-runtime/scripts/ci` path is on `sys.path`, and doing that import at
@@ -172,7 +192,7 @@ def _bootstrap_anchor_sha() -> str:
     """
     from harness_bootstrap_pin import resolve_bootstrap_anchor
 
-    return resolve_bootstrap_anchor(BOOTSTRAP_ANCHOR_SPEC, REPO_ROOT)
+    return resolve_bootstrap_anchor(_bootstrap_anchor_spec(), REPO_ROOT)
 
 
 def _render_template(name: str, issue: int) -> dict[str, Any]:

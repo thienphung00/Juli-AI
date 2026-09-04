@@ -372,21 +372,48 @@ def test_depth_floor_tracks_preflight_rather_than_copying_it(tmp_path: Path) -> 
     )
 
 
-@pytest.mark.parametrize("job", ["test", "full-regression"])
-def test_base_anchored_jobs_fetch_origin_main_after_checkout(job: str) -> None:
-    """#1604: fetch-depth alone does not create `origin/main`.
+# #1608: which tier each base-anchored job runs at, so the parametrized test
+# below exercises the "single dynamic form, correct at both tiers" claim --
+# `test`'s `if:` gates it to `tier == 'issue'` (base = a wave branch);
+# `full-regression`'s gates it to `tier == 'main'` (base = `main`).
+BASE_ANCHORED_JOB_TIERS = {"test": "issue", "full-regression": "main"}
+
+
+@pytest.mark.parametrize("job", list(BASE_ANCHORED_JOB_TIERS))
+def test_base_anchored_jobs_declare_base_ref_from_github_base_ref(job: str) -> None:
+    """#1608: the job must read the run's *actual* base, not assume `main`.
+
+    `validate-gates` and `policy-checks` already set `BASE_REF: ${{
+    github.base_ref }}` at job level and consume it dynamically; the
+    base-anchored jobs must follow the same convention rather than a second,
+    inconsistent mechanism.
+    """
+    workflow = yaml.safe_load(_workflow())
+    job_def = workflow["jobs"][job]
+    assert job_def.get("env", {}).get("BASE_REF") == "${{ github.base_ref }}", (
+        f"the `{job}` job must declare `env: BASE_REF: ${{{{ github.base_ref }}}}` "
+        "at job level -- the fetch step and the harness_bootstrap_pin gate this "
+        "job runs both need this run's actual base, not a hardcoded branch name"
+    )
+
+
+@pytest.mark.parametrize("job", list(BASE_ANCHORED_JOB_TIERS))
+def test_base_anchored_jobs_fetch_the_dynamic_base_ref_after_checkout(job: str) -> None:
+    """#1604 established the mechanism; #1608 corrects *which* ref it names.
 
     `actions/checkout@v7` fetches only the ref being checked out --
     `+<sha>:refs/remotes/pull/<N>/merge` on a PR event -- regardless of
     `fetch-depth`: depth bounds how far back *that one ref* goes, it cannot
-    bring a second branch into existence. No refspec names `main`, so
-    `git rev-parse origin/main` stays an unknown revision at any depth,
-    including 200 (live proof: PR #1561, run 33848493670,
-    `test_shipped_config_pin_branch_resolves_against_this_repository` and
-    two `test_mutants` cases failing with
-    "fatal: ambiguous argument 'origin/main': unknown revision"). Each
-    base-anchored job must fetch `main` by name, right after checkout, so
-    every gate anchored to a base ref has a ref to anchor to.
+    bring a second branch into existence. No refspec names the base by
+    default, so `git rev-parse origin/<base>` stays an unknown revision at any
+    depth, including 200 (live proof: PR #1561, run 33848493670).
+
+    A hardcoded `origin/main` fetch is itself wrong at issue tier: `main` is
+    not this run's actual base there (a `feature/*-wave` branch is), so
+    fetching it by name answers a question nobody asked. The fetch must name
+    `${BASE_REF}` -- the same env this test's sibling above requires -- so
+    every gate anchored to a base ref has *the run's actual base* to anchor
+    to, at both tiers, via one dynamic step (ADR-094).
     """
     workflow = yaml.safe_load(_workflow())
     steps = workflow["jobs"][job]["steps"]
@@ -397,50 +424,83 @@ def test_base_anchored_jobs_fetch_origin_main_after_checkout(job: str) -> None:
     fetch_steps = [
         s
         for s in steps[checkout_idx + 1 :]
-        if "refs/heads/main:refs/remotes/origin/main" in str(s.get("run", ""))
+        if "refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}" in str(s.get("run", ""))
     ]
     assert fetch_steps, (
-        f"the `{job}` job never fetches origin/main by name after checkout; "
+        f"the `{job}` job never fetches origin/${{BASE_REF}} by name after checkout; "
         "fetch-depth alone (even 200) does not create the ref -- "
-        "actions/checkout only fetches the ref being checked out, and no "
-        "refspec here names `main`"
+        "actions/checkout only fetches the ref being checked out, and a "
+        "hardcoded `main` refspec is wrong at issue tier, where the real "
+        "base is a wave branch (#1608)"
     )
     fetch_run = str(fetch_steps[0]["run"])
+    assert "origin/main" not in fetch_run and "refs/heads/main:" not in fetch_run, (
+        f"the `{job}` job's base-ref fetch step still names `main` literally "
+        "alongside the dynamic form -- the anchor and the fetch must agree on "
+        "a single dynamic ref, not fall back to a hardcoded one"
+    )
     assert "--depth=200" in fetch_run or "--depth 200" in fetch_run, (
-        f"the `{job}` job's origin/main fetch is unbounded (missing a bounded "
+        f"the `{job}` job's base-ref fetch is unbounded (missing a bounded "
         "--depth), which makes git report the clone complete and flips "
         "history_is_complete() onto its strict branch -- #1579's rows would "
         "swing from MISSING_SOURCE to RESOLVED"
     )
 
-    # #1604 follow-up: a lone depth-bounded fetch of `main` against an
+    # #1604 follow-up: a lone depth-bounded fetch of the base ref against an
     # already-shallow checkout moves the shallow boundary and can unreach a
     # commit `actions/checkout`'s own fetch had made reachable -- measured
     # directly in a faithful checkout repro: fix_commits/957d94212a58b698's
     # commit (7ae85937d9b74314304de765b5257c46dc237cc6, from #943) stayed
     # `git cat-file -t`-visible but dropped out of `git rev-list --all` after
-    # exactly this main-ref fetch. A single `git fetch` naming both refspecs
+    # exactly this kind of fetch. A single `git fetch` naming both refspecs
     # together avoids it, but `actions/checkout` owns the first fetch
     # opaquely, so the two cannot be merged into one invocation. Re-fetching
     # the checked-out commit by its own sha immediately after restores the
-    # boundary the main fetch moved -- verified empirically against the live
-    # repo (origin/main resolves, is-shallow-repository stays true,
+    # boundary the base-ref fetch moved -- verified empirically against the
+    # live repo (origin/<base> resolves, is-shallow-repository stays true,
     # merge-base resolves, and the #943 commit stays reachable).
     fetch_commands = [
         line.strip() for line in fetch_run.splitlines() if line.strip().startswith("git fetch")
     ]
     assert len(fetch_commands) >= 2, (
-        f"the `{job}` job's origin/main fetch step issues only one `git fetch`; "
-        "a lone depth-bounded fetch of `main` moves the shallow boundary and "
-        "can unreach a commit the checkout's own fetch had made reachable "
-        "(#1604 follow-up) -- it must be followed by a re-fetch of the "
-        "checked-out commit, by sha, to restore that boundary"
+        f"the `{job}` job's base-ref fetch step issues only one `git fetch`; "
+        "a lone depth-bounded fetch of the base ref moves the shallow "
+        "boundary and can unreach a commit the checkout's own fetch had made "
+        "reachable (#1604 follow-up) -- it must be followed by a re-fetch of "
+        "the checked-out commit, by sha, to restore that boundary"
     )
     assert "rev-parse HEAD" in fetch_run, (
-        f"the `{job}` job's origin/main fetch step does not re-fetch the "
-        "checked-out commit by its own sha after fetching `main`, so the "
-        "shallow boundary the main fetch moved is never restored (#1604 follow-up)"
+        f"the `{job}` job's base-ref fetch step does not re-fetch the "
+        "checked-out commit by its own sha after fetching the base, so the "
+        "shallow boundary that fetch moved is never restored (#1604 follow-up)"
     )
+
+
+def test_bootstrap_pin_anchor_agrees_with_the_fetched_base_ref() -> None:
+    """#1608's coupling constraint, made mechanical: the pin's anchor spec and
+    the workflow's fetch step must name the same dynamic ref. If the anchor
+    moved to `BASE_REF` but the fetch still named a literal branch (or vice
+    versa), the gate would resolve against a ref nobody fetched -- exactly
+    the failure mode #1604's fetch step exists to prevent, reintroduced by a
+    config edit the fetch step can't see.
+    """
+    sys.path.insert(0, str(ROOT / "agent-runtime" / "scripts"))
+    from build_runtime import load_simple_yaml
+
+    config = load_simple_yaml(ROOT / "agent-runtime" / "config" / "agent-runtime.config.yml")
+    pin_branch = config["workflow_prompt_cache"]["bootstrap"]["pinBranch"]
+    assert pin_branch.rsplit("/", 1)[-1] == "BASE_REF", (
+        f"agent-runtime.config.yml pinBranch is {pin_branch!r}; expected it to "
+        "end in the BASE_REF token so it agrees with the workflow's dynamic fetch"
+    )
+
+    workflow = yaml.safe_load(_workflow())
+    for job in BASE_ANCHORED_JOB_TIERS:
+        job_def = workflow["jobs"][job]
+        assert job_def.get("env", {}).get("BASE_REF") == "${{ github.base_ref }}", (
+            f"the `{job}` job does not set BASE_REF from github.base_ref, so "
+            "the pin's BASE_REF token and the fetched ref cannot agree"
+        )
 
 
 def test_pr_workflow_never_deploys() -> None:

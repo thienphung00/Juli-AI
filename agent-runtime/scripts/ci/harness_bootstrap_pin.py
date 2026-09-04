@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,6 +12,12 @@ SKILL_SUFFIX = "/SKILL.md"
 
 #: Spec prefix selecting the fork point between HEAD and an integration base.
 MERGE_BASE_PREFIX = "merge-base:"
+
+#: Placeholder resolved to this run's actual integration base ref at check
+#: time. Meaningful only as the final path segment of a `merge-base:` spec's
+#: base ref (e.g. `merge-base:origin/BASE_REF`) -- see
+#: `substitute_base_ref_token`.
+BASE_REF_TOKEN = "BASE_REF"
 
 #: Anchor spellings that resolve to the checked-out branch's own tip. Pinning to
 #: any of these makes the gate compare a branch against itself: it goes red the
@@ -83,6 +90,62 @@ def reject_self_referential_ref(ref: str, spec: str, repo_root: Path) -> None:
         )
 
 
+def resolve_base_ref_token() -> tuple[str, str | None]:
+    """This run's actual integration base ref, or a documented default.
+
+    #1608: `classify-tier` in pr.yml sets CI tier `issue` exactly when
+    `github.base_ref` matches `feature/*-wave` -- an issue-tier run's real base
+    is that wave, not `main`, and the wave can carry harness commits `main`
+    does not yet have. Anchoring to a hardcoded `origin/main` reported those
+    landed, reviewed wave commits as drift on every subsequent issue-tier PR
+    (PR #1561's live failure: the wave had landed #1529's
+    `status-record.schema.json` change, a watched `sourcePaths` entry, before
+    `main` did).
+
+    `test`/`full-regression`, the two base-anchored jobs, set the `BASE_REF`
+    job env from `github.base_ref` -- the same value `validate-gates` and
+    `policy-checks` already read to fetch and diff against the real base,
+    rather than a branch name hardcoded into this file. At main tier
+    `github.base_ref` *is* `main`, so this one dynamic form is correct at both
+    tiers without a conditional.
+
+    Falls back to GitHub Actions' own `GITHUB_BASE_REF` (set natively for
+    `pull_request` events) when `BASE_REF` is unset, and only then degrades to
+    `"main"` -- correct for a main-tier run or a branch cut locally from
+    `main`, wrong for a branch whose real base is a wave. The degradation is
+    recorded, never silent, matching the shallow-checkout fallback below.
+    """
+    for var in ("BASE_REF", "GITHUB_BASE_REF"):
+        value = (os.environ.get(var) or "").strip()
+        if value:
+            return value, None
+    return (
+        "main",
+        "BASE_REF/GITHUB_BASE_REF not set in the environment; the anchor's "
+        f"{BASE_REF_TOKEN!r} token defaulted to 'main'. Correct for a "
+        "main-tier run or a branch cut from main; wrong for a branch whose "
+        "real integration base is a wave -- wire BASE_REF (github.base_ref) "
+        "into the environment this gate runs in to fix that case.",
+    )
+
+
+def substitute_base_ref_token(base_ref: str) -> tuple[str, str | None]:
+    """Replace a trailing ``BASE_REF`` path segment with this run's real base.
+
+    Matches ``BASE_REF`` as a whole path segment (``BASE_REF`` or
+    ``.../BASE_REF``), not as a substring, so a real ref that merely contains
+    those letters is never silently rewritten. A base ref with no such segment
+    is returned unchanged -- the token is opt-in: an explicit ref or SHA still
+    works exactly as before.
+    """
+    segments = base_ref.split("/")
+    if segments[-1] != BASE_REF_TOKEN:
+        return base_ref, None
+    resolved, note = resolve_base_ref_token()
+    segments[-1] = resolved
+    return "/".join(segments), note
+
+
 def git_rev_parse(ref: str, repo_root: Path) -> str:
     try:
         output = subprocess.check_output(
@@ -126,7 +189,11 @@ def resolve_bootstrap_anchor_with_note(spec: str, repo_root: Path) -> tuple[str,
         The fork point between ``HEAD`` and ``<base-ref>``. This is the correct
         anchor for issue work: it is fixed for the life of the branch, so the
         branch's own commits cannot move it, and it is unaffected by unrelated
-        traffic landing on the base after the fork.
+        traffic landing on the base after the fork. ``<base-ref>`` may end in
+        the literal segment ``BASE_REF`` (e.g. ``origin/BASE_REF``), which is
+        substituted for this run's actual base ref before resolution -- see
+        ``substitute_base_ref_token``. A hardcoded base ref is wrong at issue
+        tier, where the real base is a wave branch, not ``main`` (#1608).
     ``<ref>`` or ``<sha>``
         Any ref or explicit SHA that is not tied to the checked-out branch.
 
@@ -155,6 +222,10 @@ def resolve_bootstrap_anchor_with_note(spec: str, repo_root: Path) -> tuple[str,
     base_ref = candidate[len(MERGE_BASE_PREFIX) :].strip()
     if not base_ref:
         raise RuntimeError(f"bootstrap pin spec {candidate!r} names no base ref")
+    # #1608: substitute a trailing BASE_REF token for this run's actual base
+    # ref *before* the self-reference screen below, so the screen applies to
+    # what will really be resolved -- not to the unsubstituted template.
+    base_ref, token_note = substitute_base_ref_token(base_ref)
     # The base of a merge-base spec is a ref in its own right and gets the same
     # scrutiny: `merge-base:HEAD` resolves to HEAD and would restore the defect.
     reject_self_referential_ref(base_ref, candidate, repo_root)
@@ -162,12 +233,14 @@ def resolve_bootstrap_anchor_with_note(spec: str, repo_root: Path) -> tuple[str,
     # gate with no anchor must be red, not lenient.
     base_sha = git_rev_parse(base_ref, repo_root)
     try:
-        return git_merge_base("HEAD", base_ref, repo_root), None
+        return git_merge_base("HEAD", base_ref, repo_root), token_note
     except RuntimeError:
-        return base_sha, (
+        shallow_note = (
             f"no merge base between HEAD and {base_ref!r} (shallow checkout or unrelated "
             f"histories); anchored to {base_ref!r} itself at {base_sha[:12]}"
         )
+        note = f"{token_note}; {shallow_note}" if token_note else shallow_note
+        return base_sha, note
 
 
 def resolve_bootstrap_anchor(spec: str, repo_root: Path) -> str:

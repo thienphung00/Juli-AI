@@ -29,7 +29,7 @@
     }
   ],
   "bootstrapRef": {
-    "branch": "merge-base:origin/main",
+    "branch": "merge-base:origin/BASE_REF",
     "commitSha": "__BOOTSTRAP_ANCHOR_SHA__",
     "copiedAt": "2026-09-01T07:19:03Z"
   },

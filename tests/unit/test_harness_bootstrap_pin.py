@@ -520,3 +520,154 @@ def test_shipped_config_pin_branch_resolves_against_this_repository() -> None:
             text=True,
         )
         assert ancestor.returncode == 0, f"{spec!r} resolved to {resolved}, not behind HEAD"
+
+
+def test_shipped_config_pin_branch_uses_the_base_ref_token() -> None:
+    """#1608: the base half must be the dynamic token, not a hardcoded branch name.
+
+    Locks the config value itself so a future edit cannot quietly reintroduce
+    `merge-base:origin/main` -- a hardcoded base is wrong at issue tier (see the
+    module docstring for #1608's exhibit) and this is the one place a reviewer
+    would not otherwise be forced to notice the regression.
+    """
+    config = load_simple_yaml(AGENT_RUNTIME_CONFIG)
+    spec = config["workflow_prompt_cache"]["bootstrap"]["pinBranch"]
+    assert spec == f"merge-base:origin/{pin.BASE_REF_TOKEN}", (
+        f"agent-runtime.config.yml pins bootstrap to {spec!r}; expected the "
+        f"BASE_REF token so the anchor resolves against this run's actual "
+        "integration base (github.base_ref) instead of a hardcoded branch"
+    )
+
+
+# ---------------------------------------------------------------------------
+# #1608 — the base ref half of the anchor must be the run's actual integration
+# base, not a hardcoded `main`. At issue tier that base is a wave branch which
+# can carry harness commits `main` does not: PR #1561's live failure was the
+# wave having landed #1529's status-record.schema.json change under
+# `agent-runtime/docs`, a `sourcePaths` entry, before `main` had it. Anchoring
+# to `origin/main` treated that landed, reviewed wave commit as drift on every
+# subsequent issue-tier PR on the wave -- a false positive, not a real one.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def wave_repo(tmp_path: Path) -> tuple[Path, str, str]:
+    """``main`` -> ``wave`` (one additional harness commit) -> ``issue-branch``.
+
+    Returns ``(repo, main_tip, wave_tip)``. ``wave_tip`` is what a
+    BASE_REF-correct anchor must resolve to from the issue branch; ``main_tip``
+    is what the old hardcoded anchor resolved to instead.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _write(repo, SKILL_REL, "# backend skill\noriginal body\n")
+    _write(repo, DOCS_REL, "# agent runtime\noriginal body\n")
+    main_tip = _commit(repo, "base: harness at bootstrap")
+
+    _git(repo, "switch", "-c", "wave")
+    _write(repo, DOCS_REL, "# agent runtime\nlanded on the wave, reviewed, not on main\n")
+    wave_tip = _commit(repo, "docs: land a reviewed harness change on the wave")
+
+    _git(repo, "switch", "-c", "issue-branch")
+    # Remote-tracking aliases, so `origin/<name>` resolves the way a real
+    # checkout's fetched refs would (both `test` and `full-regression` fetch
+    # the base ref by name after checkout, per #1604).
+    _git(repo, "update-ref", "refs/remotes/origin/main", main_tip)
+    _git(repo, "update-ref", "refs/remotes/origin/wave", wave_tip)
+    return repo, main_tip, wave_tip
+
+
+def test_hardcoded_main_anchor_misreports_a_landed_wave_change_as_drift(
+    wave_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The bug itself, reproduced: PR #1561's exact failure shape."""
+    repo, _main_tip, _wave_tip = wave_repo
+    monkeypatch.delenv("BASE_REF", raising=False)
+    monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+
+    parent = _parent(
+        "merge-base:origin/main", pin.resolve_bootstrap_anchor("merge-base:origin/main", repo)
+    )
+    passed, description, details = _validate(repo, parent)
+
+    assert passed is False
+    assert DOCS_REL in details["driftedHarnessPaths"]
+    assert "Harness drift" in description
+
+
+def test_base_ref_token_anchor_does_not_misreport_the_landed_wave_change(
+    wave_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The fix: with BASE_REF=wave, the anchor is the wave's own tip, so the
+    wave's reviewed change is common ground between the anchor and HEAD, not
+    drift. This is the AC from the #1608 escalation, proven directly."""
+    repo, _main_tip, wave_tip = wave_repo
+    monkeypatch.setenv("BASE_REF", "wave")
+
+    resolved = pin.resolve_bootstrap_anchor("merge-base:origin/BASE_REF", repo)
+    assert resolved == wave_tip
+
+    parent = _parent("merge-base:origin/BASE_REF", resolved)
+    passed, description, details = _validate(repo, parent)
+    assert passed is True, description
+    assert details["driftedHarnessPaths"] == []
+
+
+def test_base_ref_token_anchor_still_catches_drift_the_issue_branch_introduces(
+    wave_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADR-092 criterion 2, exhibited: the corrected anchor must still bite on
+    real drift the issue branch itself introduces on top of the wave. A fix
+    that only silenced the false positive, without preserving this, would turn
+    the gate always-green -- strictly worse than the bug it replaces."""
+    repo, _main_tip, wave_tip = wave_repo
+    monkeypatch.setenv("BASE_REF", "wave")
+    parent = _parent("merge-base:origin/BASE_REF", wave_tip)
+
+    _write(repo, SKILL_REL, "# backend skill\nEDITED by the issue branch itself\n")
+    _commit(repo, "chore: quietly edit the harness on the issue branch")
+
+    passed, description, details = _validate(repo, parent)
+    assert passed is False
+    assert SKILL_REL in details["driftedHarnessPaths"]
+    assert "Harness drift" in description
+
+
+def test_base_ref_token_falls_back_to_main_when_the_environment_is_unset(
+    harness_repo: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No BASE_REF/GITHUB_BASE_REF (local dev, or a non-pull_request CI event):
+    the token degrades to `main`, matching the pre-#1608 hardcoded behaviour --
+    not a regression for the common case, and recorded, not silent."""
+    repo, fork_point = harness_repo
+    monkeypatch.delenv("BASE_REF", raising=False)
+    monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+    _git(repo, "update-ref", "refs/remotes/origin/main", "main")
+
+    resolved, note = pin.resolve_bootstrap_anchor_with_note("merge-base:origin/BASE_REF", repo)
+    assert resolved == fork_point
+    assert note is not None and "defaulted to 'main'" in note
+
+
+def test_base_ref_token_prefers_explicit_base_ref_over_github_base_ref(
+    harness_repo: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`BASE_REF` (the name pr.yml's `test`/`full-regression` jobs set,
+    matching `validate-gates`/`policy-checks`) wins over the native
+    `GITHUB_BASE_REF`, so the workflow's explicit wiring is authoritative."""
+    repo, _fork_point = harness_repo
+    _git(repo, "branch", "decoy", "main")
+    decoy_sha = _git(repo, "rev-parse", "decoy")
+    _git(repo, "update-ref", "refs/remotes/origin/decoy", decoy_sha)
+    _git(repo, "update-ref", "refs/remotes/origin/main", "main")
+    monkeypatch.setenv("BASE_REF", "decoy")
+    monkeypatch.setenv("GITHUB_BASE_REF", "main")
+
+    resolved = pin.resolve_bootstrap_anchor("merge-base:origin/BASE_REF", repo)
+    assert resolved == decoy_sha

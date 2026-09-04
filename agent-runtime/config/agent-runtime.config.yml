@@ -324,7 +324,18 @@ workflow_prompt_cache:
     # traffic on the base cannot either. Drift is then measured as content change
     # across sourcePaths between this anchor and the working tree.
     # Changing this value is a change of semantics, not a re-pinned number.
-    pinBranch: merge-base:origin/main
+    # #1608: the base half is the BASE_REF token, resolved at check time
+    # against this run's real integration base (github.base_ref), not a
+    # hardcoded `main`. `classify-tier` sets CI tier `issue` exactly when the
+    # base is a `feature/*-wave` branch, and that wave can carry harness
+    # commits `main` does not yet have — a hardcoded `origin/main` reported
+    # those landed, reviewed wave commits as drift on every subsequent
+    # issue-tier PR (PR #1561's live failure; ADR-094). `test`/`full-regression`
+    # in pr.yml set BASE_REF from `github.base_ref` and fetch that same ref —
+    # the anchor spec and the fetched ref must always name the same value. At
+    # main tier `github.base_ref` is `main`, so this one dynamic form is
+    # correct at both tiers without a conditional.
+    pinBranch: merge-base:origin/BASE_REF
     sourcePaths:
       - .cursor/skills
       - agent-runtime/docs
