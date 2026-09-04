@@ -316,7 +316,15 @@ workflow_prompt_cache:
     - standalone/guardrails
     - standalone/validate
   bootstrap:
-    pinBranch: HEAD
+    # Anchor spec, not a branch name (#1540). `HEAD` was symbolic: it re-resolved
+    # at check time to the checked-out branch's own tip, so the gate compared the
+    # branch against itself — red on the first commit, and blind to the harness it
+    # exists to watch. The fork point with the integration base is fixed for the
+    # life of a branch, so the branch's own commits cannot move it and unrelated
+    # traffic on the base cannot either. Drift is then measured as content change
+    # across sourcePaths between this anchor and the working tree.
+    # Changing this value is a change of semantics, not a re-pinned number.
+    pinBranch: merge-base:origin/main
     sourcePaths:
       - .cursor/skills
       - agent-runtime/docs
