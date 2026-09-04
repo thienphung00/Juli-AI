@@ -85,6 +85,21 @@ def _commit(repo: Path, message: str) -> str:
     return _git(repo, "rev-parse", "HEAD")
 
 
+def _set_upstream(repo: Path, checked_out_branch: str, target_branch: str) -> None:
+    """Point ``checked_out_branch``'s ``@{u}`` at ``origin/<target_branch>``.
+
+    ``git branch --set-upstream-to`` refuses a bare ``update-ref``'d
+    remote-tracking ref ("not stored as a remote-tracking branch") unless a
+    real remote is registered, because it validates against
+    ``remote.<name>.fetch``'s refspec, not just ref existence. A placeholder
+    URL is enough -- nothing here ever fetches.
+    """
+    if not _git(repo, "remote"):
+        _git(repo, "remote", "add", "origin", "https://example.invalid/placeholder.git")
+    _git(repo, "config", f"branch.{checked_out_branch}.remote", "origin")
+    _git(repo, "config", f"branch.{checked_out_branch}.merge", f"refs/heads/{target_branch}")
+
+
 @pytest.fixture
 def harness_repo(tmp_path: Path) -> tuple[Path, str]:
     """A repo with a ``main`` base commit and a feature branch forked from it.
@@ -671,3 +686,107 @@ def test_base_ref_token_prefers_explicit_base_ref_over_github_base_ref(
 
     resolved = pin.resolve_bootstrap_anchor("merge-base:origin/BASE_REF", repo)
     assert resolved == decoy_sha
+
+
+# ---------------------------------------------------------------------------
+# #1608 follow-up: no env, no CI. The harness's own primary local workflow is
+# a worktree cut from a wave branch (this exact one), and there BASE_REF and
+# GITHUB_BASE_REF are both unset. Defaulting straight to "main" reproduces
+# the #1608 bug from a new angle for that workflow specifically -- a local
+# false-positive is how people learn to distrust a real drift signal. Git's
+# own upstream-tracking ref already answers "what branch was this forked
+# from", so it goes ahead of the "main" default, screened for self-reference
+# the same way every other anchor spelling is (a `git push -u` on the branch
+# itself repoints its own upstream at its own remote counterpart -- observed
+# directly on this branch -- which would otherwise restore the exact defect
+# #1540 removed, spelled `origin/<branch>` instead of a bare name).
+# ---------------------------------------------------------------------------
+
+
+def test_base_ref_falls_back_to_git_upstream_when_the_environment_is_unset(
+    wave_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, _main_tip, wave_tip = wave_repo
+    monkeypatch.delenv("BASE_REF", raising=False)
+    monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+    _set_upstream(repo, "issue-branch", "wave")
+
+    resolved, note = pin.resolve_bootstrap_anchor_with_note("merge-base:origin/BASE_REF", repo)
+    assert resolved == wave_tip
+    assert note is None
+
+
+def test_base_ref_upstream_fallback_still_catches_real_drift(
+    wave_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The lock-6 exhibit, for the upstream-derived path specifically: a fix
+    that only silenced the no-env false positive, without preserving this,
+    would be an always-green gate for every local run."""
+    repo, _main_tip, _wave_tip = wave_repo
+    monkeypatch.delenv("BASE_REF", raising=False)
+    monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+    _set_upstream(repo, "issue-branch", "wave")
+
+    resolved = pin.resolve_bootstrap_anchor("merge-base:origin/BASE_REF", repo)
+    parent = _parent("merge-base:origin/BASE_REF", resolved)
+
+    _write(repo, SKILL_REL, "# backend skill\nEDITED by the issue branch itself\n")
+    _commit(repo, "chore: quietly edit the harness on the issue branch")
+
+    passed, description, details = _validate(repo, parent)
+    assert passed is False
+    assert SKILL_REL in details["driftedHarnessPaths"]
+    assert "Harness drift" in description
+
+
+def test_base_ref_ignores_a_self_referential_upstream_and_degrades_to_main(
+    harness_repo: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The corruption this closes, reproduced directly: `git push -u` on the
+    issue branch itself repoints its own upstream at its own remote
+    counterpart. Using that blindly restores the self-referential defect
+    #1540 removed, wearing the `origin/<branch>` spelling instead of a bare
+    one -- must degrade to `main`, never use it, and never raise."""
+    repo, fork_point = harness_repo
+    monkeypatch.delenv("BASE_REF", raising=False)
+    monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+    branch = "feature/issue-1540-bootstrap-pin"
+    _git(repo, "update-ref", "refs/remotes/origin/main", "main")
+    _set_upstream(repo, branch, branch)
+
+    resolved, note = pin.resolve_bootstrap_anchor_with_note("merge-base:origin/BASE_REF", repo)
+    assert resolved == fork_point
+    assert note is not None and "defaulted to 'main'" in note
+
+
+def test_base_ref_detached_head_has_no_upstream_and_degrades_to_main(
+    harness_repo: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, fork_point = harness_repo
+    monkeypatch.delenv("BASE_REF", raising=False)
+    monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+    _git(repo, "update-ref", "refs/remotes/origin/main", "main")
+    _git(repo, "checkout", "--detach", "HEAD")
+
+    resolved, note = pin.resolve_bootstrap_anchor_with_note("merge-base:origin/BASE_REF", repo)
+    assert resolved == fork_point
+    assert note is not None and "defaulted to 'main'" in note
+
+
+def test_base_ref_token_prefers_github_base_ref_over_git_upstream(
+    wave_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Environment beats git-derived state at every level of the fallback,
+    not only `BASE_REF` over `GITHUB_BASE_REF`."""
+    repo, main_tip, _wave_tip = wave_repo
+    monkeypatch.delenv("BASE_REF", raising=False)
+    monkeypatch.setenv("GITHUB_BASE_REF", "main")
+    _set_upstream(repo, "issue-branch", "wave")
+
+    resolved = pin.resolve_bootstrap_anchor("merge-base:origin/BASE_REF", repo)
+    assert resolved == main_tip

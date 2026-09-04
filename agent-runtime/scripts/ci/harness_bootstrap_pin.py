@@ -63,7 +63,14 @@ def current_branch_names(repo_root: Path) -> frozenset[str]:
         return frozenset()
     if not name or name == "HEAD":  # detached: no branch name to collide with
         return frozenset()
-    return frozenset({name, f"refs/heads/{name}", f"heads/{name}"})
+    # #1608: `origin/{name}` too -- a `merge-base:origin/BASE_REF` spec
+    # substitutes the run's base ref into exactly that position, so a
+    # substituted value that resolves to the checked-out branch's own remote
+    # counterpart (e.g. after `git push -u` repoints this branch's own
+    # upstream at itself, observed directly on the #1608 branch) must collide
+    # here too, or it launders the self-referential defect through a spelling
+    # this set didn't previously cover.
+    return frozenset({name, f"refs/heads/{name}", f"heads/{name}", f"origin/{name}"})
 
 
 def reject_self_referential_ref(ref: str, spec: str, repo_root: Path) -> None:
@@ -90,7 +97,38 @@ def reject_self_referential_ref(ref: str, spec: str, repo_root: Path) -> None:
         )
 
 
-def resolve_base_ref_token() -> tuple[str, str | None]:
+def git_upstream_branch_name(repo_root: Path) -> str | None:
+    """This branch's tracked upstream, as a bare branch name, or ``None``.
+
+    ``None`` covers every case with no usable answer -- detached HEAD, no
+    upstream configured, a bare ``git init`` with nothing tracked, or any
+    other git error -- and never raises: this is one candidate in a fallback
+    chain, not a required answer.
+    """
+    try:
+        output = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+            cwd=repo_root,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+        ).strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+    if not output:
+        return None
+    # `--symbolic-full-name` on an upstream returns the remote-qualified form
+    # (e.g. `origin/main`). Strip exactly the leading remote segment -- the
+    # value this function returns must be a bare ref, the same shape
+    # BASE_REF/GITHUB_BASE_REF already use, so `substitute_base_ref_token` can
+    # drop it into `origin/BASE_REF`'s last segment without doubling the
+    # `origin/` prefix.
+    if "/" in output:
+        return output.split("/", 1)[1]
+    return output
+
+
+def resolve_base_ref_token(repo_root: Path) -> tuple[str, str | None]:
     """This run's actual integration base ref, or a documented default.
 
     #1608: `classify-tier` in pr.yml sets CI tier `issue` exactly when
@@ -102,18 +140,34 @@ def resolve_base_ref_token() -> tuple[str, str | None]:
     `status-record.schema.json` change, a watched `sourcePaths` entry, before
     `main` did).
 
-    `test`/`full-regression`, the two base-anchored jobs, set the `BASE_REF`
-    job env from `github.base_ref` -- the same value `validate-gates` and
-    `policy-checks` already read to fetch and diff against the real base,
-    rather than a branch name hardcoded into this file. At main tier
-    `github.base_ref` *is* `main`, so this one dynamic form is correct at both
-    tiers without a conditional.
+    Resolution order:
 
-    Falls back to GitHub Actions' own `GITHUB_BASE_REF` (set natively for
-    `pull_request` events) when `BASE_REF` is unset, and only then degrades to
-    `"main"` -- correct for a main-tier run or a branch cut locally from
-    `main`, wrong for a branch whose real base is a wave. The degradation is
-    recorded, never silent, matching the shallow-checkout fallback below.
+    1. **`BASE_REF`** -- the job env `test`/`full-regression` set from
+       `github.base_ref`, the same value `validate-gates` and `policy-checks`
+       already read. Authoritative: CI knows its own base and says so
+       explicitly.
+    2. **`GITHUB_BASE_REF`** -- GitHub Actions' own var, set natively for
+       `pull_request` events, as a second line of defense if the job env is
+       ever missing.
+    3. **This branch's git upstream** (`@{u}`), screened for self-reference.
+       Neither CI env var is set for a bare local run, and the harness's own
+       primary local workflow is a worktree cut from a wave branch (this
+       epic's own issue branches are created that way) -- defaulting straight
+       to `main` there reproduces this issue's exact bug for every local
+       `pytest` run, on the branch that fixes it, which is how it was found.
+       `@{u}` is fixed by whoever created the branch, not chosen by the run
+       that reads it -- the same "not self-settable" property `BASE_REF`
+       has -- *unless* something has since repointed it, which a plain
+       `git push -u` on the branch itself does (observed directly here:
+       pushing this exact branch's PR repointed its own upstream at its own
+       remote counterpart). Screened by the same self-referential-ref check
+       every other anchor spelling goes through (see `current_branch_names`'s
+       `origin/{name}` entry); a self-referential upstream is treated as no
+       answer, not used.
+    4. **`"main"`**, recorded as a degradation, never silent -- correct for a
+       main-tier run, a branch cut locally from `main`, or a checkout with no
+       upstream at all; wrong for a branch whose real base is a wave and none
+       of the above resolved one.
     """
     for var in ("BASE_REF", "GITHUB_BASE_REF"):
         value = (os.environ.get(var) or "").strip()
@@ -124,17 +178,25 @@ def resolve_base_ref_token() -> tuple[str, str | None]:
             # stripping one that is there would build an invalid nested refspec
             # two calls downstream, in `git fetch`, far from this line.
             return value.removeprefix("refs/heads/"), None
+
+    upstream = git_upstream_branch_name(repo_root)
+    if upstream and not is_self_referential_anchor(upstream):
+        if upstream not in current_branch_names(repo_root):
+            return upstream, None
+
     return (
         "main",
-        "BASE_REF/GITHUB_BASE_REF not set in the environment; the anchor's "
-        f"{BASE_REF_TOKEN!r} token defaulted to 'main'. Correct for a "
-        "main-tier run or a branch cut from main; wrong for a branch whose "
-        "real integration base is a wave -- wire BASE_REF (github.base_ref) "
-        "into the environment this gate runs in to fix that case.",
+        "BASE_REF/GITHUB_BASE_REF not set in the environment and git's own "
+        "upstream-tracking ref did not resolve to a usable, non-self-referential "
+        f"branch; the anchor's {BASE_REF_TOKEN!r} token defaulted to 'main'. "
+        "Correct for a main-tier run or a branch cut from main; wrong for a "
+        "branch whose real integration base is a wave -- wire BASE_REF "
+        "(github.base_ref) into the environment this gate runs in, or point "
+        "this branch's git upstream at its real base, to fix that case.",
     )
 
 
-def substitute_base_ref_token(base_ref: str) -> tuple[str, str | None]:
+def substitute_base_ref_token(base_ref: str, repo_root: Path) -> tuple[str, str | None]:
     """Replace a trailing ``BASE_REF`` path segment with this run's real base.
 
     Matches ``BASE_REF`` as a whole path segment (``BASE_REF`` or
@@ -146,7 +208,7 @@ def substitute_base_ref_token(base_ref: str) -> tuple[str, str | None]:
     segments = base_ref.split("/")
     if segments[-1] != BASE_REF_TOKEN:
         return base_ref, None
-    resolved, note = resolve_base_ref_token()
+    resolved, note = resolve_base_ref_token(repo_root)
     segments[-1] = resolved
     return "/".join(segments), note
 
@@ -230,7 +292,7 @@ def resolve_bootstrap_anchor_with_note(spec: str, repo_root: Path) -> tuple[str,
     # #1608: substitute a trailing BASE_REF token for this run's actual base
     # ref *before* the self-reference screen below, so the screen applies to
     # what will really be resolved -- not to the unsubstituted template.
-    base_ref, token_note = substitute_base_ref_token(base_ref)
+    base_ref, token_note = substitute_base_ref_token(base_ref, repo_root)
     # The base of a merge-base spec is a ref in its own right and gets the same
     # scrutiny: `merge-base:HEAD` resolves to HEAD and would restore the defect.
     reject_self_referential_ref(base_ref, candidate, repo_root)
