@@ -246,20 +246,30 @@ class ProvenanceResolver:
 
     # -- git ---------------------------------------------------------------
     def history_is_complete(self) -> bool:
-        """False in a shallow clone, where `git log --all` can see only the tip.
+        """False in a shallow clone, where `git log --all` cannot see all history.
 
-        CI checks this repository out shallow for every job that runs `pytest
-        tests/`. Two of them (`test`, `full-regression`) are deepened to
-        fetch-depth 200 by #1573 so base-anchored gates can resolve merge-base;
-        that is still a shallow clone -- `--is-shallow-repository` stays true --
-        so this predicate keeps returning False there and the reasoning below is
-        unchanged. Do not raise either job to fetch-depth 0 without updating
-        tests/unit/test_negative_dataset.py: at 0 this flips to True and every
-        git_commit row is expected RESOLVED instead of MISSING_SOURCE.
-        Git history is a source that is genuinely *absent* under a shallow
-        checkout. Saying so is the honest answer;
-        reporting the commits as unretrievable defects would be a false positive,
-        and reporting them as resolved would be the vacuous pass this epic ends.
+        This answers a question about the *clone*, and a checkout has three
+        states, not two. Measured on real clones of this branch:
+
+        * ``fetch-depth: 1`` -- shallow, 0 of the 125 git_commit rows reachable.
+        * ``fetch-depth: 200`` -- still shallow (``--is-shallow-repository``
+          stays true, so this predicate still returns False), yet 59 of the 125
+          rows ARE reachable. A predicate that reports only "shallow" cannot
+          describe this state, and any caller that reads it as "therefore no
+          commit is retrievable" is wrong here. #1573 deepened `test` and
+          `full-regression` to 200 so base-anchored gates resolve merge-base,
+          and that is exactly the state they now run in.
+        * ``fetch-depth: 0`` -- complete; this flips to True.
+
+        Because of the middle state, do not use this to predict a per-row
+        outcome. ``tests/unit/test_negative_dataset.py`` asks git whether it
+        holds each individual commit instead, which is the only form stable
+        across all three. This predicate remains the right question for the
+        one thing it is asked below: whether a commit git does not have is
+        genuinely *absent* (shallow) or a real defect (complete). Reporting an
+        out-of-reach commit as a defect would be a false positive, and
+        reporting an unretrievable one as resolved would be the vacuous pass
+        this epic ends.
         """
         if self._shallow is None:
             result = subprocess.run(

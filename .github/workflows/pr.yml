@@ -438,14 +438,18 @@ jobs:
         with:
           # #1540/#1570: a depth-1 checkout makes origin/main an unknown
           # revision, so any gate anchored to a base ref fails for a reason
-          # unrelated to the change under test.
+          # unrelated to the change under test. This enables #1540/#1561's
+          # base-ref resolver; it does not repair a currently-red test — all
+          # five base-anchored modules pass at depth 1 as well as at 200
+          # (82 passed in both, measured on real clones).
           #
           # Bounded, NOT 0. Depth 200 resolves merge-base while leaving
-          # `git rev-parse --is-shallow-repository` true, and
-          # eval/negative_dataset.py::history_is_complete() keys off exactly
-          # that flag: at depth 0 it flips to its strict branch and expects
-          # every git_commit row RESOLVED rather than MISSING_SOURCE. Verified
-          # locally — deepened to 200, merge-base resolves, still shallow.
+          # `git rev-parse --is-shallow-repository` true. At depth 0
+          # eval/negative_dataset.py::history_is_complete() flips to True and
+          # #1579's two rows fail. Note that 200 is NOT a state that predicate
+          # describes: the clone is still shallow, yet 59 of the 125 git_commit
+          # rows are reachable, so that suite judges each row against what git
+          # actually holds rather than against a clone-wide verdict.
           fetch-depth: 200
       - uses: actions/setup-python@v7
         with:
@@ -1200,8 +1204,12 @@ jobs:
           # #1573: this job runs the whole of tests/unit — the same corpus as
           # `test`, including the base-anchored modules — so it needs the same
           # history. cross-module-contracts filters to
-          # -k "contract or boundary or ownership" and misses them, which is
-          # why only these two jobs are deepened. Bounded, not 0: see `test`.
+          # -k "contract or boundary or ownership", which does collect
+          # test_three_tier_ci_contract.py but not the other four base-anchored
+          # modules (test_checkout_preflight, test_differential_tdd,
+          # test_environment_provider, test_ratchets) — verified with
+          # --collect-only — which is why only these two jobs are deepened.
+          # Bounded, not 0: see `test`.
           fetch-depth: 200
       - uses: actions/setup-python@v7
         with:

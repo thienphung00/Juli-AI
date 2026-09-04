@@ -67,6 +67,39 @@ REQUIRED_ROW_FIELDS = {
 }
 
 
+def _reachable_commits(repo_root: Path) -> frozenset[str]:
+    """Every commit object this checkout actually has, enumerated independently.
+
+    Deliberately its own ``git rev-list`` rather than a read of the resolver's
+    commit index: the assertion below is that the resolver's verdict for a row
+    agrees with what git reports for that one commit, and it would say nothing
+    at all if both sides read the same cache.
+    """
+    result = subprocess.run(
+        ["git", "rev-list", "--all"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return frozenset(result.stdout.split())
+
+
+def _expected_commit_resolution(commit: str, reachable: frozenset[str]) -> Resolution:
+    """RESOLVED where this checkout has the commit object, MISSING_SOURCE where it does not.
+
+    The expectation is a property of the *row*, which is what makes it
+    invariant under fetch depth. What it replaces asked
+    ``history_is_complete()`` -- a property of the *clone* -- and so admitted
+    only two states, every commit present or none. A bounded ``fetch-depth`` is
+    a third state the binary model excluded: measured on real clones of this
+    branch, depth 1 reaches 0 of the 125 commit rows and depth 200 reaches 59,
+    so no single clone-wide verdict is correct at both. Keyed per row, the same
+    expectation holds at depth 1, at 200 and in a complete clone.
+    """
+    return Resolution.RESOLVED if commit in reachable else Resolution.MISSING_SOURCE
+
+
 def test_every_row_provenance_resolves() -> None:
     """Every row names a real file line, JSON pointer or commit — and a tampered one is caught."""
     assert ROWS, "the committed dataset is empty; run `python -m eval.curate_negatives`"
@@ -113,20 +146,26 @@ def test_every_row_provenance_resolves() -> None:
     unresolved = [row["record_id"] for row, res in tracked_rows if res is not Resolution.RESOLVED]
     assert unresolved == [], unresolved[:5]
 
-    # Commits are retrievable only in a complete clone. CI checks this repo out
-    # shallow for every job that runs pytest (pr.yml:423 and 15 more), so demand
-    # full resolution where the history is there and a definite MISSING_SOURCE
-    # where it is not — never a shrug in either direction.
-    complete_history = resolver.history_is_complete()
+    # Commit rows are judged one at a time, so the expectation does not move
+    # with the checkout depth: a commit this clone actually has must resolve
+    # exactly, and one it does not have must be a definite MISSING_SOURCE —
+    # never a shrug in either direction, and never MISMATCH or MALFORMED. CI
+    # checks this repo out shallow for every job that runs pytest — depth 1 for
+    # most, a bounded depth for `test` and `full-regression` — and this holds
+    # identically at either, and in a complete clone.
+    reachable = _reachable_commits(REPO_ROOT)
     commit_rows = [
         (row, res)
         for row, res in zip(ROWS, resolutions, strict=True)
         if row["provenance"]["kind"] == "git_commit"
     ]
     assert commit_rows
-    expected = Resolution.RESOLVED if complete_history else Resolution.MISSING_SOURCE
-    off = [row["record_id"] for row, res in commit_rows if res is not expected]
-    assert off == [], (complete_history, off[:5])
+    off = [
+        (row["record_id"], res.name)
+        for row, res in commit_rows
+        if res is not _expected_commit_resolution(row["provenance"]["commit"], reachable)
+    ]
+    assert off == [], off[:5]
     assert all(repo_backed(row["provenance"]) for row, _ in commit_rows + tracked_rows)
 
     # Cache-backed rows resolve exactly wherever the cache exists (a developer
@@ -172,6 +211,19 @@ def test_every_row_provenance_resolves() -> None:
     assert resolver.resolve(good_commit) is Resolution.RESOLVED
     assert resolver.resolve({**good_commit, "sha256": "0" * 64}) is Resolution.MISMATCH
     assert resolver.resolve({**good_commit, "commit": "f" * 40}) is not Resolution.RESOLVED
+
+    # The per-row rule above must still go red on a real defect, or relaxing the
+    # clone-wide one would have weakened this gate rather than repaired it. HEAD
+    # is reachable at every fetch depth, so this exhibit runs in CI too: a commit
+    # the checkout HAS, carrying a digest that disagrees, resolves MISMATCH where
+    # the rule demands RESOLVED, and lands in `off`. #1579's two rows are red by
+    # the same rule from the other side — in a complete clone their commits are
+    # unreachable, so the rule demands MISSING_SOURCE and the resolver reports
+    # MISMATCH.
+    assert head_sha in reachable
+    assert resolver.resolve({**good_commit, "sha256": "0" * 64}) is not (
+        _expected_commit_resolution(head_sha, reachable)
+    )
 
     # Malformed provenance is rejected outright, never treated as "cannot check".
     assert resolver.resolve({"kind": "nonsense"}) is Resolution.MALFORMED

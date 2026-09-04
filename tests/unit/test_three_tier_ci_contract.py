@@ -219,6 +219,12 @@ def test_full_regression_isolates_unit_and_integration_processes() -> None:
     assert "--cov-append" in workflow
 
 
+# checkout_preflight.py refuses a base >= 50 commits behind origin/main, so a
+# branch that passed preflight is within 50 commits of it and a checkout at
+# least this deep contains the merge-base. Kept in step with BEHIND_FAIL there.
+MIN_BASE_ANCHORED_DEPTH = 50
+
+
 @pytest.mark.parametrize("job", ["test", "full-regression"])
 def test_base_anchored_jobs_check_out_enough_history(job: str) -> None:
     """#1573: a job running the whole of tests/unit must not use a depth-1 clone.
@@ -226,17 +232,23 @@ def test_base_anchored_jobs_check_out_enough_history(job: str) -> None:
     On the default shallow checkout `origin/main` is an unknown revision, so
     every gate anchored to a base ref fails for a reason unrelated to the change
     under test. Both `test` (issue tier) and `full-regression` (main tier) run
-    that corpus, including the base-anchored modules; `cross-module-contracts`
-    filters to -k "contract or boundary or ownership" and misses them, which is
-    why only these two are deepened.
+    that corpus, including all five base-anchored modules;
+    `cross-module-contracts` filters to -k "contract or boundary or ownership",
+    which collects this module but not `test_checkout_preflight`,
+    `test_differential_tdd`, `test_environment_provider` or `test_ratchets`.
+    Deepening enables #1540/#1561's base-ref resolver; it does not repair a
+    currently-red test, since all five modules pass at depth 1 today.
 
-    The depth is bounded rather than 0, and the bound is the assertion. At
-    `fetch-depth: 0` git reports the clone as complete, and
-    `eval/negative_dataset.py::history_is_complete()` keys off exactly that flag
-    to choose between expecting MISSING_SOURCE and RESOLVED for every
-    git_commit row. A bounded depth resolves merge-base while leaving the clone
-    shallow, so it fixes the anchor without silently flipping an unrelated
-    suite onto its strict branch.
+    Both a floor and a ceiling, and both are the assertion. Below the floor a
+    bounded depth is worthless: `fetch-depth: 2` is > 1 yet still reaches no
+    merge-base. The floor is `checkout_preflight.py`'s own BEHIND_FAIL, which
+    refuses a base 50 or more commits behind origin/main -- so a branch that
+    passed preflight is within 50 commits of it, and a checkout at least that
+    deep contains the merge-base. Above the ceiling, `fetch-depth: 0` makes git
+    report the clone complete and flips
+    `eval/negative_dataset.py::history_is_complete()`; #1579's two rows then
+    fail. Order matters below: 0 fails a `>= 50` test too, so it is checked
+    first or its message never prints.
 
     The job is located by parsing pr.yml as YAML rather than by splitting on a
     textual header: locating a job by text is what has previously landed an edit
@@ -251,16 +263,24 @@ def test_base_anchored_jobs_check_out_enough_history(job: str) -> None:
         f"expected exactly one actions/checkout in the `{job}` job, found {len(checkouts)}"
     )
     depth = checkouts[0].get("with", {}).get("fetch-depth")
-    assert isinstance(depth, int) and depth > 1, (
-        f"the `{job}` job checks out at depth {depth!r}, so origin/main is an "
-        "unknown revision and every base-anchored gate fails for a reason "
-        "unrelated to the change under test"
+    assert isinstance(depth, int) and not isinstance(depth, bool), (
+        f"the `{job}` job declares fetch-depth {depth!r}, which is not an "
+        "integer depth this test can reason about"
     )
+    # Checked before the floor: 0 is also below it, so testing the floor first
+    # would swallow this case and print the wrong reason.
     assert depth != 0, (
         f"the `{job}` job uses fetch-depth: 0, which makes git report the clone "
         "as complete; history_is_complete() then flips negative_dataset onto its "
-        "strict branch. Use a bounded depth: it resolves merge-base and leaves "
-        "the clone shallow"
+        "strict branch and #1579's two rows fail. Use a bounded depth: it "
+        "resolves merge-base and leaves the clone shallow"
+    )
+    assert depth >= MIN_BASE_ANCHORED_DEPTH, (
+        f"the `{job}` job checks out at depth {depth}, below the "
+        f"{MIN_BASE_ANCHORED_DEPTH}-commit floor, so origin/main may still be "
+        "an unknown revision and every base-anchored gate fails for a reason "
+        "unrelated to the change under test. Any depth > 1 is not enough: "
+        "fetch-depth 2 reaches no merge-base either"
     )
 
 
