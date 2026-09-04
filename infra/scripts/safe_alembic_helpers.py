@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 from pathlib import Path
@@ -14,7 +13,7 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
 
-from juli_backend.core.config.runtime import sync_database_url
+from juli_backend.core.config.runtime import migration_database_url, sync_database_url
 from juli_backend.database.token_crypto import decrypt_token
 
 PROTECTED_TABLES: tuple[str, ...] = (
@@ -75,10 +74,7 @@ def verify_migration_privileges(url: str | None = None) -> dict[str, object]:
         with engine.connect() as conn:
             role = conn.execute(text("SELECT current_user")).scalar_one()
             can_update = conn.execute(
-                text(
-                    "SELECT has_table_privilege("
-                    "current_user, 'public.alembic_version', 'UPDATE')"
-                )
+                text("SELECT has_table_privilege(current_user, 'public.alembic_version', 'UPDATE')")
             ).scalar_one()
     except RuntimeError:
         raise
@@ -106,14 +102,9 @@ def migration_db_url() -> str:
     DATABASE_URL now points at the RLS-bound `juli_app`. Falling back to it
     silently would make pg_dump succeed while dumping zero rows.
     """
-    direct = os.environ.get("DATABASE_DIRECT_URL", "").strip()
-    pooled = os.environ.get("DATABASE_URL", "").strip()
-    raw = direct or pooled
-    if not raw:
-        raise RuntimeError(
-            "DATABASE_URL (or DATABASE_DIRECT_URL) must be set for safe migration"
-        )
-    return sync_database_url(raw)
+    # Delegates so this and alembic's env.py cannot disagree about which role
+    # runs a migration — they did, and it broke a production upgrade (#1575).
+    return migration_database_url()
 
 
 def resolve_db_identity(raw_url: str | None = None) -> dict[str, str]:
@@ -132,10 +123,7 @@ def resolve_db_identity(raw_url: str | None = None) -> dict[str, str]:
             "kind": "supabase-direct",
             "project_ref": project_ref,
             "host": hostname,
-            "display": (
-                f"Supabase project ref: {project_ref} "
-                f"(direct host {hostname})"
-            ),
+            "display": (f"Supabase project ref: {project_ref} (direct host {hostname})"),
         }
 
     if hostname.endswith(".pooler.supabase.com") and username.startswith("postgres."):
@@ -144,10 +132,7 @@ def resolve_db_identity(raw_url: str | None = None) -> dict[str, str]:
             "kind": "supabase-pooler",
             "project_ref": project_ref,
             "host": hostname,
-            "display": (
-                f"Supabase project ref: {project_ref} "
-                f"(pooler {hostname})"
-            ),
+            "display": (f"Supabase project ref: {project_ref} (pooler {hostname})"),
         }
 
     if not hostname:
@@ -200,9 +185,7 @@ def find_latest_backup(backup_dir: Path) -> Path:
         reverse=True,
     )
     if not candidates:
-        raise RuntimeError(
-            f"no juli-pre-migrate-*.dump backups found in {backup_dir}"
-        )
+        raise RuntimeError(f"no juli-pre-migrate-*.dump backups found in {backup_dir}")
     return candidates[0]
 
 
@@ -210,9 +193,7 @@ def row_counts(url: str | None = None) -> dict[str, int]:
     counts: dict[str, int] = {}
     with _engine(url).connect() as conn:
         for table in PROTECTED_TABLES:
-            counts[table] = conn.execute(
-                text(f"SELECT count(*) FROM {table}")
-            ).scalar_one()
+            counts[table] = conn.execute(text(f"SELECT count(*) FROM {table}")).scalar_one()
     return counts
 
 
@@ -236,9 +217,9 @@ def head_revision(alembic_ini: Path) -> str | None:
     cfg = Config(str(alembic_ini))
     script_location = cfg.get_main_option("script_location")
     if script_location:
-        cfg.set_main_option("script_location", str(_resolve_script_location(
-            alembic_ini.parent, script_location
-        )))
+        cfg.set_main_option(
+            "script_location", str(_resolve_script_location(alembic_ini.parent, script_location))
+        )
     script = ScriptDirectory.from_config(cfg)
     return script.get_current_head()
 
@@ -247,9 +228,9 @@ def pending_revisions(alembic_ini: Path, from_rev: str | None) -> list[str]:
     cfg = Config(str(alembic_ini))
     script_location = cfg.get_main_option("script_location")
     if script_location:
-        cfg.set_main_option("script_location", str(_resolve_script_location(
-            alembic_ini.parent, script_location
-        )))
+        cfg.set_main_option(
+            "script_location", str(_resolve_script_location(alembic_ini.parent, script_location))
+        )
     script = ScriptDirectory.from_config(cfg)
     if from_rev is None:
         return [rev.revision for rev in script.walk_revisions()]
@@ -283,9 +264,7 @@ def load_allowlist_file(path: Path) -> set[tuple[str, str]]:
     return allowed
 
 
-def scan_migration_comments(
-    migrations_dir: Path, revisions: list[str]
-) -> set[tuple[str, str]]:
+def scan_migration_comments(migrations_dir: Path, revisions: list[str]) -> set[tuple[str, str]]:
     allowed: set[tuple[str, str]] = set()
     if not migrations_dir.is_dir():
         return allowed
@@ -324,8 +303,7 @@ def verify_token_decryption(url: str | None = None) -> dict[str, str | bool]:
     with _engine(url).connect() as conn:
         row = conn.execute(
             text(
-                "SELECT access_token FROM tiktok_credentials "
-                "WHERE access_token IS NOT NULL LIMIT 1"
+                "SELECT access_token FROM tiktok_credentials WHERE access_token IS NOT NULL LIMIT 1"
             )
         ).first()
     if row is None:
@@ -431,9 +409,7 @@ def verify_runtime_role_owns_nothing(
 
 def estimate_database_bytes() -> int:
     with _engine().connect() as conn:
-        return int(
-            conn.execute(text("SELECT pg_database_size(current_database())")).scalar_one()
-        )
+        return int(conn.execute(text("SELECT pg_database_size(current_database())")).scalar_one())
 
 
 def verify_backup_size_floor(backup_bytes: int, min_mb: int = 1) -> bool:
