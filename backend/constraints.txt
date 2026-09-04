@@ -150,7 +150,7 @@ pyarrow==25.0.1
     # via juli-backend (pyproject.toml)
 pycparser==3.0
     # via cffi
-pydantic==2.13.4
+pydantic==2.13.5
     # via fastapi
 pydantic-core==2.46.4
     # via pydantic
