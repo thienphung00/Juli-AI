@@ -93,6 +93,18 @@ def _architectural_change_from_record(record: dict[str, Any]) -> bool | None:
     findings of every type and severity, non-zero on 109 of the 316 committed
     records with a guard-admitted review status, and reading it as "an interface
     moved" made this blocking gate demand an ADR on a third of ordinary PRs.
+
+    What is NOT checked here, deliberately: the ``signals`` vocabulary. This
+    function tests ``isinstance(signals, list)`` and truthiness, so a member that
+    is not one of the two enum names -- ``["something-else"]``, ``[""]``, ``[0]``
+    -- is accepted here as evidence. The enum is enforced by
+    ``status-record.schema.json``, which ``check_artifact_retention_guard`` runs
+    against the same record in the same CI job, so the constraint is real; it is
+    simply enforced one component over. Do not read the code below as enforcing
+    it. Duplicating the vocabulary here would put a second copy of the enum in a
+    second file, free to drift from the schema, to re-check something already
+    checked; and every non-enum shape errs toward ``value=True`` -> "requires an
+    ADR" -> blocked, so the split fails safe rather than open.
     """
     block = record.get("architecturalChange")
     if not isinstance(block, dict):

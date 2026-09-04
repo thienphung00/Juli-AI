@@ -1004,6 +1004,50 @@ def test_an_unknown_signal_name_is_rejected_by_the_schema(tmp_path: Path, monkey
     assert validate_json_schema(record, schema) != []
 
 
+def _merge_base() -> str | None:
+    """Resolve the commit this branch forked from, or ``None`` if nothing resolves.
+
+    The backfill question is only answerable relative to a *before*: a record that
+    carries the field because this branch generated it is the producer working,
+    and a record that existed before and has since acquired one is the thing the
+    Architect lock forbids. Only a base ref tells those two apart.
+
+    ``origin/main`` is the anchor rather than the immediate PR base, because the
+    lock is worded against ``main`` ("every gateVersion 2 record already on
+    main"). ``GITHUB_BASE_REF`` is preferred when CI sets it.
+    """
+    import os
+    import subprocess
+
+    candidates = []
+    if os.environ.get("GITHUB_BASE_REF"):
+        candidates.append(f"origin/{os.environ['GITHUB_BASE_REF']}")
+    candidates += ["origin/main", "main"]
+    for ref in candidates:
+        result = subprocess.run(
+            ["git", "merge-base", "HEAD", ref],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    return None
+
+
+def _records_at(ref: str) -> dict[str, str]:
+    """Filename -> blob content for every status record committed at ``ref``."""
+    listing = _git("ls-tree", "-r", "--name-only", ref, "--", "agent-runtime/artifacts/status")
+    assert listing.returncode == 0, listing.stderr
+    records: dict[str, str] = {}
+    for rel in listing.stdout.split():
+        blob = _git("show", f"{ref}:{rel}")
+        if blob.returncode == 0:
+            records[Path(rel).name] = blob.stdout
+    return records
+
+
 def test_no_committed_record_stopped_validating_and_none_was_backfilled() -> None:
     """#1562's hard constraint: the ~317 records already on ``main`` keep
     validating and are not backfilled. The new field is optional precisely so
@@ -1033,13 +1077,37 @@ def test_no_committed_record_stopped_validating_and_none_was_backfilled() -> Non
     records = sorted(status_dir.glob("issue-*.json"))
     assert len(records) > 300, f"expected the committed corpus, found {len(records)}"
 
+    # The backfill half is scoped to records that existed BEFORE this branch, and
+    # that scoping is the fix for the self-blocking trap the #1562 review caught.
+    # Globbing the whole directory and flagging any record carrying the field made
+    # the field's own producer indistinguishable from a backfill, which deadlocked
+    # every future issue-tier PR: the retention guard fails without a committed
+    # record, and this assertion failed with one. A record is backfilled only if
+    # it existed at the merge base WITHOUT the field and has one now. A record
+    # this branch created is the producer working correctly.
+    #
+    # Comparing the base *content* rather than mere base membership is what keeps
+    # this true after #1562 lands: from then on base records legitimately carry
+    # the field, and "was already there" must not start reading as "was
+    # backfilled".
+    base_ref = _merge_base()
+    if base_ref is None:
+        pytest.skip("no base ref resolved in this checkout; the backfill half needs a 'before'")
+    before = _records_at(base_ref)
+
     newly_invalid: list[str] = []
     backfilled: list[str] = []
     for path in records:
         record = json.loads(path.read_text(encoding="utf-8"))
         if validate_json_schema(record, amended) and not validate_json_schema(record, baseline):
             newly_invalid.append(f"{path.name}: {validate_json_schema(record, amended)[0]}")
-        if "architecturalChange" in record:
+        if "architecturalChange" not in record or path.name not in before:
+            continue
+        try:
+            had_it = "architecturalChange" in json.loads(before[path.name])
+        except json.JSONDecodeError:
+            had_it = False
+        if not had_it:
             backfilled.append(path.name)
 
     assert newly_invalid == [], (
@@ -1047,18 +1115,39 @@ def test_no_committed_record_stopped_validating_and_none_was_backfilled() -> Non
         f"stop validating after it: {newly_invalid[:5]}"
     )
     assert backfilled == [], (
-        f"{len(backfilled)} committed records were backfilled with the new field, "
-        f"which the Architect lock forbids: {backfilled[:5]}"
+        f"{len(backfilled)} records that existed at {base_ref[:12]} without "
+        f"architecturalChange have acquired one, which the Architect lock forbids: "
+        f"{backfilled[:5]}"
     )
 
 
-def test_no_committed_status_record_was_modified() -> None:
+def test_no_pre_existing_status_record_was_rewritten() -> None:
     """ "No sha256 changed. No backfill, no history rewrite." Asserted against git
-    rather than against the file contents, because the claim is about the working
-    tree differing from HEAD — which a content check cannot see."""
-    result = _git("status", "--porcelain", "--", "agent-runtime/artifacts/status")
+    rather than against file contents, because the claim is about the tree
+    differing from HEAD — which a content check cannot see.
 
+    Additions are excluded, and that is the point rather than a loosening. The
+    lock forbids rewriting records that already exist; committing a NEW record is
+    what an issue-tier PR is *required* to do, since the retention guard fails
+    without one. Flagging every porcelain entry conflated the two and made this
+    test the second half of the same deadlock the backfill assertion above
+    created — a reviewer generating the record for this very issue turned it red.
+
+    So only modification, deletion and rename are flagged: the operations that can
+    actually change a recorded sha256.
+    """
+    result = _git("status", "--porcelain", "--", "agent-runtime/artifacts/status")
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "", (
-        "this slice modified committed status records:\n" + result.stdout
+
+    rewritten = []
+    for line in result.stdout.splitlines():
+        if not line.strip():
+            continue
+        code = line[:2]
+        if code == "??" or code[0] == "A":
+            continue  # a new record, which is what a PR is supposed to add
+        rewritten.append(line)
+
+    assert rewritten == [], "this slice rewrote pre-existing status records:\n" + "\n".join(
+        rewritten
     )
