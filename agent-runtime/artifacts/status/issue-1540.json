@@ -15,19 +15,19 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1540.json",
     "ownerSignoffPresent": true,
-    "sha256": "76c0842e7148102d4c50935ad8c793c1efb413666df4ad819021586feef4ae53",
+    "sha256": "a5a2508732ecc4b3ca464de78226b38dfaa47ee1bd44420d17ebde4912d08092",
     "signoffRequired": false,
-    "status": "PASS",
-    "warningsAcknowledged": true
+    "status": "FAIL",
+    "warningsAcknowledged": false
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 17644,
-      "validationBytes": 7711
+      "reviewBytes": 17052,
+      "validationBytes": 24772
     },
     "claimVsExecuted": {
       "citedCommandCount": 7,
-      "invokedCommandCount": 10634,
+      "invokedCommandCount": 10649,
       "matchedCommandCount": 0,
       "reason": "7 of 7 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
@@ -172,7 +172,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1540-bootstrap-pin",
-        "head": "a20166f882b165f628e5cf94a0bf1fd6528eac2f",
+        "head": "5d78bda1e46670ad1ec8ab2b9d95705601551394",
         "shallow": true
       },
       "moduleResolution": {
@@ -321,11 +321,11 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-04T08:58:00Z",
+  "timestamp": "2026-09-04T09:01:38Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1540.json",
-    "sha256": "3cb57bce27b0f9722595a0e955a12226ca9afb38700047119dbb477c3a172029",
-    "status": "PASS"
+    "sha256": "bda6e662c9564875998feb17d57f805157643dbd8d39b049318c7881a46cccf6",
+    "status": "FAIL"
   },
   "wave": "wave-harness-e-w5"
 }
