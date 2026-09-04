@@ -4,44 +4,92 @@
     "value": false
   },
   "gateVersion": 2,
-  "issue": 1540,
+  "issue": 1608,
   "metrics": {
-    "acceptanceMapped": 4,
-    "acceptanceTotal": 4,
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
     "criticalFindings": 0,
     "modulesTouched": [
       "agent-runtime/scripts/ci",
       "agent-runtime/config",
       "eval",
+      ".github/workflows",
+      "docs/adr",
       "tests/unit"
     ]
   },
   "review": {
-    "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1540.json",
+    "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1608.json",
     "ownerSignoffPresent": true,
-    "sha256": "50288fee043966b64f045f7ecfdd281de09fd8ebcfaec9c434920fe8190a3f2a",
+    "sha256": "65385f8bb5d8eaf3c84a289a124346565afe526a37a89273102c8c490f01d26c",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 3972,
-      "validationBytes": 19857
+      "reviewBytes": 6488,
+      "validationBytes": 27220
     },
     "claimVsExecuted": {
-      "citedCommandCount": null,
-      "invokedCommandCount": 0,
-      "matchedCommandCount": null,
-      "reason": "implementation artifact for issue 1540 could not be read at /Users/macos/Juli-AI-v2/.worktrees/w5-1608/agent-runtime/artifacts/implementations/implementation-issue-1540.json",
+      "citedCommandCount": 8,
+      "invokedCommandCount": 10724,
+      "matchedCommandCount": 0,
+      "reason": "8 of 8 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
-      "status": "MISSING_SOURCE",
-      "transcriptSources": [],
-      "transcriptsScanned": 0,
-      "unmatchedCommandCount": null,
-      "unmatchedCommands": [],
+      "status": "FAIL",
+      "transcriptSources": [
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-codebase-audit-refactor-b9b867",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-open-terminal-in-code-08e55d"
+      ],
+      "transcriptsScanned": 44,
+      "unmatchedCommandCount": 8,
+      "unmatchedCommands": [
+        {
+          "command": "PYTHONPATH=$PWD/backend/src pytest tests/unit/test_harness_bootstrap_pin.py -q",
+          "cycle": 1,
+          "exitCode": 1
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src pytest tests/unit/test_harness_bootstrap_pin.py -q",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src pytest tests/unit/test_mutants.py::test_clean_record_produces_no_failures -q  (pre-fix, faithful checkout of PR #1561's merge ref)",
+          "cycle": 2,
+          "exitCode": 1
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src pytest tests/unit/test_mutants.py::test_clean_record_produces_no_failures -q  (post-fix files applied to the same checkout, BASE_REF exported)",
+          "cycle": 2,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src pytest tests/unit/test_harness_bootstrap_pin.py -q -k \"git_upstream or upstream_fallback or self_referential_upstream or detached_head or prefers_github_base_ref_over_git_upstream\"",
+          "cycle": 3,
+          "exitCode": 1
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src pytest tests/unit/test_harness_bootstrap_pin.py -q",
+          "cycle": 3,
+          "exitCode": 0
+        },
+        {
+          "command": "git branch --set-upstream-to=origin/feature/harness-e-w5-wave feature/issue-1608-base-ref-anchor; unset BASE_REF GITHUB_BASE_REF; pytest tests/unit/test_mutants.py::test_clean_record_produces_no_failures -q",
+          "cycle": 3,
+          "exitCode": 0
+        },
+        {
+          "command": "pytest tests/unit/test_harness_bootstrap_pin.py -q -k \"still_catches_drift or upstream_fallback_still_catches\"  (diff_harness_paths_since mutated to always return [])",
+          "cycle": 3,
+          "exitCode": 1
+        }
+      ],
       "unmatchedCommandsTruncated": false,
-      "verified": false
+      "verified": true
     },
     "commandScope": {
       "ciSelectors": {
@@ -150,13 +198,30 @@
     },
     "metrics": {
       "agents": [],
-      "disagreements": [],
+      "disagreements": [
+        {
+          "claimed": 184,
+          "field": "toolInvocationCount",
+          "observed": null,
+          "observedFrom": "unavailable",
+          "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "resolution": "unobservable"
+        },
+        {
+          "claimed": 0,
+          "field": "executionDurationMs",
+          "observed": null,
+          "observedFrom": "unavailable",
+          "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "resolution": "unobservable"
+        }
+      ],
       "executionDurationMs": {
         "available": false,
         "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
       },
-      "executorDomain": null,
-      "executorDomainSource": "unknown",
+      "executorDomain": "backend",
+      "executorDomainSource": "implementation-artifact",
       "gaps": [
         {
           "detail": "NameError: name '_settle_clock' is not defined",
@@ -207,17 +272,13 @@
           "agentsScanned": 0,
           "detail": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
           "reason": "no-persisted-task-transcripts"
-        },
-        {
-          "detail": "no artifact named a domain",
-          "reason": "executor-domain-unknown"
         }
       ],
       "schemaVersion": 1,
       "source": {
         "agentsAttributed": 0,
         "agentsScanned": 0,
-        "attributedBy": ".worktrees path naming issue-1540",
+        "attributedBy": ".worktrees path naming issue-1608",
         "executorsIdentified": 0,
         "kind": "task-transcript",
         "roleSelectedAgentId": null,
@@ -271,11 +332,11 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-04T10:35:20Z",
+  "timestamp": "2026-09-04T10:34:55Z",
   "validation": {
-    "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1540.json",
-    "sha256": "6762aa71869f5494d9cfc2b5921717a74eeda84e5d2e52f55b0c1d0be08a24cb",
-    "status": "FAIL"
+    "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1608.json",
+    "sha256": "46455fc6dea5857865b1a7a25d1a37c7019d903d4c12388c4011b8563fcab473",
+    "status": "PASS"
   },
   "wave": "wave-harness-e-w5"
 }
