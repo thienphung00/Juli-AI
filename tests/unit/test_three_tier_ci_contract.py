@@ -13,6 +13,7 @@ import tempfile
 from collections.abc import Iterator
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -216,6 +217,51 @@ def test_full_regression_isolates_unit_and_integration_processes() -> None:
     assert "-m pytest tests/unit -v" in workflow
     assert "-m pytest tests/integration -v" in workflow
     assert "--cov-append" in workflow
+
+
+@pytest.mark.parametrize("job", ["test", "full-regression"])
+def test_base_anchored_jobs_check_out_enough_history(job: str) -> None:
+    """#1573: a job running the whole of tests/unit must not use a depth-1 clone.
+
+    On the default shallow checkout `origin/main` is an unknown revision, so
+    every gate anchored to a base ref fails for a reason unrelated to the change
+    under test. Both `test` (issue tier) and `full-regression` (main tier) run
+    that corpus, including the base-anchored modules; `cross-module-contracts`
+    filters to -k "contract or boundary or ownership" and misses them, which is
+    why only these two are deepened.
+
+    The depth is bounded rather than 0, and the bound is the assertion. At
+    `fetch-depth: 0` git reports the clone as complete, and
+    `eval/negative_dataset.py::history_is_complete()` keys off exactly that flag
+    to choose between expecting MISSING_SOURCE and RESOLVED for every
+    git_commit row. A bounded depth resolves merge-base while leaving the clone
+    shallow, so it fixes the anchor without silently flipping an unrelated
+    suite onto its strict branch.
+
+    The job is located by parsing pr.yml as YAML rather than by splitting on a
+    textual header: locating a job by text is what has previously landed an edit
+    on the wrong job in this file, and this test would be worthless if a
+    sibling job's `fetch-depth` could satisfy it.
+    """
+    workflow = yaml.safe_load(_workflow())
+    steps = workflow["jobs"][job]["steps"]
+
+    checkouts = [s for s in steps if str(s.get("uses", "")).startswith("actions/checkout")]
+    assert len(checkouts) == 1, (
+        f"expected exactly one actions/checkout in the `{job}` job, found {len(checkouts)}"
+    )
+    depth = checkouts[0].get("with", {}).get("fetch-depth")
+    assert isinstance(depth, int) and depth > 1, (
+        f"the `{job}` job checks out at depth {depth!r}, so origin/main is an "
+        "unknown revision and every base-anchored gate fails for a reason "
+        "unrelated to the change under test"
+    )
+    assert depth != 0, (
+        f"the `{job}` job uses fetch-depth: 0, which makes git report the clone "
+        "as complete; history_is_complete() then flips negative_dataset onto its "
+        "strict branch. Use a bounded depth: it resolves merge-base and leaves "
+        "the clone shallow"
+    )
 
 
 def test_pr_workflow_never_deploys() -> None:
