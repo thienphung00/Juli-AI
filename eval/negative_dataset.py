@@ -249,8 +249,15 @@ class ProvenanceResolver:
         """False in a shallow clone, where `git log --all` can see only the tip.
 
         CI checks this repository out shallow for every job that runs `pytest
-        tests/` (.github/workflows/pr.yml:423 and 15 more), so git history is a
-        source that is genuinely *absent* there. Saying so is the honest answer;
+        tests/`. Two of them (`test`, `full-regression`) are deepened to
+        fetch-depth 200 by #1573 so base-anchored gates can resolve merge-base;
+        that is still a shallow clone -- `--is-shallow-repository` stays true --
+        so this predicate keeps returning False there and the reasoning below is
+        unchanged. Do not raise either job to fetch-depth 0 without updating
+        tests/unit/test_negative_dataset.py: at 0 this flips to True and every
+        git_commit row is expected RESOLVED instead of MISSING_SOURCE.
+        Git history is a source that is genuinely *absent* under a shallow
+        checkout. Saying so is the honest answer;
         reporting the commits as unretrievable defects would be a false positive,
         and reporting them as resolved would be the vacuous pass this epic ends.
         """
