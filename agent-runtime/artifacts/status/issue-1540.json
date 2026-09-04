@@ -27,11 +27,11 @@
   "run": {
     "artifactBytes": {
       "reviewBytes": 3972,
-      "validationBytes": 25828
+      "validationBytes": 28061
     },
     "claimVsExecuted": {
       "citedCommandCount": 6,
-      "invokedCommandCount": 10736,
+      "invokedCommandCount": 10742,
       "matchedCommandCount": 0,
       "reason": "6 of 6 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
@@ -166,12 +166,12 @@
         "missing": [],
         "pinned": 82
       },
-      "executable": "/opt/homebrew/anaconda3/bin/python3",
+      "executable": "/opt/homebrew/anaconda3/bin/python",
       "git": {
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1608-base-ref-anchor",
-        "head": "6fdd6d71eef06cb952e69f07e297bee5fbb6c271",
+        "head": "c11383ca5a1a3353c31effa6964391f5339b99b0",
         "shallow": true
       },
       "moduleResolution": {
@@ -320,11 +320,11 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-04T10:50:58Z",
+  "timestamp": "2026-09-04T10:58:48Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1540.json",
-    "sha256": "61372bd49ececcdf93badff0e675605557e2a45e497dc406e7550401ede02919",
-    "status": "FAIL"
+    "sha256": "4f52b51e60b13c9d5a914904fe250424bb202fe32d0411be16c2de5a13850b9d",
+    "status": "PASS"
   },
   "wave": "wave-harness-e-w5"
 }
