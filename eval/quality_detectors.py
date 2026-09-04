@@ -1241,10 +1241,10 @@ def build_report(
 #: rather than reconciled away. Regenerate with
 #: ``python -m eval.quality_detectors scan`` and update both numbers together.
 MEASURED_ZERO_ASSERTION_TESTS = 50
-MEASURED_TEST_FUNCTIONS = 4472
+MEASURED_TEST_FUNCTIONS = 4545
 #: Test modules the corpus figure is spread over. Like the corpus it is a
 #: denominator, not a claim, so it is held to a tolerance rather than pinned.
-MEASURED_TEST_MODULES = 450
+MEASURED_TEST_MODULES = 455
 
 #: The measured decomposition that reconciles the two figures. Each layer
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
@@ -1271,14 +1271,16 @@ RECONCILIATION: dict[str, Any] = {
     "note": (
         "Neither figure is wrong; they count different things, and the layer "
         "decomposition above shows exactly where they part. Measured here: 50 "
-        "zero-assertion tests in a corpus of 4,472 test functions over tests/ "
-        "backend/ scripts/ agent-runtime/ eval/ (450 test modules). The prior "
+        "zero-assertion tests in a corpus of 4,545 test functions over tests/ "
+        "backend/ scripts/ agent-runtime/ eval/ (455 test modules). The prior "
         "~97-of-4,048 reading corresponds to the `and_no_mock_assert_called` "
         "layer — a detector that credits `pytest.raises` and `mock.assert_called*` "
         "as assertions but not delegation to a same-file asserting helper. That "
-        "layer reads 107 today; scaled to this corpus it is 97 * 4472/4048 = 107, "
-        "matching that layer exactly, and the two rates agree to within a tenth of "
-        "a percentage point (2.40% then, 2.39% now). So the prior measurement "
+        "layer reads 107 today; scaled to this corpus it is 97 * 4545/4048 = 108.9, "
+        "two above that layer — the exact match held at 4,472 and no longer does, "
+        "so the claim rests on the rates rather than the coincidence: they agree "
+        "to within a tenth of a percentage point (2.40% then, 2.35% now). "
+        "So the prior measurement "
         "reproduces, and the gap between 107 and 50 is 53 tests whose only "
         "assertion is inside a "
         "same-file `_assert_*` helper plus 4 that raise AssertionError directly. "
