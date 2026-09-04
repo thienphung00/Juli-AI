@@ -118,7 +118,12 @@ def resolve_base_ref_token() -> tuple[str, str | None]:
     for var in ("BASE_REF", "GITHUB_BASE_REF"):
         value = (os.environ.get(var) or "").strip()
         if value:
-            return value, None
+            # Defensive only: both pr.yml and GitHub Actions' own GITHUB_BASE_REF
+            # supply a bare branch name for every trigger this gate runs under.
+            # Stripping a `refs/heads/` prefix that isn't there is a no-op; not
+            # stripping one that is there would build an invalid nested refspec
+            # two calls downstream, in `git fetch`, far from this line.
+            return value.removeprefix("refs/heads/"), None
     return (
         "main",
         "BASE_REF/GITHUB_BASE_REF not set in the environment; the anchor's "

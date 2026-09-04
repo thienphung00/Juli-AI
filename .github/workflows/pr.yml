@@ -1241,12 +1241,15 @@ jobs:
       TIKTOK_APP_KEY: ${{ secrets.TIKTOK_APP_KEY }}
       TIKTOK_APP_SECRET: ${{ secrets.TIKTOK_APP_SECRET }}
       # #1608: see `test` -- same convention as `validate-gates`/`policy-checks`.
-      # This job only ever runs at main tier (the `if:` above), where
-      # `github.base_ref` is always `main`, so this is a no-op in value today;
-      # it is wired for the same reason the fetch step below is, rather than
-      # left hardcoded: one dynamic form, not two mechanisms that happen to
-      # agree only because of an unstated tier invariant (ADR-094).
-      BASE_REF: ${{ github.base_ref }}
+      # This job runs at main tier (the `if:` above) via two different
+      # triggers: a pull_request into `main`, where `github.base_ref` *is*
+      # `main`, and `merge_group` (this workflow's merge queue gate before a
+      # wave lands), where `github.base_ref` is empty -- GitHub does not
+      # populate it for that event. `classify-tier` already special-cases
+      # `merge_group` the same way, unconditionally: it is reachable only via
+      # this workflow's own `merge_group: branches: [main]` trigger, so `main`
+      # is the only value it could ever mean there, not a guess.
+      BASE_REF: ${{ github.base_ref || 'main' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -1264,7 +1267,7 @@ jobs:
       # not create `origin/<base>`. The follow-up re-fetch of the checked-out
       # sha is likewise explained there (restores the shallow boundary this
       # step's fetch moves). #1608: fetches `origin/${BASE_REF}` -- see `test`.
-      - name: Fetch base ref (origin/${{ github.base_ref }})
+      - name: Fetch base ref (origin/${{ github.base_ref || 'main' }})
         run: |
           git fetch --depth=200 origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
           git fetch --depth=200 origin "$(git rev-parse HEAD)"

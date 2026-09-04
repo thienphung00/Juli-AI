@@ -379,6 +379,21 @@ def test_depth_floor_tracks_preflight_rather_than_copying_it(tmp_path: Path) -> 
 BASE_ANCHORED_JOB_TIERS = {"test": "issue", "full-regression": "main"}
 
 
+#: `test` runs only via a `pull_request` event (`classify-tier` reaches
+#: `tier == 'issue'` only that way), where `github.base_ref` is always
+#: populated. `full-regression` runs at `tier == 'main'`, which is reachable
+#: via *either* a `pull_request` into `main` (`github.base_ref` populated) or
+#: `merge_group` (`github.base_ref` is empty for that event -- GitHub does not
+#: set it). `merge_group` is scoped by this workflow's own trigger to
+#: `branches: [main]`, so `'main'` is the only value the fallback could ever
+#: need to supply, not a guess -- the same reasoning `classify-tier` already
+#: applies by hardcoding `tier=main` unconditionally on `merge_group`.
+EXPECTED_BASE_REF_EXPR = {
+    "test": "${{ github.base_ref }}",
+    "full-regression": "${{ github.base_ref || 'main' }}",
+}
+
+
 @pytest.mark.parametrize("job", list(BASE_ANCHORED_JOB_TIERS))
 def test_base_anchored_jobs_declare_base_ref_from_github_base_ref(job: str) -> None:
     """#1608: the job must read the run's *actual* base, not assume `main`.
@@ -390,10 +405,30 @@ def test_base_anchored_jobs_declare_base_ref_from_github_base_ref(job: str) -> N
     """
     workflow = yaml.safe_load(_workflow())
     job_def = workflow["jobs"][job]
-    assert job_def.get("env", {}).get("BASE_REF") == "${{ github.base_ref }}", (
-        f"the `{job}` job must declare `env: BASE_REF: ${{{{ github.base_ref }}}}` "
+    assert job_def.get("env", {}).get("BASE_REF") == EXPECTED_BASE_REF_EXPR[job], (
+        f"the `{job}` job must declare `env: BASE_REF: {EXPECTED_BASE_REF_EXPR[job]!r}` "
         "at job level -- the fetch step and the harness_bootstrap_pin gate this "
         "job runs both need this run's actual base, not a hardcoded branch name"
+    )
+
+
+def test_full_regression_base_ref_falls_back_to_main_for_merge_group() -> None:
+    """`github.base_ref` is empty for `merge_group` (GitHub does not populate
+    it for that event; confirmed against the community-documented workaround
+    of `github.base_ref || github.event.merge_group.base_ref`). Without a
+    fallback, `full-regression`'s fetch step would build the refspec
+    `+refs/heads/:refs/remotes/origin/` -- empty ref names -- and `git fetch`
+    would reject it outright on every merge-queue run, which is the actual
+    pre-merge-to-main gate. `test` needs no such fallback: it runs only via
+    `pull_request` (see `EXPECTED_BASE_REF_EXPR`'s docstring), never
+    `merge_group`, so `github.base_ref` is never empty there.
+    """
+    workflow = yaml.safe_load(_workflow())
+    base_ref_expr = workflow["jobs"]["full-regression"]["env"]["BASE_REF"]
+    assert "||" in base_ref_expr and "'main'" in base_ref_expr, (
+        f"full-regression's BASE_REF ({base_ref_expr!r}) has no fallback for "
+        "merge_group, where github.base_ref is empty -- the fetch step would "
+        "build an invalid refspec and fail every merge-queue run"
     )
 
 
@@ -497,7 +532,8 @@ def test_bootstrap_pin_anchor_agrees_with_the_fetched_base_ref() -> None:
     workflow = yaml.safe_load(_workflow())
     for job in BASE_ANCHORED_JOB_TIERS:
         job_def = workflow["jobs"][job]
-        assert job_def.get("env", {}).get("BASE_REF") == "${{ github.base_ref }}", (
+        base_ref_expr = job_def.get("env", {}).get("BASE_REF", "")
+        assert base_ref_expr.startswith("${{ github.base_ref"), (
             f"the `{job}` job does not set BASE_REF from github.base_ref, so "
             "the pin's BASE_REF token and the fetched ref cannot agree"
         )
