@@ -372,6 +372,48 @@ def test_depth_floor_tracks_preflight_rather_than_copying_it(tmp_path: Path) -> 
     )
 
 
+@pytest.mark.parametrize("job", ["test", "full-regression"])
+def test_base_anchored_jobs_fetch_origin_main_after_checkout(job: str) -> None:
+    """#1604: fetch-depth alone does not create `origin/main`.
+
+    `actions/checkout@v7` fetches only the ref being checked out --
+    `+<sha>:refs/remotes/pull/<N>/merge` on a PR event -- regardless of
+    `fetch-depth`: depth bounds how far back *that one ref* goes, it cannot
+    bring a second branch into existence. No refspec names `main`, so
+    `git rev-parse origin/main` stays an unknown revision at any depth,
+    including 200 (live proof: PR #1561, run 33848493670,
+    `test_shipped_config_pin_branch_resolves_against_this_repository` and
+    two `test_mutants` cases failing with
+    "fatal: ambiguous argument 'origin/main': unknown revision"). Each
+    base-anchored job must fetch `main` by name, right after checkout, so
+    every gate anchored to a base ref has a ref to anchor to.
+    """
+    workflow = yaml.safe_load(_workflow())
+    steps = workflow["jobs"][job]["steps"]
+
+    checkout_idx = next(
+        i for i, s in enumerate(steps) if str(s.get("uses", "")).startswith("actions/checkout")
+    )
+    fetch_steps = [
+        s
+        for s in steps[checkout_idx + 1 :]
+        if "refs/heads/main:refs/remotes/origin/main" in str(s.get("run", ""))
+    ]
+    assert fetch_steps, (
+        f"the `{job}` job never fetches origin/main by name after checkout; "
+        "fetch-depth alone (even 200) does not create the ref -- "
+        "actions/checkout only fetches the ref being checked out, and no "
+        "refspec here names `main`"
+    )
+    fetch_run = str(fetch_steps[0]["run"])
+    assert "--depth=200" in fetch_run or "--depth 200" in fetch_run, (
+        f"the `{job}` job's origin/main fetch is unbounded (missing a bounded "
+        "--depth), which makes git report the clone complete and flips "
+        "history_is_complete() onto its strict branch -- #1579's rows would "
+        "swing from MISSING_SOURCE to RESOLVED"
+    )
+
+
 def test_pr_workflow_never_deploys() -> None:
     workflow = _workflow()
     release = RELEASE_WORKFLOW.read_text(encoding="utf-8")
