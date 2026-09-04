@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "agent-runtime" / "scripts" / "ci"))
 
 from eval.artifact_mutants import (  # noqa: E402
     FAILURE_CLASSES,
@@ -145,22 +146,40 @@ class Fixture:
         return ARTIFACTS / directory / name.format(issue=self.issue)
 
 
-def _head_sha() -> str:
-    """Current HEAD, resolved at fixture-install time.
+#: The fixture's own bootstrap pin. Must match `bootstrapRef.branch` in
+#: `parent-cache.template.json` exactly — see `_bootstrap_anchor_sha`.
+BOOTSTRAP_ANCHOR_SPEC = "merge-base:origin/main"
 
-    The template must NOT pin a literal SHA. `check_harness_bootstrap_pin`
-    compares `bootstrapRef.commitSha` against HEAD, so a frozen SHA makes the
-    fixture go stale the instant anything is committed — the clean arm would
-    then fail for a reason that has nothing to do with the record, and the table
-    would not reproduce at any other commit. Found the hard way: committing this
-    very branch flipped that gate from PASS to FAIL.
+
+def _bootstrap_anchor_sha() -> str:
+    """The fixture's bootstrap anchor, resolved at fixture-install time.
+
+    The template must NOT pin a literal SHA, and — since #1540 — must not pin
+    `HEAD` either: `resolve_bootstrap_anchor` now rejects `HEAD` as
+    self-referential (a gate comparing a branch against its own tip can never
+    detect drift), so a fixture that still wrote `HEAD` would have
+    `check_harness_bootstrap_pin` FAIL on the clean arm rather than PASS on it.
+
+    Resolving here through the shipped `resolve_bootstrap_anchor` -- rather than
+    reimplementing `merge-base:<ref>` parsing or hand-pinning a SHA -- keeps this
+    fixture's notion of "what does `merge-base:origin/main` mean" identical to
+    the resolver's own, so the two can never drift apart from each other.
+
+    Imported locally: `harness_bootstrap_pin` only becomes importable once the
+    `agent-runtime/scripts/ci` path is on `sys.path`, and doing that import at
+    module level would need its own `# noqa: E402`, which the suppression
+    ratchet (`eval/ratchets.py`) counts as new debt for no functional reason.
     """
-    return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True).strip()
+    from harness_bootstrap_pin import resolve_bootstrap_anchor
+
+    return resolve_bootstrap_anchor(BOOTSTRAP_ANCHOR_SPEC, REPO_ROOT)
 
 
 def _render_template(name: str, issue: int) -> dict[str, Any]:
     raw = (FIXTURE_DIR / name).read_text()
-    raw = raw.replace("__ISSUE__", str(issue)).replace("__HEAD_SHA__", _head_sha())
+    raw = raw.replace("__ISSUE__", str(issue)).replace(
+        "__BOOTSTRAP_ANCHOR_SHA__", _bootstrap_anchor_sha()
+    )
     return json.loads(raw)
 
 
