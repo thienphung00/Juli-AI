@@ -331,6 +331,22 @@ workflow_prompt_cache:
   # Known epics — ensure_workflow_cache uses these when Parent/#slice missing from CLI.
   # parentScopeBlock uses \n escapes (simple YAML loader; no literal | blocks).
   epicRegistry:
+    # 1434 — Harness-E (P-EVAL); registered 2026-09-04. Every slice in this epic
+    # had been passing --slice-id CI-WAVE-1 by hand, which masked the absence of
+    # this entry: a bare `meta_prepare_executor.py --issue N` halted with
+    # "Cannot resolve sliceId", and a reviewer that hit it could not commit a
+    # test because no workflow cache existed for the guarded tests/ root.
+    1434:
+      defaultSliceId: CI-WAVE-1
+      handoffPath: docs/handoffs/issue-1434.md
+      parentScopeBlock: "# Parent #1434 - Harness-E: the harness stops grading its own homework\n## Product boundary\n- Harness only: agent-runtime/, .github/workflows/, eval/, tests/unit/\n- NO product code: backend/src/, apps/, ios/, packages/ are out of scope for every slice\n- No migrations, no API routes, no UI\n## Architect locks\n- The verdict is computed where the agent cannot write\n- Fail closed: a check must never pass because it could not determine an answer\n- No backfill, no history rewrite\n- pr.yml has one writer at a time\n- Only factual gates ship blocking; a heuristic gate gets a promotion criterion AND an expiry\n- Never satisfy a gate by editing gate configuration (ADR-092 gives the mechanical test)\n- Emit is not commit: the five gitignored body directories are never git add -f'd\n"
+      doNotLoad:
+        - backend/src/
+        - apps/
+        - ios/
+        - packages/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
     # 175 — Operations-System Orchestration PRD; registered 2026-08-17 for #1138
     # (repository-layer production fix lane, OPS-REPO-FIX routing).
     175:

@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import contextlib
+import importlib.util
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -213,6 +218,158 @@ def test_full_regression_isolates_unit_and_integration_processes() -> None:
     assert "-m pytest tests/unit -v" in workflow
     assert "-m pytest tests/integration -v" in workflow
     assert "--cov-append" in workflow
+
+
+PREFLIGHT_ENGINE = ROOT / "agent-runtime" / "scripts" / "git" / "checkout_preflight.py"
+
+
+def _behind_fail_default(engine_path: Path = PREFLIGHT_ENGINE) -> int:
+    """``checkout_preflight.BEHIND_FAIL``'s *default*, read from the engine itself.
+
+    The floor below is only sound because preflight refuses a base that far
+    behind ``origin/main``: a branch that passed preflight is within BEHIND_FAIL
+    commits of it, so a checkout at least that deep contains the merge-base.
+    That made the two numbers a coupling, and until now the coupling was a
+    comment -- raising BEHIND_FAIL would silently invalidate the floor.
+
+    The reason it stayed a comment was that ``BEHIND_FAIL`` is env-overridable
+    (``JULI_PREFLIGHT_BEHIND_FAIL``), so reading the *resolved* value would make
+    this workflow-contract test depend on the ambient environment. Reading the
+    *default* does not: the variable is scrubbed for the duration of the load,
+    so the answer is 50 whether the caller's environment sets 999, sets junk, or
+    sets nothing. The override remains free to move preflight's runtime bar for
+    a deliberate long-lived branch without moving this contract.
+
+    Loaded the way the hook and ``tests/unit/test_checkout_preflight.py`` load
+    it -- registered in ``sys.modules`` first, or ``@dataclass`` raises on
+    import. Import is side-effect free; ``main()`` is behind an
+    ``if __name__`` guard.
+    """
+    saved = os.environ.pop("JULI_PREFLIGHT_BEHIND_FAIL", None)
+    name = "_preflight_engine_for_contract"
+    try:
+        spec = importlib.util.spec_from_file_location(name, engine_path)
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+        return int(module.BEHIND_FAIL)
+    finally:
+        sys.modules.pop(name, None)
+        if saved is not None:
+            os.environ["JULI_PREFLIGHT_BEHIND_FAIL"] = saved
+
+
+#: The depth floor for base-anchored jobs, derived rather than hand-copied.
+MIN_BASE_ANCHORED_DEPTH = _behind_fail_default()
+
+
+@pytest.mark.parametrize("job", ["test", "full-regression"])
+def test_base_anchored_jobs_check_out_enough_history(job: str) -> None:
+    """#1573: a job running the whole of tests/unit must not use a depth-1 clone.
+
+    On the default shallow checkout `origin/main` is an unknown revision, so
+    every gate anchored to a base ref fails for a reason unrelated to the change
+    under test. Both `test` (issue tier) and `full-regression` (main tier) run
+    that corpus, including all five base-anchored modules;
+    `cross-module-contracts` filters to -k "contract or boundary or ownership",
+    which collects this module but not `test_checkout_preflight`,
+    `test_differential_tdd`, `test_environment_provider` or `test_ratchets`.
+    Deepening enables #1540/#1561's base-ref resolver; it does not repair a
+    currently-red test, since all five modules pass at depth 1 today.
+
+    Both a floor and a ceiling, and both are the assertion. Below the floor a
+    bounded depth is worthless: `fetch-depth: 2` is > 1 yet still reaches no
+    merge-base. The floor is `checkout_preflight.py`'s own BEHIND_FAIL, which
+    refuses a base 50 or more commits behind origin/main -- so a branch that
+    passed preflight is within 50 commits of it, and a checkout at least that
+    deep contains the merge-base. Above the ceiling, `fetch-depth: 0` makes git
+    report the clone complete and flips
+    `eval/negative_dataset.py::history_is_complete()`; #1579's two rows then
+    fail. Order matters below: 0 fails a `>= 50` test too, so it is checked
+    first or its message never prints.
+
+    The job is located by parsing pr.yml as YAML rather than by splitting on a
+    textual header: locating a job by text is what has previously landed an edit
+    on the wrong job in this file, and this test would be worthless if a
+    sibling job's `fetch-depth` could satisfy it.
+    """
+    workflow = yaml.safe_load(_workflow())
+    steps = workflow["jobs"][job]["steps"]
+
+    checkouts = [s for s in steps if str(s.get("uses", "")).startswith("actions/checkout")]
+    assert len(checkouts) == 1, (
+        f"expected exactly one actions/checkout in the `{job}` job, found {len(checkouts)}"
+    )
+    depth = checkouts[0].get("with", {}).get("fetch-depth")
+    assert isinstance(depth, int) and not isinstance(depth, bool), (
+        f"the `{job}` job declares fetch-depth {depth!r}, which is not an "
+        "integer depth this test can reason about"
+    )
+    # Checked before the floor: 0 is also below it, so testing the floor first
+    # would swallow this case and print the wrong reason.
+    assert depth != 0, (
+        f"the `{job}` job uses fetch-depth: 0, which makes git report the clone "
+        "as complete; history_is_complete() then flips negative_dataset onto its "
+        "strict branch and #1579's two rows fail. Use a bounded depth: it "
+        "resolves merge-base and leaves the clone shallow"
+    )
+    assert depth >= MIN_BASE_ANCHORED_DEPTH, (
+        f"the `{job}` job checks out at depth {depth}, below the "
+        f"{MIN_BASE_ANCHORED_DEPTH}-commit floor, so origin/main may still be "
+        "an unknown revision and every base-anchored gate fails for a reason "
+        "unrelated to the change under test. Any depth > 1 is not enough: "
+        "fetch-depth 2 reaches no merge-base either"
+    )
+
+
+def test_depth_floor_tracks_preflight_rather_than_copying_it(tmp_path: Path) -> None:
+    """The floor is derived from BEHIND_FAIL's default, and drift in it is caught.
+
+    Until #1579 this coupling was a comment: ``MIN_BASE_ANCHORED_DEPTH = 50``
+    hand-copied from ``checkout_preflight.BEHIND_FAIL``, so raising BEHIND_FAIL
+    would leave the floor silently unsound -- preflight would start admitting
+    bases further behind than the checkout reaches. Deriving it is only worth
+    doing if the derivation can go red, so this plants the drift and demands it.
+    """
+    # Environment-insensitive, which is the property that makes reading the
+    # engine acceptable in a workflow-contract test at all. The override still
+    # works at runtime; it just cannot move this contract.
+    baseline = _behind_fail_default()
+    for hostile in ("999", "0", "not-an-int"):
+        os.environ["JULI_PREFLIGHT_BEHIND_FAIL"] = hostile
+        try:
+            assert _behind_fail_default() == baseline, hostile
+        finally:
+            os.environ.pop("JULI_PREFLIGHT_BEHIND_FAIL", None)
+    assert MIN_BASE_ANCHORED_DEPTH == baseline
+
+    # The real invariant, stated: preflight admits a base up to BEHIND_FAIL - 1
+    # commits behind, so any checkout at least BEHIND_FAIL deep still contains
+    # the merge-base. A floor below that would not.
+    depths = [
+        yaml.safe_load(_workflow())["jobs"][job]["steps"][0].get("with", {}).get("fetch-depth")
+        for job in ("test", "full-regression")
+    ]
+    assert all(d >= baseline for d in depths), depths
+
+    # planted lie: an engine whose default drifted upward. The floor must follow
+    # it, which is what makes the shipped depth fall below the floor and the
+    # assertion above go red. A hand-copied constant would not have moved.
+    drifted = tmp_path / "checkout_preflight.py"
+    drifted.write_text(
+        PREFLIGHT_ENGINE.read_text(encoding="utf-8").replace(
+            '_env_int("JULI_PREFLIGHT_BEHIND_FAIL", 50)',
+            '_env_int("JULI_PREFLIGHT_BEHIND_FAIL", 100000)',
+        ),
+        encoding="utf-8",
+    )
+    assert _behind_fail_default(drifted) == 100000, (
+        "the drift was not planted; the source line this test rewrites has moved"
+    )
+    assert not all(d >= _behind_fail_default(drifted) for d in depths), (
+        "a raised BEHIND_FAIL left the depth floor satisfied, so the coupling is still not enforced"
+    )
 
 
 def test_pr_workflow_never_deploys() -> None:
@@ -819,3 +976,165 @@ def test_validate_gates_job_fails_closed_on_gate_error() -> None:
     assert "SKIP" in skipped.stdout
     for gate in all_gates:
         assert f"{gate}: PASS" not in skipped.stdout
+
+
+# --- CI-WAVE-1 (#1528): agent-runtime/scripts is inside the lint perimeter ---
+#
+# pr.yml's Ruff step listed `backend/src/juli_backend tests scripts` and the
+# pre-commit `files:` regex listed `^(backend/|tests/|scripts/)`. Neither named
+# `agent-runtime/`, so ~89 Python files holding every harness gate, generator
+# and schema validator were linted by nothing. The drift is not theoretical:
+# agent-runtime/scripts/ci/json_schema_validate.py had diverged from
+# `ruff format` and was only re-canonicalised because #1509's executor (PR
+# #1524) happened to be editing that file for an unrelated reason.
+#
+# These tests plant a real violation in the real tree and run the real command,
+# because asserting that "agent-runtime/scripts" appears in the YAML would prove
+# the path is configured, not that anything enforces it.
+
+PROBE_SOURCE = "import json\n"  # unused import -> F401, selected by every profile
+
+
+def _ci_ruff_command() -> list[str]:
+    """The Ruff step's command, verbatim from pr.yml's lint job."""
+    lint_job = _parsed_workflow()["jobs"]["lint"]
+    for step in lint_job["steps"]:
+        if step.get("name") == "Ruff":
+            return shlex.split(step["run"].strip())
+    raise AssertionError("no step named 'Ruff' in the lint job")
+
+
+@contextlib.contextmanager
+def _planted_violation(directory: Path) -> Iterator[Path]:
+    """Write a file with a genuine lint violation, and always remove it."""
+    directory.mkdir(parents=True, exist_ok=True)
+    probe = directory / f"_lint_perimeter_probe_{os.getpid()}.py"
+    probe.write_text(PROBE_SOURCE, encoding="utf-8")
+    try:
+        yield probe
+    finally:
+        probe.unlink(missing_ok=True)
+
+
+def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        command, cwd=ROOT, capture_output=True, text=True, check=False, timeout=300
+    )
+
+
+def test_ci_ruff_command_catches_a_violation_planted_in_agent_runtime_scripts() -> None:
+    """AC1: the command CI actually runs must fail on a violation introduced
+    anywhere under agent-runtime/scripts/."""
+    command = _ci_ruff_command()
+    agent_scripts = ROOT / "agent-runtime" / "scripts"
+
+    # The tree is clean before the plant, so a failure below is the plant.
+    clean = _run(command)
+    assert clean.returncode == 0, (
+        f"lint perimeter is dirty before the probe was planted\n{clean.stdout}{clean.stderr}"
+    )
+
+    with _planted_violation(agent_scripts) as probe:
+        caught = _run(command)
+
+    assert caught.returncode != 0, (
+        "a violation planted in agent-runtime/scripts/ was not caught by "
+        f"{shlex.join(command)}\n{caught.stdout}{caught.stderr}"
+    )
+    assert probe.name in caught.stdout, caught.stdout + caught.stderr
+    assert "F401" in caught.stdout, caught.stdout
+
+
+def test_ci_ruff_command_covers_every_first_party_python_root() -> None:
+    """AC1: no first-party Python root may sit outside the Ruff step's targets.
+    A root that holds .py files and is named by no target is unlinted."""
+    targets = set(_ci_ruff_command()[2:])
+    for root in ("backend/src/juli_backend", "tests", "scripts", "agent-runtime/scripts"):
+        assert root in targets, f"{root} is outside the Ruff step's targets: {sorted(targets)}"
+
+
+def _precommit_ruff_hooks(hook_id: str) -> list[dict]:
+    config = yaml.safe_load((ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
+    return [hook for repo in config["repos"] for hook in repo["hooks"] if hook["id"] == hook_id]
+
+
+def _hook_matching(hook_id: str, path: str) -> dict:
+    matches = [h for h in _precommit_ruff_hooks(hook_id) if re.search(h["files"], path)]
+    assert matches, (
+        f"no {hook_id} pre-commit hook has a `files:` pattern matching {path}; "
+        "staged harness code would be committed unlinted"
+    )
+    return matches[0]
+
+
+def test_precommit_ruff_check_enforces_agent_runtime_scripts() -> None:
+    """AC2: a staged agent-runtime/scripts file reaches ruff-check, and the
+    config that hook passes actually reports the violation."""
+    hook = _hook_matching("ruff-check", "agent-runtime/scripts/harness_optimizer.py")
+
+    args = hook.get("args", [])
+    config = args[args.index("--config") + 1] if "--config" in args else None
+
+    with _planted_violation(ROOT / "agent-runtime" / "scripts") as probe:
+        command = ["ruff", "check", "--no-fix"]
+        if config is not None:
+            command += ["--config", config]
+        command.append(str(probe.relative_to(ROOT)))
+        result = _run(command)
+
+    assert result.returncode != 0, (
+        f"the ruff-check hook's config ({config}) does not flag an unused import"
+        f"\n{result.stdout}{result.stderr}"
+    )
+    assert "F401" in result.stdout, result.stdout
+
+
+def test_precommit_ruff_format_enforces_agent_runtime_scripts() -> None:
+    """AC2: format drift in a staged agent-runtime/scripts file is caught —
+    this is the exact defect json_schema_validate.py hit (silent drift)."""
+    hook = _hook_matching("ruff-format", "agent-runtime/scripts/ci/json_schema_validate.py")
+
+    args = hook.get("args", [])
+    config = args[args.index("--config") + 1] if "--config" in args else None
+
+    directory = ROOT / "agent-runtime" / "scripts"
+    directory.mkdir(parents=True, exist_ok=True)
+    probe = directory / f"_format_perimeter_probe_{os.getpid()}.py"
+    probe.write_text("x = {  'a':1,\n  'b':2 }\n", encoding="utf-8")
+    try:
+        command = ["ruff", "format", "--check"]
+        if config is not None:
+            command += ["--config", config]
+        command.append(str(probe.relative_to(ROOT)))
+        result = _run(command)
+    finally:
+        probe.unlink(missing_ok=True)
+
+    assert result.returncode != 0, (
+        f"the ruff-format hook's config ({config}) accepts unformatted source"
+        f"\n{result.stdout}{result.stderr}"
+    )
+
+
+def test_agent_runtime_scripts_changes_trigger_the_lint_job() -> None:
+    """AC3: widening the Ruff targets is inert unless the domain filter that
+    gates the lint job also fires for agent-runtime/scripts changes. The lint
+    job runs only when `changes.outputs.backend == 'true'`."""
+    workflow = _parsed_workflow()
+
+    lint_if = workflow["jobs"]["lint"]["if"]
+    assert "needs.changes.outputs.backend == 'true'" in lint_if, lint_if
+
+    changes_job = _job_block(_workflow(), "changes:")
+    filters = changes_job.split("filters: &domain-path-filters", 1)[1]
+    backend_filter = filters.split("backend:", 1)[1].split("migrations:", 1)[0]
+    assert "'agent-runtime/scripts/**'" in backend_filter, (
+        "agent-runtime/scripts is linted by the Ruff step but no backend-domain "
+        f"path filter fires for it, so the lint job is skipped:\n{backend_filter}"
+    )
+
+    # Docs- and config-only harness changes must stay in the cheap `agent`
+    # domain — widening the perimeter must not drag markdown into the backend
+    # test suite (see test_wave_push_agent_docs_only_stays_cheap_...).
+    assert "'.cursor/**'" not in backend_filter
+    assert "'agent-runtime/**'" not in backend_filter

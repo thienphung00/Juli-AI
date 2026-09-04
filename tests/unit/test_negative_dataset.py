@@ -24,16 +24,21 @@ import json
 import subprocess
 import sys
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 from eval.curate_negatives import (  # noqa: E402
+    FIX_COMMIT_REF_SCOPE,
+    FIX_COMMIT_TRUNK_REFS,
     classify_artifact_ref,
     classify_fix_commit,
     classify_pytest_invocation,
     classify_status_record_validation,
+    derive_fix_commit_rows,
+    resolve_fix_commit_scope,
 )
 from eval.negative_dataset import (  # noqa: E402
     NEGATIVE_LABELS,
@@ -65,6 +70,119 @@ REQUIRED_ROW_FIELDS = {
     "timestamp",
     "split",
 }
+
+
+def _git(repo_root: Path, *args: str) -> str:
+    """Run one git command in ``repo_root``, failing the test on a non-zero exit."""
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+
+
+def _reachable_commits(repo_root: Path) -> frozenset[str]:
+    """Every commit object this checkout actually has, enumerated independently.
+
+    Deliberately its own ``git rev-list`` rather than a read of the resolver's
+    commit index: the assertion below is that the resolver's verdict for a row
+    agrees with what git reports for that one commit, and it would say nothing
+    at all if both sides read the same cache.
+    """
+    result = subprocess.run(
+        ["git", "rev-list", "--all"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return frozenset(result.stdout.split())
+
+
+def _present_objects(repo_root: Path, commits: Sequence[str]) -> frozenset[str]:
+    """Which of these SHAs this checkout holds as commit *objects*, reachable or not.
+
+    ``rev-list`` above walks refs and so cannot see an object that no ref
+    reaches. ``cat-file --batch-check`` reads the object database directly and
+    can. The gap between the two answers is exactly the state #1579 found: an
+    object a squash-merge left in the database with nothing pointing at it.
+
+    Both probes are the test's own subprocesses. Neither reads
+    ``ProvenanceResolver``'s index, so the assertion below still compares two
+    independently obtained answers rather than a cache against itself.
+    """
+    if not commits:
+        return frozenset()
+    result = subprocess.run(
+        ["git", "cat-file", "--batch-check"],
+        cwd=repo_root,
+        input="\n".join(commits) + "\n",
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    present = set()
+    for line in result.stdout.splitlines():
+        fields = line.split()
+        # "<sha> commit <size>" when held; "<name> missing" when not.
+        if len(fields) == 3 and fields[1] == "commit":
+            present.add(fields[0])
+    return frozenset(present)
+
+
+def _expected_commit_resolution(
+    commit: str, reachable: frozenset[str], present: frozenset[str]
+) -> Resolution:
+    """One of three outcomes, each a fact about this row in this checkout.
+
+    * reachable from some ref -- RESOLVED. The subject is retrievable, so the
+      digest must match exactly.
+    * held as an object but reachable from no ref -- UNREACHABLE. A
+      squash-merge dissolved the branch that pointed at it; the object survives
+      in the clone that curated the row and in no other, so nobody else can
+      re-derive it. Not a digest disagreement, and not a fetch away either.
+    * not held at all -- MISSING_SOURCE.
+
+    The expectation is a property of the *row*, which is what makes it
+    invariant under fetch depth. What it replaces asked
+    ``history_is_complete()`` -- a property of the *clone* -- and so admitted
+    only two states, every commit present or none. A bounded ``fetch-depth`` is
+    a third state the binary model excluded: measured on real clones of this
+    branch, depth 1 reaches 0 of the 125 commit rows and depth 200 reaches 59,
+    so no single clone-wide verdict is correct at both. Keyed per row, the same
+    expectation holds at depth 1, at 200 and in a complete clone.
+
+    The UNREACHABLE arm is narrower than "complete clone", and the distinction
+    caught an earlier version of this docstring out. It is not that a *shallow*
+    fetch declines to transfer a dangling object -- **no clone transfers one at
+    all**, at any depth, because git's transfer protocol enumerates objects by
+    walking refs and nothing points at a dissolved commit. So the two rows in
+    ``DISSOLVED_COMMIT_ROWS`` report UNREACHABLE only in the working copy that
+    curated them, where the object was written locally and never left. Every
+    fresh clone -- complete ones included -- reports them MISSING_SOURCE from
+    this function and MISMATCH from the resolver, because there the objects are
+    genuinely absent. Measured, not inferred: ``cat-file --batch-check`` says
+    ``commit`` for both in the curating worktree and ``missing`` in a fresh
+    ``git clone`` of the same branch. Expect MISMATCH, not UNREACHABLE, when
+    reading this anywhere but the machine that ran the curation.
+    """
+    if commit in reachable:
+        return Resolution.RESOLVED
+    return Resolution.UNREACHABLE if commit in present else Resolution.MISSING_SOURCE
+
+
+#: The commit rows whose objects a squash-merge dissolved, by ``record_id`` (#1579).
+#: Recorded as an allowlist rather than a count so that a *new* dissolution is red
+#: on sight instead of being absorbed by a budget. Asserted as a subset, not an
+#: equality, because no clone but the curating one holds these objects at all --
+#: not a depth question, a reachability one, since a clone transfers only what a
+#: ref reaches. Everywhere else the set is empty, and the subset has to hold
+#: there too. Curation is pinned
+#: to the trunk (``eval.curate_negatives.resolve_fix_commit_scope``) so this set
+#: cannot grow from a future derivation.
+DISSOLVED_COMMIT_ROWS = frozenset({"fix_commits/f6c0630567443eb4", "fix_commits/702867bf541e1fcd"})
 
 
 def test_every_row_provenance_resolves() -> None:
@@ -113,21 +231,35 @@ def test_every_row_provenance_resolves() -> None:
     unresolved = [row["record_id"] for row, res in tracked_rows if res is not Resolution.RESOLVED]
     assert unresolved == [], unresolved[:5]
 
-    # Commits are retrievable only in a complete clone. CI checks this repo out
-    # shallow for every job that runs pytest (pr.yml:423 and 15 more), so demand
-    # full resolution where the history is there and a definite MISSING_SOURCE
-    # where it is not — never a shrug in either direction.
-    complete_history = resolver.history_is_complete()
+    # Commit rows are judged one at a time, so the expectation does not move
+    # with the checkout depth: a commit reachable in this clone must resolve
+    # exactly, one held only as a dangling object must be a definite
+    # UNREACHABLE, and one the clone does not hold at all must be a definite
+    # MISSING_SOURCE — never a shrug in any direction, and never MISMATCH or
+    # MALFORMED. CI checks this repo out shallow for every job that runs pytest
+    # — depth 1 for most, a bounded depth for `test` and `full-regression` —
+    # and this holds identically at either, and in a complete clone.
+    reachable = _reachable_commits(REPO_ROOT)
     commit_rows = [
         (row, res)
         for row, res in zip(ROWS, resolutions, strict=True)
         if row["provenance"]["kind"] == "git_commit"
     ]
     assert commit_rows
-    expected = Resolution.RESOLVED if complete_history else Resolution.MISSING_SOURCE
-    off = [row["record_id"] for row, res in commit_rows if res is not expected]
-    assert off == [], (complete_history, off[:5])
+    present = _present_objects(REPO_ROOT, [r["provenance"]["commit"] for r, _ in commit_rows])
+    off = [
+        (row["record_id"], res.name)
+        for row, res in commit_rows
+        if res is not _expected_commit_resolution(row["provenance"]["commit"], reachable, present)
+    ]
+    assert off == [], off[:5]
     assert all(repo_backed(row["provenance"]) for row, _ in commit_rows + tracked_rows)
+
+    # UNREACHABLE is tolerated only for the rows already known to be dissolved.
+    # Anything else means a squash-merge has just dissolved fresh evidence, and
+    # that must be red rather than quietly accepted as a known cost.
+    dissolved = {row["record_id"] for row, res in commit_rows if res is Resolution.UNREACHABLE}
+    assert dissolved <= DISSOLVED_COMMIT_ROWS, sorted(dissolved - DISSOLVED_COMMIT_ROWS)[:5]
 
     # Cache-backed rows resolve exactly wherever the cache exists (a developer
     # machine); in CI the cache is absent and MISSING_SOURCE is the honest answer.
@@ -172,6 +304,69 @@ def test_every_row_provenance_resolves() -> None:
     assert resolver.resolve(good_commit) is Resolution.RESOLVED
     assert resolver.resolve({**good_commit, "sha256": "0" * 64}) is Resolution.MISMATCH
     assert resolver.resolve({**good_commit, "commit": "f" * 40}) is not Resolution.RESOLVED
+
+    # The per-row rule above must still go red on a real defect, or admitting
+    # UNREACHABLE would have weakened this gate rather than repaired it. HEAD is
+    # reachable at every fetch depth, so this exhibit runs in CI too: a commit
+    # the checkout HAS AND CAN REACH, carrying a digest that disagrees, resolves
+    # MISMATCH where the rule demands RESOLVED, and lands in `off`. That is the
+    # input the new rule still fails on, and UNREACHABLE cannot absorb it —
+    # a reachable commit never takes that branch.
+    assert head_sha in reachable
+    assert head_sha in _present_objects(REPO_ROOT, [head_sha])
+    liar = {**good_commit, "sha256": "0" * 64}
+    assert resolver.resolve(liar) is Resolution.MISMATCH
+    assert resolver.resolve(liar) is not _expected_commit_resolution(
+        head_sha, reachable, _present_objects(REPO_ROOT, [head_sha])
+    )
+
+    # The three commit outcomes, separated in a repository this test builds, so
+    # the distinction is proven rather than inferred from the dataset — and
+    # proven in a *complete* clone, which is the state that used to report the
+    # dangling object as MISMATCH.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _git(root, "init", "-q", "-b", "trunk", ".")
+        _git(root, "config", "user.email", "t@example.com")
+        _git(root, "config", "user.name", "t")
+        _git(root, "commit", "-q", "--allow-empty", "-m", "kept: on the trunk")
+        kept = _git(root, "rev-parse", "HEAD").strip()
+        _git(root, "commit", "-q", "--allow-empty", "-m", "dissolved: squashed away")
+        dangling = _git(root, "rev-parse", "HEAD").strip()
+        # Move the only ref off it. The object stays in the database; nothing
+        # points at it — precisely what a squash-merge plus branch delete leaves.
+        _git(root, "reset", "-q", "--hard", kept)
+
+        probe = ProvenanceResolver(repo_root=root)
+        assert probe.history_is_complete(), "the exhibit must run in a complete clone"
+
+        kept_ok = {
+            "kind": "git_commit",
+            "commit": kept,
+            "sha256": hashlib.sha256(b"kept: on the trunk").hexdigest(),
+        }
+        assert probe.resolve(kept_ok) is Resolution.RESOLVED
+        # Reachable and disagreeing is still a hard failure. This is the input
+        # that keeps the assertion above red under the new rule.
+        assert probe.resolve({**kept_ok, "sha256": "0" * 64}) is Resolution.MISMATCH
+        # Present but reachable from no ref is its own outcome, not a digest
+        # disagreement — the resolver never even reads the digest to say so.
+        assert (
+            probe.resolve(
+                {
+                    "kind": "git_commit",
+                    "commit": dangling,
+                    "sha256": hashlib.sha256(b"dissolved: squashed away").hexdigest(),
+                }
+            )
+            is Resolution.UNREACHABLE
+        )
+        assert probe.resolve({"kind": "git_commit", "commit": dangling, "sha256": "0" * 64}) is (
+            Resolution.UNREACHABLE
+        )
+        # And a commit that simply does not exist stays a hard failure in a
+        # complete clone: absence is not laundered into the new outcome.
+        assert probe.resolve({**kept_ok, "commit": "f" * 40}) is Resolution.MISMATCH
 
     # Malformed provenance is rejected outright, never treated as "cannot check".
     assert resolver.resolve({"kind": "nonsense"}) is Resolution.MALFORMED
@@ -321,3 +516,52 @@ def test_split_is_temporal() -> None:
     for i, row in enumerate(sorted(shuffled, key=lambda r: r["timestamp"])):
         row["split"] = "holdout" if i % 2 else "train"
     assert split_errors(shuffled, MANIFEST) != []
+
+
+def test_fix_commit_curation_is_pinned_to_the_trunk() -> None:
+    """Rule 6 draws commits from the trunk, so it cannot cite a soon-to-be-dissolved tip.
+
+    #1579's two rows were curated at ``HEAD`` on a feature branch, so its scope
+    included commits that the squash-merge then dissolved. A trunk ref cannot:
+    a commit reachable from the trunk survives every later squash-merge, because
+    it *is* what a squash-merge produces. This is the half of the fix that stops
+    the population growing new unreachable rows; the resolver's ``UNREACHABLE``
+    is the half that reports the ones already in it honestly.
+    """
+    assert FIX_COMMIT_REF_SCOPE != "HEAD", "HEAD is what let a dissolving tip in"
+    assert FIX_COMMIT_REF_SCOPE in FIX_COMMIT_TRUNK_REFS
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _git(root, "init", "-q", "-b", "main", ".")
+        _git(root, "config", "user.email", "t@example.com")
+        _git(root, "config", "user.name", "t")
+
+        # No trunk ref yet: the scope must refuse rather than silently fall back
+        # to HEAD, which is exactly the fallback that would reintroduce the bug.
+        try:
+            resolve_fix_commit_scope(root)
+        except RuntimeError:
+            pass
+        else:  # pragma: no cover - only reached on a regression
+            raise AssertionError("an unpinnable repo must raise, not fall back to HEAD")
+
+        _git(root, "commit", "-q", "--allow-empty", "-m", "fix: on the trunk (#1)")
+        trunk_tip = _git(root, "rev-parse", "HEAD").strip()
+
+        # A feature branch whose tip a squash-merge is about to dissolve.
+        _git(root, "checkout", "-q", "-b", "feature/x")
+        _git(root, "commit", "-q", "--allow-empty", "-m", "fix: about to be squashed (#1)")
+        doomed = _git(root, "rev-parse", "HEAD").strip()
+
+        scope = resolve_fix_commit_scope(root)
+        assert scope in FIX_COMMIT_TRUNK_REFS
+        in_scope = set(_git(root, "rev-list", scope).split())
+        assert trunk_tip in in_scope
+        assert doomed not in in_scope, "the pinned scope still admits a dissolving tip"
+
+        # And the derivation built on it agrees — it is the derivation, not the
+        # constant, that decides what lands in the dataset.
+        cited = {row["provenance"]["commit"] for row in derive_fix_commit_rows(root)}
+        assert trunk_tip in cited
+        assert doomed not in cited

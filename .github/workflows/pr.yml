@@ -130,6 +130,12 @@ jobs:
               - 'backend/**'
               - 'tests/**'
               - 'scripts/**'
+              # #1528: the Ruff step lints agent-runtime/scripts, and tests/unit
+              # imports from it, so Python there belongs to the backend gate
+              # set. Deliberately the scripts subtree only — agent-runtime docs,
+              # config and artifacts, and .cursor/**, stay in the cheap `agent`
+              # domain below.
+              - 'agent-runtime/scripts/**'
               - 'pyproject.toml'
               - 'pytest.ini'
               - 'alembic.ini'
@@ -263,8 +269,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e "./backend[dev]" -c backend/constraints.txt
           pip freeze | sort
+      # agent-runtime/scripts is inside the perimeter (#1528, CI-WAVE-1). It
+      # holds every harness gate, generator and schema validator and was linted
+      # by nothing until now. It resolves to the repo-root ruff.toml profile
+      # (E4,E7,E9,F) by Ruff's nearest-config rule, exactly like `tests` and
+      # `scripts` — no per-path narrowing was invented for it. Widening the
+      # repo-root profile to backend/pyproject.toml's (E,F,I,UP) is the
+      # follow-up already named in ruff.toml's own comment; it surfaces 86
+      # further pre-existing findings here (59 E501) and needs its own change.
       - name: Ruff
-        run: ruff check backend/src/juli_backend tests scripts
+        run: ruff check backend/src/juli_backend tests scripts agent-runtime/scripts
       - name: Credentials-in-URL guard (#904)
         run: python agent-runtime/scripts/ci/check_credentials_in_url.py backend/src/juli_backend tests scripts
 
@@ -421,6 +435,22 @@ jobs:
       PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v7
+        with:
+          # #1540/#1570: a depth-1 checkout makes origin/main an unknown
+          # revision, so any gate anchored to a base ref fails for a reason
+          # unrelated to the change under test. This enables #1540/#1561's
+          # base-ref resolver; it does not repair a currently-red test — all
+          # five base-anchored modules pass at depth 1 as well as at 200
+          # (82 passed in both, measured on real clones).
+          #
+          # Bounded, NOT 0. Depth 200 resolves merge-base while leaving
+          # `git rev-parse --is-shallow-repository` true. At depth 0
+          # eval/negative_dataset.py::history_is_complete() flips to True and
+          # #1579's two rows fail. Note that 200 is NOT a state that predicate
+          # describes: the clone is still shallow, yet 59 of the 125 git_commit
+          # rows are reachable, so that suite judges each row against what git
+          # actually holds rather than against a clone-wide verdict.
+          fetch-depth: 200
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -1170,6 +1200,17 @@ jobs:
       TIKTOK_APP_SECRET: ${{ secrets.TIKTOK_APP_SECRET }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          # #1573: this job runs the whole of tests/unit — the same corpus as
+          # `test`, including the base-anchored modules — so it needs the same
+          # history. cross-module-contracts filters to
+          # -k "contract or boundary or ownership", which does collect
+          # test_three_tier_ci_contract.py but not the other four base-anchored
+          # modules (test_checkout_preflight, test_differential_tdd,
+          # test_environment_provider, test_ratchets) — verified with
+          # --collect-only — which is why only these two jobs are deepened.
+          # Bounded, not 0: see `test`.
+          fetch-depth: 200
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
