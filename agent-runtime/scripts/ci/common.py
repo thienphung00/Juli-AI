@@ -92,11 +92,7 @@ def deep_merge_under(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str,
     """Recursively merge overlay into base; overlay values win at every level."""
     result = dict(base)
     for key, value in overlay.items():
-        if (
-            key in result
-            and isinstance(result[key], dict)
-            and isinstance(value, dict)
-        ):
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
             result[key] = deep_merge_under(result[key], value)
         else:
             result[key] = value
@@ -193,27 +189,110 @@ def git_current_branch() -> str | None:
         return None
 
 
-def git_changed_files(base_ref: str | None = None) -> list[str]:
-    """Return paths changed on this branch vs merge base (or working tree)."""
+class ChangedFilesUnresolved(RuntimeError):
+    """The changed-file set could not be determined (#1571).
+
+    Distinct from an empty diff *by construction*: ``[]`` means "nothing
+    changed", this means "the question could not be answered". The old code
+    returned ``[]`` for both, and every diff-driven gate read that as
+    "no relevant change -> nothing to check -> PASS".
+
+    Callers must degrade to a recorded failure carrying ``reason`` -- never to a
+    silent pass, and never to a guessed diff. This mirrors how the neighbouring
+    bootstrap-pin gate degrades (``harness_bootstrap_pin.py``, #1540): two gates
+    answering the same question degrade the same way.
+    """
+
+    def __init__(self, spec: str, reason: str) -> None:
+        super().__init__(f"changed-file set unresolved for {spec}: {reason}")
+        self.spec = spec
+        self.reason = reason
+
+
+def _git_capture(args: list[str], repo_root: Path) -> tuple[bool, str, str]:
+    """Run a git subcommand, returning ``(ok, stdout, stderr)`` without raising."""
     try:
-        if base_ref:
-            cmd = ["git", "diff", "--name-only", f"{base_ref}...HEAD"]
-        else:
-            base = os.environ.get("GITHUB_BASE_REF")
-            if base:
-                subprocess.run(
-                    ["git", "fetch", "origin", base, "--depth=1"],
-                    cwd=REPO_ROOT,
-                    check=False,
-                    capture_output=True,
-                )
-                cmd = ["git", "diff", "--name-only", f"origin/{base}...HEAD"]
-            else:
-                cmd = ["git", "diff", "--name-only", "HEAD"]
-        out = subprocess.check_output(cmd, cwd=REPO_ROOT, stderr=subprocess.DEVNULL, text=True, encoding="utf-8")
-        return [line.strip() for line in out.splitlines() if line.strip()]
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return []
+        proc = subprocess.run(
+            ["git", *args],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+    except OSError as exc:  # includes FileNotFoundError when git is absent
+        return False, "", f"git CLI unavailable: {exc}"
+    if proc.returncode != 0:
+        return False, proc.stdout or "", (proc.stderr or "").strip()
+    return True, proc.stdout or "", ""
+
+
+def _git_diff_names(spec: str, repo_root: Path) -> list[str]:
+    ok, out, err = _git_capture(["diff", "--name-only", spec], repo_root)
+    if not ok:
+        raise ChangedFilesUnresolved(spec, err or "git diff failed")
+    return [line.strip() for line in out.splitlines() if line.strip()]
+
+
+def _merge_base_exists(left: str, right: str, repo_root: Path) -> bool:
+    ok, _, _ = _git_capture(["merge-base", left, right], repo_root)
+    return ok
+
+
+def _repo_is_shallow(repo_root: Path) -> bool:
+    ok, out, _ = _git_capture(["rev-parse", "--is-shallow-repository"], repo_root)
+    return ok and out.strip() == "true"
+
+
+def _deepen_base(base: str, repo_root: Path) -> tuple[bool, str]:
+    """Fetch ``base`` with its history intact.
+
+    Never ``--depth=1``: truncating the base ref is the #1571 defect itself. A
+    depth-1 graft leaves ``origin/<base>`` resolvable *by name* while destroying
+    the history behind it, so the three-dot diff that follows aborts with "no
+    merge base". Deepen on demand instead, and report unresolvability honestly
+    when even that fails.
+    """
+    refspec = f"+refs/heads/{base}:refs/remotes/origin/{base}"
+    if _repo_is_shallow(repo_root):
+        ok, _, err = _git_capture(
+            ["fetch", "--unshallow", "--no-tags", "origin", refspec], repo_root
+        )
+        if ok:
+            return True, ""
+    else:
+        err = ""
+    ok, _, plain_err = _git_capture(["fetch", "--no-tags", "origin", refspec], repo_root)
+    return ok, plain_err or err
+
+
+def _changed_vs_base(spec: str, repo_root: Path, fetch_ref: str | None) -> list[str]:
+    if not _merge_base_exists(spec, "HEAD", repo_root):
+        # Only touch the network when the question cannot already be answered.
+        # A base that already resolves is queried without mutating the
+        # repository at all -- a read-only query stays read-only.
+        if fetch_ref is None:
+            raise ChangedFilesUnresolved(spec, "shares no merge base with HEAD")
+        ok, err = _deepen_base(fetch_ref, repo_root)
+        if not _merge_base_exists(spec, "HEAD", repo_root):
+            if not ok:
+                raise ChangedFilesUnresolved(spec, err or "git fetch failed")
+            raise ChangedFilesUnresolved(spec, "fetched, but shares no merge base with HEAD")
+    return _git_diff_names(f"{spec}...HEAD", repo_root)
+
+
+def git_changed_files(base_ref: str | None = None, repo_root: Path | None = None) -> list[str]:
+    """Return paths changed on this branch vs merge base (or working tree).
+
+    Raises :class:`ChangedFilesUnresolved` when the answer cannot be determined.
+    An empty list is reserved for the genuine answer "nothing changed".
+    """
+    root = repo_root or REPO_ROOT
+    if base_ref:
+        return _changed_vs_base(base_ref, root, fetch_ref=None)
+    base = os.environ.get("GITHUB_BASE_REF")
+    if base:
+        return _changed_vs_base(f"origin/{base}", root, fetch_ref=base)
+    return _git_diff_names("HEAD", root)
 
 
 def parse_architecture_map(path: Path | None = None) -> dict[str, ModuleInfo]:
@@ -749,13 +828,11 @@ def mandatory_fail_reasons(artifact: dict[str, Any]) -> list[str]:
     for finding in findings:
         if finding.get("type") == "security" and finding.get("severity") == "CRITICAL":
             reasons.append(
-                "CRITICAL security finding (no override): "
-                f"{finding.get('description', '')[:120]}"
+                f"CRITICAL security finding (no override): {finding.get('description', '')[:120]}"
             )
         if finding.get("type") in ("production_data_exposure", "data_exposure"):
             reasons.append(
-                "production data exposure (no override): "
-                f"{finding.get('description', '')[:120]}"
+                f"production data exposure (no override): {finding.get('description', '')[:120]}"
             )
 
     unit = artifact.get("testCoverage", {}).get("unit", {})
@@ -923,20 +1000,14 @@ def enrich_review_artifact(
     artifact["reviewFailures"] = review_failures
     artifact["findings"] = findings
     artifact["severity"] = aggregate_severity
-    artifact["securityFindings"] = [
-        f for f in findings if f.get("type") == "security"
-    ]
+    artifact["securityFindings"] = [f for f in findings if f.get("type") == "security"]
     artifact["architectureFindings"] = [
-        f
-        for f in findings
-        if f.get("type") in ("boundary_violation", "interface_change", "drift")
+        f for f in findings if f.get("type") in ("boundary_violation", "interface_change", "drift")
     ]
     artifact["maintainabilityFindings"] = [
         f for f in findings if f.get("type") in ("test_gap", "other", "drift")
     ]
-    artifact["suggestedRemediation"] = [
-        s for f in findings if (s := f.get("suggestion"))
-    ]
+    artifact["suggestedRemediation"] = [s for f in findings if (s := f.get("suggestion"))]
     artifact.setdefault("staticAnalysisExecuted", True)
     unit = artifact.get("testCoverage", {}).get("unit", {})
     artifact.setdefault("dynamicTestsExecuted", bool(unit.get("passed") or unit.get("failed")))
