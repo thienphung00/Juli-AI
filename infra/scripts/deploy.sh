@@ -445,7 +445,14 @@ deploy_lane_api() {
         log "FAIL: the database reported an empty alembic revision. Refusing to run the additive gate against the entire migration history, which would refuse for the wrong reason."
         return 1
     fi
-    if ! python3 "${CANONICAL_ROOT}/infra/scripts/migration_additive_gate.py" \
+    # The RELEASE interpreter, not system python3. The gate lazily imports
+    # alembic.config and safe_alembic_helpers (migration_additive_gate.py:727-731),
+    # and the VPS's system python3 has neither — so this exited "ADDITIVE-ONLY:
+    # ERROR / No module named 'alembic'" on every deploy from the moment #1555
+    # added it, which is why production sat 15 commits behind main. The
+    # current-revision call directly above already had this right.
+    if ! "${release_dir}/.venv/bin/python" \
+        "${CANONICAL_ROOT}/infra/scripts/migration_additive_gate.py" \
         --alembic-ini "${release_dir}/alembic.ini" \
         --from-revision "${FROM_REV}"; then
         record_step api migrations "gate_refused"

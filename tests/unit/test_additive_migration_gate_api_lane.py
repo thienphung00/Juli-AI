@@ -162,7 +162,11 @@ def test_migration_gate_uses_alembic_ini_pattern(deploy_script_text: str):
     gate_line = None
 
     for i, line in enumerate(lines):
-        if "migration_additive_gate.py" in line:
+        # The INVOCATION, not a mention of it. A comment naming the script used
+        # to match first and anchor the context window six lines too high, so
+        # this read as "the gate does not pass --alembic-ini" when the real
+        # invocation right below it did.
+        if "migration_additive_gate.py" in line and not line.lstrip().startswith("#"):
             gate_line = i
             break
 
