@@ -394,7 +394,15 @@ def test_ci_selectors_are_read_from_the_real_pr_yml():
     assert selectors["pytest"].deselected_markers == frozenset(
         {"live", "demo_contract", "migration_heavy", "phase_scaffold"}
     )
-    assert selectors["ruff check"].paths == ("backend/src/juli_backend", "tests", "scripts")
+    # Widened by #1528: agent-runtime/scripts joined the lint perimeter. This
+    # pin moves with pr.yml by design — it is the reference CI's scope is read
+    # from, so it must track a widening as faithfully as a narrowing.
+    assert selectors["ruff check"].paths == (
+        "backend/src/juli_backend",
+        "tests",
+        "scripts",
+        "agent-runtime/scripts",
+    )
     assert selectors["mypy"].paths == ("backend/src/juli_backend",)
 
     # Provably sourced: the raw text is a substring of the committed workflow.

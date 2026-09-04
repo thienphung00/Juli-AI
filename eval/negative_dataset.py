@@ -12,9 +12,10 @@ re-running its derivation* rather than by argument, so every row cites the file
 and line, the JSON pointer, or the commit it came from, together with a SHA-256
 of exactly the bytes that were read.  A source that is present and no longer
 hashes to the recorded digest is a hard failure, never a shrug:
-:class:`Resolution` keeps "source absent on this machine" and "source present
-and disagrees" as distinct outcomes precisely so the second can never be
-laundered into the first.
+:class:`Resolution` keeps "source absent on this machine", "source present but
+reachable from no ref" and "source present and disagrees" as distinct outcomes
+precisely so the last can never be laundered into the first two, nor they into
+it.
 
 Stdlib only.  CI installs ``./backend[dev] -c backend/constraints.txt`` and
 nothing else; #1457 lost a CI run to a ``jsonschema`` import that worked locally.
@@ -109,13 +110,17 @@ SPLITS = frozenset({"train", "holdout"})
 class Resolution(Enum):
     """Outcome of resolving one row's provenance against its source.
 
-    ``MISSING_SOURCE`` and ``MISMATCH`` are kept apart on purpose. Collapsing them
-    turns "I cannot check this here" into "this checks out", which is the vacuous
-    pass this epic exists to end.
+    ``MISSING_SOURCE``, ``UNREACHABLE`` and ``MISMATCH`` are kept apart on
+    purpose. Collapsing the first into the last two turns "I cannot check this
+    here" into "this checks out", which is the vacuous pass this epic exists to
+    end; collapsing ``UNREACHABLE`` into ``MISMATCH`` does the opposite and
+    reports a defect that is not there. A query that cannot answer must not
+    return a value that means something else (ADR-093).
     """
 
     RESOLVED = "resolved"
     MISSING_SOURCE = "missing_source"
+    UNREACHABLE = "unreachable"
     MISMATCH = "mismatch"
     MALFORMED = "malformed"
 
@@ -241,18 +246,36 @@ class ProvenanceResolver:
         )
         self._commits: dict[str, str] | None = None
         self._shallow: bool | None = None
+        self._object_cache: dict[str, bool] = {}
         self._transcript_cache: dict[str, dict[int, str]] = {}
         self._status_cache: dict[str, Any] = {}
 
     # -- git ---------------------------------------------------------------
     def history_is_complete(self) -> bool:
-        """False in a shallow clone, where `git log --all` can see only the tip.
+        """False in a shallow clone, where `git log --all` cannot see all history.
 
-        CI checks this repository out shallow for every job that runs `pytest
-        tests/` (.github/workflows/pr.yml:423 and 15 more), so git history is a
-        source that is genuinely *absent* there. Saying so is the honest answer;
-        reporting the commits as unretrievable defects would be a false positive,
-        and reporting them as resolved would be the vacuous pass this epic ends.
+        This answers a question about the *clone*, and a checkout has three
+        states, not two. Measured on real clones of this branch:
+
+        * ``fetch-depth: 1`` -- shallow, 0 of the 125 git_commit rows reachable.
+        * ``fetch-depth: 200`` -- still shallow (``--is-shallow-repository``
+          stays true, so this predicate still returns False), yet 59 of the 125
+          rows ARE reachable. A predicate that reports only "shallow" cannot
+          describe this state, and any caller that reads it as "therefore no
+          commit is retrievable" is wrong here. #1573 deepened `test` and
+          `full-regression` to 200 so base-anchored gates resolve merge-base,
+          and that is exactly the state they now run in.
+        * ``fetch-depth: 0`` -- complete; this flips to True.
+
+        Because of the middle state, do not use this to predict a per-row
+        outcome. ``tests/unit/test_negative_dataset.py`` asks git whether it
+        holds each individual commit instead, which is the only form stable
+        across all three. This predicate remains the right question for the
+        one thing it is asked below: whether a commit git does not have is
+        genuinely *absent* (shallow) or a real defect (complete). Reporting an
+        out-of-reach commit as a defect would be a false positive, and
+        reporting an unretrievable one as resolved would be the vacuous pass
+        this epic ends.
         """
         if self._shallow is None:
             result = subprocess.run(
@@ -281,6 +304,37 @@ class ProvenanceResolver:
                     index[sha] = subject
             self._commits = index
         return self._commits
+
+    def _objects_present(self, commits: Sequence[str]) -> frozenset[str]:
+        """Which of these SHAs the object database holds, whether or not a ref reaches them.
+
+        ``git log --all`` above walks refs, so it cannot see an object nothing
+        points at. ``cat-file --batch-check`` reads the database itself and can.
+        One subprocess for the whole batch, for the same reason the commit index
+        is built once: the dataset carries 125 commit rows.
+        """
+        if not commits:
+            return frozenset()
+        result = subprocess.run(
+            ["git", "cat-file", "--batch-check"],
+            cwd=self.repo_root,
+            input="\n".join(commits) + "\n",
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        present: set[str] = set()
+        for line in result.stdout.splitlines():
+            fields = line.split()
+            # "<sha> commit <size>" when held; "<name> missing" when not.
+            if len(fields) == 3 and fields[1] == "commit":
+                present.add(fields[0])
+        return frozenset(present)
+
+    def _object_present(self, commit: str) -> bool:
+        if commit not in self._object_cache:
+            self._object_cache[commit] = commit in self._objects_present([commit])
+        return self._object_cache[commit]
 
     # -- status records -----------------------------------------------------
     def _status_document(self, relative: str) -> Any:
@@ -322,14 +376,31 @@ class ProvenanceResolver:
         digest = provenance["sha256"]
 
         if kind == "git_commit":
-            subject = self._commit_index().get(provenance["commit"])
-            if subject is None:
-                # In a full clone a commit nobody has is a real defect; in a
-                # shallow one it is simply out of reach. Never conflate the two.
+            commit = provenance["commit"]
+            subject = self._commit_index().get(commit)
+            if subject is not None:
                 return (
-                    Resolution.MISMATCH if self.history_is_complete() else Resolution.MISSING_SOURCE
+                    Resolution.RESOLVED if sha256_text(subject) == digest else Resolution.MISMATCH
                 )
-            return Resolution.RESOLVED if sha256_text(subject) == digest else Resolution.MISMATCH
+            if self._object_present(commit):
+                # The object is here but no ref reaches it: a squash-merge
+                # dissolved the branch that pointed at it. It survives only in
+                # the clone that curated the row, so nobody else can re-derive
+                # it — but the evidence does not *disagree*, and calling that
+                # MISMATCH reports a defect that is not there. The digest is
+                # deliberately not consulted: a subject nobody can retrieve
+                # cannot be adjudicated either way. #1579.
+                #
+                # Note this branch is only ever taken in that curating working
+                # copy. No clone transfers a dangling object at ANY depth --
+                # git's transfer enumerates by walking refs -- so everywhere
+                # else the object is absent and the row falls through to the
+                # branch below, which reports MISMATCH in a complete clone.
+                return Resolution.UNREACHABLE
+            # Nothing here at all. In a complete clone that is a real defect —
+            # the row cites a commit that does not exist. In a shallow one it is
+            # simply out of reach. Never conflate the two.
+            return Resolution.MISMATCH if self.history_is_complete() else Resolution.MISSING_SOURCE
 
         if kind == "status_record":
             document = self._status_document(provenance["file"])
@@ -362,6 +433,23 @@ class ProvenanceResolver:
                     wanted[name].append(number)
         for name, numbers in wanted.items():
             self._transcript_lines(name, numbers)
+
+        # Same idea for the object probe: ask git once about every commit no ref
+        # reaches, rather than once per row.
+        index = self._commit_index()
+        unreached = [
+            provenance["commit"]
+            for row in rows
+            if isinstance(provenance := row.get("provenance"), dict)
+            and provenance.get("kind") == "git_commit"
+            and isinstance(provenance.get("commit"), str)
+            and provenance["commit"] not in index
+            and provenance["commit"] not in self._object_cache
+        ]
+        if unreached:
+            present = self._objects_present(unreached)
+            self._object_cache.update({sha: sha in present for sha in unreached})
+
         return [self.resolve(row.get("provenance") or {}) for row in rows]
 
 
