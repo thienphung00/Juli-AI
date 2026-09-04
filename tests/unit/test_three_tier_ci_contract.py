@@ -413,6 +413,35 @@ def test_base_anchored_jobs_fetch_origin_main_after_checkout(job: str) -> None:
         "swing from MISSING_SOURCE to RESOLVED"
     )
 
+    # #1604 follow-up: a lone depth-bounded fetch of `main` against an
+    # already-shallow checkout moves the shallow boundary and can unreach a
+    # commit `actions/checkout`'s own fetch had made reachable -- measured
+    # directly in a faithful checkout repro: fix_commits/957d94212a58b698's
+    # commit (7ae85937d9b74314304de765b5257c46dc237cc6, from #943) stayed
+    # `git cat-file -t`-visible but dropped out of `git rev-list --all` after
+    # exactly this main-ref fetch. A single `git fetch` naming both refspecs
+    # together avoids it, but `actions/checkout` owns the first fetch
+    # opaquely, so the two cannot be merged into one invocation. Re-fetching
+    # the checked-out commit by its own sha immediately after restores the
+    # boundary the main fetch moved -- verified empirically against the live
+    # repo (origin/main resolves, is-shallow-repository stays true,
+    # merge-base resolves, and the #943 commit stays reachable).
+    fetch_commands = [
+        line.strip() for line in fetch_run.splitlines() if line.strip().startswith("git fetch")
+    ]
+    assert len(fetch_commands) >= 2, (
+        f"the `{job}` job's origin/main fetch step issues only one `git fetch`; "
+        "a lone depth-bounded fetch of `main` moves the shallow boundary and "
+        "can unreach a commit the checkout's own fetch had made reachable "
+        "(#1604 follow-up) -- it must be followed by a re-fetch of the "
+        "checked-out commit, by sha, to restore that boundary"
+    )
+    assert "rev-parse HEAD" in fetch_run, (
+        f"the `{job}` job's origin/main fetch step does not re-fetch the "
+        "checked-out commit by its own sha after fetching `main`, so the "
+        "shallow boundary the main fetch moved is never restored (#1604 follow-up)"
+    )
+
 
 def test_pr_workflow_never_deploys() -> None:
     workflow = _workflow()
