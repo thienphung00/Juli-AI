@@ -1497,6 +1497,7 @@ are committed beside this plan and are the source of truth for the corrections b
 | Returns, refunds, cancellation | [`seller-journeys/returns-refunds.md`](seller-journeys/returns-refunds.md) | 8a, 8b, 8c |
 | Customers & customer service | [`seller-journeys/customers.md`](seller-journeys/customers.md) | Resolve Recurring Complaints (deferred), future responses |
 | Mega Sale preparation and peak-day operations | [`seller-journeys/mega-sale-prep.md`](seller-journeys/mega-sale-prep.md) | 5, 3, 7a–7c, 8; platform-campaign registration has NO Partner API |
+| Process Order actors per fulfilment path (Partner API + Academy) | [`seller-journeys/process-order-actors.md`](seller-journeys/process-order-actors.md) | 5, 6, 5B; Vietnam is on the SEA "schedule shipping" flow — Create Packages and Confirm Package Shipment are not seller steps, Ship Package is the pivotal write, FBT is monitor-only |
 
 Eight findings change workflows rather than annotate them:
 
@@ -1566,7 +1567,7 @@ Composite is the product of the four columns — a ranking device only, not a un
 | 0 | Template hardening | shared | **W9-A** (T-1..T-3); the rest with the first W10 workflow that needs it | `workflow_key` on `workflow_runs`; polymorphic bound subject (nullable `product_id`, active-run index on `(shop_id, workflow_key, subject_ref)`); domain-registered tool dispatcher replacing `ProductToolExecutor`'s literal handler dicts; shared prompt sections extracted per ADR-072 d.1; the two gate tests de-pinned from `optimize_product_2`; step input contracts (deferred-design half 1). **Also the deadline clock, the `waiting_external` run state and the autonomy ladder** (see NFR reference) — Inventory and Customer Service cannot ship without them |
 | 1 | Optimize Product pricing realignment | Product | **W9-A** — see [where it lands](#where-the-optimize-product-pricing-realignment-lands-2026-09-03) | Read TikTok's diagnostics first (before `get_seo_keywords`); reprice via Product Discount with the campaign/Flash-Deal precheck; title-length gate; never bundle the four listing fields. Introduces the first Promotion write tool. **design: [ADR-090](../../adr/090-optimize-product-realignment.md)** |
 | 2 | Clear Excess Inventory (4) | Inventory | W10 | Drop the markdown; pre-submit validator (bands, duration, floor, stacking); end with the Thanh lý label. First workflow to need `waiting_external`. **design: [ADR-091](../../adr/091-clear-excess-inventory-design.md)** |
-| 3 | Process Order (5) + Handle Split Package (6) | Operations | W10 | An everyday operations workflow whose **non-functional requirement is sustained high-volume processing during a mega sale**: order volume multiplies while the 14:00 cutoff, the 2–3-working-day auto-cancel, the 48 h cancellation window and LDR/FDR do not move. The deadline clock is the run's spine; `waiting_external` and its intervention guard are reused from ADR-091; inventory webhooks (#27/#68) drive an **oversell guard** that pauses dispatch proposals for a SKU whose available stock has reached zero; packing and handover are presented as a timed human checklist. Combine/split is decided at Create Packages, not downstream; an Update Delivery Status step for Ship-by-Seller; a failed-delivery terminal branch; OHC capacity and Holiday Mode as capacity levers; multi-warehouse modelled — [`seller-journeys/order-shipping.md`](seller-journeys/order-shipping.md) and [`seller-journeys/mega-sale-prep.md`](seller-journeys/mega-sale-prep.md) §B/§E |
+| 3 | Process Order (5) + Handle Split Package (6) | Operations | W10 | An everyday operations workflow whose **non-functional requirement is sustained high-volume processing during a mega sale**: order volume multiplies while the 14:00 cutoff, the 2–3-working-day auto-cancel, the 48 h cancellation window and LDR/FDR do not move. The deadline clock is the run's spine; `waiting_external` and its intervention guard are reused from ADR-091; inventory webhooks (#27/#68) drive an **oversell guard** that pauses dispatch proposals for a SKU whose available stock has reached zero; packing and handover are presented as a timed human checklist. Combine/split is decided at Create Packages, not downstream; an Update Delivery Status step for Ship-by-Seller; a failed-delivery terminal branch; OHC capacity and Holiday Mode as capacity levers; multi-warehouse modelled — [`seller-journeys/order-shipping.md`](seller-journeys/order-shipping.md) and [`seller-journeys/mega-sale-prep.md`](seller-journeys/mega-sale-prep.md) §B/§E. **design: [ADR-092](../../adr/092-process-order-dispatch-design.md)** — v1 scoped minimal (FBS + platform shipping, two runs a day, one batch confirmation, notification-only exceptions, Batch Ship as the only write); the v2 column is the mega-sale NFR; the standing approval (option 2) is planned and deferred |
 | 4 | Replenish Inventory (3), FBS | Inventory | W10 | Consume TikTok's recommended quantity; three write guards; supplier as a human-relayed **attested report**; `waiting_external` for the delivery wait; `received_quantity` stays a post-execution field |
 | 5 | Mega Sale Readiness | Operations/Promotion | W10 | **New.** The T-10 preparation companion to item 3: one card per campaign event (the subject is the campaign, not a product), carrying a **read-only briefing** — eligibility pre-flight, a per-SKU max-safe campaign price computed from the seller's own margin floor and 30–180-day price memory, a stock reservation plan, and the registration deadline on the deadline clock — that ends in a Seller Center checklist. The single write is post-approval **promo-stacking cleanup**: deactivate the seller promotions the campaign price silences. **Platform-campaign registration has no Partner API**, so nothing about registration is ever a write Juli performs — [`seller-journeys/mega-sale-prep.md`](seller-journeys/mega-sale-prep.md) §E |
 | 6 | Create Hero Product (1) | Product | W10 | Image → title → suggested category → attributes; draft vs submit; rejection loop distinguishing *Không thành công* (resubmit) from *Đóng băng* (terminal); 2026-03-20 licence attributes |
@@ -1574,6 +1575,43 @@ Composite is the product of the four columns — a ranking device only, not a un
 | 8 | Returns, Refunds, Cancellation (8a–8c) | Customer Service | W10 | Two-decision return model; TikTok timers as run state; every reject and negotiation offer prepared with evidence and paused for CONFIRM; AHT as the optimisation target |
 | 9 | Customer Service responses | Customer Service | W10 | Subscribe webhooks #13/#14; ingest 12HRR/CSAT/NRR; draft-only replies over the unanswered queue ranked by time-to-breach; evidence packs for report-invalid-review and report-abusive-buyer |
 | — | Deferred | — | — | FBT replenishment (scope + onboarded shop); Livestream (no write API) |
+
+#### Common workflow structure — identical UX, per-case internals
+
+Owner directive, 2026-09-04: every agent workflow follows the **same five-stage structure** and
+the seller-facing UX is **identical** across workflows. What differs per workflow is the
+predicate, the tools, the guards and the measure — never the surfaces the seller learns once.
+
+- **Stage A — Monitoring.** Scheduled scoring or a webhook-driven basis change emits a
+  subject-scoped card through the ADR-087 no-duplicate path, or suppresses with a named reason.
+- **Stage B — Decision plan review and approval.** One card anatomy: situation, evidence, the
+  Main KPI with its real trend and a directional goal, an agent-proposed value for every field,
+  and human checklist items wherever TikTok has no API. Approve is run creation (ADR-075).
+- **Stage C — Run.** Reads → a **deterministic rule** computes every price- or quantity-bearing
+  parameter (the model never picks a number) → validator at dispatch → **one CONFIRM pause with
+  a single proposal** (one lever per run, N = 1) whose proposed change states the consequences →
+  **re-verify immediately before the write** → **exactly one write** (single or batch) → vendor
+  confirmation via webhook → completion digest.
+- **Stage D — Suspended close-out**, only where the workflow waits on the world:
+  `waiting_external` with its own reaper policy and the intervention guard — the seller changes
+  the thing, the run closes, Juli reverts nothing.
+- **Stage E — Measure.** A did-the-job fact per run plus the hedged impact reading; no reading
+  for a run that wrote nothing.
+
+Honest end states everywhere: `completed` with a named cause, never `failed` for "nothing to do".
+The identical surfaces: the card, the plan review, the confirmation sheet, the notification and
+digest, the completion message, the exception list. **A workflow that needs a new surface is a
+signal the design is wrong**, and every later workflow ADR must carry the instantiation row below.
+
+| | ADR-090 Optimize Product | ADR-091 Clear Excess | ADR-092 Process Order (v1) |
+|---|---|---|---|
+| Subject | Product | Product (SKU evidence) | Dispatch window (Order for v2 exceptions) |
+| Trigger | Nightly scoring: CTOR drift, price tier, TikTok diagnosis codes | Nightly scoring: days of supply > 90 and low sell-through | Scheduled read of orders due before the next run |
+| Deterministic rule | Discount depth from T9 margin floor; diagnosis code selects the field | Depth envelope + recommended depth per SKU; stock goal | Clean predicate; sort by `rts_sla` |
+| Single write | Product Discount create, or one listing-field edit | Product Discount create (then deactivate on goal) | Batch Ship for the confirmed subset |
+| Suspended? | No (lapse emits a card revision) | Yes — until goal or expiry | No in v1; v2 exceptions only |
+| Guards | Diagnosis-first, title gate, never bundle four fields, lock via vendor rejection | Eight-rule validator, disclosure check, intervention guard | Re-verify before write, subset only, per-package read, cancellation and address guards |
+| Measure | Impact reading on the tied KPI | Goal progress; days of supply before/after | Shipped before deadline ÷ due |
 
 #### Automation vs monitoring — non-functional-requirement reference
 
@@ -1645,6 +1683,9 @@ Per-family plan:
 | 7c Update Activity `POST` vs `PUT` | `execution_layer.md:301-306` vs `contract-collection.md:1201` | `PUT` |
 | Flash-sale price-floor lookback 14 days vs 30 days | newer product flash-sale page vs older LIVE flash-sale page | **30 days** (conservative) |
 | `Search Activities` "does not exist" vs documented in the Partner API | `execution_layer.md:290-293` vs `partner-catalog.json` `POST /promotion/202309/activities/search` | Capture it on the sandbox before relying on it either way |
+| §5A step 4 Create Packages vs Partner docs "region specific to the US and JP" | `execution_layer.md` §5A vs `create-packages-202512.md:17`; VN production orders already carry `packages[]` | Read `package_id`; no create in SEA |
+| §5A step 7 Confirm Package Shipment vs "only warehouse service providers certified by the platform" | `execution_layer.md` §5A vs `supply-chain/confirm-package-shipment-202309.md:17` | Delete the step |
+| Ship-by-Seller auto-cancel 15 calendar days vs day 13 from payment | `seller-journeys/order-shipping.md` vs the SOF feature page | **13 days** |
 
 #### Edge-case matrix — unchanged
 
