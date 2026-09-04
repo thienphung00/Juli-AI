@@ -801,3 +801,353 @@ def test_no_committed_status_record_claims_git_history_for_a_gitignored_body() -
     assert not offenders, (
         "gateVersion 2 records claiming git history for gitignored bodies: " + ", ".join(offenders)
     )
+
+
+# --- #1562: the record carries the architectural-change signal --------------
+#
+# check_adr's rung 3 is the only rung a CI checkout can read (rung 2's review
+# body is gitignored by ADR-003). #1529 pointed it at metrics.criticalFindings,
+# an unfiltered count of findings of every type and severity, as a proxy for "an
+# interface moved". The tests below are the producer side of the replacement:
+# without them the consumer in tests/unit/test_check_adr_evidence.py would be
+# asserting against a value it supplies to itself, and nothing would prove the
+# generator ever writes one.
+
+
+def _pair(tmp_path: Path, monkeypatch, issue: int, **review_overrides) -> dict:
+    """Build one real status record from a real review+validation pair on disk."""
+    import generate_status_records as gsr
+
+    reviews = tmp_path / "reviews"
+    validation = tmp_path / "validation"
+    reviews.mkdir(exist_ok=True)
+    validation.mkdir(exist_ok=True)
+    review = {
+        "issue": issue,
+        "status": "PASS",
+        "criticalFindings": [],
+        "interfaceChanges": [],
+        "modulesTouched": [],
+        "testCoverage": {"acceptance": {"total": 1, "mapped": 1}},
+        "timestamp": "2026-09-01T00:00:00Z",
+    }
+    review.update(review_overrides)
+    (reviews / f"review-issue-{issue}.json").write_text(json.dumps(review), encoding="utf-8")
+    (validation / f"validation-issue-{issue}.json").write_text(
+        json.dumps(
+            {
+                "issue": issue,
+                "status": "PASS",
+                "readyForMerge": True,
+                "timestamp": "2026-09-01T00:01:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(gsr, "REVIEWS_DIR", reviews)
+    monkeypatch.setattr(gsr, "VALIDATION_DIR", validation)
+    monkeypatch.setattr(gsr, "WAVES_DIR", tmp_path / "waves")
+    record = gsr.build_status_record(issue)
+    assert record is not None
+    return record
+
+
+def test_the_record_carries_a_breaking_interface_change(tmp_path: Path, monkeypatch) -> None:
+    """The under-trigger this issue was filed for: a ``breaking: true`` entry
+    that produced no critical finding. ``derive_review_status`` forces neither a
+    finding nor a non-PASS status for one, so before #1562 nothing about it
+    survived into the only file CI can read."""
+    record = _pair(
+        tmp_path,
+        monkeypatch,
+        1562001,
+        interfaceChanges=[{"symbol": "score_shop", "breaking": True}],
+    )
+
+    assert record["architecturalChange"] == {
+        "value": True,
+        "signals": ["breaking-interface-change"],
+    }
+    assert record["metrics"]["criticalFindings"] == 0, (
+        "the count is zero here — which is exactly why it could never have carried this signal"
+    )
+
+
+def test_the_record_signal_is_not_a_finding_count(tmp_path: Path, monkeypatch) -> None:
+    """The over-trigger, at its source. Three critical findings, none of them an
+    interface change — the ordinary shape of 109 committed records. A boolean
+    lazily re-derived as ``criticalFindings > 0`` would satisfy the schema and
+    still demand an ADR on every one of them."""
+    record = _pair(
+        tmp_path,
+        monkeypatch,
+        1562002,
+        criticalFindings=[
+            {"type": "reliability", "severity": "CRITICAL"},
+            {"type": "security", "severity": "WARNING"},
+            {"type": "test_gap", "severity": "WARNING"},
+        ],
+    )
+
+    assert record["metrics"]["criticalFindings"] == 3
+    assert record["architecturalChange"] == {"value": False, "signals": []}
+
+
+def test_both_limbs_are_named_when_both_fire(tmp_path: Path, monkeypatch) -> None:
+    """``signals`` is the audit trail, so it must report every limb that fired,
+    not stop at the first."""
+    record = _pair(
+        tmp_path,
+        monkeypatch,
+        1562003,
+        criticalFindings=[{"type": "interface_change", "severity": "WARNING"}],
+        interfaceChanges=[{"symbol": "score_shop", "breaking": True}],
+    )
+
+    assert record["architecturalChange"]["value"] is True
+    assert sorted(record["architecturalChange"]["signals"]) == [
+        "breaking-interface-change",
+        "interface-change-finding",
+    ]
+
+
+@pytest.mark.parametrize(
+    "review",
+    [
+        {},
+        {"criticalFindings": [], "interfaceChanges": []},
+        {"criticalFindings": [{"type": "interface_change"}]},
+        {"criticalFindings": [{"type": "reliability"}, {"type": "interface_change"}]},
+        {"criticalFindings": [{"type": "reliability"}, {"type": "security"}]},
+        {"interfaceChanges": [{"symbol": "x", "breaking": True}]},
+        {"interfaceChanges": [{"symbol": "x", "breaking": False}]},
+        {"interfaceChanges": [{"symbol": "x"}]},
+        {
+            "criticalFindings": [{"type": "interface_change"}],
+            "interfaceChanges": [{"symbol": "x", "breaking": True}],
+        },
+    ],
+)
+def test_the_recorded_signal_agrees_with_the_rung_it_replaces(review: dict) -> None:
+    """The record must answer what rung 2 answers, or rung 3 is a second opinion
+    rather than the same opinion made visible.
+
+    Cross-checked against ``common.architectural_change_detected`` — the function
+    rung 2 evaluates live against the review body — with an empty diff, so only
+    the two review-derived limbs are in play. The third limb (a
+    ``docs/architecture/map.md`` edit) is deliberately not carried: it belongs to
+    the diff, the generator has no diff, and check_adr reads it conclusively at
+    rung 1 ahead of the record. Pinning the two here is what stops the record's
+    derivation and the gate's live derivation drifting apart silently.
+    """
+    from common import architectural_change_detected
+    from generate_status_records import derive_architectural_change
+
+    derived = derive_architectural_change(review)
+
+    assert derived["value"] == architectural_change_detected(review, [])
+    assert derived["value"] is bool(derived["signals"]), (
+        "the invariant check_adr enforces on read must hold at the source"
+    )
+
+
+@pytest.mark.parametrize(
+    "review",
+    [
+        {"criticalFindings": "not-a-list", "interfaceChanges": None},
+        {"criticalFindings": ["not-a-dict"], "interfaceChanges": ["not-a-dict"]},
+        {"criticalFindings": [None], "interfaceChanges": [7]},
+    ],
+)
+def test_a_malformed_review_body_yields_no_signal_rather_than_an_exception(review: dict) -> None:
+    """Asserted separately from the agreement test above, because here the two
+    functions genuinely diverge and the test should say so rather than hide it.
+
+    ``common.architectural_change_detected`` raises ``AttributeError`` on each of
+    these bodies — it calls ``.get`` on whatever the arrays contain. That is
+    pre-existing and deliberately not changed by #1562: it is rung 2's core,
+    which this slice preserves verbatim. But the generator runs unattended over
+    whatever the review loop wrote, and a record that fails to generate is a
+    record ``check_adr`` then cannot read — an exception here would convert a
+    malformed body into a *missing* signal by a much noisier route.
+
+    So the producer is defensive where the consumer is not, and never resolves a
+    malformed body upward: garbage is not evidence of an architectural change.
+    """
+    from generate_status_records import derive_architectural_change
+
+    assert derive_architectural_change(review) == {"value": False, "signals": []}
+
+
+def test_the_generated_record_validates_against_the_amended_schema(
+    tmp_path: Path, monkeypatch
+) -> None:
+    schema = json.loads(STATUS_SCHEMA_PATH.read_text(encoding="utf-8"))
+    record = _pair(
+        tmp_path,
+        monkeypatch,
+        1562004,
+        interfaceChanges=[{"symbol": "x", "breaking": True}],
+    )
+
+    assert validate_json_schema(record, schema) == []
+
+
+def test_an_unknown_signal_name_is_rejected_by_the_schema(tmp_path: Path, monkeypatch) -> None:
+    """The enum is the closed part of the design: a verdict can only be justified
+    by a limb this vocabulary names, so a future proxy cannot be smuggled in as a
+    free-text signal."""
+    schema = json.loads(STATUS_SCHEMA_PATH.read_text(encoding="utf-8"))
+    record = _pair(tmp_path, monkeypatch, 1562005)
+    record["architecturalChange"] = {"value": True, "signals": ["critical-findings-nonzero"]}
+
+    assert validate_json_schema(record, schema) != []
+
+
+def _merge_base() -> str | None:
+    """Resolve the commit this branch forked from, or ``None`` if nothing resolves.
+
+    The backfill question is only answerable relative to a *before*: a record that
+    carries the field because this branch generated it is the producer working,
+    and a record that existed before and has since acquired one is the thing the
+    Architect lock forbids. Only a base ref tells those two apart.
+
+    ``origin/main`` is the anchor rather than the immediate PR base, because the
+    lock is worded against ``main`` ("every gateVersion 2 record already on
+    main"). ``GITHUB_BASE_REF`` is preferred when CI sets it.
+    """
+    import os
+    import subprocess
+
+    candidates = []
+    if os.environ.get("GITHUB_BASE_REF"):
+        candidates.append(f"origin/{os.environ['GITHUB_BASE_REF']}")
+    candidates += ["origin/main", "main"]
+    for ref in candidates:
+        result = subprocess.run(
+            ["git", "merge-base", "HEAD", ref],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    return None
+
+
+def _records_at(ref: str) -> dict[str, str]:
+    """Filename -> blob content for every status record committed at ``ref``."""
+    listing = _git("ls-tree", "-r", "--name-only", ref, "--", "agent-runtime/artifacts/status")
+    assert listing.returncode == 0, listing.stderr
+    records: dict[str, str] = {}
+    for rel in listing.stdout.split():
+        blob = _git("show", f"{ref}:{rel}")
+        if blob.returncode == 0:
+            records[Path(rel).name] = blob.stdout
+    return records
+
+
+def test_no_committed_record_stopped_validating_and_none_was_backfilled() -> None:
+    """#1562's hard constraint: the ~317 records already on ``main`` keep
+    validating and are not backfilled. The new field is optional precisely so
+    this holds.
+
+    Asserted as a **delta against the schema at HEAD**, not as an absolute, and
+    the difference is not pedantry. Eight committed records are already
+    schema-invalid on ``main`` before this change — seven carry
+    ``metrics.modulesTouched`` entries typed as objects rather than strings, and
+    ``issue-1291.json`` has no ``review`` block at all. An absolute assertion
+    here would be red on arrival for reasons this slice did not cause and cannot
+    fix without either backfilling records (forbidden by the Architect lock) or
+    retyping ``modulesTouched`` (a different issue). Weakening it to "some
+    records are allowed to be invalid" would be worse: it would stop noticing
+    when *this* change breaks one. The delta notices exactly that.
+
+    Both halves are asserted — that the invalid set does not grow, and that no
+    record acquired the field — because validity alone would also be satisfied
+    by a backfill, which is the thing forbidden.
+    """
+    amended = json.loads(STATUS_SCHEMA_PATH.read_text(encoding="utf-8"))
+    head = _git("show", "HEAD:agent-runtime/docs/schemas/status-record.schema.json")
+    assert head.returncode == 0, head.stderr
+    baseline = json.loads(head.stdout)
+
+    status_dir = REPO_ROOT / "agent-runtime" / "artifacts" / "status"
+    records = sorted(status_dir.glob("issue-*.json"))
+    assert len(records) > 300, f"expected the committed corpus, found {len(records)}"
+
+    # The backfill half is scoped to records that existed BEFORE this branch, and
+    # that scoping is the fix for the self-blocking trap the #1562 review caught.
+    # Globbing the whole directory and flagging any record carrying the field made
+    # the field's own producer indistinguishable from a backfill, which deadlocked
+    # every future issue-tier PR: the retention guard fails without a committed
+    # record, and this assertion failed with one. A record is backfilled only if
+    # it existed at the merge base WITHOUT the field and has one now. A record
+    # this branch created is the producer working correctly.
+    #
+    # Comparing the base *content* rather than mere base membership is what keeps
+    # this true after #1562 lands: from then on base records legitimately carry
+    # the field, and "was already there" must not start reading as "was
+    # backfilled".
+    base_ref = _merge_base()
+    if base_ref is None:
+        pytest.skip("no base ref resolved in this checkout; the backfill half needs a 'before'")
+    before = _records_at(base_ref)
+
+    newly_invalid: list[str] = []
+    backfilled: list[str] = []
+    for path in records:
+        record = json.loads(path.read_text(encoding="utf-8"))
+        if validate_json_schema(record, amended) and not validate_json_schema(record, baseline):
+            newly_invalid.append(f"{path.name}: {validate_json_schema(record, amended)[0]}")
+        if "architecturalChange" not in record or path.name not in before:
+            continue
+        try:
+            had_it = "architecturalChange" in json.loads(before[path.name])
+        except json.JSONDecodeError:
+            had_it = False
+        if not had_it:
+            backfilled.append(path.name)
+
+    assert newly_invalid == [], (
+        f"{len(newly_invalid)} committed records validated before this change and "
+        f"stop validating after it: {newly_invalid[:5]}"
+    )
+    assert backfilled == [], (
+        f"{len(backfilled)} records that existed at {base_ref[:12]} without "
+        f"architecturalChange have acquired one, which the Architect lock forbids: "
+        f"{backfilled[:5]}"
+    )
+
+
+def test_no_pre_existing_status_record_was_rewritten() -> None:
+    """ "No sha256 changed. No backfill, no history rewrite." Asserted against git
+    rather than against file contents, because the claim is about the tree
+    differing from HEAD — which a content check cannot see.
+
+    Additions are excluded, and that is the point rather than a loosening. The
+    lock forbids rewriting records that already exist; committing a NEW record is
+    what an issue-tier PR is *required* to do, since the retention guard fails
+    without one. Flagging every porcelain entry conflated the two and made this
+    test the second half of the same deadlock the backfill assertion above
+    created — a reviewer generating the record for this very issue turned it red.
+
+    So only modification, deletion and rename are flagged: the operations that can
+    actually change a recorded sha256.
+    """
+    result = _git("status", "--porcelain", "--", "agent-runtime/artifacts/status")
+    assert result.returncode == 0, result.stderr
+
+    rewritten = []
+    for line in result.stdout.splitlines():
+        if not line.strip():
+            continue
+        code = line[:2]
+        if code == "??" or code[0] == "A":
+            continue  # a new record, which is what a PR is supposed to add
+        rewritten.append(line)
+
+    assert rewritten == [], "this slice rewrote pre-existing status records:\n" + "\n".join(
+        rewritten
+    )
