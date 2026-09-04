@@ -4,7 +4,7 @@
   "metrics": {
     "acceptanceMapped": 2,
     "acceptanceTotal": 2,
-    "criticalFindings": 2,
+    "criticalFindings": 1,
     "modulesTouched": [
       ".github/workflows/pr.yml",
       "tests/unit/test_three_tier_ci_contract.py",
@@ -14,21 +14,21 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1604.json",
     "ownerSignoffPresent": true,
-    "sha256": "b07830e9abb38cdca2004fe160b68257f640383fe043573b3856f6b25e7cc01f",
+    "sha256": "173bc35e9ade37060637de7499c1bb4e225c0a22f39089e72000321859e76d7d",
     "signoffRequired": false,
-    "status": "FAIL",
+    "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 10760,
-      "validationBytes": 22309
+      "reviewBytes": 6811,
+      "validationBytes": 22244
     },
     "claimVsExecuted": {
-      "citedCommandCount": 7,
-      "invokedCommandCount": 10556,
+      "citedCommandCount": 6,
+      "invokedCommandCount": 10595,
       "matchedCommandCount": 0,
-      "reason": "7 of 7 cited commands have no matching invocation in the session transcripts",
+      "reason": "6 of 6 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
       "status": "FAIL",
       "transcriptSources": [
@@ -38,40 +38,35 @@
         "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-open-terminal-in-code-08e55d"
       ],
       "transcriptsScanned": 44,
-      "unmatchedCommandCount": 7,
+      "unmatchedCommandCount": 6,
       "unmatchedCommands": [
         {
-          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_three_tier_ci_contract.py -k test_base_anchored_jobs_fetch_origin_main_after_checkout -v",
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_three_tier_ci_contract.py -k test_base_anchored_jobs_fetch_origin_main_after_checkout -q",
           "cycle": 1,
           "exitCode": 1
         },
         {
-          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_three_tier_ci_contract.py -k test_base_anchored_jobs_fetch_origin_main_after_checkout -v",
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_three_tier_ci_contract.py -k test_base_anchored_jobs_fetch_origin_main_after_checkout -q",
           "cycle": 1,
           "exitCode": 0
         },
         {
-          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_three_tier_ci_contract.py -v",
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_negative_dataset.py tests/unit/test_three_tier_ci_contract.py -q",
           "cycle": 1,
           "exitCode": 0
         },
         {
-          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_checkout_preflight.py tests/unit/test_differential_tdd.py tests/unit/test_environment_provider.py tests/unit/test_ratchets.py tests/unit/test_mutants.py tests/unit/test_three_tier_ci_contract.py -q",
+          "command": "ruff check backend tests scripts",
           "cycle": 1,
           "exitCode": 0
         },
         {
-          "command": "mutation probe: removed the new 'Fetch base ref (origin/main)' step from full-regression only, re-ran the parametrized test",
+          "command": "ruff format --check tests/unit/test_three_tier_ci_contract.py",
           "cycle": 1,
-          "exitCode": 1
+          "exitCode": 0
         },
         {
           "command": "actionlint .github/workflows/pr.yml",
-          "cycle": 1,
-          "exitCode": 0
-        },
-        {
-          "command": "ruff check tests/unit/test_three_tier_ci_contract.py && ruff format --check tests/unit/test_three_tier_ci_contract.py",
           "cycle": 1,
           "exitCode": 0
         }
@@ -171,7 +166,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1604-base-ref-fetch",
-        "head": "76ce5b8194eb11052089118b0f78d4493888be11",
+        "head": "be35ac8b3844100e338912a4e94a0343c6ffb6ec",
         "shallow": true
       },
       "moduleResolution": {
@@ -320,11 +315,11 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-04T08:10:14Z",
+  "timestamp": "2026-09-04T08:29:43Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1604.json",
-    "sha256": "5f39cb6493b44b6fe0378d17def1329a72ff9058f7883bcabe4e632a997534c5",
-    "status": "FAIL"
+    "sha256": "6f6ced1881dfe700fb5a57cc34e444c0f65f259da6a77f7c3c33f52dd5df0d37",
+    "status": "PASS"
   },
   "wave": "wave-harness-e-w5"
 }
