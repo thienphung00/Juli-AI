@@ -583,20 +583,53 @@ def derive_status_rows(
     return refs, pairs, outcomes
 
 
-#: Rule 6 walks HEAD, not `--all`, and that is a deliberate narrowing.
+#: Rule 6 walks the trunk, not `--all`, and that is a deliberate narrowing.
 #: `--all` finds 226 fix commits here against the prior measurement's 229, but 101
 #: of them live on branches that were squash-merged or never merged, so their SHAs
 #: exist in one clone on one machine and nowhere else. A provenance row nobody
 #: else can resolve cannot be disputed by re-running its derivation, which is the
 #: whole point of the slice; it also made the count drift run to run as a
-#: concurrent worktree committed. HEAD-reachable history is stable and shared.
-FIX_COMMIT_REF_SCOPE = "HEAD"
+#: concurrent worktree committed.
+#:
+#: This was `HEAD` until #1579, which is narrow enough to exclude other people's
+#: branches but not narrow enough to exclude *this* one: curating on a feature
+#: branch put two of its own pre-squash tips into the dataset, and the squash-merge
+#: then dissolved them, leaving rows nobody but that clone can resolve. A trunk ref
+#: cannot do that — a commit reachable from the trunk survives every later
+#: squash-merge, because a squashed commit is what the trunk is made of.
+FIX_COMMIT_TRUNK_REFS = ("origin/main", "main")
+FIX_COMMIT_REF_SCOPE = FIX_COMMIT_TRUNK_REFS[0]
+
+
+def resolve_fix_commit_scope(repo_root: Path = REPO_ROOT) -> str:
+    """The first trunk ref this checkout actually has, or a hard failure.
+
+    There is deliberately no fallback to `HEAD`: a silent one would reinstate
+    exactly the scope #1579 removed, and would do it precisely on the machines
+    least likely to notice. A clone that cannot name the trunk cannot curate a
+    durable citation, and saying so is the honest outcome.
+    """
+    for ref in FIX_COMMIT_TRUNK_REFS:
+        probe = subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if probe.returncode == 0 and probe.stdout.strip():
+            return ref
+    raise RuntimeError(
+        "cannot pin fix-commit curation: none of "
+        f"{', '.join(FIX_COMMIT_TRUNK_REFS)} resolves in {repo_root}. "
+        "Fetch the trunk before curating; HEAD is not an acceptable substitute (#1579)."
+    )
 
 
 def derive_fix_commit_rows(repo_root: Path = REPO_ROOT) -> list[dict[str, Any]]:
     """Rule 6 — a `fix:` commit naming an issue an earlier commit already named."""
     result = subprocess.run(
-        ["git", "log", FIX_COMMIT_REF_SCOPE, "--pretty=%H%x1f%aI%x1f%s"],
+        ["git", "log", resolve_fix_commit_scope(repo_root), "--pretty=%H%x1f%aI%x1f%s"],
         cwd=repo_root,
         capture_output=True,
         text=True,
@@ -752,10 +785,14 @@ def curate(
             "transcripts": len(sorted(transcript_root.glob("*.jsonl"))),
             "status_records": len(sorted(STATUS_DIR.glob("*.json"))),
             "repo_root": str(REPO_ROOT),
-            "fix_commit_ref_scope": FIX_COMMIT_REF_SCOPE,
+            # The ref actually walked, not the preferred one: a manifest that
+            # names a scope the run did not use cannot be re-derived from.
+            "fix_commit_ref_scope": resolve_fix_commit_scope(REPO_ROOT),
             "artifact_ref_oracle_scope": "--all",
             "scope_note": (
-                "Commit provenance is drawn from HEAD so every cited SHA is durable and shared. "
+                "Commit provenance is drawn from the trunk so every cited SHA is durable and "
+                "shared. It was HEAD until #1579, under which curating on a feature branch cited "
+                "two of that branch's own pre-squash tips; the squash-merge then dissolved them. "
                 "The artifactRef retrievability oracle deliberately uses --all instead: it is a "
                 "set-membership test rather than a citation, and --all is the widest, most "
                 "generous scope, so a ref dangling under it is dangling everywhere."
