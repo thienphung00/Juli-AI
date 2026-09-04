@@ -390,6 +390,12 @@ class ProvenanceResolver:
                 # MISMATCH reports a defect that is not there. The digest is
                 # deliberately not consulted: a subject nobody can retrieve
                 # cannot be adjudicated either way. #1579.
+                #
+                # Note this branch is only ever taken in that curating working
+                # copy. No clone transfers a dangling object at ANY depth --
+                # git's transfer enumerates by walking refs -- so everywhere
+                # else the object is absent and the row falls through to the
+                # branch below, which reports MISMATCH in a complete clone.
                 return Resolution.UNREACHABLE
             # Nothing here at all. In a complete clone that is a real defect —
             # the row cites a commit that does not exist. In a shallow one it is

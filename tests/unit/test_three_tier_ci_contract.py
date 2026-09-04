@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import importlib.util
 import json
 import os
 import re
@@ -219,10 +220,48 @@ def test_full_regression_isolates_unit_and_integration_processes() -> None:
     assert "--cov-append" in workflow
 
 
-# checkout_preflight.py refuses a base >= 50 commits behind origin/main, so a
-# branch that passed preflight is within 50 commits of it and a checkout at
-# least this deep contains the merge-base. Kept in step with BEHIND_FAIL there.
-MIN_BASE_ANCHORED_DEPTH = 50
+PREFLIGHT_ENGINE = ROOT / "agent-runtime" / "scripts" / "git" / "checkout_preflight.py"
+
+
+def _behind_fail_default(engine_path: Path = PREFLIGHT_ENGINE) -> int:
+    """``checkout_preflight.BEHIND_FAIL``'s *default*, read from the engine itself.
+
+    The floor below is only sound because preflight refuses a base that far
+    behind ``origin/main``: a branch that passed preflight is within BEHIND_FAIL
+    commits of it, so a checkout at least that deep contains the merge-base.
+    That made the two numbers a coupling, and until now the coupling was a
+    comment -- raising BEHIND_FAIL would silently invalidate the floor.
+
+    The reason it stayed a comment was that ``BEHIND_FAIL`` is env-overridable
+    (``JULI_PREFLIGHT_BEHIND_FAIL``), so reading the *resolved* value would make
+    this workflow-contract test depend on the ambient environment. Reading the
+    *default* does not: the variable is scrubbed for the duration of the load,
+    so the answer is 50 whether the caller's environment sets 999, sets junk, or
+    sets nothing. The override remains free to move preflight's runtime bar for
+    a deliberate long-lived branch without moving this contract.
+
+    Loaded the way the hook and ``tests/unit/test_checkout_preflight.py`` load
+    it -- registered in ``sys.modules`` first, or ``@dataclass`` raises on
+    import. Import is side-effect free; ``main()`` is behind an
+    ``if __name__`` guard.
+    """
+    saved = os.environ.pop("JULI_PREFLIGHT_BEHIND_FAIL", None)
+    name = "_preflight_engine_for_contract"
+    try:
+        spec = importlib.util.spec_from_file_location(name, engine_path)
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+        return int(module.BEHIND_FAIL)
+    finally:
+        sys.modules.pop(name, None)
+        if saved is not None:
+            os.environ["JULI_PREFLIGHT_BEHIND_FAIL"] = saved
+
+
+#: The depth floor for base-anchored jobs, derived rather than hand-copied.
+MIN_BASE_ANCHORED_DEPTH = _behind_fail_default()
 
 
 @pytest.mark.parametrize("job", ["test", "full-regression"])
@@ -281,6 +320,55 @@ def test_base_anchored_jobs_check_out_enough_history(job: str) -> None:
         "an unknown revision and every base-anchored gate fails for a reason "
         "unrelated to the change under test. Any depth > 1 is not enough: "
         "fetch-depth 2 reaches no merge-base either"
+    )
+
+
+def test_depth_floor_tracks_preflight_rather_than_copying_it(tmp_path: Path) -> None:
+    """The floor is derived from BEHIND_FAIL's default, and drift in it is caught.
+
+    Until #1579 this coupling was a comment: ``MIN_BASE_ANCHORED_DEPTH = 50``
+    hand-copied from ``checkout_preflight.BEHIND_FAIL``, so raising BEHIND_FAIL
+    would leave the floor silently unsound -- preflight would start admitting
+    bases further behind than the checkout reaches. Deriving it is only worth
+    doing if the derivation can go red, so this plants the drift and demands it.
+    """
+    # Environment-insensitive, which is the property that makes reading the
+    # engine acceptable in a workflow-contract test at all. The override still
+    # works at runtime; it just cannot move this contract.
+    baseline = _behind_fail_default()
+    for hostile in ("999", "0", "not-an-int"):
+        os.environ["JULI_PREFLIGHT_BEHIND_FAIL"] = hostile
+        try:
+            assert _behind_fail_default() == baseline, hostile
+        finally:
+            os.environ.pop("JULI_PREFLIGHT_BEHIND_FAIL", None)
+    assert MIN_BASE_ANCHORED_DEPTH == baseline
+
+    # The real invariant, stated: preflight admits a base up to BEHIND_FAIL - 1
+    # commits behind, so any checkout at least BEHIND_FAIL deep still contains
+    # the merge-base. A floor below that would not.
+    depths = [
+        yaml.safe_load(_workflow())["jobs"][job]["steps"][0].get("with", {}).get("fetch-depth")
+        for job in ("test", "full-regression")
+    ]
+    assert all(d >= baseline for d in depths), depths
+
+    # planted lie: an engine whose default drifted upward. The floor must follow
+    # it, which is what makes the shipped depth fall below the floor and the
+    # assertion above go red. A hand-copied constant would not have moved.
+    drifted = tmp_path / "checkout_preflight.py"
+    drifted.write_text(
+        PREFLIGHT_ENGINE.read_text(encoding="utf-8").replace(
+            '_env_int("JULI_PREFLIGHT_BEHIND_FAIL", 50)',
+            '_env_int("JULI_PREFLIGHT_BEHIND_FAIL", 100000)',
+        ),
+        encoding="utf-8",
+    )
+    assert _behind_fail_default(drifted) == 100000, (
+        "the drift was not planted; the source line this test rewrites has moved"
+    )
+    assert not all(d >= _behind_fail_default(drifted) for d in depths), (
+        "a raised BEHIND_FAIL left the depth floor satisfied, so the coupling is still not enforced"
     )
 
 

@@ -152,9 +152,21 @@ def _expected_commit_resolution(
     a third state the binary model excluded: measured on real clones of this
     branch, depth 1 reaches 0 of the 125 commit rows and depth 200 reaches 59,
     so no single clone-wide verdict is correct at both. Keyed per row, the same
-    expectation holds at depth 1, at 200 and in a complete clone -- including
-    the UNREACHABLE arm, which only a complete clone of this branch can reach
-    at all, because a shallow fetch never transfers a dangling object.
+    expectation holds at depth 1, at 200 and in a complete clone.
+
+    The UNREACHABLE arm is narrower than "complete clone", and the distinction
+    caught an earlier version of this docstring out. It is not that a *shallow*
+    fetch declines to transfer a dangling object -- **no clone transfers one at
+    all**, at any depth, because git's transfer protocol enumerates objects by
+    walking refs and nothing points at a dissolved commit. So the two rows in
+    ``DISSOLVED_COMMIT_ROWS`` report UNREACHABLE only in the working copy that
+    curated them, where the object was written locally and never left. Every
+    fresh clone -- complete ones included -- reports them MISSING_SOURCE from
+    this function and MISMATCH from the resolver, because there the objects are
+    genuinely absent. Measured, not inferred: ``cat-file --batch-check`` says
+    ``commit`` for both in the curating worktree and ``missing`` in a fresh
+    ``git clone`` of the same branch. Expect MISMATCH, not UNREACHABLE, when
+    reading this anywhere but the machine that ran the curation.
     """
     if commit in reachable:
         return Resolution.RESOLVED
@@ -164,8 +176,10 @@ def _expected_commit_resolution(
 #: The commit rows whose objects a squash-merge dissolved, by ``record_id`` (#1579).
 #: Recorded as an allowlist rather than a count so that a *new* dissolution is red
 #: on sight instead of being absorbed by a budget. Asserted as a subset, not an
-#: equality, because a shallow checkout holds neither object and so reports
-#: neither -- the assertion has to hold at every fetch depth. Curation is pinned
+#: equality, because no clone but the curating one holds these objects at all --
+#: not a depth question, a reachability one, since a clone transfers only what a
+#: ref reaches. Everywhere else the set is empty, and the subset has to hold
+#: there too. Curation is pinned
 #: to the trunk (``eval.curate_negatives.resolve_fix_commit_scope``) so this set
 #: cannot grow from a future derivation.
 DISSOLVED_COMMIT_ROWS = frozenset({"fix_commits/f6c0630567443eb4", "fix_commits/702867bf541e1fcd"})
