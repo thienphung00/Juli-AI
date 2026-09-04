@@ -451,6 +451,15 @@ jobs:
           # rows are reachable, so that suite judges each row against what git
           # actually holds rather than against a clone-wide verdict.
           fetch-depth: 200
+      # #1604: fetch-depth alone does not create `origin/main`. actions/checkout
+      # fetches only the ref it checks out (`+<sha>:refs/remotes/pull/<N>/merge`
+      # on a PR event) -- depth bounds how far back *that ref* goes, it cannot
+      # bring a second branch into existence. Without this, `origin/main` stays
+      # an unknown revision at any depth (live proof: PR #1561, run
+      # 33848493670). Bounded to the same 200, so the clone stays shallow --
+      # see the comment above; --depth 0 would flip history_is_complete().
+      - name: Fetch base ref (origin/main)
+        run: git fetch --depth=200 origin +refs/heads/main:refs/remotes/origin/main
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -1211,6 +1220,10 @@ jobs:
           # --collect-only — which is why only these two jobs are deepened.
           # Bounded, not 0: see `test`.
           fetch-depth: 200
+      # #1604: see `test` for why this is needed -- fetch-depth alone does
+      # not create `origin/main`.
+      - name: Fetch base ref (origin/main)
+        run: git fetch --depth=200 origin +refs/heads/main:refs/remotes/origin/main
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
