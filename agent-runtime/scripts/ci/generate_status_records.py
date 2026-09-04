@@ -77,6 +77,59 @@ GATE_VERSION = 2
 discover_providers()
 
 
+#: #1562: the two review-body limbs that mean "an interface moved". They are the
+#: review-derived half of ``common.architectural_change_detected`` -- the same
+#: two, named, so the record says *which* one fired instead of only that one did.
+#: The third limb of that function (a ``docs/architecture/map.md`` edit) is
+#: deliberately absent: it is a property of the diff, not of the review, this
+#: script has no diff, and ``check_adr`` reads it directly and conclusively at
+#: rung 1, ahead of the record. Folding it in would mean recording a stale
+#: answer to a question the reader can always answer for itself.
+SIGNAL_INTERFACE_CHANGE_FINDING = "interface-change-finding"
+SIGNAL_BREAKING_INTERFACE_CHANGE = "breaking-interface-change"
+
+
+def derive_architectural_change(review: dict[str, Any]) -> dict[str, Any]:
+    """Answer "was this an architectural change?" from the review body, in a form
+    a CI checkout can read (#1562).
+
+    ``check_adr``'s rung 3 previously answered this from
+    ``metrics.criticalFindings > 0`` -- an unfiltered count of findings of every
+    type and severity, standing in for "an interface moved". It is lossy in both
+    directions: it fires on 109 of the 316 committed records with a
+    guard-admitted review status (a blocking demand for an ADR on a third of
+    ordinary PRs), and it misses a ``breaking: true`` interface entry that
+    produced no critical finding, because ``derive_review_status`` forces neither
+    a finding nor a non-PASS status for one.
+
+    So the answer is computed here, once, from the body that actually carries the
+    evidence, and written into the one artifact directory ``.gitignore`` keeps
+    tracked. ``signals`` is not decoration: it names the limb that fired, which
+    makes the verdict auditable from the record alone and makes the shape hard to
+    counterfeit -- a boolean re-derived from a finding count can set ``value``
+    but cannot name a limb, and ``check_adr`` refuses a record whose ``value``
+    and ``signals`` disagree.
+
+    Never raises on a malformed body: a non-dict finding is skipped, not trusted.
+    A body that names no limb yields ``value: False`` -- which is a real answer,
+    because this function has read the whole body. It is the *record's absence*
+    of the field, not a ``False`` in it, that means "could not tell".
+    """
+    signals: list[str] = []
+    findings = review.get("criticalFindings")
+    if isinstance(findings, list) and any(
+        isinstance(finding, dict) and finding.get("type") == "interface_change"
+        for finding in findings
+    ):
+        signals.append(SIGNAL_INTERFACE_CHANGE_FINDING)
+    changes = review.get("interfaceChanges")
+    if isinstance(changes, list) and any(
+        isinstance(change, dict) and change.get("breaking") for change in changes
+    ):
+        signals.append(SIGNAL_BREAKING_INTERFACE_CHANGE)
+    return {"value": bool(signals), "signals": signals}
+
+
 def _sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -191,6 +244,11 @@ def build_status_record(issue: int) -> dict[str, Any] | None:
             ),
             "sha256": _sha256_bytes(validation_bytes),
         },
+        # #1562: the typed architectural-change answer, so check_adr's rung 3
+        # reads a signal instead of guessing from a finding count. Sits beside
+        # metrics rather than inside it: metrics is a bag of volume measures,
+        # and this is a verdict about the change, not a measurement of it.
+        "architecturalChange": derive_architectural_change(review),
         "metrics": {
             "acceptanceTotal": acceptance.get("total", 0),
             "acceptanceMapped": acceptance.get("mapped", 0),

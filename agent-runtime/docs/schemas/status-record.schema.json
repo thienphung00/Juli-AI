@@ -67,13 +67,37 @@
         }
       }
     },
+    "architecturalChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "signals"],
+      "description": "#1562: the typed answer to 'was this an architectural change?', derived by generate_status_records.py from the review body's two interface limbs and carried here because agent-runtime/artifacts/status/ is the ONLY artifact directory .gitignore keeps tracked — the review body itself never reaches CI (ADR-003: emit is not commit), so check_adr's rung 3 has nothing else to read. It replaces metrics.criticalFindings, which rung 3 used as a proxy: an unfiltered count of findings of every type and severity, non-zero on 109 of the 316 committed records with a guard-admitted review status, and therefore a demand for an ADR on a third of ordinary PRs. Deliberately OPTIONAL and additive, with NO gateVersion bump: absence is self-describing (a reader treats it as 'this source cannot answer' and falls through to fail-closed, never to 'no'), so the ~317 gateVersion 1 and 2 records already on main stay valid, unmodified and un-backfilled, and every existing reader stays correct. Bumping gateVersion would instead have disabled two behaviours keyed on the literal value 2 — check_artifact_retention_guard._ref_verdict's artifactRef integrity check and generate_status_records.relabel_policy_local_refs. The map.md diff limb of architectural_change_detected is deliberately NOT folded in here: the generator has no diff, and check_adr sees that limb directly and conclusively at rung 1, ahead of this record.",
+      "properties": {
+        "value": {
+          "type": "boolean",
+          "description": "True when at least one named signal fired. The invariant `value === (signals.length > 0)` is what makes this harder to fake than the count it replaces, and check_adr enforces it on read: a record breaking it is refused in BOTH directions rather than half-trusted."
+        },
+        "signals": {
+          "type": "array",
+          "description": "Which limb of the review body fired, so the verdict is auditable from the record alone. Closed enum: a boolean re-derived from something that is not an interface signal (metrics.criticalFindings, say) cannot name a member here, so it cannot claim value:true.",
+          "items": {
+            "type": "string",
+            "enum": ["interface-change-finding", "breaking-interface-change"]
+          }
+        }
+      }
+    },
     "metrics": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "acceptanceTotal": { "type": "integer", "minimum": 0 },
         "acceptanceMapped": { "type": "integer", "minimum": 0 },
-        "criticalFindings": { "type": "integer", "minimum": 0 },
+        "criticalFindings": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "len(review.criticalFindings) — an unfiltered count of findings of every type and severity. A volume measure, and NOT a signal that an interface moved: #1562 removed its use as check_adr's architectural-change proxy, where it false-positived on 109 of 316 records. Use architecturalChange for that question."
+        },
         "modulesTouched": {
           "type": "array",
           "items": { "type": "string" }
