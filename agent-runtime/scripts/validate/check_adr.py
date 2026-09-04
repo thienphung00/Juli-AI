@@ -28,11 +28,20 @@ from common import (  # noqa: E402
 # looked and found nothing".
 UNRESOLVED = "unresolved"
 
-# What the committed status record cannot see. Reported in the gate's details on
-# every verdict it decides, so the residual gap is legible rather than implied.
-STATUS_RECORD_BLIND_SPOT = (
-    "status record carries no interfaceChanges: a breaking interface change that "
-    "produced no critical finding is not visible to this source (#1529)"
+# What the committed status record still cannot see, now that it carries the
+# answer itself (#1562). Reported in the gate's details on every verdict this
+# source decides, so the residual gap stays legible rather than implied.
+#
+# It is deliberately no longer the interfaceChanges gap #1529 declared. The
+# record now carries both review-derived limbs, so continuing to announce that
+# gap would be a notice outliving its limitation -- which is worse than none: it
+# teaches a reader to discount the whole list. What is left is narrower and true:
+# the answer was computed when the record was generated and is not re-derived
+# now, so a review body amended afterwards is not reflected here.
+STATUS_RECORD_SNAPSHOT_LIMIT = (
+    "status record answers from the review body's interface limbs as they stood "
+    "when the record was generated; the body is not re-read here, so a review "
+    "amended after generation is not reflected (#1562)"
 )
 
 
@@ -61,6 +70,75 @@ def _load_status_record(issue: int) -> dict[str, Any] | None:
     return record if isinstance(record, dict) else None
 
 
+def _architectural_change_from_record(record: dict[str, Any]) -> bool | None:
+    """Read the record's typed architectural-change answer, or ``None`` if it has
+    none this gate is willing to trust (#1562).
+
+    Three ways to get ``None``, and the difference matters to the caller only in
+    that all three fall through to the fail-closed rung:
+
+    * **Absent.** Every one of the ~317 records already on ``main`` predates this
+      field and is never backfilled. Absence means *this source cannot answer* --
+      it must not be read as "no", which is the precise defect #1529 was filed
+      for and would simply have moved one field to the left.
+    * **Malformed.** A ``value`` that is not a boolean, or ``signals`` that is
+      not a list, was not written by ``generate_status_records``.
+    * **Internally inconsistent.** ``value`` is true exactly when ``signals``
+      names a limb that fired. A record breaking that invariant is refused in
+      *both* directions rather than half-trusted -- this is what makes the field
+      harder to counterfeit than the ``metrics.criticalFindings`` count it
+      replaces, where any non-zero integer was a positive verdict.
+
+    Note what is NOT consulted: ``metrics.criticalFindings``. It is a count of
+    findings of every type and severity, non-zero on 109 of the 316 committed
+    records with a guard-admitted review status, and reading it as "an interface
+    moved" made this blocking gate demand an ADR on a third of ordinary PRs.
+    """
+    block = record.get("architecturalChange")
+    if not isinstance(block, dict):
+        return None
+    value = block.get("value")
+    signals = block.get("signals")
+    if not isinstance(value, bool) or not isinstance(signals, list):
+        return None
+    if value is not bool(signals):
+        return None
+    return value
+
+
+def _unresolved_reason(issue: int) -> str:
+    """Say which of the two ways rung 4 was reached actually happened (#1562).
+
+    The verdict, the exit code and the fail-closed posture are #1529's and are
+    untouched; only the sentence is corrected. #1529 wrote one message asserting
+    "no status record exists", which was true then because a record could always
+    answer -- it carried a ``criticalFindings`` integer. Now a record can be
+    present and silent (every record on ``main`` predates ``architecturalChange``
+    and none is backfilled), so the single message had become false for the
+    commonest case: run against issue 718, whose record is committed, it told the
+    reader to go look for a file that is already there.
+    """
+    record_path = STATUS_DIR / f"issue-{issue}.json"
+    # Named repo-relative, as #1529 did: an absolute path from a CI runner's
+    # checkout directory is noise to the person reading the log.
+    shown = f"agent-runtime/artifacts/status/issue-{issue}.json"
+    if record_path.is_file():
+        why = (
+            f"the review body is gitignored by ADR-003 and {shown} carries no "
+            "architecturalChange signal (records written before #1562 are not "
+            "backfilled), so no source could answer"
+        )
+    else:
+        why = (
+            "the review body is gitignored by ADR-003 and no status record exists at "
+            f"{shown}, so no source could answer"
+        )
+    return (
+        f"Cannot determine whether issue {issue} is an architectural change: {why}, "
+        "and this diff adds no ADR. Failing closed rather than reading silence as 'no'."
+    )
+
+
 def resolve_architectural_change(
     issue: int, changed: list[str]
 ) -> tuple[bool | None, str, list[str]]:
@@ -84,18 +162,25 @@ def resolve_architectural_change(
        ``interfaceChanges[].breaking``. Present in the local loop, never in CI.
     3. ``status-record`` -- ``agent-runtime/artifacts/status/issue-<N>.json`` is
        the one artifact directory that is not gitignored, so it is the only
-       review-derived evidence a CI checkout can see, and
-       ``metrics.criticalFindings`` is derived from the review body by
-       ``generate_status_records.py``. It answers in both directions, with one
-       gap it must declare rather than hide: the record carries no
-       ``interfaceChanges``, and ``derive_review_status`` forces neither a
-       critical finding nor a non-PASS status for a ``breaking: true`` entry, so
-       a ``breaking`` interface change that produced no critical finding is
-       invisible here. Closing that needs an ``architecturalChange`` boolean on
-       the record itself (issue #1529, notes) -- a schema change to
-       ``generate_status_records.py`` and its consumers, out of scope for this
-       gate. Until then the limitation rides in the gate's own details, where a
-       reader can see it, instead of being silently spent as a PASS.
+       review-derived evidence a CI checkout can see. It carries
+       ``architecturalChange``, the typed answer ``generate_status_records.py``
+       computes from the *same two review-body limbs* rung 2 evaluates live
+       (#1562), so this rung is now as informative as rung 2 rather than a
+       narrower guess at it. It answers in both directions.
+
+       It reads that field and nothing else. In particular it does not read
+       ``metrics.criticalFindings``, which #1529 used as a proxy for "an
+       interface moved": an unfiltered count of findings of every type and
+       severity, non-zero on 109 of the 316 committed records with a
+       guard-admitted review status, so a blocking gate built on it demanded an
+       ADR on a third of ordinary PRs -- a factual gate that false-positives,
+       which Architect lock 5 forbids, and an inversion of this epic's own defect
+       class from "a gate that passes by not looking" into "a review that reports
+       nothing so the gate passes".
+
+       A record with no ``architecturalChange`` field -- every record already on
+       ``main``, none of which is backfilled -- is not an answer, and drops to
+       rung 4 rather than being read as "no".
     4. Nothing left: ``None``. The caller fails closed, matching
        ``check_artifact_retention_guard``'s posture -- red until the status
        record lands, by design.
@@ -112,10 +197,9 @@ def resolve_architectural_change(
 
     record = _load_status_record(issue)
     if record is not None:
-        metrics = record.get("metrics")
-        count = metrics.get("criticalFindings") if isinstance(metrics, dict) else None
-        if isinstance(count, int):
-            return count > 0, "status-record", [STATUS_RECORD_BLIND_SPOT]
+        answer = _architectural_change_from_record(record)
+        if answer is not None:
+            return answer, "status-record", [STATUS_RECORD_SNAPSHOT_LIMIT]
 
     return None, UNRESOLVED, []
 
@@ -149,17 +233,7 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:
         return True, "No architectural change detected", details
     if not adrs:
         if arch_change is None:
-            return (
-                False,
-                (
-                    f"Cannot determine whether issue {issue} is an architectural "
-                    "change: the review body is gitignored by ADR-003 and no "
-                    "status record exists at agent-runtime/artifacts/status/"
-                    f"issue-{issue}.json, so no source could answer, and this diff "
-                    "adds no ADR. Failing closed rather than reading silence as 'no'."
-                ),
-                details,
-            )
+            return False, _unresolved_reason(issue), details
         return False, "Architectural change requires new ADR in docs/adr/", details
     # Fail-closed, not fail-always: a well-formed ADR in the diff satisfies the
     # requirement whichever way the unreadable review would have gone, so an
@@ -169,14 +243,36 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:
     return True, "ADR present for architectural change", details
 
 
+def format_evidence(description: str, details: dict[str, Any]) -> str:
+    """Render the verdict *and* the evidence it rests on into one detail line.
+
+    ``main`` previously did ``passed, description, _ = run_check(issue)`` and
+    passed ``"" if passed else description`` to ``print_check_result``, so on the
+    PASS path CI printed a bare ``adr_requirement: PASS`` and on the FAIL path
+    the reason with no provenance. ``evidenceSource`` and ``evidenceLimitations``
+    -- which this module's docstring says ride in the gate's own details "where a
+    reader can see it" -- were reachable only from unit tests and never appeared
+    in the one place the gate actually blocks. A declaration nobody is shown is
+    not a declaration, so both verdicts now carry it.
+    """
+    evidence = (
+        f"evidenceSource={details['evidenceSource']}, "
+        f"architecturalChange={details['architecturalChange']}"
+    )
+    limitations = details.get("evidenceLimitations") or []
+    if limitations:
+        evidence += "; limitations: " + " | ".join(limitations)
+    return f"{description} [{evidence}]"
+
+
 def main() -> int:
     args = parse_args("Validate ADR requirement")
     issue = resolve_issue_number(args.issue)
     if issue is None:
         print("error: issue number required", file=sys.stderr)
         return 1
-    passed, description, _ = run_check(issue)
-    return print_check_result("adr_requirement", passed, "" if passed else description)
+    passed, description, details = run_check(issue)
+    return print_check_result("adr_requirement", passed, format_evidence(description, details))
 
 
 if __name__ == "__main__":
