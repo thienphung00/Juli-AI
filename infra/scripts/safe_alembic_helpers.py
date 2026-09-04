@@ -13,7 +13,37 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
 
-from juli_backend.core.config.runtime import migration_database_url, sync_database_url
+from juli_backend.core.config.runtime import sync_database_url
+
+try:
+    from juli_backend.core.config.runtime import migration_database_url
+except ImportError:  # pragma: no cover — exercised by the skew test below
+    # DEPLOY SKEW, NOT A MISSING DEPENDENCY. deploy.sh runs this script from
+    # CANONICAL_ROOT (which tracks main) using the RELEASE's interpreter:
+    #
+    #   "${release_dir}/.venv/bin/python" "${CANONICAL_ROOT}/infra/scripts/..."
+    #
+    # That is deliberate — a fix to the deploy tooling should apply even when
+    # deploying an older sha. The consequence is that this file may run against
+    # a juli_backend that predates any symbol it imports. When #1575 added
+    # migration_database_url and this script started importing it, every release
+    # already in ~/releases became undeployable: the additive gate died on
+    # ImportError before it could read a revision, which took ROLLBACK with it.
+    #
+    # So the import is defensive and the fallback is a copy on purpose. Keep the
+    # two in step; the copy exists only for interpreters too old to have the
+    # original, and the test asserts they agree.
+    import os
+
+    def migration_database_url(default: str | None = None) -> str:
+        direct = os.environ.get("DATABASE_DIRECT_URL", "").strip()
+        pooled = os.environ.get("DATABASE_URL", "").strip()
+        raw = direct or pooled or (default or "")
+        if not raw:
+            raise RuntimeError("DATABASE_URL (or DATABASE_DIRECT_URL) must be set for migrations")
+        return sync_database_url(raw)
+
+
 from juli_backend.database.token_crypto import decrypt_token
 
 PROTECTED_TABLES: tuple[str, ...] = (
