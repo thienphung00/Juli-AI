@@ -4,6 +4,7 @@
   "waveId": "wave-harness-e-w5",
   "branch": "feature/harness-e-w5-wave",
   "issues": [
+    1436,
     1459,
     1528,
     1529,
@@ -16,7 +17,6 @@
     1601,
     1604,
     1608,
-    1611,
     1618
   ]
 }
