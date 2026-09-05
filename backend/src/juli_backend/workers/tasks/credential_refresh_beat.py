@@ -187,8 +187,6 @@ def _ensure_session_factory():
 
 
 async def _run_credential_refresh_beat_async() -> None:
-    from juli_backend.database.tenant_context import system_scope
-
     auth = credential_resolver.build_refresh_auth_from_env()
     if auth is None:
         logger.info(
@@ -199,9 +197,8 @@ async def _run_credential_refresh_beat_async() -> None:
 
     factory = _ensure_session_factory()
     async with factory() as session:
-        async with system_scope(session, caller="credential_refresh_beat"):
-            await run_credential_refresh_cycle(session, auth=auth)
-            await session.commit()
+        await run_credential_refresh_cycle(session, auth=auth)
+        await session.commit()
 
 
 @celery_app.task(name="juli_backend.credential_refresh_beat")

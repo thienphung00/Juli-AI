@@ -44,23 +44,24 @@ from juli_backend.services.agent.golden_scenarios import (
 # are proven through the same wiring live runs are. Imported fixtures are picked
 # up by pytest as if defined here.
 from tests.integration.test_agent_events_streaming_matrix import (  # noqa: F401
-    _authenticated_client,
-    _build_app,
-    _database_url,
     _disposable_postgres_url,
-    _postgres_reachable,
     _postgres_schema_ready,
-    _record_ids,
-    _seed_run,
-    _seed_shop,
+    authenticated_client,
+    build_app,
     pg_engine,
     pg_session_factory,
+    record_ids,
+    seed_run,
+    seed_shop,
 )
+from tests.support.postgres import requires_postgres
 
-pytestmark = pytest.mark.skipif(
-    not _postgres_reachable(),
-    reason="Replay endpoint tests need a reachable local Postgres DATABASE_URL",
-)
+# `requires_postgres` from tests.support.postgres, not a local skipif. Main moved
+# the reachability check there and de-underscored the streaming-matrix helpers
+# while this wave was open, so W6's copy imported seven names that no longer
+# exist. The merge could not see that — it is a semantic conflict, the same class
+# as the adversarial-refusal one #1451 records.
+pytestmark = requires_postgres
 
 
 def _scenario_with_a_decision(run_id: uuid.UUID) -> GoldenScenario:
@@ -119,12 +120,12 @@ def _scenario_with_a_decision(run_id: uuid.UUID) -> GoldenScenario:
 async def _seed_replay_run(session_factory, shop) -> tuple[uuid.UUID, GoldenScenario]:
     """Create a real run row via the shared helper, then seed the scenario onto it.
 
-    `_seed_run` is reused rather than hand-rolled because `workflow_runs.product_id`
+    `seed_run` is reused rather than hand-rolled because `workflow_runs.product_id`
     is a foreign key — a replay run is an ordinary row and has to satisfy the same
     constraints a live run does. That is the point of the design, so the fixture
     should not route around it.
     """
-    run = await _seed_run(session_factory, shop, status="completed")
+    run = await seed_run(session_factory, shop, status="completed")
     run_id = run.id
     scenario = _scenario_with_a_decision(run_id)
     async with session_factory() as session:
@@ -138,11 +139,11 @@ class TestTheRealHandlerServesAReplayRun:
 
     @pytest.mark.asyncio
     async def test_a_seeded_replay_run_streams_through_the_real_endpoint(self, pg_session_factory):  # noqa: F811
-        user, shop = await _seed_shop(pg_session_factory)
+        user, shop = await seed_shop(pg_session_factory)
         run_id, _ = await _seed_replay_run(pg_session_factory, shop)
 
-        app = _build_app(pg_session_factory, subscriber=None)
-        async with _authenticated_client(app, user, shop) as client:
+        app = build_app(pg_session_factory, subscriber=None)
+        async with authenticated_client(app, user, shop) as client:
             response = await client.get(f"/v1/demo/runs/{run_id}/events")
 
         assert response.status_code == 200, response.text
@@ -152,20 +153,20 @@ class TestTheRealHandlerServesAReplayRun:
         # had queried the table instead, none of this would be exercised.
         assert "event: workflow.started" in body
         assert "event: tool.completed" in body
-        assert _record_ids(body) == [1, 2, 3], (
-            f"the endpoint did not stream the seeded sequence in order: {_record_ids(body)}"
+        assert record_ids(body) == [1, 2, 3], (
+            f"the endpoint did not stream the seeded sequence in order: {record_ids(body)}"
         )
 
     @pytest.mark.asyncio
     async def test_another_shops_replay_run_is_not_served(self, pg_session_factory):  # noqa: F811
         """A replay run is an ordinary row, so it must inherit ordinary
         ownership. If replay bypassed `_resolve_owned_run`, this would leak."""
-        _, owner_shop = await _seed_shop(pg_session_factory)
-        other_user, other_shop = await _seed_shop(pg_session_factory)
+        _, owner_shop = await seed_shop(pg_session_factory)
+        other_user, other_shop = await seed_shop(pg_session_factory)
         run_id, _ = await _seed_replay_run(pg_session_factory, owner_shop)
 
-        app = _build_app(pg_session_factory, subscriber=None)
-        async with _authenticated_client(app, other_user, other_shop) as client:
+        app = build_app(pg_session_factory, subscriber=None)
+        async with authenticated_client(app, other_user, other_shop) as client:
             response = await client.get(f"/v1/demo/runs/{run_id}/events")
 
         assert response.status_code == 404, (
@@ -178,19 +179,19 @@ class TestReconnectIsGaplessAndDuplicateFree:
 
     @pytest.mark.asyncio
     async def test_last_event_id_resumes_without_gap_or_duplicate(self, pg_session_factory):  # noqa: F811
-        user, shop = await _seed_shop(pg_session_factory)
+        user, shop = await seed_shop(pg_session_factory)
         run_id, _ = await _seed_replay_run(pg_session_factory, shop)
 
-        app = _build_app(pg_session_factory, subscriber=None)
-        async with _authenticated_client(app, user, shop) as client:
+        app = build_app(pg_session_factory, subscriber=None)
+        async with authenticated_client(app, user, shop) as client:
             full = await client.get(f"/v1/demo/runs/{run_id}/events")
             resumed = await client.get(
                 f"/v1/demo/runs/{run_id}/events", headers={"Last-Event-ID": "1"}
             )
 
         assert full.status_code == 200 and resumed.status_code == 200
-        all_ids = _record_ids(full.text)
-        resumed_ids = _record_ids(resumed.text)
+        all_ids = record_ids(full.text)
+        resumed_ids = record_ids(resumed.text)
 
         # Gapless: resuming after 0 yields exactly the remainder.
         assert resumed_ids == [i for i in all_ids if i > 1], (
@@ -205,17 +206,17 @@ class TestReconnectIsGaplessAndDuplicateFree:
         """The endpoint accepts both; a replay run must not diverge between them,
         or a client that uses one gets a different run than a client using the
         other."""
-        user, shop = await _seed_shop(pg_session_factory)
+        user, shop = await seed_shop(pg_session_factory)
         run_id, _ = await _seed_replay_run(pg_session_factory, shop)
 
-        app = _build_app(pg_session_factory, subscriber=None)
-        async with _authenticated_client(app, user, shop) as client:
+        app = build_app(pg_session_factory, subscriber=None)
+        async with authenticated_client(app, user, shop) as client:
             via_header = await client.get(
                 f"/v1/demo/runs/{run_id}/events", headers={"Last-Event-ID": "1"}
             )
             via_query = await client.get(f"/v1/demo/runs/{run_id}/events?after=1")
 
-        assert _record_ids(via_header.text) == _record_ids(via_query.text)
+        assert record_ids(via_header.text) == record_ids(via_query.text)
 
 
 class TestContinuationsThroughTheEndpoint:
@@ -223,7 +224,7 @@ class TestContinuationsThroughTheEndpoint:
 
     @pytest.mark.asyncio
     async def test_answering_appends_only_the_chosen_continuation(self, pg_session_factory):  # noqa: F811
-        user, shop = await _seed_shop(pg_session_factory)
+        user, shop = await seed_shop(pg_session_factory)
         run_id, scenario = await _seed_replay_run(pg_session_factory, shop)
 
         chosen = {
@@ -247,8 +248,8 @@ class TestContinuationsThroughTheEndpoint:
             await append_continuation(session, run_id, "opt-a", scenario)
             await session.commit()
 
-        app = _build_app(pg_session_factory, subscriber=None)
-        async with _authenticated_client(app, user, shop) as client:
+        app = build_app(pg_session_factory, subscriber=None)
+        async with authenticated_client(app, user, shop) as client:
             response = await client.get(f"/v1/demo/runs/{run_id}/events")
 
         body = response.text
