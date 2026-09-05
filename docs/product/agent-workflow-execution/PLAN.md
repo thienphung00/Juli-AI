@@ -1594,6 +1594,8 @@ W7-bis (#1469) are on the v1 critical path. (4) One active run per subject acros
 with endpoint-family write locks (spec S-FR-11). (5) One deadline view is the single surface added
 to the identical-UX set, shared by every workflow.
 
+**PRDs filed 2026-09-05 (`to-prd`).** Shared: [#1620 W9-A/P-SHARED](https://github.com/thienphung00/Juli-AI/issues/1620) · [#1621 W9-B/P-OP](https://github.com/thienphung00/Juli-AI/issues/1621) · [#1622 W9-C/P-CAPTURE (HITL)](https://github.com/thienphung00/Juli-AI/issues/1622) · [#1623 W9-D/P-UI-V1](https://github.com/thienphung00/Juli-AI/issues/1623) · [#1624 W10-A/P-CE](https://github.com/thienphung00/Juli-AI/issues/1624) · [#1625 W10-B/P-PO](https://github.com/thienphung00/Juli-AI/issues/1625) · [#1626 W10-C/P-RI](https://github.com/thienphung00/Juli-AI/issues/1626). Order: W9-A serial (Fable) with W9-C in parallel from day one; W9-B and W9-D in parallel once W9-A's identity, subject and dispatcher slices land; W10-A/B/C in parallel after W9-A, each gated on its W9-C captures; definition of done for all gated on #1339 and #1469. Wave naming note: the Optimize Product realignment previously placed in W9-A is now W9-B; W9-A is the shared P0 ladder.
+
 #### Common workflow structure — identical UX, per-case internals
 
 Owner directive, 2026-09-04: every agent workflow follows the **same five-stage structure** and
