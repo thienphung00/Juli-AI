@@ -1,0 +1,340 @@
+{
+  "gateVersion": 2,
+  "issue": 1613,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/api/routes/demo_analytics.py",
+      "tests/integration/test_demo_analytics_non_owner_read.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1613.json",
+    "ownerSignoffPresent": true,
+    "sha256": "52f27e27c5a8299d2401e7439dbf65caa943ebdfe62b086c99498f5839a3625c",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "run": {
+    "artifactBytes": {
+      "reviewBytes": 3765,
+      "validationBytes": 4450
+    },
+    "claimVsExecuted": {
+      "citedCommandCount": 0,
+      "invokedCommandCount": 10902,
+      "matchedCommandCount": 0,
+      "reason": "the implementation artifact cites no commands under redGreenRefactorEvidence[].commands; there is nothing to verify",
+      "recordPasses": false,
+      "status": "NO_CLAIMS",
+      "transcriptSources": [
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-codebase-audit-refactor-b9b867",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-open-terminal-in-code-08e55d"
+      ],
+      "transcriptsScanned": 44,
+      "unmatchedCommandCount": 0,
+      "unmatchedCommands": [],
+      "unmatchedCommandsTruncated": false,
+      "verified": true
+    },
+    "commandScope": {
+      "ciSelectors": {
+        "mypy": {
+          "command": "mypy backend/src/juli_backend --ignore-missing-imports --disable-error-code=valid-type",
+          "deselectedMarkers": [],
+          "paths": [
+            "backend/src/juli_backend"
+          ]
+        },
+        "pytest": {
+          "command": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "deselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "paths": [
+            "tests"
+          ]
+        },
+        "ruff check": {
+          "command": "ruff check backend/src/juli_backend tests scripts",
+          "deselectedMarkers": [],
+          "paths": [
+            "backend/src/juli_backend",
+            "tests",
+            "scripts"
+          ]
+        }
+      },
+      "ciWorkflow": ".github/workflows/pr.yml",
+      "commandsCited": 0,
+      "invocations": [],
+      "invocationsScored": 0,
+      "invocationsUnrecognised": 0,
+      "narrowerCount": 0,
+      "narrowerThanCI": [],
+      "unit": "invocation",
+      "unitRationale": "76 corpus commands chain 2-5 runs; scoring per command lets a broad first run launder a narrow second one, so each invocation is scored on its own selector."
+    },
+    "environment": {
+      "cwd": "/Users/macos/Juli-AI-v2/.worktrees/w-1613",
+      "dependencies": {
+        "constraints": "/Users/macos/Juli-AI-v2/.worktrees/w-1613/backend/constraints.txt",
+        "drift": [
+          {
+            "installed": "8.4.2",
+            "package": "click",
+            "pinned": "8.5.0"
+          },
+          {
+            "installed": "7.15.4",
+            "package": "coverage",
+            "pinned": "7.16.0"
+          },
+          {
+            "installed": "50.0.0",
+            "package": "cryptography",
+            "pinned": "50.0.1"
+          },
+          {
+            "installed": "3.18",
+            "package": "idna",
+            "pinned": "3.19"
+          },
+          {
+            "installed": "1.5.3",
+            "package": "joblib",
+            "pinned": "1.6.0"
+          },
+          {
+            "installed": "2.24.0",
+            "package": "narwhals",
+            "pinned": "2.25.0"
+          },
+          {
+            "installed": "1.26.4",
+            "package": "numpy",
+            "pinned": "2.5.2"
+          },
+          {
+            "installed": "2.13.4",
+            "package": "pydantic",
+            "pinned": "2.13.5"
+          },
+          {
+            "installed": "2.46.4",
+            "package": "pydantic-core",
+            "pinned": "2.46.5"
+          },
+          {
+            "installed": "0.26.2",
+            "package": "responses",
+            "pinned": "0.26.3"
+          },
+          {
+            "installed": "0.16.3",
+            "package": "ruff",
+            "pinned": "0.16.5"
+          },
+          {
+            "installed": "1.13.1",
+            "package": "scipy",
+            "pinned": "1.18.1"
+          },
+          {
+            "installed": "5.9.0",
+            "package": "stevedore",
+            "pinned": "5.9.1"
+          },
+          {
+            "installed": "0.52.3",
+            "package": "uvicorn",
+            "pinned": "0.52.4"
+          },
+          {
+            "installed": "0.8.2",
+            "package": "wcwidth",
+            "pinned": "0.8.3"
+          }
+        ],
+        "matched": 67,
+        "missing": [],
+        "pinned": 82
+      },
+      "executable": "/opt/homebrew/anaconda3/bin/python",
+      "git": {
+        "baseDistanceUnavailable": "shallow-clone",
+        "behindOriginMain": null,
+        "branch": "feature/demo-analytics-scope-issue-1613",
+        "head": "28dd98f61443f1730bd206f4f1ce3017e7b1d27d",
+        "shallow": true
+      },
+      "moduleResolution": {
+        "error": "ModuleNotFoundError: No module named 'juli_backend'",
+        "expectedPrefix": "/Users/macos/Juli-AI-v2/.worktrees/w-1613/backend/src/juli_backend",
+        "insideRepo": false,
+        "module": "juli_backend",
+        "resolved": null
+      },
+      "python": "3.12.9",
+      "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/w-1613"
+    },
+    "metrics": {
+      "agents": [],
+      "disagreements": [
+        {
+          "claimed": 0,
+          "field": "tokenUsage.total",
+          "observed": null,
+          "observedFrom": "unavailable",
+          "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "resolution": "unobservable"
+        },
+        {
+          "claimed": 62,
+          "field": "toolInvocationCount",
+          "observed": null,
+          "observedFrom": "unavailable",
+          "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "resolution": "unobservable"
+        },
+        {
+          "claimed": 4200000,
+          "field": "executionDurationMs",
+          "observed": null,
+          "observedFrom": "unavailable",
+          "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "resolution": "unobservable"
+        }
+      ],
+      "executionDurationMs": {
+        "available": false,
+        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+      },
+      "executorDomain": "backend",
+      "executorDomainSource": "implementation-artifact",
+      "gaps": [
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/cb047053-ee20-4e00-925f-7ebf36c0417b/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos/61a4eb31-9294-45c2-a803-0c26980300c6/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/491f9d6b-185a-43a4-bbea-f1fcd906bf1d/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/03369828-07b8-46b9-8587-8b7e97d289c1/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "agentsScanned": 0,
+          "detail": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "reason": "no-persisted-task-transcripts"
+        }
+      ],
+      "schemaVersion": 1,
+      "source": {
+        "agentsAttributed": 0,
+        "agentsScanned": 0,
+        "attributedBy": ".worktrees path naming issue-1613",
+        "executorsIdentified": 0,
+        "kind": "task-transcript",
+        "roleSelectedAgentId": null,
+        "roleSelectedBy": "spawn-directive",
+        "taskDirs": [
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/cb047053-ee20-4e00-925f-7ebf36c0417b/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
+          "/tmp/claude-501/-Users-macos/61a4eb31-9294-45c2-a803-0c26980300c6/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/491f9d6b-185a-43a4-bbea-f1fcd906bf1d/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/03369828-07b8-46b9-8587-8b7e97d289c1/tasks"
+        ]
+      },
+      "status": "not-measured",
+      "tokenUsage": {
+        "available": false,
+        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+      },
+      "toolInvocationCount": {
+        "available": false,
+        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+      },
+      "toolsUsed": []
+    },
+    "transcripts": {
+      "commands": {
+        "executor": 0,
+        "executorCommands": [],
+        "includesExecutorCommands": false,
+        "parent": 0,
+        "parentCommands": []
+      },
+      "coverage": {
+        "complete": false,
+        "executorsExpected": 1,
+        "executorsPersisted": 0,
+        "gaps": [
+          {
+            "agent": "executor-guardrails skill",
+            "reason": "no-transcript-persisted"
+          }
+        ]
+      },
+      "executorCount": 0,
+      "executors": [],
+      "parentOnly": true,
+      "schemaVersion": 1,
+      "status": "not-persisted"
+    }
+  },
+  "timestamp": "2026-09-05T09:20:00Z",
+  "validation": {
+    "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1613.json",
+    "sha256": "cabe83e2553ff925b7c580746044fdcb64b0f341a161cb7e3a7b807d6d48c168",
+    "status": "PASS"
+  },
+  "wave": null
+}
