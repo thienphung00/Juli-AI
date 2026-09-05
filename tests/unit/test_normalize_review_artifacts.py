@@ -138,7 +138,8 @@ def test_normalize_review_findings_sees_a_warning_in_every_schema_array(
 def test_normalize_review_findings_deduplicates_derived_array_copies() -> None:
     """``enrich_review_artifact`` derives the four extra arrays from
     ``criticalFindings`` as identity-preserving subsets. Reading all five arrays
-    must not double-count that common case.
+    must not double-count that common case: one finding present in three
+    arrays merges to one.
     """
     finding = {"id": "dup-1", "severity": "WARNING", "description": "N+1 query"}
     artifact = {
@@ -148,6 +149,41 @@ def test_normalize_review_findings_deduplicates_derived_array_copies() -> None:
     }
     findings = normalize_review_findings(artifact)
     assert len(findings) == 1
+
+
+def test_normalize_review_findings_does_not_drop_a_distinct_finding_sharing_description() -> None:
+    """Two genuinely distinct findings that merely share description text and
+    carry no ``id`` must both survive de-duplication.
+
+    Regression for a hole in the original dedup, which keyed on ``description``
+    alone: a CRITICAL security finding in one module and a WARNING
+    maintainability finding in another module, both worded "input validation
+    gap", collapsed into a single WARNING -- the CRITICAL was silently
+    dropped and the review derived PASS_WITH_WARNINGS instead of FAIL.
+    """
+    artifact = {
+        "criticalFindings": [
+            {
+                "severity": "WARNING",
+                "type": "maintainability",
+                "description": "input validation gap",
+                "module": "backend/reports",
+            }
+        ],
+        "findings": [
+            {
+                "severity": "CRITICAL",
+                "type": "security",
+                "description": "input validation gap",
+                "module": "backend/auth",
+            }
+        ],
+    }
+    findings = normalize_review_findings(artifact)
+    assert len(findings) == 2
+    severities = {f["severity"] for f in findings}
+    assert severities == {"WARNING", "CRITICAL"}
+    assert derive_review_status(findings) == "FAIL"
 
 
 def test_schema_finding_arrays_all_have_a_reader() -> None:

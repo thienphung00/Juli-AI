@@ -732,10 +732,36 @@ FINDING_ARRAY_KEYS: tuple[str, ...] = (
 
 
 def _finding_identity(finding: dict[str, Any]) -> Any:
-    """Identity key for de-duplicating findings across arrays: ``id``, else
-    ``description``. Mirrors the original legacy-warning dedup, which matched
-    on ``description`` alone (legacy warnings never carry an ``id``)."""
-    return finding.get("id") or finding.get("description")
+    """Identity key for de-duplicating findings across arrays.
+
+    ``id`` wins when present. Otherwise the key is the tuple
+    ``(severity, type, description, module)`` -- not ``description`` alone.
+
+    Two findings that merely share description text are not necessarily the
+    same finding: different severity, type, or module means a reviewer found
+    two distinct things that happen to describe the same symptom (e.g. a
+    WARNING maintainability note in one module and a CRITICAL security finding
+    in another, both worded "input validation gap"). Matching on description
+    alone silently drops whichever one loses the set-membership race --
+    including, in the reported case, the CRITICAL.
+
+    The benign case -- ``enrich_review_artifact`` deriving ``findings``/
+    ``securityFindings``/``architectureFindings``/``maintainabilityFindings``
+    from ``criticalFindings`` as literal copies -- still dedups correctly
+    under this key, because a derived copy shares every field (severity,
+    type, description, module) with its source by construction, not just its
+    description.
+    """
+    identity = finding.get("id")
+    if identity:
+        return ("id", identity)
+    return (
+        "fields",
+        finding.get("severity"),
+        finding.get("type"),
+        finding.get("description"),
+        finding.get("module"),
+    )
 
 
 def normalize_review_findings(artifact: dict[str, Any]) -> list[dict[str, Any]]:
@@ -743,10 +769,13 @@ def normalize_review_findings(artifact: dict[str, Any]) -> list[dict[str, Any]]:
     one canonical, de-duplicated list.
 
     De-duplication matters because the four non-``criticalFindings`` arrays are
-    normally derived *copies* of ``criticalFindings`` entries (same ``id``/
-    ``description``) -- merging them naively would double-count every finding
-    and inflate ``warningCount``/``criticalCount`` in gate output. A finding is
-    kept once, at its first occurrence, in ``FINDING_ARRAY_KEYS`` order.
+    normally derived *copies* of ``criticalFindings`` entries (same ``id`` and
+    fields) -- merging them naively would double-count every finding and
+    inflate ``warningCount``/``criticalCount`` in gate output. A finding is
+    kept once, at its first occurrence, in ``FINDING_ARRAY_KEYS`` order, keyed
+    by ``_finding_identity`` -- which is deliberately *not* description alone,
+    so two findings that only share description text (different severity,
+    type, or module) are never collapsed into one.
     """
     findings: list[dict[str, Any]] = []
     seen: set[Any] = set()
@@ -755,21 +784,19 @@ def normalize_review_findings(artifact: dict[str, Any]) -> list[dict[str, Any]]:
             if not isinstance(finding, dict):
                 continue
             identity = _finding_identity(finding)
-            if identity is not None:
-                if identity in seen:
-                    continue
-                seen.add(identity)
+            if identity in seen:
+                continue
+            seen.add(identity)
             findings.append(finding)
 
     legacy = artifact.get("warnings") or []
     for warning in legacy:
         converted = legacy_warning_to_finding(warning)
         identity = _finding_identity(converted)
-        if identity is not None and identity in seen:
+        if identity in seen:
             continue
         findings.append(converted)
-        if identity is not None:
-            seen.add(identity)
+        seen.add(identity)
     return findings
 
 
