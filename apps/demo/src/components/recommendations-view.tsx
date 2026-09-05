@@ -127,7 +127,10 @@ export function RecommendationsView({
       </div>
 
       <div hidden={activeView !== "in-progress"}>
-        <InProgressPanel panelId={inProgressPanelId} />
+        <InProgressPanel
+          active={activeView === "in-progress"}
+          panelId={inProgressPanelId}
+        />
       </div>
     </section>
   );

@@ -290,7 +290,12 @@ class TestAtomicityAcrossARealRollback:
         async with factory() as session:
             with patch.object(
                 approval_module,
-                "_resolve_optimize_product_prompt_pin",
+                # Renamed from _resolve_optimize_product_prompt_pin by #1309:
+                # the pin now resolves from the card's own workflow_key via the
+                # registry instead of hardwiring Optimize Product. Still the
+                # same crash seam — it runs after the card flip and before the
+                # run insert.
+                "_resolve_prompt_pin",
                 side_effect=RuntimeError("simulated crash between flip and run insert"),
             ):
                 with pytest.raises(RuntimeError):

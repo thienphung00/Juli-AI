@@ -324,6 +324,18 @@ async def test_approve_with_zero_products_returns_409_not_500(app, user, shop, c
 # ---------------------------------------------------------------------------
 
 
+async def _free_workflow_key_slot(session, card) -> None:
+    """Post-#1309 only registered workflow_keys approve, and action_cards
+    uniques on (shop_id, workflow_key) — so two approvable cards can't coexist
+    on one shop this wave. After a card is approved (consumed) its
+    workflow_key is never read again, so renaming it frees the unique slot
+    for a second card that carries the real registered key through the
+    genuine approve path, with zero production-code patching."""
+    card.workflow_key = f"{card.workflow_key}_consumed_{uuid.uuid4().hex[:6]}"
+    session.add(card)
+    await session.commit()
+
+
 async def test_second_active_run_for_the_same_derived_product_returns_409_not_500(
     app, session, user, shop, product
 ):
@@ -343,8 +355,8 @@ async def test_second_active_run_for_the_same_derived_product_returns_409_not_50
         # action_cards uniques on (shop_id, workflow_key) -- distinct key so
         # both cards can coexist; prompt-pin resolution ignores the card's
         # own workflow_key regardless (see approval.py's
-        # _resolve_optimize_product_prompt_pin docstring).
-        workflow_key="optimize_product_2_alt",
+        # freed by _free_workflow_key_slot after card_one is consumed).
+        workflow_key="optimize_product_2",
         priority=1,
         severity="high",
         title="Card two",
@@ -353,7 +365,7 @@ async def test_second_active_run_for_the_same_derived_product_returns_409_not_50
         status="active",
         computed_at=_naive_utc_now(),
     )
-    session.add_all([card_one, card_two])
+    session.add(card_one)
     await session.commit()
     # Captured before the requests run: the route rolls back this SAME
     # session (shared via the get_session override) on the conflict branch,
@@ -368,6 +380,9 @@ async def test_second_active_run_for_the_same_derived_product_returns_409_not_50
     with patch("juli_backend.workers.tasks.agent_workflow.run_agent_workflow", mock_task):
         async with _client_for(app, user, shop) as client:
             first = await client.post(f"/v1/demo/decisions/{card_one.id}/approve")
+            await _free_workflow_key_slot(session, card_one)
+            session.add(card_two)
+            await session.commit()
             second = await client.post(f"/v1/demo/decisions/{card_two.id}/approve")
 
     assert first.status_code == 202
@@ -420,9 +435,10 @@ async def test_approve_conflict_is_logged(app, session, user, shop, card, produc
     ):
         async with _client_for(app, user, shop) as client:
             await client.post(f"/v1/demo/decisions/{card.id}/approve")
+            await _free_workflow_key_slot(session, card)
             second_card = ActionCard(
                 shop_id=shop.id,
-                workflow_key="optimize_product_2_alt",
+                workflow_key="optimize_product_2",
                 priority=1,
                 severity="high",
                 title="Second card",

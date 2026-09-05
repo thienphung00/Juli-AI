@@ -267,6 +267,11 @@ from juli_backend.services.agent.runner.conversation_store import (
     PendingConfirmationWrite,
 )
 from juli_backend.services.agent.runner.ledger import ToolExecutionUnrecoverableError
+from juli_backend.services.agent.runner.seller_facing_copy import (
+    SellerFacingCompletionReason,
+    SellerFacingDeclinedReason,
+    SellerFacingRefusalReason,
+)
 from juli_backend.services.agent.runner.state import ConversationMessage, RunState
 from juli_backend.services.agent.runner.termination import (
     IterationGateAction,
@@ -730,7 +735,7 @@ class WorkflowRunner:
                     tool_call_id=call_id,
                     tool_name=tool_name,
                     ok=False,
-                    summary="declined by the seller",
+                    summary=SellerFacingDeclinedReason.DECLINED_BY_SELLER.value,
                 ),
             )
             try:
@@ -921,7 +926,11 @@ class WorkflowRunner:
                 tool_call_id=call_id,
                 tool_name=tool_name,
                 ok=ok,
-                summary=("completed" if ok else "blocked by the inbound safety guard"),
+                summary=(
+                    SellerFacingCompletionReason.COMPLETED.value
+                    if ok
+                    else SellerFacingCompletionReason.BLOCKED_BY_GUARD.value
+                ),
             ),
         )
         state.conversation_window.append(
@@ -1288,37 +1297,52 @@ class WorkflowRunner:
         try:
             spec = self._registry.get(block.tool_name)
         except UnknownToolError:
+            # Log the internal detail server-side only; seller sees safe copy.
+            logger.warning(
+                "Tool dispatch: unregistered tool",
+                extra={"tool_name": block.tool_name},
+            )
             await self._refuse(
                 workflow_run_id,
                 state,
                 block,
-                message=f"Tool {block.tool_name!r} is not a registered agent capability.",
+                message=SellerFacingRefusalReason.TOOL_NOT_FOUND.value,
             )
             return _ToolCallOutcome.REFUSED
 
         if block.tool_name not in self._allowed_tool_names:
+            # Log the internal detail server-side only; seller sees safe copy.
+            logger.warning(
+                "Tool dispatch: tool not in active playbook",
+                extra={
+                    "tool_name": block.tool_name,
+                    "playbook_key": self._playbook.workflow_key,
+                },
+            )
             await self._refuse(
                 workflow_run_id,
                 state,
                 block,
-                message=(
-                    f"Tool {block.tool_name!r} is registered but is not part of the "
-                    f"active {self._playbook.workflow_key!r} playbook and cannot be called."
-                ),
+                message=SellerFacingRefusalReason.TOOL_NOT_ALLOWED.value,
             )
             return _ToolCallOutcome.REFUSED
 
         try:
             params = spec.input_model.model_validate(block.arguments)
         except ValidationError as exc:
+            # Log the internal detail server-side only; seller sees safe copy.
+            logger.warning(
+                "Tool dispatch: malformed parameters",
+                extra={
+                    "tool_name": block.tool_name,
+                    "validation_errors": exc.errors(),
+                },
+            )
             await self._refuse(
                 workflow_run_id,
                 state,
                 block,
-                message=(
-                    f"Parameters for tool {block.tool_name!r} failed validation: "
-                    f"{exc.errors()!r}. Correct the parameters and try again."
-                ),
+                message=SellerFacingRefusalReason.MALFORMED_PARAMS.value,
                 # The one refusal that a *different next call* genuinely
                 # fixes, so the only one tagged retryable. Observed on the
                 # live write-path smoke: the model proposed
@@ -1374,7 +1398,11 @@ class WorkflowRunner:
                 tool_call_id=block.call_id,
                 tool_name=block.tool_name,
                 ok=ok,
-                summary=("completed" if ok else "blocked by the inbound safety guard"),
+                summary=(
+                    SellerFacingCompletionReason.COMPLETED.value
+                    if ok
+                    else SellerFacingCompletionReason.BLOCKED_BY_GUARD.value
+                ),
             ),
         )
         state.conversation_window.append(

@@ -1,0 +1,31 @@
+{
+  "gateVersion": 1,
+  "issue": 1311,
+  "metrics": {
+    "acceptanceMapped": 8,
+    "acceptanceTotal": 8,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/agent/golden_scenarios/capture.py",
+      "backend/src/juli_backend/services/agent/golden_scenarios/replay.py",
+      "backend/src/juli_backend/services/agent/golden_scenarios/staleness.py",
+      "tests/integration/test_golden_scenario_replay_endpoint.py",
+      "tests/unit/test_golden_scenario_capture_from_real_runner.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1311.json",
+    "ownerSignoffPresent": true,
+    "sha256": "620331ea3719424823c9420442aba2c43e33d24ba010a802c73ae5fa81b19535",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-28T08:32:33Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1311.json",
+    "sha256": "abff3c357e6c16ae0c4dac81ec1360227493c807e5325f133f3148b560be3bfe",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w6"
+}

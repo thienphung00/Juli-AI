@@ -95,6 +95,11 @@ def mask_decision_payload(card: ActionCard) -> dict[str, Any]:
     not visitor input — and are forwarded as-is, matching the existing
     authenticated ``GET /v1/action-cards`` precedent
     (``api/routes/action_cards.py::_to_item``).
+
+    ADR-084 decision 3: includes an ``is_executable`` discriminator derived
+    from the real playbook registry, revealing whether Juli can carry this
+    recommendation out itself, without exposing the workflow_key or any
+    taxonomy.
     """
     try:
         raw_payload = json.loads(card.recommendation_payload) if card.recommendation_payload else {}
@@ -102,6 +107,8 @@ def mask_decision_payload(card: ActionCard) -> dict[str, Any]:
             raw_payload = {}
     except json.JSONDecodeError:
         raw_payload = {}
+
+    from juli_backend.services.agent import playbooks as playbooks_module
 
     return {
         "id": str(card.id),
@@ -111,6 +118,7 @@ def mask_decision_payload(card: ActionCard) -> dict[str, Any]:
         "priority": card.priority,
         "computed_at": card.computed_at.isoformat() if card.computed_at else None,
         "surfaced_at": card.surfaced_at.isoformat() if card.surfaced_at else None,
+        "is_executable": playbooks_module.is_workflow_executable(card.workflow_key),
         "recommendation": _mask_recommendation_payload(raw_payload),
     }
 

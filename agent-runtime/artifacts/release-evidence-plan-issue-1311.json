@@ -1,0 +1,113 @@
+{
+  "planId": "rep-1311-golden-scenario-capture-and-replay",
+  "affectedPublicSurfaces": [
+    "api.app-juli.com GET /v1/demo/runs/{id}/events — gains a replay-seeded run kind, served by the SAME handler with the same SSE protocol, replay and Last-Event-ID semantics as a live run",
+    "committed scenario fixture files — they ship in the release artifact and are read at runtime, so a missing file is a runtime failure, not a build failure"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "demo tenant only — replay runs never touch a real seller's shop",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "capture-produces-a-valid-sanitized-scenario",
+        "entryUrl": "tool: capture against a real persisted workflow_run",
+        "assertions": [
+          "output validates against the shared event union in packages/contracts",
+          "zero raw vendor identifiers and zero credentials, asserted by SCANNING the output rather than by reading it",
+          "no shop or product id that identifies a real merchant survives",
+          "re-running capture on the same run is byte-identical apart from captured_at"
+        ]
+      },
+      {
+        "name": "replay-streams-through-the-real-handler",
+        "entryUrl": "candidate port: start a replay run, stream to a terminal event",
+        "assertions": [
+          "the test asserts the REAL /v1/demo/runs/{id}/events handler served it, not that the bytes look plausible",
+          "an in-memory shortcut fails this journey — that shortcut is the defect this slice exists to prevent",
+          "the stream reaches a terminal event"
+        ]
+      },
+      {
+        "name": "reconnect-is-gapless-and-duplicate-free",
+        "entryUrl": "candidate port: one mid-stream reconnect with Last-Event-ID",
+        "assertions": [
+          "no event is skipped and none is delivered twice",
+          "sequence semantics are identical to a live run, not a replay-only variant"
+        ]
+      },
+      {
+        "name": "a-decision-appends-only-the-chosen-continuation",
+        "entryUrl": "answer a decision request on a replay run",
+        "assertions": [
+          "the chosen option's continuation is appended",
+          "no other option's continuation appears",
+          "an unknown option id is refused rather than ignored"
+        ]
+      },
+      {
+        "name": "pacing-and-dates-come-from-the-run-not-the-capture-day",
+        "entryUrl": "replay run event timing",
+        "assertions": [
+          "recorded inter-event deltas are preserved within tolerance",
+          "timestamps are rebased to now — nothing renders a date from the capture day"
+        ]
+      },
+      {
+        "name": "a-stale-prompt-is-detectable-by-a-command",
+        "entryUrl": "cli: scenario staleness check",
+        "assertions": [
+          "a scenario whose prompt_sha256 differs from the current production prompt is reported",
+          "the command is documented, so staleness is detectable rather than silent"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": ["not-applicable: API and fixture files, no HTML route"],
+    "discoverFromHtml": false,
+    "assetTypes": ["scenario fixture json"],
+    "failOnMissing": true,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration. Replay runs seed ordinary workflow_run_events rows for a real workflow_run id, using columns that already exist. Stable and candidate read the same tables."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy the prior release. Replay runs are ordinary rows: assert a rollback leaves them readable and does not strand a run mid-stream.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k scenario -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/integration -k 'replay or streaming' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests -m 'not live and not demo_contract' -q",
+    "pnpm --filter @juli/contracts test"
+  ],
+  "doNotInfer": [
+    "Do not hand-author scenario event JSON. The issue is explicit: if the tool cannot produce it, fix the tool. A second hand-maintained source drifts from the first and both suites stay green — the same reason the localStorage mock is being deleted.",
+    "Do not assert that the streamed bytes look right. Assert that the REAL /v1/demo/runs/{id}/events handler served them. An in-memory shortcut is the specific defect this slice exists to prevent, and it will pass a bytes-only assertion.",
+    "Do not invent a scenario event shape. Every event validates against the shared event union in packages/contracts; a scenario that does not validate must fail CI.",
+    "Do not give replay runs their own sequence or Last-Event-ID semantics. They must use the live path's, or the reconnect test proves nothing about live behaviour.",
+    "Do not sanitize by inspection. Zero vendor identifiers and zero credentials is asserted by scanning output, because inspection does not scale to a fixture regenerated later.",
+    "Do not add a test module that calls alembic downgrade(..., 'base') without adding it to _DESTRUCTIVE_MIGRATION_MODULES in tests/conftest.py (#1405) — the guard test will fail, and correctly.",
+    "Do not build a registry by hand for agent tests. composition.py::build_product_tool_registry is the production builder; ADR-088 resolves terminal_tools against whichever registry is passed, and omitting them raises UnknownToolError at runtime (run ffc8fd40)."
+  ]
+}
