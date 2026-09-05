@@ -125,10 +125,14 @@ async def _make_product(session, shop) -> Product:
     return p
 
 
-async def _make_card(session, shop) -> ActionCard:
+async def _make_card(session, shop, *, workflow_key: str | None = None) -> ActionCard:
+    # Post-#1309, approve refuses cards whose workflow_key has no registered
+    # playbook. Tests whose FIRST approve must 202 pass the registered key
+    # explicitly; later cards in the same test can keep a synthetic key when
+    # they only ever hit the abuse limiter, which fires before executability.
     c = ActionCard(
         shop_id=shop.id,
-        workflow_key=f"optimize_product_{uuid.uuid4().hex[:8]}",
+        workflow_key=workflow_key or f"optimize_product_{uuid.uuid4().hex[:8]}",
         priority=1,
         severity="high",
         title="Optimize this listing",
@@ -194,7 +198,7 @@ async def test_approve_exhaustion_returns_429_with_retry_after(app, session, use
     set_agent_abuse_limit_gate(
         InMemoryAbuseLimitGate(approve_burst_max_requests=1, approve_max_requests=100)
     )
-    card_one = await _make_card(session, shop)
+    card_one = await _make_card(session, shop, workflow_key="optimize_product_2")
     card_two = await _make_card(session, shop)
     await _make_product(session, shop)
 
@@ -236,11 +240,11 @@ async def test_approve_exhaustion_emits_security_event(app, session, user, shop,
 
 async def test_approve_cross_tenant_isolation_over_http(app, session, user, shop, other_shop):
     set_agent_abuse_limit_gate(InMemoryAbuseLimitGate(approve_burst_max_requests=1))
-    shop_a_card = await _make_card(session, shop)
+    shop_a_card = await _make_card(session, shop, workflow_key="optimize_product_2")
     await _make_product(session, shop)
 
     other_user = await session.get(User, other_shop.user_id)
-    other_shop_card = await _make_card(session, other_shop)
+    other_shop_card = await _make_card(session, other_shop, workflow_key="optimize_product_2")
     await _make_product(session, other_shop)
 
     mock_task = _mock_celery_task("celery-1223-approve-tenant")
@@ -558,7 +562,7 @@ class TestCancelSurvivesTheStorm:
         )
         set_agent_abuse_limit_gate(tight_gate)
 
-        card_one = await _make_card(session, shop)
+        card_one = await _make_card(session, shop, workflow_key="optimize_product_2")
         card_two = await _make_card(session, shop)
         await _make_product(session, shop)
         run = await _make_run(session, shop, status="running")

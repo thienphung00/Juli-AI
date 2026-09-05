@@ -1,0 +1,36 @@
+{
+  "gateVersion": 1,
+  "issue": 1309,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/api/routes/demo_decisions.py",
+      "backend/src/juli_backend/api/routes/demo_execution.py",
+      "backend/src/juli_backend/services/agent/approval.py",
+      "backend/src/juli_backend/services/agent/playbooks/__init__.py",
+      "backend/src/juli_backend/services/demo_decisions/read.py",
+      "packages/contracts/src/decisions.ts",
+      "packages/contracts/src/index.ts",
+      "tests/unit/test_agent_approval_transaction.py",
+      "tests/unit/test_api_demo_decisions.py",
+      "tests/unit/test_demo_decisions_masking.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1309.json",
+    "ownerSignoffPresent": true,
+    "sha256": "bf60e2b347dd63fb919d439afcb852bf923e55326bb731eb08094bbbdd821401",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-25T09:16:47Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1309.json",
+    "sha256": "8f47df537c67623044ac22a12576befbc5d9efbd0ba419d2a97c2e4577c35d25",
+    "status": "PASS"
+  },
+  "wave": null
+}
