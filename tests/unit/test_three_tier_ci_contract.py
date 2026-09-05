@@ -1305,3 +1305,33 @@ def test_agent_runtime_scripts_changes_trigger_the_lint_job() -> None:
     # test suite (see test_wave_push_agent_docs_only_stays_cheap_...).
     assert "'.cursor/**'" not in backend_filter
     assert "'agent-runtime/**'" not in backend_filter
+
+
+@pytest.mark.parametrize("job", ["test", "full-regression"])
+def test_budget_bound_jobs_install_pnpm_without_going_through_npm(job: str) -> None:
+    """#1580: `pnpm/action-setup`'s self-installer is what consumes the budget.
+
+    Measured across two runs of effectively identical content: pytest is a
+    stable 7m23s, while this step took 4m12s on a run that passed at 13m12s and
+    7m05s (`added 1 package in 7m`) on one cancelled at 15m18s. It is the only
+    step that has ever varied, and five jobs were cancelled by it in one day.
+
+    `standalone: true` fetches a pinned pnpm binary directly instead of running
+    `npm install -g`, which is where those minutes go. Note this is a different
+    cache from `actions/setup-node`'s `cache: pnpm` a few lines below, which
+    caches the dependency *store* and never covered installing pnpm itself.
+
+    Asserted only for the two jobs whose 15-minute wall this actually decides;
+    the five sibling jobs run the same step but carry no comparable budget.
+    """
+    steps = _parsed_workflow()["jobs"][job]["steps"]
+    setups = [s for s in steps if str(s.get("uses", "")).startswith("pnpm/action-setup")]
+    assert len(setups) == 1, f"{job}: expected one pnpm/action-setup step, got {len(setups)}"
+
+    with_block = setups[0].get("with") or {}
+    assert with_block.get("standalone") is True, (
+        f"the '{job}' job installs pnpm through npm's registry, whose duration has "
+        f"ranged from 4.2s to 7m05s and has cancelled this job five times against its "
+        f"15-minute timeout; set `standalone: true` so the binary is fetched directly. "
+        f"Raising timeout-minutes is not the fix: pytest is 7m23s and the wall is ample."
+    )

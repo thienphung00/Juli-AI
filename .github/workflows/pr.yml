@@ -505,6 +505,12 @@ jobs:
       - uses: pnpm/action-setup@v6
         with:
           run_install: false
+          # #1580: fetch the pinned pnpm binary directly instead of
+          # `npm install -g`, whose duration has ranged 4.2s..7m05s and
+          # cancelled this job five times against the 15-minute wall.
+          # Distinct from setup-node's `cache: pnpm` below, which caches
+          # the dependency store, not installing pnpm itself.
+          standalone: true
       - uses: actions/setup-node@v7
         with:
           node-version: "20"
@@ -1280,6 +1286,12 @@ jobs:
       - uses: pnpm/action-setup@v6
         with:
           run_install: false
+          # #1580: fetch the pinned pnpm binary directly instead of
+          # `npm install -g`, whose duration has ranged 4.2s..7m05s and
+          # cancelled this job five times against the 15-minute wall.
+          # Distinct from setup-node's `cache: pnpm` below, which caches
+          # the dependency store, not installing pnpm itself.
+          standalone: true
       - uses: actions/setup-node@v7
         with:
           node-version: "20"
