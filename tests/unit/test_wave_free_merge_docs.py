@@ -243,3 +243,60 @@ def test_cutover_checklist_runs_as_a_script_and_reports_mixed_or_legacy_explicit
     # any branch is legacy, RESULT must say so rather than print "refined".
     if '"legacyWaveBranches": 0' not in result.stdout:
         assert "LEGACY" in result.stdout or "legacy" in result.stdout.lower()
+
+
+GIT_BASELINE = REPO_ROOT / ".cursor" / "rules" / "git-baseline.mdc"
+CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
+
+
+def test_fast_track_lane_bypass_language_is_explicit() -> None:
+    """#1436 AC1: the fast-track lane either stops instructing `--admin`, or states
+    the conditions under which it is sanctioned and requires the reason recorded.
+
+    The lane mandates `--admin`, which skips `status-check` — the single required
+    check on both rulesets, and the roll-up every gate this epic built reports
+    through. An instruction to bypass that, with no instruction to say why, is how
+    the corpus ended up with 10 unlogged `--admin` merges and 35 `--no-verify`
+    commits, all 35 from parent orchestrator sessions rather than executors.
+
+    So the rule is allowed to keep the lane; it is not allowed to keep it silent.
+    """
+    rule = GIT_BASELINE.read_text(encoding="utf-8")
+
+    if "--admin" not in rule:
+        return  # the other permitted resolution: the lane no longer instructs it
+
+    assert "#1436" in rule, (
+        "git-baseline.mdc still instructs `--admin` but records no bypass decision; "
+        "AC1 requires the sanctioned conditions to be stated, not assumed"
+    )
+    assert "bypass:" in rule, (
+        "the rule sanctions `--admin` without prescribing how a bypass is recorded — "
+        "an unrecorded bypass is indistinguishable from an unsanctioned one"
+    )
+
+    # `--no-verify` is the larger number in the corpus (35 vs 10) and the one with
+    # no sanctioned use at all. The rule must say so rather than leave it unmentioned.
+    assert "--no-verify" in rule, "the rule does not address `--no-verify` at all"
+    no_verify_para = rule.split("--no-verify", 1)[1][:400]
+    assert "never sanctioned" in no_verify_para, (
+        "`--no-verify` is mentioned but not prohibited; the corpus shows 35 uses, "
+        f"every one from an orchestrator session:\n{no_verify_para[:200]}"
+    )
+
+
+def test_claude_md_mirrors_the_bypass_policy() -> None:
+    """The two harnesses must not disagree about what is sanctioned.
+
+    CLAUDE.md inlines its own summary of the two lanes rather than pointing at the
+    rule, so a policy recorded only in `.cursor/` would be invisible to a Claude
+    Code session reading CLAUDE.md — which is every session in this repo.
+    """
+    claude = CLAUDE_MD.read_text(encoding="utf-8")
+    if "--admin" not in claude:
+        return
+    assert "bypass:" in claude and "#1436" in claude, (
+        "CLAUDE.md instructs `--admin` without the recording requirement that "
+        "git-baseline.mdc now carries; the two harnesses would disagree"
+    )
+    assert "--no-verify" in claude, "CLAUDE.md omits the `--no-verify` prohibition"

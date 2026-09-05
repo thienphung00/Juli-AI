@@ -39,7 +39,7 @@ routing or touching git.
   tree. Sub-agents never `checkout`/`reset`/`stash` in the primary directory.
 - Short-lived `feature/<short-desc>` cut from `main`. Never push to `main` directly.
 - Conventional commits: `feat|fix|refactor|docs|test|chore|perf|ci: <description>`.
-- **Two lanes** (pick by what the diff touches): **Standard** — any code, or mixed code+docs: branch/worktree → PR → land on green → close. **Fast-track** — non-code only (`*.md`/`*.mdc`/`*.txt`, `docs/**`, `.cursor/rules|skills/**`; zero code edits): short branch → PR → immediate `gh pr merge --squash --delete-branch --admin`. Any code file in the diff ⇒ standard lane. Both lanes go via a PR.
+- **Two lanes** (pick by what the diff touches): **Standard** — any code, or mixed code+docs: branch/worktree → PR → land on green → close. **Fast-track** — non-code only (`*.md`/`*.mdc`/`*.txt`, `docs/**`, `.cursor/rules|skills/**`; zero code edits): short branch → PR → immediate `gh pr merge --squash --delete-branch --admin`, **with the bypass reason recorded on the merge** (`bypass: fast-track docs-only, <what changed>`; #1436). Any code file in the diff ⇒ standard lane. `git commit --no-verify` is never sanctioned — fix the hook. Both lanes go via a PR.
 - Persistent helper slots only: `agent/runtime`, `scratch/debug`, `local/adhoc`.
 - Close each task's worktree + branch on PR merge — `python agent-runtime/scripts/git/worktree_gc.py --close <task>` verifies merged (incl. squash) + clean and prunes. Auto-close only worktrees you created that are merged **and** clean; confirm before deleting dirty, unpushed, human-created, or closed-not-merged branches. Never `main` or the helper slots.
 - Pre-commit required in every checkout: `pip install pre-commit && pre-commit install`.

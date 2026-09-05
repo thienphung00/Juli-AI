@@ -16,9 +16,27 @@ alwaysApply: true
 Choose the lane by **what the diff touches** — full commands in [`docs/handoffs/worktree-branch-topology.md`](../../docs/handoffs/worktree-branch-topology.md):
 
 - **Standard lane — any code change, or mixed code + docs.** One `feature/<short-desc>` branch/worktree per task, cut from latest `main` (`git worktree add .worktrees/<task> -b feature/<desc> origin/main`), then `pre-commit install` (hooks are per-checkout). Atomic conventional commits → sync before merge (`git fetch origin && git rebase origin/main`; Merge Queue is dormant on this user-owned repo) → push → PR → land on green. **Close on merge (required):** `python agent-runtime/scripts/git/worktree_gc.py --close <task>` — prunes, verifies merged (incl. squash) + clean, removes worktree + branch.
-- **Fast-track lane — non-code only.** Eligible: `*.md` / `*.mdc` / `*.txt` and other document files, `docs/**`, `.cursor/rules/**`, `.cursor/skills/**` — with **zero** edits to code (`.py`, `.ts`, `.tsx`, `.js`, `.sql`, `.sh`, or code configs). Short branch → commit → push → `gh pr create` → immediate self-merge `gh pr merge --squash --delete-branch --admin`. Still a PR: keeps CI (where paths trigger it), audit trail, and revert-via-PR — it just skips the worktree and review ceremony. **If the diff touches any code file, it is the standard lane.**
+- **Fast-track lane — non-code only.** Eligible: `*.md` / `*.mdc` / `*.txt` and other document files, `docs/**`, `.cursor/rules/**`, `.cursor/skills/**` — with **zero** edits to code (`.py`, `.ts`, `.tsx`, `.js`, `.sql`, `.sh`, or code configs). Short branch → commit → push → `gh pr create` → immediate self-merge `gh pr merge --squash --delete-branch --admin`. Still a PR: keeps CI (where paths trigger it), audit trail, and revert-via-PR — it just skips the worktree and review ceremony. **`--admin` here is sanctioned but not silent (#1436): the merge comment must state the reason, in the form `bypass: fast-track docs-only, <what changed>`.** An `--admin` merge with no recorded reason is a policy violation even when the diff was eligible — the record is what makes the lane auditable rather than habitual. **If the diff touches any code file, it is the standard lane.**
 
 Both lanes: **never push to `main` directly**; every change lands via a PR (§ Pull requests).
+
+### Bypass policy (#1436, decided 2026-09-05)
+
+Two privileges skip the repository's only enforcement. Both are now bounded.
+
+- **`gh pr merge --admin`** — sanctioned in exactly one place: the fast-track lane, for a
+  genuinely non-code diff, **with the reason recorded on the merge**. Anywhere else it is a
+  policy violation: a standard-lane PR that cannot go green needs its red fixed, not skipped.
+- **`git commit --no-verify`** — **never sanctioned.** A pre-commit hook that blocks correct
+  work is a defect in the hook; fix the hook and land that fix. Bypassing it moves the failure
+  to CI at best and past every gate at worst.
+
+The reasoning, from the corpus this policy was written against: `--admin` appears 10 times and
+`--no-verify` 35 times, and **all 35 `--no-verify` uses came from parent orchestrator sessions
+rather than executors.** Bypass tracks what is *skippable*, not what is *difficult* — the
+sessions with the privilege used it, and the ones without it did the work. A privilege that is
+available and unrecorded will be used by whoever holds it, so the control is the record, not
+the intent.
 
 ### Checkout preflight — open the tree before you trust it (always on)
 
@@ -67,7 +85,7 @@ with 46 dirty files, two worktrees abandoned at the repo root, 73 registered wor
 - All production changes go through PRs — no exceptions (including fast-track docs).
 - PR description summarizes **why** and what it affects; include a test plan.
 - Keep PRs reviewable (prefer <400 lines).
-- **Standard-lane** PRs get review: reviewers check correctness, readability, test coverage, and security. **Fast-track** (non-code) PRs may self-merge without review (`--admin`) — the diff is document-only, so audit + revert-via-PR are the safeguard, not human review. Any code file in the diff disqualifies fast-track.
+- **Standard-lane** PRs get review: reviewers check correctness, readability, test coverage, and security. **Fast-track** (non-code) PRs may self-merge without review (`--admin`) — the diff is document-only, so audit + revert-via-PR are the safeguard, not human review. The safeguard only works if the bypass is findable: record the reason on the merge (see the fast-track lane above). Any code file in the diff disqualifies fast-track.
 
 ## Research & reuse
 
