@@ -15,10 +15,12 @@ sys.path.insert(0, str(REPO_ROOT / "agent-runtime" / "scripts"))
 
 from ensure_workflow_cache import (  # noqa: E402
     ensure_workflow_caches,
+    in_scope_paths_from_scope_block,
     load_issue_prepare_overlay,
     load_runtime_config,
     parse_parent_issue_id,
     parse_slice_id,
+    refresh_in_scope,
     resolve_linkage,
     single_domain_harness_utility,
 )
@@ -397,3 +399,92 @@ def test_issue_prepare_overlay_cli_precedence(tmp_path: Path) -> None:
     assert linkage["sliceId"] == "CLI-SLICE"
     assert linkage["handoffPath"] == "docs/from-cli.md"
     assert load_issue_prepare_overlay(615, repo)["sliceId"] == "CDP-A2-1"
+
+
+# --- #1583: the scope document must carry the epic's authorised paths --------
+
+
+def test_in_scope_paths_are_derived_from_the_parent_scope_block() -> None:
+    """#1583: the per-issue scope document carried the epic's *prohibitions* and
+    dropped its *authorisations*.
+
+    `parentScopeBlock` states both halves. Only `outOfScope` was derived from it;
+    `inScope` defaulted to the slice id and the executor-domain label. So an
+    executor read "Executor domain: backend" next to "backend/src/ out of scope"
+    with nothing to reconcile them, and three separate executors correctly
+    refused harness work rather than widen their own scope — each refusal
+    costing a dispatch.
+
+    The label is not a path: for a harness epic, `backend` names the executor
+    lane while the work lives in `agent-runtime/`, `eval/`, `.github/workflows/`
+    and `tests/unit/`.
+    """
+    block = (
+        "# Parent #1434 - Harness-E\n"
+        "## Product boundary\n"
+        "- Harness only: agent-runtime/, .github/workflows/, eval/, tests/unit/\n"
+        "- NO product code: backend/src/, apps/, ios/, packages/ are out of scope "
+        "for every slice\n"
+        "## Architect locks\n"
+        "- Fail closed\n"
+    )
+    paths = in_scope_paths_from_scope_block(block)
+
+    assert "agent-runtime/" in paths
+    assert ".github/workflows/" in paths
+    assert "eval/" in paths
+    assert "tests/unit/" in paths
+
+    # The prohibition line must not be mined for authorisations — that would
+    # hand an executor exactly the paths the epic forbids.
+    for forbidden in ("backend/src/", "apps/", "ios/", "packages/"):
+        assert forbidden not in paths, f"{forbidden} came from the NO-product-code line"
+
+
+def test_scope_block_without_paths_yields_nothing_rather_than_guessing() -> None:
+    """An epic that names no in-scope paths must produce none.
+
+    Inventing a default here would be worse than the gap it replaces: an
+    executor would be authorised for paths no Architect chose.
+    """
+    assert in_scope_paths_from_scope_block("") == []
+    assert in_scope_paths_from_scope_block("## Locks\n- Fail closed\n") == []
+
+
+def test_no_path_is_both_in_scope_and_out_of_scope() -> None:
+    """A document that authorises and forbids the same path is worse than one
+    that only forbids it — the reader cannot tell which half to trust."""
+    block = (
+        "## Product boundary\n"
+        "- Harness only: agent-runtime/, eval/\n"
+        "- NO product code: backend/src/ is out of scope\n"
+    )
+    in_scope = set(in_scope_paths_from_scope_block(block))
+    assert not (in_scope & {"backend/src/"})
+
+
+def test_a_stale_cache_without_authorised_paths_is_refreshed_not_kept() -> None:
+    """#1583: `inScope` is persisted in the child cache, so `.get("inScope") or ...`
+    keeps whatever a previous run wrote.
+
+    Found while verifying the fix end-to-end: regenerating the scope document for
+    a real issue still produced the old two-line list, because the cache from
+    before the fix already had one. Every cache written before this change is in
+    that state, so without a refresh the fix reaches only new issues — and the
+    executors it exists to unblock are working on issues that already have caches.
+    """
+    block = "- Harness only: agent-runtime/, eval/\n"
+    stale = ["Slice CI-WAVE-1 acceptance criteria", "Executor domain: backend"]
+    authorised = in_scope_paths_from_scope_block(block)
+    assert authorised, "fixture must name paths or this asserts nothing"
+
+    refreshed = refresh_in_scope(stale, authorised, parent_id=1434)
+    assert any("agent-runtime/" in line for line in refreshed), (
+        "a cache written before this change keeps its pathless inScope, so the "
+        "executor still sees prohibitions without authorisations"
+    )
+    # Refreshing must not drop what was already there.
+    for line in stale:
+        assert any(line in r for r in refreshed), f"refresh lost {line!r}"
+    # And it must be idempotent -- running twice must not double the entry.
+    assert refresh_in_scope(refreshed, authorised, parent_id=1434) == refreshed

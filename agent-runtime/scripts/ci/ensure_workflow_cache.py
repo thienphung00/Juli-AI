@@ -117,9 +117,7 @@ def epic_registry_entry(config: dict[str, Any], parent_issue_id: int) -> dict[st
     return out
 
 
-def resolve_parent_from_epic_registry(
-    config: dict[str, Any], issue_id: int
-) -> int | None:
+def resolve_parent_from_epic_registry(config: dict[str, Any], issue_id: int) -> int | None:
     """Resolve parent when issue body/CLI omit it.
 
     - If ``issue_id`` is itself a registered epic, treat it as its own parent
@@ -145,9 +143,7 @@ def resolve_parent_from_epic_registry(
     return None
 
 
-def load_issue_prepare_overlay(
-    issue_id: int, repo_root: Path = REPO_ROOT
-) -> dict[str, Any]:
+def load_issue_prepare_overlay(issue_id: int, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     path = repo_root / "agent-runtime" / "config" / "issue-prepare" / f"{issue_id}.yml"
     if not path.is_file():
         return {}
@@ -225,11 +221,14 @@ def resolve_linkage(
         f"## Slice\n- Default slice: {resolved_slice}\n"
         f"## Handoff\n- {resolved_handoff}\n"
     )
-    do_not_load = list(epic.get("doNotLoad") or [
-        "docs/handoffs/archive/",
-        "docs/product/features/",
-        "Sibling issue context caches",
-    ])
+    do_not_load = list(
+        epic.get("doNotLoad")
+        or [
+            "docs/handoffs/archive/",
+            "docs/product/features/",
+            "Sibling issue context caches",
+        ]
+    )
     return {
         "parentIssueId": resolved_parent,
         "sliceId": resolved_slice,
@@ -294,6 +293,57 @@ def write_scope_alignment_stub(
     path.write_text(body, encoding="utf-8")
 
 
+#: Lines in a `parentScopeBlock` that forbid rather than authorise. Mining these
+#: for in-scope paths would hand an executor exactly what the epic forbids, so
+#: they are skipped by prefix rather than by trying to parse intent (#1583).
+_PROHIBITION_MARKERS = ("no product code", "out of scope", "do not", "never", "forbidden")
+
+
+def in_scope_paths_from_scope_block(scope_block: str) -> list[str]:
+    """Paths an epic's scope block authorises, for the per-issue scope document.
+
+    #1583: `parentScopeBlock` states both halves of an epic's boundary, but only
+    the prohibitions reached `scope-alignment-issue-<N>.md`. An executor read
+    "Executor domain: backend" beside "backend/src/ out of scope" with nothing
+    to reconcile them, and three refused harness work rather than widen their own
+    scope -- the right call each time, and a wasted dispatch each time.
+
+    Returns [] when the block names no paths. Inventing a default would be worse
+    than the gap: an executor authorised for paths no Architect chose.
+    """
+    paths: list[str] = []
+    for raw in (scope_block or "").splitlines():
+        line = raw.strip().lstrip("-*").strip()
+        if not line or line.startswith("#"):
+            continue
+        if any(marker in line.lower() for marker in _PROHIBITION_MARKERS):
+            continue
+        # A path token is anything containing "/" once punctuation is stripped.
+        for token in re.split(r"[\s,;]+", line):
+            # Strip quotes from both ends but punctuation only from the right:
+            # a leading dot is part of the path (`.github/workflows/`), not noise.
+            token = token.strip().strip("`'\"").rstrip(".,:;")
+            if "/" in token and not token.startswith(("http", "#")):
+                if token not in paths:
+                    paths.append(token)
+    return paths
+
+
+def refresh_in_scope(existing: list[str], authorised: list[str], *, parent_id: int) -> list[str]:
+    """Prepend the epic's authorised paths to an `inScope` list that predates them.
+
+    #1583: `inScope` is persisted, so a cache written before this change keeps a
+    pathless list forever. That is the population that matters -- the executors
+    this unblocks are working on issues whose caches already exist. Idempotent:
+    the marker line is replaced, not appended twice.
+    """
+    if not authorised:
+        return list(existing)
+    marker = f"Authorised paths (parent #{parent_id}): "
+    kept = [line for line in existing if not line.startswith("Authorised paths (parent #")]
+    return [marker + ", ".join(authorised), *kept]
+
+
 def ensure_parent_cache(
     *,
     linkage: dict[str, Any],
@@ -313,12 +363,9 @@ def ensure_parent_cache(
         parent_cache = load_json(path)
     else:
         created = True
-        bootstrap_branch = (
-            (config.get("workflow_prompt_cache") or {})
-            .get("bootstrap", {})
-            .get("pinBranch")
-            or "HEAD"
-        )
+        bootstrap_branch = (config.get("workflow_prompt_cache") or {}).get("bootstrap", {}).get(
+            "pinBranch"
+        ) or "HEAD"
         parent_cache = {
             "schemaVersion": "1.0.0",
             "artifactType": "parent_cache",
@@ -336,9 +383,7 @@ def ensure_parent_cache(
 
     # Always refresh fingerprints + bootstrap pin to current HEAD so gates pass.
     bootstrap_branch = (
-        (config.get("workflow_prompt_cache") or {})
-        .get("bootstrap", {})
-        .get("pinBranch")
+        (config.get("workflow_prompt_cache") or {}).get("bootstrap", {}).get("pinBranch")
         or parent_cache.get("bootstrapRef", {}).get("branch")
         or "HEAD"
     )
@@ -385,9 +430,11 @@ def ensure_child_cache(
     path = child_cache_path(issue_id, repo_root, artifacts_dir=artifacts_dir)
     scope_path = scope_alignment_path(issue_id, repo_root, artifacts_dir=artifacts_dir)
     parent_id = linkage["parentIssueId"]
-    parent_rel = parent_cache_path(
-        parent_id, repo_root, artifacts_dir=artifacts_dir
-    ).relative_to(repo_root).as_posix()
+    parent_rel = (
+        parent_cache_path(parent_id, repo_root, artifacts_dir=artifacts_dir)
+        .relative_to(repo_root)
+        .as_posix()
+    )
 
     profile = derive_issue_load_profile(
         slice_id=linkage["sliceId"],
@@ -504,10 +551,18 @@ def ensure_child_cache(
         for entry in child_cache["authorityChain"]
     ]
 
-    in_scope = child_cache.get("inScope") or [
-        f"Slice {linkage['sliceId']} acceptance criteria",
-        f"Executor domain: {executor_domain}",
-    ]
+    # #1583: the epic's authorised paths first. Without them the document lists
+    # only what is forbidden, and the domain label reads as a path it is not.
+    authorised = in_scope_paths_from_scope_block(linkage.get("parentScopeBlock") or "")
+    in_scope = refresh_in_scope(
+        child_cache.get("inScope")
+        or [
+            f"Slice {linkage['sliceId']} acceptance criteria",
+            f"Executor domain: {executor_domain} (an executor lane, not a path)",
+        ],
+        authorised,
+        parent_id=parent_id,
+    )
     out_of_scope = child_cache.get("outOfScope") or list(do_not_load[:5])
     child_cache["inScope"] = in_scope
     child_cache["outOfScope"] = out_of_scope
@@ -546,16 +601,13 @@ def ensure_child_cache(
             s
             for s in skills
             if isinstance(s, dict)
-            and any(
-                s.get("path", "").endswith(f"/domain/{d}/SKILL.md")
-                for d in DOMAIN_SKILL_PATHS
-            )
+            and any(s.get("path", "").endswith(f"/domain/{d}/SKILL.md") for d in DOMAIN_SKILL_PATHS)
         ]
         if len(domain_skills) > 1:
             child_cache["harnessUtility"] = single_domain_harness_utility(executor_domain)
-            child_cache["harnessUtility"]["rulesTier2"] = existing_harness.get(
-                "rulesTier2"
-            ) or child_cache["harnessUtility"]["rulesTier2"]
+            child_cache["harnessUtility"]["rulesTier2"] = (
+                existing_harness.get("rulesTier2") or child_cache["harnessUtility"]["rulesTier2"]
+            )
             child_cache["harnessUtility"]["tools"] = existing_harness.get("tools") or DEFAULT_TOOLS
         else:
             child_cache["harnessUtility"] = existing_harness
