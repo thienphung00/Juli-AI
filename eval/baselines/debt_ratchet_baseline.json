@@ -1,8 +1,8 @@
 {
   "issue": 1462,
   "schema": "debt-ratchet-baseline/1",
-  "generatedAt": "2026-09-02T11:40:00Z",
-  "generator": "python -m eval.ratchets measure --write",
+  "generatedAt": "2026-09-05T07:52:23Z",
+  "generator": "python -m eval.ratchets tighten --write (scoped: suppressions only, see PR #1638 / issue #1600)",
   "classes": {
     "broken_doc_refs": {
       "kind": "identities",
@@ -381,14 +381,14 @@
     "suppressions": {
       "kind": "identities",
       "stats": {
-        "files_scanned": 995,
-        "lines": 410,
-        "occurrences": 412,
-        "distinct_identities": 213,
-        "lines_in_reported_roots": 406,
+        "files_scanned": 1033,
+        "lines": 411,
+        "occurrences": 413,
+        "distinct_identities": 214,
+        "lines_in_reported_roots": 407,
         "by_rule_code": {
           "noqa:ARG001": 5,
-          "noqa:BLE001": 13,
+          "noqa:BLE001": 14,
           "noqa:E402": 213,
           "noqa:E712": 1,
           "noqa:F401": 25,
@@ -611,6 +611,7 @@
         "suppressions\ttests/unit/test_scope_precedence.py\t<module>\tnoqa:E402": 1,
         "suppressions\ttests/unit/test_single_deploy_command.py\ttest_api_verification_asserts_response_shape_not_only_status.serve.H.do_GET\tnoqa:N802": 1,
         "suppressions\ttests/unit/test_status_record_gate.py\t<module>\tnoqa:E402": 5,
+        "suppressions\ttests/unit/test_status_record_gate.py\ttest_schema_validity_delta_asserts_even_when_no_base_ref_resolves\tnoqa:BLE001": 1,
         "suppressions\ttests/unit/test_stop_reason_diverged_schema.py\t<module>\tnoqa:F401": 1,
         "suppressions\ttests/unit/test_stop_reason_prompt_version_unrecoverable_schema.py\t<module>\tnoqa:F401": 1,
         "suppressions\ttests/unit/test_three_tier_ci_contract.py\t<module>\tnoqa:E402": 1,
@@ -624,15 +625,15 @@
       },
       "reportedLineDivergence": {
         "reported": 394,
-        "measured": 406,
-        "delta": 12,
+        "measured": 407,
+        "delta": 13,
         "reportedRoots": [
           "backend",
           "tests",
           "scripts",
           "agent-runtime"
         ],
-        "measuredAllRoots": 410,
+        "measuredAllRoots": 411,
         "allRoots": [
           "backend",
           "tests",
@@ -843,5 +844,5 @@
       }
     }
   },
-  "tightenedFrom": "2026-09-01T10:10:38Z"
+  "tightenedFrom": "2026-09-02T11:40:00Z"
 }

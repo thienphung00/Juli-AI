@@ -1250,7 +1250,7 @@ MEASURED_TEST_MODULES = 455
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
 #: the third layer, this module's headline on the fifth.
 RECONCILIATION_LAYERS: dict[str, int] = {
-    "no_assert_statement": 404,
+    "no_assert_statement": 406,
     "and_no_pytest_raises": 124,
     "and_no_mock_assert_called": 107,
     "and_no_unittest_self_assert": 107,
