@@ -234,6 +234,8 @@ def resolve_linkage(
         "sliceId": resolved_slice,
         "handoffPath": resolved_handoff,
         "parentScopeBlock": parent_scope,
+        # #1583: declared, never inferred from the block above.
+        "inScopePaths": list(epic.get("inScopePaths") or []),
         "doNotLoad": do_not_load,
     }
 
@@ -293,40 +295,28 @@ def write_scope_alignment_stub(
     path.write_text(body, encoding="utf-8")
 
 
-#: Lines in a `parentScopeBlock` that forbid rather than authorise. Mining these
-#: for in-scope paths would hand an executor exactly what the epic forbids, so
-#: they are skipped by prefix rather than by trying to parse intent (#1583).
-_PROHIBITION_MARKERS = ("no product code", "out of scope", "do not", "never", "forbidden")
+def unescape_scope_block(block: str) -> str:
+    """`parentScopeBlock` is stored with escaped newlines by the simple YAML loader."""
+    return (block or "").replace("\\n", "\n")
 
 
-def in_scope_paths_from_scope_block(scope_block: str) -> list[str]:
-    """Paths an epic's scope block authorises, for the per-issue scope document.
+def in_scope_paths_for_epic(entry: dict[str, Any]) -> list[str]:
+    """Paths an epic *declares* its slices may write, for the scope document.
 
-    #1583: `parentScopeBlock` states both halves of an epic's boundary, but only
-    the prohibitions reached `scope-alignment-issue-<N>.md`. An executor read
-    "Executor domain: backend" beside "backend/src/ out of scope" with nothing
-    to reconcile them, and three refused harness work rather than widen their own
-    scope -- the right call each time, and a wasted dispatch each time.
+    #1583, second design. The first mined paths out of `parentScopeBlock` prose,
+    skipping lines that matched prohibition marker phrases. Measured against the
+    shipped registry, that leaked on **24 of 38 epics** -- epic #1325 authorised
+    `core/security/dependencies.py` off a line reading "Never edit: ...", and
+    others produced `UI/UX`, `I/O` and a bare `/` as though they were paths.
 
-    Returns [] when the block names no paths. Inventing a default would be worse
-    than the gap: an executor authorised for paths no Architect chose.
+    A denylist over natural language cannot be made safe by adding phrases: the
+    next epic writes its prohibition in wording nobody enumerated, and the
+    failure hands an executor a path the epic forbids -- worse than the gap this
+    was fixing. So authorisation is *declared*, never inferred. An epic without
+    `inScopePaths` yields none, and the scope document says only what it knows.
     """
-    paths: list[str] = []
-    for raw in (scope_block or "").splitlines():
-        line = raw.strip().lstrip("-*").strip()
-        if not line or line.startswith("#"):
-            continue
-        if any(marker in line.lower() for marker in _PROHIBITION_MARKERS):
-            continue
-        # A path token is anything containing "/" once punctuation is stripped.
-        for token in re.split(r"[\s,;]+", line):
-            # Strip quotes from both ends but punctuation only from the right:
-            # a leading dot is part of the path (`.github/workflows/`), not noise.
-            token = token.strip().strip("`'\"").rstrip(".,:;")
-            if "/" in token and not token.startswith(("http", "#")):
-                if token not in paths:
-                    paths.append(token)
-    return paths
+    declared = entry.get("inScopePaths") or []
+    return [str(p) for p in declared if str(p).strip()]
 
 
 def refresh_in_scope(existing: list[str], authorised: list[str], *, parent_id: int) -> list[str]:
@@ -553,7 +543,7 @@ def ensure_child_cache(
 
     # #1583: the epic's authorised paths first. Without them the document lists
     # only what is forbidden, and the domain label reads as a path it is not.
-    authorised = in_scope_paths_from_scope_block(linkage.get("parentScopeBlock") or "")
+    authorised = in_scope_paths_for_epic({"inScopePaths": linkage.get("inScopePaths")})
     in_scope = refresh_in_scope(
         child_cache.get("inScope")
         or [

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -15,7 +16,7 @@ sys.path.insert(0, str(REPO_ROOT / "agent-runtime" / "scripts"))
 
 from ensure_workflow_cache import (  # noqa: E402
     ensure_workflow_caches,
-    in_scope_paths_from_scope_block,
+    in_scope_paths_for_epic,
     load_issue_prepare_overlay,
     load_runtime_config,
     parse_parent_issue_id,
@@ -23,6 +24,7 @@ from ensure_workflow_cache import (  # noqa: E402
     refresh_in_scope,
     resolve_linkage,
     single_domain_harness_utility,
+    unescape_scope_block,
 )
 from issue_load_profile import load_slice_routing_rules  # noqa: E402
 
@@ -404,65 +406,6 @@ def test_issue_prepare_overlay_cli_precedence(tmp_path: Path) -> None:
 # --- #1583: the scope document must carry the epic's authorised paths --------
 
 
-def test_in_scope_paths_are_derived_from_the_parent_scope_block() -> None:
-    """#1583: the per-issue scope document carried the epic's *prohibitions* and
-    dropped its *authorisations*.
-
-    `parentScopeBlock` states both halves. Only `outOfScope` was derived from it;
-    `inScope` defaulted to the slice id and the executor-domain label. So an
-    executor read "Executor domain: backend" next to "backend/src/ out of scope"
-    with nothing to reconcile them, and three separate executors correctly
-    refused harness work rather than widen their own scope — each refusal
-    costing a dispatch.
-
-    The label is not a path: for a harness epic, `backend` names the executor
-    lane while the work lives in `agent-runtime/`, `eval/`, `.github/workflows/`
-    and `tests/unit/`.
-    """
-    block = (
-        "# Parent #1434 - Harness-E\n"
-        "## Product boundary\n"
-        "- Harness only: agent-runtime/, .github/workflows/, eval/, tests/unit/\n"
-        "- NO product code: backend/src/, apps/, ios/, packages/ are out of scope "
-        "for every slice\n"
-        "## Architect locks\n"
-        "- Fail closed\n"
-    )
-    paths = in_scope_paths_from_scope_block(block)
-
-    assert "agent-runtime/" in paths
-    assert ".github/workflows/" in paths
-    assert "eval/" in paths
-    assert "tests/unit/" in paths
-
-    # The prohibition line must not be mined for authorisations — that would
-    # hand an executor exactly the paths the epic forbids.
-    for forbidden in ("backend/src/", "apps/", "ios/", "packages/"):
-        assert forbidden not in paths, f"{forbidden} came from the NO-product-code line"
-
-
-def test_scope_block_without_paths_yields_nothing_rather_than_guessing() -> None:
-    """An epic that names no in-scope paths must produce none.
-
-    Inventing a default here would be worse than the gap it replaces: an
-    executor would be authorised for paths no Architect chose.
-    """
-    assert in_scope_paths_from_scope_block("") == []
-    assert in_scope_paths_from_scope_block("## Locks\n- Fail closed\n") == []
-
-
-def test_no_path_is_both_in_scope_and_out_of_scope() -> None:
-    """A document that authorises and forbids the same path is worse than one
-    that only forbids it — the reader cannot tell which half to trust."""
-    block = (
-        "## Product boundary\n"
-        "- Harness only: agent-runtime/, eval/\n"
-        "- NO product code: backend/src/ is out of scope\n"
-    )
-    in_scope = set(in_scope_paths_from_scope_block(block))
-    assert not (in_scope & {"backend/src/"})
-
-
 def test_a_stale_cache_without_authorised_paths_is_refreshed_not_kept() -> None:
     """#1583: `inScope` is persisted in the child cache, so `.get("inScope") or ...`
     keeps whatever a previous run wrote.
@@ -473,9 +416,8 @@ def test_a_stale_cache_without_authorised_paths_is_refreshed_not_kept() -> None:
     that state, so without a refresh the fix reaches only new issues — and the
     executors it exists to unblock are working on issues that already have caches.
     """
-    block = "- Harness only: agent-runtime/, eval/\n"
     stale = ["Slice CI-WAVE-1 acceptance criteria", "Executor domain: backend"]
-    authorised = in_scope_paths_from_scope_block(block)
+    authorised = in_scope_paths_for_epic({"inScopePaths": ["agent-runtime/", "eval/"]})
     assert authorised, "fixture must name paths or this asserts nothing"
 
     refreshed = refresh_in_scope(stale, authorised, parent_id=1434)
@@ -488,3 +430,49 @@ def test_a_stale_cache_without_authorised_paths_is_refreshed_not_kept() -> None:
         assert any(line in r for r in refreshed), f"refresh lost {line!r}"
     # And it must be idempotent -- running twice must not double the entry.
     assert refresh_in_scope(refreshed, authorised, parent_id=1434) == refreshed
+
+
+def test_no_epic_authorises_a_path_its_own_scope_block_forbids() -> None:
+    """#1583: the first version of this mined paths out of prose, skipping lines
+    that matched prohibition marker phrases. Review defeated it, and a scan of
+    the real registry showed why: **24 distinct leaks across 38 epics**.
+
+    Epic #1325 authorised `core/security/dependencies.py` off a line reading
+    "W6 IS RUNNING IN PARALLEL AND OWNS THESE FILES. Never edit: ..." — a
+    security-relevant epic, handed an executor exactly the file another lane
+    owns. Others leaked `UI/UX`, `I/O`, `W7/W8` and a bare `/` as though they
+    were directories.
+
+    A denylist over natural language cannot be made safe by adding phrases; the
+    next epic writes a prohibition in wording nobody enumerated. Authorisation
+    must be declared, not inferred. This test runs over the whole shipped
+    registry so a new epic cannot reintroduce the class.
+    """
+    cfg = load_runtime_config(REPO_ROOT)
+    registry = (cfg.get("workflow_prompt_cache") or {}).get("epicRegistry") or {}
+    assert registry, "epicRegistry is empty; this test would assert nothing"
+
+    prohibition = re.compile(
+        r"must not|off-limits|excluded|restricted|not yours|do not|no product|never",
+        re.IGNORECASE,
+    )
+    leaks: list[str] = []
+    for epic_id, entry in registry.items():
+        block = unescape_scope_block(entry.get("parentScopeBlock") or "")
+        for path in in_scope_paths_for_epic(entry):
+            for line in block.splitlines():
+                if path in line and prohibition.search(line):
+                    leaks.append(f"#{epic_id}: {path!r} from {line.strip()[:80]!r}")
+    assert leaks == [], "authorised paths taken from prohibition lines:\n" + "\n".join(leaks[:8])
+
+
+def test_authorised_paths_are_declared_not_inferred() -> None:
+    """The registry entry declares them; nothing is parsed out of prose."""
+    assert in_scope_paths_for_epic({}) == []
+    assert in_scope_paths_for_epic({"parentScopeBlock": "- Harness only: eval/, apps/"}) == [], (
+        "paths were inferred from the scope block; declaration is the only source"
+    )
+    assert in_scope_paths_for_epic({"inScopePaths": ["eval/", "tests/unit/"]}) == [
+        "eval/",
+        "tests/unit/",
+    ]
