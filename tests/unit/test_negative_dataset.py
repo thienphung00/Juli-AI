@@ -24,6 +24,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import warnings
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -167,6 +168,15 @@ def _expected_commit_resolution(
     ``commit`` for both in the curating worktree and ``missing`` in a fresh
     ``git clone`` of the same branch. Expect MISMATCH, not UNREACHABLE, when
     reading this anywhere but the machine that ran the curation.
+
+    #1618 corrects the scope of that last sentence. It holds for *dangling*
+    objects, which is what it was written about, but dissolution is not the only
+    route to UNREACHABLE. Two bounded fetches also produce it: pr.yml fetches the
+    merge ref at a bounded depth and then the base ref at a bounded depth, and
+    the second can deliver an object the first ref's own walk does not reach.
+    Observed on PR #1616, where a healthy row at depth 199 against fetch-depth
+    200 reported UNREACHABLE and read as freshly dissolved. So UNREACHABLE means
+    "here but unreachable", and *why* is answerable only in a complete clone.
     """
     if commit in reachable:
         return Resolution.RESOLVED
@@ -183,6 +193,22 @@ def _expected_commit_resolution(
 #: to the trunk (``eval.curate_negatives.resolve_fix_commit_scope``) so this set
 #: cannot grow from a future derivation.
 DISSOLVED_COMMIT_ROWS = frozenset({"fix_commits/f6c0630567443eb4", "fix_commits/702867bf541e1fcd"})
+
+
+def dissolution_violations(
+    resolutions: list[tuple[dict, Resolution]], allowlist: frozenset[str]
+) -> set[str]:
+    """Rows that are UNREACHABLE and not already known to be dissolved.
+
+    Extracted (#1618) so the production assertion and its ADR-092 exhibit call
+    the *same* code. The first version of that exhibit asserted set arithmetic
+    on a synthetic literal and never touched this path, so weakening the real
+    check left the exhibit green — it proved nothing. Anything that neuters this
+    function now turns both red.
+    """
+    return {
+        row["record_id"] for row, res in resolutions if res is Resolution.UNREACHABLE
+    } - allowlist
 
 
 def test_every_row_provenance_resolves() -> None:
@@ -258,8 +284,36 @@ def test_every_row_provenance_resolves() -> None:
     # UNREACHABLE is tolerated only for the rows already known to be dissolved.
     # Anything else means a squash-merge has just dissolved fresh evidence, and
     # that must be red rather than quietly accepted as a known cost.
-    dissolved = {row["record_id"] for row, res in commit_rows if res is Resolution.UNREACHABLE}
-    assert dissolved <= DISSOLVED_COMMIT_ROWS, sorted(dissolved - DISSOLVED_COMMIT_ROWS)[:5]
+    # #1618: only ask this where the answer means something. UNREACHABLE is
+    # "the object is here and no ref reaches it". In a complete clone that is the
+    # signature of a dissolved commit. In a bounded checkout it is also the
+    # signature of a commit outside the fetched window -- pr.yml issues two
+    # bounded fetches (merge ref, then base ref), and the second can deliver an
+    # object the first ref's walk does not reach. From inside, the two causes are
+    # indistinguishable, so asserting here asserts on noise.
+    #
+    # Measured on PR #1616, a docs-only change: fix_commits/957d94212a58b698
+    # (commit 7ae85937d -- present, digest matching, reachable in a complete
+    # clone) sits at depth 199 against fetch-depth 200 and reported as freshly
+    # dissolved. 78 of the 125 commit rows sit in the band [150, 260] and 13 more
+    # cross as the wave advances, so this is a date-dependent false alarm on
+    # whichever PR is open, not a defect in that PR.
+    violations = dissolution_violations(commit_rows, DISSOLVED_COMMIT_ROWS)
+    if resolver.history_is_complete():
+        assert violations == set(), sorted(violations)[:5]
+    else:
+        # Not silent: a check that quietly stops running is the failure mode of
+        # #1600 and #1603. Say what was seen and what was not asserted.
+        # warnings.warn, not print: pytest captures stdout on a passing test and
+        # pr.yml's invocation passes no -s, so a print here vanishes on exactly
+        # the path this is about. Found in review; it was the #1600/#1603 failure
+        # mode inside the fix meant to avoid it. Warnings reach the summary.
+        warnings.warn(
+            f"#1618: dissolution not asserted (bounded checkout) -- "
+            f"{len(violations)} UNREACHABLE row(s) outside the allowlist; "
+            f"the per-row expectation above still ran at this depth.",
+            stacklevel=2,
+        )
 
     # Cache-backed rows resolve exactly wherever the cache exists (a developer
     # machine); in CI the cache is absent and MISSING_SOURCE is the honest answer.
@@ -565,3 +619,71 @@ def test_fix_commit_curation_is_pinned_to_the_trunk() -> None:
         cited = {row["provenance"]["commit"] for row in derive_fix_commit_rows(root)}
         assert trunk_tip in cited
         assert doomed not in cited
+
+
+def test_dissolution_check_still_bites_in_a_complete_clone() -> None:
+    """#1618 / ADR-092 exhibit: gating a check is legitimate only if it can still
+    fail somewhere. Exhibit the input that still turns it red.
+
+    The first version of this test asserted set arithmetic on a synthetic literal
+    and never called `ProvenanceResolver` or `history_is_complete()`. Review
+    proved it tautological: replacing the production assertion with `assert True`
+    left it green. An exhibit that survives the weakening it exists to detect is
+    not an exhibit. This one drives a genuinely dangling commit through the real
+    resolver and the shared `dissolution_violations` helper the production
+    assertion uses, in a real complete clone.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _git(root, "init", "-q", "-b", "trunk", ".")
+        _git(root, "config", "user.email", "t@example.com")
+        _git(root, "config", "user.name", "t")
+        _git(root, "commit", "-q", "--allow-empty", "-m", "kept: on the trunk")
+        kept = _git(root, "rev-parse", "HEAD").strip()
+        _git(root, "commit", "-q", "--allow-empty", "-m", "dissolved: squashed away")
+        dangling = _git(root, "rev-parse", "HEAD").strip()
+        _git(root, "reset", "-q", "--hard", kept)
+
+        probe = ProvenanceResolver(repo_root=root)
+        assert probe.history_is_complete(), "the exhibit must run in a complete clone"
+
+        fresh = {"record_id": "fix_commits/freshly_dissolved_exhibit"}
+        assert fresh["record_id"] not in DISSOLVED_COMMIT_ROWS
+        resolution = probe.resolve({"kind": "git_commit", "commit": dangling, "sha256": "0" * 64})
+        assert resolution is Resolution.UNREACHABLE, resolution
+
+        # The same call the production assertion makes. If that check is ever
+        # weakened -- gate removed, comparison neutered, allowlist widened to
+        # everything -- this goes red with it.
+        violations = dissolution_violations([(fresh, resolution)], DISSOLVED_COMMIT_ROWS)
+        assert violations == {fresh["record_id"]}, (
+            "a freshly dissolved row outside the allowlist must be reported as a "
+            "violation in a complete clone; if it is not, dissolution is tolerated"
+        )
+
+        # And a row that IS in the allowlist must not be reported, or the check
+        # would be red permanently and get switched off for noise.
+        known = {"record_id": next(iter(DISSOLVED_COMMIT_ROWS))}
+        assert dissolution_violations([(known, resolution)], DISSOLVED_COMMIT_ROWS) == set()
+
+    # The allowlist stays an identity set, not a count budget -- #1579 chose
+    # identities so a third dissolution could not be absorbed silently.
+    assert isinstance(DISSOLVED_COMMIT_ROWS, frozenset)
+    assert len(DISSOLVED_COMMIT_ROWS) == 2, sorted(DISSOLVED_COMMIT_ROWS)
+
+
+def test_the_second_cause_of_unreachable_is_recorded() -> None:
+    """#1618: the docstring claimed UNREACHABLE arises only in the working copy
+    that curated the dataset -- "no clone transfers a dangling object at all".
+
+    True of dangling objects, and verified when written, but not the only route:
+    CI produced UNREACHABLE for a healthy row on PR #1616 because two bounded
+    fetches can deliver an object the checked-out ref's walk does not reach. A
+    reader trusting the narrower claim would conclude the row was dissolved.
+    """
+    source = Path(__file__).read_text(encoding="utf-8")
+    assert "#1618" in source
+    assert "bounded fetches" in source, (
+        "the fetched-window cause of UNREACHABLE is not recorded, leaving "
+        "dissolution as the only documented explanation"
+    )
