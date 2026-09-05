@@ -1,7 +1,7 @@
 {
   "issue": 1462,
   "schema": "debt-ratchet-baseline/1",
-  "generatedAt": "2026-09-02T11:40:00Z",
+  "generatedAt": "2026-09-05T07:57:18Z",
   "generator": "python -m eval.ratchets measure --write",
   "classes": {
     "broken_doc_refs": {
@@ -381,7 +381,7 @@
     "suppressions": {
       "kind": "identities",
       "stats": {
-        "files_scanned": 995,
+        "files_scanned": 1035,
         "lines": 410,
         "occurrences": 412,
         "distinct_identities": 213,
@@ -843,5 +843,5 @@
       }
     }
   },
-  "tightenedFrom": "2026-09-01T10:10:38Z"
+  "tightenedFrom": "2026-09-05T07:42:13Z"
 }

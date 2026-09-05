@@ -33,6 +33,7 @@ def _base_artifact(**overrides: Any) -> dict[str, Any]:
             "redGreenRefactorEvidence": [
                 {
                     "cycle": 1,
+                    "evidenceState": "witnessed",
                     "commands": [{"command": "pytest -q", "exitCode": 0}],
                 }
             ],
@@ -116,6 +117,180 @@ def test_tdd_evidence_fails_without_tests(tmp_path: Path, monkeypatch) -> None:
 
     assert passed is False
     assert "tests" in description.lower()
+
+
+# --- #1603: witnessed / reconstructed / unavailable must not collapse -----
+#
+# The predecessor gate gave the identical verdict to a fabricated claim, an
+# honestly-disclosed reconstruction, and a real witnessed observation — it had
+# no field to read the difference from. These tests pin the three states apart.
+
+
+def test_tdd_evidence_fails_when_every_cycle_is_unavailable(tmp_path: Path, monkeypatch) -> None:
+    """'No evidence either way' must not read as success.
+
+    An artifact that changed code and attests an exitCode but marks its own
+    cycle 'unavailable' is exactly the shape of the false negative in #1603:
+    a claim with no observation behind it. It must fail, not slide through on
+    the exitCode check alone.
+    """
+    _patch_impl_dir(monkeypatch, tmp_path)
+    _write(
+        tmp_path,
+        _base_artifact(
+            redGreenRefactorEvidence=[
+                {
+                    "cycle": 1,
+                    "evidenceState": "unavailable",
+                    "commands": [{"command": "pytest -q", "exitCode": 0}],
+                }
+            ]
+        ),
+    )
+
+    passed, description, details = run_check(515)
+
+    assert passed is False
+    assert "unavailable" in description.lower() or "no evidence" in description.lower()
+    assert details["evidenceStateCounts"] == {
+        "witnessed": 0,
+        "reconstructed": 0,
+        "unavailable": 1,
+        "omitted": 0,
+    }
+
+
+def test_tdd_evidence_omitted_evidence_state_is_legacy_and_passes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Omission is not a declaration — a legacy artifact must not fail outright.
+
+    An artifact written before ``evidenceState`` existed has claimed nothing;
+    failing it reads absence as a claim, which is the same error class as
+    treating "could not determine" as an answer. This is the regression a
+    coordinator caught: the mutants clean-record fixture and the
+    public-release e2e matrices are exactly this shape, and both broke when
+    'omitted' first shared a bucket with the explicit 'unavailable' claim.
+    """
+    _patch_impl_dir(monkeypatch, tmp_path)
+    _write(
+        tmp_path,
+        _base_artifact(
+            redGreenRefactorEvidence=[
+                {"cycle": 1, "commands": [{"command": "pytest -q", "exitCode": 0}]}
+            ]
+        ),
+    )
+
+    passed, description, details = run_check(515)
+
+    assert passed is True
+    assert details["evidenceStateCounts"] == {
+        "witnessed": 0,
+        "reconstructed": 0,
+        "unavailable": 0,
+        "omitted": 1,
+    }
+    assert details["evidenceQuality"] == "legacy"
+    # Legacy must never be mistaken for a real witnessed observation.
+    assert "predates" in description.lower()
+
+
+def test_tdd_evidence_mixed_omitted_and_explicit_unavailable_still_passes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A legacy cycle alongside an explicit 'unavailable' one is still tolerated.
+
+    The bar for the hard failure is *every* cycle explicitly declaring no
+    evidence — not merely the absence of a witnessed/reconstructed cycle. Any
+    omitted (legacy) cycle in the mix keeps the artifact on the tolerant path,
+    since at least one cycle here predates the contract and asserted nothing.
+    """
+    _patch_impl_dir(monkeypatch, tmp_path)
+    _write(
+        tmp_path,
+        _base_artifact(
+            redGreenRefactorEvidence=[
+                {"cycle": 1, "commands": [{"command": "pytest -q", "exitCode": 0}]},
+                {
+                    "cycle": 2,
+                    "evidenceState": "unavailable",
+                    "commands": [{"command": "pytest -q", "exitCode": 0}],
+                },
+            ]
+        ),
+    )
+
+    passed, _description, details = run_check(515)
+
+    assert passed is True
+    assert details["evidenceStateCounts"] == {
+        "witnessed": 0,
+        "reconstructed": 0,
+        "unavailable": 1,
+        "omitted": 1,
+    }
+    assert details["evidenceQuality"] == "legacy"
+
+
+def test_tdd_evidence_witnessed_cycle_passes_cleanly(tmp_path: Path, monkeypatch) -> None:
+    _patch_impl_dir(monkeypatch, tmp_path)
+    _write(tmp_path, _base_artifact())  # default fixture cycle is evidenceState: witnessed
+
+    passed, description, details = run_check(515)
+
+    assert passed is True
+    assert details["evidenceStateCounts"] == {
+        "witnessed": 1,
+        "reconstructed": 0,
+        "unavailable": 0,
+        "omitted": 0,
+    }
+    assert details["evidenceQuality"] == "witnessed"
+    assert "reconstructed" not in description.lower()
+
+
+def test_tdd_evidence_reconstructed_cycle_passes_but_reads_differently(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The core of #1603's fix: reconstructed must be visibly distinct from witnessed.
+
+    A disclosed reconstruction is not a fabrication, so it still passes — but
+    it must not come out of the gate looking identical to a real observation.
+    """
+    _patch_impl_dir(monkeypatch, tmp_path)
+    _write(tmp_path, _base_artifact())  # default fixture cycle is evidenceState: witnessed
+
+    witnessed_passed, witnessed_description, witnessed_details = run_check(515)
+    assert witnessed_passed is True  # sanity: baseline fixture still passes
+
+    _write(
+        tmp_path,
+        _base_artifact(
+            redGreenRefactorEvidence=[
+                {
+                    "cycle": 1,
+                    "evidenceState": "reconstructed",
+                    "commands": [{"command": "pytest -q", "exitCode": 0}],
+                }
+            ]
+        ),
+    )
+    passed, description, details = run_check(515)
+
+    assert passed is True
+    assert details["evidenceQuality"] == "reconstructed"
+    assert details["evidenceStateCounts"] == {
+        "witnessed": 0,
+        "reconstructed": 1,
+        "unavailable": 0,
+        "omitted": 0,
+    }
+    # The two verdicts must not read the same: a reviewer scanning descriptions
+    # must be able to tell a reconstructed cycle from a witnessed one.
+    assert description != witnessed_description
+    assert "reconstructed" in description.lower()
+    assert witnessed_details["evidenceQuality"] != details["evidenceQuality"]
 
 
 def test_tdd_evidence_ignores_zero_tokens_long_run(tmp_path: Path, monkeypatch) -> None:
