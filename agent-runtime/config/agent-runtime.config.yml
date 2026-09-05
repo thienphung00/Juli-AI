@@ -349,6 +349,15 @@ workflow_prompt_cache:
     # test because no workflow cache existed for the guarded tests/ root.
     1434:
       defaultSliceId: CI-WAVE-1
+      # #1583: declared, not parsed out of parentScopeBlock. Inferring these
+      # from prose leaked on 24 of 38 epics -- #1325 authorised a file its own
+      # "Never edit:" line forbids -- so the scope document says only what an
+      # Architect wrote here.
+      inScopePaths:
+        - agent-runtime/
+        - .github/workflows/
+        - eval/
+        - tests/unit/
       handoffPath: docs/handoffs/issue-1434.md
       parentScopeBlock: "# Parent #1434 - Harness-E: the harness stops grading its own homework\n## Product boundary\n- Harness only: agent-runtime/, .github/workflows/, eval/, tests/unit/\n- NO product code: backend/src/, apps/, ios/, packages/ are out of scope for every slice\n- No migrations, no API routes, no UI\n## Architect locks\n- The verdict is computed where the agent cannot write\n- Fail closed: a check must never pass because it could not determine an answer\n- No backfill, no history rewrite\n- pr.yml has one writer at a time\n- Only factual gates ship blocking; a heuristic gate gets a promotion criterion AND an expiry\n- Never satisfy a gate by editing gate configuration (ADR-092 gives the mechanical test)\n- Emit is not commit: the five gitignored body directories are never git add -f'd\n"
       doNotLoad:
