@@ -25,10 +25,10 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 8 | P8 — Streaming (SSE + Celery relay) | ✅ **implemented and live-verified** — [ADR-074](../../adr/074-agent-event-streaming-and-relay.md); PRD #1116, slices #1125–#1133 merged via #1183. Live SSE, gapless duplicate-free `Last-Event-ID` reconnect, mid-run cancel, and the fail-closed `memory://` boot assertion all proven on the deployed host — see [Wave 3 live verification](#wave-3-live-verification-2026-08-19--2026-08-20) | ✅ 2026-08-20 |
 | 9 | P7 — Structured output contract | ⏸ deferred (user, 2026-08-11) — scheduled **W9-B** with P15 (see the wave roadmap) — loop runs on ADR-072 prose output; wires in via `FinalResponse` block + prompt v2 bump (ADR-073 d.5) | ⬜ |
 | 10 | P9+P14 — Approval, safety & security prerequisites | ✅ **implemented, W5 merged 2026-08-24** — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) + [ADR-082](../../adr/082-agent-run-product-binding.md); eleven slices deployed on release `4cce75a7`. The confirmation endpoint no longer returns 501; approve-is-run-creation is the only path to a run; `POST /v1/demo/runs` is removed | 🟨 **2026-08-25 — observation 1 at six of seven steps; observation 2 blocked by owner decision.** Ten defects were found and fixed by walking it (#1287, #1289–#1293, #1299–#1301, #1302, #1304, #1305). Auth (ES256/JWKS), fast refresh + sandbox catalog sync, card surfacing, approve→run creation, SSE with replay and heartbeats, all three read tools via shop-aware credential routing, copy-guard-clean completion, and crash/clean-failure card recovery are all proven live. The final step — confirm → sandbox write lands — waits on **realistic sandbox product data (owner action)**, not on code. Observation 2 is recorded BLOCKED: no production write authorized; unblock chain is functional RLS → manual red-team pass → explicit owner authorization for a single production mutation → T+7 → a real `impact_readings` row. See [W5 live verification](#w5-live-verification-2026-08-24) and #1226's 2026-08-25 comments |
-| 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 **W6 — planned and filed 2026-08-25.** Design grilled 2026-08-12 ([ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md)), amended by [ADR-084](../../adr/084-agent-demo-surface-tenancy-and-replay.md) after the W5 gate walk contradicted four of its premises. PRD [#1308](https://github.com/thienphung00/Juli-AI/issues/1308); fourteen slices + gate [#1322](https://github.com/thienphung00/Juli-AI/issues/1322) — see [Wave 6](#wave-6--sellers-can-watch-juli-work-and-choose-what-it-does-2026-08-25) | ⬜ |
+| 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 **W6 — a third landed, 2026-09-05.** Design grilled 2026-08-12 ([ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md)), amended by [ADR-084](../../adr/084-agent-demo-surface-tenancy-and-replay.md). PRD [#1308](https://github.com/thienphung00/Juli-AI/issues/1308). **On `main`:** #1272 seller-facing reason codes, #1314 visual identity + motion, #1318 the run ledger, #1423 golden-scenario capture/replay (which is #1311's deliverable — that issue is stale, not open work), #1309 the executability discriminator. The wave was reconciled with `main` (#1451 → #1640) and landed (#1645). **Still unbuilt:** #1315 (in review, PR #1650), #1316, #1317, #1320, #1313, and #1321's replay journey; gate #1322 untouched. Scoped in [the remaining-slices handoff](../../handoffs/2026-09-05-w6-remaining-slices.md) | 🟨 2026-09-05 — **four of ten slices; the seller-facing surface is the part still missing.** #1320 is blocked on #1313: the demo's recommendations panel calls `/v1/demo/recommendations`, which 404s, and the real route `/v1/demo/decisions` is authenticated, so there is no session to call it with. It renders fixture content and reports success today. Note #1308 is CLOSED while nine children are open |
 | 11b | P-IM — Incremental impact measurement (NEW) | ✅ implemented, gate reopened in **W4** — [ADR-077](../../adr/077-incremental-impact-measurement.md); re-run wave merged to `main` (#1113, 2026-08-14), #1040–#1045 + #1068 all with status records, after the [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B refusal of the first attempt | 🟨 2026-08-21 — **reachable, still un-run.** W4 fixed all three broken reads (#1215 payload, #1216 duration, #1219 measurable set). The reading itself needs a production-shop write, because the sandbox shop has no analytics series — that is W5's gate, not a code gap |
 | 11c | P-CRED — TikTok credential lifecycle / refresh-token rotation (NEW) | ✅ **W4 closed 2026-08-21** — deployed on release `14807670` and verified against the vendor: sandbox credential refreshed through the real `refresh_credential` path, `refresh_count` 0→1, expiry moved 2026-08-27→2026-08-28. Beat and lazy layers live; **reactive layer built but wired to nothing** (#1233), so a token that dies before its recorded expiry is not self-healed. `/root/refresh_credentials.py` retired. [ADR-081](../../adr/081-refresh-token-rotation.md) | ✅ 2026-08-21 — full matrix green + one real sandbox-token refresh |
-| 11d | P-PROD — Production-write unlock (NEW) | 🟨 **W7 — planned and filed 2026-08-25**, in parallel with W6. Design [ADR-085](../../adr/085-production-write-preconditions.md), amending ADR-061 d.1 (its RLS deferral's trigger has fired). PRD [#1325](https://github.com/thienphung00/Juli-AI/issues/1325); thirteen slices + gate [#1339](https://github.com/thienphung00/Juli-AI/issues/1339) — see [Wave 7](#wave-7--the-owner-can-authorize-one-real-change-and-prove-it-was-safe-2026-08-25). **Scope corrected:** RLS is absent-not-deferred (policies key off a GUC nothing sets, and the app connects as the table *owner*, which Postgres exempts); the table count is 37, not 13; ADR-050 C2 is removed from this wave. Gates P-IM's real reading and P10's business-impact metric | ⬜ |
+| 11d | P-PROD — Production-write unlock (NEW) | ✅ **W7 slices landed; W7-bis (#1469) closed 2026-09-05.** Design [ADR-085](../../adr/085-production-write-preconditions.md). PRD [#1325](https://github.com/thienphung00/Juli-AI/issues/1325); gate [#1339](https://github.com/thienphung00/Juli-AI/issues/1339). The cutover to the non-owner RLS-bound role `juli_app` is **done and deployed** — and exposed six defects, all fixed: #1548, #1575 (alembic ran as the runtime role), #1576/#1599 (`SET LOCAL` discarded by commit), #1613 (the public demo read emptied by RLS), #1627 and #1631 (bronze append and sync-state write unscoped; #1631 also found a missing UPDATE grant → migration 055) | 🟨 2026-09-05 — **Observation 1 partially evidenced.** Bullets 2 and 3 pass: `juli_app`, `bypassrls=false`, owns 0 tables, cross-tenant reads return 0. Bullet 4 is 3 of 5 beats with **zero scoping errors** — `analytics_backfill_topup` (02:00 UTC) and `daily_impact_reader` (03:00 UTC) had not yet fired. Bullet 1's authenticated half needs an operator token. Bullet 4's wording was **amended 2026-09-05**: it named `system_scope()`, which writes no database GUC and has zero callers, making the condition unfalsifiable; the beats pass via `with_shop_scope`. Checks committed at `infra/scripts/obs1/`. **Root cause still open: [#1630](https://github.com/thienphung00/Juli-AI/issues/1630)** — a tenant scope set before a multi-minute vendor fetch does not survive it, so every per-statement scope added is a workaround until it lands |
 | 12 | P10 — Observability baseline | ⬜ **W8** | ⬜ |
 | 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ **W9-B** (with P7), over the path W9-A realigns | ⬜ |
 | 14 | P13 — Family charter, seller journeys + rollout of the remaining workflows | 🟨 **charter recorded 2026-09-03** — four families (Product, Inventory, Campaign & Promotion, Customer Service), Livestream removed, **Process Order (5) + Handle Split Package (6) promoted to design-order item 3** with sustained mega-sale volume as its non-functional requirement, and a new **Mega Sale Readiness** workflow at item 5 as its preparation companion (owner, 2026-09-03), six seller-journey reports and eight corrections, automation/monitoring NFR grades — see [P13](#14-p13--family-charter-seller-journeys-and-rollout-of-the-remaining-workflows-charter-grilled-2026-09-03-supersedes-rollout-to-remaining-10-workflows); grill in progress. Design-order items 0–1 (template hardening + the Optimize Product pricing realignment) land in **W9-A** — see [where it lands](#where-the-optimize-product-pricing-realignment-lands-2026-09-03); items 2–9 roll out in **W10** | ⬜ |
@@ -400,6 +400,58 @@ W5 built the approval gate and it is deployed. Whether a seller can use it is **
 reasons are recorded rather than worked around. That is the outcome #1226 explicitly permits, and it is
 the finding the HITL gate existed to produce — the fourth time in this wave a check passed for a reason
 unrelated to its claim, and the first to reach production.
+
+## W7 cutover and W6 landing — progress (2026-09-05)
+
+### The W7 cutover is done, and it found six defects by being done
+
+Moving the runtime off the table owner to `juli_app` was the whole point of W7's RLS
+work, and it behaved exactly as a real cutover does: everything that had been passing on
+**owner exemption rather than on permission** failed at once, one execution path at a time.
+
+| # | What broke | Why it was invisible before |
+|---|---|---|
+| #1548 | — | — |
+| #1575 | `alembic upgrade` ran as the runtime role | `env.py` read `DATABASE_URL`; every *other* step used `DATABASE_DIRECT_URL`, so backup and migration ran as two different roles |
+| #1576/#1599 | `SET LOCAL` discarded by a mid-stage commit | the scope was set once per job, not per stage |
+| #1613 | the public demo read returned zero rows | an unauthenticated route sets no tenant GUC; the owner had been exempt |
+| #1627 | the bronze append was refused | the handoff assumed "shop scope enforced by caller" |
+| #1631 | the sync-state write was refused, **and** `juli_app` lacked UPDATE | a cursor could advance exactly once, then fail |
+
+**The pattern, not the list, is the finding.** These were not six unrelated bugs. Fleet-wide
+work was authorised by table ownership rather than by any grant or policy, so it all lost its
+authority at the same instant and surfaced one path at a time. `system_scope()` — the
+mechanism the design named for this — sets a Python module global, writes **no database
+GUC**, and has **zero callers**.
+
+**#1630 is the root cause and is still open.** A tenant scope set before a multi-minute vendor
+fetch does not survive it; both database URLs resolve to the Supavisor pooler and the task
+held a transaction open for 23 minutes. Until it lands, every per-statement scope added by
+#1627 and #1631 is a workaround, and they should be reviewed for removal afterwards rather
+than left as sediment.
+
+### A measurement worth keeping
+
+CI runs the whole suite as `postgres` — superuser *and* table owner, which Postgres exempts
+from RLS. Only 4 of 49 integration modules exercise RLS as `juli_app`. Making application
+sessions run as `juli_app` was measured: it costs **one** additional failing test, not the
+large churn assumed. But it would not have caught these six, because the suite does not
+exercise the paths that broke. It is a **coverage** gap, not only an exemption gap.
+
+### W6 landed a third of itself
+
+The wave was reconciled with `main` (#1451 → #1640) and merged (#1645). Reconciling it
+surfaced three semantic conflicts — one of which produced **no conflict marker at all**:
+`credential_refresh_beat.py` auto-merged into main's `with_shop_scope` *plus* a `system_scope`
+wrapper main had deliberately deleted, caught only by `test_system_scope_call_sites_enumerated`.
+
+Also worth recording: squash-merging a **wave reconciliation** discards the ancestry that made
+the next merge clean, so the same files re-conflict. Squash is right for issue PRs and wrong
+for this.
+
+What landed is the infrastructure — the event protocol, the replay source, the design tokens.
+What is missing is the surface a seller uses: the stream hook (#1315, in review), the staged
+view (#1316), and the consent picker (#1317).
 
 ## Wave 6 — sellers can watch Juli work and choose what it does (2026-08-25)
 
