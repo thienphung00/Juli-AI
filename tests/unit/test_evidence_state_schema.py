@@ -1,11 +1,11 @@
-"""#1603 schema half: `evidenceState` is optional and backward compatible.
+"""#1647: `evidenceState` is optional and backward compatible in the schema.
 
-Split from #1634 because `agent-runtime/docs` is a watched `sourcePath` and
-`harness_bootstrap_pinned` compares the pin against the working tree — so a PR
-editing a schema there fails its own drift check, and the gate's own message
-prescribes landing the harness change on its own first. The gate logic that
-*reads* this field ships in #1634; this file only asserts the schema contract
-that logic depends on.
+Split from #1603 / PR #1634. `agent-runtime/docs` is a watched `sourcePath` and
+`harness_bootstrap_pinned` compares the pin against the working tree
+deliberately -- an executor reads the harness from disk -- so a PR editing a
+schema there fails its own drift check. The gate's own message prescribes
+landing the harness change on its own first. The gate logic that *reads* this
+field ships in #1634; this file asserts only the schema contract it depends on.
 """
 
 from __future__ import annotations
@@ -20,29 +20,43 @@ SCHEMA_PATH = (
     REPO_ROOT / "agent-runtime" / "docs" / "schemas" / "implementation-artifact.schema.json"
 )
 
-if str(CI_DIR) not in sys.path:
-    sys.path.insert(0, str(CI_DIR))
 
-from generate_implementation_artifact import build_implementation_artifact  # noqa: E402
-from json_schema_validate import validate_json_schema  # noqa: E402
+def _ci_imports():
+    """Import from `agent-runtime/scripts/ci` lazily, inside a function.
+
+    A module-level import after the `sys.path` insert needs `# noqa: E402`,
+    which the suppression ratchet counts as new debt. #1540 solved this in
+    `eval/gate_scoring.py::_bootstrap_anchor_sha` by moving the import into a
+    function, and E402 does not apply inside a function body at all. I required
+    two executors to pay this exact debt down today and then incurred it myself
+    on the first draft of this file.
+    """
+    if str(CI_DIR) not in sys.path:
+        sys.path.insert(0, str(CI_DIR))
+    from generate_implementation_artifact import build_implementation_artifact
+    from json_schema_validate import validate_json_schema
+
+    return build_implementation_artifact, validate_json_schema
 
 
 def _artifact(cycles: list[dict]) -> dict:
     """A structurally complete artifact, built by the real generator.
 
-    Hand-rolling one omits required fields and makes the test fail for reasons
-    unrelated to `evidenceState` -- which is what happened on the first attempt.
+    Hand-rolling one omits required fields, and the first draft of this test
+    failed on a missing `phaseRunId` rather than on anything to do with
+    `evidenceState` -- a red that looked like evidence and was not.
     """
-    return build_implementation_artifact(
-        1603,
+    build, _ = _ci_imports()
+    return build(
+        1647,
         "backend",
         overrides={
             "executionDurationMs": 1200,
             "tokenUsage": {"input": 10, "output": 5, "total": 15},
-            "filesModified": ["agent-runtime/docs/schemas/implementation-artifact.schema.json"],
-            "testsAdded": [
-                "tests/unit/test_evidence_state_schema.py::test_a_cycle_written_before_the_field_existed_still_validates"
+            "filesModified": [
+                "agent-runtime/docs/schemas/implementation-artifact.schema.json",
             ],
+            "testsAdded": ["tests/unit/test_evidence_state_schema.py"],
             "testsUpdated": [],
             "redGreenRefactorEvidence": cycles,
         },
@@ -53,26 +67,27 @@ def test_a_cycle_written_before_the_field_existed_still_validates() -> None:
     """No committed artifact may stop validating because of this addition.
 
     The gate's stricter pass/fail judgement is a separate, deliberate behaviour
-    change shipping in #1634 — not a schema break. Absence must remain
-    structurally legal here, or every artifact predating the field becomes
-    invalid retroactively, which the no-backfill lock forbids.
+    change shipping in #1634 -- not a schema break. Absence must stay
+    structurally legal, or every artifact predating the field becomes invalid
+    retroactively, which the no-backfill lock forbids.
     """
+    _, validate = _ci_imports()
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     legacy = _artifact([{"cycle": 1, "commands": [{"command": "pytest -q", "exitCode": 0}]}])
-    assert validate_json_schema(legacy, schema) == []
+    assert validate(legacy, schema) == []
 
 
 def test_each_declared_state_validates_and_an_unknown_one_does_not() -> None:
-    """The enum is closed. A typo'd state must be rejected structurally rather
-    than silently read as "not witnessed" by the consumer.
-    """
+    """The enum is closed, so a typo fails structurally rather than reaching the
+    consumer as an unrecognised value it would treat as `unavailable`."""
+    _, validate = _ci_imports()
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+
     for state in ("witnessed", "reconstructed", "unavailable"):
-        artifact = _artifact([{"cycle": 1, "evidenceState": state}])
-        assert validate_json_schema(artifact, schema) == [], state
+        assert validate(_artifact([{"cycle": 1, "evidenceState": state}]), schema) == [], state
 
     invalid = _artifact([{"cycle": 1, "evidenceState": "probably"}])
-    assert validate_json_schema(invalid, schema) != [], (
+    assert validate(invalid, schema) != [], (
         "an unknown evidenceState must be rejected; otherwise a typo reads as a "
         "state the consumer does not recognise and treats as unavailable"
     )
