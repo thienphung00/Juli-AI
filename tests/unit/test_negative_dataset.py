@@ -24,6 +24,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import warnings
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -192,6 +193,22 @@ def _expected_commit_resolution(
 #: to the trunk (``eval.curate_negatives.resolve_fix_commit_scope``) so this set
 #: cannot grow from a future derivation.
 DISSOLVED_COMMIT_ROWS = frozenset({"fix_commits/f6c0630567443eb4", "fix_commits/702867bf541e1fcd"})
+
+
+def dissolution_violations(
+    resolutions: list[tuple[dict, Resolution]], allowlist: frozenset[str]
+) -> set[str]:
+    """Rows that are UNREACHABLE and not already known to be dissolved.
+
+    Extracted (#1618) so the production assertion and its ADR-092 exhibit call
+    the *same* code. The first version of that exhibit asserted set arithmetic
+    on a synthetic literal and never touched this path, so weakening the real
+    check left the exhibit green — it proved nothing. Anything that neuters this
+    function now turns both red.
+    """
+    return {
+        row["record_id"] for row, res in resolutions if res is Resolution.UNREACHABLE
+    } - allowlist
 
 
 def test_every_row_provenance_resolves() -> None:
