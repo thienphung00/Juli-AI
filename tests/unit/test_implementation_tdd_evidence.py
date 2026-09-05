@@ -33,6 +33,7 @@ def _base_artifact(**overrides: Any) -> dict[str, Any]:
             "redGreenRefactorEvidence": [
                 {
                     "cycle": 1,
+                    "evidenceState": "witnessed",
                     "commands": [{"command": "pytest -q", "exitCode": 0}],
                 }
             ],
@@ -116,6 +117,167 @@ def test_tdd_evidence_fails_without_tests(tmp_path: Path, monkeypatch) -> None:
 
     assert passed is False
     assert "tests" in description.lower()
+
+
+# --- #1603: witnessed / reconstructed / unavailable must not collapse -----
+#
+# The predecessor gate gave the identical verdict to a fabricated claim, an
+# honestly-disclosed reconstruction, and a real witnessed observation — it had
+# no field to read the difference from. These tests pin the three states apart.
+
+
+def test_tdd_evidence_fails_when_every_cycle_is_unavailable(tmp_path: Path, monkeypatch) -> None:
+    """'No evidence either way' must not read as success.
+
+    An artifact that changed code and attests an exitCode but marks its own
+    cycle 'unavailable' is exactly the shape of the false negative in #1603:
+    a claim with no observation behind it. It must fail, not slide through on
+    the exitCode check alone.
+    """
+    _patch_impl_dir(monkeypatch, tmp_path)
+    _write(
+        tmp_path,
+        _base_artifact(
+            redGreenRefactorEvidence=[
+                {
+                    "cycle": 1,
+                    "evidenceState": "unavailable",
+                    "commands": [{"command": "pytest -q", "exitCode": 0}],
+                }
+            ]
+        ),
+    )
+
+    passed, description, details = run_check(515)
+
+    assert passed is False
+    assert "unavailable" in description.lower() or "no evidence" in description.lower()
+    assert details["evidenceStateCounts"] == {"witnessed": 0, "reconstructed": 0, "unavailable": 1}
+
+
+def test_tdd_evidence_fails_when_evidence_state_is_omitted(tmp_path: Path, monkeypatch) -> None:
+    """A cycle predating this contract has no evidenceState at all.
+
+    Silence must count the same as an explicit 'unavailable' — treating an
+    omitted field as a pass would let every historical fabrication back in
+    through the one gap the schema still allows.
+    """
+    _patch_impl_dir(monkeypatch, tmp_path)
+    _write(
+        tmp_path,
+        _base_artifact(
+            redGreenRefactorEvidence=[
+                {"cycle": 1, "commands": [{"command": "pytest -q", "exitCode": 0}]}
+            ]
+        ),
+    )
+
+    passed, _description, details = run_check(515)
+
+    assert passed is False
+    assert details["evidenceStateCounts"]["unavailable"] == 1
+
+
+def test_tdd_evidence_witnessed_cycle_passes_cleanly(tmp_path: Path, monkeypatch) -> None:
+    _patch_impl_dir(monkeypatch, tmp_path)
+    _write(tmp_path, _base_artifact())  # default fixture cycle is evidenceState: witnessed
+
+    passed, description, details = run_check(515)
+
+    assert passed is True
+    assert details["evidenceStateCounts"] == {"witnessed": 1, "reconstructed": 0, "unavailable": 0}
+    assert details["evidenceQuality"] == "witnessed"
+    assert "reconstructed" not in description.lower()
+
+
+def test_tdd_evidence_reconstructed_cycle_passes_but_reads_differently(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The core of #1603's fix: reconstructed must be visibly distinct from witnessed.
+
+    A disclosed reconstruction is not a fabrication, so it still passes — but
+    it must not come out of the gate looking identical to a real observation.
+    """
+    _patch_impl_dir(monkeypatch, tmp_path)
+    _write(tmp_path, _base_artifact())  # default fixture cycle is evidenceState: witnessed
+
+    witnessed_passed, witnessed_description, witnessed_details = run_check(515)
+    assert witnessed_passed is True  # sanity: baseline fixture still passes
+
+    _write(
+        tmp_path,
+        _base_artifact(
+            redGreenRefactorEvidence=[
+                {
+                    "cycle": 1,
+                    "evidenceState": "reconstructed",
+                    "commands": [{"command": "pytest -q", "exitCode": 0}],
+                }
+            ]
+        ),
+    )
+    passed, description, details = run_check(515)
+
+    assert passed is True
+    assert details["evidenceQuality"] == "reconstructed"
+    assert details["evidenceStateCounts"] == {"witnessed": 0, "reconstructed": 1, "unavailable": 0}
+    # The two verdicts must not read the same: a reviewer scanning descriptions
+    # must be able to tell a reconstructed cycle from a witnessed one.
+    assert description != witnessed_description
+    assert "reconstructed" in description.lower()
+    assert witnessed_details["evidenceQuality"] != details["evidenceQuality"]
+
+
+def test_evidence_state_is_optional_and_backward_compatible_in_the_schema() -> None:
+    """#1603 changed the schema; no committed artifact may stop validating.
+
+    ``evidenceState`` is new and optional, so a cycle written before this field
+    existed (no key at all) must still validate structurally — the gate's
+    stricter *pass/fail* judgement is a separate, deliberate behaviour change,
+    not a schema break. An invalid enum value must still be rejected.
+    """
+    import json
+    import sys as _sys
+
+    schema_path = (
+        REPO_ROOT / "agent-runtime" / "docs" / "schemas" / "implementation-artifact.schema.json"
+    )
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    ci_dir = str(CI_DIR)
+    if ci_dir not in _sys.path:
+        _sys.path.insert(0, ci_dir)
+    from json_schema_validate import validate_json_schema
+
+    legacy_cycle_artifact = _base_artifact(
+        redGreenRefactorEvidence=[
+            {"cycle": 1, "commands": [{"command": "pytest -q", "exitCode": 0}]}
+        ]
+    )
+    assert validate_json_schema(legacy_cycle_artifact, schema) == []
+
+    for state in ("witnessed", "reconstructed", "unavailable"):
+        artifact = _base_artifact(
+            redGreenRefactorEvidence=[
+                {
+                    "cycle": 1,
+                    "evidenceState": state,
+                    "commands": [{"command": "pytest -q", "exitCode": 0}],
+                }
+            ]
+        )
+        assert validate_json_schema(artifact, schema) == [], state
+
+    invalid = _base_artifact(
+        redGreenRefactorEvidence=[
+            {
+                "cycle": 1,
+                "evidenceState": "definitely-true-i-promise",
+                "commands": [{"command": "pytest -q", "exitCode": 0}],
+            }
+        ]
+    )
+    assert validate_json_schema(invalid, schema) != []
 
 
 def test_tdd_evidence_ignores_zero_tokens_long_run(tmp_path: Path, monkeypatch) -> None:
