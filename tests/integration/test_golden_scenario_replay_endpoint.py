@@ -38,7 +38,6 @@ note on why an infinite live stream would need one).
 # pytest can discover them, and the same-named test parameters shadow the
 # import rather than counting as a use.
 
-
 from __future__ import annotations
 
 import uuid
