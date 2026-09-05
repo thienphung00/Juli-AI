@@ -433,6 +433,15 @@ jobs:
       TIKTOK_APP_KEY: ${{ secrets.TIKTOK_APP_KEY }}
       TIKTOK_APP_SECRET: ${{ secrets.TIKTOK_APP_SECRET }}
       PYTHONUNBUFFERED: "1"
+      # #1608: this run's real integration base, same convention as
+      # `validate-gates`/`policy-checks` below. Consumed both by the fetch
+      # step (which ref to fetch by name) and, in-process, by
+      # `harness_bootstrap_pin.resolve_base_ref_token` -- the base-anchored
+      # gates this job exercises live (tests/unit/test_mutants.py) must
+      # anchor to this run's actual base, not a hardcoded `main`. At issue
+      # tier that base is a wave branch; a hardcoded `main` reported the
+      # wave's own landed harness commits as drift (PR #1561; ADR-094).
+      BASE_REF: ${{ github.base_ref }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -451,13 +460,22 @@ jobs:
           # rows are reachable, so that suite judges each row against what git
           # actually holds rather than against a clone-wide verdict.
           fetch-depth: 200
-      # #1604: fetch-depth alone does not create `origin/main`. actions/checkout
+      # #1604: fetch-depth alone does not create `origin/<base>`. actions/checkout
       # fetches only the ref it checks out (`+<sha>:refs/remotes/pull/<N>/merge`
       # on a PR event) -- depth bounds how far back *that ref* goes, it cannot
-      # bring a second branch into existence. Without this, `origin/main` stays
+      # bring a second branch into existence. Without this, `origin/main` stayed
       # an unknown revision at any depth (live proof: PR #1561, run
       # 33848493670). Bounded to the same 200, so the clone stays shallow --
       # see the comment above; --depth 0 would flip history_is_complete().
+      #
+      # #1608: fetches `origin/${BASE_REF}` -- this run's *actual* base --
+      # rather than a hardcoded `main`. At issue tier `github.base_ref` is a
+      # wave branch, not `main`; fetching `main` there names a ref that is not
+      # this PR's base at all, and every gate anchored to it (the
+      # `harness_bootstrap_pin` gate this job exercises live, via
+      # tests/unit/test_mutants.py) measures drift against the wrong history.
+      # At main tier `github.base_ref` *is* `main`, so this one dynamic step
+      # is correct at both tiers without a conditional (ADR-094).
       #
       # #1604 follow-up: this fetch is a second, independent depth-bounded
       # fetch against an already-shallow checkout. That combination moves the
@@ -469,11 +487,11 @@ jobs:
       # two calls cannot be merged into one invocation. Re-fetching the
       # checked-out commit by its own sha immediately after restores the
       # boundary this fetch moves -- verified empirically in a faithful
-      # checkout repro (origin/main resolves, is-shallow-repository stays
+      # checkout repro (origin/<base> resolves, is-shallow-repository stays
       # true, merge-base resolves, and the #943 commit stays reachable).
-      - name: Fetch base ref (origin/main)
+      - name: Fetch base ref (origin/${{ github.base_ref }})
         run: |
-          git fetch --depth=200 origin +refs/heads/main:refs/remotes/origin/main
+          git fetch --depth=200 origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
           git fetch --depth=200 origin "$(git rev-parse HEAD)"
       - uses: actions/setup-python@v7
         with:
@@ -487,6 +505,12 @@ jobs:
       - uses: pnpm/action-setup@v6
         with:
           run_install: false
+          # #1580: fetch the pinned pnpm binary directly instead of
+          # `npm install -g`, whose duration has ranged 4.2s..7m05s and
+          # cancelled this job five times against the 15-minute wall.
+          # Distinct from setup-node's `cache: pnpm` below, which caches
+          # the dependency store, not installing pnpm itself.
+          standalone: true
       - uses: actions/setup-node@v7
         with:
           node-version: "20"
@@ -1222,6 +1246,16 @@ jobs:
       REDIS_URL: redis://localhost:6379
       TIKTOK_APP_KEY: ${{ secrets.TIKTOK_APP_KEY }}
       TIKTOK_APP_SECRET: ${{ secrets.TIKTOK_APP_SECRET }}
+      # #1608: see `test` -- same convention as `validate-gates`/`policy-checks`.
+      # This job runs at main tier (the `if:` above) via two different
+      # triggers: a pull_request into `main`, where `github.base_ref` *is*
+      # `main`, and `merge_group` (this workflow's merge queue gate before a
+      # wave lands), where `github.base_ref` is empty -- GitHub does not
+      # populate it for that event. `classify-tier` already special-cases
+      # `merge_group` the same way, unconditionally: it is reachable only via
+      # this workflow's own `merge_group: branches: [main]` trigger, so `main`
+      # is the only value it could ever mean there, not a guess.
+      BASE_REF: ${{ github.base_ref || 'main' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -1236,12 +1270,12 @@ jobs:
           # Bounded, not 0: see `test`.
           fetch-depth: 200
       # #1604: see `test` for why this is needed -- fetch-depth alone does
-      # not create `origin/main`. The follow-up re-fetch of the checked-out
+      # not create `origin/<base>`. The follow-up re-fetch of the checked-out
       # sha is likewise explained there (restores the shallow boundary this
-      # step's main fetch moves).
-      - name: Fetch base ref (origin/main)
+      # step's fetch moves). #1608: fetches `origin/${BASE_REF}` -- see `test`.
+      - name: Fetch base ref (origin/${{ github.base_ref || 'main' }})
         run: |
-          git fetch --depth=200 origin +refs/heads/main:refs/remotes/origin/main
+          git fetch --depth=200 origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
           git fetch --depth=200 origin "$(git rev-parse HEAD)"
       - uses: actions/setup-python@v7
         with:
@@ -1252,6 +1286,12 @@ jobs:
       - uses: pnpm/action-setup@v6
         with:
           run_install: false
+          # #1580: fetch the pinned pnpm binary directly instead of
+          # `npm install -g`, whose duration has ranged 4.2s..7m05s and
+          # cancelled this job five times against the 15-minute wall.
+          # Distinct from setup-node's `cache: pnpm` below, which caches
+          # the dependency store, not installing pnpm itself.
+          standalone: true
       - uses: actions/setup-node@v7
         with:
           node-version: "20"
