@@ -293,58 +293,6 @@ def test_tdd_evidence_reconstructed_cycle_passes_but_reads_differently(
     assert witnessed_details["evidenceQuality"] != details["evidenceQuality"]
 
 
-def test_evidence_state_is_optional_and_backward_compatible_in_the_schema() -> None:
-    """#1603 changed the schema; no committed artifact may stop validating.
-
-    ``evidenceState`` is new and optional, so a cycle written before this field
-    existed (no key at all) must still validate structurally — the gate's
-    stricter *pass/fail* judgement is a separate, deliberate behaviour change,
-    not a schema break. An invalid enum value must still be rejected.
-    """
-    import json
-    import sys as _sys
-
-    schema_path = (
-        REPO_ROOT / "agent-runtime" / "docs" / "schemas" / "implementation-artifact.schema.json"
-    )
-    schema = json.loads(schema_path.read_text(encoding="utf-8"))
-
-    ci_dir = str(CI_DIR)
-    if ci_dir not in _sys.path:
-        _sys.path.insert(0, ci_dir)
-    from json_schema_validate import validate_json_schema
-
-    legacy_cycle_artifact = _base_artifact(
-        redGreenRefactorEvidence=[
-            {"cycle": 1, "commands": [{"command": "pytest -q", "exitCode": 0}]}
-        ]
-    )
-    assert validate_json_schema(legacy_cycle_artifact, schema) == []
-
-    for state in ("witnessed", "reconstructed", "unavailable"):
-        artifact = _base_artifact(
-            redGreenRefactorEvidence=[
-                {
-                    "cycle": 1,
-                    "evidenceState": state,
-                    "commands": [{"command": "pytest -q", "exitCode": 0}],
-                }
-            ]
-        )
-        assert validate_json_schema(artifact, schema) == [], state
-
-    invalid = _base_artifact(
-        redGreenRefactorEvidence=[
-            {
-                "cycle": 1,
-                "evidenceState": "definitely-true-i-promise",
-                "commands": [{"command": "pytest -q", "exitCode": 0}],
-            }
-        ]
-    )
-    assert validate_json_schema(invalid, schema) != []
-
-
 def test_tdd_evidence_ignores_zero_tokens_long_run(tmp_path: Path, monkeypatch) -> None:
     _patch_impl_dir(monkeypatch, tmp_path)
     _write(

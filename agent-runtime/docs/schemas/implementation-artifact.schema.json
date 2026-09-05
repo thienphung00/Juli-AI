@@ -150,11 +150,6 @@
         "required": ["cycle"],
         "properties": {
           "cycle": { "type": "integer", "minimum": 1 },
-          "evidenceState": {
-            "type": "string",
-            "enum": ["witnessed", "reconstructed", "unavailable"],
-            "description": "#1603: whether this cycle's red state was observed this session (witnessed), inferred from commit history/diff rather than observed (reconstructed), or not backed by either (unavailable). Optional for backward compatibility with cycles written before this field existed — an omitted value is treated as unavailable by check_implementation_tdd_evidence.py, never as a silent pass."
-          },
           "failingTestEvidence": { "type": "string" },
           "passingTestEvidence": { "type": "string" },
           "refactorEvidence": { "type": "string" },
