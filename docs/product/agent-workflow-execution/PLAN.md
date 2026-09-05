@@ -1582,6 +1582,18 @@ requirements per workflow plus the shared requirements, is
 [`v1-workflow-spec.md`](v1-workflow-spec.md); it is the input to `to-prd`. Where it trims an ADR
 decision for v1 the trim is marked in the spec, and the ADR remains the design of record.
 
+**Delivery rules for the v1 build (owner, 2026-09-05).** (1) Shared code (design-order item 0,
+restricted to the P0 ladder in [`v1-workflow-spec.md`](v1-workflow-spec.md) §8.1) lands first and
+serially; the four workflow lanes then run in parallel with disjoint write paths. (2) **The first
+~10 % of slices in landing order — the P0 shared code and the first Optimize Product slices — are
+executed by Fable**, overriding the Haiku executor row of the agent phase model for those slices,
+to establish the code standard (`docs/architecture/code-standard.md`) that every later Haiku
+executor is held to; the Haiku review agent reviews them unchanged. (3) v1 is done only when a
+workflow works end-to-end for a real connected seller, so the production-write unlock (#1339) and
+W7-bis (#1469) are on the v1 critical path. (4) One active run per subject across all workflows,
+with endpoint-family write locks (spec S-FR-11). (5) One deadline view is the single surface added
+to the identical-UX set, shared by every workflow.
+
 #### Common workflow structure — identical UX, per-case internals
 
 Owner directive, 2026-09-04: every agent workflow follows the **same five-stage structure** and

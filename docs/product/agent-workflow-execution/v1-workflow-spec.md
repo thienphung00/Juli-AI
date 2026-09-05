@@ -28,7 +28,7 @@ These apply to all four workflows. A workflow PRD references this section instea
 
 | # | Requirement |
 |---|---|
-| S-FR-1 | **Five-stage structure.** Monitoring → card and approval → run → (suspended close-out where the workflow waits on the world) → measure, per `PLAN.md` §14 "Common workflow structure". Identical seller-facing surfaces: card, plan review, confirmation sheet, digest, completion message, exception list. No workflow adds a surface. |
+| S-FR-1 | **Five-stage structure.** Monitoring → card and approval → run → (suspended close-out where the workflow waits on the world) → measure, per `PLAN.md` §14 "Common workflow structure". Identical seller-facing surfaces: card, plan review, confirmation sheet, digest, completion message, exception list, **and one deadline view** (owner waiver 2026-09-05: a single deadline/timeline surface shared by every workflow that carries a deadline — dispatch windows, needed-by dates, confirmation expiries). No workflow adds a surface beyond these seven. |
 | S-FR-2 | **Approve is run creation** (ADR-075). No other path creates a run. |
 | S-FR-3 | **One lever per run; single proposal.** Exactly one CONFIRM pause with one option (N = 1). The proposed change names the concrete write and its consequences. |
 | S-FR-4 | **Deterministic numbers.** Every price- or quantity-bearing parameter is computed by a rule from configuration and vendor data; the model chooses subject, wording and whether to proceed, and calls the tool with exactly the computed parameters. |
@@ -37,6 +37,9 @@ These apply to all four workflows. A workflow PRD references this section instea
 | S-FR-7 | **Honest end states.** Every run ends `completed` with a named cause or on the existing failure terminal; "nothing to do" is never a failure; a run that wrote nothing produces no impact reading. |
 | S-FR-8 | **Intervention closes the run** (where a run is suspended): an external change to the thing Juli created ends the run; Juli reverts nothing and re-issues no card for that thing. |
 | S-FR-9 | **No repeat consent, no level-1 autonomy in v1.** Every write follows a fresh approval and a fresh confirmation, except where an ADR names the seller's own condition as the consent (Clear Excess goal, Replenish receipt report). |
+| S-FR-11 | **One active run per subject, across all workflows; no duplicate write.** A product, SKU set, or order that has an active run under any workflow cannot receive a second run under another workflow until the first ends (owner directive 2026-09-05). This **narrows ADR-083/ADR-087 d.2**, which permitted two agents on one product under different categories. Workflows whose single writes share an endpoint family (Optimize Product and Clear Excess both create promotion activities; Clear Excess and Replenish both touch stock) are additionally serialised by a **write-lock registry keyed on (subject, endpoint family)** checked at dispatch, so an overlapping endpoint can never be written twice for one subject in one window. |
+| S-FR-12 | **Checklist items are tracked and seller-editable.** Every human checklist item (place the order, apply the clearance label, print and pack) is a recorded item on the run: the seller ticks it, can edit its text and its done state, and the tick time is in the ledger. Ticks do not gate a run stage in v1. |
+| S-FR-13 | **One decision list per workflow.** The seller sees a separate list for each workflow, never one merged list; ordering within a list is by deadline where the workflow has one, else by basis recency. |
 | S-FR-10 | **Cards through the standard path only.** ADR-087's subject-scoped cards (one active card per subject per workflow, chained revisions, suppression with a named reason) are a **P0 precondition, not a landed mechanism** — today's constraint is one card per shop per workflow and the run's subject is derived at approval from the shop's highest-revenue product (§8.1). Until P0-2 lands, no v1 workflow can name "this SKU" or "this window". |
 
 ### 1.2 Non-functional (S-NFR)
@@ -45,7 +48,7 @@ These apply to all four workflows. A workflow PRD references this section instea
 |---|---|
 | S-NFR-1 | **Safety.** Fail-closed guards at dispatch; vendor rejection after a passing validator is a surfaced failure, never a silent retry. Nothing is irreversible without a fresh human tap, and every write's reversibility is stated in the proposed change. |
 | S-NFR-2 | **Consent integrity.** Params-hash binding on every confirmation (ADR-075); 4 h confirmation expiry; approvals rate-limited 5/h burst 2 per shop; subset-only execution after re-verify. |
-| S-NFR-3 | **Boundary.** Production reads, sandbox writes until the production-write gate (#1339) passes; credential binding verified (ADR-068 amendment); the model never sees a client, credential or endpoint. |
+| S-NFR-3 | **Boundary.** Production reads, sandbox writes until the production-write gate (#1339) passes; credential binding verified (ADR-068 amendment); the model never sees a client, credential or endpoint. **Because v1 is done only when the whole workflow works end-to-end for a real connected seller (S-NFR-11), the production-write unlock and its RLS blocker are on v1's critical path, not after it.** |
 | S-NFR-4 | **Sanitisation and copy.** Every vendor result passes the inbound chokepoint; every seller-facing string passes the outbound banned-pattern guard; Vietnamese, second person, no internal identifiers, no projected impact magnitudes, no causal claims. |
 | S-NFR-5 | **Volume (v1 = normal operation only).** One run fits the 300 s working budget; batch writes are capped per run (Process Order: one Batch Ship; Clear Excess: ≤ 300 items per request). Mega-sale volume is v2. |
 | S-NFR-6 | **Reliability.** Scheduled runs tolerate a missed cadence (the next run covers the gap); webhook-driven resumes degrade to the reaper policy if the webhook never arrives; a suspended run has its own reaper policy, never `waiting_approval`'s — today the reaper holds one global policy (Optimize Product's); per-run resolution is P0-4. |
@@ -53,6 +56,9 @@ These apply to all four workflows. A workflow PRD references this section instea
 | S-NFR-8 | **Tenancy.** Beat tasks and monitors read tenant rows only under per-tenant context (ADR-089); no fleet-wide read without a named exemption. |
 | S-NFR-9 | **Proof before ship.** Each workflow's first live proof is a sandbox walk of its single write on the deployed host, recorded on its gate issue; no workflow is called "working" on unit tests alone. |
 | S-NFR-10 | **Contracts.** Every endpoint a workflow calls is captured in `contract-collection.md` before implementation; uncaptured endpoints are v2 by definition. |
+| S-NFR-11 | **Definition of done (owner, 2026-09-05).** v1 of a workflow is done when it works end-to-end for a **real seller who has connected their own shop** at `demo.app-juli.com`: the seller's production reads, the seller's production write under their own credential and tenant isolation, and a real impact or stock-health reading. The sandbox gate walk (§7) is the *first* proof, not the last. Sellers who do not connect use the non-login demo, which serves **replayed** golden runs through the same surfaces (ADR-084). |
+| S-NFR-12 | **Surface and identity.** The seller surface is the mobile-web demo app only; iOS is out of v1. Login is Google → Supabase Auth → a separate TikTok OAuth for the shop; a real merchant's runs execute under their own `seller_connect` credential. Seller copy is Vietnamese only. |
+| S-NFR-13 | **Sandbox mirror.** Gate-walk data is produced by reading the connected merchant's shop and copying it into the sandbox shop (products, stock, and orders where the sandbox permits order creation — a capture item), extending the existing sandbox catalog sync. No hand-authored sandbox data. |
 
 ---
 
@@ -205,6 +211,8 @@ From `PLAN.md` §14 design-order item 0, restricted to what v1 uses:
 
 ## 7. What "viable" means for v1
 
+**Two proofs, in order.** First the sandbox gate walk below, on data mirrored from the merchant's shop (S-NFR-13). Then the same walk on the connected seller's own shop under their credential, which is the v1 definition of done (S-NFR-11).
+
 A seller can, on the deployed host against the sandbox shop: approve one Optimize Product card and see one discount or one field change land; approve one Clear Excess card, set a goal, and see the discount end when the goal is met; approve one dispatch batch and print its labels; approve one replenish order, report it received, and see stock updated. Each of those four is one gate walk, recorded on its issue, before the workflow is called working.
 
 ---
@@ -232,6 +240,9 @@ the precondition ladder and the scope changes that need the owner's decision.
 | P0-8 | In-app notification record + digest payload + Seller Center deep-link template | No transport wired; FCM stub; no email; iOS never uploads its token | PO, CE, RI |
 | P0-9 | ~20 new `stop_reason` causes (all ≤ 32 chars) | 16 today; none of the spec's causes | all |
 | P0-10 | Granted OAuth scopes persisted at auth + a checker | No scope stored anywhere | OP |
+| P0-11 | **Per-tenant production write** under the seller's own credential and RLS: the production-write unlock (#1339) and the W7-bis tenant-isolation fix (#1469), plus the sandbox mirror sync for gate walks (S-NFR-13) | Writes are pinned to one hard-bound sandbox merchant; the runtime still connects as the table owner | all — v1 definition of done |
+| P0-12 | **Cross-workflow subject lock + write-lock registry** (S-FR-11): one active run per subject regardless of workflow; endpoint-family locks checked at dispatch | Active-run index is per (shop, product) and the card key includes workflow_key, so two workflows on one product are allowed today | OP ∩ CE ∩ RI |
+| P0-13 | **Tracked checklist items** (S-FR-12): a checklist item type on the run with seller-editable text and done state, in the ledger; **deadline view** data feed (S-FR-1) | No checklist concept; no deadline surface | CE, PO, RI |
 
 ### 8.2 Precondition ladder — P1 data and captures (per workflow)
 
@@ -251,7 +262,14 @@ the precondition ladder and the scope changes that need the owner's decision.
 5. **Event uplift source (RI-FR-2).** No campaign calendar exists; v1 applies the uplift only when the seller enters an event date on the card, else the baseline alone.
 6. **Repeat-consent component.** Shipped and wired in the demo; v1 bans it. Remove, dark-flag, or keep for legacy mock workflows only.
 
-### 8.4 What the ladder means for sequencing
+### 8.4 Owner delivery decisions (2026-09-05)
+
+- **Shared code is serialised before the workflow lanes**; the four lanes then run in parallel with disjoint write paths.
+- **The first ~10 % of slices in landing order — the P0 shared code and the first Optimize Product slices — are executed by Fable** to set the code standard the later Haiku executors copy; the Haiku review agent reviews them as it reviews every slice. Recorded in `PLAN.md` §14.
+- **Sandbox data is mirrored from the connected merchant's shop**, never hand-authored (S-NFR-13).
+- **v1 is done at real-seller end-to-end**, not at the sandbox walk (S-NFR-11).
+
+### 8.5 What the ladder means for sequencing
 
 P0-1, P0-2 and P0-3 precede every workflow lane and cannot run in parallel with them; they are
 the first slices and the natural home of the Fable-executor exemplars. P0-4 through P0-6 can
