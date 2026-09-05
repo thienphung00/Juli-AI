@@ -185,6 +185,9 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         "test_juli_app_role_downgrade_cross_database.py",
         "test_migrations.py",
         "test_restore_drill.py",
+        # Same reason: it calls command.downgrade(cfg, "base") twice against
+        # DATABASE_URL while proving a restore preserves tenant isolation (#1554).
+        "test_rls_restore_integrity.py",
         "test_safe_alembic_upgrade.py",
         "test_safe_alembic_upgrade_local.py",
         # Downgrades to base twice (`:98`, `:142`) — but never writes the word,
@@ -216,6 +219,26 @@ _SHARED_STATE_MODULES = frozenset(
         # row. Same defect as the seam module; found by the #1425 map rather than
         # by another red build (#1429).
         "test_tenant_context_integration.py",
+        # Reason 2 again: seeds two full tenants for the W7-bis evidence fixture
+        # (#1483). test_rls_policies.py was isolated for asserting unscoped
+        # global counts, and these rows would corrupt exactly that class of
+        # assertion from any module sharing the database.
+        "test_two_tenant_fixture.py",
+        # Reason 2 again: uses the same seeding fixture (#1487).
+        "test_fleet_enumeration_functions.py",
+        # Reason 2 again: seeds two tenants for #1488 (impact_reader per-tenant context).
+        "test_impact_reader_two_tenant.py",
+        # Reason 2 again: uses the two-tenant seeding fixture to prove reaper works
+        # as juli_app on both tenants (#1489).
+        "test_reaper_two_tenant.py",
+        # Reason 2 again: seeds two tenants to prove a scope's GUC does not
+        # outlive the scope (#1495).
+        "test_shop_scope_guc_lifecycle.py",
+        # Reason 2 again: seeds two tenants for #1514 (credential_refresh_beat per-tenant context).
+        "test_credential_refresh_beat_two_tenant.py",
+        # Reason 2 again: seeds two tenants for #1513 (mock_analytics_reconcile per-shop
+        # context via with_shop_scope).
+        "test_mock_analytics_reconcile_two_tenant.py",
     }
 )
 

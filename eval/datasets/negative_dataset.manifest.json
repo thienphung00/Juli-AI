@@ -1,0 +1,110 @@
+{
+  "generated_from": {
+    "artifact_ref_oracle_scope": "--all",
+    "fix_commit_ref_scope": "HEAD",
+    "repo_root": "/Users/macos/Juli-AI-v2/.worktrees/he-1456",
+    "scope_note": "Commit provenance is drawn from HEAD so every cited SHA is durable and shared. The artifactRef retrievability oracle deliberately uses --all instead: it is a set-membership test rather than a citation, and --all is the widest, most generous scope, so a ref dangling under it is dangling everywhere.",
+    "status_records": 290,
+    "transcript_root": "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2",
+    "transcripts": 22
+  },
+  "generator": "python -m eval.curate_negatives",
+  "issue": 1456,
+  "negatives": 1076,
+  "positives": 1381,
+  "reconciliation": [
+    {
+      "derivation_rule": "subagent_success_claim_contradicted_within_5_replies",
+      "derived_negative": 95,
+      "derived_total": 340,
+      "description": "Subagent success claims contradicted by the parent within 5 replies",
+      "explanation": "The prior measurement's success-claim and contradiction regexes were not recorded, so both are reconstructions here; the contradiction pattern deliberately excludes a bare 'fails'/'failing', which a parent narrating a red TDD phase emits without contradicting anything (including it moved this count from 94 to 140). Derived 95/340; prior reported 88/351 (+7 negatives, -11 population).",
+      "label": "claim_false",
+      "population": "subagent_success_claims",
+      "prior_reported_negative": 88,
+      "prior_reported_total": 351,
+      "reproduced": false
+    },
+    {
+      "derivation_rule": "artifact_ref_in_no_commit_on_any_branch",
+      "derived_negative": 280,
+      "derived_total": 578,
+      "description": "artifactRef naming a path in no commit on any branch",
+      "explanation": "The status corpus has grown since the prior measurement, and the artifact body directories are gitignored, so every ref added since is dangling by construction rather than by defect. Derived 280/578; prior reported 240/538 (+40 negatives, +40 population).",
+      "label": "evidence_unretrievable",
+      "population": "artifact_refs",
+      "prior_reported_negative": 240,
+      "prior_reported_total": 538,
+      "reproduced": false
+    },
+    {
+      "derivation_rule": "pytest_invocation_narrower_than_ci",
+      "derived_negative": 602,
+      "derived_total": 649,
+      "description": "pytest invocations narrower than CI's",
+      "explanation": "The unit differs. This population is one row per *invocation*, and 76 shell commands chain two to five pytest runs in one call; counting commands instead gives 549, which is within 8 of the prior 541 and strongly suggests the prior measurement counted commands. One row per invocation is the correct unit here because a chained command whose first run is broad and whose second is narrow cannot honestly be a single labelled record. The prior detection regex was also not recorded; this one counts `python [-flags] -m pytest` and a bare `pytest` at the head of a command segment, never crossing a newline, includes --collect-only runs, and treats a marker selector as neutral because CI uses markers too. Derived 602/649; prior reported 487/541 (+115 negatives, +108 population).",
+      "label": "scope_overstated",
+      "population": "pytest_invocations",
+      "prior_reported_negative": 487,
+      "prior_reported_total": 541,
+      "reproduced": false
+    },
+    {
+      "derivation_rule": "gate_result_claim_without_run_in_prior_40_events",
+      "derived_negative": 82,
+      "derived_total": 187,
+      "description": "Gate-result claims with no matching run in the prior 40 events",
+      "explanation": "The prior measurement's list of checkable command families was not recorded; this one is the 29 agent-runtime/scripts/validate gates plus pytest, ruff, mypy, pre-commit and import-linter, which is very likely a narrower list than the original used. Derived 82/187; prior reported 88/239 (-6 negatives, -52 population).",
+      "label": "unbacked_claim",
+      "population": "gate_result_claims",
+      "prior_reported_negative": 88,
+      "prior_reported_total": 239,
+      "reproduced": false
+    },
+    {
+      "derivation_rule": "review_pass_over_validation_fail",
+      "derived_negative": 3,
+      "derived_total": 289,
+      "description": "Review PASS over validation FAIL, same issue",
+      "explanation": "The prior denominator was 'surviving pairs' \u2014 the review/validation artifact bodies still on disk, of which only about 15 exist. This population is instead every status record carrying both verdicts, which is the larger and more durable denominator. Derived 3/289; prior reported 2/2 (+1 negatives, +287 population).",
+      "label": "verdict_contradiction",
+      "population": "review_validation_pairs",
+      "prior_reported_negative": 2,
+      "prior_reported_total": 2,
+      "reproduced": false
+    },
+    {
+      "derivation_rule": "fix_commit_naming_an_earlier_issue",
+      "derived_negative": 10,
+      "derived_total": 125,
+      "description": "fix: commits naming an earlier issue",
+      "explanation": "The ref scope is narrower on purpose, and the gap is the finding. `git log --all` reproduces the prior population closely \u2014 226 fix commits against 229, 50 labelled against 46 \u2014 but 101 of those 226 cite SHAs reachable from no ref this repository will keep: squash-merged or abandoned feature branches whose commits exist in one clone on one machine. Two runs minutes apart disagreed as a concurrent worktree committed, so `--all` is not even deterministic here. Restricting to HEAD leaves 10/125. The 40 negatives that difference removes are the substantive result: most of the apparent rework signal lived on branches that no longer exist, so the prior 46/229 was measured over a ref set nobody can reconstruct. The trailing `(#N)` squash-merge PR reference is separately excluded from 'names an earlier issue', since counting it would mark nearly every conventional fix commit as rework. Derived 10/125; prior reported 46/229 (-36 negatives, -104 population).",
+      "label": "rework_signal",
+      "population": "fix_commits",
+      "prior_reported_negative": 46,
+      "prior_reported_total": 229,
+      "reproduced": false
+    },
+    {
+      "derivation_rule": "validation_status_fail",
+      "derived_negative": 4,
+      "derived_total": 289,
+      "description": "Validation FAILs",
+      "explanation": "The status corpus has grown since the prior measurement, so the denominator moved while the FAIL count did not. Derived 4/289; prior reported 4/270 (+0 negatives, +19 population).",
+      "label": "true_negative",
+      "population": "validation_outcomes",
+      "prior_reported_negative": 4,
+      "prior_reported_total": 270,
+      "reproduced": false
+    }
+  ],
+  "rows": 2457,
+  "split": {
+    "boundary": "2026-08-26T14:23:26Z",
+    "holdout": 492,
+    "holdout_fraction": 0.2,
+    "rationale": "Rows are ordered by wall-clock time and cut once. Every train row strictly precedes every holdout row, so a gate tuned on train has seen nothing from the boundary instant onward. A random split would leak the future into training.",
+    "strategy": "temporal",
+    "train": 1965
+  }
+}

@@ -24,7 +24,8 @@ Schema, migrations, repos, ETL durability. TDD + artifact handoff:
 ## Owns / Does not own
 
 **Owns:** ORM (`models/models.py`), Alembic (`database/migrations/versions/`),
-repos (`repositories/repos.py`), ETL consumer dedup/persist/DLQ (`services/etl/`).
+repos (`repositories/`, one module per aggregate on `_base.py`), ETL consumer
+dedup/persist/DLQ (`services/etl/`).
 
 **Does not own:** **`integrations`** (vendor I/O + handoff bytes only),
 **`backend`** (`/v1/*`, scoring, copy, Juli auth),
@@ -34,6 +35,8 @@ repos (`repositories/repos.py`), ETL consumer dedup/persist/DLQ (`services/etl/`
 
 - [`data-sources.md`](../../../docs/architecture/data-sources.md), [`docs/api/data-models/`](../../../docs/api/data-models/)
 - Migrations: root `alembic.ini` → `backend/src/juli_backend/database/migrations/`
+- **Standard + exemplars:** [`docs/architecture/code-standard.md`](../../../docs/architecture/code-standard.md);
+  [`repositories/MODULE.md`](../../../backend/src/juli_backend/repositories/MODULE.md) is the package map
 - **Load map:** `SKILL.md` → `REFERENCE.md` → `postgres-patterns.md`, `python-testing.md`
 
 ## Juli recipes
@@ -43,8 +46,11 @@ repos (`repositories/repos.py`), ETL consumer dedup/persist/DLQ (`services/etl/`
 
 **Model** — `models/models.py`; register in `env.py` for autogenerate; index FK join cols.
 
-**Repository** — `*Repo(session)` in `repositories/repos.py`; `NotFound` from
-`database/exceptions.py`; ETL upserts handle `IntegrityError`.
+**Repository** — extend `ShopScopedRepo` (`repositories/_base.py`): set `_model` and, for synced
+entities, `_lookup_attrs`; build every query through `self._scoped(shop_id, ...)`; borrow the
+session and never commit; `get` raises `NotFound`, `find`/`get_by_*` return `None`; naive UTC via
+`utc_now_naive()`. `upsert` is inherited (stale-`update_time` guard + `IntegrityError` retry),
+not rewritten. Exemplar: `repositories/commerce.py`.
 
 **ETL consumer** — `EtlConsumer`: `ProcessedEventsRepo` dedup → transform → repo upsert → DLQ;
 shop-scoped locks (`services/etl/consumer.py`).
@@ -53,7 +59,8 @@ Deeper patterns: [`REFERENCE.md`](REFERENCE.md).
 
 ## Domain test surfaces
 
-- **Repo:** `session`/`engine` fixtures (`tests/unit/conftest.py`)
+- **Repo:** `session` fixture + rows from `tests/support/builders` (`make_tenant`, `make_order`, …);
+  exemplar `tests/unit/test_repositories_base.py`, `tests/unit/test_repositories_commerce.py`
 - **Migration:** round-trip `tests/integration/test_migrations.py` (Postgres when reachable)
 - **ETL:** dedup + DLQ on public `EtlConsumer` entrypoints; no vendor HTTP
 

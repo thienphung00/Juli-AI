@@ -89,6 +89,10 @@ async def run_credential_refresh_cycle(
     """The beat's core logic -- the seam every test in
     `test_credential_refresh_beat.py` drives directly.
 
+    Enumerates expiring credentials via the SECURITY DEFINER function
+    `enumerate_expiring_credentials`, then loops entering per-shop context
+    (via `with_shop_scope`) per credential before refresh (ADR-089 decisions 2-4).
+
     `now` is injectable so window-boundary tests are deterministic (no real
     wall-clock flakiness, mirrors `workers/tasks/reaper.py`'s
     `reap_workflow_runs(now=...)`). `refresh_fn` is injectable so a test can
@@ -98,40 +102,64 @@ async def run_credential_refresh_cycle(
     (SQLite, the unit-test matrix, has no such primitive) -- defaults to
     the real `credential_refresh.refresh_credential`.
     """
+    from sqlalchemy import text
+
+    from juli_backend.database.tenant_context import with_shop_scope
+
     refresh = refresh_fn if refresh_fn is not None else credential_refresh.refresh_credential
     reference = now if now is not None else _utc_now()
 
-    repo = TikTokCredentialRepo(session)
-    credentials = await repo.list_expiring_within(credential_refresh.REFRESH_BUFFER, now=reference)
+    # Enumerate credentials via SECURITY DEFINER function. Branch on dialect:
+    # on PostgreSQL, call the function for the work list; on SQLite (unit tests),
+    # fall back to a direct query since the function does not exist.
+    # Per ADR-089 decision 3, enumeration is the *only* cross-tenant read.
+    if session.get_bind().dialect.name == "postgresql":
+        result = await session.execute(
+            text(
+                "SELECT out_credential_id, out_shop_id, out_expires_at "
+                "FROM public.enumerate_expiring_credentials(:cutoff)"
+            ).bindparams(cutoff=reference + credential_refresh.REFRESH_BUFFER)
+        )
+        enumerations = [(row[0], row[1]) for row in result.all()]
+    else:
+        # SQLite (unit tests) has neither the function nor RLS.
+        repo = TikTokCredentialRepo(session)
+        credentials = await repo.list_expiring_within(
+            credential_refresh.REFRESH_BUFFER, now=reference
+        )
+        enumerations = [(cred.id, cred.shop_id) for cred in credentials]
 
     refreshed = 0
     skipped_locked = 0
     failed = 0
 
-    for credential in credentials:
-        try:
-            outcome = await refresh(session, credential.id, auth=auth, force=False)
-        except Exception:
-            failed += 1
-            logger.exception(
-                "credential_refresh_beat_row_failed",
-                extra={"credential_id": str(credential.id)},
-            )
-            continue
+    # Loop over enumerated credentials, entering per-shop context per credential
+    # before the refresh. The enumeration returns (credential_id, shop_id) tuples.
+    for credential_id, shop_id in enumerations:
+        async with with_shop_scope(session, shop_id):
+            try:
+                outcome = await refresh(session, credential_id, auth=auth, force=False)
+            except Exception:
+                failed += 1
+                logger.exception(
+                    "credential_refresh_beat_row_failed",
+                    extra={"credential_id": str(credential_id)},
+                )
+                continue
 
-        if outcome.status is credential_refresh.RefreshStatus.LOCKED:
-            skipped_locked += 1
-        elif outcome.status in (
-            credential_refresh.RefreshStatus.TRANSIENT,
-            credential_refresh.RefreshStatus.NEEDS_REAUTH,
-        ):
-            failed += 1
-        else:
-            # REFRESHED or FRESH -- see CredentialRefreshCycleSummary's docstring.
-            refreshed += 1
+            if outcome.status is credential_refresh.RefreshStatus.LOCKED:
+                skipped_locked += 1
+            elif outcome.status in (
+                credential_refresh.RefreshStatus.TRANSIENT,
+                credential_refresh.RefreshStatus.NEEDS_REAUTH,
+            ):
+                failed += 1
+            else:
+                # REFRESHED or FRESH -- see CredentialRefreshCycleSummary's docstring.
+                refreshed += 1
 
     summary = CredentialRefreshCycleSummary(
-        scanned=len(credentials),
+        scanned=len(enumerations),
         refreshed=refreshed,
         skipped_locked=skipped_locked,
         failed=failed,

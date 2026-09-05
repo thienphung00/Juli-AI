@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -400,3 +402,420 @@ def test_main_tier_wave_to_main_checkpoint_unchanged() -> None:
     assert "merge_group" in workflow
     live_sandbox_block = _job_block(workflow, "test-live-sandbox:")
     assert "github.event_name == 'merge_group'" in live_sandbox_block
+
+
+# --- HE-A/P-EVAL-2 (#1437): frontend jobs must be checked at wave tier ----
+#
+# The three frontend jobs (frontend, demo-frontend, landing-frontend) admitted
+# only tier == 'issue' or (tier == 'main' && main_via_wave != 'true'). A wave
+# assembled by local merges therefore reached main having run zero eslint, tsc
+# or jest: nothing ran on the wave push, the wave->main run skipped them, and
+# main-tier status-check accepted "skipped". #809 (936fa57c) fixed exactly this
+# for lint/typecheck; the frontend jobs were not included.
+
+FRONTEND_JOBS = ("frontend", "demo-frontend", "landing-frontend")
+
+FRONTEND_JOB_DOMAIN = {
+    "frontend": "dashboard",
+    "demo-frontend": "demo",
+    "landing-frontend": "landing",
+}
+
+_CONTEXT_REF = re.compile(r"needs\.([A-Za-z0-9_-]+)\.(?:outputs\.([A-Za-z0-9_]+)|result)")
+_EXPR_SUBSTITUTION = re.compile(r"\$\{\{\s*(.+?)\s*\}\}")
+
+
+def _parsed_workflow() -> dict:
+    return yaml.safe_load(_workflow())
+
+
+def _eval_job_if(condition: str, *, tier: str, main_via_wave: str, changes: dict) -> bool:
+    """Evaluate a job's GitHub `if:` expression for a concrete tier context.
+
+    The frontend job conditions are pure boolean expressions over string
+    comparisons of `needs.*.outputs.*`, so they translate 1:1 to Python. This
+    asserts on what the condition *decides*, not on the text it is written in.
+    """
+
+    def resolve(match: re.Match[str]) -> str:
+        job, key = match.group(1), match.group(2)
+        if job == "classify-tier":
+            return repr({"tier": tier, "main_via_wave": main_via_wave}[key])
+        if job == "changes":
+            return repr(changes.get(key, "false"))
+        raise AssertionError(f"unhandled context reference: {match.group(0)}")
+
+    # A folded `>-` scalar keeps real newlines for more-indented continuation
+    # lines, which Python would read as unexpected indentation.
+    expr = " ".join(condition.split())
+    expr = _CONTEXT_REF.sub(resolve, expr)
+    expr = expr.replace("&&", " and ").replace("||", " or ")
+    return bool(eval(expr, {"__builtins__": {}}, {}))
+
+
+def _status_check_script() -> str:
+    workflow = _parsed_workflow()
+    for step in workflow["jobs"]["status-check"]["steps"]:
+        if step.get("name") == "Require tier jobs":
+            return step["run"]
+    raise AssertionError("status-check step 'Require tier jobs' not found")
+
+
+def _run_status_check(
+    *,
+    tier: str,
+    main_via_wave: str = "false",
+    results: dict | None = None,
+    changes: dict | None = None,
+    event_name: str = "pull_request",
+) -> subprocess.CompletedProcess[str]:
+    """Run the real status-check bash script with substituted job results."""
+    results = results or {}
+    changes = changes or {}
+
+    def resolve(match: re.Match[str]) -> str:
+        ref = match.group(1)
+        if ref == "github.event_name":
+            return event_name
+        if ref == "needs.classify-tier.outputs.tier":
+            return tier
+        if ref == "needs.classify-tier.outputs.main_via_wave":
+            return main_via_wave
+        if ref.startswith("needs.changes.outputs."):
+            return changes.get(ref.rsplit(".", 1)[1], "true")
+        result_ref = re.fullmatch(r"needs\.([A-Za-z0-9_-]+)\.result", ref)
+        if result_ref:
+            return results.get(result_ref.group(1), "success")
+        raise AssertionError(f"unhandled status-check reference: {ref}")
+
+    script = _EXPR_SUBSTITUTION.sub(resolve, _status_check_script())
+    return subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+
+
+def _needs_violations(jobs: dict) -> list[str]:
+    """Duplicate and dangling `needs:` entries, per job."""
+    violations: list[str] = []
+    for name, body in jobs.items():
+        needs = (body or {}).get("needs")
+        if needs is None:
+            continue
+        if isinstance(needs, str):
+            needs = [needs]
+        for dep in sorted({d for d in needs if needs.count(d) > 1}):
+            violations.append(f"{name}: duplicate needs entry {dep!r}")
+        for dep in needs:
+            if dep not in jobs:
+                violations.append(f"{name}: needs unknown job {dep!r}")
+    return violations
+
+
+def test_frontend_jobs_run_at_wave_tier() -> None:
+    """AC1: a push to feature/*-wave touching a frontend domain runs that
+    domain's frontend job instead of skipping it — and wave->main can no
+    longer assume an issue-tier run happened, so it must run there too."""
+    jobs = _parsed_workflow()["jobs"]
+
+    for job in FRONTEND_JOBS:
+        condition = jobs[job]["if"]
+        changed = {FRONTEND_JOB_DOMAIN[job]: "true"}
+
+        assert (
+            _eval_job_if(condition, tier="wave", main_via_wave="false", changes=changed) is True
+        ), f"{job} does not run on a wave push that changed its sources"
+
+        # A wave assembled by local merges never saw issue tier, so the
+        # wave->main checkpoint must run them rather than dedup them away.
+        assert (
+            _eval_job_if(condition, tier="main", main_via_wave="true", changes=changed) is True
+        ), f"{job} skips on wave->main, leaving the wave unchecked"
+
+        # Domain gating is preserved: an untouched domain still skips.
+        assert _eval_job_if(condition, tier="wave", main_via_wave="false", changes={}) is False, (
+            f"{job} runs at wave tier for a domain that did not change"
+        )
+
+        # Issue tier is unchanged.
+        assert (
+            _eval_job_if(condition, tier="issue", main_via_wave="false", changes=changed) is True
+        ), f"{job} no longer runs at issue tier"
+
+
+def test_main_via_wave_rejects_skipped_frontend() -> None:
+    """AC2: on the main-tier wave->main path, a `skipped` frontend result
+    must fail status-check rather than satisfy it."""
+    baseline = _run_status_check(tier="main", main_via_wave="true")
+    assert baseline.returncode == 0, baseline.stdout + baseline.stderr
+
+    for job in FRONTEND_JOBS:
+        # Plant the lie: the job never ran, but its sources changed.
+        planted = _run_status_check(tier="main", main_via_wave="true", results={job: "skipped"})
+        assert planted.returncode != 0, (
+            f"{job}: 'skipped' accepted on the wave->main path\n{planted.stdout}"
+        )
+        assert job in planted.stdout, planted.stdout
+
+    # Not reached via a wave: the #658 dedup allowance is unchanged.
+    for job in FRONTEND_JOBS:
+        allowed = _run_status_check(tier="main", main_via_wave="false", results={job: "skipped"})
+        assert allowed.returncode == 0, allowed.stdout + allowed.stderr
+
+    # Reached via a wave but the domain genuinely did not change: skipping is
+    # correct and must not fail.
+    untouched = _run_status_check(
+        tier="main",
+        main_via_wave="true",
+        results={"frontend": "skipped"},
+        changes={"dashboard": "false"},
+    )
+    assert untouched.returncode == 0, untouched.stdout + untouched.stderr
+
+
+def test_needs_graph_has_no_duplicate_or_dangling_entries() -> None:
+    """AC3: every job's `needs:` list is duplicate-free and names only jobs
+    that exist. Duplicate `- <job>` entries make a string-replace edit land on
+    the wrong job, with an empty `needs.X.result` as the only symptom."""
+    jobs = _parsed_workflow()["jobs"]
+
+    assert _needs_violations(jobs) == []
+
+    # The checker itself must catch a planted duplicate and a planted dangling
+    # entry, so a green above means "clean", never "did not look".
+    planted_duplicate = {
+        "a": {},
+        "b": {"needs": ["a", "a"]},
+    }
+    assert _needs_violations(planted_duplicate) == ["b: duplicate needs entry 'a'"]
+
+    planted_dangling = {"a": {}, "b": {"needs": ["a", "ghost"]}}
+    assert _needs_violations(planted_dangling) == ["b: needs unknown job 'ghost'"]
+
+
+# --- HE-A/P-EVAL-3 (#1440): the code-reading validate gates run in CI --------
+#
+# `grep -rn "scripts/validate" .github/workflows/` returned zero. The 29 gates in
+# agent-runtime/scripts/validate/ executed only locally, invoked by an agent,
+# against artifacts that same agent wrote. The `validate-gates` job runs the
+# subset whose inputs are code, git or `gh` — never one of the five gitignored
+# artifact body directories, which are absent from any CI checkout.
+
+VALIDATE_GATES_JOB = "validate-gates"
+VALIDATE_GATES_STEP = "Run code-reading validate gates"
+
+EXPECTED_BLOCKING_GATES = [
+    "check_module_boundaries",
+    "check_module_drift",
+    "check_adr",
+    "check_done_md",
+]
+# check_differential_tdd keeps the advisory status and promotion criterion
+# documented at agent-runtime/scripts/ci/generate_validation_artifact.py:65-75.
+# check_unpushed_issue_work infers intent from repo-wide branch/worktree state
+# that no PR author controls — advisory per Architect lock 5 (#1434).
+EXPECTED_ADVISORY_GATES = [
+    "check_differential_tdd",
+    "check_unpushed_issue_work",
+]
+
+# check_acceptance_mapping was named in #1440's list but is NOT wired. The
+# criterion below is measured, not grepped: an earlier draft of this test
+# scanned each gate's source for `load_review_artifact` and friends, and that
+# proxy is wrong — check_adr *calls* `load_review_artifact(issue) or {}` and
+# carries on without it, while check_acceptance_mapping returns
+# `False, "Review artifact missing"` on the very next line. Source mentions do
+# not separate the two; behaviour on an artifact-free checkout does.
+#
+# An issue number with no artifact body anywhere: exactly the state of any CI
+# checkout, where the five body directories are gitignored and never pushed.
+ARTIFACT_FREE_ISSUE = "999999"
+ARTIFACT_MISSING_MARKER = "artifact missing"
+
+VALIDATE_DIR = ROOT / "agent-runtime" / "scripts" / "validate"
+
+_BASH_ARRAY = re.compile(r"^([A-Z_]+)=\(([^)]*)\)$", re.MULTILINE)
+
+
+def _validate_gates_step_run() -> str:
+    job = _parsed_workflow()["jobs"][VALIDATE_GATES_JOB]
+    for step in job["steps"]:
+        if step.get("name") == VALIDATE_GATES_STEP:
+            return step["run"]
+    raise AssertionError(f"step {VALIDATE_GATES_STEP!r} not found in {VALIDATE_GATES_JOB}")
+
+
+def _wired_gate_lists() -> dict[str, list[str]]:
+    arrays = dict(_BASH_ARRAY.findall(_validate_gates_step_run()))
+    return {name: value.split() for name, value in arrays.items()}
+
+
+def _run_real_gate(gate: str, issue: str) -> subprocess.CompletedProcess[str]:
+    """Run a real gate script the way the pr.yml job does: `--issue <n>`, and
+    with GITHUB_BASE_REF absent so git_changed_files() takes its working-tree
+    fallback instead of the shallow-fetch branch the job deliberately avoids."""
+    env = {key: value for key, value in os.environ.items() if key != "GITHUB_BASE_REF"}
+    return subprocess.run(
+        [sys.executable, str(VALIDATE_DIR / f"{gate}.py"), "--issue", issue],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _stub_gate_tree(tmp: Path, bodies: dict[str, str]) -> Path:
+    """A checkout-shaped temp tree holding stub gate scripts."""
+    gates_dir = tmp / "agent-runtime" / "scripts" / "validate"
+    gates_dir.mkdir(parents=True)
+    for gate, body in bodies.items():
+        (gates_dir / f"{gate}.py").write_text(body, encoding="utf-8")
+    bin_dir = tmp / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "python").symlink_to(sys.executable)
+    return bin_dir
+
+
+def _passing_stub(gate: str) -> str:
+    return f'print("{gate.removeprefix("check_")}: PASS")\n'
+
+
+def _failing_stub(gate: str) -> str:
+    return f'import sys\nprint("{gate.removeprefix("check_")}: FAIL — planted")\nsys.exit(1)\n'
+
+
+CRASHING_STUB = 'raise RuntimeError("gate could not read its input")\n'
+
+
+def _run_validate_gates(
+    *,
+    bodies: dict[str, str],
+    issue_number: str = "1440",
+) -> subprocess.CompletedProcess[str]:
+    """Execute the real `run:` bash from pr.yml against stub gate scripts."""
+    script = _validate_gates_step_run()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        bin_dir = _stub_gate_tree(tmp, bodies)
+        return subprocess.run(
+            ["bash", "-c", script],
+            cwd=tmp,
+            env={
+                "ISSUE_NUMBER": issue_number,
+                "PATH": f"{bin_dir}:/usr/bin:/bin:/usr/local/bin",
+            },
+            capture_output=True,
+            text=True,
+        )
+
+
+def test_validate_gates_job_enumerates_code_reading_gates() -> None:
+    """AC1: an issue-tier PR runs a job that executes the code-reading gates
+    and reports each gate's name and result.
+
+    The wired list is asserted against the gates' own source, not against a
+    copy of #1440's prose: any gate reaching into one of the five gitignored
+    artifact body directories must not be a blocking entry, because a CI
+    checkout never contains those files.
+    """
+    jobs = _parsed_workflow()["jobs"]
+    assert VALIDATE_GATES_JOB in jobs, "no job runs agent-runtime/scripts/validate/ in CI"
+
+    condition = jobs[VALIDATE_GATES_JOB]["if"]
+    assert _eval_job_if(condition, tier="issue", main_via_wave="false", changes={}) is True
+    assert _eval_job_if(condition, tier="wave", main_via_wave="false", changes={}) is False
+    assert _eval_job_if(condition, tier="main", main_via_wave="false", changes={}) is False
+
+    wired = _wired_gate_lists()
+    assert wired.get("BLOCKING_GATES") == EXPECTED_BLOCKING_GATES
+    assert wired.get("ADVISORY_GATES") == EXPECTED_ADVISORY_GATES
+
+    for gate in EXPECTED_BLOCKING_GATES + EXPECTED_ADVISORY_GATES:
+        assert (VALIDATE_DIR / f"{gate}.py").exists(), f"{gate} is wired but has no script"
+
+    # Teeth, measured: every blocking gate must reach a verdict on a checkout
+    # that holds no artifact body. Asserting on "reached a verdict, and not
+    # because an artifact was missing" keeps this independent of whether the
+    # working tree happens to contain a real boundary violation today.
+    for gate in EXPECTED_BLOCKING_GATES:
+        measured = _run_real_gate(gate, ARTIFACT_FREE_ISSUE)
+        assert re.search(r"^[a-z_]+: (PASS|FAIL)", measured.stdout, re.MULTILINE), (
+            f"{gate} reached no verdict without artifact input\n{measured.stdout}{measured.stderr}"
+        )
+        assert ARTIFACT_MISSING_MARKER not in measured.stdout.lower(), (
+            f"{gate} is wired blocking but cannot answer without a gitignored"
+            f" artifact body\n{measured.stdout}"
+        )
+
+    # The same measurement on the gate #1440 listed and this slice dropped: it
+    # has no tolerant path, so in CI it can only ever fail — the universally
+    # failing job #1440 explicitly rules out.
+    dropped = _run_real_gate("check_acceptance_mapping", ARTIFACT_FREE_ISSUE)
+    assert dropped.returncode != 0, dropped.stdout
+    assert 'return False, "Review artifact missing"' in (
+        VALIDATE_DIR / "check_acceptance_mapping.py"
+    ).read_text(encoding="utf-8")
+    assert "check_acceptance_mapping" not in _validate_gates_step_run()
+
+    # check_differential_tdd fails the same measurement, and is wired advisory
+    # rather than dropped because #1440 says so and keeps its promotion
+    # criterion. Advisory is what makes that honest: it runs and reports, and
+    # cannot block on an input CI does not have until #1438 supplies one.
+    difftdd = _run_real_gate("check_differential_tdd", ARTIFACT_FREE_ISSUE)
+    assert difftdd.returncode != 0, difftdd.stdout
+    assert ARTIFACT_MISSING_MARKER in difftdd.stdout.lower(), difftdd.stdout
+    assert "check_differential_tdd" in _wired_gate_lists()["ADVISORY_GATES"]
+
+    # status-check must require it at issue tier, and must not accept "skipped".
+    status_job = _workflow().split("status-check:", 1)[1]
+    assert 'require "validate-gates" "$validate_gates" "false"' in status_job
+
+    planted = _run_status_check(tier="issue", results={VALIDATE_GATES_JOB: "failure"})
+    assert planted.returncode != 0, planted.stdout
+    assert VALIDATE_GATES_JOB in planted.stdout
+
+
+def test_validate_gates_job_fails_closed_on_gate_error() -> None:
+    """AC3: a gate that raises, or cannot read its input, fails the job rather
+    than passing it — proven by executing pr.yml's real bash against stub gates,
+    not by asserting the workflow text mentions the word "fail"."""
+    all_gates = EXPECTED_BLOCKING_GATES + EXPECTED_ADVISORY_GATES
+    green = {gate: _passing_stub(gate) for gate in all_gates}
+
+    baseline = _run_validate_gates(bodies=green)
+    assert baseline.returncode == 0, baseline.stdout + baseline.stderr
+    # "reports each gate's name and result"
+    for gate in all_gates:
+        assert gate in baseline.stdout, f"{gate} not reported\n{baseline.stdout}"
+
+    # A gate that raises prints no PASS/FAIL verdict. Python exits 1 either way,
+    # so the job must key off the missing verdict line, not the exit code alone.
+    for gate in all_gates:
+        crashed = _run_validate_gates(bodies={**green, gate: CRASHING_STUB})
+        assert crashed.returncode != 0, (
+            f"{gate} raised and the job still passed\n{crashed.stdout}{crashed.stderr}"
+        )
+        assert gate in crashed.stdout
+
+    # A gate script that is not there at all fails the job.
+    for gate in all_gates:
+        missing = {name: body for name, body in green.items() if name != gate}
+        absent = _run_validate_gates(bodies=missing)
+        assert absent.returncode != 0, f"{gate} missing and the job still passed\n{absent.stdout}"
+        assert gate in absent.stdout
+
+    # A blocking gate reporting FAIL blocks; an advisory one is reported and does not.
+    for gate in EXPECTED_BLOCKING_GATES:
+        blocked = _run_validate_gates(bodies={**green, gate: _failing_stub(gate)})
+        assert blocked.returncode != 0, f"blocking {gate} FAIL did not block\n{blocked.stdout}"
+
+    for gate in EXPECTED_ADVISORY_GATES:
+        advised = _run_validate_gates(bodies={**green, gate: _failing_stub(gate)})
+        assert advised.returncode == 0, (
+            f"advisory {gate} FAIL blocked the job\n{advised.stdout}{advised.stderr}"
+        )
+        assert "advisory" in advised.stdout.lower()
+
+    # No issue number: a documented SKIP, never a silent claim that gates ran.
+    skipped = _run_validate_gates(bodies=green, issue_number="")
+    assert skipped.returncode == 0, skipped.stdout + skipped.stderr
+    assert "SKIP" in skipped.stdout
+    for gate in all_gates:
+        assert f"{gate}: PASS" not in skipped.stdout

@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.security import resolve_production_read_credential
 from juli_backend.database.exceptions import NotFound
+from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.integrations.tiktok import (
     PRODUCTION_AUTH_ID,
     ClientFactoryConfig,
@@ -216,7 +217,11 @@ async def execute_targeted_fetch_to_bronze(
         )
         return tracker
 
-    shop = await session.get(Shop, shop_id)
+    # `shops` is readable under a shop scope only for the caller's own row
+    # (migration 053). Unscoped this returns None as `juli_app`, and the
+    # executor would log "skipped" and do nothing — the silent no-op #1518 found.
+    async with with_shop_scope(session, shop_id):
+        shop = await session.get(Shop, shop_id)
     if shop is None or shop.tiktok_shop_id != shop_key:
         logger.warning(
             "targeted_fetch_skipped",
@@ -265,7 +270,11 @@ async def execute_targeted_fetch_to_bronze(
     )
 
     sync_state_repo = TikTokSyncStateRepo(session)
-    sync_state = await sync_state_repo.load(shop_id)
+    # Scoped for the same reason, with a different failure mode: a SELECT under
+    # RLS with no scope returns ZERO ROWS rather than raising, so an unscoped
+    # load would silently restart the sync from nothing instead of erroring.
+    async with with_shop_scope(session, shop_id):
+        sync_state = await sync_state_repo.load(shop_id)
 
     handoff_fn = make_targeted_fetch_bronze_handoff(
         session,
@@ -287,5 +296,19 @@ async def execute_targeted_fetch_to_bronze(
             correlation_id=correlation_id,
         )
 
-    await sync_state_repo.save(shop_id, sync_state)
+    # SCOPE ADJACENT TO THE WRITE, NOT AROUND THE FETCH.
+    #
+    # `tiktok_sync_state` is RLS'd with WITH CHECK (shop_id = app_current_shop_id()),
+    # so this save is REFUSED — not filtered — when the connection carries no
+    # `app.current_shop_id`. That is what mock_analytics_hourly_reconcile hit
+    # after #1627 fixed the bronze append: the run got 23 minutes further and
+    # then died here instead (#1631).
+    #
+    # The scope goes HERE rather than around the loop above on purpose. The
+    # orchestrator already wraps the whole bronze stage, and that scope does not
+    # survive the multi-minute vendor fetch — a scope set before the fetch is
+    # precisely the thing that fails (#1630). Adjacency is the property that
+    # works, so it is the property this relies on.
+    async with with_shop_scope(session, shop_id):
+        await sync_state_repo.save(shop_id, sync_state)
     return tracker

@@ -20,4 +20,14 @@ c2bf2d0efaad846371a587bc49211f1f0fa6f9ed:apps/demo/src/lib/recommendations.ts:ge
 # it was suppressing. The wording was fixed in a follow-up, but gitleaks scans history, so
 # the historical line still needs its own fingerprint.
 0af48c7e280fe1c0d51dc7e760c381b53ec31be4:.gitleaksignore:generic-api-key:13
+# False positive: synthetic GitHub-token-shaped fixture in the #1446 redaction tests.
+# The value is planted deliberately so the test proves redaction works on a realistic
+# credential shape; it is not, and never was, a real credential. bd79d1372 rebuilt all
+# three planted values from short fragments so no secret-shaped literal remains in the
+# tree, but gitleaks scans the whole PR commit range, so the historical line in
+# 9dfb7c503 still needs its own fingerprint — same situation as the 0af48c7e entry
+# above. Scoped to one commit + file + rule + line, so a real leak added to this file
+# later is still caught. (Deliberately not quoting the literal: the comment itself
+# would trip the same rule.)
+9dfb7c503862c400a0fbd17832da3722b364f259:tests/unit/test_transcript_persistence_provider.py:generic-api-key:43
 9bbbae4e5b43211f693ad182ef9ea2c8a59a8c68:packages/theme/__tests__/run-surface-tokens.test.ts:generic-api-key:30

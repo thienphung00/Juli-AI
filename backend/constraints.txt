@@ -64,7 +64,7 @@ cffi==2.1.1
     # via cryptography
 charset-normalizer==3.5.1
     # via requests
-click==8.4.2
+click==8.5.0
     # via
     #   celery
     #   click-didyoumean
@@ -77,9 +77,9 @@ click-plugins==1.1.1.2
     # via celery
 click-repl==0.3.0
     # via celery
-coverage==7.15.4
+coverage==7.16.0
     # via pytest-cov
-cryptography==50.0.0
+cryptography==50.0.1
     # via pyjwt
 fastapi==0.141.1
     # via juli-backend (pyproject.toml)
@@ -102,7 +102,7 @@ idna==3.19
     #   requests
 iniconfig==2.3.0
     # via pytest
-joblib==1.5.3
+joblib==1.6.0
     # via scikit-learn
 kombu==5.6.2
     # via celery
@@ -150,9 +150,9 @@ pyarrow==25.0.1
     # via juli-backend (pyproject.toml)
 pycparser==3.0
     # via cffi
-pydantic==2.13.4
+pydantic==2.13.5
     # via fastapi
-pydantic-core==2.46.4
+pydantic-core==2.46.5
     # via pydantic
 pygments==2.21.0
     # via
@@ -192,11 +192,11 @@ requests==2.34.2
     # via
     #   juli-backend (pyproject.toml)
     #   responses
-responses==0.26.2
+responses==0.26.3
     # via juli-backend (pyproject.toml)
 rich==15.0.0
     # via bandit
-ruff==0.16.4
+ruff==0.16.5
     # via juli-backend (pyproject.toml)
 scikit-learn==1.9.0
     # via juli-backend (pyproject.toml)
@@ -250,7 +250,7 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-wcwidth==0.8.2
+wcwidth==0.8.3
     # via prompt-toolkit
 xgboost==3.4.1
     # via juli-backend (pyproject.toml)

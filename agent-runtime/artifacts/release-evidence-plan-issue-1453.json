@@ -1,0 +1,78 @@
+{
+  "planId": "rep-1453-prod-write-auth-grants",
+  "affectedPublicSurfaces": [
+    "none in the request path — this grants two verbs on one table to the runtime role. No route, no copy, no schema change.",
+    "It gates the production-write capability: without it, the first authorized production mutation fails with permission denied once DATABASE_URL is cut over to juli_app."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "none",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "the-runtime-role-can-consume-an-authorization",
+        "entryUrl": "psql: information_schema.table_privileges for juli_app on production_write_authorizations, against a database at head",
+        "assertions": [
+          "juli_app holds SELECT and UPDATE — the two verbs lookup() and consume() need",
+          "juli_app holds neither INSERT nor DELETE — issue() and revoke() are operator actions through a CLI that takes --db-url",
+          "read from the database's own catalog, not inferred from the migration having run"
+        ]
+      },
+      {
+        "name": "the-grant-map-cannot-silently-go-stale-again",
+        "entryUrl": "pytest: tests/integration/test_runtime_role_grant_coverage.py",
+        "assertions": [
+          "every tenant-scoped table the runtime reads is SELECT-able by juli_app",
+          "removing migration 048 makes the SELECT-coverage and write-verb tests FAIL",
+          "widening 048 to also grant INSERT makes the least-privilege test FAIL",
+          "all three pass with 048 as written",
+          "the four bronze raw-payload tables are recorded as deliberate INSERT-only exclusions, matching 043's GRANT_MAP, rather than widened to make a test pass"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": ["not-applicable: database grant"],
+    "discoverFromHtml": false,
+    "assetTypes": ["not-applicable"],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Grant-only: no table, column, index or policy changes. Both the stable release (connected as postgres, the owner) and a candidate connected as juli_app work with the grant present, so the migration can land before the cutover and is compatible either side of it. The GRANT and REVOKE are both guarded on the role existing, because roles are cluster-global while migrations are per-database."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "downgrade 048 revokes exactly the two verbs it granted; the runtime returns to the pre-#1453 state, in which the production-write capability cannot consume an authorization. Nothing else regresses, because the stable release connects as the owner.",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "DATABASE_URL=postgresql://postgres@localhost:5432/<freshly-created> JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=$PWD/backend/src:$PWD python -m pytest tests/integration/test_runtime_role_grant_coverage.py -q",
+    "DATABASE_URL=postgresql://postgres@localhost:5432/<freshly-created> JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=$PWD/backend/src:$PWD python -m pytest tests/integration/test_migrations.py tests/integration/test_schema_parity.py tests/integration/test_rls_policies.py -q",
+    "psql -At -c \"select privilege_type from information_schema.table_privileges where grantee='juli_app' and table_name='production_write_authorizations' order by 1\""
+  ],
+  "doNotInfer": [
+    "Do not prove this test by mutating the DATABASE. #1432's `_shared_database_at_head` session fixture resets and re-migrates at session start, so a REVOKE is undone before any test runs — every database-level mutation passes and the proof is vacuous. That happened here on the first attempt. Mutate the migration source instead.",
+    "Do not widen the grant to make the coverage test pass. The four bronze raw-payload tables are INSERT-only on purpose: 043's GRANT_MAP gives them (\"INSERT\",) and every other entry in that map cites the caller its verbs serve. They belong in the exclusion list with a reason, not in a wider GRANT.",
+    "Do not grant INSERT or DELETE on production_write_authorizations. issue() and revoke() run through services/operations/production_write_authorizations_cli.py, which takes --db-url and is run with an admin URL. The runtime consumes an authorization; it never creates or deletes one.",
+    "Do not read this as an RLS change. Privileges say which verbs, policies say which rows. RLS was already enabled on this table with four policies, and a grant without a matching tenant context still returns nothing.",
+    "Do not assume the migration ran because CI was green. This gap survived merge, deploy, and every gate; it was found by reading information_schema on the production database. Verify against the catalog."
+  ]
+}

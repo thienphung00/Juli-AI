@@ -1,0 +1,1922 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "gate_mutation_score",
+  "issue": 1457,
+  "syntheticIssue": 990157,
+  "gateCount": 29,
+  "operators": [
+    "self_reported_pass",
+    "vacuous_test_evidence",
+    "narrowed_command_scope",
+    "dangling_artifact_ref",
+    "missing_artifact_as_skipped",
+    "environment_mismatch",
+    "unbacked_claim"
+  ],
+  "failureClasses": {
+    "self_reported_pass": "The agent grades itself. status=PASS is asserted while the record's own criticalFindings still carry an unresolved CRITICAL. 269 of 270 committed status records are shippable; a metric that never disagrees measures nothing.",
+    "vacuous_test_evidence": "Red/green is narrated in prose with no command and no exit code. The canonical vacuous check: it passes because it could not determine an answer.",
+    "narrowed_command_scope": "The recorded pytest selector is narrower than the oracle's. 487 of 541 pytest runs in the corpus are narrower than CI's.",
+    "dangling_artifact_ref": "An artifactRef names a path present in no commit on any branch. 240 of 538 artifactRef/sha256 pairs in the corpus do exactly this.",
+    "missing_artifact_as_skipped": "A missing input is recorded as SKIP rather than FAIL, and the run still reports PASS. Violates Architect lock 2: fail-closed, always.",
+    "environment_mismatch": "The green was obtained under an interpreter/PYTHONPATH the oracle does not use. One editable .pth decides where juli_backend resolves; a stale worktree's green is not CI's green.",
+    "unbacked_claim": "An acceptance mapping cites a test node that exists nowhere in the tree, while reporting mapped == total. 88 of 239 gate-result claims in the corpus have no matching run."
+  },
+  "arms": [
+    "absent",
+    "clean",
+    "self_reported_pass",
+    "vacuous_test_evidence",
+    "narrowed_command_scope",
+    "dangling_artifact_ref",
+    "missing_artifact_as_skipped",
+    "environment_mismatch",
+    "unbacked_claim"
+  ],
+  "rows": [
+    {
+      "gate": "check_acceptance_mapping",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": true
+      },
+      "catchCount": 1,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "acceptance_criteria_mapped: FAIL"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "acceptance_criteria_mapped: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "acceptance_criteria_mapped: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "acceptance_criteria_mapped: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "acceptance_criteria_mapped: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "acceptance_criteria_mapped: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "acceptance_criteria_mapped: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "acceptance_criteria_mapped: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "acceptance_criteria_mapped: FAIL \u2014 test not found: tests/unit/test_mutants.py::test_gate_sensitivity_is_generalisable"
+        }
+      }
+    },
+    {
+      "gate": "check_adr",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": false,
+      "arms": {
+        "absent": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "adr_requirement: PASS"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "adr_requirement: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "adr_requirement: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "adr_requirement: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "adr_requirement: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "adr_requirement: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "adr_requirement: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "adr_requirement: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "adr_requirement: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_critical_findings_resolved",
+      "caught": {
+        "self_reported_pass": true,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 1,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "critical_findings_resolved: FAIL \u2014 Review artifact missing"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "critical_findings_resolved: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "critical_findings_resolved: FAIL \u2014 1 CRITICAL finding(s) present but status is 'PASS' (must be FAIL)"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "critical_findings_resolved: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "critical_findings_resolved: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "critical_findings_resolved: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "critical_findings_resolved: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "critical_findings_resolved: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "critical_findings_resolved: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_differential_tdd",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "differential_tdd: FAIL \u2014 Implementation artifact missing"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "differential_tdd: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "differential_tdd: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "differential_tdd: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "differential_tdd: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "differential_tdd: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "differential_tdd: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "differential_tdd: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "differential_tdd: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_done_md",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": false,
+      "arms": {
+        "absent": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "done_md_completion: PASS \u2014 done.md required checklist complete"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "done_md_completion: PASS \u2014 done.md required checklist complete"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "done_md_completion: PASS \u2014 done.md required checklist complete"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "done_md_completion: PASS \u2014 done.md required checklist complete"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "done_md_completion: PASS \u2014 done.md required checklist complete"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "done_md_completion: PASS \u2014 done.md required checklist complete"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "done_md_completion: PASS \u2014 done.md required checklist complete"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "done_md_completion: PASS \u2014 done.md required checklist complete"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "done_md_completion: PASS \u2014 done.md required checklist complete"
+        }
+      }
+    },
+    {
+      "gate": "check_executor_domain_matches_cache",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "executor_domain_matches_cache: FAIL \u2014 Child issue context cache missing: agent-runtime/artifacts/workflow-cache/issue-context-cache-990157.json"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "executor_domain_matches_cache: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "executor_domain_matches_cache: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "executor_domain_matches_cache: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "executor_domain_matches_cache: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "executor_domain_matches_cache: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "executor_domain_matches_cache: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "executor_domain_matches_cache: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "executor_domain_matches_cache: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_findings_acknowledged",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "findings_acknowledged: FAIL \u2014 Review artifact missing"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "findings_acknowledged: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "findings_acknowledged: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "findings_acknowledged: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "findings_acknowledged: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "findings_acknowledged: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "findings_acknowledged: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "findings_acknowledged: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "findings_acknowledged: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_handoff",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": false,
+      "arms": {
+        "absent": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "handoff_structure: PASS"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "handoff_structure: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "handoff_structure: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "handoff_structure: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "handoff_structure: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "handoff_structure: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "handoff_structure: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "handoff_structure: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "handoff_structure: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_harness_bootstrap_pin",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "harness_bootstrap_pinned: FAIL \u2014 Child issue context cache missing: agent-runtime/artifacts/workflow-cache/issue-context-cache-990157.json"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "harness_bootstrap_pinned: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "harness_bootstrap_pinned: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "harness_bootstrap_pinned: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "harness_bootstrap_pinned: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "harness_bootstrap_pinned: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "harness_bootstrap_pinned: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "harness_bootstrap_pinned: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "harness_bootstrap_pinned: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_implementation_artifact",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "implementation_artifact_present: FAIL \u2014 Implementation artifact missing"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_artifact_present: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_artifact_present: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_artifact_present: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_artifact_present: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_artifact_present: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_artifact_present: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_artifact_present: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_artifact_present: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_implementation_schema_valid",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "implementation_schema_valid: FAIL \u2014 Implementation artifact missing"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_schema_valid: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_schema_valid: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_schema_valid: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_schema_valid: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_schema_valid: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_schema_valid: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_schema_valid: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_schema_valid: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_implementation_tdd_evidence",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": true,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 1,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "implementation_tdd_evidence: FAIL \u2014 Implementation artifact missing"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_tdd_evidence: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_tdd_evidence: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "implementation_tdd_evidence: FAIL \u2014 No redGreenRefactorEvidence cycle with passing command (exitCode 0)"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_tdd_evidence: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_tdd_evidence: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_tdd_evidence: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_tdd_evidence: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "implementation_tdd_evidence: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_issue_load_profile",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "issue_load_profile: FAIL \u2014 Child issue context cache missing: agent-runtime/artifacts/workflow-cache/issue-context-cache-990157.json"
+        },
+        "clean": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "issue_load_profile: FAIL \u2014 Unable to derive issueLoadProfile: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "self_reported_pass": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "issue_load_profile: FAIL \u2014 Unable to derive issueLoadProfile: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "issue_load_profile: FAIL \u2014 Unable to derive issueLoadProfile: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "narrowed_command_scope": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "issue_load_profile: FAIL \u2014 Unable to derive issueLoadProfile: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "issue_load_profile: FAIL \u2014 Unable to derive issueLoadProfile: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "issue_load_profile: FAIL \u2014 Unable to derive issueLoadProfile: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "environment_mismatch": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "issue_load_profile: FAIL \u2014 Unable to derive issueLoadProfile: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "unbacked_claim": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "issue_load_profile: FAIL \u2014 Unable to derive issueLoadProfile: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        }
+      }
+    },
+    {
+      "gate": "check_ml_gates",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "ml_gates_enforced: FAIL \u2014 Review artifact missing"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "ml_gates_enforced: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "ml_gates_enforced: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "ml_gates_enforced: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "ml_gates_enforced: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "ml_gates_enforced: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "ml_gates_enforced: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "ml_gates_enforced: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "ml_gates_enforced: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_module_boundaries",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": false,
+      "arms": {
+        "absent": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "module_boundaries: PASS"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "module_boundaries: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "module_boundaries: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "module_boundaries: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "module_boundaries: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "module_boundaries: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "module_boundaries: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "module_boundaries: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "module_boundaries: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_module_drift",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": false,
+      "arms": {
+        "absent": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "module_md_sync: PASS"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "module_md_sync: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "module_md_sync: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "module_md_sync: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "module_md_sync: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "module_md_sync: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "module_md_sync: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "module_md_sync: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "module_md_sync: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_owner_signoff",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "owner_signoff_present: FAIL \u2014 Review artifact missing"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "owner_signoff_present: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "owner_signoff_present: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "owner_signoff_present: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "owner_signoff_present: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "owner_signoff_present: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "owner_signoff_present: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "owner_signoff_present: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "owner_signoff_present: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_phase_run_correlation",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "phase_run_correlation: FAIL \u2014 Child issue context cache missing: agent-runtime/artifacts/workflow-cache/issue-context-cache-990157.json"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "phase_run_correlation: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "phase_run_correlation: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "phase_run_correlation: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "phase_run_correlation: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "phase_run_correlation: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "phase_run_correlation: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "phase_run_correlation: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "phase_run_correlation: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_public_release_classification",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "public_release_classification: FAIL \u2014 Child issue context cache missing: agent-runtime/artifacts/workflow-cache/issue-context-cache-990157.json"
+        },
+        "clean": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "public_release_classification: FAIL \u2014 Unable to fetch issue body: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "self_reported_pass": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "public_release_classification: FAIL \u2014 Unable to fetch issue body: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "public_release_classification: FAIL \u2014 Unable to fetch issue body: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "narrowed_command_scope": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "public_release_classification: FAIL \u2014 Unable to fetch issue body: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "public_release_classification: FAIL \u2014 Unable to fetch issue body: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "public_release_classification: FAIL \u2014 Unable to fetch issue body: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "environment_mismatch": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "public_release_classification: FAIL \u2014 Unable to fetch issue body: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "unbacked_claim": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "public_release_classification: FAIL \u2014 Unable to fetch issue body: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        }
+      }
+    },
+    {
+      "gate": "check_public_release_evidence_plan",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "public_release_evidence_plan: FAIL \u2014 Child issue context cache missing: agent-runtime/artifacts/workflow-cache/issue-context-cache-990157.json"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "public_release_evidence_plan: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "public_release_evidence_plan: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "public_release_evidence_plan: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "public_release_evidence_plan: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "public_release_evidence_plan: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "public_release_evidence_plan: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "public_release_evidence_plan: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "public_release_evidence_plan: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_release_evidence_plan_continuity",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "release_evidence_plan_continuity: FAIL \u2014 Child issue context cache missing: agent-runtime/artifacts/workflow-cache/issue-context-cache-990157.json"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "release_evidence_plan_continuity: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "release_evidence_plan_continuity: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "release_evidence_plan_continuity: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "release_evidence_plan_continuity: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "release_evidence_plan_continuity: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "release_evidence_plan_continuity: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "release_evidence_plan_continuity: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "release_evidence_plan_continuity: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_release_metadata_honesty",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": false,
+      "arms": {
+        "absent": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "release_metadata_honesty: PASS"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "release_metadata_honesty: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "release_metadata_honesty: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "release_metadata_honesty: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "release_metadata_honesty: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "release_metadata_honesty: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "release_metadata_honesty: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "release_metadata_honesty: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "release_metadata_honesty: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_review_artifact",
+      "caught": {
+        "self_reported_pass": true,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 1,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "review_artifact_present: FAIL \u2014 Review artifact missing"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "review_artifact_present: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "review_artifact_present: FAIL \u2014 status 'PASS' does not match derived 'FAIL' (warnings=0, critical=1)"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "review_artifact_present: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "review_artifact_present: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "review_artifact_present: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "review_artifact_present: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "review_artifact_present: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "review_artifact_present: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_reviewer_signoff",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "reviewer_signoff_present: FAIL \u2014 Review artifact missing"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "reviewer_signoff_present: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "reviewer_signoff_present: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "reviewer_signoff_present: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "reviewer_signoff_present: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "reviewer_signoff_present: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "reviewer_signoff_present: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "reviewer_signoff_present: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "reviewer_signoff_present: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_scope_precedence",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "{"
+        },
+        "clean": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "scope_precedence: PASS"
+        },
+        "self_reported_pass": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "scope_precedence: PASS"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "scope_precedence: PASS"
+        },
+        "narrowed_command_scope": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "scope_precedence: PASS"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "scope_precedence: PASS"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "scope_precedence: PASS"
+        },
+        "environment_mismatch": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "scope_precedence: PASS"
+        },
+        "unbacked_claim": {
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "scope_precedence: PASS"
+        }
+      }
+    },
+    {
+      "gate": "check_unpushed_issue_work",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.83h, worktree=None)"
+        },
+        "clean": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.84h, worktree=None)"
+        },
+        "self_reported_pass": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.86h, worktree=None)"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.87h, worktree=None)"
+        },
+        "narrowed_command_scope": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.88h, worktree=None)"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.89h, worktree=None)"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.9h, worktree=None)"
+        },
+        "environment_mismatch": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.92h, worktree=None)"
+        },
+        "unbacked_claim": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=1, age=1014.93h, worktree=None)"
+        }
+      }
+    },
+    {
+      "gate": "check_workflow_cache",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "workflow_cache_staleness: FAIL \u2014 Child issue context cache missing: agent-runtime/artifacts/workflow-cache/issue-context-cache-990157.json"
+        },
+        "clean": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "workflow_cache_staleness: FAIL \u2014 Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "self_reported_pass": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "workflow_cache_staleness: FAIL \u2014 Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "workflow_cache_staleness: FAIL \u2014 Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "narrowed_command_scope": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "workflow_cache_staleness: FAIL \u2014 Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "workflow_cache_staleness: FAIL \u2014 Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "workflow_cache_staleness: FAIL \u2014 Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "environment_mismatch": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "workflow_cache_staleness: FAIL \u2014 Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "unbacked_claim": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "workflow_cache_staleness: FAIL \u2014 Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        }
+      }
+    },
+    {
+      "gate": "check_workflow_cache_staleness",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": true,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "workflow_cache_staleness: FAIL \u2014 Child issue context cache missing: agent-runtime/artifacts/workflow-cache/issue-context-cache-990157.json"
+        },
+        "clean": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "workflow_cache_staleness: FAIL \u2014 Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "self_reported_pass": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "workflow_cache_staleness: FAIL \u2014 Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "workflow_cache_staleness: FAIL \u2014 Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "narrowed_command_scope": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "workflow_cache_staleness: FAIL \u2014 Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "workflow_cache_staleness: FAIL \u2014 Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "workflow_cache_staleness: FAIL \u2014 Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "environment_mismatch": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "workflow_cache_staleness: FAIL \u2014 Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "unbacked_claim": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "workflow_cache_staleness: FAIL \u2014 Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        }
+      }
+    },
+    {
+      "gate": "run_ensure_workflow_cache",
+      "caught": {
+        "self_reported_pass": false,
+        "vacuous_test_evidence": false,
+        "narrowed_command_scope": false,
+        "dangling_artifact_ref": false,
+        "missing_artifact_as_skipped": false,
+        "environment_mismatch": false,
+        "unbacked_claim": false
+      },
+      "catchCount": 0,
+      "artifactSensitive": false,
+      "arms": {
+        "absent": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "error: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "clean": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "error: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "self_reported_pass": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "error: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "vacuous_test_evidence": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "error: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "narrowed_command_scope": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "error: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "dangling_artifact_ref": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "error: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "missing_artifact_as_skipped": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "error: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "environment_mismatch": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "error: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        },
+        "unbacked_claim": {
+          "verdict": "FAIL",
+          "exitCode": 1,
+          "detail": "error: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)"
+        }
+      }
+    }
+  ],
+  "zeroCatchGates": [
+    "check_adr",
+    "check_differential_tdd",
+    "check_done_md",
+    "check_executor_domain_matches_cache",
+    "check_findings_acknowledged",
+    "check_handoff",
+    "check_harness_bootstrap_pin",
+    "check_implementation_artifact",
+    "check_implementation_schema_valid",
+    "check_issue_load_profile",
+    "check_ml_gates",
+    "check_module_boundaries",
+    "check_module_drift",
+    "check_owner_signoff",
+    "check_phase_run_correlation",
+    "check_public_release_classification",
+    "check_public_release_evidence_plan",
+    "check_release_evidence_plan_continuity",
+    "check_release_metadata_honesty",
+    "check_reviewer_signoff",
+    "check_scope_precedence",
+    "check_unpushed_issue_work",
+    "check_workflow_cache",
+    "check_workflow_cache_staleness",
+    "run_ensure_workflow_cache"
+  ],
+  "zeroCatchCount": 25,
+  "caughtGates": [
+    "check_acceptance_mapping",
+    "check_critical_findings_resolved",
+    "check_implementation_tdd_evidence",
+    "check_review_artifact"
+  ],
+  "caughtCount": 4,
+  "silentGates": [
+    "check_adr",
+    "check_differential_tdd",
+    "check_done_md",
+    "check_executor_domain_matches_cache",
+    "check_findings_acknowledged",
+    "check_handoff",
+    "check_harness_bootstrap_pin",
+    "check_implementation_artifact",
+    "check_implementation_schema_valid",
+    "check_ml_gates",
+    "check_module_boundaries",
+    "check_module_drift",
+    "check_owner_signoff",
+    "check_phase_run_correlation",
+    "check_public_release_evidence_plan",
+    "check_release_evidence_plan_continuity",
+    "check_release_metadata_honesty",
+    "check_reviewer_signoff",
+    "check_scope_precedence"
+  ],
+  "silentCount": 19,
+  "failClosedGates": [
+    "check_issue_load_profile",
+    "check_public_release_classification",
+    "check_unpushed_issue_work",
+    "check_workflow_cache",
+    "check_workflow_cache_staleness",
+    "run_ensure_workflow_cache"
+  ],
+  "failClosedCount": 6,
+  "failClosedMeaning": "Failed on a precondition the synthetic fixture cannot supply (no real GitHub issue behind the synthetic number; real stale branches in the working tree). Correct fail-closed behaviour. NOT scored as sensitivity and NOT a deletion candidate.",
+  "deletionCandidates": [
+    "check_adr",
+    "check_differential_tdd",
+    "check_done_md",
+    "check_executor_domain_matches_cache",
+    "check_findings_acknowledged",
+    "check_handoff",
+    "check_harness_bootstrap_pin",
+    "check_implementation_artifact",
+    "check_implementation_schema_valid",
+    "check_ml_gates",
+    "check_module_boundaries",
+    "check_module_drift",
+    "check_owner_signoff",
+    "check_phase_run_correlation",
+    "check_public_release_evidence_plan",
+    "check_release_evidence_plan_continuity",
+    "check_release_metadata_honesty",
+    "check_reviewer_signoff",
+    "check_scope_precedence"
+  ],
+  "deletionCandidateCount": 19,
+  "unscoreableGates": [
+    "check_issue_load_profile",
+    "check_public_release_classification",
+    "check_unpushed_issue_work",
+    "check_workflow_cache",
+    "check_workflow_cache_staleness",
+    "run_ensure_workflow_cache"
+  ],
+  "unscoreableCount": 6,
+  "uncaughtOperators": [
+    "narrowed_command_scope",
+    "dangling_artifact_ref",
+    "missing_artifact_as_skipped",
+    "environment_mismatch"
+  ],
+  "erroredGates": [],
+  "cleanArmFailures": [
+    "check_issue_load_profile",
+    "check_public_release_classification",
+    "check_unpushed_issue_work",
+    "check_workflow_cache",
+    "check_workflow_cache_staleness",
+    "run_ensure_workflow_cache"
+  ],
+  "falsePositivesOnClean": [],
+  "honestyNote": "The seven operators are derived from the nine failure classes in docs/handoffs/issue-1434.md and issue #1457. Gates written against those classes are, by construction, the gates that catch them. Every sensitivity number below is therefore sensitivity against a synthetic population that mirrors our own taxonomy \u2014 it is the best available measurement and it is NOT a claim that these gates generalise to defects we have not already named. Read a zero as informative and a non-zero as an upper bound."
+}
