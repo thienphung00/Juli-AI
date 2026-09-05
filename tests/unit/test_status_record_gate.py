@@ -14,6 +14,8 @@ import hashlib
 import json
 import subprocess
 import sys
+import warnings
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -1048,6 +1050,83 @@ def _records_at(ref: str) -> dict[str, str]:
     return records
 
 
+def _newly_invalid_records(records: list[Path], amended: dict, baseline: dict) -> list[str]:
+    """The schema-validity delta half of the corpus regression guard.
+
+    Needs no base ref at all — ``baseline`` is the schema at HEAD (read via
+    ``git show``), not a prior commit's *records*. Extracted so #1600 can prove,
+    independent of whether a base ref resolves, that this half always runs.
+    """
+    newly_invalid: list[str] = []
+    for path in records:
+        record = json.loads(path.read_text(encoding="utf-8"))
+        errors = validate_json_schema(record, amended)
+        if errors and not validate_json_schema(record, baseline):
+            newly_invalid.append(f"{path.name}: {errors[0]}")
+    return newly_invalid
+
+
+def _backfilled_records(records: list[Path], before: dict[str, str]) -> list[str]:
+    """The backfill half of the corpus regression guard. Needs a real 'before'."""
+    backfilled: list[str] = []
+    for path in records:
+        record = json.loads(path.read_text(encoding="utf-8"))
+        if "architecturalChange" not in record or path.name not in before:
+            continue
+        try:
+            had_it = "architecturalChange" in json.loads(before[path.name])
+        except json.JSONDecodeError:
+            had_it = False
+        if not had_it:
+            backfilled.append(path.name)
+    return backfilled
+
+
+def _run_corpus_regression_guard(
+    *,
+    records: list[Path],
+    amended: dict,
+    baseline: dict,
+    base_ref: str | None,
+    records_at: Callable[[str], dict[str, str]],
+) -> None:
+    """#1600: the reorder in one place, so it is unit-testable without a real
+    corpus or a real git checkout.
+
+    The schema-validity delta (``_newly_invalid_records``) needs no base ref and
+    is computed and asserted first — it used to sit *after* the base-resolution
+    skip, so an unresolved base silently dropped it as collateral. Only the
+    backfill half genuinely needs a 'before' and may skip; when it does, a
+    ``warnings.warn`` fires first so the skip is visible in CI's default
+    output (``pytest -v --tb=short``, no ``-s``: ``print()`` here would vanish
+    on exactly the run it is about, per #1618's finding). ``pytest.skip`` still
+    follows — the skip is genuine, not laundered into a silent pass.
+    """
+    newly_invalid = _newly_invalid_records(records, amended, baseline)
+    assert newly_invalid == [], (
+        f"{len(newly_invalid)} committed records validated before this change and "
+        f"stop validating after it: {newly_invalid[:5]}"
+    )
+
+    if base_ref is None:
+        warnings.warn(
+            "corpus regression guard: no base ref resolved in this checkout, so the "
+            "backfill half (no committed record acquired 'architecturalChange' without "
+            "a prior 'before') did not run this pass. The schema-validity delta above "
+            "did run.",
+            stacklevel=2,
+        )
+        pytest.skip("no base ref resolved in this checkout; the backfill half needs a 'before'")
+
+    before = records_at(base_ref)
+    backfilled = _backfilled_records(records, before)
+    assert backfilled == [], (
+        f"{len(backfilled)} records that existed at {base_ref[:12]} without "
+        f"architecturalChange have acquired one, which the Architect lock forbids: "
+        f"{backfilled[:5]}"
+    )
+
+
 def test_no_committed_record_stopped_validating_and_none_was_backfilled() -> None:
     """#1562's hard constraint: the ~317 records already on ``main`` keep
     validating and are not backfilled. The new field is optional precisely so
@@ -1067,6 +1146,10 @@ def test_no_committed_record_stopped_validating_and_none_was_backfilled() -> Non
     Both halves are asserted — that the invalid set does not grow, and that no
     record acquired the field — because validity alone would also be satisfied
     by a backfill, which is the thing forbidden.
+
+    #1600: the two halves need different things (the schema delta needs
+    nothing; the backfill half needs a 'before'), so they no longer share one
+    skip gate — see ``_run_corpus_regression_guard``.
     """
     amended = json.loads(STATUS_SCHEMA_PATH.read_text(encoding="utf-8"))
     head = _git("show", "HEAD:agent-runtime/docs/schemas/status-record.schema.json")
@@ -1090,35 +1173,107 @@ def test_no_committed_record_stopped_validating_and_none_was_backfilled() -> Non
     # this true after #1562 lands: from then on base records legitimately carry
     # the field, and "was already there" must not start reading as "was
     # backfilled".
-    base_ref = _merge_base()
-    if base_ref is None:
-        pytest.skip("no base ref resolved in this checkout; the backfill half needs a 'before'")
-    before = _records_at(base_ref)
-
-    newly_invalid: list[str] = []
-    backfilled: list[str] = []
-    for path in records:
-        record = json.loads(path.read_text(encoding="utf-8"))
-        if validate_json_schema(record, amended) and not validate_json_schema(record, baseline):
-            newly_invalid.append(f"{path.name}: {validate_json_schema(record, amended)[0]}")
-        if "architecturalChange" not in record or path.name not in before:
-            continue
-        try:
-            had_it = "architecturalChange" in json.loads(before[path.name])
-        except json.JSONDecodeError:
-            had_it = False
-        if not had_it:
-            backfilled.append(path.name)
-
-    assert newly_invalid == [], (
-        f"{len(newly_invalid)} committed records validated before this change and "
-        f"stop validating after it: {newly_invalid[:5]}"
+    _run_corpus_regression_guard(
+        records=records,
+        amended=amended,
+        baseline=baseline,
+        base_ref=_merge_base(),
+        records_at=_records_at,
     )
-    assert backfilled == [], (
-        f"{len(backfilled)} records that existed at {base_ref[:12]} without "
-        f"architecturalChange have acquired one, which the Architect lock forbids: "
-        f"{backfilled[:5]}"
+
+
+# --- #1600: the schema-validity delta is not collateral to an unresolved base,
+# --- and a skip that drops the backfill half is visible in CI's default output
+# --- (no ``-s``: ``print()`` vanishes on a passing test, per #1618's finding).
+
+
+def test_schema_validity_delta_asserts_even_when_no_base_ref_resolves(tmp_path: Path) -> None:
+    """The under-defect this issue was filed for: before the reorder, an
+    unresolved base ran ``pytest.skip`` before the schema-validity delta was
+    even computed, so a record that stopped validating went unnoticed on
+    exactly the checkouts where the base could not be resolved.
+
+    Forces a record invalid under ``amended`` but valid under ``baseline`` --
+    genuine regression -- and a base that can never resolve. The assertion
+    must still fire (as ``AssertionError``, not ``Skipped``): proof the
+    schema-validity check no longer sits behind the base-resolution gate.
+    """
+    baseline = {"type": "object", "properties": {"issue": {"type": "integer"}}}
+    amended = {
+        "type": "object",
+        "properties": {"issue": {"type": "integer"}},
+        "required": ["mustBePresent"],
+    }
+    record_path = tmp_path / "issue-1.json"
+    record_path.write_text(json.dumps({"issue": 1}), encoding="utf-8")
+
+    # Deliberately not ``pytest.raises(AssertionError)``: ``pytest.skip`` raises
+    # ``Skipped``, a ``BaseException`` that ``pytest.raises(AssertionError)``
+    # does not intercept -- it would propagate past the ``with`` block and the
+    # test would report SKIPPED rather than FAILED. That is the exact trap
+    # this issue is about (a skip and a failure to assert look the same in
+    # aggregate), so this test must not be able to fall into it itself. Catch
+    # broadly and fail loudly on anything other than the expected assertion.
+    try:
+        _run_corpus_regression_guard(
+            records=[record_path],
+            amended=amended,
+            baseline=baseline,
+            base_ref=None,
+            records_at=lambda ref: pytest.fail(f"records_at must not be called, got {ref!r}"),
+        )
+    except AssertionError as exc:
+        assert "stop validating after it" in str(exc), exc
+    except BaseException as exc:  # noqa: BLE001 - see comment above
+        pytest.fail(
+            f"expected an AssertionError from the schema-validity delta, got "
+            f"{type(exc).__name__}: {exc}"
+        )
+    else:
+        pytest.fail("_run_corpus_regression_guard returned normally; expected an AssertionError")
+
+
+def test_backfill_half_skips_with_a_visible_warning_when_no_base_resolves(tmp_path: Path) -> None:
+    """The other half of the defect: nothing failed when the guard skipped, so
+    a skip and a pass were indistinguishable in CI's default output. A
+    ``warnings.warn`` must fire before the ``pytest.skip`` -- warnings reach
+    pytest's summary section even under ``pytest -v --tb=short`` with no
+    ``-s`` (#1618's finding: a bare ``print()`` here would not).
+    """
+    schema = {"type": "object", "properties": {"issue": {"type": "integer"}}}
+    record_path = tmp_path / "issue-2.json"
+    record_path.write_text(json.dumps({"issue": 2}), encoding="utf-8")
+
+    with pytest.warns(UserWarning, match="no base ref resolved"):
+        with pytest.raises(pytest.skip.Exception):
+            _run_corpus_regression_guard(
+                records=[record_path],
+                amended=schema,
+                baseline=schema,
+                base_ref=None,
+                records_at=lambda ref: pytest.fail(f"records_at must not be called, got {ref!r}"),
+            )
+
+
+def test_backfilled_record_is_still_caught_when_base_resolves(tmp_path: Path) -> None:
+    """Positive-path sanity for the reorder: when a base *does* resolve, a
+    record that acquired ``architecturalChange`` since the 'before' is still
+    caught -- the reorder must not have weakened this half."""
+    schema = {"type": "object", "properties": {"issue": {"type": "integer"}}}
+    record_path = tmp_path / "issue-3.json"
+    record_path.write_text(
+        json.dumps({"issue": 3, "architecturalChange": {"value": False, "signals": []}}),
+        encoding="utf-8",
     )
+
+    with pytest.raises(AssertionError, match="Architect lock forbids"):
+        _run_corpus_regression_guard(
+            records=[record_path],
+            amended=schema,
+            baseline=schema,
+            base_ref="deadbeef",
+            records_at=lambda ref: {"issue-3.json": json.dumps({"issue": 3})},
+        )
 
 
 def test_no_pre_existing_status_record_was_rewritten() -> None:
