@@ -19,6 +19,7 @@ from implementation_tdd import (  # noqa: E402
     EVIDENCE_STATE_RECONSTRUCTED,
     EVIDENCE_STATE_WITNESSED,
     evidence_state_counts,
+    every_cycle_explicitly_unavailable,
     files_trigger_tdd_evidence,
     has_passing_command_evidence,
     has_witnessed_or_reconstructed_evidence,
@@ -63,28 +64,42 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:
         return False, "testsAdded and testsUpdated are both empty", details
 
     # #1603: witnessed / reconstructed / unavailable must not collapse into one
-    # verdict. A cycle whose exitCode:0 is unbacked by any evidenceState claim
-    # ("unavailable", or the field simply omitted) has satisfied every check
-    # above and still proven nothing — that is the exact false negative this
-    # gate was filed over. Distinguishing the two real states (witnessed vs.
-    # reconstructed) is reported through `description`/`details` rather than
-    # collapsed to a bare PASS, so a reconstructed cycle cannot be mistaken for
-    # a witnessed one downstream (generate_validation_artifact.py records both
-    # regardless of pass/fail).
+    # verdict — and "omitted" (a cycle written before evidenceState existed)
+    # must not collapse into "unavailable" either. Omission is not a
+    # declaration: an artifact that predates this field has asserted nothing,
+    # whereas one that explicitly writes evidenceState: "unavailable" has
+    # asserted it has no evidence. Reading the first as the second is the
+    # ADR-093 error class ("could not determine" counted as an answer) and is
+    # what made this gate fail every pre-#1603 artifact outright — the mutants
+    # clean-record fixture and the public-release e2e matrices among them —
+    # the moment it shipped. So: all-omitted (legacy) passes; all-explicitly-
+    # unavailable still fails, exactly as before.
     state_counts = evidence_state_counts(cycles)
     details["evidenceStateCounts"] = state_counts
 
-    if not has_witnessed_or_reconstructed_evidence(cycles):
-        return (
-            False,
-            "redGreenRefactorEvidence has no witnessed or reconstructed cycle — "
-            "every cycle is unavailable (or omits evidenceState), so there is no "
-            "evidence of a real red state, only a claim",
-            details,
-        )
-
     witnessed = state_counts[EVIDENCE_STATE_WITNESSED]
     reconstructed = state_counts[EVIDENCE_STATE_RECONSTRUCTED]
+
+    if not has_witnessed_or_reconstructed_evidence(cycles):
+        if every_cycle_explicitly_unavailable(cycles):
+            return (
+                False,
+                "redGreenRefactorEvidence has no witnessed or reconstructed cycle — "
+                "every cycle explicitly declares evidenceState: unavailable, so there "
+                "is no evidence of a real red state, only a claim",
+                details,
+            )
+        # Every cycle omits evidenceState (a legacy shape predating this field,
+        # possibly mixed with explicit `unavailable` cycles) — pass, but never
+        # let it read as witnessed.
+        details["evidenceQuality"] = "legacy"
+        return (
+            True,
+            "TDD evidence present but predates evidenceState — this artifact was "
+            "written before witnessed/reconstructed/unavailable existed and cannot "
+            "be scored on it",
+            details,
+        )
 
     if reconstructed and not witnessed:
         details["evidenceQuality"] = "reconstructed"

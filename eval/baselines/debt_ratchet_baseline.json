@@ -1,7 +1,7 @@
 {
   "issue": 1462,
   "schema": "debt-ratchet-baseline/1",
-  "generatedAt": "2026-09-02T11:40:00Z",
+  "generatedAt": "2026-09-05T07:42:13Z",
   "generator": "python -m eval.ratchets measure --write",
   "classes": {
     "broken_doc_refs": {
@@ -381,15 +381,15 @@
     "suppressions": {
       "kind": "identities",
       "stats": {
-        "files_scanned": 995,
-        "lines": 410,
-        "occurrences": 412,
-        "distinct_identities": 213,
-        "lines_in_reported_roots": 406,
+        "files_scanned": 1035,
+        "lines": 412,
+        "occurrences": 414,
+        "distinct_identities": 214,
+        "lines_in_reported_roots": 408,
         "by_rule_code": {
           "noqa:ARG001": 5,
           "noqa:BLE001": 13,
-          "noqa:E402": 213,
+          "noqa:E402": 215,
           "noqa:E712": 1,
           "noqa:F401": 25,
           "noqa:F403": 2,
@@ -602,6 +602,7 @@
         "suppressions\ttests/unit/test_release_evidence_plan.py\t<module>\tnoqa:E402": 1,
         "suppressions\ttests/unit/test_release_evidence_plan_continuity.py\t<module>\tnoqa:E402": 2,
         "suppressions\ttests/unit/test_release_metadata_honesty.py\t<module>\tnoqa:E402": 2,
+        "suppressions\ttests/unit/test_reproducibility_audit.py\t<module>\tnoqa:E402": 2,
         "suppressions\ttests/unit/test_review_status.py\t<module>\tnoqa:E402": 7,
         "suppressions\ttests/unit/test_rules_copy_layer_contract.py\t_snapshot_with_computed_kpis\ttype-ignore:ARG-TYPE": 1,
         "suppressions\ttests/unit/test_run_confirmations_approvals_schema.py\t<module>\tnoqa:F401": 1,
@@ -624,15 +625,15 @@
       },
       "reportedLineDivergence": {
         "reported": 394,
-        "measured": 406,
-        "delta": 12,
+        "measured": 408,
+        "delta": 14,
         "reportedRoots": [
           "backend",
           "tests",
           "scripts",
           "agent-runtime"
         ],
-        "measuredAllRoots": 410,
+        "measuredAllRoots": 412,
         "allRoots": [
           "backend",
           "tests",
@@ -843,5 +844,5 @@
       }
     }
   },
-  "tightenedFrom": "2026-09-01T10:10:38Z"
+  "tightenedFrom": "2026-09-02T11:40:00Z"
 }
