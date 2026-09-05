@@ -24,6 +24,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import warnings
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -194,6 +195,22 @@ def _expected_commit_resolution(
 DISSOLVED_COMMIT_ROWS = frozenset({"fix_commits/f6c0630567443eb4", "fix_commits/702867bf541e1fcd"})
 
 
+def dissolution_violations(
+    resolutions: list[tuple[dict, Resolution]], allowlist: frozenset[str]
+) -> set[str]:
+    """Rows that are UNREACHABLE and not already known to be dissolved.
+
+    Extracted (#1618) so the production assertion and its ADR-092 exhibit call
+    the *same* code. The first version of that exhibit asserted set arithmetic
+    on a synthetic literal and never touched this path, so weakening the real
+    check left the exhibit green — it proved nothing. Anything that neuters this
+    function now turns both red.
+    """
+    return {
+        row["record_id"] for row, res in resolutions if res is Resolution.UNREACHABLE
+    } - allowlist
+
+
 def test_every_row_provenance_resolves() -> None:
     """Every row names a real file line, JSON pointer or commit — and a tampered one is caught."""
     assert ROWS, "the committed dataset is empty; run `python -m eval.curate_negatives`"
@@ -281,17 +298,21 @@ def test_every_row_provenance_resolves() -> None:
     # dissolved. 78 of the 125 commit rows sit in the band [150, 260] and 13 more
     # cross as the wave advances, so this is a date-dependent false alarm on
     # whichever PR is open, not a defect in that PR.
-    dissolved = {row["record_id"] for row, res in commit_rows if res is Resolution.UNREACHABLE}
+    violations = dissolution_violations(commit_rows, DISSOLVED_COMMIT_ROWS)
     if resolver.history_is_complete():
-        assert dissolved <= DISSOLVED_COMMIT_ROWS, sorted(dissolved - DISSOLVED_COMMIT_ROWS)[:5]
+        assert violations == set(), sorted(violations)[:5]
     else:
         # Not silent: a check that quietly stops running is the failure mode of
         # #1600 and #1603. Say what was seen and what was not asserted.
-        print(
+        # warnings.warn, not print: pytest captures stdout on a passing test and
+        # pr.yml's invocation passes no -s, so a print here vanishes on exactly
+        # the path this is about. Found in review; it was the #1600/#1603 failure
+        # mode inside the fix meant to avoid it. Warnings reach the summary.
+        warnings.warn(
             f"#1618: dissolution not asserted (bounded checkout) -- "
-            f"{len(dissolved)} UNREACHABLE row(s), "
-            f"{len(dissolved - DISSOLVED_COMMIT_ROWS)} outside the allowlist; "
-            f"the per-row expectation above still ran at this depth."
+            f"{len(violations)} UNREACHABLE row(s) outside the allowlist; "
+            f"the per-row expectation above still ran at this depth.",
+            stacklevel=2,
         )
 
     # Cache-backed rows resolve exactly wherever the cache exists (a developer
@@ -601,27 +622,52 @@ def test_fix_commit_curation_is_pinned_to_the_trunk() -> None:
 
 
 def test_dissolution_check_still_bites_in_a_complete_clone() -> None:
-    """#1618 / ADR-092 exhibit: scoping a check is legitimate only if it can
-    still fail somewhere.
+    """#1618 / ADR-092 exhibit: gating a check is legitimate only if it can still
+    fail somewhere. Exhibit the input that still turns it red.
 
-    The dissolution assertion is now gated on `history_is_complete()`, because in
-    a bounded checkout UNREACHABLE cannot distinguish a squash-dissolved commit
-    from one outside the fetched window. Narrowing where a check runs is the
-    shape of a gate weakening, so exhibit the input that still turns it red: a
-    freshly dissolved row, in a complete clone, outside the allowlist.
+    The first version of this test asserted set arithmetic on a synthetic literal
+    and never called `ProvenanceResolver` or `history_is_complete()`. Review
+    proved it tautological: replacing the production assertion with `assert True`
+    left it green. An exhibit that survives the weakening it exists to detect is
+    not an exhibit. This one drives a genuinely dangling commit through the real
+    resolver and the shared `dissolution_violations` helper the production
+    assertion uses, in a real complete clone.
     """
-    fresh = "fix_commits/deadbeefdeadbeef"
-    assert fresh not in DISSOLVED_COMMIT_ROWS
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _git(root, "init", "-q", "-b", "trunk", ".")
+        _git(root, "config", "user.email", "t@example.com")
+        _git(root, "config", "user.name", "t")
+        _git(root, "commit", "-q", "--allow-empty", "-m", "kept: on the trunk")
+        kept = _git(root, "rev-parse", "HEAD").strip()
+        _git(root, "commit", "-q", "--allow-empty", "-m", "dissolved: squashed away")
+        dangling = _git(root, "rev-parse", "HEAD").strip()
+        _git(root, "reset", "-q", "--hard", kept)
 
-    observed = set(DISSOLVED_COMMIT_ROWS) | {fresh}
-    assert not observed <= DISSOLVED_COMMIT_ROWS, (
-        "a row that is UNREACHABLE and outside the allowlist must fail the "
-        "dissolution check; if this passes, fresh dissolution is tolerated"
-    )
+        probe = ProvenanceResolver(repo_root=root)
+        assert probe.history_is_complete(), "the exhibit must run in a complete clone"
 
-    # The allowlist must stay a subset assertion over identities. A count budget
-    # would absorb a third dissolution silently -- #1579 chose identities for
-    # exactly that reason and this keeps the choice from being undone.
+        fresh = {"record_id": "fix_commits/freshly_dissolved_exhibit"}
+        assert fresh["record_id"] not in DISSOLVED_COMMIT_ROWS
+        resolution = probe.resolve({"kind": "git_commit", "commit": dangling, "sha256": "0" * 64})
+        assert resolution is Resolution.UNREACHABLE, resolution
+
+        # The same call the production assertion makes. If that check is ever
+        # weakened -- gate removed, comparison neutered, allowlist widened to
+        # everything -- this goes red with it.
+        violations = dissolution_violations([(fresh, resolution)], DISSOLVED_COMMIT_ROWS)
+        assert violations == {fresh["record_id"]}, (
+            "a freshly dissolved row outside the allowlist must be reported as a "
+            "violation in a complete clone; if it is not, dissolution is tolerated"
+        )
+
+        # And a row that IS in the allowlist must not be reported, or the check
+        # would be red permanently and get switched off for noise.
+        known = {"record_id": next(iter(DISSOLVED_COMMIT_ROWS))}
+        assert dissolution_violations([(known, resolution)], DISSOLVED_COMMIT_ROWS) == set()
+
+    # The allowlist stays an identity set, not a count budget -- #1579 chose
+    # identities so a third dissolution could not be absorbed silently.
     assert isinstance(DISSOLVED_COMMIT_ROWS, frozenset)
     assert len(DISSOLVED_COMMIT_ROWS) == 2, sorted(DISSOLVED_COMMIT_ROWS)
 
