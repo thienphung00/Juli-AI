@@ -12,8 +12,6 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.app import create_app
-from juli_backend.database import get_session
 from juli_backend.models.models import Shop, User, WorkflowRun
 from juli_backend.services.agent.golden_scenarios import (
     GoldenScenario,
@@ -44,19 +42,6 @@ async def authenticated_shop(session: AsyncSession, authenticated_user: User):
     session.add(shop)
     await session.commit()
     return shop
-
-
-@pytest_asyncio.fixture
-async def test_app(session: AsyncSession):
-    """Create a test app with dependency overrides."""
-    app = create_app()
-
-    async def _test_session():
-        yield session
-
-    app.dependency_overrides[get_session] = _test_session
-    yield app
-    app.dependency_overrides.clear()
 
 
 class TestReplaySeedingPersistsRows:
