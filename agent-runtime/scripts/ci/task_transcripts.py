@@ -189,6 +189,16 @@ DIRECTIVE_TOKENS = 8
 #: prohibitions and file paths — never travels into the committed record.
 MAX_DIRECTIVE_CHARS = 160
 
+#: The latched instant, or unset. Assigned here — not only inside
+#: :func:`reset_settle_clock` — because a caller that never resets (every real
+#: caller in CI: ``generate_status_records.py`` imports this module fresh and
+#: reads the clock once) hit a bare ``global _settle_clock`` whose name had no
+#: module-level binding at all: a ``NameError`` on the very first unpinned read,
+#: every time, in production. The bug was invisible to this repo's own test
+#: suite because every test resets the clock first, and that reset call is what
+#: created the module attribute the bug depended on being absent (#1582).
+_settle_clock: float | None = None
+
 
 def settle_clock(now: float | None = None) -> float:
     """The single instant every settle decision in this process is measured against.
