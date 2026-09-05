@@ -247,6 +247,53 @@ def git_merge_base(left: str, right: str, repo_root: Path) -> str:
     return output.strip()
 
 
+def identity_coincides_with_head_note(ref: str, resolved_sha: str, repo_root: Path) -> str | None:
+    """A degradation note when ``resolved_sha`` is HEAD's own commit, else ``None``.
+
+    ``reject_self_referential_ref`` screens by spelling: it enumerates the
+    checked-out branch's known name forms (``current_branch_names``) and a
+    fixed list of symbolic HEAD forms (``is_self_referential_anchor``).
+    Neither enumerates SHAs, so a raw or abbreviated commit SHA that happens
+    to equal HEAD's own commit passes both silently -- the exact
+    self-referential defect ADR-092 exists to prevent, reached through a
+    spelling nobody enumerated (#1611). Screening by resolved commit identity
+    instead closes every spelling at once, including ones nobody has thought
+    of yet: it does not matter whether the coincidence was spelled as a SHA,
+    an abbreviated SHA, or (see below) an ordinary name.
+
+    This degrades rather than raises, deliberately: a *named* base ref (e.g.
+    ``main`` in ``merge-base:main``) resolves to this exact identity
+    coincidence in the normal, correct case too -- immediately after a fresh
+    fork, or after a fast-forward merge, before the branch has done any work
+    of its own. Rejecting that would make the gate structurally unpassable at
+    the moment it is first bootstrapped (exactly the failure mode #1540's
+    fix exists to avoid). From here, a coincidental match at fork time and a
+    self-referential value that keeps recomputing to HEAD on every future run
+    are indistinguishable in a single call -- so this records the coincidence,
+    non-silently, rather than guessing which one it is. A note that keeps
+    appearing across runs, never once resolving to something behind HEAD, is
+    the signal that something is wrong; a note that appears once at bootstrap
+    and never again is the harmless, ordinary case.
+    """
+    head_sha = git_rev_parse("HEAD", repo_root)
+    if resolved_sha != head_sha:
+        return None
+    return (
+        f"ref {ref!r} currently resolves to HEAD's own commit ({head_sha[:12]}); the "
+        "anchor and HEAD coincide right now. Expected immediately after a fresh fork "
+        "or a fast-forward merge with no work yet on this branch -- harmless as long "
+        "as it stops the moment real work lands. If this keeps appearing across runs "
+        "of the same branch, the anchor is not a fixed historical point but is being "
+        "resolved against HEAD dynamically, which is the self-referential defect "
+        "(ADR-092) reached through a different spelling."
+    )
+
+
+def _compose_notes(*parts: str | None) -> str | None:
+    joined = "; ".join(part for part in parts if part)
+    return joined or None
+
+
 def resolve_bootstrap_anchor_with_note(spec: str, repo_root: Path) -> tuple[str, str | None]:
     """Resolve a pin spec to the commit the harness was bootstrapped from.
 
@@ -264,18 +311,36 @@ def resolve_bootstrap_anchor_with_note(spec: str, repo_root: Path) -> tuple[str,
     ``<ref>`` or ``<sha>``
         Any ref or explicit SHA that is not tied to the checked-out branch.
 
-    Rejected: symbolic self-references (``HEAD``, ``@``, ``HEAD~1``, …), the
-    checked-out branch's own name, and both of those as the base of a
-    ``merge-base:`` spec. Failing closed here is the point — the previous behaviour silently accepted ``HEAD``
-    and produced a gate that could only pass on a branch that had done no work.
+    Rejected outright: symbolic self-references (``HEAD``, ``@``, ``HEAD~1``, …)
+    and the checked-out branch's own name, both of those as the base of a
+    ``merge-base:`` spec too. Failing closed here is the point — the previous
+    behaviour silently accepted ``HEAD`` and produced a gate that could only
+    pass on a branch that had done no work.
 
-    Returns ``(sha, degradation_note)``. The note is non-``None`` when the fork
-    point could not be computed and the base ref was used directly: shallow
-    checkouts have no common ancestor to find, and ``actions/checkout`` is
-    shallow by default. Degrading is right here — the substantive half of the
-    gate is the content diff, which still runs — but it is recorded rather than
-    hidden, because an anchor that quietly means something else is how a gate
-    stops measuring. The one thing never done is falling back to ``HEAD``.
+    Degraded, never silently accepted: a resolved anchor -- raw SHA,
+    abbreviated SHA, or an ordinary named ref such as ``main`` -- that
+    currently equals HEAD's own commit (#1611). ``current_branch_names`` and
+    ``is_self_referential_ref`` enumerate *spellings*; a value that merely
+    *coincides* with HEAD right now (e.g. a raw SHA that happens to equal it,
+    or a fresh fork/fast-forward where the named base has not yet diverged)
+    passes every spelling check and is indistinguishable, from here, from the
+    same value being recomputed against HEAD on every future run -- which
+    would be the self-referential defect wearing a different spelling. Both
+    are recorded via a non-``None`` degradation note rather than one being
+    silently accepted; see :func:`identity_coincides_with_head_note`.
+    Rejecting outright here instead would make the gate structurally
+    unpassable the moment it is first bootstrapped (fresh fork, or a
+    fast-forward merge before any work lands) -- the same failure mode
+    #1540's fix exists to avoid.
+
+    Returns ``(sha, degradation_note)``. Besides the identity coincidence
+    above, the note is non-``None`` when the fork point could not be computed
+    and the base ref was used directly: shallow checkouts have no common
+    ancestor to find, and ``actions/checkout`` is shallow by default.
+    Degrading is right here — the substantive half of the gate is the content
+    diff, which still runs — but it is recorded rather than hidden, because an
+    anchor that quietly means something else is how a gate stops measuring.
+    The one thing never done is falling back to ``HEAD``.
     """
     candidate = (spec or "").strip()
     if not candidate:
@@ -284,7 +349,11 @@ def resolve_bootstrap_anchor_with_note(spec: str, repo_root: Path) -> tuple[str,
         )
     reject_self_referential_ref(candidate, candidate, repo_root)
     if not candidate.startswith(MERGE_BASE_PREFIX):
-        return git_rev_parse(candidate, repo_root), None
+        resolved = git_rev_parse(candidate, repo_root)
+        # Spelling-based screening above cannot see a raw/abbreviated SHA that
+        # happens to equal HEAD's own commit; record the resolved identity too.
+        note = identity_coincides_with_head_note(candidate, resolved, repo_root)
+        return resolved, note
 
     base_ref = candidate[len(MERGE_BASE_PREFIX) :].strip()
     if not base_ref:
@@ -300,14 +369,21 @@ def resolve_bootstrap_anchor_with_note(spec: str, repo_root: Path) -> tuple[str,
     # gate with no anchor must be red, not lenient.
     base_sha = git_rev_parse(base_ref, repo_root)
     try:
-        return git_merge_base("HEAD", base_ref, repo_root), token_note
+        merge_base_sha = git_merge_base("HEAD", base_ref, repo_root)
     except RuntimeError:
         shallow_note = (
             f"no merge base between HEAD and {base_ref!r} (shallow checkout or unrelated "
             f"histories); anchored to {base_ref!r} itself at {base_sha[:12]}"
         )
-        note = f"{token_note}; {shallow_note}" if token_note else shallow_note
-        return base_sha, note
+        # #1611: the base ref -- raw SHA, abbreviated SHA, or an ordinary name
+        # that has not yet diverged -- can itself equal HEAD's own commit.
+        # No name-spelling check enumerates that; screen the resolved
+        # identity of what is actually being anchored to.
+        identity_note = identity_coincides_with_head_note(base_ref, base_sha, repo_root)
+        return base_sha, _compose_notes(token_note, shallow_note, identity_note)
+
+    identity_note = identity_coincides_with_head_note(base_ref, merge_base_sha, repo_root)
+    return merge_base_sha, _compose_notes(token_note, identity_note)
 
 
 def resolve_bootstrap_anchor(spec: str, repo_root: Path) -> str:
