@@ -62,6 +62,16 @@ fields the workflow branches on — appear in **zero** live captures in
 
 ## Decisions
 
+> **Amendment 2026-09-05 (platform research, [`research/dispatch-sla-batch-exceptions.md`](../product/agent-workflow-execution/research/dispatch-sla-batch-exceptions.md)).**
+> The Context above and decision 2 treat the vendor's refusal of a ship write during a pending
+> cancellation as a backstop. TikTok's seller documentation says the opposite: shipping an order
+> with a pending cancellation request **still results in the cancellation being approved**; only
+> *combining* such orders is blocked. Amazon behaves the same way. Decision 2 therefore stands on
+> the **hard exclusion** alone — cancellation-flagged orders are removed at selection and again at
+> re-verify — and no design may rely on the vendor rejecting the write. Also: the deadline is a
+> ladder (`rts_sla_time` → `tts_sla_time` → `collection_due_time`) with the rung recorded, and the
+> first proof is a runner **dry-run mode** that returns the exact request unsent.
+
 1. **Grain: one run per dispatch window per shop, one batch confirmation.** The card's subject is
    the **dispatch window** (a Juli entity: shop + the deadline bucket the run covers), amending
    ADR-087 d.5; exceptions keep **Order** as their subject. The run reads the awaiting-shipment

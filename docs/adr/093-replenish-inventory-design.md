@@ -58,6 +58,15 @@ run-rate and an event.
 
 ## Decisions
 
+> **Amendment 2026-09-05 (platform research, [`research/receiving-forms-and-stock-targets.md`](../product/agent-workflow-execution/research/receiving-forms-and-stock-targets.md)).**
+> Decision 2's single write is a **delta** — the accepted quantity applied to a freshly re-read
+> marketplace level immediately before the call — never an absolute quantity computed when the
+> form rendered. Sapo's documented failure mode is exactly the blind overwrite of a marketplace-side
+> change; a marketplace lock (campaign, flash sale) surfaces as a failed write. The received form
+> carries accepted and short as two numbers; a correction is a new report and a new consent. The
+> event uplift (d.1) is a multiplier on the forecast term, applied only to seller-entered event
+> dates in v1, with a 90-days-of-supply upper guard on any proposed order.
+
 1. **Two labelled numbers, summed into one agent-proposed order quantity.** The **baseline** is
    TikTok's recommended replenishment, shown as TikTok's. The **event uplift** is Juli's:
    `expected event sales − run-rate sales` for the event window, computed from the seller's own
