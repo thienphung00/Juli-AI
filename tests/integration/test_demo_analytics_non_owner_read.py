@@ -149,6 +149,35 @@ async def test_the_scope_does_not_expose_the_other_tenant(two_tenants, owner_eng
 # --- the route itself, and the class of routes it belongs to ----------------
 
 
+def _no_redis(app, monkeypatch) -> None:
+    """Force the Redis path off for app-level probes. Two reasons, both load-bearing.
+
+    CORRECTNESS FIRST: this file is about RLS emptying a DATABASE read. A Redis
+    cache hit would serve the envelope and let an unscoped route answer 200 while
+    the read underneath it is still broken — the guard would pass on exactly the
+    bug it exists to catch.
+
+    And practically: CI runs a redis service, and the shared async client is
+    created once per process, so a client built in an earlier test's event loop
+    raises "Event loop is closed" when reused here. Locally there is no Redis, so
+    this only ever showed up in CI.
+
+    THE DEPENDENCY OVERRIDE IS THE HALF THAT WORKS. `demo_analytics` binds
+    `get_shared_redis_client` at import, so patching it on its source module
+    never reaches the route. Verified by simulating CI — patching the BOUND name
+    to a client that raises on use, then removing the override: both app-level
+    tests fail with CI's exact error, and pass with it. The monkeypatch is kept
+    only for a route that resolves the factory dynamically.
+    """
+    from juli_backend.api.routes.demo_analytics import get_demo_redis_client
+
+    monkeypatch.setattr(
+        "juli_backend.services.kpi_cache.redis_client.get_shared_redis_client",
+        lambda *a, **k: None,
+    )
+    app.dependency_overrides[get_demo_redis_client] = lambda: None
+
+
 def _public_demo_get_paths(app) -> list[str]:
     """Discover public demo GETs from the app rather than listing them here.
 
@@ -180,6 +209,7 @@ async def test_the_route_returns_the_envelope_as_juli_app(two_tenants, owner_eng
     monkeypatch.setenv("DEMO_REFERENCE_SHOP_ID", str(tenant.shop_id))
 
     app = create_app()
+    _no_redis(app, monkeypatch)
     async with juli_app_session(shop_id=None) as session:
 
         async def _session_override():
@@ -226,6 +256,7 @@ async def test_no_public_demo_read_is_emptied_by_rls(two_tenants, owner_engine, 
     monkeypatch.setenv("DEMO_REFERENCE_SHOP_ID", str(tenant.shop_id))
 
     app = create_app()
+    _no_redis(app, monkeypatch)
     paths = _public_demo_get_paths(app)
     assert paths, "discovered no public demo GET routes — the guard is checking nothing"
 
