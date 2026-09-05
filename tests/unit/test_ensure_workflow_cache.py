@@ -80,9 +80,12 @@ def test_single_domain_harness_utility_never_dual() -> None:
     assert skills[0]["path"].endswith("/domain/backend/SKILL.md")
 
 
-def test_ensure_workflow_caches_bootstraps_parent_and_child(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def _bootstrap_caches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
+    """Drive ensure_workflow_caches over a synthetic repo and return its summary.
+
+    Extracted (#1583) so the document test and the bootstrap test exercise the
+    same call rather than two hand-built approximations that can drift.
+    """
     repo = tmp_path / "repo"
     (repo / "agent-runtime" / "config").mkdir(parents=True)
     (repo / "agent-runtime" / "artifacts" / "workflow-cache").mkdir(parents=True)
@@ -108,7 +111,10 @@ def test_ensure_workflow_caches_bootstraps_parent_and_child(
                 "    419:",
                 "      defaultSliceId: P2-OPS-1",
                 "      handoffPath: docs/adr/027-database-migration-safety-pipeline.md",
-                "      parentScopeBlock: '# Parent 419'",
+                "      parentScopeBlock: '# Parent 419\\n- NO product code: web/ is out of scope'",
+                "      inScopePaths:",
+                "        - infra/scripts/",
+                "        - tests/unit/",
                 "      doNotLoad:",
                 "        - web/",
             ]
@@ -190,6 +196,14 @@ def test_ensure_workflow_caches_bootstraps_parent_and_child(
         issue_labels_fetcher=lambda _iid: [],
     )
 
+    return summary
+
+
+def test_ensure_workflow_caches_bootstraps_parent_and_child(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    summary = _bootstrap_caches(tmp_path, monkeypatch)
+    repo = tmp_path / "repo"
     assert summary["readyForExecutor"] is True
     assert summary["parentIssueId"] == 419
     assert summary["sliceId"] == "P2-OPS-1"
@@ -235,7 +249,10 @@ def test_ensure_persists_label_only_public_release(
                 "    419:",
                 "      defaultSliceId: P2-OPS-1",
                 "      handoffPath: docs/adr/027-database-migration-safety-pipeline.md",
-                "      parentScopeBlock: '# Parent 419'",
+                "      parentScopeBlock: '# Parent 419\\n- NO product code: web/ is out of scope'",
+                "      inScopePaths:",
+                "        - infra/scripts/",
+                "        - tests/unit/",
                 "      doNotLoad:",
                 "        - web/",
             ]
@@ -476,3 +493,44 @@ def test_authorised_paths_are_declared_not_inferred() -> None:
         "eval/",
         "tests/unit/",
     ]
+
+
+def test_written_scope_document_carries_the_authorised_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#1583 AC1 and AC2, asserted against the written document.
+
+    Both acceptance criteria name `scope-alignment-issue-N.md` as the point of
+    observation, and review found nothing read it: the other tests here are
+    pure-function unit tests, and the pre-existing integration test only asserts
+    the file exists. So the behaviour an executor actually consumes -- the text
+    of that document -- was verified by hand and by eye, which is the gap this
+    whole slice is about.
+
+    This drives `ensure_workflow_caches` end-to-end and reads the file.
+    """
+    summary = _bootstrap_caches(tmp_path, monkeypatch)
+    repo = tmp_path / "repo"
+    child = json.loads((repo / summary["childCachePath"]).read_text(encoding="utf-8"))
+    document = (repo / child["scopeAlignmentPath"]).read_text(encoding="utf-8")
+
+    in_scope = document.split("## In scope", 1)[1].split("## Out of scope", 1)[0]
+    out_of_scope = document.split("## Out of scope", 1)[1].split("## Notes", 1)[0]
+
+    # AC1: the declared paths reach the document an executor reads.
+    for path in ("infra/scripts/", "tests/unit/"):
+        assert path in in_scope, f"{path!r} missing from the in-scope section:\n{in_scope}"
+
+    # AC2: no path is both authorised and forbidden. A document that says both
+    # is worse than one that only forbids -- the reader cannot tell which half
+    # to trust, which is how three executors ended up refusing valid work.
+    for line in out_of_scope.splitlines():
+        forbidden = line.strip().lstrip("-").strip()
+        if forbidden:
+            assert forbidden not in in_scope, (
+                f"{forbidden!r} appears in both sections:\nIN:{in_scope}\nOUT:{out_of_scope}"
+            )
+
+    # The domain label must not read as a path; that mismatch is what the
+    # refusals actually turned on.
+    assert "an executor lane, not a path" in in_scope
