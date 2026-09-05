@@ -359,3 +359,29 @@ def test_the_two_harnesses_agree_on_what_is_sanctioned() -> None:
             f"`{token}` is addressed in only one of git-baseline.mdc / CLAUDE.md; "
             f"the two harnesses would carry different policies"
         )
+
+
+def test_the_harness_path_bypass_documents_its_recording_form_and_the_repin() -> None:
+    """#1641/#1647: the second sanctioned `--admin` case needs its own assertion.
+
+    `test_every_admin_bypass_instruction_carries_a_recording_obligation` quantifies
+    over paragraphs containing `--admin`, and the harness case is a sub-item under
+    a parent bullet that carries the obligation — so the sub-item could lose its
+    own recording form, or the re-pin requirement, without that test noticing.
+
+    The re-pin half is the part that decays silently: skipping it leaves every
+    later PR on the branch inheriting the same red, which reads as "CI is flaky"
+    rather than "someone owes a re-pin".
+    """
+    rule = GIT_BASELINE_RULE.read_text(encoding="utf-8")
+    if "sourcePath" not in rule:
+        return  # the second case was withdrawn; nothing to assert
+
+    assert "bypass: harness sourcePath change" in rule, (
+        "the harness-path bypass is sanctioned without prescribing how it is recorded"
+    )
+    lowered = rule.lower()
+    assert "re-pin" in lowered or "repin" in lowered, (
+        "the harness-path bypass does not state that the pin must be refreshed afterwards; "
+        "without it every later PR on the branch inherits the same red"
+    )

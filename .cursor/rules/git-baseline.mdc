@@ -24,9 +24,22 @@ Both lanes: **never push to `main` directly**; every change lands via a PR (§ P
 
 Two privileges skip the repository's only enforcement. Both are now bounded.
 
-- **`gh pr merge --admin`** — sanctioned in exactly one place: the fast-track lane, for a
-  genuinely non-code diff, **with the reason recorded on the merge**. Anywhere else it is a
-  policy violation: a standard-lane PR that cannot go green needs its red fixed, not skipped.
+- **`gh pr merge --admin`** — sanctioned in exactly two places, both **with the reason recorded
+  on the merge**. Anywhere else it is a policy violation: a standard-lane PR that cannot go
+  green needs its red fixed, not skipped.
+  1. **The fast-track lane**, for a genuinely non-code diff.
+     Record: `bypass: fast-track docs-only, <what changed>`.
+  2. **A harness-path-only PR** — a diff touching *only* the `sourcePaths`
+     `harness_bootstrap_pinned` watches (`.cursor/skills/**`, `agent-runtime/docs/**`) and
+     nothing else. Record: `bypass: harness sourcePath change, re-pin to follow`.
+     Such a PR **cannot** go green, by construction: the gate compares the pinned anchor
+     against the working tree, and the anchor is a merge-base that can never contain the PR's
+     own commits. The gate's own message prescribes the remedy — *"Land the harness change on
+     its own, then re-pin"* — and this is the merge that instruction requires. **Re-pinning
+     afterwards is not optional**: until the pin is refreshed against the new tip, every later
+     PR on that branch inherits the same red.
+     If the diff touches anything beyond those paths, split it first — the narrower the
+     bypassed diff, the smaller the thing nobody reviewed against a green check.
 - **`git commit --no-verify`** — **never sanctioned.** A pre-commit hook that blocks correct
   work is a defect in the hook; fix the hook and land that fix. Bypassing it moves the failure
   to CI at best and past every gate at worst.
