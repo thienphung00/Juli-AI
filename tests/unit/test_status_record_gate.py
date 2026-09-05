@@ -1212,8 +1212,13 @@ def test_schema_validity_delta_asserts_even_when_no_base_ref_resolves(tmp_path: 
     # does not intercept -- it would propagate past the ``with`` block and the
     # test would report SKIPPED rather than FAILED. That is the exact trap
     # this issue is about (a skip and a failure to assert look the same in
-    # aggregate), so this test must not be able to fall into it itself. Catch
-    # broadly and fail loudly on anything other than the expected assertion.
+    # aggregate), so this test must not be able to fall into it itself.
+    # ``Skipped`` is the only ``BaseException``-that-is-not-``Exception`` this
+    # guard can actually raise here (``records_at`` is never called on this
+    # path, so its own ``pytest.fail`` cannot fire) -- so that one exception is
+    # named rather than caught with a blind ``except BaseException``, which
+    # would also swallow ``KeyboardInterrupt``/``SystemExit``. Anything else
+    # unexpected still fails the test on its own, unconverted.
     try:
         _run_corpus_regression_guard(
             records=[record_path],
@@ -1224,11 +1229,8 @@ def test_schema_validity_delta_asserts_even_when_no_base_ref_resolves(tmp_path: 
         )
     except AssertionError as exc:
         assert "stop validating after it" in str(exc), exc
-    except BaseException as exc:  # noqa: BLE001 - see comment above
-        pytest.fail(
-            f"expected an AssertionError from the schema-validity delta, got "
-            f"{type(exc).__name__}: {exc}"
-        )
+    except pytest.skip.Exception as exc:  # the trap this test exists to close
+        pytest.fail(f"guard skipped instead of asserting: {exc}")
     else:
         pytest.fail("_run_corpus_regression_guard returned normally; expected an AssertionError")
 
