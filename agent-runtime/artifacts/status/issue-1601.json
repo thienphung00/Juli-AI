@@ -1,0 +1,383 @@
+{
+  "architecturalChange": {
+    "signals": [],
+    "value": false
+  },
+  "gateVersion": 2,
+  "issue": 1601,
+  "metrics": {
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "agent-runtime/scripts/ci/common.py",
+      "tests/unit/test_normalize_review_artifacts.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1601.json",
+    "ownerSignoffPresent": true,
+    "sha256": "b4d326cab04767abb4911c708dc955810efe7cab0255784781fc6df7f667c967",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "run": {
+    "artifactBytes": {
+      "reviewBytes": 8066,
+      "validationBytes": 27225
+    },
+    "claimVsExecuted": {
+      "citedCommandCount": 17,
+      "invokedCommandCount": 11435,
+      "matchedCommandCount": 0,
+      "reason": "17 of 17 cited commands have no matching invocation in the session transcripts",
+      "recordPasses": false,
+      "status": "FAIL",
+      "transcriptSources": [
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-codebase-audit-refactor-b9b867",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-open-terminal-in-code-08e55d"
+      ],
+      "transcriptsScanned": 44,
+      "unmatchedCommandCount": 17,
+      "unmatchedCommands": [
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_normalize_review_artifacts.py -v",
+          "cycle": 1,
+          "exitCode": 2
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_normalize_review_artifacts.py tests/unit/test_review_status.py -v",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_normalize_review_artifacts.py -v (with FINDING_ARRAY_KEYS neutered to (\"criticalFindings\",) only)",
+          "cycle": 1,
+          "exitCode": 1
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_normalize_review_artifacts.py tests/unit/test_review_status.py -q (common.py restored)",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_changed_files_resolution.py tests/unit/test_check_artifact_retention_guard.py tests/unit/test_differential_tdd.py tests/unit/test_executor_domain_matches_cache.py tests/unit/test_implementation_artifact.py tests/unit/test_implementation_schema_valid.py tests/unit/test_implementation_tdd_evidence.py tests/unit/test_normalize_review_artifacts.py tests/unit/test_phase_run_correlation.py tests/unit/test_pytest_node_resolution.py tests/unit/test_release_evidence_plan_continuity.py tests/unit/test_release_metadata_honesty.py tests/unit/test_review_status.py tests/unit/test_status_record_gate.py -q --timeout=90",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_execution_operations_outcome_contract.py tests/unit/test_mmu6_celery_dispatch_ports.py -q --timeout=90",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "ruff check agent-runtime/scripts/ci/common.py tests/unit/test_normalize_review_artifacts.py",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "ruff format --check agent-runtime/scripts/ci/common.py tests/unit/test_normalize_review_artifacts.py",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "git stash push -- agent-runtime/scripts/ci/common.py (isolates cycle-1-only common.py) && PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_normalize_review_artifacts.py -v -k distinct_finding_sharing_description",
+          "cycle": 2,
+          "exitCode": 1
+        },
+        {
+          "command": "git stash pop (restores cycle-2 fix) && PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_normalize_review_artifacts.py -v",
+          "cycle": 2,
+          "exitCode": 0
+        },
+        {
+          "command": "python3 -c \"...\" (coordinator's exact repro snippet, standalone, against the fixed common.py)",
+          "cycle": 2,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_normalize_review_artifacts.py tests/unit/test_review_status.py -q (after removing now-dead None-guards)",
+          "cycle": 2,
+          "exitCode": 0
+        },
+        {
+          "command": "mutation: _finding_identity fallback reverted to description-only; PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_normalize_review_artifacts.py -v",
+          "cycle": 2,
+          "exitCode": 1
+        },
+        {
+          "command": "restore fixed common.py; PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_normalize_review_artifacts.py tests/unit/test_review_status.py -q",
+          "cycle": 2,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_changed_files_resolution.py tests/unit/test_check_artifact_retention_guard.py tests/unit/test_differential_tdd.py tests/unit/test_executor_domain_matches_cache.py tests/unit/test_implementation_artifact.py tests/unit/test_implementation_schema_valid.py tests/unit/test_implementation_tdd_evidence.py tests/unit/test_normalize_review_artifacts.py tests/unit/test_phase_run_correlation.py tests/unit/test_pytest_node_resolution.py tests/unit/test_release_evidence_plan_continuity.py tests/unit/test_release_metadata_honesty.py tests/unit/test_review_status.py tests/unit/test_status_record_gate.py -q --timeout=90",
+          "cycle": 2,
+          "exitCode": 1
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_execution_operations_outcome_contract.py tests/unit/test_mmu6_celery_dispatch_ports.py -q --timeout=90",
+          "cycle": 2,
+          "exitCode": 0
+        },
+        {
+          "command": "ruff check agent-runtime/scripts/ci/common.py tests/unit/test_normalize_review_artifacts.py && ruff format --check agent-runtime/scripts/ci/common.py tests/unit/test_normalize_review_artifacts.py",
+          "cycle": 2,
+          "exitCode": 0
+        }
+      ],
+      "unmatchedCommandsTruncated": false,
+      "verified": true
+    },
+    "commandScope": {
+      "ciSelectors": {
+        "mypy": {
+          "command": "mypy backend/src/juli_backend --ignore-missing-imports --disable-error-code=valid-type",
+          "deselectedMarkers": [],
+          "paths": [
+            "backend/src/juli_backend"
+          ]
+        },
+        "pytest": {
+          "command": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "deselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "paths": [
+            "tests"
+          ]
+        },
+        "ruff check": {
+          "command": "ruff check backend/src/juli_backend tests scripts agent-runtime/scripts",
+          "deselectedMarkers": [],
+          "paths": [
+            "backend/src/juli_backend",
+            "tests",
+            "scripts",
+            "agent-runtime/scripts"
+          ]
+        }
+      },
+      "ciWorkflow": ".github/workflows/pr.yml",
+      "commandsCited": 0,
+      "invocations": [],
+      "invocationsScored": 0,
+      "invocationsUnrecognised": 0,
+      "narrowerCount": 0,
+      "narrowerThanCI": [],
+      "unit": "invocation",
+      "unitRationale": "76 corpus commands chain 2-5 runs; scoring per command lets a broad first run launder a narrow second one, so each invocation is scored on its own selector."
+    },
+    "environment": {
+      "cwd": "/Users/macos/Juli-AI-v2/.worktrees/w5-1601",
+      "dependencies": {
+        "constraints": "/Users/macos/Juli-AI-v2/.worktrees/w5-1601/backend/constraints.txt",
+        "drift": [
+          {
+            "installed": "3.18",
+            "package": "idna",
+            "pinned": "3.19"
+          },
+          {
+            "installed": "2.24.0",
+            "package": "narwhals",
+            "pinned": "2.25.0"
+          },
+          {
+            "installed": "1.26.4",
+            "package": "numpy",
+            "pinned": "2.5.2"
+          },
+          {
+            "installed": "0.16.3",
+            "package": "ruff",
+            "pinned": "0.16.4"
+          },
+          {
+            "installed": "1.13.1",
+            "package": "scipy",
+            "pinned": "1.18.1"
+          },
+          {
+            "installed": "5.9.0",
+            "package": "stevedore",
+            "pinned": "5.9.1"
+          },
+          {
+            "installed": "0.52.3",
+            "package": "uvicorn",
+            "pinned": "0.52.4"
+          }
+        ],
+        "matched": 75,
+        "missing": [],
+        "pinned": 82
+      },
+      "executable": "/opt/homebrew/anaconda3/bin/python3",
+      "git": {
+        "baseDistanceUnavailable": "shallow-clone",
+        "behindOriginMain": null,
+        "branch": "feature/issue-1601-fix",
+        "head": "81b41f9ed414b8ebbb088bee4a9d87ebfd200d7d",
+        "shallow": true
+      },
+      "moduleResolution": {
+        "error": "ModuleNotFoundError: No module named 'juli_backend'",
+        "expectedPrefix": "/Users/macos/Juli-AI-v2/.worktrees/w5-1601/backend/src/juli_backend",
+        "insideRepo": false,
+        "module": "juli_backend",
+        "resolved": null
+      },
+      "python": "3.12.9",
+      "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/w5-1601"
+    },
+    "metrics": {
+      "agents": [],
+      "disagreements": [
+        {
+          "claimed": 80,
+          "field": "toolInvocationCount",
+          "observed": null,
+          "observedFrom": "unavailable",
+          "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "resolution": "unobservable"
+        },
+        {
+          "claimed": 0,
+          "field": "executionDurationMs",
+          "observed": null,
+          "observedFrom": "unavailable",
+          "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "resolution": "unobservable"
+        }
+      ],
+      "executionDurationMs": {
+        "available": false,
+        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+      },
+      "executorDomain": "backend",
+      "executorDomainSource": "implementation-artifact",
+      "gaps": [
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/cb047053-ee20-4e00-925f-7ebf36c0417b/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos/61a4eb31-9294-45c2-a803-0c26980300c6/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/491f9d6b-185a-43a4-bbea-f1fcd906bf1d/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/03369828-07b8-46b9-8587-8b7e97d289c1/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "agentsScanned": 0,
+          "detail": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "reason": "no-persisted-task-transcripts"
+        }
+      ],
+      "schemaVersion": 1,
+      "source": {
+        "agentsAttributed": 0,
+        "agentsScanned": 0,
+        "attributedBy": ".worktrees path naming issue-1601",
+        "executorsIdentified": 0,
+        "kind": "task-transcript",
+        "roleSelectedAgentId": null,
+        "roleSelectedBy": "spawn-directive",
+        "taskDirs": [
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/cb047053-ee20-4e00-925f-7ebf36c0417b/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
+          "/tmp/claude-501/-Users-macos/61a4eb31-9294-45c2-a803-0c26980300c6/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/491f9d6b-185a-43a4-bbea-f1fcd906bf1d/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/03369828-07b8-46b9-8587-8b7e97d289c1/tasks"
+        ]
+      },
+      "status": "not-measured",
+      "tokenUsage": {
+        "available": false,
+        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+      },
+      "toolInvocationCount": {
+        "available": false,
+        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+      },
+      "toolsUsed": []
+    },
+    "transcripts": {
+      "commands": {
+        "executor": 0,
+        "executorCommands": [],
+        "includesExecutorCommands": false,
+        "parent": 0,
+        "parentCommands": []
+      },
+      "coverage": {
+        "complete": false,
+        "executorsExpected": 1,
+        "executorsPersisted": 0,
+        "gaps": [
+          {
+            "agent": "executor-review agent (guardrails)",
+            "reason": "no-transcript-persisted"
+          }
+        ]
+      },
+      "executorCount": 0,
+      "executors": [],
+      "parentOnly": true,
+      "schemaVersion": 1,
+      "status": "not-persisted"
+    }
+  },
+  "timestamp": "2026-09-05T09:03:54Z",
+  "validation": {
+    "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1601.json",
+    "sha256": "14fa2d0393571cb74924c73078fc928a286510dbcbf1aac6b7c227c62833ef26",
+    "status": "PASS"
+  },
+  "wave": "wave-harness-e-w5"
+}
