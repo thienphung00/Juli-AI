@@ -198,6 +198,65 @@ def test_self_reference_cannot_return_through_the_new_syntax(
     assert "symbolic" in description.lower() or "checked-out branch" in description
 
 
+@pytest.mark.parametrize(
+    "spec_builder",
+    [
+        pytest.param(lambda branch, sha, short: f"merge-base:{branch}", id="name-bare"),
+        pytest.param(
+            lambda branch, sha, short: f"merge-base:refs/heads/{branch}", id="name-refs-heads"
+        ),
+        pytest.param(lambda branch, sha, short: f"merge-base:{sha}", id="sha-full"),
+        pytest.param(lambda branch, sha, short: f"merge-base:{short}", id="sha-abbrev"),
+    ],
+)
+def test_merge_base_anchor_is_screened_by_resolved_identity_not_spelling(
+    harness_repo: tuple[Path, str],
+    spec_builder,
+) -> None:
+    """#1611: a raw or abbreviated SHA equal to HEAD's own commit must never be
+    silently accepted -- exactly like naming the checked-out branch itself.
+
+    ``current_branch_names`` enumerates name spellings only (bare name,
+    ``refs/heads/<name>``, ``heads/<name>``, ``origin/<name>``). A
+    ``merge-base:`` base ref that is HEAD's own SHA -- raw or abbreviated --
+    names none of those spellings, so the string guard lets it through and,
+    before this fix, ``resolve_bootstrap_anchor_with_note`` returned HEAD's
+    own SHA with ``note=None``: the self-referential defect ADR-092 exists to
+    prevent, reached through a spelling nobody enumerated.
+
+    Parametrised over both name spellings and SHA spellings in one test so
+    the guard is proven to screen by resolved commit identity, not by which
+    strings happen to be listed. The two are not required to fail the same
+    way: a name spelling of the checked-out branch itself is unambiguous and
+    raises outright (unchanged, pre-existing behaviour); a SHA/abbreviated-SHA
+    that merely *resolves* to HEAD's commit right now is indistinguishable
+    from the ordinary fresh-fork case (see
+    ``identity_coincides_with_head_note``) and so degrades with a recorded
+    reason instead -- but never silently returns ``note=None``. That is the
+    one property proven for every variant here.
+    """
+    repo, _fork_point = harness_repo
+    _write(repo, "backend/src/juli_backend/api/routes/things.py", "ROUTES = ['a']\n")
+    _commit(repo, "feat: give the checked-out branch a commit of its own")
+    branch = "feature/issue-1540-bootstrap-pin"
+    head_sha = _git(repo, "rev-parse", "HEAD")
+    head_short = _git(repo, "rev-parse", "--short", "HEAD")
+
+    spec = spec_builder(branch, head_sha, head_short)
+    try:
+        resolved, note = pin.resolve_bootstrap_anchor_with_note(spec, repo)
+    except RuntimeError as excinfo:
+        message = str(excinfo)
+        assert "symbolic" in message or "checked-out branch" in message
+    else:
+        assert resolved == head_sha
+        assert note is not None, (
+            f"{spec!r} silently resolved to HEAD's own commit ({head_sha[:12]}) "
+            "with no degradation note -- exactly the defect #1611 exists to close"
+        )
+        assert "own commit" in note
+
+
 def test_self_referential_specs_are_refused_at_cache_write_time(
     harness_repo: tuple[Path, str],
 ) -> None:
@@ -711,6 +770,13 @@ def test_base_ref_falls_back_to_git_upstream_when_the_environment_is_unset(
     monkeypatch.delenv("BASE_REF", raising=False)
     monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
     _set_upstream(repo, "issue-branch", "wave")
+    # Give the issue branch a commit of its own so HEAD genuinely diverges
+    # from the wave tip -- otherwise HEAD *is* wave_tip (a fresh fork with no
+    # work yet), which is the real, harmless #1611 identity coincidence this
+    # test is not about; see
+    # test_merge_base_anchor_is_screened_by_resolved_identity_not_spelling.
+    _write(repo, "backend/src/juli_backend/api/routes/things.py", "ROUTES = ['a']\n")
+    _commit(repo, "feat: issue-branch work")
 
     resolved, note = pin.resolve_bootstrap_anchor_with_note("merge-base:origin/BASE_REF", repo)
     assert resolved == wave_tip
