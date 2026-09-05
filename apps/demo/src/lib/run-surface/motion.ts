@@ -33,7 +33,7 @@ export interface MotionTiming {
   description: string;
 }
 
-export interface RunSurfaceMotionSpecEntry {
+interface RunSurfaceMotionSpecEntry {
   id: RunSurfaceMotionPrimitiveId;
   /** The PUI-DESIGN.md §5 "Moment" column, verbatim. */
   moment: string;

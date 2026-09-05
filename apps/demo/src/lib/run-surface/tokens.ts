@@ -37,9 +37,6 @@ export const RUN_SURFACE_LIVE_EDGE_CLASS_NAMES = Object.freeze({
   ctaArmed: "juli-run-cta--armed",
 } as const);
 
-export type RunSurfaceLiveEdgeClassName =
-  (typeof RUN_SURFACE_LIVE_EDGE_CLASS_NAMES)[keyof typeof RUN_SURFACE_LIVE_EDGE_CLASS_NAMES];
-
 /** General ground/panel utility class names, none of which touch the
  *  live-edge accent. */
 export const RUN_SURFACE_PANEL_CLASS_NAMES = Object.freeze({

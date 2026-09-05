@@ -55,17 +55,41 @@ def _ensure_session_factory():
     return ensure_worker_session_factory(_database_url())
 
 
-async def _lookup_tiktok_shop_key_async(shop_id: uuid.UUID) -> str | None:
+async def _lookup_tiktok_shop_key_async(
+    shop_id: uuid.UUID, session: AsyncSession | None = None
+) -> str | None:
+    """Resolve the shop's TikTok key, under the caller's tenant context (#1518).
+
+    TAKES A SESSION, RATHER THAN OPENING ONE. It used to open its own, which
+    meant the read happened outside every scope. `shops` answered only to
+    user-keyed policies then, so as `juli_app` it returned zero rows, this
+    returned None, and the task ended having done nothing — a warning, no
+    error, and a cycle that looked clean.
+
+    Migration 053 adds `shops_shop_scope_select` (`id = app_current_shop_id()`)
+    so a shop-scoped session can read its own shop, and passing the caller's
+    session is what puts this read inside that context.
+
+    `session=None` keeps the old behaviour for callers that have no scope of
+    their own to lend.
+    """
+    if session is not None:
+        return await _read_shop_key(session, shop_id)
+
     factory = _ensure_session_factory()
-    async with factory() as session:
-        shop = await session.get(Shop, shop_id)
-        if shop is None or not shop.tiktok_shop_id:
-            logger.warning(
-                "mock_analytics_reconcile_unknown_shop",
-                extra={"shop_id": str(shop_id)},
-            )
-            return None
-        return shop.tiktok_shop_id
+    async with factory() as owned_session:
+        return await _read_shop_key(owned_session, shop_id)
+
+
+async def _read_shop_key(session: AsyncSession, shop_id: uuid.UUID) -> str | None:
+    shop = await session.get(Shop, shop_id)
+    if shop is None or not shop.tiktok_shop_id:
+        logger.warning(
+            "mock_analytics_reconcile_unknown_shop",
+            extra={"shop_id": str(shop_id)},
+        )
+        return None
+    return shop.tiktok_shop_id
 
 
 def _lookup_tiktok_shop_key(shop_id: uuid.UUID) -> str | None:
@@ -185,7 +209,7 @@ def run_mock_analytics_reconcile_sync(
 
 async def _run_hourly_reconcile_async() -> None:
     """Run hourly reconciliation through SharedComputeOrchestrator."""
-    from juli_backend.database.tenant_context import system_scope
+    from juli_backend.database.tenant_context import with_shop_scope
 
     shop_id = get_demo_reference_shop_id()
     if shop_id is None:
@@ -195,15 +219,19 @@ async def _run_hourly_reconcile_async() -> None:
         )
         return
 
-    # Await the async lookup directly — the sync `_lookup_tiktok_shop_key` wrapper
-    # opens its own event loop, which raises inside this already-running one (#733).
-    shop_key = await _lookup_tiktok_shop_key_async(shop_id)
-    if shop_key is None:
-        return
-
     factory = _ensure_session_factory()
     async with factory() as session:
-        async with system_scope(session, caller="mock_analytics_hourly_reconcile"):
+        async with with_shop_scope(session, shop_id):
+            # Resolved INSIDE the scope, on this session. Outside it, `shops`
+            # is unreadable as `juli_app` and this returns None (#1518).
+            #
+            # The sync `_lookup_tiktok_shop_key` wrapper is still avoided here:
+            # its own `asyncio.run` raises inside this already-running loop
+            # (#733).
+            shop_key = await _lookup_tiktok_shop_key_async(shop_id, session)
+            if shop_key is None:
+                return
+
             await run_mock_analytics_reconcile_orchestrated(
                 session=session,
                 shop_id=shop_id,

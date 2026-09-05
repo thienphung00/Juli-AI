@@ -253,7 +253,7 @@ registry.
     stewards live in [`ownership-registry.yml`](ownership-registry.yml) (logical
     owners — physical `models/` / `repositories/` split deferred).
   - **Facade:** lazy PEP 562 re-exports on `juli_backend.database` avoid import
-    cycles with `repositories.repos` at startup.
+    cycles with the `repositories` package at startup.
   - Plan polyglot only when volume/latency justify it.
 - **Features:**
   - **Shipped:** SQLAlchemy models/repos; Alembic; users/shops/credentials; commerce;

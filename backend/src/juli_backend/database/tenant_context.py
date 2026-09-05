@@ -49,6 +49,18 @@ _current_user_id: contextvars.ContextVar[uuid.UUID | None] = contextvars.Context
 # Global flag: when True, system_scope() is active and fail-closed is bypassed
 _system_scope_active = False
 
+# When True, `with_shop_scope()` is active: a shop id is still required, a user
+# id is not.
+#
+# A ContextVar rather than a module global, deliberately. `_system_scope_active`
+# above is a plain global, so two coroutines in the same event loop share it and
+# one can clear the other's exemption while it is still inside its own scope.
+# That hazard is pre-existing and recorded rather than copied — this flag is
+# per-context and cannot leak between concurrent tasks.
+_shop_scope_active: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "shop_scope_active", default=False
+)
+
 
 class TenantContextRequiredError(RuntimeError):
     """Raised when a tenant-scoped unit of work is attempted without
@@ -116,8 +128,19 @@ async def _apply_tenant_context_to_session(
     """
     global _system_scope_active
 
-    # Fail-closed in Python before any SQL
-    if not _system_scope_active and (shop_id is None or user_id is None):
+    # Fail-closed in Python before any SQL.
+    #
+    # Three modes, narrowest first:
+    #   - shop scope  — a shop id is required, a user id is not. The user GUC is
+    #     left unset, so after #1467 it reads NULL and every user-keyed policy
+    #     denies. That denial is the point, not a shortfall.
+    #   - system scope — neither is required. A named, logged exemption for
+    #     fleet work; ADR-089 is the constraint on what it may then read.
+    #   - otherwise — both are required.
+    shop_scope = _shop_scope_active.get()
+    if shop_scope:
+        _require_shop_for_shop_scope(shop_id)
+    elif not _system_scope_active and (shop_id is None or user_id is None):
         raise TenantContextRequiredError(
             f"Tenant context required: shop_id={shop_id}, user_id={user_id}, "
             f"system_scope_active={_system_scope_active}"
@@ -153,6 +176,131 @@ async def _apply_tenant_context_to_session(
         raise
 
 
+_SHOP_GUC = "app.current_shop_id"
+_USER_GUC = "app.current_user_id"
+
+
+def _require_shop_for_shop_scope(shop_id: uuid.UUID | None) -> None:
+    """Refuse a shop scope with no shop, before anything reaches the database.
+
+    Extracted so `with_shop_scope` can run it ahead of the GUC read it now does
+    on entry. `system_scope` exists for work with no tenant at all; a shop scope
+    without a shop is neither, and admitting it would make "which shop" an
+    omission rather than a decision in the code.
+    """
+    if shop_id is None:
+        raise TenantContextRequiredError(
+            "Shop context required: with_shop_scope() was entered without a shop_id. "
+            "A shop-scoped unit of work must name its shop; use system_scope() if the "
+            "work is genuinely fleet-wide."
+        )
+
+
+def _session_is_sqlite(session: AsyncSession) -> bool:
+    """SQLite has no set_config and no RLS, so every GUC operation is a no-op."""
+    bind = session.get_bind()
+    dialect_name = bind.dialect.name if hasattr(bind, "dialect") else "postgresql"
+    return dialect_name == "sqlite"
+
+
+async def _read_tenant_gucs(session: AsyncSession) -> tuple[str, str]:
+    """Read the current GUC pair so a scope can put it back on exit.
+
+    `current_setting(name, true)` returns NULL rather than raising when the
+    parameter was never set in this session; both are normalised to the empty
+    string, which is the same value `SET LOCAL` restores at commit and which
+    `app_current_shop_id()` (migration 050) maps to NULL via `nullif`.
+    """
+    if _session_is_sqlite(session):
+        return "", ""
+    row = (
+        await session.execute(
+            text(
+                f"SELECT current_setting('{_SHOP_GUC}', true), "  # nosec B608
+                f"       current_setting('{_USER_GUC}', true)"
+            )
+        )
+    ).one()
+    return (row[0] or "", row[1] or "")
+
+
+async def _write_tenant_gucs(session: AsyncSession, shop: str, user: str) -> None:
+    """Set both GUCs to explicit values, empty string meaning 'no context'."""
+    if _session_is_sqlite(session):
+        return
+    await session.execute(
+        text(
+            "SELECT set_config(:shop_key, :shop_val, true), "
+            "       set_config(:user_key, :user_val, true)"
+        ).bindparams(shop_key=_SHOP_GUC, shop_val=shop, user_key=_USER_GUC, user_val=user)
+    )
+
+
+async def _restore_tenant_gucs(
+    session: AsyncSession, shop: str, user: str, *, body_failed: bool
+) -> None:
+    """Put the previous GUC pair back as a scope exits.
+
+    WHY A FAILED RESTORE IS NOT ALWAYS AN ERROR.
+
+    When the body raised, the transaction may already be aborted, and every
+    statement on it — including this one — then raises
+    `InFailedSqlTransaction`. Letting that propagate would replace the caller's
+    real exception with a confusing one from the cleanup path. It is also
+    unnecessary: the rollback that must follow an aborted transaction discards
+    `SET LOCAL` anyway, which is the fail-closed state this function exists to
+    reach.
+
+    When the body did NOT raise AND the session is still usable, a failed
+    restore is a genuine error and is raised. Swallowing it there would leave
+    the leak in place silently, which is the whole defect (#1495).
+
+    "THE BODY RAISED" IS NOT THE ONLY WAY THE SESSION BREAKS (#1576). A body can
+    catch its own flush failure and return normally, leaving the transaction
+    rolled back and the session unusable while `body_failed` is False. This
+    guard then tried to write and raised PendingRollbackError from the `finally`,
+    which REPLACED the caller's real error — in production it masked an RLS
+    "new row violates row-level security policy" and turned a one-line diagnosis
+    into reading past a misleading traceback.
+
+    THIS NEVER RAISES. A cleanup step running in a `finally` must not replace the
+    caller's exception, and #1495's original rule — re-raise when the body did not
+    fail — could not tell the two apart. A body can catch its own flush failure
+    and return normally, leaving the session unusable while `body_failed` is
+    False; the write below then failed and its exception surfaced INSTEAD of the
+    caller's. In production that masked an RLS "new row violates row-level
+    security policy" behind a PendingRollbackError from this function.
+
+    Narrowing to one exception type does not work either. Measured: the same
+    broken-session condition raises PendingRollbackError when SQLAlchemy refuses
+    the statement and DBAPIError when Postgres does. `session.in_transaction()`
+    is no better — it still returns True after a caught statement error while the
+    next execute raises.
+
+    So the failure is always swallowed and always reported, at ERROR when the
+    body was healthy — a genuine restore failure that deserves attention — and at
+    WARNING when the body had already failed, where an unusable session is
+    expected. Not restoring is safe on its own: SET LOCAL dies with the
+    transaction, which is the fail-closed state this function exists to reach.
+    """
+    try:
+        await _write_tenant_gucs(session, shop, user)
+    except Exception:
+        logger.log(
+            logging.WARNING if body_failed else logging.ERROR,
+            "tenant_context_restore_failed",
+            extra={
+                "body_failed": body_failed,
+                "reason": (
+                    "session unusable after the body failed; rollback clears SET LOCAL"
+                    if body_failed
+                    else "restore failed on a session the body left usable — investigate"
+                ),
+            },
+            exc_info=True,
+        )
+
+
 @asynccontextmanager
 async def with_tenant_scope(
     session: AsyncSession,
@@ -177,12 +325,100 @@ async def with_tenant_scope(
         _apply_tenant_context_to_session on the request's own session after
         resolving the shop. Celery/fleet paths use system_scope() explicitly.
     """
+    # `_apply_tenant_context_to_session` validates and can raise before setting
+    # anything, so the read is ordered after nothing and the restore is guarded
+    # on having actually applied — same reasoning as `with_shop_scope`.
+    prior_shop, prior_user = await _read_tenant_gucs(session)
     await _apply_tenant_context_to_session(session, shop_id, user_id)
+    applied = True
+    body_failed = False
     try:
         yield
+    except BaseException:
+        body_failed = True
+        raise
     finally:
-        # GUCs are automatically cleared when the transaction ends due to SET LOCAL
-        pass
+        if applied:
+            await _restore_tenant_gucs(session, prior_shop, prior_user, body_failed=body_failed)
+
+
+@asynccontextmanager
+async def with_shop_scope(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+) -> AsyncIterator[None]:
+    """Set shop context only, for work that has a shop but no user (ADR-089).
+
+    The narrowest of the three scopes. `app.current_shop_id` is set with
+    SET LOCAL; `app.current_user_id` is deliberately left unset, so it reads
+    NULL and every USER-keyed policy denies. `users` is the clearest case:
+    nothing shop-scoped needs to read a user, and the withheld GUC makes that
+    structural rather than a convention.
+
+    `shops` IS READABLE, but only the caller's own row. This paragraph used to
+    name it alongside `users` as something a shop-level task "has no business"
+    reading; #1518 found that too broad. `mock_analytics_reconcile` must
+    resolve its own shop's vendor key, and under the user-keyed policy alone it
+    read zero rows as `juli_app` and silently did nothing. Migration 053 adds
+    `shops_shop_scope_select (id = app_current_shop_id())` — one row, the
+    caller's own, and only when a shop context is set. Reading your own shop
+    under your own scope is what tenancy means; its absence was the anomaly.
+
+    WHY THIS EXISTS RATHER THAN RESOLVING A USER.
+
+    `with_tenant_scope` requires both ids. A beat task that operates on one
+    shop has no user, and looking one up is circular: reading `shops.user_id`
+    needs `app.current_user_id` already set. The alternative — a
+    SECURITY DEFINER owner lookup — would hand an exemption to tasks that need
+    none, against ADR-089 decision 5.
+
+    WHAT IT DOES NOT DO.
+
+    It confers no cross-tenant access. A task that must see more than one shop
+    needs an enumeration exemption (ADR-089 decision 3), not this. And it is not
+    `system_scope`: the shop id is mandatory, so "which shop" stays a decision
+    in the code rather than an omission.
+
+    Args:
+        session: AsyncSession to set the GUC on
+        shop_id: the shop this unit of work belongs to
+
+    Raises:
+        TenantContextRequiredError: if shop_id is None, before any SQL is
+            emitted.
+    """
+    token = _shop_scope_active.set(True)
+    body_failed = False
+    # Bound before the try: the finally reads them, and _read_tenant_gucs
+    # itself can raise on a session whose transaction is already unusable.
+    prior_shop, prior_user = "", ""
+    # Nothing to put back until context has actually been applied. Without this
+    # the finally would emit a set_config even on the refusal path, breaking the
+    # contract that a scope with no shop reaches the database not at all.
+    applied = False
+    try:
+        # Before the GUC read, not after: the read below is itself a statement.
+        _require_shop_for_shop_scope(shop_id)
+        prior_shop, prior_user = await _read_tenant_gucs(session)
+        await _apply_tenant_context_to_session(session, shop_id, None)
+        # Withhold the user GUC explicitly rather than by omission. The
+        # docstring above promises every user-keyed policy denies inside this
+        # scope; that only held while nothing had set the GUC earlier in the
+        # transaction. Under an enclosing `with_tenant_scope`, or a second pass
+        # through a loop, it would have been inherited and the promise would
+        # have been quietly false.
+        await _write_tenant_gucs(session, str(shop_id), "")
+        applied = True
+        yield
+    except BaseException:
+        body_failed = True
+        raise
+    finally:
+        try:
+            if applied:
+                await _restore_tenant_gucs(session, prior_shop, prior_user, body_failed=body_failed)
+        finally:
+            _shop_scope_active.reset(token)
 
 
 @asynccontextmanager

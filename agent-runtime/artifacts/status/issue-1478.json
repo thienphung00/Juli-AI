@@ -1,0 +1,36 @@
+{
+  "gateVersion": 2,
+  "issue": 1478,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/database/tenant_context.py",
+      "backend/src/juli_backend/workers/tasks/analytics_backfill_topup.py",
+      "tests/unit/test_with_shop_scope.py",
+      "tests/unit/test_tenant_context_seam.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1478.json",
+    "ownerSignoffPresent": true,
+    "sha256": "af6401224e333ec7d424e1989b632d8b52f3d1be12878fba2357f59e993ed861",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "run": {
+    "artifactBytes": {
+      "reviewBytes": 4723,
+      "validationBytes": 8631
+    }
+  },
+  "timestamp": "2026-09-01T11:25:00Z",
+  "validation": {
+    "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1478.json",
+    "sha256": "e3fb33988915f15fedd85648eec4658806c225417ff86fbfdd217dcdde993046",
+    "status": "PASS"
+  },
+  "wave": null
+}

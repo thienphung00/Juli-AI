@@ -15,7 +15,7 @@ Juli product logic and `/v1/*` API. TDD + artifact handoff:
 
 | Signal | Also load |
 |--------|-----------|
-| FastAPI route, service, dependency | `python-patterns`, `patterns.mdc` |
+| FastAPI route, service, dependency | `code-quality.mdc`, `python-patterns`, `patterns.mdc` |
 | pytest / API tests | `python-testing` |
 | User input, auth, PII | `security.mdc`, `reliability.mdc` |
 | Celery / background jobs | `reliability.mdc`, `observability.mdc` |
@@ -33,19 +33,24 @@ feedback, operations), Celery workers for product orchestration.
 ## Required context + load map
 
 - `MODULE.md` under `backend/src/juli_backend/`; [ADR-031](../../../docs/adr/031-integrations-executor-domain.md)
+- **Standard + exemplars:** [`docs/architecture/code-standard.md`](../../../docs/architecture/code-standard.md)
+  — copy `services/agent_runs/` for a service and `api/routes/agent_runs.py` for a route
 - **Load map:** `SKILL.md` → `REFERENCE.md` → `domain/testing-patterns/python-{patterns,testing}.md`
 
 ## Juli recipes
 
 **App factory** — `api/app.py:create_app()` mounts `/v1/*`; vendor webhooks outside `/v1` when required.
 
-**Route** — thin `api/routes/` handler: Pydantic `response_model`, `Depends(get_current_user)`,
-bounded pagination; delegate to repos/services.
+**Route** — thin `api/routes/` handler, in this order: resolve the tenant (404, never 403),
+apply gates, call the service, map its typed exception to HTTP, commit, enqueue. Pydantic
+`response_model`, bounded pagination. Exemplar: `api/routes/agent_runs.py`.
 
 **Auth** — `core/security/dependencies.py:get_current_user`; override via
 `app.dependency_overrides` in tests (`tests/unit/test_api.py`).
 
-**Service** — logic in `services/<domain>/`; public API in `MODULE.md`; no vendor HTTP.
+**Service** — behaviour in `services/<domain>/`; failures are typed exceptions carrying a
+machine-readable `error_code`; the service never commits. Public API in `MODULE.md`; no vendor
+HTTP. Exemplar: `services/agent_runs/confirmations.py`.
 
 **Worker** — `workers/tasks/` + `workers/celery_app.py`; shop-scoped, idempotent.
 
@@ -53,9 +58,11 @@ Deeper patterns: [`REFERENCE.md`](REFERENCE.md).
 
 ## Domain test surfaces
 
-- **API:** `httpx.AsyncClient` + `ASGITransport(create_app())`; override `get_session` /
-  `get_current_user`
-- **Service:** async tests + SQLite `session` from `tests/unit/conftest.py`
+- **API:** the `auth_client` / `tenant` / `shop` / `app` fixtures (`tests/unit/conftest.py`, built
+  on `tests/support/api.py`); a second tenant via `tests.support.api.authenticated_client`
+- **Service:** async tests on the SQLite `session`; rows from `tests/support/builders`;
+  `asyncio_mode = auto`, so no `pytest.mark.asyncio`
+- Doubles are hand-written with the real signatures (`tests/support/fakes.py`), never `MagicMock`
 - Vertical RED→GREEN; assert status + envelope, not call order
 
 TDD + artifact: see `agent-runtime/docs/agent-runtime.md` (surfaces above only).
@@ -73,7 +80,8 @@ Structure: `intent-review`.
 
 ## Validation
 
-`pytest`, `ruff check .`, `mypy backend/`; schema changes → `data-platform`.
+`pytest`, `ruff check backend/src/juli_backend tests scripts && ruff format --check`, `mypy backend/`;
+schema changes → `data-platform`.
 
 ## Must not
 

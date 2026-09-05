@@ -402,6 +402,20 @@ async def test_hourly_and_material_enqueue_coexist_via_idempotency_key(
 # --- Issue #733: nested asyncio.run() in the Celery entrypoint ---
 
 
+class _FakeCurrentSettingResult:
+    """The row `current_setting(...)` returns: NULL for a parameter never set."""
+
+    def one(self) -> tuple[None, None]:
+        return (None, None)
+
+
+class _FakeBind:
+    """Fake bind object for _FakeSession."""
+
+    class dialect:
+        name = "postgresql"
+
+
 class _FakeSession:
     async def __aenter__(self):
         return self
@@ -412,6 +426,21 @@ class _FakeSession:
     async def commit(self):
         """Fake commit for testing."""
         pass
+
+    def get_bind(self):
+        """Return a fake bind with a dialect for the tenant context seam."""
+        return _FakeBind()
+
+    async def execute(self, statement):
+        """Stand in for the statements the tenant-context seam issues.
+
+        `with_shop_scope` reads the current GUC pair on entry so it can put it
+        back on exit (#1495), and that read calls `.one()` on the result.
+        Returning None makes every scope raise AttributeError inside this fake
+        rather than in the code under test — a double that cannot honour the
+        real call's contract proves nothing.
+        """
+        return _FakeCurrentSettingResult()
 
 
 def test_hourly_reconcile_task_resolves_shop_key_without_nested_event_loop(
@@ -428,7 +457,7 @@ def test_hourly_reconcile_task_resolves_shop_key_without_nested_event_loop(
     """
     monkeypatch.setenv("DEMO_REFERENCE_SHOP_ID", str(reference_shop_id))
 
-    async def fake_lookup_async(shop_id: uuid.UUID) -> str | None:
+    async def fake_lookup_async(shop_id: uuid.UUID, session=None) -> str | None:
         return "shop-key-733"
 
     orchestrated: list[dict] = []
@@ -458,7 +487,7 @@ def test_sync_lookup_wrapper_still_usable_outside_an_event_loop(
 ):
     """``_lookup_tiktok_shop_key`` is retained for the non-orchestrated sync path."""
 
-    async def fake_lookup_async(shop_id: uuid.UUID) -> str | None:
+    async def fake_lookup_async(shop_id: uuid.UUID, session=None) -> str | None:
         return "shop-key-sync"
 
     monkeypatch.setattr(
@@ -567,7 +596,7 @@ async def test_hourly_reconcile_is_durable_across_new_session(monkeypatch):
         # _run_hourly_reconcile_async should commit
 
     # Monkeypatch shop key lookup
-    async def mock_lookup_shop_key(shop_id_arg):
+    async def mock_lookup_shop_key(shop_id_arg, session=None):
         return "shop_752"
 
     monkeypatch.setattr(
@@ -704,7 +733,7 @@ async def test_hourly_reconcile_exception_rolls_back_uncommitted_writes(
     def mock_ensure_session_factory():
         return factory
 
-    async def mock_lookup_shop_key(shop_id_arg):
+    async def mock_lookup_shop_key(shop_id_arg, session=None):
         return "shop_752"
 
     monkeypatch.setattr(

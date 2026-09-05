@@ -3867,3 +3867,40 @@ AGT-W7D:
     - docs/product/design/
     - docs/integrations/tiktok_corpora/
     - Sibling issue context caches
+
+# AGT-W7BIS — #1469 W7-bis, fleet-scoped work under tenant isolation (ADR-089).
+# system_scope() is a Python flag and a log line: no set_config, no SET ROLE, no
+# SQL. Its correctness rested on the runtime connecting as the table owner, which
+# Postgres exempts from row policies — the exact exemption W7 removes. After the
+# #1339 cutover the five beat tasks read zero rows from every policied table, and
+# #1467 turns that from a raise into a silent no-op, so the failure gets quieter
+# rather than louder. Per-tenant context for every data access; the only
+# cross-tenant read is enumeration, returning identifiers only.
+AGT-W7BIS:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/086-runtime-database-role-and-tenant-isolation.md
+    - backend/src/juli_backend/database/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/database/tenant_context.py
+    - backend/src/juli_backend/workers/tasks/analytics_backfill_topup.py
+    - backend/src/juli_backend/workers/tasks/reaper.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/workers/tasks/credential_refresh_beat.py
+    - backend/src/juli_backend/workers/tasks/impact_reader.py
+    - backend/src/juli_backend/workers/impact_reader/pipeline.py
+    - backend/src/juli_backend/workers/impact_reader/queries.py
+    - backend/src/juli_backend/database/tenant_scoped_tables.py
+    - tests/integration/test_two_tenant_isolation_proof.py
+    - tests/unit/test_tenant_context_seam.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - packages/
+    - backend/src/juli_backend/ai/
+    - backend/src/juli_backend/api/routes/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

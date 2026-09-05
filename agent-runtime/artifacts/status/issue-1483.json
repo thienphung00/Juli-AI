@@ -1,0 +1,36 @@
+{
+  "gateVersion": 2,
+  "issue": 1483,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "tests/integration/two_tenant.py",
+      "tests/integration/test_two_tenant_fixture.py",
+      "tests/integration/conftest.py",
+      "tests/conftest.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1483.json",
+    "ownerSignoffPresent": true,
+    "sha256": "24b31888ea8939c1f6628921a288aeeb0f95f4fb8955a141d499d342eab87e13",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "run": {
+    "artifactBytes": {
+      "reviewBytes": 4344,
+      "validationBytes": 8124
+    }
+  },
+  "timestamp": "2026-09-02T10:15:00Z",
+  "validation": {
+    "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1483.json",
+    "sha256": "b3fae01b87f8c7ff71a2dbab4ecea57534c071a77f436f2cc6df410b25b3a9b2",
+    "status": "PASS"
+  },
+  "wave": null
+}

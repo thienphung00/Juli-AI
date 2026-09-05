@@ -1,0 +1,87 @@
+{
+  "planId": "rep-1467-rls-guc-helpers",
+  "affectedPublicSurfaces": [
+    "none while the runtime connects as postgres, the table owner, which is exempt from RLS — no policy is evaluated today.",
+    "Every policied read and write once #1339 observation 1 cuts DATABASE_URL over to juli_app: all 166 policies change expression."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "none",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "a-released-tenant-context-denies-instead-of-raising",
+        "entryUrl": "psql as juli_app: begin; set local app.current_user_id='...'; commit; select count(*) from shops;",
+        "assertions": [
+          "returns 0 at head instead of raising invalid input syntax for type uuid",
+          "the identical statement RAISES at 049, so the migration is demonstrably what fixes it",
+          "a never-set connection still returns 0, unchanged",
+          "with a context set, only in-context rows are returned — isolation is not weakened"
+        ]
+      },
+      {
+        "name": "the-rewrite-is-total-and-reversible",
+        "entryUrl": "psql: counts from pg_policies before, after and after a downgrade",
+        "assertions": [
+          "before: 166 policies read a raw tenant GUC, 0 use a helper",
+          "after: 0 read a raw GUC, 166 use a helper, total policy count unchanged at 166",
+          "downgrade restores 166 raw reads, drops both helper functions, and the query raises again",
+          "re-upgrade returns to the fixed state — the round trip was run, not reasoned about"
+        ]
+      },
+      {
+        "name": "the-helper-does-not-degrade-the-plan",
+        "entryUrl": "psql: explain (verbose, costs off) select count(*) from workflow_runs where shop_id = app_current_shop_id();",
+        "assertions": [
+          "the STABLE SQL function is inlined by the planner",
+          "the predicate remains an Index Cond rather than becoming a Filter"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": ["not-applicable: RLS policy change"],
+    "discoverFromHtml": false,
+    "assetTypes": ["not-applicable"],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Adds two functions and rewrites policy expressions with ALTER POLICY — no table, column or index change, and no window in which a table holds fewer policies than before. The stable release connects as the owner and evaluates no policy either side of the migration; a candidate connected as juli_app is strictly better off. Policy count is asserted unchanged at 166."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "downgrade restores the raw current_setting calls and drops the helpers, returning to the pre-#1467 behaviour exactly — empty-string defect included. Verified by running it, not asserted: the first version of the downgrade was broken and the round trip caught it.",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "DATABASE_URL=postgresql://postgres@localhost:5432/<freshly-created> JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=$PWD/backend/src:$PWD python -m pytest tests/integration/test_rls_policy_guc_helper.py -q",
+    "DATABASE_URL=postgresql://postgres@localhost:5432/<freshly-created> JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=$PWD/backend/src:$PWD python -m pytest tests/integration/test_migrations.py tests/integration/test_rls_policies.py tests/integration/test_two_tenant_isolation_proof.py tests/integration/test_schema_parity.py -q",
+    "psql -At -c \"select count(*) filter (where coalesce(qual,'')||coalesce(with_check,'') like '%current_setting%'), count(*) filter (where coalesce(qual,'')||coalesce(with_check,'') like '%app_current_%'), count(*) from pg_policies\""
+  ],
+  "doNotInfer": [
+    "Do not assume the forward and reverse substitutions are mirror images. Postgres RE-RENDERS the stored expression and drops the ::uuid cast as redundant once the helper returns uuid, so reversing by swapping the helper for the bare call produces `uuid = text` and the downgrade dies. The reverse direction must restore the cast. This was caught by running the round trip.",
+    "Do not filter the reverse rewrite on 'current_setting'. After the forward pass no policy contains that string, so the reverse pass matches nothing, leaves every policy pointing at the helpers, and DROP FUNCTION then fails on 59 dependent objects. The filter must follow the direction.",
+    "Do not regenerate the policies from migration 045's table lists. Restating a list is the pattern that produced #1329, #1453 and #1455 on this same wave. Read pg_policies and rewrite what is actually there.",
+    "Do not declare the helpers IMMUTABLE. The value depends on session state; immutable would let the planner cache it across a context change, which is a tenant-isolation bug rather than an optimisation.",
+    "Do not conclude the deployed system is affected today. It connects as postgres, the table owner, which is exempt from RLS — which is why no CI job has ever evaluated one of these policies. Verify as juli_app or not at all.",
+    "Do not treat this as sufficient for #1339 observation 1. It makes an absent context a clean denial; it does NOT give fleet-scoped beat tasks any rows. That is #1469 and ADR-089, and fixing this one makes that failure quieter."
+  ]
+}

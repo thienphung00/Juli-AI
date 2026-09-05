@@ -27,7 +27,7 @@
         "artifactRef": {
           "type": "string",
           "minLength": 1,
-          "description": "Locator for the verbose review body: a CI run artifact URL fragment (post-migration) or a git-history reference (migrated records)."
+          "description": "Locator for the verbose review body. Two schemes are admissible. \"local-only:<repo-relative-path>\" (#1497) is the scheme for the five artifact body directories .gitignore forbids committing (ADR-003: emit is not commit); it claims the body existed on the machine that ran the loop with the recorded sha256, and explicitly NOT that it can be read back — it is admissible only for a path inside those directories, so it cannot launder a dangling reference into a pass. \"git-history:<repo-relative-path>\" claims the content IS retrievable from history and is checked strictly from gateVersion 2 on (#1445): if it does not resolve to content matching the sha256, the record fails. Records written before #1497 carry git-history: for agent-runtime/artifacts/reviews/ paths, which is the contradiction #1497 fixed."
         },
         "sha256": {
           "type": "string",
@@ -59,7 +59,7 @@
         "artifactRef": {
           "type": "string",
           "minLength": 1,
-          "description": "Locator for the verbose validation body: a CI run artifact URL fragment (post-migration) or a git-history reference (migrated records)."
+          "description": "Locator for the verbose validation body. Two schemes are admissible. \"local-only:<repo-relative-path>\" (#1497) is the scheme for the five artifact body directories .gitignore forbids committing (ADR-003: emit is not commit); it claims the body existed on the machine that ran the loop with the recorded sha256, and explicitly NOT that it can be read back — it is admissible only for a path inside those directories, so it cannot launder a dangling reference into a pass. \"git-history:<repo-relative-path>\" claims the content IS retrievable from history and is checked strictly from gateVersion 2 on (#1445): if it does not resolve to content matching the sha256, the record fails. Records written before #1497 carry git-history: for agent-runtime/artifacts/validation/ paths, which is the contradiction #1497 fixed."
         },
         "sha256": {
           "type": "string",
@@ -80,6 +80,13 @@
         }
       }
     },
+    "run": {
+      "type": "object",
+      "description": "#1438, gateVersion 2: harness-captured evidence — what the run was observed to do, as opposed to what the agent typed. One named block per capture provider registered under agent-runtime/scripts/ci/capture_providers/. Deliberately OPEN (no additionalProperties: false) so a new provider ships as one new module and needs no edit to this schema nor to generate_status_records.py; each provider owns the shape of its own block. Absent on gateVersion 1 records — the pre-#1438 records are not backfilled (they record nothing about their runs and never will).",
+      "additionalProperties": {
+        "type": "object"
+      }
+    },
     "timestamp": {
       "type": "string",
       "format": "date-time"
@@ -87,7 +94,8 @@
     "gateVersion": {
       "type": "integer",
       "minimum": 1,
-      "description": "Status-record schema/gate-semantics version; bump when the read-path contract changes."
+      "enum": [1, 2],
+      "description": "Status-record schema/gate-semantics version; bump when the read-path contract changes. 1 = the #670 compact record. 2 = #1438, which adds the run{} capture envelope. Both are readable: v1 records stay valid unchanged and are never backfilled. Enumerated rather than open-ended so a record written by a future generator this reader was not built against fails closed instead of being read on a guess."
     }
   }
 }

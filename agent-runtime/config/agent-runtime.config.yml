@@ -483,6 +483,29 @@ workflow_prompt_cache:
         - docs/product/design/
         - docs/integrations/tiktok_corpora/
         - Sibling issue context caches
+    # 1469 - W7-bis / fleet-scoped work under tenant isolation (ADR-089).
+    # system_scope() is a Python flag and a log line; its correctness rested on
+    # the runtime connecting as the table owner, which W7 removes. Five beat
+    # tasks then read zero rows. One lane: the fix is per-task and all of it is
+    # backend + data-platform seam work, so there is nothing to route apart.
+    1469:
+      defaultSliceId: AGT-W7BIS
+      handoffPath: docs/adr/089-fleet-scoped-work-under-tenant-isolation.md
+      parentScopeBlock: "# Parent #1469 - W7-bis: fleet-scoped beat tasks read nothing once the runtime stops owning its tables (constant)\n## Product boundary\n- Celery beat tasks under backend/src/juli_backend/workers/tasks/ and the tenant-context seam at database/tenant_context.py\n- No product routes, no UI, no vendor I/O\n## Architect locks (ADR-089)\n- Per-tenant context for EVERY data access; the only cross-tenant read is enumeration\n- An enumeration exemption is a named SECURITY DEFINER function returning identifiers and scheduling metadata ONLY - never credentials, PII, analytics values or payloads\n- No role the application connects as holds BYPASSRLS (ADR-086 decision 1 named owner-exemption and BYPASSRLS as the two escapes; W7 removed the first)\n- No policy may consult a GUC the application sets to describe its own privilege - juli_app can set it itself, which makes RLS an honour system\n- A task that needs no cross-tenant read does not get an exemption (decision 5)\n## Evidence standard\n- The failure mode is a SUCCESSFUL NO-OP, so 'completed without raising' is not evidence. Every slice must prove the task DOES work as juli_app on a two-tenant fixture.\n## Epic deferrals\n- #1339 observation 1's fourth confirmation is not passable until this epic lands\n"
+      childSlices:
+        "1478": AGT-W7BIS
+        "1483": AGT-W7BIS
+        "1487": AGT-W7BIS
+        "1488": AGT-W7BIS
+        "1489": AGT-W7BIS
+      doNotLoad:
+        - "apps/"
+        - "ios/"
+        - "packages/"
+        - "backend/src/juli_backend/ai/"
+        - "docs/product/design/"
+        - "docs/integrations/tiktok_corpora/"
+        - "Sibling issue context caches"
     1057:
       defaultSliceId: AGT-W2A
       handoffPath: docs/adr/072-agent-prompt-architecture.md

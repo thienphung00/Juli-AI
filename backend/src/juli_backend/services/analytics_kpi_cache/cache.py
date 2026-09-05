@@ -1,134 +1,68 @@
-"""Redis read-through cache for Analytics KPI envelopes."""
+"""Analytics KPI envelope cache (Phase 2.10, #529).
+
+The read-through lives in ``services.kpi_cache``; this module names the key
+prefix, the repository and the envelope type. After the #606 gold cutover the
+repository it reads is itself an adapter over ``gold.kpi_envelopes``, so this
+cache and ``gold_kpi_cache`` serve the same row under two key prefixes.
+"""
 
 from __future__ import annotations
 
-import json
-import logging
-import os
 import uuid
-from datetime import UTC, datetime
 from typing import Any
 
-from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import AnalyticsKpiEnvelope
-from juli_backend.repositories.repos import AnalyticsKpiEnvelopesRepo
-
-logger = logging.getLogger(__name__)
+from juli_backend.repositories import AnalyticsKpiEnvelopesRepo
+from juli_backend.services.kpi_cache import (
+    EnvelopeCache,
+    EnvelopeCodec,
+    close_shared_redis_client,
+    get_shared_redis_client,
+    reset_shared_redis_client_for_tests,
+)
+from juli_backend.services.kpi_cache.envelope_cache import computed_at_from_payload
 
 ANALYTICS_KIND = "analytics"
 CACHE_KEY_PREFIX = "analytics:kpi_envelope:"
 
-# Explicit socket timeouts (#927): redis.asyncio.from_url() sets none by
-# default, so an unreachable/hung Redis would otherwise block a call for the
-# OS-level TCP timeout instead of raising RedisError into the fail-open (this
-# cache) or fail-closed (action_cards.refresh_cooldown, which shares this
-# client) path quickly. Async I/O means a slow Redis no longer stalls the
-# single uvicorn worker's event loop either way — this bounds the wait.
-_SOCKET_CONNECT_TIMEOUT_SECONDS = 2.0
-_SOCKET_TIMEOUT_SECONDS = 2.0
 
-_shared_client: Any | None = None
-_shared_client_url: str | None = None
-
-
-def envelope_cache_key(shop_id: uuid.UUID) -> str:
-    return f"{CACHE_KEY_PREFIX}{shop_id}"
-
-
-def _resolve_redis_url(redis_url: str | None = None) -> str:
-    raw = redis_url if redis_url is not None else os.getenv("REDIS_URL", "")
-    return (raw or "").strip()
-
-
-def get_shared_redis_client(redis_url: str | None = None) -> Any | None:
-    """Return process-lifetime async Redis client from REDIS_URL (or None)."""
-    global _shared_client, _shared_client_url
-
-    url = _resolve_redis_url(redis_url)
-    if not url:
-        return None
-    if _shared_client is not None and _shared_client_url == url:
-        return _shared_client
-
-    import redis.asyncio as redis
-
-    # URL changed without close — drop the old handle; caller should prefer
-    # close_shared_redis_client() on shutdown. We cannot await aclose here.
-    _shared_client = redis.from_url(
-        url,
-        decode_responses=True,
-        socket_timeout=_SOCKET_TIMEOUT_SECONDS,
-        socket_connect_timeout=_SOCKET_CONNECT_TIMEOUT_SECONDS,
-    )
-    _shared_client_url = url
-    return _shared_client
-
-
-def create_redis_client(redis_url: str | None = None) -> Any | None:
-    """Return the shared async Redis client (compat alias for get_shared_redis_client)."""
-    return get_shared_redis_client(redis_url)
-
-
-async def close_shared_redis_client() -> None:
-    """Close and clear the process-lifetime async Redis client.
-
-    Best-effort: if the underlying connection's event loop is already
-    closed (e.g. a test-teardown ordering edge case), the connection is
-    already effectively gone — log and move on rather than raise, matching
-    this module's fail-open philosophy for every other Redis operation.
-    """
-    global _shared_client, _shared_client_url
-
-    client = _shared_client
-    _shared_client = None
-    _shared_client_url = None
-    if client is None:
-        return
-    try:
-        aclose = getattr(client, "aclose", None)
-        if aclose is not None:
-            await aclose()
-            return
-        close = getattr(client, "close", None)
-        if close is not None:
-            result = close()
-            if hasattr(result, "__await__"):
-                await result
-    except RuntimeError as exc:
-        logger.warning("analytics KPI cache client close failed (best-effort): %s", exc)
-
-
-def reset_shared_redis_client_for_tests() -> None:
-    """Drop the singleton without closing (unit tests only)."""
-    global _shared_client, _shared_client_url
-    _shared_client = None
-    _shared_client_url = None
-
-
-def _envelope_from_cached_payload(
-    shop_id: uuid.UUID,
-    payload: dict[str, Any],
-) -> AnalyticsKpiEnvelope:
-    raw_computed_at = payload.get("computed_at")
-    computed_at = (
-        datetime.fromisoformat(raw_computed_at)
-        if isinstance(raw_computed_at, str)
-        else datetime.now(tz=UTC)
-    )
+def _envelope_from_payload(shop_id: uuid.UUID, payload: dict[str, Any]) -> AnalyticsKpiEnvelope:
     return AnalyticsKpiEnvelope(
         id=uuid.uuid4(),
         shop_id=shop_id,
         kind=ANALYTICS_KIND,
         envelope_version=int(payload.get("envelope_version", 1)),
         payload=payload,
-        computed_at=computed_at,
+        computed_at=computed_at_from_payload(payload),
     )
 
 
-def _serialize_envelope_payload(envelope: AnalyticsKpiEnvelope) -> str:
-    return json.dumps(envelope.payload, separators=(",", ":"), sort_keys=True)
+async def _load_from_postgres(
+    session: AsyncSession, shop_id: uuid.UUID
+) -> AnalyticsKpiEnvelope | None:
+    return await AnalyticsKpiEnvelopesRepo(session).get_by_kind(shop_id, ANALYTICS_KIND)
+
+
+_cache: EnvelopeCache[AnalyticsKpiEnvelope] = EnvelopeCache(
+    name="analytics_kpi",
+    codec=EnvelopeCodec(
+        key_prefix=CACHE_KEY_PREFIX,
+        payload_of=lambda envelope: envelope.payload,
+        from_payload=_envelope_from_payload,
+    ),
+    load=_load_from_postgres,
+)
+
+
+def envelope_cache_key(shop_id: uuid.UUID) -> str:
+    return _cache.key(shop_id)
+
+
+def create_redis_client(redis_url: str | None = None) -> Any | None:
+    """Compat alias for :func:`get_shared_redis_client`."""
+    return get_shared_redis_client(redis_url)
 
 
 async def refresh_analytics_kpi_envelope_cache(
@@ -137,14 +71,8 @@ async def refresh_analytics_kpi_envelope_cache(
     *,
     redis_client: Any | None = None,
 ) -> None:
-    """Overwrite Redis after successful Postgres upsert. Fail-open on Redis errors."""
-    if redis_client is None:
-        return
-    key = envelope_cache_key(shop_id)
-    try:
-        await redis_client.set(key, _serialize_envelope_payload(envelope))
-    except RedisError as exc:
-        logger.warning("analytics KPI cache refresh failed for %s: %s", shop_id, exc)
+    """Overwrite Redis after a successful Postgres upsert. Fail-open on Redis errors."""
+    await _cache.refresh(shop_id, envelope, redis_client=redis_client)
 
 
 async def get_analytics_kpi_envelope(
@@ -153,25 +81,18 @@ async def get_analytics_kpi_envelope(
     *,
     redis_client: Any | None = None,
 ) -> AnalyticsKpiEnvelope | None:
-    """Read-through: Redis first, Postgres SoT on miss or Redis outage."""
-    if redis_client is not None:
-        key = envelope_cache_key(shop_id)
-        try:
-            cached = await redis_client.get(key)
-            if cached is not None:
-                payload = json.loads(cached)
-                return _envelope_from_cached_payload(shop_id, payload)
-        except (RedisError, json.JSONDecodeError) as exc:
-            logger.warning("analytics KPI cache read failed for %s: %s", shop_id, exc)
+    """Read-through: Redis first, Postgres on miss or outage."""
+    return await _cache.get(session, shop_id, redis_client=redis_client)
 
-    repo = AnalyticsKpiEnvelopesRepo(session)
-    envelope = await repo.get_by_kind(shop_id, ANALYTICS_KIND)
-    if envelope is None:
-        return None
 
-    await refresh_analytics_kpi_envelope_cache(
-        shop_id,
-        envelope,
-        redis_client=redis_client,
-    )
-    return envelope
+__all__ = [
+    "ANALYTICS_KIND",
+    "CACHE_KEY_PREFIX",
+    "close_shared_redis_client",
+    "create_redis_client",
+    "envelope_cache_key",
+    "get_analytics_kpi_envelope",
+    "get_shared_redis_client",
+    "refresh_analytics_kpi_envelope_cache",
+    "reset_shared_redis_client_for_tests",
+]

@@ -1,0 +1,37 @@
+{
+  "gateVersion": 2,
+  "issue": 1488,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/workers/impact_reader/pipeline.py",
+      "backend/src/juli_backend/workers/impact_reader/queries.py",
+      "backend/src/juli_backend/workers/tasks/impact_reader.py",
+      "tests/integration/two_tenant.py",
+      "tests/integration/test_impact_reader_two_tenant.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1488.json",
+    "ownerSignoffPresent": true,
+    "sha256": "ec0a9c00cb458026a845e8ca3b308fc48c6d239f124beb68b52af14ca74510a3",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "run": {
+    "artifactBytes": {
+      "reviewBytes": 4148,
+      "validationBytes": 8179
+    }
+  },
+  "timestamp": "2026-09-02T15:35:00Z",
+  "validation": {
+    "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1488.json",
+    "sha256": "c2a9b50f8a21153c99c8523fc2020b2d36dcb82dd3eee8d47df480e336cb25e7",
+    "status": "PASS"
+  },
+  "wave": null
+}

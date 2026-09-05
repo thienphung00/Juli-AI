@@ -1,15 +1,21 @@
-"""TDD: Fujiwa poll cycle analytics steps + sync_state (#424)."""
+"""The Fujiwa poll cycle's analytics leg and its sync-state cursors (#424).
+
+``sync_analytics`` asks the vendor for yesterday's window on every analytics
+endpoint, gated per endpoint by the rate limiter, and stamps a
+``*_last_sync_at`` cursor for each leg it completed. The poll cycle persists
+those cursors through ``TikTokSyncStateRepo``. The collaborators are the
+contract-shaped fakes in ``tests/support/tiktok_fakes.py``: a call with the
+wrong keyword fails here the way it would against the real resource.
+"""
 
 from __future__ import annotations
 
-import uuid
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-import pytest_asyncio
 
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
+from juli_backend.integrations.tiktok import PRODUCTION_AUTH_ID, TikTokCapability
 from juli_backend.integrations.tiktok.auth import TikTokAuth
 from juli_backend.integrations.tiktok.constants import (
     ANALYTICS_BESTSELLING_PRODUCTS_PATH,
@@ -23,317 +29,232 @@ from juli_backend.integrations.tiktok.constants import (
     analytics_shop_sku_performance_path,
     promotion_activity_path,
 )
-from juli_backend.integrations.tiktok.merchant import (
-    PRODUCTION_AUTH_ID,
-    TikTokCapability,
-)
-from juli_backend.models.models import Shop, User
-from juli_backend.repositories.repos import TikTokCredentialRepo, TikTokSyncStateRepo
+from juli_backend.repositories import TikTokCredentialRepo, TikTokSyncStateRepo
 from juli_backend.workers.services.polling.orchestrate import (
     FujiwaPollConfig,
     run_fujiwa_poll_cycle,
 )
 from juli_backend.workers.services.polling.sync import sync_analytics
+from tests.support.builders import make_shop, make_user, utc_now_naive
+from tests.support.tiktok_fakes import (
+    FakeAnalyticsResource,
+    FakeProductionReadResources,
+    FakePromotionResource,
+    RecordingRateLimiter,
+)
 
 APP_KEY = "test_app_key"
 APP_SECRET = "test_app_secret"
-SHOP_CIPHER = "ROW_test_cipher"
+NOW = datetime(2026, 7, 14, 12, 0, tzinfo=UTC)
+WINDOW = {"start_date_ge": "2026-07-13", "end_date_lt": "2026-07-14"}
+
+CURSOR_KEYS = {
+    "shop_sku_performance_last_sync_at",
+    "shop_product_performance_last_sync_at",
+    "shop_performance_last_sync_at",
+    "shop_performance_per_hour_last_sync_at",
+    "bestselling_products_last_sync_at",
+    "bestselling_videos_last_sync_at",
+    "promotion_activity_last_sync_at",
+}
 
 
-async def _stub_binding_verifier(session, *, capability, access_token) -> str:
-    """#1200: these tests exercise polling, not credential binding. A stub keeps
-    them off the network and off the vendor identity path entirely."""
-    return "ROW_stub_cipher"
+async def no_handoff(channel: str, shop_key: str, value: bytes) -> None:
+    return None
 
 
-@pytest_asyncio.fixture
-async def user(session, user_id):
-    u = User(id=user_id, phone="+84901234567")
-    session.add(u)
-    await session.flush()
-    return u
-
-
-@pytest_asyncio.fixture
-async def fujiwa_shop(session, user):
-    shop = Shop(
-        id=uuid.uuid4(),
-        user_id=user.id,
-        shop_name="Fujiwa Vietnam Store",
-        tiktok_shop_id=PRODUCTION_AUTH_ID,
+async def run_sync(analytics, *, rate_limiter=None, promotion=None, handoff=no_handoff, state=None):
+    sync_state = {} if state is None else state
+    await sync_analytics(
+        resource=analytics,
+        promotion_resource=promotion,
+        rate_limiter=rate_limiter or RecordingRateLimiter(),
+        handoff_fn=handoff,
+        app_id=APP_KEY,
+        shop_id=PRODUCTION_AUTH_ID,
+        sync_state=sync_state,
+        now=NOW,
     )
-    session.add(shop)
-    await session.flush()
-    return shop
-
-
-@pytest_asyncio.fixture
-async def fujiwa_credential(session, fujiwa_shop):
-    expires_at = datetime.now(UTC).replace(tzinfo=None) + timedelta(days=7)
-    return await TikTokCredentialRepo(session).create(
-        shop_id=fujiwa_shop.id,
-        access_token="fujiwa_access",
-        refresh_token="fujiwa_refresh",
-        token_expires_at=expires_at,
-        merchant_authorization_id=PRODUCTION_AUTH_ID,
-        capability=TikTokCapability.PRODUCTION_READ.value,
-        shop_cipher=SHOP_CIPHER,
-    )
-
-
-@pytest.fixture
-def oauth_service(session):
-    return TikTokOAuthService(
-        tiktok_auth=TikTokAuth(
-            app_key=APP_KEY,
-            app_secret=APP_SECRET,
-            base_url="https://open-api.tiktokglobalshop.com",
-        ),
-        session=session,
-        redirect_uri="https://example.com/callback",
-        app_secret=APP_SECRET,
-        binding_verifier=_stub_binding_verifier,
-    )
-
-
-@pytest.fixture
-def mock_rate_limiter():
-    limiter = MagicMock()
-    limiter.acquire.return_value = True
-    limiter.is_exhausted.return_value = False
-    limiter.time_until_reset.return_value = 0
-    return limiter
-
-
-@pytest.fixture
-def handoff_fn():
-    async def _handoff(channel: str, shop_key: str, value: bytes) -> None:
-        return None
-
-    return _handoff
-
-
-@pytest.fixture
-def mock_resources():
-    resources = MagicMock()
-    resources.orders.search_all.return_value = []
-    resources.products.search_all.return_value = []
-    resources.returns.search_returns_all.return_value = []
-    resources.inventory.search.return_value = {"code": 0, "data": {"inventory": []}}
-
-    analytics = MagicMock()
-    analytics.list_sku_performance_all.return_value = [
-        {"id": "sku-1", "product_id": "prod-1"},
-    ]
-    analytics.get_sku_performance.return_value = {
-        "performance": {"sku_id": "sku-1", "product_id": "prod-1"}
-    }
-    analytics.list_product_performance_all.return_value = [{"id": "prod-1"}]
-    analytics.get_product_performance.return_value = {"performance": {"intervals": []}}
-    analytics.get_shop_performance.return_value = {"performance": {"intervals": []}}
-    analytics.get_shop_performance_per_hour.return_value = {"performance": {"overall": {}}}
-    analytics.get_bestselling_products.return_value = {"products": []}
-    analytics.get_bestselling_videos.return_value = {"videos": []}
-    analytics.list_live_performance_all.return_value = []
-    resources.analytics = analytics
-
-    promotion = MagicMock()
-    promotion.get_activity.return_value = {"activity_id": "act-1"}
-    resources.promotion = promotion
-    return resources
+    return sync_state
 
 
 class TestSyncAnalytics:
-    @pytest.mark.asyncio
-    async def test_invokes_date_window_list_and_detail_endpoints(
-        self, mock_rate_limiter, handoff_fn
-    ):
-        resource = MagicMock()
-        resource.list_sku_performance_all.return_value = [
-            {"id": "sku-1", "product_id": "prod-1"},
+    async def test_asks_every_endpoint_for_yesterdays_window(self):
+        analytics = FakeAnalyticsResource(
+            {
+                "list_sku_performance_all": [{"id": "sku-1", "product_id": "prod-1"}],
+                "list_product_performance_all": [{"id": "prod-1"}],
+            }
+        )
+        promotion = FakePromotionResource()
+
+        await run_sync(analytics, promotion=promotion, state={"promotion_activity_ids": ["act-1"]})
+
+        assert analytics.calls_to("list_sku_performance_all") == [WINDOW]
+        assert analytics.calls_to("get_sku_performance") == [{"sku_id": "sku-1", **WINDOW}]
+        assert analytics.calls_to("list_product_performance_all") == [WINDOW]
+        assert analytics.calls_to("get_product_performance") == [{"product_id": "prod-1", **WINDOW}]
+        assert analytics.calls_to("get_shop_performance") == [WINDOW]
+        assert analytics.calls_to("get_shop_performance_per_hour") == [{"date": "2026-07-13"}]
+        assert analytics.calls_to("get_bestselling_products") == [
+            {"date": "2026-07-13", "time_slot": "1D"}
         ]
-        resource.get_sku_performance.return_value = {"performance": {}}
-        resource.list_product_performance_all.return_value = [{"id": "prod-1"}]
-        resource.get_product_performance.return_value = {"performance": {}}
-        resource.get_shop_performance.return_value = {"performance": {}}
-        resource.get_shop_performance_per_hour.return_value = {"performance": {}}
-        resource.get_bestselling_products.return_value = {"products": []}
-        resource.get_bestselling_videos.return_value = {"videos": []}
-        resource.list_live_performance_all.return_value = []
-        promotion = MagicMock()
-        promotion.get_activity.return_value = {"activity_id": "act-1"}
-        sync_state: dict = {"promotion_activity_ids": ["act-1"]}
+        assert analytics.calls_to("get_bestselling_videos") == [
+            {"date": "2026-07-13", "time_slot": "1D"}
+        ]
+        assert analytics.calls_to("list_live_performance_all") == [WINDOW]
+        assert promotion.calls_to("get_activity") == [{"activity_id": "act-1"}]
 
-        await sync_analytics(
-            resource=resource,
-            promotion_resource=promotion,
-            rate_limiter=mock_rate_limiter,
-            handoff_fn=handoff_fn,
-            app_id=APP_KEY,
-            shop_id=PRODUCTION_AUTH_ID,
-            sync_state=sync_state,
-            now=datetime(2026, 7, 14, 12, 0, tzinfo=UTC),
+    async def test_stamps_a_cursor_for_every_completed_leg(self):
+        state = await run_sync(
+            FakeAnalyticsResource(),
+            promotion=FakePromotionResource(),
+            state={"promotion_activity_ids": ["act-1"]},
         )
 
-        resource.list_sku_performance_all.assert_called_once_with(
-            start_date_ge="2026-07-13",
-            end_date_lt="2026-07-14",
-        )
-        resource.get_sku_performance.assert_called_once_with(
-            sku_id="sku-1",
-            start_date_ge="2026-07-13",
-            end_date_lt="2026-07-14",
-        )
-        resource.list_product_performance_all.assert_called_once_with(
-            start_date_ge="2026-07-13",
-            end_date_lt="2026-07-14",
-        )
-        resource.get_product_performance.assert_called_once_with(
-            product_id="prod-1",
-            start_date_ge="2026-07-13",
-            end_date_lt="2026-07-14",
-        )
-        resource.get_shop_performance.assert_called_once_with(
-            start_date_ge="2026-07-13",
-            end_date_lt="2026-07-14",
-        )
-        resource.get_shop_performance_per_hour.assert_called_once_with(date="2026-07-13")
-        resource.get_bestselling_products.assert_called_once_with(
-            date="2026-07-13",
-            time_slot="1D",
-        )
-        resource.get_bestselling_videos.assert_called_once_with(
-            date="2026-07-13",
-            time_slot="1D",
-        )
-        resource.list_live_performance_all.assert_called_once_with(
-            start_date_ge="2026-07-13",
-            end_date_lt="2026-07-14",
-        )
-        promotion.get_activity.assert_called_once_with("act-1")
+        assert CURSOR_KEYS <= set(state)
 
-        assert "shop_sku_performance_last_sync_at" in sync_state
-        assert "shop_product_performance_last_sync_at" in sync_state
-        assert "shop_performance_last_sync_at" in sync_state
-        assert "shop_performance_per_hour_last_sync_at" in sync_state
-        assert "bestselling_products_last_sync_at" in sync_state
-        assert "bestselling_videos_last_sync_at" in sync_state
-        assert "promotion_activity_last_sync_at" in sync_state
-
-        acquired_endpoints = {call.args[2] for call in mock_rate_limiter.acquire.call_args_list}
-        assert ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH in acquired_endpoints
-        assert analytics_shop_sku_performance_path("sku-1") in acquired_endpoints
-        assert ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH in acquired_endpoints
-        assert analytics_shop_product_performance_path("prod-1") in acquired_endpoints
-        assert ANALYTICS_SHOP_PERFORMANCE_PATH in acquired_endpoints
-        assert analytics_shop_performance_per_hour_path("2026-07-13") in acquired_endpoints
-        assert ANALYTICS_BESTSELLING_PRODUCTS_PATH in acquired_endpoints
-        assert ANALYTICS_BESTSELLING_VIDEOS_PATH in acquired_endpoints
-        assert ANALYTICS_LIVE_PERFORMANCE_LIST_PATH in acquired_endpoints
-        assert promotion_activity_path("act-1") in acquired_endpoints
-
-    @pytest.mark.asyncio
-    async def test_skips_when_rate_limited(self, mock_rate_limiter, handoff_fn):
-        resource = MagicMock()
-        mock_rate_limiter.acquire.return_value = False
-        sync_state: dict = {}
-
-        await sync_analytics(
-            resource=resource,
-            promotion_resource=MagicMock(),
-            rate_limiter=mock_rate_limiter,
-            handoff_fn=handoff_fn,
-            app_id=APP_KEY,
-            shop_id=PRODUCTION_AUTH_ID,
-            sync_state=sync_state,
-            now=datetime(2026, 7, 14, 12, 0, tzinfo=UTC),
+    async def test_acquires_the_rate_limiter_per_endpoint_including_detail_paths(self):
+        limiter = RecordingRateLimiter()
+        analytics = FakeAnalyticsResource(
+            {
+                "list_sku_performance_all": [{"id": "sku-1", "product_id": "prod-1"}],
+                "list_product_performance_all": [{"id": "prod-1"}],
+            }
         )
 
-        resource.list_sku_performance_all.assert_not_called()
-        resource.get_shop_performance.assert_not_called()
-        assert sync_state == {}
+        await run_sync(
+            analytics,
+            rate_limiter=limiter,
+            promotion=FakePromotionResource(),
+            state={"promotion_activity_ids": ["act-1"]},
+        )
 
-    @pytest.mark.asyncio
-    async def test_wires_live_analytics_handoff(self, mock_rate_limiter, handoff_fn):
+        assert {
+            ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
+            analytics_shop_sku_performance_path("sku-1"),
+            ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
+            analytics_shop_product_performance_path("prod-1"),
+            ANALYTICS_SHOP_PERFORMANCE_PATH,
+            analytics_shop_performance_per_hour_path("2026-07-13"),
+            ANALYTICS_BESTSELLING_PRODUCTS_PATH,
+            ANALYTICS_BESTSELLING_VIDEOS_PATH,
+            ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,
+            promotion_activity_path("act-1"),
+        } <= set(limiter.acquired)
+
+    async def test_rate_limited_leg_is_skipped_and_leaves_no_cursor(self):
+        analytics = FakeAnalyticsResource()
+
+        state = await run_sync(analytics, rate_limiter=RecordingRateLimiter(allow=False))
+
+        assert analytics.calls == []
+        assert state == {}
+
+    async def test_live_performance_rows_are_handed_off_raw(self):
         handoffs: list[tuple[str, str, bytes]] = []
 
         async def capture(channel: str, shop_key: str, value: bytes) -> None:
             handoffs.append((channel, shop_key, value))
 
-        resource = MagicMock()
-        resource.list_sku_performance_all.return_value = []
-        resource.list_product_performance_all.return_value = []
-        resource.list_live_performance_all.return_value = [
+        analytics = FakeAnalyticsResource(
             {
-                "id": "live-99",
-                "sales_performance": {
-                    "gmv": {"amount": "10.00", "currency": "VND"},
-                    "sku_orders": 1,
-                },
-                "interaction_performance": {"click_through_rate": "1.00%"},
+                "list_live_performance_all": [
+                    {
+                        "id": "live-99",
+                        "sales_performance": {
+                            "gmv": {"amount": "10.00", "currency": "VND"},
+                            "sku_orders": 1,
+                        },
+                        "interaction_performance": {"click_through_rate": "1.00%"},
+                    }
+                ]
             }
-        ]
-        resource.get_shop_performance.return_value = {}
-        resource.get_shop_performance_per_hour.return_value = {}
-        resource.get_bestselling_products.return_value = {}
-        resource.get_bestselling_videos.return_value = {}
-
-        sync_state: dict = {}
-        await sync_analytics(
-            resource=resource,
-            promotion_resource=MagicMock(),
-            rate_limiter=mock_rate_limiter,
-            handoff_fn=capture,
-            app_id=APP_KEY,
-            shop_id=PRODUCTION_AUTH_ID,
-            sync_state=sync_state,
-            now=datetime(2026, 7, 14, 12, 0, tzinfo=UTC),
         )
 
-        live_handoffs = [h for h in handoffs if h[0] == "tiktok.analytics.live.raw"]
-        assert len(live_handoffs) == 1
-        assert sync_state.get("shop_live_performance_last_sync_at") is not None
+        state = await run_sync(analytics, handoff=capture)
+
+        live = [h for h in handoffs if h[0] == "tiktok.analytics.live.raw"]
+        assert len(live) == 1
+        assert state.get("shop_live_performance_last_sync_at") is not None
 
 
-class TestRunFujiwaPollCycleAnalytics:
-    @pytest.mark.asyncio
-    async def test_poll_cycle_invokes_analytics_and_persists_sync_state(
-        self,
-        session,
-        fujiwa_shop,
-        fujiwa_credential,
-        oauth_service,
-        mock_rate_limiter,
-        handoff_fn,
-        mock_resources,
+class TestPollCyclePersistsAnalyticsCursors:
+    """The full cycle runs the analytics leg and writes its cursors through the repo."""
+
+    @pytest.fixture
+    async def fujiwa(self, session):
+        user = await make_user(session)
+        shop = await make_shop(session, user, tiktok_shop_id=PRODUCTION_AUTH_ID)
+        credential = await TikTokCredentialRepo(session).create(
+            shop_id=shop.id,
+            access_token="fujiwa_access",
+            refresh_token="fujiwa_refresh",
+            token_expires_at=utc_now_naive() + timedelta(days=7),
+            merchant_authorization_id=PRODUCTION_AUTH_ID,
+            capability=TikTokCapability.PRODUCTION_READ.value,
+            shop_cipher="ROW_test_cipher",
+        )
+        return shop, credential
+
+    @pytest.fixture
+    def oauth_service(self, session):
+        async def stub_binding_verifier(session, *, capability, access_token) -> str:
+            return "ROW_stub_cipher"  # polling, not credential binding, is under test (#1200)
+
+        return TikTokOAuthService(
+            tiktok_auth=TikTokAuth(
+                app_key=APP_KEY,
+                app_secret=APP_SECRET,
+                base_url="https://open-api.tiktokglobalshop.com",
+            ),
+            session=session,
+            redirect_uri="https://example.com/callback",
+            app_secret=APP_SECRET,
+            binding_verifier=stub_binding_verifier,
+        )
+
+    async def test_runs_the_analytics_leg_and_persists_cursors(
+        self, session, fujiwa, oauth_service
     ):
-        oauth_service.refresh_merchant_tokens = AsyncMock(return_value=fujiwa_credential)
+        shop, credential = fujiwa
+        limiter = RecordingRateLimiter()
+        resources = FakeProductionReadResources(
+            analytics=FakeAnalyticsResource(
+                {"list_sku_performance_all": [{"id": "sku-1", "product_id": "prod-1"}]}
+            )
+        )
+
+        async def resolve_credential(_session):
+            return credential
 
         await run_fujiwa_poll_cycle(
             session=session,
             config=FujiwaPollConfig(app_key=APP_KEY, app_secret=APP_SECRET),
             oauth_service=oauth_service,
-            rate_limiter=mock_rate_limiter,
-            handoff_fn=handoff_fn,
-            resolve_credential=AsyncMock(return_value=fujiwa_credential),
-            create_resources=lambda _cfg: mock_resources,
+            rate_limiter=limiter,
+            handoff_fn=no_handoff,
+            resolve_credential=resolve_credential,
+            create_resources=lambda _cfg: resources,
         )
 
-        mock_resources.analytics.list_sku_performance_all.assert_called()
-        mock_resources.analytics.get_shop_performance.assert_called()
-        mock_resources.analytics.get_bestselling_products.assert_called()
-        mock_resources.analytics.get_bestselling_videos.assert_called()
-        mock_resources.analytics.list_live_performance_all.assert_called()
+        asked = {name for name, _ in resources.analytics.calls}
+        assert {
+            "list_sku_performance_all",
+            "get_shop_performance",
+            "get_bestselling_products",
+            "get_bestselling_videos",
+            "list_live_performance_all",
+        } <= asked
+        assert limiter.exhaustion_checks, "backoff consults the limiter before each leg"
+        assert {ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH, ANALYTICS_SHOP_PERFORMANCE_PATH} <= set(
+            limiter.acquired
+        )
 
-        # Rate limiter consulted for analytics endpoints (backoff + acquire).
-        assert mock_rate_limiter.is_exhausted.called
-        assert mock_rate_limiter.acquire.called
-        acquired = {call.args[2] for call in mock_rate_limiter.acquire.call_args_list}
-        assert ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH in acquired
-        assert ANALYTICS_SHOP_PERFORMANCE_PATH in acquired
-
-        loaded = await TikTokSyncStateRepo(session).load(fujiwa_shop.id)
-        assert "shop_sku_performance_last_sync_at" in loaded
-        assert "shop_performance_last_sync_at" in loaded
-        assert "bestselling_products_last_sync_at" in loaded
-        assert "bestselling_videos_last_sync_at" in loaded
+        persisted = await TikTokSyncStateRepo(session).load(shop.id)
+        assert {
+            "shop_sku_performance_last_sync_at",
+            "shop_performance_last_sync_at",
+            "bestselling_products_last_sync_at",
+            "bestselling_videos_last_sync_at",
+        } <= set(persisted)

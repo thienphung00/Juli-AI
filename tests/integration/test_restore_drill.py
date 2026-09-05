@@ -415,3 +415,100 @@ def test_restore_drill_fails_on_corrupted_dump(
     assert result.returncode != 0, combined
     assert "RESTORE DRILL FAIL" in combined
     assert _list_scratch_databases(postgres16_cli / "psql") == []
+
+
+@requires_postgres
+def test_restore_drill_fails_on_zero_row_dump(
+    postgres_at_head,
+    api_env_file: tuple[Path, str],
+    tmp_path: Path,
+    postgres16_cli: Path,
+):
+    """Drill must FAIL when dump contains zero rows in users or shops."""
+    env_file, key = api_env_file
+    os.environ["TIKTOK_TOKEN_ENCRYPTION_KEY"] = key
+
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    dump_file = backup_dir / "juli-pre-migrate-20260103T000000Z.dump"
+    migration_url = sync_database_url(_database_url())
+    dump = subprocess.run(
+        [
+            str(postgres16_cli / "pg_dump"),
+            "-Fc",
+            "-f",
+            str(dump_file),
+            migration_url,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "PATH": f"{postgres16_cli}:{os.environ.get('PATH', '')}"},
+    )
+    assert dump.returncode == 0, dump.stderr
+    assert dump_file.stat().st_size > 0
+
+    result = _run_restore_drill(
+        env={
+            "DATABASE_URL": _database_url(),
+            "TIKTOK_TOKEN_ENCRYPTION_KEY": key,
+        },
+        backup_dir=backup_dir,
+        api_env_file=env_file,
+        pg_cli_dir=postgres16_cli,
+    )
+
+    combined = result.stdout + result.stderr
+    assert result.returncode != 0, (
+        f"Restore drill should FAIL on zero-row dump, but got exit 0. Output: {combined}"
+    )
+    assert "RESTORE DRILL FAIL" in combined
+    assert _list_scratch_databases(postgres16_cli / "psql") == []
+
+
+@requires_postgres
+def test_restore_drill_verifies_alembic_revision_matches(
+    postgres_at_head,
+    api_env_file: tuple[Path, str],
+    tmp_path: Path,
+    postgres16_cli: Path,
+):
+    """Drill must verify restored DB alembic revision matches source."""
+    env_file, key = api_env_file
+    os.environ["TIKTOK_TOKEN_ENCRYPTION_KEY"] = key
+    _seed_encrypted_credential(postgres_at_head)
+
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    dump_file = backup_dir / "juli-pre-migrate-20260104T000000Z.dump"
+    migration_url = sync_database_url(_database_url())
+    dump = subprocess.run(
+        [
+            str(postgres16_cli / "pg_dump"),
+            "-Fc",
+            "-f",
+            str(dump_file),
+            migration_url,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "PATH": f"{postgres16_cli}:{os.environ.get('PATH', '')}"},
+    )
+    assert dump.returncode == 0, dump.stderr
+    assert dump_file.stat().st_size > 0
+
+    result = _run_restore_drill(
+        env={
+            "DATABASE_URL": _database_url(),
+            "TIKTOK_TOKEN_ENCRYPTION_KEY": key,
+        },
+        backup_dir=backup_dir,
+        api_env_file=env_file,
+        pg_cli_dir=postgres16_cli,
+    )
+
+    combined = result.stdout + result.stderr
+    assert result.returncode == 0, combined
+    assert "RESTORE DRILL PASS" in combined
+    assert "alembic revision" in combined.lower() or "version" in combined.lower()

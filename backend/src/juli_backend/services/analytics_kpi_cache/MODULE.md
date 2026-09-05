@@ -6,6 +6,12 @@ Required Redis read-through cache for Analytics KPI envelopes (ADR-038, P2.10-A5
 Postgres remains the system of record; Redis accelerates Demo reads and is refreshed
 after successful precompute upserts.
 
+## Implementation
+
+Thin adapter over `services/kpi_cache` (shared Redis client lifecycle and the
+fail-open read-through). This module only names the key prefix, the repository
+read and the envelope type.
+
 ## Public API
 
 - ``envelope_cache_key(shop_id)`` → ``str`` — ``analytics:kpi_envelope:{shop_id}``
