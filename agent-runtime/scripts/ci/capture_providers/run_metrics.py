@@ -118,6 +118,26 @@ NO_TRANSCRIPT_REASON = (
     "rather than 0 so an unmeasured field cannot read as a measured zero"
 )
 
+#: #1582: a scan that raised is a different state from a scan that completed
+#: and genuinely found nothing, and the two must not share a reason string
+#: (ADR-093). ``task_transcripts.discover_task_dirs``/``read_task_dir`` raising
+#: (a settle-clock bug did exactly this, unconditionally, in production) is
+#: already caught below and named in ``gaps[]`` as "task-store-unreadable" or
+#: "task-dir-unreadable" — but reusing :data:`NO_TRANSCRIPT_REASON` for the
+#: *reading* would tell a consumer "there is nothing here" when the honest
+#: answer is "this could not be checked", the exact collapse this reason
+#: exists to prevent.
+SCAN_ERROR_REASON = (
+    "a scan of the persisted task-transcript store raised before it could "
+    "answer; recorded unavailable rather than 'no transcript found' because a "
+    "crash mid-scan and a clean empty answer are different states — see "
+    "gaps[] for the exception this reading stands in for"
+)
+
+#: Gap reasons appended above that mean the scan itself failed, as opposed to
+#: completing and finding nothing to attribute.
+_SCAN_CRASH_GAP_REASONS = frozenset({"task-store-unreadable", "task-dir-unreadable"})
+
 AMBIGUOUS_REASON = (
     "ambiguous attribution: {count} agents were tied to this issue and named as its "
     "executor, and nothing on disk establishes they were one run, so no headline is "
@@ -449,17 +469,30 @@ def capture(
         }
     elif measured is None:
         status = "not-measured"
-        gaps.append(
-            {
-                "reason": "no-transcript-for-issue" if scanned else "no-persisted-task-transcripts",
-                "detail": NO_TRANSCRIPT_REASON,
-                "agentsScanned": scanned,
-            }
-        )
+        # #1582: a directory the scan never finished reading is not the same
+        # answer as a scan that finished and found nothing to attribute. Only
+        # the latter gets the generic "not found" gap/reason; the former
+        # already has its own gap (task-store-unreadable/task-dir-unreadable)
+        # naming the real exception, and must not also be told it was checked
+        # and came up empty.
+        scan_crashed = any(gap.get("reason") in _SCAN_CRASH_GAP_REASONS for gap in gaps)
+        if scan_crashed:
+            reason = SCAN_ERROR_REASON
+        else:
+            reason = NO_TRANSCRIPT_REASON
+            gaps.append(
+                {
+                    "reason": "no-transcript-for-issue"
+                    if scanned
+                    else "no-persisted-task-transcripts",
+                    "detail": NO_TRANSCRIPT_REASON,
+                    "agentsScanned": scanned,
+                }
+            )
         readings = {
-            "tokenUsage": unavailable(NO_TRANSCRIPT_REASON),
-            "toolInvocationCount": unavailable(NO_TRANSCRIPT_REASON),
-            "executionDurationMs": unavailable(NO_TRANSCRIPT_REASON),
+            "tokenUsage": unavailable(reason),
+            "toolInvocationCount": unavailable(reason),
+            "executionDurationMs": unavailable(reason),
         }
     else:
         status = "measured"
