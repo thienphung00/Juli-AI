@@ -1,8 +1,8 @@
 {
   "issue": 1462,
   "schema": "debt-ratchet-baseline/1",
-  "generatedAt": "2026-09-02T11:40:00Z",
-  "generator": "python -m eval.ratchets measure --write",
+  "generatedAt": "2026-09-05T08:07:16Z",
+  "generator": "python -m eval.ratchets tighten --write (scoped: suppressions only, re-run after eliminating the noqa:BLE001 suppression per PR #1638 review; see PR #1638 / issue #1600)",
   "classes": {
     "broken_doc_refs": {
       "kind": "identities",
@@ -381,7 +381,7 @@
     "suppressions": {
       "kind": "identities",
       "stats": {
-        "files_scanned": 995,
+        "files_scanned": 1033,
         "lines": 410,
         "occurrences": 412,
         "distinct_identities": 213,
@@ -843,5 +843,5 @@
       }
     }
   },
-  "tightenedFrom": "2026-09-01T10:10:38Z"
+  "tightenedFrom": "2026-09-05T07:52:23Z"
 }
