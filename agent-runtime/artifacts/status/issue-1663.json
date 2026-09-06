@@ -25,11 +25,11 @@
   "run": {
     "artifactBytes": {
       "reviewBytes": 2561,
-      "validationBytes": 28316
+      "validationBytes": 28313
     },
     "claimVsExecuted": {
       "citedCommandCount": 2,
-      "invokedCommandCount": 11895,
+      "invokedCommandCount": 11904,
       "matchedCommandCount": 0,
       "reason": "2 of 2 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
@@ -149,7 +149,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1663-pr-readiness",
-        "head": "aab160e27607bd37345827139b226166cdc70347",
+        "head": "026a07b6fb983334b7f32e7bcc46cf173aa3d3fe",
         "shallow": true
       },
       "moduleResolution": {
@@ -328,10 +328,10 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-06T06:27:52Z",
+  "timestamp": "2026-09-06T06:33:13Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1663.json",
-    "sha256": "e1749f728a5615ebc9422578556a5752b79890b7ad951add4e2978d5d4ec2061",
+    "sha256": "78d6ad57151cc275094d26e7c7524e575a4943ee3ef5ac6fc313a9e3517c0c9f",
     "status": "PASS"
   },
   "wave": "wave-harness-e-w5"
