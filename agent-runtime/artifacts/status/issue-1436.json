@@ -1,0 +1,316 @@
+{
+  "architecturalChange": {
+    "signals": [],
+    "value": false
+  },
+  "gateVersion": 2,
+  "issue": 1436,
+  "metrics": {
+    "acceptanceMapped": 1,
+    "acceptanceTotal": 1,
+    "criticalFindings": 2,
+    "modulesTouched": [
+      ".cursor/rules",
+      "tests/unit"
+    ]
+  },
+  "review": {
+    "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1436.json",
+    "ownerSignoffPresent": true,
+    "sha256": "f55f7e40c159436c06b4fffd4057f7ae755a70a845dde445853fcf2b735945ed",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "run": {
+    "artifactBytes": {
+      "reviewBytes": 2615,
+      "validationBytes": 23902
+    },
+    "claimVsExecuted": {
+      "citedCommandCount": 1,
+      "invokedCommandCount": 11603,
+      "matchedCommandCount": 0,
+      "reason": "1 of 1 cited commands have no matching invocation in the session transcripts",
+      "recordPasses": false,
+      "status": "FAIL",
+      "transcriptSources": [
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-codebase-audit-refactor-b9b867",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-open-terminal-in-code-08e55d"
+      ],
+      "transcriptsScanned": 44,
+      "unmatchedCommandCount": 1,
+      "unmatchedCommands": [
+        {
+          "command": "git show 3d4f94e9d --stat",
+          "cycle": 2,
+          "exitCode": 0
+        }
+      ],
+      "unmatchedCommandsTruncated": false,
+      "verified": true
+    },
+    "commandScope": {
+      "ciSelectors": {
+        "mypy": {
+          "command": "mypy backend/src/juli_backend --ignore-missing-imports --disable-error-code=valid-type",
+          "deselectedMarkers": [],
+          "paths": [
+            "backend/src/juli_backend"
+          ]
+        },
+        "pytest": {
+          "command": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "deselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "paths": [
+            "tests"
+          ]
+        },
+        "ruff check": {
+          "command": "ruff check backend/src/juli_backend tests scripts agent-runtime/scripts",
+          "deselectedMarkers": [],
+          "paths": [
+            "backend/src/juli_backend",
+            "tests",
+            "scripts",
+            "agent-runtime/scripts"
+          ]
+        }
+      },
+      "ciWorkflow": ".github/workflows/pr.yml",
+      "commandsCited": 0,
+      "invocations": [],
+      "invocationsScored": 0,
+      "invocationsUnrecognised": 0,
+      "narrowerCount": 0,
+      "narrowerThanCI": [],
+      "unit": "invocation",
+      "unitRationale": "76 corpus commands chain 2-5 runs; scoring per command lets a broad first run launder a narrow second one, so each invocation is scored on its own selector."
+    },
+    "environment": {
+      "cwd": "/Users/macos/Juli-AI-v2/.worktrees/w5-1436",
+      "dependencies": {
+        "constraints": "/Users/macos/Juli-AI-v2/.worktrees/w5-1436/backend/constraints.txt",
+        "drift": [
+          {
+            "installed": "3.18",
+            "package": "idna",
+            "pinned": "3.19"
+          },
+          {
+            "installed": "2.24.0",
+            "package": "narwhals",
+            "pinned": "2.25.0"
+          },
+          {
+            "installed": "1.26.4",
+            "package": "numpy",
+            "pinned": "2.5.2"
+          },
+          {
+            "installed": "0.16.3",
+            "package": "ruff",
+            "pinned": "0.16.4"
+          },
+          {
+            "installed": "1.13.1",
+            "package": "scipy",
+            "pinned": "1.18.1"
+          },
+          {
+            "installed": "5.9.0",
+            "package": "stevedore",
+            "pinned": "5.9.1"
+          },
+          {
+            "installed": "0.52.3",
+            "package": "uvicorn",
+            "pinned": "0.52.4"
+          }
+        ],
+        "matched": 75,
+        "missing": [],
+        "pinned": 82
+      },
+      "executable": "/opt/homebrew/anaconda3/bin/python",
+      "git": {
+        "baseDistanceUnavailable": "shallow-clone",
+        "behindOriginMain": null,
+        "branch": "feature/issue-1436-bypass-policy",
+        "head": "8a7c463367dc105665eb6c0c3b35e33255f84c5d",
+        "shallow": true
+      },
+      "moduleResolution": {
+        "error": "ModuleNotFoundError: No module named 'juli_backend'",
+        "expectedPrefix": "/Users/macos/Juli-AI-v2/.worktrees/w5-1436/backend/src/juli_backend",
+        "insideRepo": false,
+        "module": "juli_backend",
+        "resolved": null
+      },
+      "python": "3.12.9",
+      "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/w5-1436"
+    },
+    "metrics": {
+      "agents": [
+        {
+          "agentId": "af0c692445f4fd01b",
+          "attributedBy": "worktreePath",
+          "branches": [
+            "feature/issue-1618-dissolution-scope"
+          ],
+          "durationMs": 1382179,
+          "messageCount": 107,
+          "recordCount": 370,
+          "role": "reviewer",
+          "roleSignal": "Review",
+          "sessionIds": [
+            "3035598a-f8d1-4c62-bc80-6838edda31d6"
+          ],
+          "settled": true,
+          "sidechainRecordCount": 370,
+          "spawnDirective": "Review two related slices and land their status",
+          "tokenUsage": {
+            "cacheCreation": 397019,
+            "cacheRead": 12644997,
+            "input": 214,
+            "output": 1419,
+            "total": 13043649
+          },
+          "toolInvocationCount": 132,
+          "toolsUsed": [
+            {
+              "count": 112,
+              "toolName": "Bash"
+            },
+            {
+              "count": 19,
+              "toolName": "Read"
+            },
+            {
+              "count": 1,
+              "toolName": "Skill"
+            }
+          ],
+          "transcriptRef": "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks/af0c692445f4fd01b.output",
+          "workspaces": [
+            "w5-1436",
+            "w5-1618"
+          ]
+        }
+      ],
+      "disagreements": [
+        {
+          "claimed": 29,
+          "field": "toolInvocationCount",
+          "observed": null,
+          "observedFrom": "unavailable",
+          "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "resolution": "unobservable"
+        },
+        {
+          "claimed": 0,
+          "field": "executionDurationMs",
+          "observed": null,
+          "observedFrom": "unavailable",
+          "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "resolution": "unobservable"
+        }
+      ],
+      "executionDurationMs": {
+        "available": false,
+        "reason": "no attributed agent's spawn directive named it this issue's executor, so there is no run to report: 1 candidate(s) were tied to the issue with roles ['reviewer']. Reporting one anyway is how a settled reviewer came to be recorded as the run (#1512). Per-agent readings are listed under agents[]"
+      },
+      "executorDomain": "backend",
+      "executorDomainSource": "implementation-artifact",
+      "gaps": [
+        {
+          "agents": [
+            "adb7a04f13230bb00"
+          ],
+          "detail": "attributed agents whose transcript is still being written; a running agent has not yet spent what it will spend, so its reading is a lower bound and is not reported as a measurement",
+          "reason": "in-flight-transcript"
+        },
+        {
+          "candidates": [
+            {
+              "agentId": "af0c692445f4fd01b",
+              "role": "reviewer"
+            }
+          ],
+          "detail": "no attributed agent's spawn directive named it this issue's executor, so there is no run to report: 1 candidate(s) were tied to the issue with roles ['reviewer']. Reporting one anyway is how a settled reviewer came to be recorded as the run (#1512). Per-agent readings are listed under agents[]",
+          "reason": "no-executor-role-identified"
+        }
+      ],
+      "schemaVersion": 1,
+      "source": {
+        "agentsAttributed": 1,
+        "agentsScanned": 302,
+        "attributedBy": ".worktrees path naming issue-1436",
+        "executorsIdentified": 0,
+        "kind": "task-transcript",
+        "roleSelectedAgentId": null,
+        "roleSelectedBy": "spawn-directive",
+        "taskDirs": [
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/cb047053-ee20-4e00-925f-7ebf36c0417b/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
+          "/tmp/claude-501/-Users-macos/61a4eb31-9294-45c2-a803-0c26980300c6/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/491f9d6b-185a-43a4-bbea-f1fcd906bf1d/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/03369828-07b8-46b9-8587-8b7e97d289c1/tasks"
+        ]
+      },
+      "status": "ambiguous",
+      "tokenUsage": {
+        "available": false,
+        "reason": "no attributed agent's spawn directive named it this issue's executor, so there is no run to report: 1 candidate(s) were tied to the issue with roles ['reviewer']. Reporting one anyway is how a settled reviewer came to be recorded as the run (#1512). Per-agent readings are listed under agents[]"
+      },
+      "toolInvocationCount": {
+        "available": false,
+        "reason": "no attributed agent's spawn directive named it this issue's executor, so there is no run to report: 1 candidate(s) were tied to the issue with roles ['reviewer']. Reporting one anyway is how a settled reviewer came to be recorded as the run (#1512). Per-agent readings are listed under agents[]"
+      },
+      "toolsUsed": []
+    },
+    "transcripts": {
+      "commands": {
+        "executor": 0,
+        "executorCommands": [],
+        "includesExecutorCommands": false,
+        "parent": 0,
+        "parentCommands": []
+      },
+      "coverage": {
+        "complete": false,
+        "executorsExpected": 1,
+        "executorsPersisted": 0,
+        "gaps": [
+          {
+            "agent": "executor-review agent",
+            "reason": "no-transcript-persisted"
+          }
+        ]
+      },
+      "executorCount": 0,
+      "executors": [],
+      "parentOnly": true,
+      "schemaVersion": 1,
+      "status": "not-persisted"
+    }
+  },
+  "timestamp": "2026-09-05T10:59:15Z",
+  "validation": {
+    "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1436.json",
+    "sha256": "b22ac430e45be96b0e59b49a9003dcbf965bef9cf04234ad56e08cf6093cc227",
+    "status": "PASS"
+  },
+  "wave": "wave-harness-e-w5"
+}

@@ -14,6 +14,8 @@ import hashlib
 import json
 import subprocess
 import sys
+import warnings
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -38,9 +40,9 @@ BODY_DIRS = (
 STATUS_SCHEMA_PATH = REPO_ROOT / "agent-runtime" / "docs" / "schemas" / "status-record.schema.json"
 
 
-def _git(*args: str) -> subprocess.CompletedProcess:
+def _git(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(
-        ["git", *args], cwd=REPO_ROOT, capture_output=True, text=True, check=False
+        ["git", *args], cwd=cwd or REPO_ROOT, capture_output=True, text=True, check=False
     )
 
 
@@ -1036,16 +1038,102 @@ def _merge_base() -> str | None:
     return None
 
 
-def _records_at(ref: str) -> dict[str, str]:
-    """Filename -> blob content for every status record committed at ``ref``."""
-    listing = _git("ls-tree", "-r", "--name-only", ref, "--", "agent-runtime/artifacts/status")
+def _records_at(ref: str, *, repo_root: Path | None = None) -> dict[str, str]:
+    """Filename -> blob content for every status record committed at ``ref``.
+
+    ``repo_root`` defaults to the real repo (``REPO_ROOT``). A test proving the
+    committed-rewrite detection below passes a synthetic ``tmp_path`` repo with
+    real ``git commit``s, so the proof exercises genuine git history rather
+    than a stub standing in for one.
+    """
+    root = repo_root or REPO_ROOT
+    listing = _git(
+        "ls-tree", "-r", "--name-only", ref, "--", "agent-runtime/artifacts/status", cwd=root
+    )
     assert listing.returncode == 0, listing.stderr
     records: dict[str, str] = {}
     for rel in listing.stdout.split():
-        blob = _git("show", f"{ref}:{rel}")
+        blob = _git("show", f"{ref}:{rel}", cwd=root)
         if blob.returncode == 0:
             records[Path(rel).name] = blob.stdout
     return records
+
+
+def _newly_invalid_records(records: list[Path], amended: dict, baseline: dict) -> list[str]:
+    """The schema-validity delta half of the corpus regression guard.
+
+    Needs no base ref at all — ``baseline`` is the schema at HEAD (read via
+    ``git show``), not a prior commit's *records*. Extracted so #1600 can prove,
+    independent of whether a base ref resolves, that this half always runs.
+    """
+    newly_invalid: list[str] = []
+    for path in records:
+        record = json.loads(path.read_text(encoding="utf-8"))
+        errors = validate_json_schema(record, amended)
+        if errors and not validate_json_schema(record, baseline):
+            newly_invalid.append(f"{path.name}: {errors[0]}")
+    return newly_invalid
+
+
+def _backfilled_records(records: list[Path], before: dict[str, str]) -> list[str]:
+    """The backfill half of the corpus regression guard. Needs a real 'before'."""
+    backfilled: list[str] = []
+    for path in records:
+        record = json.loads(path.read_text(encoding="utf-8"))
+        if "architecturalChange" not in record or path.name not in before:
+            continue
+        try:
+            had_it = "architecturalChange" in json.loads(before[path.name])
+        except json.JSONDecodeError:
+            had_it = False
+        if not had_it:
+            backfilled.append(path.name)
+    return backfilled
+
+
+def _run_corpus_regression_guard(
+    *,
+    records: list[Path],
+    amended: dict,
+    baseline: dict,
+    base_ref: str | None,
+    records_at: Callable[[str], dict[str, str]],
+) -> None:
+    """#1600: the reorder in one place, so it is unit-testable without a real
+    corpus or a real git checkout.
+
+    The schema-validity delta (``_newly_invalid_records``) needs no base ref and
+    is computed and asserted first — it used to sit *after* the base-resolution
+    skip, so an unresolved base silently dropped it as collateral. Only the
+    backfill half genuinely needs a 'before' and may skip; when it does, a
+    ``warnings.warn`` fires first so the skip is visible in CI's default
+    output (``pytest -v --tb=short``, no ``-s``: ``print()`` here would vanish
+    on exactly the run it is about, per #1618's finding). ``pytest.skip`` still
+    follows — the skip is genuine, not laundered into a silent pass.
+    """
+    newly_invalid = _newly_invalid_records(records, amended, baseline)
+    assert newly_invalid == [], (
+        f"{len(newly_invalid)} committed records validated before this change and "
+        f"stop validating after it: {newly_invalid[:5]}"
+    )
+
+    if base_ref is None:
+        warnings.warn(
+            "corpus regression guard: no base ref resolved in this checkout, so the "
+            "backfill half (no committed record acquired 'architecturalChange' without "
+            "a prior 'before') did not run this pass. The schema-validity delta above "
+            "did run.",
+            stacklevel=2,
+        )
+        pytest.skip("no base ref resolved in this checkout; the backfill half needs a 'before'")
+
+    before = records_at(base_ref)
+    backfilled = _backfilled_records(records, before)
+    assert backfilled == [], (
+        f"{len(backfilled)} records that existed at {base_ref[:12]} without "
+        f"architecturalChange have acquired one, which the Architect lock forbids: "
+        f"{backfilled[:5]}"
+    )
 
 
 def test_no_committed_record_stopped_validating_and_none_was_backfilled() -> None:
@@ -1067,6 +1155,10 @@ def test_no_committed_record_stopped_validating_and_none_was_backfilled() -> Non
     Both halves are asserted — that the invalid set does not grow, and that no
     record acquired the field — because validity alone would also be satisfied
     by a backfill, which is the thing forbidden.
+
+    #1600: the two halves need different things (the schema delta needs
+    nothing; the backfill half needs a 'before'), so they no longer share one
+    skip gate — see ``_run_corpus_regression_guard``.
     """
     amended = json.loads(STATUS_SCHEMA_PATH.read_text(encoding="utf-8"))
     head = _git("show", "HEAD:agent-runtime/docs/schemas/status-record.schema.json")
@@ -1090,64 +1182,309 @@ def test_no_committed_record_stopped_validating_and_none_was_backfilled() -> Non
     # this true after #1562 lands: from then on base records legitimately carry
     # the field, and "was already there" must not start reading as "was
     # backfilled".
-    base_ref = _merge_base()
+    _run_corpus_regression_guard(
+        records=records,
+        amended=amended,
+        baseline=baseline,
+        base_ref=_merge_base(),
+        records_at=_records_at,
+    )
+
+
+# --- #1600: the schema-validity delta is not collateral to an unresolved base,
+# --- and a skip that drops the backfill half is visible in CI's default output
+# --- (no ``-s``: ``print()`` vanishes on a passing test, per #1618's finding).
+
+
+def test_schema_validity_delta_asserts_even_when_no_base_ref_resolves(tmp_path: Path) -> None:
+    """The under-defect this issue was filed for: before the reorder, an
+    unresolved base ran ``pytest.skip`` before the schema-validity delta was
+    even computed, so a record that stopped validating went unnoticed on
+    exactly the checkouts where the base could not be resolved.
+
+    Forces a record invalid under ``amended`` but valid under ``baseline`` --
+    genuine regression -- and a base that can never resolve. The assertion
+    must still fire (as ``AssertionError``, not ``Skipped``): proof the
+    schema-validity check no longer sits behind the base-resolution gate.
+    """
+    baseline = {"type": "object", "properties": {"issue": {"type": "integer"}}}
+    amended = {
+        "type": "object",
+        "properties": {"issue": {"type": "integer"}},
+        "required": ["mustBePresent"],
+    }
+    record_path = tmp_path / "issue-1.json"
+    record_path.write_text(json.dumps({"issue": 1}), encoding="utf-8")
+
+    # Deliberately not ``pytest.raises(AssertionError)``: ``pytest.skip`` raises
+    # ``Skipped``, a ``BaseException`` that ``pytest.raises(AssertionError)``
+    # does not intercept -- it would propagate past the ``with`` block and the
+    # test would report SKIPPED rather than FAILED. That is the exact trap
+    # this issue is about (a skip and a failure to assert look the same in
+    # aggregate), so this test must not be able to fall into it itself.
+    # ``Skipped`` is the only ``BaseException``-that-is-not-``Exception`` this
+    # guard can actually raise here (``records_at`` is never called on this
+    # path, so its own ``pytest.fail`` cannot fire) -- so that one exception is
+    # named rather than caught with a blind ``except BaseException``, which
+    # would also swallow ``KeyboardInterrupt``/``SystemExit``. Anything else
+    # unexpected still fails the test on its own, unconverted.
+    try:
+        _run_corpus_regression_guard(
+            records=[record_path],
+            amended=amended,
+            baseline=baseline,
+            base_ref=None,
+            records_at=lambda ref: pytest.fail(f"records_at must not be called, got {ref!r}"),
+        )
+    except AssertionError as exc:
+        assert "stop validating after it" in str(exc), exc
+    except pytest.skip.Exception as exc:  # the trap this test exists to close
+        pytest.fail(f"guard skipped instead of asserting: {exc}")
+    else:
+        pytest.fail("_run_corpus_regression_guard returned normally; expected an AssertionError")
+
+
+def test_backfill_half_skips_with_a_visible_warning_when_no_base_resolves(tmp_path: Path) -> None:
+    """The other half of the defect: nothing failed when the guard skipped, so
+    a skip and a pass were indistinguishable in CI's default output. A
+    ``warnings.warn`` must fire before the ``pytest.skip`` -- warnings reach
+    pytest's summary section even under ``pytest -v --tb=short`` with no
+    ``-s`` (#1618's finding: a bare ``print()`` here would not).
+    """
+    schema = {"type": "object", "properties": {"issue": {"type": "integer"}}}
+    record_path = tmp_path / "issue-2.json"
+    record_path.write_text(json.dumps({"issue": 2}), encoding="utf-8")
+
+    with pytest.warns(UserWarning, match="no base ref resolved"):
+        with pytest.raises(pytest.skip.Exception):
+            _run_corpus_regression_guard(
+                records=[record_path],
+                amended=schema,
+                baseline=schema,
+                base_ref=None,
+                records_at=lambda ref: pytest.fail(f"records_at must not be called, got {ref!r}"),
+            )
+
+
+def test_backfilled_record_is_still_caught_when_base_resolves(tmp_path: Path) -> None:
+    """Positive-path sanity for the reorder: when a base *does* resolve, a
+    record that acquired ``architecturalChange`` since the 'before' is still
+    caught -- the reorder must not have weakened this half."""
+    schema = {"type": "object", "properties": {"issue": {"type": "integer"}}}
+    record_path = tmp_path / "issue-3.json"
+    record_path.write_text(
+        json.dumps({"issue": 3, "architecturalChange": {"value": False, "signals": []}}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="Architect lock forbids"):
+        _run_corpus_regression_guard(
+            records=[record_path],
+            amended=schema,
+            baseline=schema,
+            base_ref="deadbeef",
+            records_at=lambda ref: {"issue-3.json": json.dumps({"issue": 3})},
+        )
+
+
+def _rewritten_committed_records(before: dict[str, str], current: dict[str, str]) -> list[str]:
+    """#1600 AC3: filenames present at both refs whose content differs.
+
+    Both readings come from ``_records_at`` -- real git history at a real ref --
+    never from the working tree, which is exactly what makes this catch a
+    *committed* rewrite. The issue's own probe table found this gap: a
+    committed ``sha256`` rewrite that neither adds ``architecturalChange`` (so
+    ``_backfilled_records`` does not see it) nor breaks the schema (so
+    ``_newly_invalid_records`` does not see it either) and never touches the
+    working tree (so the porcelain check below does not see it) slips past
+    every other check in this file.
+    """
+    return [
+        name
+        for name, content in sorted(current.items())
+        if name in before and before[name] != content
+    ]
+
+
+def _run_no_rewrite_guard(
+    *,
+    porcelain_rewritten: list[str],
+    base_ref: str | None,
+    records_at: Callable[[str], dict[str, str]],
+) -> None:
+    """The working-tree half needs no base ref and is asserted first, mirroring
+    ``_run_corpus_regression_guard``'s reorder: a base-free check must not sit
+    behind a base-resolution skip. Only the committed-rewrite half (HEAD vs. the
+    merge base) genuinely needs a 'before' and may skip; when it does, a
+    ``warnings.warn`` fires first, same as the backfill half.
+    """
+    assert porcelain_rewritten == [], (
+        "this slice rewrote pre-existing status records (working tree):\n"
+        + "\n".join(porcelain_rewritten)
+    )
+
     if base_ref is None:
-        pytest.skip("no base ref resolved in this checkout; the backfill half needs a 'before'")
-    before = _records_at(base_ref)
+        warnings.warn(
+            "committed-rewrite guard: no base ref resolved in this checkout, so the "
+            "committed-rewrite half (no pre-existing record's committed content changed "
+            "between the merge base and HEAD) did not run this pass. The working-tree "
+            "porcelain check above did run.",
+            stacklevel=2,
+        )
+        pytest.skip(
+            "no base ref resolved in this checkout; the committed-rewrite half needs a 'before'"
+        )
 
-    newly_invalid: list[str] = []
-    backfilled: list[str] = []
-    for path in records:
-        record = json.loads(path.read_text(encoding="utf-8"))
-        if validate_json_schema(record, amended) and not validate_json_schema(record, baseline):
-            newly_invalid.append(f"{path.name}: {validate_json_schema(record, amended)[0]}")
-        if "architecturalChange" not in record or path.name not in before:
-            continue
-        try:
-            had_it = "architecturalChange" in json.loads(before[path.name])
-        except json.JSONDecodeError:
-            had_it = False
-        if not had_it:
-            backfilled.append(path.name)
-
-    assert newly_invalid == [], (
-        f"{len(newly_invalid)} committed records validated before this change and "
-        f"stop validating after it: {newly_invalid[:5]}"
-    )
-    assert backfilled == [], (
-        f"{len(backfilled)} records that existed at {base_ref[:12]} without "
-        f"architecturalChange have acquired one, which the Architect lock forbids: "
-        f"{backfilled[:5]}"
+    before = records_at(base_ref)
+    current = records_at("HEAD")
+    rewritten = _rewritten_committed_records(before, current)
+    assert rewritten == [], (
+        f"{len(rewritten)} pre-existing status record(s) were rewritten between "
+        f"{base_ref[:12]} and HEAD, which the Architect lock forbids: {rewritten[:5]}"
     )
 
 
+#  ``_records_at`` shells out to ``git show`` once per file, and this test now
+#  calls it twice over the ~300+ committed status records (base ref, then
+#  HEAD) instead of the backfill check's once -- measured 20s alone against
+#  pytest.ini's `timeout = 30`, and it timed out at the default budget when
+#  run after other tests in this same file, under the concurrent git load
+#  from sibling agents active in this worktree during this session. The
+#  assertions are unchanged; only the wall-clock budget is (repo precedent:
+#  tests/unit/test_differential_tdd.py).
+@pytest.mark.timeout(90)
 def test_no_pre_existing_status_record_was_rewritten() -> None:
-    """ "No sha256 changed. No backfill, no history rewrite." Asserted against git
-    rather than against file contents, because the claim is about the tree
-    differing from HEAD — which a content check cannot see.
+    """ "No sha256 changed. No backfill, no history rewrite." Two halves, for two
+    different ways a rewrite can reach the tree.
 
-    Additions are excluded, and that is the point rather than a loosening. The
-    lock forbids rewriting records that already exist; committing a NEW record is
-    what an issue-tier PR is *required* to do, since the retention guard fails
-    without one. Flagging every porcelain entry conflated the two and made this
-    test the second half of the same deadlock the backfill assertion above
-    created — a reviewer generating the record for this very issue turned it red.
+    The working-tree half is asserted against git status --porcelain rather
+    than file contents, because the claim is about the tree differing from
+    HEAD -- which a content check cannot see. Additions are excluded, and that
+    is the point rather than a loosening: the lock forbids rewriting records
+    that already exist; committing a NEW record is what an issue-tier PR is
+    *required* to do, since the retention guard fails without one. Flagging
+    every porcelain entry conflated the two and made this test the second half
+    of the same deadlock the backfill assertion above created — a reviewer
+    generating the record for this very issue turned it red. So only
+    modification, deletion and rename are flagged.
 
-    So only modification, deletion and rename are flagged: the operations that can
-    actually change a recorded sha256.
+    But porcelain is blind to a change that has already been committed on this
+    branch -- #1600's own review probed six ways and found this the one gap:
+    a pre-existing record rewritten and committed, which diffs clean against
+    HEAD by definition. The committed-rewrite half (``_run_no_rewrite_guard``,
+    mirroring the backfill mechanism's HEAD-vs-base-ref comparison) closes it.
     """
     result = _git("status", "--porcelain", "--", "agent-runtime/artifacts/status")
     assert result.returncode == 0, result.stderr
 
-    rewritten = []
+    porcelain_rewritten = []
     for line in result.stdout.splitlines():
         if not line.strip():
             continue
         code = line[:2]
         if code == "??" or code[0] == "A":
             continue  # a new record, which is what a PR is supposed to add
-        rewritten.append(line)
+        porcelain_rewritten.append(line)
 
-    assert rewritten == [], "this slice rewrote pre-existing status records:\n" + "\n".join(
-        rewritten
+    _run_no_rewrite_guard(
+        porcelain_rewritten=porcelain_rewritten,
+        base_ref=_merge_base(),
+        records_at=_records_at,
     )
+
+
+# --- #1600 AC3: a committed sha256 rewrite escapes the porcelain-only check --
+
+
+def test_porcelain_rewrite_still_asserts_even_when_no_base_ref_resolves() -> None:
+    """The working-tree half needs no base ref and must not be collateral to an
+    unresolved one -- the same reorder bug this issue started with, mirrored
+    onto the rewrite guard."""
+    try:
+        _run_no_rewrite_guard(
+            porcelain_rewritten=[" M agent-runtime/artifacts/status/issue-9001.json"],
+            base_ref=None,
+            records_at=lambda ref: pytest.fail(f"records_at must not be called, got {ref!r}"),
+        )
+    except AssertionError as exc:
+        assert "rewrote pre-existing status records" in str(exc), exc
+    except pytest.skip.Exception as exc:  # the trap this test exists to close
+        pytest.fail(f"guard skipped instead of asserting: {exc}")
+    else:
+        pytest.fail("_run_no_rewrite_guard returned normally; expected an AssertionError")
+
+
+def test_committed_rewrite_half_skips_with_a_visible_warning_when_no_base_resolves() -> None:
+    """When base_ref is None, the committed-rewrite half warns (visible in
+    pytest's summary without -s) before the genuine skip -- same contract as
+    the backfill half."""
+    with pytest.warns(UserWarning, match="no base ref resolved"):
+        with pytest.raises(pytest.skip.Exception):
+            _run_no_rewrite_guard(
+                porcelain_rewritten=[],
+                base_ref=None,
+                records_at=lambda ref: pytest.fail(f"records_at must not be called, got {ref!r}"),
+            )
+
+
+def _git_commit(repo: Path, *, message: str) -> str:
+    import os
+
+    full_env = {
+        **os.environ,
+        "GIT_AUTHOR_NAME": "test",
+        "GIT_AUTHOR_EMAIL": "test@example.com",
+        "GIT_COMMITTER_NAME": "test",
+        "GIT_COMMITTER_EMAIL": "test@example.com",
+    }
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", message], cwd=repo, check=True, capture_output=True, env=full_env
+    )
+    sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    )
+    return sha.stdout.strip()
+
+
+def test_committed_rewrite_of_a_preexisting_record_is_caught(tmp_path: Path) -> None:
+    """The mechanism, proven against real git history rather than a stub.
+
+    Builds a throwaway repo, commits a record, then COMMITS a rewrite of it --
+    deliberately a real ``git commit``, not merely ``git add``, because a
+    staged-only change would leave HEAD's content unchanged and this test
+    would pass against the pre-#1600-AC3 code too, proving nothing about the
+    new capability. ``_records_at`` reads real git history at two real refs;
+    the guard must fail on the genuine rewrite between them.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True, capture_output=True)
+
+    status_dir = repo / "agent-runtime" / "artifacts" / "status"
+    status_dir.mkdir(parents=True)
+    record_path = status_dir / "issue-9002.json"
+    record_path.write_text(
+        json.dumps({"issue": 9002, "review": {"sha256": "a" * 64}}), encoding="utf-8"
+    )
+    base_sha = _git_commit(repo, message="base: add issue-9002 record")
+
+    # Rewrite and COMMIT (not just stage) a different sha256 -- the exact shape
+    # AC3 names: a pre-existing record whose content changed, landed on HEAD.
+    record_path.write_text(
+        json.dumps({"issue": 9002, "review": {"sha256": "b" * 64}}), encoding="utf-8"
+    )
+    _git_commit(repo, message="rewrite: mutate issue-9002's committed sha256")
+
+    before = _records_at(base_sha, repo_root=repo)
+    current = _records_at("HEAD", repo_root=repo)
+    assert before != current, (
+        "the probe must actually differ between the two refs to prove anything"
+    )
+
+    with pytest.raises(AssertionError, match="Architect lock forbids"):
+        _run_no_rewrite_guard(
+            porcelain_rewritten=[],
+            base_ref=base_sha,
+            records_at=lambda ref: _records_at(ref, repo_root=repo),
+        )
