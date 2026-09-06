@@ -356,3 +356,33 @@ class TestIssuePrePrMode:
         assert "artifact" in result.stdout.lower() or "integrity" in result.stdout.lower(), (
             f"Expected artifactRef mention in output, got: {result.stdout}"
         )
+
+
+class TestScanMode:
+    """Test the --scan mode for listing open PRs."""
+
+    def test_scan_mode_accepts_scan_flag(self, tmp_path: Path) -> None:
+        """AC3: --scan mode processes and reports on open PRs."""
+        status_dir = tmp_path / "status"
+        status_dir.mkdir()
+        waves_dir = tmp_path / "waves"
+        waves_dir.mkdir()
+
+        result = _run_pr_readiness(
+            "--scan",
+            "--status-dir",
+            str(status_dir),
+            "--waves-dir",
+            str(waves_dir),
+        )
+        # --scan should exit with code 0 (success) even if no PRs are found
+        # or gh CLI is unavailable
+        assert result.returncode == 0, (
+            f"Expected exit code 0 for --scan, got {result.returncode}: {result.stdout}"
+        )
+        # Output should either say no PRs found or contain PR information
+        assert (
+            "No open PRs found" in result.stdout
+            or "PR #" in result.stdout
+            or "unavailable" in result.stdout.lower()
+        ), f"Expected PR scan output, got: {result.stdout}"
