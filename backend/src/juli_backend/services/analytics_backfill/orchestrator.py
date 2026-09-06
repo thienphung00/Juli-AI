@@ -24,6 +24,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database.exceptions import NotFound
+from juli_backend.database.tenant_context import reapply_shop_scope
 from juli_backend.integrations.tiktok import (
     PRODUCTION_AUTH_ID,
     ClientFactoryConfig,
@@ -182,6 +183,7 @@ async def backfill_analytics_history(
     buckets: Sequence[str] | None = None,
     budget: CallBudgetGovernor | None = None,
     run_partition: PartitionRunner,
+    on_partition_complete: Callable[[], Awaitable[None]] | None = None,
     concurrency_limit: int = 1,
 ) -> OrchestratorResult:
     """Walk buckets and dates with bounded concurrency, honoring budget.
@@ -246,6 +248,15 @@ async def backfill_analytics_history(
 
             try:
                 await run_partition(bucket, partition_date)
+                # DURABILITY, NOT TIDINESS (#1665). Without this the whole run is
+                # one transaction: the task's 300s budget expires, everything
+                # rolls back, and the next run starts from zero. That is why
+                # `ops.analytics_backfill_partitions` held 571 rows with ALL 571
+                # incomplete — `mark_complete` had been called many times and
+                # committed never. The resumable-checkpoint design was correct
+                # and inert.
+                if on_partition_complete is not None:
+                    await on_partition_complete()
                 return (True, None)
             except Exception as e:
                 logger.error(
@@ -554,6 +565,23 @@ async def backfill_analytics_history_auto_topup(
         concurrency_limit if concurrency_limit is not None else _resolve_concurrency_limit()
     )
 
+    async def commit_partition() -> None:
+        """Make one partition durable, then put the shop scope back.
+
+        Under `session_lock` because the four partition runners share this one
+        AsyncSession; their Partner fetches overlap but their DB touches must
+        not. Only the commit is serialized, so the overlap that makes this fast
+        is preserved.
+
+        The scope re-entry is not optional. The caller wraps this run in
+        `with_shop_scope`, whose SET LOCAL a commit discards — so without
+        putting it back, the first commit turns every later partition's write
+        into an RLS refusal. That is #1627 and #1631 in a different costume.
+        """
+        async with session_lock:
+            await session.commit()
+            await reapply_shop_scope(session, shop_id)
+
     return await backfill_analytics_history(
         session,
         shop_id=shop_id,
@@ -562,4 +590,5 @@ async def backfill_analytics_history_auto_topup(
         budget=budget,
         concurrency_limit=resolved_concurrency_limit,
         run_partition=partition_runner,
+        on_partition_complete=commit_partition,
     )

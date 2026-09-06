@@ -421,6 +421,27 @@ async def with_shop_scope(
             _shop_scope_active.reset(token)
 
 
+async def reapply_shop_scope(session: AsyncSession, shop_id: uuid.UUID) -> None:
+    """Re-establish the shop GUC after a COMMIT discarded it.
+
+    `with_shop_scope` sets `app.current_shop_id` with SET LOCAL, which is
+    transaction-scoped: a commit throws it away. Any caller that commits in the
+    middle of a scope — because it wants progress to be durable rather than all
+    -or-nothing — must put the GUC back, or every write after the first commit
+    is refused by RLS. That is #1627 and #1631 in a different costume.
+
+    `with_shop_scope` cannot serve here: it sets on entry and RESTORES on exit,
+    so entering and leaving it immediately puts back the pre-commit value, which
+    after a commit is nothing at all.
+
+    The user GUC is deliberately left empty, exactly as `with_shop_scope` leaves
+    it (#1478): shop-scoped work has no user, and a withheld GUC makes every
+    user-keyed policy deny structurally rather than by convention.
+    """
+    _require_shop_for_shop_scope(shop_id)
+    await _write_tenant_gucs(session, str(shop_id), "")
+
+
 @asynccontextmanager
 async def system_scope(
     session: AsyncSession,
