@@ -20,19 +20,19 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1603.json",
     "ownerSignoffPresent": true,
-    "sha256": "8ab21bb977fff9884b70399df61d0fc8a4e8974c70eb9093f2ae769972610133",
+    "sha256": "2ce8f137f6770a6d03b07a0a95a8b529f61fbb8c6525c209e6bfb0e3826a56d0",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 7159,
+      "reviewBytes": 7161,
       "validationBytes": 25233
     },
     "claimVsExecuted": {
       "citedCommandCount": 5,
-      "invokedCommandCount": 11925,
+      "invokedCommandCount": 11928,
       "matchedCommandCount": 0,
       "reason": "5 of 5 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
@@ -167,15 +167,15 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1603-fix",
-        "head": "b960e13884b119d2af52970e32b7b2f9fd94d9cb",
+        "head": "9c1f0e492549296b5a4ffe658cd320da6646da45",
         "shallow": true
       },
       "moduleResolution": {
-        "error": "ModuleNotFoundError: No module named 'juli_backend'",
+        "error": null,
         "expectedPrefix": "/Users/macos/Juli-AI-v2/.worktrees/w5-1603/backend/src/juli_backend",
-        "insideRepo": false,
+        "insideRepo": true,
         "module": "juli_backend",
-        "resolved": null
+        "resolved": "/Users/macos/Juli-AI-v2/.worktrees/w5-1603/backend/src/juli_backend/__init__.py"
       },
       "python": "3.12.9",
       "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/w5-1603"
