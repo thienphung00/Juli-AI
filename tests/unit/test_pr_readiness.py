@@ -21,9 +21,19 @@ _BODY = "agent-runtime/artifacts"
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CI_DIR = REPO_ROOT / "agent-runtime" / "scripts" / "ci"
-sys.path.insert(0, str(CI_DIR))
 
-from common import write_json  # noqa: E402
+
+def _write_json(path: Path, payload: object) -> None:
+    """Defer the ci-dir import so the module needs no path shim above imports.
+
+    A module-level `sys.path.insert` followed by a late import is an E402, and
+    suppressing it adds a suppression the ratchet then has to carry. Importing
+    inside the helper keeps the module's import block clean.
+    """
+    sys.path.insert(0, str(CI_DIR))
+    from common import write_json
+
+    write_json(path, payload)
 
 
 def _run_pr_readiness(*args: str) -> subprocess.CompletedProcess:
@@ -56,7 +66,7 @@ class TestIssuePrePrMode:
             "branch": "feature/test-wave",
             "issues": [issue],
         }
-        write_json(manifest_dir / f"{wave_id}.json", manifest)
+        _write_json(manifest_dir / f"{wave_id}.json", manifest)
 
         result = _run_pr_readiness(
             "--issue",
@@ -98,7 +108,7 @@ class TestIssuePrePrMode:
             },
             "gateVersion": 1,
         }
-        write_json(status_dir / f"issue-{issue}.json", record)
+        _write_json(status_dir / f"issue-{issue}.json", record)
 
         # Create wave manifest with issue
         manifest = {
@@ -106,7 +116,7 @@ class TestIssuePrePrMode:
             "branch": "feature/test-wave",
             "issues": [issue],
         }
-        write_json(manifest_dir / f"{wave_id}.json", manifest)
+        _write_json(manifest_dir / f"{wave_id}.json", manifest)
 
         result = _run_pr_readiness(
             "--issue",
@@ -145,7 +155,7 @@ class TestIssuePrePrMode:
             },
             "gateVersion": 1,
         }
-        write_json(status_dir / f"issue-{issue}.json", record)
+        _write_json(status_dir / f"issue-{issue}.json", record)
 
         # Create wave manifest with issue
         manifest = {
@@ -153,7 +163,7 @@ class TestIssuePrePrMode:
             "branch": "feature/test-wave",
             "issues": [issue],
         }
-        write_json(manifest_dir / f"{wave_id}.json", manifest)
+        _write_json(manifest_dir / f"{wave_id}.json", manifest)
 
         result = _run_pr_readiness(
             "--issue",
@@ -192,7 +202,7 @@ class TestIssuePrePrMode:
             "branch": "feature/test-wave",
             "issues": [issue],
         }
-        write_json(manifest_dir / f"{wave_id}.json", manifest)
+        _write_json(manifest_dir / f"{wave_id}.json", manifest)
 
         result = _run_pr_readiness(
             "--issue",
@@ -236,7 +246,7 @@ class TestIssuePrePrMode:
             },
             "gateVersion": 1,
         }
-        write_json(status_dir / f"issue-{issue}.json", record)
+        _write_json(status_dir / f"issue-{issue}.json", record)
 
         # Create wave manifest WITHOUT this issue
         manifest = {
@@ -244,7 +254,7 @@ class TestIssuePrePrMode:
             "branch": "feature/test-wave",
             "issues": [9999, 10000],
         }
-        write_json(manifest_dir / f"{wave_id}.json", manifest)
+        _write_json(manifest_dir / f"{wave_id}.json", manifest)
 
         result = _run_pr_readiness(
             "--issue",
@@ -280,7 +290,7 @@ class TestIssuePrePrMode:
             "branch": "feature/test-wave",
             "issues": [9999, 10000],
         }
-        write_json(manifest_dir / f"{wave_id}.json", manifest)
+        _write_json(manifest_dir / f"{wave_id}.json", manifest)
 
         result = _run_pr_readiness(
             "--issue",
@@ -331,7 +341,7 @@ class TestIssuePrePrMode:
             },
             "gateVersion": 2,
         }
-        write_json(status_dir / f"issue-{issue}.json", record)
+        _write_json(status_dir / f"issue-{issue}.json", record)
 
         # Create wave manifest with issue
         manifest = {
@@ -339,7 +349,7 @@ class TestIssuePrePrMode:
             "branch": "feature/test-wave",
             "issues": [issue],
         }
-        write_json(manifest_dir / f"{wave_id}.json", manifest)
+        _write_json(manifest_dir / f"{wave_id}.json", manifest)
 
         result = _run_pr_readiness(
             "--issue",
@@ -397,7 +407,7 @@ class TestScanMode:
             waves_dir.mkdir()
 
             # Create wave manifest with both issues
-            write_json(
+            _write_json(
                 waves_dir / f"{wave_id}.json",
                 {
                     "waveId": wave_id,
@@ -407,7 +417,7 @@ class TestScanMode:
             )
 
             # Create PASS status record for ready PR (same structure as real implementation)
-            write_json(
+            _write_json(
                 status_dir / f"issue-{ready_issue}.json",
                 {
                     "issue": ready_issue,
