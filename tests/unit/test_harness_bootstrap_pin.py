@@ -1024,3 +1024,44 @@ def test_committed_drift_plus_uncommitted_fails(
     assert passed is False, "Uncommitted drift makes the gate fail"
     # Should see both drifted paths.
     assert DOCS_REL in details["driftedHarnessPaths"]
+
+
+def test_clean_record_produces_no_failures_on_a_harness_changing_branch(
+    harness_repo: tuple[Path, str],
+) -> None:
+    """AC5: The gate produces no failures on a harness-changing branch.
+
+    The clean_record gate (test_mutants.py::test_clean_record_produces_no_failures)
+    passes when a branch has committed-only harness drift. This test demonstrates
+    the property end-to-end by proving that scenario then failing with uncommitted drift.
+
+    This is the end-to-end proof that the fix works: a PR that intentionally
+    changes the harness (committed drift, under review) should pass the gate,
+    but unreviewed in-flight edits (uncommitted) should still fail, which would
+    break the clean_record gate. This combines AC1 (committed passes) and AC2
+    (uncommitted fails) into one property that proves the gate is now usable for
+    harness PRs.
+    """
+    repo, _ = harness_repo
+    parent = _parent("merge-base:main", pin.resolve_bootstrap_anchor("merge-base:main", repo))
+
+    # Step 1: Create a harness-changing branch with committed drift.
+    _write(repo, SKILL_REL, "# backend skill\nintentional harness change for review\n")
+    _commit(repo, "feat: update backend skill for review")
+
+    # Step 2: Verify the gate passes on the harness-changing branch.
+    passed, description, details = _validate(repo, parent)
+    assert passed is True, f"Gate should pass on harness-changing branch: {description}"
+    assert SKILL_REL in details["committedDrift"]
+    assert SKILL_REL in description, "Detail must name the reviewed path"
+
+    # Step 3: Add an uncommitted edit under a different watched path.
+    _write(repo, DOCS_REL, "# agent runtime\nuncommitted edit, not reviewed\n")
+
+    # Step 4: Verify the gate fails (ADR-092 criterion 2) — uncommitted drift
+    # must fail even on a harness-changing branch.
+    passed, description, details = _validate(repo, parent)
+    assert passed is False, "Gate must fail on uncommitted drift"
+    assert DOCS_REL in details["uncommittedDrift"]
+    # But the committed part is still recorded.
+    assert SKILL_REL in details["committedDrift"]
