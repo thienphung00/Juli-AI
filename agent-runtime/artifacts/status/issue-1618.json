@@ -16,19 +16,19 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1618.json",
     "ownerSignoffPresent": true,
-    "sha256": "029f84511b6bd260251365150d6cbb5118cd740e9c9f0ec9dccc202211c8de4d",
+    "sha256": "d901c6bd338ecc2f08ee4cb9c6d392e9807c914397d1c5c4d0e8fafb60db104e",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 3702,
-      "validationBytes": 25312
+      "reviewBytes": 3701,
+      "validationBytes": 25311
     },
     "claimVsExecuted": {
       "citedCommandCount": 0,
-      "invokedCommandCount": 11873,
+      "invokedCommandCount": 11877,
       "matchedCommandCount": 0,
       "reason": "the implementation artifact cites no commands under redGreenRefactorEvidence[].commands; there is nothing to verify",
       "recordPasses": false,
@@ -137,7 +137,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1618-dissolution-scope",
-        "head": "024af13ce7d05a901fe91241a149db6baf1f4815",
+        "head": "49089e08c5b313ee223c6780a44f6dbbbb158517",
         "shallow": true
       },
       "moduleResolution": {
@@ -151,7 +151,53 @@
       "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/w5-1618"
     },
     "metrics": {
-      "agents": [],
+      "agents": [
+        {
+          "agentId": "af0c692445f4fd01b",
+          "attributedBy": "worktreePath",
+          "branches": [
+            "feature/issue-1618-dissolution-scope"
+          ],
+          "durationMs": 1382179,
+          "messageCount": 107,
+          "recordCount": 370,
+          "role": "reviewer",
+          "roleSignal": "Review",
+          "sessionIds": [
+            "3035598a-f8d1-4c62-bc80-6838edda31d6"
+          ],
+          "settled": true,
+          "sidechainRecordCount": 370,
+          "spawnDirective": "Review two related slices and land their status",
+          "tokenUsage": {
+            "cacheCreation": 397019,
+            "cacheRead": 12644997,
+            "input": 214,
+            "output": 1419,
+            "total": 13043649
+          },
+          "toolInvocationCount": 132,
+          "toolsUsed": [
+            {
+              "count": 112,
+              "toolName": "Bash"
+            },
+            {
+              "count": 19,
+              "toolName": "Read"
+            },
+            {
+              "count": 1,
+              "toolName": "Skill"
+            }
+          ],
+          "transcriptRef": "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks/af0c692445f4fd01b.output",
+          "workspaces": [
+            "w5-1436",
+            "w5-1618"
+          ]
+        }
+      ],
       "disagreements": [
         {
           "claimed": 25,
@@ -172,66 +218,33 @@
       ],
       "executionDurationMs": {
         "available": false,
-        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+        "reason": "no attributed agent's spawn directive named it this issue's executor, so there is no run to report: 1 candidate(s) were tied to the issue with roles ['reviewer']. Reporting one anyway is how a settled reviewer came to be recorded as the run (#1512). Per-agent readings are listed under agents[]"
       },
       "executorDomain": "backend",
       "executorDomainSource": "implementation-artifact",
       "gaps": [
         {
-          "detail": "NameError: name '_settle_clock' is not defined",
-          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
-          "reason": "task-dir-unreadable"
+          "agents": [
+            "a069b075e0274d3dd"
+          ],
+          "detail": "attributed agents whose transcript is still being written; a running agent has not yet spent what it will spend, so its reading is a lower bound and is not reported as a measurement",
+          "reason": "in-flight-transcript"
         },
         {
-          "detail": "NameError: name '_settle_clock' is not defined",
-          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
-          "reason": "task-dir-unreadable"
-        },
-        {
-          "detail": "NameError: name '_settle_clock' is not defined",
-          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
-          "reason": "task-dir-unreadable"
-        },
-        {
-          "detail": "NameError: name '_settle_clock' is not defined",
-          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/cb047053-ee20-4e00-925f-7ebf36c0417b/tasks",
-          "reason": "task-dir-unreadable"
-        },
-        {
-          "detail": "NameError: name '_settle_clock' is not defined",
-          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
-          "reason": "task-dir-unreadable"
-        },
-        {
-          "detail": "NameError: name '_settle_clock' is not defined",
-          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
-          "reason": "task-dir-unreadable"
-        },
-        {
-          "detail": "NameError: name '_settle_clock' is not defined",
-          "path": "/tmp/claude-501/-Users-macos/61a4eb31-9294-45c2-a803-0c26980300c6/tasks",
-          "reason": "task-dir-unreadable"
-        },
-        {
-          "detail": "NameError: name '_settle_clock' is not defined",
-          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/491f9d6b-185a-43a4-bbea-f1fcd906bf1d/tasks",
-          "reason": "task-dir-unreadable"
-        },
-        {
-          "detail": "NameError: name '_settle_clock' is not defined",
-          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/03369828-07b8-46b9-8587-8b7e97d289c1/tasks",
-          "reason": "task-dir-unreadable"
-        },
-        {
-          "agentsScanned": 0,
-          "detail": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
-          "reason": "no-persisted-task-transcripts"
+          "candidates": [
+            {
+              "agentId": "af0c692445f4fd01b",
+              "role": "reviewer"
+            }
+          ],
+          "detail": "no attributed agent's spawn directive named it this issue's executor, so there is no run to report: 1 candidate(s) were tied to the issue with roles ['reviewer']. Reporting one anyway is how a settled reviewer came to be recorded as the run (#1512). Per-agent readings are listed under agents[]",
+          "reason": "no-executor-role-identified"
         }
       ],
       "schemaVersion": 1,
       "source": {
-        "agentsAttributed": 0,
-        "agentsScanned": 0,
+        "agentsAttributed": 1,
+        "agentsScanned": 311,
         "attributedBy": ".worktrees path naming issue-1618",
         "executorsIdentified": 0,
         "kind": "task-transcript",
@@ -249,14 +262,14 @@
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/03369828-07b8-46b9-8587-8b7e97d289c1/tasks"
         ]
       },
-      "status": "not-measured",
+      "status": "ambiguous",
       "tokenUsage": {
         "available": false,
-        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+        "reason": "no attributed agent's spawn directive named it this issue's executor, so there is no run to report: 1 candidate(s) were tied to the issue with roles ['reviewer']. Reporting one anyway is how a settled reviewer came to be recorded as the run (#1512). Per-agent readings are listed under agents[]"
       },
       "toolInvocationCount": {
         "available": false,
-        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+        "reason": "no attributed agent's spawn directive named it this issue's executor, so there is no run to report: 1 candidate(s) were tied to the issue with roles ['reviewer']. Reporting one anyway is how a settled reviewer came to be recorded as the run (#1512). Per-agent readings are listed under agents[]"
       },
       "toolsUsed": []
     },
@@ -286,10 +299,10 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-06T05:54:50Z",
+  "timestamp": "2026-09-06T06:15:36Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1618.json",
-    "sha256": "e5f29046047c5068f5b0871dd98dbb9f27633980ec63fd9c5034dbd7630cee43",
+    "sha256": "c22b797975fe4053379832309e31df215b9142f6b341440b2ead9f1ddc3d2433",
     "status": "PASS"
   },
   "wave": "wave-harness-e-w5"
