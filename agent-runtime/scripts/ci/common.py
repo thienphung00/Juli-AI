@@ -116,6 +116,42 @@ def load_artifact_schema(artifact_type: str) -> dict[str, Any]:
     return load_json(schema_path)
 
 
+def check_token_usage_semantic(token_usage: Any) -> list[str]:
+    """Semantic validation of tokenUsage to mirror check_implementation_artifact.
+
+    The schema can only check structure. This checks the semantic constraint:
+    - If measured (no 'available' key), total must be > 0 (not 0, not negative)
+    - If unmeasured (available: false), total must not be present
+
+    Returns list of error messages (empty when valid).
+    """
+    errors: list[str] = []
+    if not isinstance(token_usage, dict):
+        return errors  # Schema handles this
+
+    if "available" in token_usage:
+        if token_usage.get("available") is False:
+            if "value" in token_usage:
+                errors.append(
+                    "tokenUsage: carries 'value' alongside available:false — "
+                    "the unavailable shape omits the key so a consumer that skips "
+                    "the check raises rather than reading a plausible number"
+                )
+            # Schema handles other validation of unavailable branch
+        return errors
+
+    # Measured branch: total must be > 0
+    total = token_usage.get("total")
+    if isinstance(total, int) and not isinstance(total, bool):
+        if total <= 0:
+            errors.append(
+                "tokenUsage.total is 0, which reads as a measurement and is not one — "
+                "record {available: false, reason: '...'} (no 'value' key) when the run "
+                "was not measured, or {input, output, total} when it was"
+            )
+    return errors
+
+
 def write_json_with_schema_validation(
     path: Path, payload: dict[str, Any], artifact_type: str
 ) -> None:
@@ -124,6 +160,15 @@ def write_json_with_schema_validation(
 
     schema = load_artifact_schema(artifact_type)
     errors = validate_json_schema(payload, schema)
+
+    # Add semantic validation for implementation artifacts
+    if not errors and artifact_type == "implementation":
+        token_usage = payload.get("tokenUsage")
+        if token_usage is not None:
+            semantic_errors = check_token_usage_semantic(token_usage)
+            if semantic_errors:
+                errors.extend([f"tokenUsage: {err}" for err in semantic_errors])
+
     if errors:
         raise SchemaValidationError(artifact_type, errors)
     write_json(path, payload)

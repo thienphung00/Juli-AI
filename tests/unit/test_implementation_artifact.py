@@ -393,3 +393,58 @@ def test_generator_rejects_a_malformed_tools_used(tmp_path: Path, monkeypatch) -
 
     artifact_path = impl_dir / "implementation-issue-247.json"
     assert not artifact_path.exists(), "file should not be written when validation fails"
+
+
+def test_generator_rejects_zero_total_with_nonzero_inputs(tmp_path: Path, monkeypatch) -> None:
+    """tokenUsage with total=0 beside non-zero input/output must fail.
+
+    #1667's review caught a measurement where total was 0 alongside non-zero
+    input/output — not a real measurement. The gate rejects this downstream as
+    'reads as a measurement and is not one'. The generator should catch it
+    at emit time using the same check.
+    """
+    impl_dir = tmp_path / "artifacts" / "implementations"
+    impl_dir.mkdir(parents=True)
+
+    import common
+
+    monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", impl_dir)
+    monkeypatch.setattr(common, "REPO_ROOT", tmp_path)
+
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(
+        json.dumps(
+            {
+                "executionDurationMs": 900,
+                "tokenUsage": {"input": 95000, "output": 25000, "total": 0},
+                "toolInvocationCount": 4,
+                "contextFilesLoaded": ["test.py"],
+                "skillsLoaded": ["backend"],
+                "implementationSummary": "Test with zero total",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    from generate_implementation_artifact import main as generate_main
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "generate_implementation_artifact.py",
+            "--issue",
+            "247",
+            "--executor-domain",
+            "backend",
+            "--input-json",
+            str(overrides),
+        ],
+    )
+
+    # Generator should exit non-zero and not write the file
+    exit_code = generate_main()
+    assert exit_code != 0, "generator should reject tokenUsage with total=0"
+
+    artifact_path = impl_dir / "implementation-issue-247.json"
+    assert not artifact_path.exists(), "file should not be written when validation fails"
