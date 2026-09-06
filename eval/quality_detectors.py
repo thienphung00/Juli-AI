@@ -1241,7 +1241,7 @@ def build_report(
 #: rather than reconciled away. Regenerate with
 #: ``python -m eval.quality_detectors scan`` and update both numbers together.
 MEASURED_ZERO_ASSERTION_TESTS = 50
-MEASURED_TEST_FUNCTIONS = 4640
+MEASURED_TEST_FUNCTIONS = 4638
 #: Test modules the corpus figure is spread over. Like the corpus it is a
 #: denominator, not a claim, so it is held to a tolerance rather than pinned.
 MEASURED_TEST_MODULES = 459
@@ -1250,7 +1250,7 @@ MEASURED_TEST_MODULES = 459
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
 #: the third layer, this module's headline on the fifth.
 RECONCILIATION_LAYERS: dict[str, int] = {
-    "no_assert_statement": 404,
+    "no_assert_statement": 407,
     "and_no_pytest_raises": 124,
     "and_no_mock_assert_called": 107,
     "and_no_unittest_self_assert": 107,
@@ -1271,12 +1271,12 @@ RECONCILIATION: dict[str, Any] = {
     "note": (
         "Neither figure is wrong; they count different things, and the layer "
         "decomposition above shows exactly where they part. Measured here: 50 "
-        "zero-assertion tests in a corpus of 4,640 test functions over tests/ "
+        "zero-assertion tests in a corpus of 4,638 test functions over tests/ "
         "backend/ scripts/ agent-runtime/ eval/ (459 test modules). The prior "
         "~97-of-4,048 reading corresponds to the `and_no_mock_assert_called` "
         "layer — a detector that credits `pytest.raises` and `mock.assert_called*` "
         "as assertions but not delegation to a same-file asserting helper. That "
-        "layer reads 107 today; scaled to this corpus it is 97 * 4640/4048 = 111.2, "
+        "layer reads 107 today; scaled to this corpus it is 97 * 4638/4048 = 111, "
         "four above that layer — the exact match held at 4,472 and no longer does, "
         "so the claim rests on the rates rather than the coincidence: they agree "
         "to within a tenth of a percentage point (2.40% then, 2.31% now). "
