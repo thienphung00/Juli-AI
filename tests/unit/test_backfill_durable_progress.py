@@ -179,8 +179,11 @@ async def test_a_failed_partition_rolls_back_so_the_next_one_can_run(monkeypatch
     async def on_partition_complete() -> None:
         events.append("commit")
 
-    async def on_partition_failed() -> None:
-        events.append("rollback")
+    async def on_partition_failed(bucket: str, partition_date: date, exc: BaseException) -> None:
+        # The hook now receives the identity and the exception because it OWNS
+        # recording the failure (#1673) — a hook that only rolls back discards
+        # the runner's `mark_failed` flush.
+        events.append(f"rollback:{bucket}:{partition_date.isoformat()}:{type(exc).__name__}")
 
     monkeypatch.setattr(orch, "AnalyticsBackfillPartitionsRepo", lambda session: _PartitionsRepo())
 
@@ -197,12 +200,17 @@ async def test_a_failed_partition_rolls_back_so_the_next_one_can_run(monkeypatch
         on_partition_failed=on_partition_failed,
     )
 
-    assert "rollback" in events, (
+    rollbacks = [e for e in events if e.startswith("rollback")]
+    assert rollbacks, (
         f"a failed partition did not roll back; the session stays poisoned and every "
         f"partition after it fails on PendingRollbackError: {events}"
     )
     # The rollback must precede the partitions that follow, or it does not help them.
-    rollback_at = events.index("rollback")
+    assert rollbacks == ["rollback:revenue:2026-09-01:RuntimeError"], (
+        f"the hook must be told WHICH partition failed and WHY, or it cannot record "
+        f"the failure at all: {rollbacks}"
+    )
+    rollback_at = next(i for i, e in enumerate(events) if e.startswith("rollback"))
     later_runs = [i for i, e in enumerate(events) if e.startswith("ran:") and i > rollback_at]
     assert later_runs, f"no partition ran after the failure, so the cascade is untested: {events}"
     assert events.count("commit") == 2, (

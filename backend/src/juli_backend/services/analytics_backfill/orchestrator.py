@@ -44,6 +44,9 @@ from juli_backend.services.analytics_backfill.budget import (
 from juli_backend.services.analytics_backfill.catalog_partition import (
     run_catalog_partition,
 )
+from juli_backend.services.analytics_backfill.error_classification import (
+    is_retryable_partition_error,
+)
 from juli_backend.services.analytics_backfill.live_partition import (
     run_live_partition,
 )
@@ -174,6 +177,56 @@ def _structured_log_fields(
     return fields
 
 
+PartitionFailureHook = Callable[[str, date, BaseException], Awaitable[None]]
+"""Called after a partition raised: un-poison the session AND persist the failure.
+
+Both halves are mandatory. A hook that only rolls back silently discards the
+runner's `mark_failed` flush (#1673).
+"""
+
+
+async def persist_partition_failure(
+    session: AsyncSession,
+    *,
+    session_lock: asyncio.Lock,
+    partitions_repo: AnalyticsBackfillPartitionsRepo,
+    shop_id: uuid.UUID,
+    bucket: str,
+    partition_date: date,
+    exc: BaseException,
+) -> None:
+    """Clear the poisoned transaction, then make the failure record durable.
+
+    THE ORDER IS THE FIX (#1673). `mark_failed` flushes and does not commit, so
+    the rollback that un-poisons the session also discards the runner's own
+    failure record. Between #1668 and this change the backfill's failure
+    bookkeeping was write-only: the same 30 live partitions failed on every run,
+    `attempt_count` never moved off its pre-#1668 value, and #1672's
+    `retryable=False` — the mechanism meant to stop a 401 being retried forever —
+    never reached a single row. The run could not converge, because nothing it
+    learned about a failure outlived the transaction that learned it.
+
+    Rolling back first and writing second is what makes the record survive.
+    Writing first and rolling back second is the bug.
+
+    Both `reapply_shop_scope` calls are load-bearing: rollback and commit each
+    discard SET LOCAL, and without the scope the write is an RLS refusal
+    (#1627, #1631).
+    """
+    async with session_lock:
+        await session.rollback()
+        await reapply_shop_scope(session, shop_id)
+        await partitions_repo.mark_failed(
+            shop_id,
+            bucket,
+            partition_date,
+            f"{type(exc).__name__}: {exc}",
+            retryable=is_retryable_partition_error(exc),
+        )
+        await session.commit()
+        await reapply_shop_scope(session, shop_id)
+
+
 async def backfill_analytics_history(
     session: AsyncSession,
     *,
@@ -184,7 +237,7 @@ async def backfill_analytics_history(
     budget: CallBudgetGovernor | None = None,
     run_partition: PartitionRunner,
     on_partition_complete: Callable[[], Awaitable[None]] | None = None,
-    on_partition_failed: Callable[[], Awaitable[None]] | None = None,
+    on_partition_failed: PartitionFailureHook | None = None,
     concurrency_limit: int = 1,
 ) -> OrchestratorResult:
     """Walk buckets and dates with bounded concurrency, honoring budget.
@@ -270,8 +323,17 @@ async def backfill_analytics_history(
                 # Catching the exception per partition is not enough — the
                 # session has to be made usable again, and the rollback discards
                 # SET LOCAL so the shop scope has to go back too.
+                #
+                # The hook also OWNS RECORDING THE FAILURE (#1673). The runner
+                # calls `mark_failed`, but `mark_failed` only flushes — so the
+                # rollback immediately below discards it. Between #1668 and this
+                # change every failure record was written and then thrown away,
+                # which is why 30 live partitions failed identically on every
+                # run, their `attempt_count` never moved, and #1672's
+                # `retryable=False` never reached a row. The hook has to put the
+                # record back after the rollback, not before it.
                 if on_partition_failed is not None:
-                    await on_partition_failed()
+                    await on_partition_failed(bucket, partition_date, e)
                 logger.error(
                     "analytics_backfill_partition_failed",
                     extra={
@@ -595,18 +657,37 @@ async def backfill_analytics_history_auto_topup(
             await session.commit()
             await reapply_shop_scope(session, shop_id)
 
-    async def rollback_partition() -> None:
-        """Make the session usable again after a partition raised.
+    async def rollback_partition(bucket: str, partition_date: date, exc: BaseException) -> None:
+        """Make the session usable again after a partition raised, and keep the record.
 
-        Without this the first database failure ends the whole run: the session
-        is left rolled back and every later partition raises
+        Without the rollback the first database failure ends the whole run: the
+        session is left rolled back and every later partition raises
         PendingRollbackError before doing any work of its own. The scope is
         re-applied for the same reason it is after a commit — a rollback
         discards SET LOCAL just as a commit does.
+
+        THE ROLLBACK ALONE IS A BUG (#1673). The partition runner records its own
+        failure through `mark_failed`, which flushes but does not commit, so the
+        rollback here threw that record away. Between #1668 and this change the
+        failure bookkeeping was write-only: 30 live partitions failed on every
+        single run, `attempt_count` stayed frozen at its pre-#1668 value, and
+        #1672's whole point — writing `retryable=False` so a 401 stops being
+        retried — never reached a row. The backfill could not converge, because
+        nothing it learned about a failure survived the transaction that learned
+        it.
+
+        So: roll back FIRST to clear the poison, then write the record into the
+        now-clean transaction and commit it. Order is the entire fix.
         """
-        async with session_lock:
-            await session.rollback()
-            await reapply_shop_scope(session, shop_id)
+        await persist_partition_failure(
+            session,
+            session_lock=session_lock,
+            partitions_repo=partitions_repo,
+            shop_id=shop_id,
+            bucket=bucket,
+            partition_date=partition_date,
+            exc=exc,
+        )
 
     return await backfill_analytics_history(
         session,
