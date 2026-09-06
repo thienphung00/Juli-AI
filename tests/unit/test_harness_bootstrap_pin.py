@@ -282,23 +282,30 @@ def test_a_self_referential_spec_cannot_launder_committed_harness_drift(
 ) -> None:
     """The end-to-end lock-6 assertion: real drift, re-pinned, must stay red.
 
-    Anchoring to the branch tip and regenerating the cache would make every
-    change made before *now* invisible — clearing a red by editing gate
-    configuration, which is precisely what lock 6 forbids.
+    After #1667, committed drift passes (AC1). But a self-referential anchor
+    cannot be used to hide even uncommitted drift, because anchoring to the
+    checked-out tip would make all history invisible.
+
+    This test uses committed drift with an uncommitted edit on top, so the
+    gate fails on the uncommitted part. The self-referential anchor still
+    cannot be used because it raises at pin time.
     """
     repo, fork_point = harness_repo
     _write(repo, SKILL_REL, "# backend skill\nreal committed harness drift\n")
     _commit(repo, "chore: drift the harness")
+    # Add uncommitted drift on top so the gate fails.
+    _write(repo, DOCS_REL, "# agent runtime\nuncommitted drift\n")
 
-    # The correct anchor bites.
+    # The correct anchor should fail on the uncommitted part.
     passed, description, _ = _validate(repo, _parent("merge-base:main", fork_point))
     assert passed is False
-    assert SKILL_REL in description
+    assert DOCS_REL in description
 
-    # And no self-referential re-pin can un-bite it, at write time or read time.
+    # And no self-referential re-pin can be used anyway, at write time.
     for spec in ("merge-base:HEAD", "feature/issue-1540-bootstrap-pin"):
         with pytest.raises(RuntimeError):
             pin.bootstrap_ref_from_git(spec, repo)
+        # Even at read time, the uncommitted drift should fail.
         laundered, _, _ = _validate(repo, _parent(spec, _git(repo, "rev-parse", "HEAD")))
         assert laundered is False
 
@@ -342,9 +349,14 @@ def test_merge_base_anchor_resolves_to_the_fork_point_not_the_tip(
 # ---------------------------------------------------------------------------
 
 
-def test_gate_fails_when_cursor_skills_drift_in_a_commit(
+def test_gate_passes_when_cursor_skills_drift_is_committed(
     harness_repo: tuple[Path, str],
 ) -> None:
+    """AC1: Committed harness drift passes.
+
+    After #1667, committed drift is recognized as reviewed and passes. The
+    detail names the reviewed paths so reviewers see them.
+    """
     repo, _ = harness_repo
     parent = _parent("merge-base:main", pin.resolve_bootstrap_anchor("merge-base:main", repo))
 
@@ -352,9 +364,9 @@ def test_gate_fails_when_cursor_skills_drift_in_a_commit(
     _commit(repo, "chore: quietly edit the harness")
 
     passed, description, details = _validate(repo, parent)
-    assert passed is False
+    assert passed is True, description
     assert SKILL_REL in description
-    assert details["driftedHarnessPaths"] == [SKILL_REL]
+    assert SKILL_REL in details["committedDrift"]
 
 
 def test_gate_fails_when_cursor_skills_drift_uncommitted(
@@ -372,8 +384,11 @@ def test_gate_fails_when_cursor_skills_drift_uncommitted(
     assert details["driftedHarnessPaths"] == [SKILL_REL]
 
 
-def test_gate_fails_when_agent_runtime_docs_drift(harness_repo: tuple[Path, str]) -> None:
-    """Every configured bootstrap sourcePath is watched, not only ``.cursor/skills``."""
+def test_gate_passes_when_agent_runtime_docs_drift_is_committed(
+    harness_repo: tuple[Path, str],
+) -> None:
+    """AC1: Every configured bootstrap sourcePath is watched, and committed
+    drift passes."""
     repo, _ = harness_repo
     parent = _parent("merge-base:main", pin.resolve_bootstrap_anchor("merge-base:main", repo))
 
@@ -381,8 +396,8 @@ def test_gate_fails_when_agent_runtime_docs_drift(harness_repo: tuple[Path, str]
     _commit(repo, "docs: quietly edit the runtime doc")
 
     passed, description, details = _validate(repo, parent)
-    assert passed is False
-    assert details["driftedHarnessPaths"] == [DOCS_REL]
+    assert passed is True, description
+    assert DOCS_REL in details["committedDrift"]
 
 
 def test_gate_fails_on_a_new_untracked_harness_file(harness_repo: tuple[Path, str]) -> None:
@@ -656,8 +671,15 @@ def test_hardcoded_main_anchor_misreports_a_landed_wave_change_as_drift(
     wave_repo: tuple[Path, str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The bug itself, reproduced: PR #1561's exact failure shape."""
-    repo, _main_tip, _wave_tip = wave_repo
+    """The bug itself, reproduced: PR #1561's exact failure shape.
+
+    After #1667, committed drift (even if it's from a merge, not this branch's
+    own commits) passes with AC1. This test now passes because the wave's
+    committed change is treated as reviewed drift. The fix for PR #1561 is
+    still correct: use merge-base:origin/BASE_REF so the anchor is the wave's
+    own tip, not main's tip.
+    """
+    repo, _main_tip, wave_tip = wave_repo
     monkeypatch.delenv("BASE_REF", raising=False)
     monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
 
@@ -666,9 +688,11 @@ def test_hardcoded_main_anchor_misreports_a_landed_wave_change_as_drift(
     )
     passed, description, details = _validate(repo, parent)
 
-    assert passed is False
-    assert DOCS_REL in details["driftedHarnessPaths"]
-    assert "Harness drift" in description
+    # After #1667, this drift is committed (merged-in from the wave), so it
+    # passes (not fails). The actual fix for PR #1561 is to use the wave as the
+    # anchor base, which makes that change common ground, not drift.
+    assert passed is True, description
+    assert DOCS_REL in details["committedDrift"]
 
 
 def test_base_ref_token_anchor_does_not_misreport_the_landed_wave_change(
@@ -694,21 +718,25 @@ def test_base_ref_token_anchor_still_catches_drift_the_issue_branch_introduces(
     wave_repo: tuple[Path, str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """ADR-092 criterion 2, exhibited: the corrected anchor must still bite on
-    real drift the issue branch itself introduces on top of the wave. A fix
-    that only silenced the false positive, without preserving this, would turn
-    the gate always-green -- strictly worse than the bug it replaces."""
+    """AC1/AC2 combined: the anchor must allow the issue branch's own committed
+    drift (AC1), but still catch uncommitted drift (AC2). ADR-092 criterion 2
+    requires that uncommitted drift make the gate red on a harness-changing
+    branch."""
     repo, _main_tip, wave_tip = wave_repo
     monkeypatch.setenv("BASE_REF", "wave")
     parent = _parent("merge-base:origin/BASE_REF", wave_tip)
 
-    _write(repo, SKILL_REL, "# backend skill\nEDITED by the issue branch itself\n")
-    _commit(repo, "chore: quietly edit the harness on the issue branch")
+    _write(repo, SKILL_REL, "# backend skill\ncommitted change by the issue branch\n")
+    _commit(repo, "chore: committed harness change on the issue branch")
+    # Add uncommitted drift on top so AC2 is tested: it must still fail.
+    _write(repo, DOCS_REL, "# agent runtime\nuncommitted drift\n")
 
     passed, description, details = _validate(repo, parent)
+    # Fails on the uncommitted part, per AC2.
     assert passed is False
-    assert SKILL_REL in details["driftedHarnessPaths"]
-    assert "Harness drift" in description
+    assert DOCS_REL in details["uncommittedDrift"]
+    # But the committed part is recorded as allowed.
+    assert SKILL_REL in details["committedDrift"]
 
 
 def test_base_ref_token_falls_back_to_main_when_the_environment_is_unset(
@@ -787,9 +815,10 @@ def test_base_ref_upstream_fallback_still_catches_real_drift(
     wave_repo: tuple[Path, str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The lock-6 exhibit, for the upstream-derived path specifically: a fix
-    that only silenced the no-env false positive, without preserving this,
-    would be an always-green gate for every local run."""
+    """AC2 exhibit for the upstream-derived fallback path: uncommitted drift
+    must still fail, even when the base is derived from @{u}. A fix that
+    silenced the false positive without preserving AC2 would be an
+    always-green gate."""
     repo, _main_tip, _wave_tip = wave_repo
     monkeypatch.delenv("BASE_REF", raising=False)
     monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
@@ -798,13 +827,17 @@ def test_base_ref_upstream_fallback_still_catches_real_drift(
     resolved = pin.resolve_bootstrap_anchor("merge-base:origin/BASE_REF", repo)
     parent = _parent("merge-base:origin/BASE_REF", resolved)
 
-    _write(repo, SKILL_REL, "# backend skill\nEDITED by the issue branch itself\n")
-    _commit(repo, "chore: quietly edit the harness on the issue branch")
+    _write(repo, SKILL_REL, "# backend skill\ncommitted change\n")
+    _commit(repo, "chore: committed harness change on the issue branch")
+    # Add uncommitted drift on top to test AC2.
+    _write(repo, DOCS_REL, "# agent runtime\nuncommitted drift\n")
 
     passed, description, details = _validate(repo, parent)
+    # Fails on the uncommitted part.
     assert passed is False
-    assert SKILL_REL in details["driftedHarnessPaths"]
-    assert "Harness drift" in description
+    assert DOCS_REL in details["uncommittedDrift"]
+    # But committed part is recorded.
+    assert SKILL_REL in details["committedDrift"]
 
 
 def test_base_ref_ignores_a_self_referential_upstream_and_degrades_to_main(
@@ -856,3 +889,138 @@ def test_base_ref_token_prefers_github_base_ref_over_git_upstream(
 
     resolved = pin.resolve_bootstrap_anchor("merge-base:origin/BASE_REF", repo)
     assert resolved == main_tip
+
+
+# ---------------------------------------------------------------------------
+# #1667 — distinguished reviewed drift (committed) from unreviewed drift
+# (uncommitted/untracked). A PR whose own diff contains harness changes
+# should pass; a run that makes unreviewed edits to the harness should still
+# fail. The two are decomposed: drift(pin->working) = drift(pin->HEAD) +
+# drift(HEAD->working); fail on the second, report on the first.
+# ---------------------------------------------------------------------------
+
+
+def test_committed_harness_drift_passes_and_detail_names_reviewed_paths(
+    harness_repo: tuple[Path, str],
+) -> None:
+    """AC1: A PR whose watched-path drift is entirely committed passes.
+
+    This is the bug: PR #1648 had committed, reviewed harness changes but
+    was treated as unreviewed drift. The gate must distinguish:
+    - committed drift (pin -> HEAD): reviewed, should PASS with detail
+    - uncommitted drift (HEAD -> working tree): unreviewed, should FAIL
+
+    When drift is committed only, the gate passes and names the reviewed paths
+    in its detail string so reviewers are not caught by surprise.
+    """
+    repo, fork_point = harness_repo
+    parent = _parent("merge-base:main", fork_point)
+
+    # Commit a harness change: drift at the HEAD level, not just the working
+    # tree.
+    _write(repo, SKILL_REL, "# backend skill\nreviewed committed change\n")
+    _commit(repo, "chore: committed harness change for review")
+
+    passed, description, details = _validate(repo, parent)
+
+    # The new behavior: AC1 demands PASS, not FAIL.
+    assert passed is True, description
+    # Detail must explicitly name the reviewed paths to warn reviewers.
+    assert SKILL_REL in description
+    # Should mention that it is reviewed/committed.
+    assert "reviewed" in description.lower() or "committed" in description.lower(), (
+        "Detail must mark the drift as reviewed"
+    )
+
+
+def test_uncommitted_edit_still_fails_after_drift_decomposition(
+    harness_repo: tuple[Path, str],
+) -> None:
+    """AC2: Uncommitted edits still FAIL on a harness-changing branch.
+
+    ADR-092 criterion 2: the docstring's original concern was unreviewed drift
+    while a run is in flight. An uncommitted edit lands in drift(HEAD->working)
+    regardless of what the PR itself does, so it must still fail.
+    """
+    repo, _ = harness_repo
+    parent = _parent("merge-base:main", pin.resolve_bootstrap_anchor("merge-base:main", repo))
+
+    # Uncommitted edit (not staged, not committed).
+    _write(repo, SKILL_REL, "# backend skill\nUNCOMMITTED edit, never reviewed\n")
+
+    passed, description, details = _validate(repo, parent)
+    assert passed is False, "Uncommitted edit must make the gate fail"
+    assert SKILL_REL in description
+    assert details["driftedHarnessPaths"] == [SKILL_REL]
+
+
+def test_untracked_file_still_fails_after_drift_decomposition(
+    harness_repo: tuple[Path, str],
+) -> None:
+    """AC3: Untracked files still FAIL, even if the PR has other reviewed changes.
+
+    An untracked file under a watched sourcePath is part of
+    drift(HEAD->working) and must fail.
+    """
+    repo, _ = harness_repo
+    parent = _parent("merge-base:main", pin.resolve_bootstrap_anchor("merge-base:main", repo))
+
+    # Add an untracked file.
+    _write(repo, ".cursor/skills/domain/untracked_skill/SKILL.md", "# untracked\n")
+
+    passed, description, details = _validate(repo, parent)
+    assert passed is False, "Untracked file must make the gate fail"
+    assert ".cursor/skills/domain/untracked_skill/SKILL.md" in details["driftedHarnessPaths"]
+
+
+def test_unreachable_drift_still_fails_even_if_no_uncommitted_drift(
+    harness_repo: tuple[Path, str],
+) -> None:
+    """AC4: Drift via merge-base that was not introduced by the PR fails.
+
+    When the fork point moves (main absorbed a harness change and the branch
+    merged it), the pin becomes stale. Drift between the old pin and new
+    fork point was not introduced by this PR and must fail.
+
+    This reproduces the case in test_gate_fails_when_the_fork_point_moved_under_the_pin:
+    the pin is fixed but the fork point has moved due to a merge that brought
+    in harness drift.
+    """
+    repo, fork_point = harness_repo
+    _git(repo, "switch", "main")
+    _write(repo, SKILL_REL, "# backend skill\nmain's own harness change\n")
+    _commit(repo, "chore: main advances the harness")
+    _git(repo, "switch", "feature/issue-1540-bootstrap-pin")
+    _git(repo, "-c", "user.name=t", "-c", "user.email=t@e.x", "merge", "--no-edit", "main")
+
+    # Pin is old fork point, but now the merge has moved the fork point.
+    passed, description, details = _validate(repo, _parent("merge-base:main", fork_point))
+
+    # This should FAIL because the anchor moved; the pin is stale.
+    assert passed is False, "Stale pin due to moved fork point must fail"
+    assert "anchor" in description.lower()
+
+
+def test_committed_drift_plus_uncommitted_fails(
+    harness_repo: tuple[Path, str],
+) -> None:
+    """When there is both committed and uncommitted drift, the gate fails.
+
+    The uncommitted part lands in drift(HEAD->working) and must fail, even
+    if committed drift would otherwise pass.
+    """
+    repo, _ = harness_repo
+    parent = _parent("merge-base:main", pin.resolve_bootstrap_anchor("merge-base:main", repo))
+
+    # Committed drift.
+    _write(repo, SKILL_REL, "# backend skill\ncommitted change\n")
+    _commit(repo, "chore: reviewed harness change")
+
+    # Uncommitted drift on top.
+    _write(repo, DOCS_REL, "# agent runtime\nuncommitted change\n")
+
+    passed, description, details = _validate(repo, parent)
+    # The uncommitted part makes the gate fail.
+    assert passed is False, "Uncommitted drift makes the gate fail"
+    # Should see both drifted paths.
+    assert DOCS_REL in details["driftedHarnessPaths"]
