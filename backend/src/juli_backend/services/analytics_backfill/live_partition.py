@@ -25,6 +25,9 @@ from juli_backend.services.analytics_backfill.budget import (
     BudgetExhaustedError,
     CallBudgetGovernor,
 )
+from juli_backend.services.analytics_backfill.error_classification import (
+    is_retryable_partition_error,
+)
 
 LIVE_BUCKET = "live"
 
@@ -332,13 +335,19 @@ async def run_live_partition(
         return LivePartitionResult(status="complete", called_paths=tuple(called_paths))
     except BudgetExhaustedError:
         return LivePartitionResult(status="paused", called_paths=tuple(called_paths))
-    except Exception:
+    except Exception as exc:
         async with lock:
+            # RECORD THE CAUSE, NOT A LABEL (#1670). This used to store the
+            # literal string "LIVE partition failed", which told a reader
+            # nothing: 47 partitions sat with that message and five attempts
+            # each, and nobody could tell whether retrying was even sensible.
+            # `mark_failed` redacts secrets, so passing the real message is safe.
             await partitions_repo.mark_failed(
                 shop_id,
                 LIVE_BUCKET,
                 partition_date,
-                "LIVE partition failed",
+                f"{type(exc).__name__}: {exc}",
+                retryable=is_retryable_partition_error(exc),
             )
         raise
 

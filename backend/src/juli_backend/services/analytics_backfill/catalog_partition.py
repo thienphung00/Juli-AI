@@ -24,6 +24,9 @@ from juli_backend.repositories.repos import (
     AnalyticsPerformanceRepo,
 )
 from juli_backend.services.analytics_backfill.budget import CallBudgetGovernor
+from juli_backend.services.analytics_backfill.error_classification import (
+    is_retryable_partition_error,
+)
 
 CATALOG_BUCKET = "catalog"
 BACKFILL_WINDOW_START = date(2026, 3, 16)
@@ -208,11 +211,15 @@ async def run_catalog_partition(
         )
     except Exception as exc:
         async with lock:
+            # A 401 will not become a 200 by asking again (#1669). Retrying it
+            # four times cost four vendor calls and produced one fact, while
+            # holding a slot the beat needed to finish its cycle.
             await partitions.mark_failed(
                 shop_id,
                 CATALOG_BUCKET,
                 partition_date,
                 str(exc),
+                retryable=is_retryable_partition_error(exc),
             )
         return CatalogPartitionResult(
             status="failed",
