@@ -361,27 +361,89 @@ class TestIssuePrePrMode:
 class TestScanMode:
     """Test the --scan mode for listing open PRs."""
 
-    def test_scan_mode_exercise_code_path(self, tmp_path: Path) -> None:
-        """AC3: --scan mode exercises PR scanning and reporting code path."""
+    def test_scan_marks_a_ready_pr_and_names_what_an_unready_one_lacks(
+        self, tmp_path: Path, monkeypatch, capsys
+    ) -> None:
+        """AC3: --scan lists open PRs, marking each as ready or naming what it lacks."""
         import sys
 
         sys.path.insert(0, str(REPO_ROOT / "agent-runtime" / "scripts" / "ci"))
         try:
-            from pr_readiness import _extract_wave_id, _resolve_issue_from_branch, scan_open_prs
+            import pr_readiness
+            from pr_readiness import scan_open_prs
 
-            # Test that branch parsing works (core AC3 behavior)
-            assert _resolve_issue_from_branch("feature/issue-1663-pr-readiness") == 1663
-            assert _extract_wave_id("feature/harness-e-w5-wave") == "wave-harness-e-w5"
+            # Set up two issue-tier PRs: one fully ready, one missing its status record
+            ready_issue = 4242
+            unready_issue = 4243
+            wave_id = "wave-test"
 
-            # Test scan_open_prs handles empty PR list gracefully
+            # Mock _get_open_pr_branches to return our test PRs
+            monkeypatch.setattr(
+                pr_readiness,
+                "_get_open_pr_branches",
+                lambda: [
+                    ("feature/issue-4242-ready", 900),
+                    ("feature/issue-4243-unready", 901),
+                ],
+            )
+
+            # Set up directories
             status_dir = tmp_path / "status"
             status_dir.mkdir()
             waves_dir = tmp_path / "waves"
             waves_dir.mkdir()
 
-            # This will return early because gh CLI will fail or return no PRs
-            # but it proves the code path is reachable
+            # Create wave manifest with both issues
+            write_json(
+                waves_dir / f"{wave_id}.json",
+                {
+                    "waveId": wave_id,
+                    "branch": "feature/test-wave",
+                    "issues": [ready_issue, unready_issue],
+                },
+            )
+
+            # Create PASS status record for ready PR (same structure as real implementation)
+            write_json(
+                status_dir / f"issue-{ready_issue}.json",
+                {
+                    "issue": ready_issue,
+                    "review": {
+                        "status": "PASS",
+                        "artifactRef": "local-only:reviews/review-4242.json",
+                        "sha256": "0" * 64,
+                    },
+                    "validation": {
+                        "status": "PASS",
+                        "artifactRef": "local-only:validation/validation-4242.json",
+                        "sha256": "0" * 64,
+                    },
+                    "gateVersion": 2,
+                },
+            )
+            # DO NOT create status record for unready PR (it's missing)
+
+            # Mock _extract_base_ref_from_pr to return our test wave
+            monkeypatch.setattr(
+                pr_readiness,
+                "_extract_base_ref_from_pr",
+                lambda pr: "feature/test-wave",
+            )
+
+            # Call scan_open_prs and capture output
             scan_open_prs(status_dir=status_dir, waves_dir=waves_dir)
+            out = capsys.readouterr().out
+
+            # Verify ready PR is marked READY
+            assert "4242" in out, f"Expected issue 4242 in output, got: {out}"
+            assert "READY" in out, f"Expected 'READY' in output for PR #900, got: {out}"
+
+            # Verify unready PR is named and specific reason is given
+            assert "4243" in out, f"Expected issue 4243 in output, got: {out}"
+            assert "NOT READY" in out, f"Expected 'NOT READY' in output for PR #901, got: {out}"
+            assert "status record" in out.lower(), (
+                f"Expected 'status record' (the specific missing thing) in output, got: {out}"
+            )
 
         finally:
             # Clean up the path

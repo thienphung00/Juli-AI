@@ -17,19 +17,19 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1663.json",
     "ownerSignoffPresent": true,
-    "sha256": "e2226e9cad212047ce1f6226008c75d99dde7fbcf85db9c6f56b1d41627a5880",
+    "sha256": "7fb936b0d0c1574182eacc3918b73d3026cc66e623ed9730e786afe715c48116",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 2486,
-      "validationBytes": 28314
+      "reviewBytes": 2561,
+      "validationBytes": 28316
     },
     "claimVsExecuted": {
       "citedCommandCount": 2,
-      "invokedCommandCount": 11886,
+      "invokedCommandCount": 11895,
       "matchedCommandCount": 0,
       "reason": "2 of 2 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
@@ -149,7 +149,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1663-pr-readiness",
-        "head": "f1c14a39ba0afbd7b1a0afaf2f5eaa5c3f6f5c3e",
+        "head": "aab160e27607bd37345827139b226166cdc70347",
         "shallow": true
       },
       "moduleResolution": {
@@ -328,10 +328,10 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-06T06:23:17Z",
+  "timestamp": "2026-09-06T06:27:52Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1663.json",
-    "sha256": "da94da9352080e20798e10497316a514e124ec3f394a22f8e3ed55032414ee76",
+    "sha256": "e1749f728a5615ebc9422578556a5752b79890b7ad951add4e2978d5d4ec2061",
     "status": "PASS"
   },
   "wave": "wave-harness-e-w5"
