@@ -10,12 +10,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (  # noqa: E402
     EXECUTOR_DOMAINS,
+    SchemaValidationError,
     build_implementation_artifact,
     implementation_artifact_path,
     load_implementation_artifact,
     load_json,
     resolve_issue_number,
-    write_json,
+    write_json_with_schema_validation,
 )
 
 
@@ -64,7 +65,11 @@ def main() -> int:
     )
 
     out = implementation_artifact_path(issue)
-    write_json(out, artifact)
+    try:
+        write_json_with_schema_validation(out, artifact, "implementation")
+    except SchemaValidationError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
     print(f"wrote {out} domain={artifact.get('executorDomain')}")
     return 0
 

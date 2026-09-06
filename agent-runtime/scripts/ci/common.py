@@ -88,6 +88,47 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
         fh.write("\n")
 
 
+class SchemaValidationError(Exception):
+    """Raised when artifact payload fails schema validation."""
+
+    def __init__(self, artifact_type: str, errors: list[str]) -> None:
+        self.artifact_type = artifact_type
+        self.errors = errors
+        msg = f"schema validation failed for {artifact_type} artifact:\n"
+        msg += "\n".join(f"  {error}" for error in errors)
+        super().__init__(msg)
+
+
+def load_artifact_schema(artifact_type: str) -> dict[str, Any]:
+    """Load the JSON schema for a given artifact type."""
+    schema_name_map = {
+        "implementation": "implementation-artifact.schema.json",
+        "review": "review-artifact.schema.json",
+        "intent_review": "intent-review-artifact.schema.json",
+        "validation": "validation-artifact.schema.json",
+    }
+    schema_name = schema_name_map.get(artifact_type)
+    if not schema_name:
+        raise ValueError(f"unknown artifact type: {artifact_type}")
+    schema_path = AGENT_RUNTIME_ROOT / "docs" / "schemas" / schema_name
+    if not schema_path.exists():
+        raise FileNotFoundError(f"schema not found: {schema_path}")
+    return load_json(schema_path)
+
+
+def write_json_with_schema_validation(
+    path: Path, payload: dict[str, Any], artifact_type: str
+) -> None:
+    """Write JSON with schema validation. Raises SchemaValidationError if invalid."""
+    from json_schema_validate import validate_json_schema  # noqa: E402
+
+    schema = load_artifact_schema(artifact_type)
+    errors = validate_json_schema(payload, schema)
+    if errors:
+        raise SchemaValidationError(artifact_type, errors)
+    write_json(path, payload)
+
+
 def deep_merge_under(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
     """Recursively merge overlay into base; overlay values win at every level."""
     result = dict(base)

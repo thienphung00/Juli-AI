@@ -9,12 +9,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (
+    SchemaValidationError,
     build_intent_review_artifact,
     intent_review_artifact_path,
     load_intent_review_artifact,
     load_json,
     resolve_issue_number,
-    write_json,
+    write_json_with_schema_validation,
 )
 
 
@@ -41,16 +42,18 @@ def main() -> int:
         return 1
 
     existing = None if args.fresh else load_intent_review_artifact(issue)
-    overrides = (
-        load_json(args.input_json) if args.input_json and args.input_json.exists() else None
-    )
+    overrides = load_json(args.input_json) if args.input_json and args.input_json.exists() else None
 
     artifact = build_intent_review_artifact(
         issue, existing=existing, overrides=overrides, fresh=args.fresh
     )
 
     out = intent_review_artifact_path(issue)
-    write_json(out, artifact)
+    try:
+        write_json_with_schema_validation(out, artifact, "intent_review")
+    except SchemaValidationError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
     print(
         f"wrote {out} spec_fidelity={artifact.get('spec_fidelity')} "
         f"smells={len(artifact.get('smells') or [])}"
