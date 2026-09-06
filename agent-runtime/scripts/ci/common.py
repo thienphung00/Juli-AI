@@ -709,22 +709,94 @@ def legacy_warning_to_finding(warning: dict[str, Any]) -> dict[str, Any]:
     return finding
 
 
-def normalize_review_findings(artifact: dict[str, Any]) -> list[dict[str, Any]]:
-    """Merge ``criticalFindings`` with legacy ``warnings[]`` into one canonical list."""
-    findings: list[dict[str, Any]] = list(artifact.get("criticalFindings") or [])
-    legacy = artifact.get("warnings") or []
-    if not legacy:
-        return findings
+# #1601: the review-artifact schema defines five finding arrays --
+# ``criticalFindings``, ``findings``, ``securityFindings``, ``architectureFindings``,
+# and ``maintainabilityFindings``. ``enrich_review_artifact`` derives the latter
+# four from ``criticalFindings`` as identity-preserving subsets, so in the
+# generated-via-the-pipeline case reading only ``criticalFindings`` changes
+# nothing. But nothing enforces that derivation on every writer: a reviewer (or
+# a hand-authored artifact) can write straight into ``findings`` -- the name
+# that most invites it -- without ever touching ``criticalFindings``, and every
+# finding-related gate reads only ``normalize_review_findings``'s output.
+# Ordered so ``criticalFindings`` wins identity ties (it is the canonical
+# store); the rest is deliberately every other schema-declared *Findings array,
+# not a hand-picked subset -- `test_schema_finding_arrays_all_have_a_reader`
+# fails if the schema grows a sixth one this tuple doesn't name.
+FINDING_ARRAY_KEYS: tuple[str, ...] = (
+    "criticalFindings",
+    "findings",
+    "securityFindings",
+    "architectureFindings",
+    "maintainabilityFindings",
+)
 
-    seen = {f.get("description") for f in findings if f.get("description")}
+
+def _finding_identity(finding: dict[str, Any]) -> Any:
+    """Identity key for de-duplicating findings across arrays.
+
+    ``id`` wins when present. Otherwise the key is the tuple
+    ``(severity, type, description, module)`` -- not ``description`` alone.
+
+    Two findings that merely share description text are not necessarily the
+    same finding: different severity, type, or module means a reviewer found
+    two distinct things that happen to describe the same symptom (e.g. a
+    WARNING maintainability note in one module and a CRITICAL security finding
+    in another, both worded "input validation gap"). Matching on description
+    alone silently drops whichever one loses the set-membership race --
+    including, in the reported case, the CRITICAL.
+
+    The benign case -- ``enrich_review_artifact`` deriving ``findings``/
+    ``securityFindings``/``architectureFindings``/``maintainabilityFindings``
+    from ``criticalFindings`` as literal copies -- still dedups correctly
+    under this key, because a derived copy shares every field (severity,
+    type, description, module) with its source by construction, not just its
+    description.
+    """
+    identity = finding.get("id")
+    if identity:
+        return ("id", identity)
+    return (
+        "fields",
+        finding.get("severity"),
+        finding.get("type"),
+        finding.get("description"),
+        finding.get("module"),
+    )
+
+
+def normalize_review_findings(artifact: dict[str, Any]) -> list[dict[str, Any]]:
+    """Merge every schema-defined finding array with legacy ``warnings[]`` into
+    one canonical, de-duplicated list.
+
+    De-duplication matters because the four non-``criticalFindings`` arrays are
+    normally derived *copies* of ``criticalFindings`` entries (same ``id`` and
+    fields) -- merging them naively would double-count every finding and
+    inflate ``warningCount``/``criticalCount`` in gate output. A finding is
+    kept once, at its first occurrence, in ``FINDING_ARRAY_KEYS`` order, keyed
+    by ``_finding_identity`` -- which is deliberately *not* description alone,
+    so two findings that only share description text (different severity,
+    type, or module) are never collapsed into one.
+    """
+    findings: list[dict[str, Any]] = []
+    seen: set[Any] = set()
+    for key in FINDING_ARRAY_KEYS:
+        for finding in artifact.get(key) or []:
+            if not isinstance(finding, dict):
+                continue
+            identity = _finding_identity(finding)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            findings.append(finding)
+
+    legacy = artifact.get("warnings") or []
     for warning in legacy:
         converted = legacy_warning_to_finding(warning)
-        description = converted.get("description")
-        if description and description in seen:
+        identity = _finding_identity(converted)
+        if identity in seen:
             continue
         findings.append(converted)
-        if description:
-            seen.add(description)
+        seen.add(identity)
     return findings
 
 
