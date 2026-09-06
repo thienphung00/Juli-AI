@@ -10,6 +10,7 @@ implemented by #659/#660/#661, per the release-evidence plan
 from __future__ import annotations
 
 import importlib
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -243,3 +244,144 @@ def test_cutover_checklist_runs_as_a_script_and_reports_mixed_or_legacy_explicit
     # any branch is legacy, RESULT must say so rather than print "refined".
     if '"legacyWaveBranches": 0' not in result.stdout:
         assert "LEGACY" in result.stdout or "legacy" in result.stdout.lower()
+
+
+# --- #1436: bypass privileges are bounded, and the bound is a property -----
+
+CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
+
+#: Any of these, in the same paragraph as the bypass, satisfies "the reason is
+#: recorded". A set rather than one phrase: the requirement is that an
+#: obligation is stated, not that it is stated in the words the author happened
+#: to choose. Written after #1436's own test was found to assert its author's
+#: prose rather than the requirement.
+_RECORDING_OBLIGATION = ("record", "recorded", "reason", "logged", "state why")
+
+#: Likewise for prohibition.
+_PROHIBITION = ("never", "not sanctioned", "forbidden", "prohibited", "must not", "do not use")
+
+#: The documents that instruct either privilege. Both, because CLAUDE.md
+#: inlines its own lane summary rather than pointing at the rule, so a policy
+#: recorded in one is invisible to readers of the other.
+_POLICY_DOCS = (GIT_BASELINE_RULE, CLAUDE_MD)
+
+
+def _paragraphs_mentioning(text: str, token: str) -> list[str]:
+    """Paragraphs (blank-line separated) containing `token`, list items split out.
+
+    Splitting on list items matters: the two lanes live as adjacent bullets, and
+    a paragraph-level check would let the fast-track bullet borrow the standard
+    lane's language.
+    """
+    chunks: list[str] = []
+    for para in text.split("\n\n"):
+        if token not in para:
+            continue
+        items = re.split(r"\n(?=[-*] )", para)
+        chunks.extend(item for item in items if token in item)
+    return chunks
+
+
+def test_every_admin_bypass_instruction_carries_a_recording_obligation() -> None:
+    """#1436 AC1, asserted as a property rather than as a phrase.
+
+    `--admin` skips `status-check`, the single required check on both rulesets
+    and the roll-up every gate in this epic reports through. The requirement is
+    not that some paragraph somewhere mentions recording — it is that *no*
+    instruction to bypass stands without one. Quantifying over every occurrence
+    is what makes this catch an instruction added later, which an assertion on
+    fixed strings cannot.
+    """
+    found_any = False
+    for doc in _POLICY_DOCS:
+        text = doc.read_text(encoding="utf-8")
+        for chunk in _paragraphs_mentioning(text, "--admin"):
+            found_any = True
+            lowered = chunk.lower()
+            assert any(word in lowered for word in _RECORDING_OBLIGATION), (
+                f"{doc.name} instructs `--admin` with no recording obligation in the "
+                f"same instruction, so a sanctioned bypass is indistinguishable from "
+                f"an unsanctioned one:\n\n{chunk.strip()[:400]}"
+            )
+    assert found_any, (
+        "no document instructs `--admin`; if the lane genuinely dropped it, delete "
+        "this test rather than leaving it vacuously green"
+    )
+
+
+def test_no_verify_is_prohibited_and_never_permitted() -> None:
+    """#1436: `--no-verify` is the larger number in the corpus — 35 uses against
+    `--admin`'s 10, every one from a parent orchestrator session, not an executor.
+
+    The first version of this test required *every* mention to prohibit, and it
+    failed — on the rule's own rationale paragraph, which cites those counts
+    without repeating the prohibition. That was the test being wrong, not the
+    rule: prose that explains why a thing is banned is not prose that permits it.
+
+    The requirement is two-sided and this is its honest shape: something must
+    prohibit it, and nothing may grant it. The second half is what catches a
+    future paragraph reintroducing it permissively — which neither "some
+    sentence prohibits it" nor "every mention prohibits it" would.
+    """
+    grants = ("may use", "can use", "is allowed", "acceptable", "is fine", "permitted")
+    prohibited_somewhere = False
+    mentioned = False
+
+    for doc in _POLICY_DOCS:
+        text = doc.read_text(encoding="utf-8")
+        for chunk in _paragraphs_mentioning(text, "--no-verify"):
+            mentioned = True
+            lowered = chunk.lower()
+            if any(word in lowered for word in _PROHIBITION):
+                prohibited_somewhere = True
+            granted = [g for g in grants if g in lowered]
+            assert not granted, (
+                f"{doc.name} contains language permitting `--no-verify` ({granted}):\n\n"
+                f"{chunk.strip()[:400]}"
+            )
+
+    assert mentioned, "neither policy document addresses `--no-verify` at all"
+    assert prohibited_somewhere, (
+        "`--no-verify` is mentioned but never prohibited in either document; the "
+        "corpus shows 35 uses and no sanctioned one"
+    )
+
+
+def test_the_two_harnesses_agree_on_what_is_sanctioned() -> None:
+    """A policy in `.cursor/` alone is invisible to a Claude Code session, and a
+    policy in CLAUDE.md alone is invisible to Cursor. Either privilege named in
+    one document must be addressed in the other, or the harnesses disagree.
+    """
+    rule = GIT_BASELINE_RULE.read_text(encoding="utf-8")
+    claude = CLAUDE_MD.read_text(encoding="utf-8")
+    for token in ("--admin", "--no-verify"):
+        assert (token in rule) == (token in claude), (
+            f"`{token}` is addressed in only one of git-baseline.mdc / CLAUDE.md; "
+            f"the two harnesses would carry different policies"
+        )
+
+
+def test_the_harness_path_bypass_documents_its_recording_form_and_the_repin() -> None:
+    """#1641/#1647: the second sanctioned `--admin` case needs its own assertion.
+
+    `test_every_admin_bypass_instruction_carries_a_recording_obligation` quantifies
+    over paragraphs containing `--admin`, and the harness case is a sub-item under
+    a parent bullet that carries the obligation — so the sub-item could lose its
+    own recording form, or the re-pin requirement, without that test noticing.
+
+    The re-pin half is the part that decays silently: skipping it leaves every
+    later PR on the branch inheriting the same red, which reads as "CI is flaky"
+    rather than "someone owes a re-pin".
+    """
+    rule = GIT_BASELINE_RULE.read_text(encoding="utf-8")
+    if "sourcePath" not in rule:
+        return  # the second case was withdrawn; nothing to assert
+
+    assert "bypass: harness sourcePath change" in rule, (
+        "the harness-path bypass is sanctioned without prescribing how it is recorded"
+    )
+    lowered = rule.lower()
+    assert "re-pin" in lowered or "repin" in lowered, (
+        "the harness-path bypass does not state that the pin must be refreshed afterwards; "
+        "without it every later PR on the branch inherits the same red"
+    )
