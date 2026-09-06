@@ -150,3 +150,61 @@ async def test_a_failed_partition_does_not_commit(monkeypatch):
         on_partition_complete=on_partition_complete,
     )
     assert commits == 0, "a failed partition must not be committed as progress"
+
+
+@pytest.mark.asyncio
+async def test_a_failed_partition_rolls_back_so_the_next_one_can_run(monkeypatch):
+    """The cascade this prevents was observed in production, twice.
+
+    On 2026-09-06 the first run on the fixed release completed 32 partitions and
+    then failed 31 consecutively; the second run completed none. A partition that
+    fails on a database error leaves the shared AsyncSession rolled back, and
+    every partition after it dies on PendingRollbackError before doing any work
+    of its own. Catching per-partition is not enough — the session has to be made
+    usable again.
+    """
+    import uuid
+
+    from juli_backend.services.analytics_backfill import orchestrator as orch
+
+    events: list[str] = []
+    calls = {"n": 0}
+
+    async def run_partition(bucket: str, partition_date: date) -> None:
+        calls["n"] += 1
+        events.append(f"ran:{partition_date.isoformat()}")
+        if calls["n"] == 1:
+            raise RuntimeError("first partition hits a database error")
+
+    async def on_partition_complete() -> None:
+        events.append("commit")
+
+    async def on_partition_failed() -> None:
+        events.append("rollback")
+
+    monkeypatch.setattr(orch, "AnalyticsBackfillPartitionsRepo", lambda session: _PartitionsRepo())
+
+    await backfill_analytics_history(
+        session=object(),
+        shop_id=uuid.uuid4(),
+        start_date=date(2026, 9, 1),
+        end_date=date(2026, 9, 3),
+        budget=CallBudgetGovernor(),
+        buckets=("revenue",),
+        concurrency_limit=1,
+        run_partition=run_partition,
+        on_partition_complete=on_partition_complete,
+        on_partition_failed=on_partition_failed,
+    )
+
+    assert "rollback" in events, (
+        f"a failed partition did not roll back; the session stays poisoned and every "
+        f"partition after it fails on PendingRollbackError: {events}"
+    )
+    # The rollback must precede the partitions that follow, or it does not help them.
+    rollback_at = events.index("rollback")
+    later_runs = [i for i, e in enumerate(events) if e.startswith("ran:") and i > rollback_at]
+    assert later_runs, f"no partition ran after the failure, so the cascade is untested: {events}"
+    assert events.count("commit") == 2, (
+        f"the two partitions after the failure should each have committed: {events}"
+    )

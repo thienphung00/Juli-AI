@@ -184,6 +184,7 @@ async def backfill_analytics_history(
     budget: CallBudgetGovernor | None = None,
     run_partition: PartitionRunner,
     on_partition_complete: Callable[[], Awaitable[None]] | None = None,
+    on_partition_failed: Callable[[], Awaitable[None]] | None = None,
     concurrency_limit: int = 1,
 ) -> OrchestratorResult:
     """Walk buckets and dates with bounded concurrency, honoring budget.
@@ -259,6 +260,18 @@ async def backfill_analytics_history(
                     await on_partition_complete()
                 return (True, None)
             except Exception as e:
+                # UN-POISON THE SESSION BEFORE THE NEXT PARTITION RUNS.
+                #
+                # A partition that fails on a database error leaves the shared
+                # AsyncSession in a rolled-back state, and every partition after
+                # it then dies on PendingRollbackError rather than on its own
+                # merits. Observed on 2026-09-06: run 1 completed 32 partitions
+                # and then failed 31 consecutively; run 2 completed none at all.
+                # Catching the exception per partition is not enough — the
+                # session has to be made usable again, and the rollback discards
+                # SET LOCAL so the shop scope has to go back too.
+                if on_partition_failed is not None:
+                    await on_partition_failed()
                 logger.error(
                     "analytics_backfill_partition_failed",
                     extra={
@@ -582,6 +595,19 @@ async def backfill_analytics_history_auto_topup(
             await session.commit()
             await reapply_shop_scope(session, shop_id)
 
+    async def rollback_partition() -> None:
+        """Make the session usable again after a partition raised.
+
+        Without this the first database failure ends the whole run: the session
+        is left rolled back and every later partition raises
+        PendingRollbackError before doing any work of its own. The scope is
+        re-applied for the same reason it is after a commit — a rollback
+        discards SET LOCAL just as a commit does.
+        """
+        async with session_lock:
+            await session.rollback()
+            await reapply_shop_scope(session, shop_id)
+
     return await backfill_analytics_history(
         session,
         shop_id=shop_id,
@@ -591,4 +617,5 @@ async def backfill_analytics_history_auto_topup(
         concurrency_limit=resolved_concurrency_limit,
         run_partition=partition_runner,
         on_partition_complete=commit_partition,
+        on_partition_failed=rollback_partition,
     )
