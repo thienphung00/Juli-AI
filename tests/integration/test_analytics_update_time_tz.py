@@ -134,5 +134,12 @@ async def test_the_aware_value_still_fails_on_update(pg_session, shop_id):
     await repo.upsert(shop_id=shop_id, **values)
 
     aware_newer = {**values, "update_time": datetime.fromtimestamp(SYNCED_AT + 3600, tz=UTC)}
-    with pytest.raises(TypeError, match="offset-naive and offset-aware"):
+    with pytest.raises(TypeError) as excinfo:
         await repo.upsert(shop_id=shop_id, **aware_newer)
+
+    # Named explicitly rather than left to `match=`: this is the exact string
+    # that appeared on 47 production rows for six weeks without anyone being
+    # able to tell what it meant, so the test should say what it is asserting.
+    assert "offset-naive and offset-aware" in str(excinfo.value), (
+        f"expected the stale-write comparison to reject the tz mismatch, got: {excinfo.value}"
+    )
