@@ -30,7 +30,13 @@ class _PartitionsRepo:
     def __init__(self) -> None:
         self.completed: list[tuple[str, date]] = []
 
-    async def list_completed(self, shop_id, bucket, start, end):  # noqa: ARG002
+    async def list_completed(self, _shop_id, _bucket, _start, _end):
+        # Underscore-prefixed rather than suppressed. The arity is the contract
+        # the orchestrator depends on and is kept; a per-line suppression would
+        # be a new debt identity for a double that simply ignores its inputs.
+        # (Naming the rule code here would itself be read as a suppression --
+        # the detector scans comment text, which is how this comment's first
+        # draft tripped the ratchet.)
         return []
 
 
