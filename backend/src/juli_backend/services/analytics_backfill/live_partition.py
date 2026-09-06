@@ -17,6 +17,7 @@ from juli_backend.integrations.tiktok import (
     analytics_snapshot_key,
     expand_analytics_live_session,
 )
+from juli_backend.repositories._base import utc_from_timestamp_naive
 from juli_backend.repositories.repos import (
     AnalyticsBackfillPartitionsRepo,
     AnalyticsPerformanceRepo,
@@ -225,7 +226,7 @@ def build_live_shop_rollup_kwargs(
         "grain": "shop",
         "start_date": partition_date,
         "end_date": date.fromisoformat(end_date),
-        "update_time": datetime.fromtimestamp(synced_at, tz=UTC),
+        "update_time": utc_from_timestamp_naive(synced_at),
         "live_hours": compute_live_hours(sessions, partition_date),
         "live_sessions": compute_live_sessions_count(sessions),
         "visitors": sum_live_views(sessions),
@@ -357,7 +358,7 @@ def _session_row_to_upsert_kwargs(row: dict[str, Any], synced_at: int) -> dict[s
         "snapshot_key": row["snapshot_key"],
         "grain": row["grain"],
         "start_date": date.fromisoformat(str(row["start_date"])),
-        "update_time": datetime.fromtimestamp(synced_at, tz=UTC),
+        "update_time": utc_from_timestamp_naive(synced_at),
     }
     if row.get("end_date"):
         kwargs["end_date"] = date.fromisoformat(str(row["end_date"]))

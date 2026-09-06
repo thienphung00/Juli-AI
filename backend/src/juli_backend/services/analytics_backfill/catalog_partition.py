@@ -19,6 +19,7 @@ from typing import Literal, Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.repositories._base import utc_from_timestamp_naive
 from juli_backend.repositories.repos import (
     AnalyticsBackfillPartitionsRepo,
     AnalyticsPerformanceRepo,
@@ -239,7 +240,7 @@ async def run_catalog_partition(
             end_date=partition_date,
             active_products=counts.active_products,
             new_products=counts.new_products,
-            update_time=datetime.fromtimestamp(synced_at, tz=UTC),
+            update_time=utc_from_timestamp_naive(synced_at),
         )
         await partitions.mark_complete(shop_id, CATALOG_BUCKET, partition_date)
 
