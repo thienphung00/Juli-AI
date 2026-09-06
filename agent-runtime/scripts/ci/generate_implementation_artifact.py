@@ -58,7 +58,7 @@ def main() -> int:
     try:
         # Semantic validation of tokenUsage in overrides before build normalizes it
         if overrides and "tokenUsage" in overrides:
-            from common import check_token_usage_semantic  # noqa: E402
+            from common import check_token_usage_semantic
 
             semantic_errors = check_token_usage_semantic(overrides["tokenUsage"])
             if semantic_errors:

@@ -156,7 +156,7 @@ def write_json_with_schema_validation(
     path: Path, payload: dict[str, Any], artifact_type: str
 ) -> None:
     """Write JSON with schema validation. Raises SchemaValidationError if invalid."""
-    from json_schema_validate import validate_json_schema  # noqa: E402
+    from json_schema_validate import validate_json_schema
 
     schema = load_artifact_schema(artifact_type)
     errors = validate_json_schema(payload, schema)
