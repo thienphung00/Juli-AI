@@ -453,44 +453,106 @@ def diff_harness_paths_since(
     source_paths: list[str],
     repo_root: Path,
 ) -> list[str]:
-    """Bootstrap-source paths that differ between the pin and the tree in use.
+    """Bootstrap-source paths that differ between the pin and HEAD (committed only).
 
-    This is what the gate actually measures. Anchoring alone is not enough: a
-    stable anchor plus an identity check would pass unconditionally, because the
-    branch's own harness edits never move the fork point. So compare *content*.
+    After #1667, this compares pin → HEAD only (committed drift), not pin →
+    working tree. Uncommitted and untracked drift is now separated into
+    `diff_harness_paths_uncommitted_since`, to distinguish reviewed drift
+    (committed, part of the PR) from unreviewed drift (uncommitted/untracked,
+    in-flight edits).
 
-    The comparison runs pin → working tree, not pin → HEAD, deliberately. The
-    harness a run reads is the one on disk; an uncommitted edit to a skill is
-    exactly as much drift as a committed one, and is the form drift usually takes
-    while a run is still in flight. Untracked additions count too — a run can
-    load a skill file that did not exist at the pin.
+    The logic is: drift(pin -> working) = drift(pin -> HEAD) + drift(HEAD ->
+    working). The second set (uncommitted/untracked) must fail; the first set
+    (committed) is reported but does not fail, because it is part of the PR
+    under review.
     """
     normalized = [path.strip("/") for path in source_paths if path and path.strip("/")]
     if not normalized:
         return []
 
     drifted: set[str] = set()
-    for args in (
-        ["diff", "--name-only", pinned_sha, "--", *normalized],
-        ["ls-files", "--others", "--exclude-standard", "--", *normalized],
-    ):
-        try:
-            output = subprocess.check_output(
-                ["git", *args],
-                cwd=repo_root,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding="utf-8",
-            )
-        except subprocess.CalledProcessError as exc:
-            detail = (exc.stderr or str(exc)).strip()
-            raise RuntimeError(f"git {args[0]} for bootstrap drift failed: {detail}") from exc
-        except FileNotFoundError as exc:
-            raise RuntimeError("git CLI not found; required for bootstrap pinning") from exc
-        for line in output.splitlines():
-            entry = line.strip()
-            if entry:
-                drifted.add(entry)
+    try:
+        output = subprocess.check_output(
+            ["git", "diff", "--name-only", pinned_sha, "HEAD", "--", *normalized],
+            cwd=repo_root,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+        )
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or str(exc)).strip()
+        raise RuntimeError(f"git diff for bootstrap drift failed: {detail}") from exc
+    except FileNotFoundError as exc:
+        raise RuntimeError("git CLI not found; required for bootstrap pinning") from exc
+
+    for line in output.splitlines():
+        entry = line.strip()
+        if entry:
+            drifted.add(entry)
+
+    return sorted(drifted)
+
+
+def diff_harness_paths_uncommitted_since(
+    source_paths: list[str],
+    repo_root: Path,
+) -> list[str]:
+    """Bootstrap-source paths with uncommitted or untracked changes.
+
+    This captures drift(HEAD -> working tree): changes not yet committed. The
+    harness a run reads is the one on disk; an uncommitted edit to a skill is
+    exactly as much drift as a committed one, and is the form drift usually
+    takes while a run is still in flight. Untracked additions count too — a
+    run can load a skill file that does not exist at HEAD.
+
+    This must still fail, because it represents unreviewed changes in the
+    harness.
+    """
+    normalized = [path.strip("/") for path in source_paths if path and path.strip("/")]
+    if not normalized:
+        return []
+
+    drifted: set[str] = set()
+    # Uncommitted modifications and deletions.
+    try:
+        output = subprocess.check_output(
+            ["git", "diff", "--name-only", "HEAD", "--", *normalized],
+            cwd=repo_root,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+        )
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or str(exc)).strip()
+        raise RuntimeError(f"git diff HEAD for uncommitted drift failed: {detail}") from exc
+    except FileNotFoundError as exc:
+        raise RuntimeError("git CLI not found; required for bootstrap pinning") from exc
+
+    for line in output.splitlines():
+        entry = line.strip()
+        if entry:
+            drifted.add(entry)
+
+    # Untracked files.
+    try:
+        output = subprocess.check_output(
+            ["git", "ls-files", "--others", "--exclude-standard", "--", *normalized],
+            cwd=repo_root,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+        )
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or str(exc)).strip()
+        raise RuntimeError(f"git ls-files for uncommitted drift failed: {detail}") from exc
+    except FileNotFoundError as exc:
+        raise RuntimeError("git CLI not found; required for bootstrap pinning") from exc
+
+    for line in output.splitlines():
+        entry = line.strip()
+        if entry:
+            drifted.add(entry)
+
     return sorted(drifted)
 
 
@@ -622,26 +684,49 @@ def validate_bootstrap_ref(
         )
 
     try:
-        drifted = diff_harness_paths_since(commit_sha, source_paths, repo_root)
+        committed_drift = diff_harness_paths_since(commit_sha, source_paths, repo_root)
     except RuntimeError as exc:
         return False, str(exc), details
 
-    details["driftedHarnessPaths"] = drifted
-    details["watchedSourcePaths"] = list(source_paths)
+    try:
+        uncommitted_drift = diff_harness_paths_uncommitted_since(source_paths, repo_root)
+    except RuntimeError as exc:
+        return False, str(exc), details
 
-    if drifted:
-        shown = ", ".join(drifted[:10])
-        overflow = "" if len(drifted) <= 10 else f" (+{len(drifted) - 10} more)"
+    # Total drift for reporting.
+    all_drifted = sorted(set(committed_drift) | set(uncommitted_drift))
+    details["driftedHarnessPaths"] = all_drifted
+    details["watchedSourcePaths"] = list(source_paths)
+    details["committedDrift"] = committed_drift
+    details["uncommittedDrift"] = uncommitted_drift
+
+    # Uncommitted/untracked drift must fail — this is unreviewed drift in
+    # flight.
+    if uncommitted_drift:
+        shown = ", ".join(uncommitted_drift[:10])
+        overflow = "" if len(uncommitted_drift) <= 10 else f" (+{len(uncommitted_drift) - 10} more)"
         return (
             False,
             (
-                f"Harness drift since pinned bootstrapRef.commitSha ({commit_sha[:12]}): "
-                f"{shown}{overflow}. The bootstrap source changed under this run, so its "
-                "context is not the context the pin describes. Land the harness change on "
-                "its own, then re-pin with an Architect note."
+                f"Harness drift in working tree (uncommitted/untracked) since HEAD: "
+                f"{shown}{overflow}. These changes are not yet reviewed. Commit or stash "
+                "them, or land the harness change on its own and re-pin."
             ),
             details,
         )
+
+    # Committed drift is reviewed and part of the PR, so it passes. But detail
+    # must name the reviewed paths so reviewers are not caught by surprise.
+    if committed_drift:
+        shown = ", ".join(committed_drift[:10])
+        overflow = "" if len(committed_drift) <= 10 else f" (+{len(committed_drift) - 10} more)"
+        detail_suffix = (
+            f"Reviewed harness changes detected and allowed: {shown}{overflow}. "
+            "These are committed on this branch and are under review; no additional "
+            "unreviewed drift in the working tree."
+        )
+    else:
+        detail_suffix = "no drift across bootstrap source paths"
 
     try:
         bootstrap_index = enumerate_bootstrap_skill_paths(commit_sha, source_paths, repo_root)
@@ -656,8 +741,7 @@ def validate_bootstrap_ref(
         (
             f"Bootstrap pinned to {commit_sha[:12]} via {branch}; "
             f"{len(harness_paths)} harnessUtility skill path(s) verified; "
-            f"no drift across {len(source_paths)} bootstrap source path(s)"
-            + (f" [degraded anchor: {anchor_note}]" if anchor_note else "")
+            f"{detail_suffix}" + (f" [degraded anchor: {anchor_note}]" if anchor_note else "")
         ),
         details,
     )
