@@ -16,6 +16,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+#: Gitignored artifact body root; a local-only: ref must live under it.
+_BODY = "agent-runtime/artifacts"
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CI_DIR = REPO_ROOT / "agent-runtime" / "scripts" / "ci"
 sys.path.insert(0, str(CI_DIR))
@@ -410,12 +413,12 @@ class TestScanMode:
                     "issue": ready_issue,
                     "review": {
                         "status": "PASS",
-                        "artifactRef": "local-only:reviews/review-4242.json",
+                        "artifactRef": f"local-only:{_BODY}/reviews/review-issue-4242.json",
                         "sha256": "0" * 64,
                     },
                     "validation": {
                         "status": "PASS",
-                        "artifactRef": "local-only:validation/validation-4242.json",
+                        "artifactRef": f"local-only:{_BODY}/validation/validation-issue-4242.json",
                         "sha256": "0" * 64,
                     },
                     "gateVersion": 2,
@@ -434,16 +437,28 @@ class TestScanMode:
             scan_open_prs(status_dir=status_dir, waves_dir=waves_dir)
             out = capsys.readouterr().out
 
-            # Verify ready PR is marked READY
-            assert "4242" in out, f"Expected issue 4242 in output, got: {out}"
-            assert "READY" in out, f"Expected 'READY' in output for PR #900, got: {out}"
+            # Assert per PR line, not against the whole buffer. "READY" is a
+            # substring of "NOT READY", so a whole-buffer check is satisfied by
+            # two unready PRs and never verifies the ready path at all.
+            lines: dict[str, str] = {}
+            for line in out.splitlines():
+                if str(ready_issue) in line:
+                    lines["ready"] = line
+                if str(unready_issue) in line:
+                    lines["unready"] = line
+
+            assert "ready" in lines, f"no line named issue {ready_issue}: {out}"
+            assert "unready" in lines, f"no line named issue {unready_issue}: {out}"
+
+            # Load-bearing: this is the assertion that fails if the ready PR
+            # stops being ready.
+            assert "NOT READY" not in lines["ready"], lines["ready"]
+            assert "READY" in lines["ready"], lines["ready"]
 
             # Verify unready PR is named and specific reason is given
-            assert "4243" in out, f"Expected issue 4243 in output, got: {out}"
-            assert "NOT READY" in out, f"Expected 'NOT READY' in output for PR #901, got: {out}"
-            assert "status record" in out.lower(), (
-                f"Expected 'status record' (the specific missing thing) in output, got: {out}"
-            )
+            assert "NOT READY" in lines["unready"], lines["unready"]
+            # The specific missing thing, not a generic "not ready".
+            assert "status record" in lines["unready"].lower(), lines["unready"]
 
         finally:
             # Clean up the path
