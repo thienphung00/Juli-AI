@@ -80,11 +80,19 @@ class TestIssuePrePrMode:
         issue = 9999
         wave_id = "wave-test"
 
-        # Create PASS status record
+        # Create PASS status record with required artifactRef and sha256 fields
         record = {
             "issue": issue,
-            "review": {"status": "PASS"},
-            "validation": {"status": "PASS"},
+            "review": {
+                "status": "PASS",
+                "artifactRef": "local-only:reviews/review-issue-9999.json",
+                "sha256": "0" * 64,
+            },
+            "validation": {
+                "status": "PASS",
+                "artifactRef": "local-only:validation/validation-issue-9999.json",
+                "sha256": "0" * 64,
+            },
             "gateVersion": 1,
         }
         write_json(status_dir / f"issue-{issue}.json", record)
@@ -119,11 +127,19 @@ class TestIssuePrePrMode:
         issue = 9998
         wave_id = "wave-test"
 
-        # Create non-PASS status record
+        # Create non-PASS status record with required fields
         record = {
             "issue": issue,
-            "review": {"status": "FAIL"},
-            "validation": {"status": "PASS"},
+            "review": {
+                "status": "FAIL",
+                "artifactRef": "local-only:reviews/review-issue-9998.json",
+                "sha256": "0" * 64,
+            },
+            "validation": {
+                "status": "PASS",
+                "artifactRef": "local-only:validation/validation-issue-9998.json",
+                "sha256": "0" * 64,
+            },
             "gateVersion": 1,
         }
         write_json(status_dir / f"issue-{issue}.json", record)
@@ -202,11 +218,19 @@ class TestIssuePrePrMode:
         issue = 9996
         wave_id = "wave-test"
 
-        # Create PASS status record
+        # Create PASS status record with required fields
         record = {
             "issue": issue,
-            "review": {"status": "PASS"},
-            "validation": {"status": "PASS"},
+            "review": {
+                "status": "PASS",
+                "artifactRef": "local-only:reviews/review-issue-9996.json",
+                "sha256": "0" * 64,
+            },
+            "validation": {
+                "status": "PASS",
+                "artifactRef": "local-only:validation/validation-issue-9996.json",
+                "sha256": "0" * 64,
+            },
             "gateVersion": 1,
         }
         write_json(status_dir / f"issue-{issue}.json", record)
@@ -270,4 +294,65 @@ class TestIssuePrePrMode:
         output = result.stdout.lower()
         assert output.count("missing") >= 2 or ("status" in output and "manifest" in output), (
             f"Expected multiple failures reported, got: {result.stdout}"
+        )
+
+    def test_artifactref_integrity_failure_caught(self, tmp_path: Path) -> None:
+        """AC2: artifactRef integrity failure (gateVersion 2) is caught.
+
+        This test would have failed with the old reimplemented logic, which
+        lacked the artifactRef check. With the real evaluate() function,
+        it correctly reports the integrity failure.
+        """
+        status_dir = tmp_path / "status"
+        status_dir.mkdir()
+        manifest_dir = tmp_path / "waves"
+        manifest_dir.mkdir()
+
+        issue = 9994
+        wave_id = "wave-test"
+
+        # Create a gateVersion 2 record with an artifactRef that has a
+        # mismatched sha256. This will fail integrity check in evaluate().
+        # Using git-history: ref that points to a non-existent commit with wrong sha256.
+        record = {
+            "issue": issue,
+            "review": {
+                "status": "PASS",
+                "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-9994.json",
+                "sha256": "0" * 64,  # Intentionally wrong hash to trigger integrity failure
+            },
+            "validation": {
+                "status": "PASS",
+                "artifactRef": "local-only:validation/validation-issue-9994.json",
+                "sha256": "0" * 64,
+            },
+            "gateVersion": 2,
+        }
+        write_json(status_dir / f"issue-{issue}.json", record)
+
+        # Create wave manifest with issue
+        manifest = {
+            "waveId": wave_id,
+            "branch": "feature/test-wave",
+            "issues": [issue],
+        }
+        write_json(manifest_dir / f"{wave_id}.json", manifest)
+
+        result = _run_pr_readiness(
+            "--issue",
+            str(issue),
+            "--base",
+            "feature/test-wave",
+            "--status-dir",
+            str(status_dir),
+            "--waves-dir",
+            str(manifest_dir),
+        )
+        # Should fail because artifactRef integrity check will fail
+        assert result.returncode != 0, (
+            f"Expected non-zero for artifactRef integrity failure, got: {result.stdout}"
+        )
+        # Should mention artifactRef or integrity issue
+        assert "artifact" in result.stdout.lower() or "integrity" in result.stdout.lower(), (
+            f"Expected artifactRef mention in output, got: {result.stdout}"
         )

@@ -19,8 +19,9 @@ import argparse
 import json
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any  # Used in wave manifest type annotations
 
+from check_artifact_retention_guard import evaluate as evaluate_status_record
 from common import AGENT_RUNTIME_ROOT, REPO_ROOT, STATUS_DIR
 from wave_manifest import check_issue_membership
 
@@ -29,17 +30,6 @@ WAVES_DIR = AGENT_RUNTIME_ROOT / "artifacts" / "waves"
 
 def status_record_path(issue: int, status_dir: Path = STATUS_DIR) -> Path:
     return status_dir / f"issue-{issue}.json"
-
-
-def _load_status_record(issue: int, status_dir: Path = STATUS_DIR) -> dict[str, Any] | None:
-    path = status_record_path(issue, status_dir)
-    if not path.is_file():
-        return None
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    return payload if isinstance(payload, dict) else None
 
 
 def evaluate_issue_ready(
@@ -86,14 +76,10 @@ def evaluate_issue_ready(
     if not membership["valid"]:
         reasons.extend(membership["errors"])
 
-    # Check status record
-    record = _load_status_record(issue, status_dir)
-    if record is None:
-        reasons.append(f"status record missing at {status_record_path(issue, status_dir).name}")
-    else:
-        # Validate record structure and status
-        record_reasons = _validate_status_record_ready(record, issue)
-        reasons.extend(record_reasons)
+    # Check status record using the real gate logic (including artifactRef checks)
+    passed, detail = evaluate_status_record(issue, status_dir=status_dir, repo_root=REPO_ROOT)
+    if not passed:
+        reasons.append(detail)
 
     return len(reasons) == 0, reasons
 
@@ -112,38 +98,6 @@ def _extract_wave_id(base_ref: str) -> str | None:
         wave_part = branch_part.removesuffix("-wave")
         return f"wave-{wave_part}"
     return None
-
-
-def _validate_status_record_ready(record: dict[str, Any], expected_issue: int) -> list[str]:
-    """Check if a status record is PASS and ready for merge.
-
-    Returns a list of reasons if not ready, or empty list if ready.
-    """
-    reasons: list[str] = []
-
-    if record.get("issue") != expected_issue:
-        reasons.append(f"status record issue is {record.get('issue')!r}, expected {expected_issue}")
-        return reasons
-
-    review = record.get("review") if isinstance(record.get("review"), dict) else {}
-    validation = record.get("validation") if isinstance(record.get("validation"), dict) else {}
-
-    review_status = review.get("status")
-    if review_status not in {"PASS", "PASS_WITH_WARNINGS"}:
-        reasons.append(f"review status is {review_status!r}, required PASS or PASS_WITH_WARNINGS")
-
-    # For PASS_WITH_WARNINGS, require dual signoff
-    if review_status == "PASS_WITH_WARNINGS":
-        if review.get("warningsAcknowledged") is not True:
-            reasons.append("review is PASS_WITH_WARNINGS but warningsAcknowledged is not true")
-        if review.get("ownerSignoffPresent") is not True:
-            reasons.append("review is PASS_WITH_WARNINGS but ownerSignoffPresent is not true")
-
-    validation_status = validation.get("status")
-    if validation_status != "PASS":
-        reasons.append(f"validation status is {validation_status!r}, required PASS")
-
-    return reasons
 
 
 def _resolve_issue_from_branch(branch: str) -> int | None:
