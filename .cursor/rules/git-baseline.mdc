@@ -29,15 +29,29 @@ Two privileges skip the repository's only enforcement. Both are now bounded.
   green needs its red fixed, not skipped.
   1. **The fast-track lane**, for a genuinely non-code diff.
      Record: `bypass: fast-track docs-only, <what changed>`.
-  2. **A harness-path-only PR** — a diff touching *only* the `sourcePaths`
-     `harness_bootstrap_pinned` watches (`.cursor/skills/**`, `agent-runtime/docs/**`) and
-     nothing else. Record: `bypass: harness sourcePath change, re-pin to follow`.
+  2. **A harness-path-only PR** — a diff touching the `sourcePaths`
+     `harness_bootstrap_pinned` watches (`.cursor/skills/**`, `agent-runtime/docs/**`) plus
+     only the companions the harness itself mandates for such a change, and nothing else:
+     the ADR-003 status record `agent-runtime/artifacts/status/issue-<N>.json`, the wave
+     manifest `agent-runtime/artifacts/waves/wave-<id>.json`, and the test that proves the
+     change. Those three are not discretionary — `artifact-retention-guard` fails the PR
+     without the status record, and TDD requires the test — so excluding them, as the first
+     version of this clause did (#1660), made the case unsatisfiable by any issue-tier PR,
+     including #1648 which motivated it.
+     Record: `bypass: harness sourcePath change, re-pin to follow`.
      Such a PR **cannot** go green, by construction: the gate compares the pinned anchor
      against the working tree, and the anchor is a merge-base that can never contain the PR's
      own commits. The gate's own message prescribes the remedy — *"Land the harness change on
-     its own, then re-pin"* — and this is the merge that instruction requires. **Re-pinning
-     afterwards is not optional**: until the pin is refreshed against the new tip, every later
-     PR on that branch inherits the same red.
+     its own, then re-pin"* — and this is the merge that instruction requires. **Confirm
+     afterwards that the pin cleared.** Under the current anchor spec
+     `merge-base:origin/BASE_REF` (#1608) it clears on its own: the anchor re-resolves to the
+     new tip once the change lands, and there is no stored number to refresh — the workflow
+     cache is gitignored and `bootstrapRef.commitSha` is recomputed every run. Measured on a
+     simulated post-merge wave (#1660), a later PR touching no watched path passes and one
+     touching a watched path still fails, so the pin self-heals without the gate losing its
+     teeth. The manual re-pin, and the inherited red that follows skipping it, belong to the
+     older hardcoded `origin/main` anchor (ADR-094); if a branch is ever pinned to a static
+     SHA again, that obligation returns.
      If the diff touches anything beyond those paths, split it first — the narrower the
      bypassed diff, the smaller the thing nobody reviewed against a green check.
 - **`git commit --no-verify`** — **never sanctioned.** A pre-commit hook that blocks correct
