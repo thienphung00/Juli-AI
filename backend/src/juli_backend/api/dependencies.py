@@ -38,7 +38,10 @@ async def get_active_shop(
             detail="Invalid shop ID",
         )
 
-    shops = await ShopsRepo(session).list(user.id)
+    # The bootstrap read (#1697): `shops` is policy-gated on a GUC no one has
+    # set yet — #1691's scope was a loan and is already handed back. The
+    # repository owns knowing that, as it does for `users`.
+    shops = await ShopsRepo(session).list_for_authorization(user.id)
     shop = None
     for s in shops:
         if s.id == shop_id:

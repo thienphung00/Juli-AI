@@ -1,0 +1,25 @@
+# AGT-W9A-INT — v1 P0 / capture lane; see agent-runtime.config.yml epicRegistry 1620/1622 and
+# docs/product/agent-workflow-execution/v1-workflow-spec.md §8.
+AGT-W9A-INT:
+  executorDomain: integrations
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/089-fleet-scoped-work-under-tenant-isolation.md
+    - docs/adr/091-clear-excess-inventory-design.md
+    - docs/integrations/tiktok_api/webhooks.md
+  requiredModules:
+    - backend/src/juli_backend/services/tiktok/webhook_catalog.py
+    - backend/src/juli_backend/services/tiktok/webhook_handlers.py
+    - backend/src/juli_backend/integrations/tiktok/auth.py
+    - backend/src/juli_backend/integrations/tiktok/resources/products.py
+    - backend/src/juli_backend/workers/tasks/agent_workflow.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/workers/tasks/reaper.py
+    - tests/unit/test_agent_workflow_task_wiring.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

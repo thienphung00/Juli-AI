@@ -1,220 +1,229 @@
-# Handoff: owner-only actions (HITL queue), 2026-08-25
+# Handoff: owner-only actions (HITL queue), updated 2026-09-07
 
-Five things only the owner can do. Nothing here is blocked on an agent; every item is
-either a human decision, a console/dashboard action, or a merge. Written to be picked up
-by a session with **no prior context** — ids, commands, and the reasoning are inline.
+Owner-only actions: human decisions, console/dashboard work, and merges. Written to be
+picked up by a session with **no prior context** — ids, commands, and the reasoning are
+inline.
 
-Ordering matters in exactly one place: **§1 before merging PR #1350** (see §2).
-
----
-
-## 1. HITL — gate #1226 observation 1: blocked on #1373, no owner action right now
-
-**Status (2026-08-26):** still six of seven steps. **Nothing for the owner to do until
-[#1373](https://github.com/thienphung00/Juli-AI/issues/1373) ships** — walking again
-against the current build reproduces run `d9dac43d` exactly.
-
-**The product edit this section used to ask for is DONE.** Product `1736363193934775939`
-is now a real listing ("Nồi lẩu điện mini 1.5L có nắp kính, tay cầm tiện dụng") with a
-matching photo; the vision tool returns `verdict: aligned`. That removed the original
-blocker — the agent now has something concrete to propose, and does propose it.
-
-**What three walks established** (all recorded on #1226):
-
-| Run | Prompt | What happened | Fixed by |
-|---|---|---|---|
-| `17dab3b5`, `3c504cf2` | v1 | nothing worth proposing — junk listing data | the product edit |
-| `ac992b92` | recorded v2, **executed v1** | pin/compose divergence | #1359 |
-| `37a0e14e` | v2 | printed the tool call as a ```python fence in the seller message | #1367 |
-| `d9dac43d` | v3 | narrated a prose promise instead of calling | **#1373** |
-
-Three prompt revisions oscillated between two failure modes and never converged.
-[ADR-088](../adr/088-consent-pause-is-a-runner-guarantee.md) (Accepted) diagnoses why:
-reaching the CONFIRM pause was enforced **only** by the prompt, and a worked example
-teaches surface form, so every fix traded one failure mode for the other. #1373 moves
-enforcement into the runner, which also makes the invariant testable with a fake LLM per
-PR — so this should be the last walk needed to close the observation.
-
-**When #1373 has merged and deployed, walk it.** On the VPS
-(`ssh -i ~/.ssh/juli_vps_tool root@5.223.68.27`). Two things differ from earlier walks:
-the card is the shop's **real `optimize_product_2` card**, already reset to `active`, and
-there is **no refresh step** — it is the only active card, so the decisions list is
-unambiguous. Earlier walks used a `create_hero_product_1` card silently substituted onto
-the Optimize Product playbook, which also stops being approvable once #1350 lands.
-
-```bash
-# 0. env + token (password grant; the call itself re-proves ES256/JWKS verification)
-set -a; source /etc/juli/api.env; set +a
-RESP=$(curl -s "$SUPABASE_URL/auth/v1/token?grant_type=password" \
-  -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Content-Type: application/json" \
-  -d '{"email":"gate-1226@app-juli.com","password":"PASTE_PASSWORD"}')
-TOKEN=$(printf '%s' "$RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("access_token",""))')
-if [ -z "$TOKEN" ]; then echo "LOGIN FAILED: $RESP"; else echo "token_len=${#TOKEN}"; fi
-API=https://api.app-juli.com
-SHOP=1862f13b-de2c-4fae-a4ad-70298cead913
-
-# 1. approve — no refresh needed; this card is already active and is the only one
-CARD=0aa74318-a560-4c2f-bbaa-f1f5e5f4e3d5
-curl -s -X POST "$API/v1/demo/decisions/$CARD/approve" \
-  -H "Authorization: Bearer $TOKEN" -H "X-Shop-Id: $SHOP" | python3 -m json.tool
-
-# 2. stream — RUN **must** be the run_id from the approve you just did
-RUN=<run_id from step 1>
-curl -sN "$API/v1/demo/runs/$RUN/events" \
-  -H "Authorization: Bearer $TOKEN" -H "X-Shop-Id: $SHOP" \
-  | tee /root/gate-1226-obs1-events.log
-
-# 3. when the stream shows the confirmation event, in a SECOND ssh window re-set
-#    TOKEN/API/SHOP/RUN, then:
-TCID=<tool_call_id from the confirmation event>
-OPT=<option_id from the confirmation event>
-curl -s -X POST "$API/v1/demo/runs/$RUN/confirmations/$TCID" \
-  -H "Authorization: Bearer $TOKEN" -H "X-Shop-Id: $SHOP" \
-  -H "Content-Type: application/json" \
-  -d "{\"decision\":\"approve\",\"option_id\":\"$OPT\"}" | python3 -m json.tool
-```
-
-**Traps that already cost time in the last session:**
-- Streaming with a **stale `$RUN`** replays an old run's events and looks like a fresh
-  failure. Check the first event's `workflow_run_id` and timestamp match the approve you
-  just did.
-- `read`-based prompts eat pasted input; paste values inline instead.
-- Never name a shell variable `UID` — bash reserves it (silent failure).
-- Tokens last ~1h; re-mint on a 401.
-- Completed runs consume their card permanently (by design). Failed runs auto-revert since
-  #1306, so no manual `UPDATE` is needed any more. **A card spent on a completed run needs
-  a manual revert to `active` before the next walk** — ask the agent session, don't hand-edit.
-- **Check the first event's `prompt_version` before reading anything else.** If it is not
-  the version #1373 shipped, the release has not landed and the walk is uninformative —
-  stop rather than spending the card. `gh run list --workflow=release.yml --limit 1`
-  confirms the deploy.
-
-**Definition of done:** the write lands in the sandbox, the run reaches a success terminal
-event, `/root/gate-1226-obs1-events.log` is the golden-scenario record, and the outcome is
-posted on issue #1226. Observation 2 is already recorded as blocked by owner decision
-(2026-08-25 comment) — that half of the gate is closed honestly and needs nothing further.
+**Two items are live: §3 and §4.** §1, §2 and §5 are closed and kept as record — read them
+for what was established, not for work to do.
 
 ---
 
-## 2. Merge queue
+## 1. ✅ CLOSED — gate #1226 observation 1
 
-| PR | What | Base | Note |
-|---|---|---|---|
-| **#1350** | #1309 executability discriminator + named 409 refusal | `feature/agent-w6-wave` | **No longer blocked** — merge freely. |
-| (Cursor session's) | #1326, #1331, #1332, #1334, #1335, #1338 | — | Owned by the other session; review status unknown here. |
+**Closed 2026-08-27, 7 of 7.** The seller-consent path executed end to end on the deployed
+host: run `fcbd287e-c158-4669-b7f6-9cb274b50314`, release `2d37170c`, card `0aa74318`
+(`optimize_product_2`), sandbox product `1736363193934775939`.
 
-**#1350's hold is lifted (2026-08-26).** It was held because it makes approve 409-refuse any
-card whose `workflow_key` has no registered playbook, and the walk was then using a
-`create_hero_product_1` card — one of the ten unregistered keys. The walk has since moved to
-the shop's genuine `optimize_product_2` card, which is the one key that *is* registered, so
-#1350 cannot take it away. Merging it actually helps: it ends the silent playbook
-substitution that made every earlier walk ambiguous about which playbook was running.
+The write landed and was **verified against the live listing**, not inferred from the tool
+result — the sandbox Seller Center shows the new description, with title, photo and price
+unchanged because the agent had no grounded signal to change them.
 
-Already merged (no action): #1343 (#1312 demo seed), #1345 (#1310 run list),
-#1340/#1341/#1342 (W7 planning + handoff), #1323/#1324 (W6 planning), #1362 (#1359 prompt
-pin), #1364 (this file's §5b), #1368 (#1367 prompt form), #1372 (ADR-088).
+`#1373` (consent pause enforced in the runner, ADR-088) was the last blocker and has merged.
+Observation 2 was superseded by #1339 (§3) rather than closed here.
+
+**Nothing for the owner in this section.** The walk procedure, its traps, and the token/approve/
+stream/confirm command sequence are preserved in this file's history if a future gate needs
+them — `git log --follow docs/handoffs/owner-hitl-queue.md`.
+
+---
+
+## 2. ✅ CLOSED — merge queue
+
+**#1350** (#1309 executability discriminator + named 409 refusal) **merged**. Its hold was
+lifted once the gate walk moved to the shop's genuine `optimize_product_2` card, and merging
+it ended the silent playbook substitution that made earlier walks ambiguous.
+
+Also merged: #1343 (#1312 demo seed), #1345 (#1310 run list), #1340/#1341/#1342 (W7 planning
++ handoff), #1323/#1324 (W6 planning), #1362 (#1359 prompt pin), #1364, #1368 (#1367 prompt
+form), #1372 (ADR-088), #1690 (ADR-094), #1693 (#1691 auth RLS fix).
+
+**Nothing pending.** New PRs are tracked in `gh pr list`, not here.
 
 ---
 
 ## 3. HITL — gate #1339 (W7 exit gate), four observations
 
-Not startable until the W7-A/W7-B implementation issues land. Each has a recorded
-"legitimate result" that is **not** success, so an honest negative closes the observation:
+**W7 implementation is complete.** #1326–#1338 are all closed; #1339 is the only open issue
+in the wave. State below verified against the deployed database on 2026-09-07.
 
-1. **Role cutover** on the deployed host (connect as the non-owner `juli_app` role) — a
-   clean revert plus a diagnosis is a pass.
-2. **Manual red-team pass** — open findings are the pass *working*; produces an attestation
-   bound to the deployed release sha, which #1336's precondition 4 reads.
-3. **Authorization for one production mutation** — **declining is the default and a pass.**
-   Requires functional RLS and the red-team pass first; the mutation is a single listing of
-   the owner's choosing. Standing rule until then: sandbox-only writes, never Fujiwa
-   (`2b1da87b-d0a8-46a6-b3c6-2132be0b5f4f`).
-4. **T+7 impact reading** — a real `impact_readings` row with a value and confidence tier.
-   Recording a `suppressed` reading as a reading is forbidden by name (ADR-077's gate stays
-   open until a real one exists).
+Each observation has a recorded "legitimate result" that is **not** success, so an honest
+negative closes it.
 
-#1339 **supersedes #1226 observation 2**; #1226 stays open for observation 1 only (§1).
+### 1. Role cutover — substantially done, one bullet pending a deploy
+
+The cutover **has happened**: `DATABASE_URL` now connects as `juli_app`, which is a non-owner
+role (`rolcanlogin = t`, `rolsuper = f`), while all 35 `public` tables are owned by `postgres`.
+So the owner exemption that made the original ten policies dead is gone.
+
+RLS coverage: **33 of 35** tables. The two without are both intentional —
+`alembic_version` (migration bookkeeping, no tenant data) and `webhook_raw_events`, which
+migration `045_rls_policies.py` documents as "no policy (no read grant in #1326)". Verified
+that the grant defense actually holds: `juli_app` has **INSERT only** on that table, and
+`select count(*) from webhook_raw_events` returns `ERROR: permission denied`.
+
+A prior session recorded bullets 2, 3 and 4 as **pass** (zero scoping errors; zero RLS denials
+since 2026-09-05 05:23; all four partition buckets complete across 31 in-window days). Bullet 1
+**failed** — every authenticated request returned 401 because RLS hid the `users` row from the
+authenticator — diagnosed and fixed in #1691 / PR #1693.
+
+**Bullet 1 re-verified 2026-09-07 and the mechanism is fixed.** The #1693 release deployed
+successfully and is live — `~/releases/current` → `/root/releases/e7c2bef9`, both blue/green
+candidates (8000, 8020) healthy. Reproducing the commit's own measurement as `juli_app` against
+the deployed database, for auth id `00000000-0000-4000-8000-000000000001`:
+
+```
+no GUC                  users row visible: 0     ← the old failure
+GUC set from `sub`      users row visible: 1     ← the fix
+GUC set from `sub`      total rows visible: 1    ← policy still narrows; not a bypass
+```
+
+**What this does not do is sign the observation off.** It confirms the database-level mechanism
+on the live release; it is not an end-to-end authenticated HTTP request, which needs the
+`gate-1226@app-juli.com` password. The remaining step is one authenticated call against
+`api.app-juli.com` returning 200 rather than 401 — then bullets 1–4 are all green and the
+observation is the owner's to close.
+
+### 2. Manual red-team pass
+
+Not started. Open findings are the pass *working*. Produces an attestation bound to the
+deployed release sha, which #1336's precondition 4 reads.
+
+### 3. Authorization for one production mutation — **declining is the default and a pass**
+
+**No decision is recorded either way.** #1335 made owner authorization *become a row*, and
+`production_write_authorizations` currently holds **0 rows**. So this is not "declined" — it is
+unanswered. Requires functional RLS and the red-team pass first. The mutation is a single
+listing of the owner's choosing. Standing rule until then: sandbox-only writes, never Fujiwa
+(`2b1da87b-d0a8-46a6-b3c6-2132be0b5f4f`).
+
+### 4. T+7 impact reading — **not satisfied; the only two rows are the forbidden kind**
+
+`impact_readings` holds 2 rows, both on the sandbox shop, both computed 2026-09-03:
+
+```
+kind=preliminary  confidence=suppressed  metric=conversion_rate  impact_pct=NULL
+kind=preliminary  confidence=suppressed  metric=items_sold       impact_pct=NULL
+```
+
+ADR-077's gate forbids recording a `suppressed` reading as a reading, **by name** — and these
+carry no value at all (`impact_pct` is NULL). So the observation is open, and these rows must
+not be mistaken for having satisfied it. It needs a real reading with a value and a confidence
+tier, which in turn needs observation 3 to produce a write worth measuring.
+
+#1339 **supersedes #1226 observation 2**; #1226 is closed (§1).
 
 ---
 
 ## 4. Four W7 decisions
 
-From `docs/handoffs/w7-production-readiness.md`. Answers change scope, not correctness —
-the implementation verifies at runtime either way.
+Two of these have been **answered by events** since the list was written. Verified against the
+deployed database 2026-09-07.
 
-1. **Does `postgres` actually own the tables** on the deployed Supabase project? Repo
-   evidence (migration `032`'s docstring, `api.env.example`) says the runtime connects as
-   the pooler `postgres` role — which owns the tables and is therefore **exempt from row
-   policies**, the reason the existing 10 RLS policies are dead. If ownership differs,
-   #1326's grant map narrows.
-2. **`juli_app` login provisioning** — deliberately out of git (NOLOGIN role + grants
-   in-repo; membership granted out of band). Confirm, or switch to a Supabase
-   console-managed role.
-3. **ADR-050 C2 (fleet cold-start engine)** — removed from W7 with a recorded trigger
-   because it roughly doubles the wave. Confirm it stays deferred, or make it W7-bis.
-4. **GA per-shop credential model** — assessed and deferred; what remains is per-shop
-   `seller_connect` scoping, which is an architecture change, not a fix. Confirm or pull
-   forward.
+### 1. ✅ Answered — `postgres` does own the tables
 
-Context for #1: the capability taxonomy (`production_read` / `sandbox_write` /
+All **35** `public` tables are owned by `postgres`. The hypothesis in the original entry was
+correct, so **#1326's grant map does not narrow**. The consequence that mattered is already
+handled: the runtime no longer connects as the owner, so the exemption that made the ten
+original policies dead no longer applies.
+
+### 2. ✅ Answered — `juli_app` has login and is the runtime role
+
+`rolcanlogin = t`, `rolsuper = f`, and `DATABASE_URL` uses it. Provisioning stayed out of git
+as designed (NOLOGIN role + grants in-repo, membership granted out of band); the deployed
+reality confirms the approach worked. No switch to a console-managed role is needed.
+
+### 3. ⬜ Open — ADR-050 C2 (fleet cold-start engine)
+
+Removed from W7 with a recorded trigger because it roughly doubles the wave. W7 shipped
+without it (#1326–#1338 all closed), so it is deferred **in fact**. Confirm it stays deferred,
+or make it W7-bis.
+
+### 4. ⬜ Open — GA per-shop credential model
+
+Assessed and deferred; unchanged. What remains is per-shop `seller_connect` scoping, which is
+an architecture change, not a fix. Confirm or pull forward.
+
+Context for #1 and #4: the capability taxonomy (`production_read` / `sandbox_write` /
 `seller_connect`) is test-era scaffolding — two env-configured merchant ids plus a
-least-privilege residual bucket. At GA the axis rotates from "which of our tokens may do
-what" to per-shop tenant isolation.
+least-privilege residual bucket. At GA the axis rotates from "which of our tokens may do what"
+to per-shop tenant isolation.
 
 ---
 
-## 5. Supabase Auth provider configuration that will block W6
+## 5. ✅ CLOSED — Supabase Auth provider configuration
 
-Two settings on the same Supabase project (the one behind `SUPABASE_URL` in
-`/etc/juli/api.env`). Both are dashboard actions; do them in one sitting.
+Both items resolved 2026-09-07. Kept as record because the *reasons* matter for W6.
 
-### 5a. Anonymous sign-in — blocks #1313
+### 5a. Anonymous sign-in — WITHDRAWN, do not enable
 
-Issue #1313 ("Dùng thử Demo mints a real anonymous session scoped to the demo tenant")
-needs it for its post-deploy journey. ADR-084 **forbids a shared demo account**, so there
-is no workaround: without the toggle the executor can build and pre-merge-test everything
-except the live journey, and the issue cannot be fully verified.
+[ADR-094](../adr/094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md) decision 4
+withdrew this. The anonymous "Dùng thử Demo" entry is now a **client replay with no session,
+no authenticated route and no database row**, so there is nothing to authenticate.
 
-Supabase dashboard → Authentication → Providers/Sign-in methods → enable
-**Anonymous sign-ins**.
+**Leave `Allow anonymous sign-ins` OFF.** Supabase's own warning on that toggle is the
+sharpest argument for the rescope: anonymous users receive the `authenticated` role, so they
+would be subject to the same RLS policies as real users. Those policies
+(`045_rls_policies.py`) carry **no `TO` clause** and key on `current_setting('app.current_shop_id')`
+— a GUC that only Juli's backend sets. That is fail-closed today, but it makes safety depend
+on *every* tenant-scoped table having a policy, an invariant that already failed once
+(migration 045 missed `ml_feature_snapshots` and `processed_events`; #1329 caught it, 046
+fixed it). Enabling the toggle would add a self-service principal class to a model built for
+a single trusted caller.
 
-### 5b. Google provider + a GCP OAuth client — blocks #1319
+### 5b. Google provider — DONE and verified
 
-Issue #1319 ("Dual entry — Dùng thử Demo and Đăng nhập với Google") builds two doors on
-the landing page. The second one, **Đăng nhập với Google**, goes through Supabase Auth's
-Google provider, which needs an OAuth client you create in Google Cloud. Reference:
-<https://supabase.com/docs/guides/auth/social-login/auth-google>.
+| | |
+|---|---|
+| GCP project | `juli-auth-51452` ("Juli Auth"), under the `app-juli.com` org (`89219823463`) |
+| Owning account | `thien.phung@app-juli.com` |
+| OAuth client | Web application; **JavaScript origins empty** (Supabase uses the server-side code flow) |
+| Authorized redirect URI | `https://rmxzbvgiwrvjuzlzqdcz.supabase.co/auth/v1/callback` |
+| Client ID | `77566792969-v897lb3l03jadn2lhqhp2rg5a7oisrtd.apps.googleusercontent.com` |
+| Client secret | **Supabase provider config + a password manager only.** No code reads it — verified: zero references to a Google client id/secret across `backend`, `apps`, `packages`. Never put it in `/etc/juli/api.env`, a `.env`, or this file. Rotating it needs no deploy. |
 
-What it needs:
+**No domain verification was needed.** The `app-juli.com` org already existed (Workspace
+creates it), and `thien.phung@app-juli.com` already had project-creation rights. A personal
+Gmail account is also viable — it creates projects with "No organization".
 
-1. A **GCP project** (any project; it exists only to own the OAuth client).
-2. An **OAuth 2.0 Client ID** of type *Web application*, plus its client secret.
-3. The Supabase project's **callback URL** registered as an Authorized redirect URI on
-   that client. Supabase shows the exact URL on the Google provider page — copy it from
-   there rather than composing it by hand; a `redirect_uri_mismatch` is the usual symptom
-   of getting this wrong, and it only appears post-deploy.
-4. The client ID and secret pasted into Supabase dashboard → Authentication → Providers →
-   **Google**, then enabled.
-5. The OAuth consent screen filled in far enough for the account you will test with. While
-   the app is in *Testing*, only listed test users can complete the flow.
+Verified on the deployed project (`rmxzbvgiwrvjuzlzqdcz`):
 
-The public surface for this slice is `demo.app-juli.com` (per #1319's release-evidence
-section), so that host is where the journey gets verified after deploy.
+```
+GET /auth/v1/settings                    → external.google = true
+GET /auth/v1/authorize?provider=google   → HTTP 302 accounts.google.com/o/oauth2/v2/auth
+                                           client_id=77566792969-…  response_type=code
+                                           redirect_uri=…/auth/v1/callback
+```
 
-**Not blocked on TikTok.** #1319 deliberately does not wire live TikTok merchant OAuth —
-it builds the "Kết nối TikTok Shop" connect-shop screen and requires it to state its real
-state honestly rather than implying a working exchange. So Google sign-in reaching that
-screen is the whole acceptance bar here; connecting an arbitrary merchant shop is a
-separate flagged follow-up. Don't wait on TikTok credentials to do this setup.
+The 302 is the check that matters — the settings flag can read true with credentials Supabase
+never accepted.
 
-**Timing.** #1319 is blocked by #1313, which is itself blocked on the #1353 decision, and
-#1319 hasn't started — so this is not urgent today. It *will* gate that slice's
-acceptance criteria, which require the Google entry to reach the connect-shop screen and
-to preserve runs across identity linking; neither is demonstrable against an unconfigured
-provider.
+Supabase provider toggles, as set: `Allow new users to sign up` **ON**; `Allow manual
+linking`, `Allow anonymous sign-ins`, `Skip nonce checks`, `Allow users without an email`
+all **OFF**.
 
-**Nothing in W7 needs a GCP project** — verified by scanning every W7 issue (#1326–#1339)
-for Google/GCP requirements. This is a W6-only dependency.
+### 5c. Still open — publishing the consent screen (a Demo Launch gate)
+
+The consent screen is **External + Testing**. Testing works for verification (add test users,
+100 max) but **only listed test users can sign in**, so a public Demo Launch needs
+**Publish app**.
+
+Publishing requires an application home page, **privacy policy** and **terms of service**
+URLs. Today:
+
+```
+https://app-juli.com          → 200   ✓
+https://app-juli.com/privacy  → 404
+https://app-juli.com/terms    → 404
+apps/landing/src/app/         → page.tsx is the only route
+```
+
+So it is two legal documents plus a small `apps/landing` slice, not a toggle. Deliberately
+deferred — the privacy policy describes what Juli collects from TikTok sellers and is a public
+commitment, not filler. Because the scopes are the defaults (`openid`, `email`, `profile`,
+all non-sensitive), publishing needs **no Google verification review** once the URLs exist.
+
+**Blocked on nothing but content.** Put it on the Demo Launch checklist, not the W6 build.
 
 ---
 
@@ -232,3 +241,6 @@ for Google/GCP requirements. This is a W6-only dependency.
 | Fujiwa production shop | `2b1da87b-d0a8-46a6-b3c6-2132be0b5f4f` — **never write to it** |
 | W6 wave branch | `feature/agent-w6-wave` (manifest `agent-runtime/artifacts/waves/wave-agent-w6.json`) |
 | API is blue/green | candidates on ports 8000/8020 — grep BOTH journals when checking what's live |
+| Supabase project | `rmxzbvgiwrvjuzlzqdcz` — the project the API verifies JWTs against; Google sign-in must be configured on **this** one |
+| GCP project (OAuth) | `juli-auth-51452`, org `app-juli.com` (`89219823463`), owner `thien.phung@app-juli.com` |
+| Google consent screen | **External + Testing** — only listed test users can sign in until §5c is done |
