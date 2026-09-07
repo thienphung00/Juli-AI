@@ -1468,6 +1468,7 @@ jobs:
       - demo-e2e
       - artifact-gate
       - artifact-retention-guard
+      - merge-status
       - validate-gates
       - policy-checks
       - security-scan
