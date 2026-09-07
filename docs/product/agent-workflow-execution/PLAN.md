@@ -508,16 +508,57 @@ view slice invents its own tokens; the rest is a real dependency chain through t
 | W6-B/P-UI-3 nothing internal on the seller's stream *(adopted, filed 2026-08-21)* | #1272 | — |
 | W6-B/P-UI-4 scenario capture tool + server-side replay | #1311 | — |
 | W6-B/P-UI-5 the seeded demo tenant | #1312 | — |
-| W6-B/P-UI-6 anonymous session scoped to that tenant | #1313 | #1312 |
+| ~~W6-B/P-UI-6 anonymous session scoped to that tenant~~ **CLOSED — superseded by [ADR-094](../../adr/094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md)** | ~~#1313~~ | — |
 | W6-A/P-UI-1 scoped tokens + motion primitives | #1314 | — |
 | W6-A/P-UI-2 `useRunStream` + the pure reducer | #1315 | #1311 |
 | W6-A/P-UI-3 the staged run view | #1316 | #1314, #1315 |
 | W6-A/P-UI-4 the consent-grade option picker | #1317 | #1316, #1272 |
 | W6-A/P-UI-5 In-Progress becomes the run ledger | #1318 | #1310, #1314 |
-| W6-A/P-UI-6 dual entry + connect-shop screen | #1319 | #1313 |
+| W6-A/P-UI-6 dual entry + connect-shop screen | #1319 | ~~#1313~~ — unblocked, #1313 closed |
 | W6-A/P-UI-7 the mock layer is deleted | #1320 | #1309, #1318 |
 | W6-A/P-UI-8 replay journey in CI, dictionary, MODULE.md | #1321 | #1317, #1319, #1320 |
 | **W6 gate** **HITL** — a seller steers a run in a browser | #1322 | #1317, #1319, #1321 |
+
+### W6 progress — 2026-09-07
+
+**Wave state.** Seven of the fourteen slices are merged (#1309, #1310, #1272, #1311, #1312,
+#1314, #1315, #1318). #1313 is **closed as superseded**. Five remain: #1316, #1317, #1319,
+#1320, #1321, all `ui-ux`, all on the W6-A lane. W6-B is complete.
+
+**The rescope other sessions must know about.**
+[ADR-094](../../adr/094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md)
+(**Accepted**) amends ADR-084 decisions 1 and 2 and changes what three open issues mean:
+
+> **anonymous → client replay (no DB) · signed-in → real runs on their own shop · connect-shop → follow-up**
+
+- The anonymous *Dùng thử Demo* entry mints **no session**, calls **no authenticated route**,
+  and writes **no database row**. ADR-084's anonymous Supabase session is withdrawn.
+- The seeded demo tenant (#1312) is demoted from runtime tenant to **capture source**, so
+  `DEMO_SHOP_ID` leaves production.
+- #1353 (anonymous→signed-in run preservation) is **dissolved**, not answered — with no
+  anonymous persistence there is nothing to preserve.
+- The bodies of **#1319, #1320 and #1322 were amended on 2026-09-07** to match. Read the
+  current body, not a cached copy: #1319 carries a "Struck by ADR-094 — do not implement"
+  section, and #1320 carries a "Reconciled with ADR-094" section.
+
+**Owner prerequisites — settled.** The Supabase Google provider is configured and verified
+(GCP project `juli-auth-51452`, `external.google = true`, `/auth/v1/authorize?provider=google`
+→ 302). Anonymous sign-in stays **off** by decision, not by omission. Remaining owner item is
+publishing the consent screen, which needs `/privacy` and `/terms` on `app-juli.com` (both 404
+today) — a Demo Launch gate, not W6 work. See `docs/handoffs/owner-hitl-queue.md` §5.
+
+**Known gap that is nobody's slice yet.** A first-time Google user has no `public.users` row,
+so `get_current_user` → `UsersRepo.get_for_authentication` raises `NotFound` → **401 "User not
+found"** (`backend/src/juli_backend/core/security/dependencies.py:44-60`). Provisioning is
+`backend` domain and needs its own slice; the pattern already exists
+(`UsersRepo.get_or_create` with a derived placeholder phone, used in four `services/tiktok/*`
+stores). #1319 must surface this honestly rather than work around it.
+
+**In flight as of this commit.** #1320 and #1319 are routed to `executor-ui-ux` in parallel —
+disjoint write paths (`demo-state.tsx`/`executions.ts`/`recommendations.ts` versus
+`app/page.tsx` and the auth routes), with a known trivial overlap on `apps/demo/MODULE.md`.
+#1316's Meta gate is green but it is **deliberately queued behind #1320**, because it would
+otherwise build the run view on execution state #1320 deletes. Then #1317, then #1321.
 
 ### Public release
 
