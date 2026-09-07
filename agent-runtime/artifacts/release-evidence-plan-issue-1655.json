@@ -1,0 +1,93 @@
+{
+  "planId": "outcome-chain-five-links-empty-says-why-2026-09-07",
+  "affectedPublicSurfaces": [
+    "One NEW query function, given a `workflow_run_id`, returning the complete five-link post-hoc chain: Recommendation (`action_cards`, reached via `workflow_runs.action_card_id` — the FK migration 040/#1269 added and which nothing has yet read) -> Action (`tool_executions` rows joined on `tool_executions.workflow_run_id`) -> TikTok state change (`workflow_outcome_records`, joined on `execution_id` -> `tool_executions.id`) -> Observed outcome (the KPI window after the change) -> Incremental impact (`impact_readings`, which carries both `run_id` (FK added by migration 034) and `tool_execution_id`). Every model already exists in `models/models.py`; NOTHING joins them today, and that is the entire gap.",
+    "The link-status vocabulary this query introduces is itself the public contract: `pending` (the fact has not happened yet — T+7 has not elapsed, the webhook has not arrived), `unavailable` (the fact CANNOT happen for this run — the run declined, no write was attempted), `missing` (the fact should exist and does not). Three distinct values, never a bare `null`. An operator taught that null means nothing learns to ignore nulls, which is how #1226's dishonesty returns in a different costume.",
+    "The honesty rule at the impact link, inherited from #1338 and #1226: an `impact_readings` row whose `confidence` is `suppressed` or `confounded` is NOT returned as an incremental impact. It is its own labelled outcome, distinguishable from the other by name — `suppressed` (insufficient signal) and `confounded` (a competing change) are different reasons and collapsing them loses which applied. This query must not reintroduce at the chain surface what #1338 made structural at the read surface.",
+    "No HTTP route changes and no new endpoint. `GET /demo/runs` (`services/agent_runs/listing.py`) and the SSE stream (`api/routes/agent_runs.py`) are untouched — the chain is an operator/query surface. Rendering is explicitly out of W8 per the PRD; if the executor believes a route is needed, that is a scope change to report, not to make.",
+    "A performance/shape contract: the chain is ONE call against the database, not four fetches assembled in Python. A client-side join is exactly the hand-joining-by-eye this slice exists to remove, and it is also where a partially-failed fetch silently becomes an empty link with no reason."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run from the worktree root with PYTHONPATH pinned to the worktree's backend/src, against a real Postgres migrated to head — never SQLite, because the chain is a multi-table join with nullable FKs and the reason-vs-null distinction depends on outer-join semantics Postgres actually evaluates. The chain-completeness test seeds its run through the REAL `WorkflowRunner` (vendor calls bound to fakes built on the real signatures), because a hand-built row set proves the SQL and not the wiring. Post-deploy: operator-only invocation on the candidate against the sandbox shop's own runs; read-only over `action_cards`, `tool_executions`, `workflow_outcome_records` and `impact_readings`, no write of any kind, no public traffic to a candidate task set.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the seeded run must come from the REAL runner, which executes in the Celery worker — a candidate with workers disabled cannot produce the run the load-bearing assertion needs. apiSideEffectsInScope is FALSE: the query is read-only, the only rows written are the seeded run's own within the sandbox shop, and no vendor mutation and no production write occurs. The standing owner decision of 2026-08-21 holds. The impact link will legitimately read `pending` on the candidate — no real reading exists yet (that is #1339's gate, an owner act) — and that honest `pending` IS the deliverable, not a shortfall to paper over.",
+    "journeys": [
+      {
+        "name": "five-links-from-a-real-run-and-an-empty-link-says-why",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1655",
+        "assertions": [
+          "pre-merge: given a run id, the query returns exactly FIVE links, each either populated or carrying an explicit reason — asserted against a run seeded through the REAL runner, never a hand-built row set",
+          "pre-merge: for a run that completed a write and has every downstream fact present, all five links are POPULATED — proving the joins actually traverse `workflow_runs.action_card_id`, `tool_executions.workflow_run_id`, `workflow_outcome_records.execution_id` and `impact_readings.run_id`/`tool_execution_id`",
+          "pre-merge: a run that DECLINED (terminal `stop_reason=confirmation_declined`, `services/agent/status.py`) returns `unavailable` for the state-change and impact links — NOT `pending`; declining is a choice, not a delay, and the test asserts the exact value, not merely 'not populated'",
+          "pre-merge: a run whose T+7 window has not elapsed returns `pending` for incremental impact — asserted with a seeded `computed_at`/window boundary, so the value is derived from the clock and not from row absence alone",
+          "pre-merge: `pending`, `unavailable` and `missing` are asserted to be three DISTINCT values, pairwise unequal, and NONE of them is `null` — the acceptance criterion is about the vocabulary, so it is asserted on the vocabulary",
+          "pre-merge: a run where a fact SHOULD exist and does not (a completed write with no `workflow_outcome_records` row) returns `missing` — distinguishing 'nobody wrote the join' from 'the fact has not happened yet', which is the reviewer story in the PRD",
+          "pre-merge: an `impact_readings` row with `confidence='suppressed'` is NOT returned as an incremental impact; with ONLY suppressed rows present the impact link reports its own labelled outcome and the countable-reading result is zero rows (#1226, #1338)",
+          "pre-merge: a `confounded` row is likewise excluded AND is distinguishable from a `suppressed` one at the chain surface — two seeded rows, two distinct labels, neither rendered as zero impact and neither collapsed into the other",
+          "pre-merge: the chain is ONE database call — asserted by counting statements against the session (or an equivalent structural assertion), not by inspecting the source; four fetches joined in Python fails this test",
+          "pre-merge: a legacy run with `action_card_id IS NULL` (rows created before migration 040, deliberately never backfilled) returns `unavailable` with that reason for the recommendation link — never `missing`, and never a crash on the outer join",
+          "post-deploy: on the candidate, the chain query against a completed sandbox run returns five links with reasons, and the incremental-impact link reads the honest `pending` — no real reading exists, which is #1339's gate and an owner decision, not a defect of this query"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is backend Python (a new query module plus its callers' seams) and tests. Rendering the chain is explicitly deferred by the PRD; the output is a Python/JSON structure, not a page."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "postgres-query-plan",
+      "api-json-response"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO schema change. Every column this query needs already exists: `workflow_runs.action_card_id` (migration 040, #1269), `tool_executions.workflow_run_id`/`tool_call_id`/`operation` (the ADR-073 d.3 ledger columns), `workflow_outcome_records.execution_id` (FK to `tool_executions.id`), and `impact_readings.run_id` (FK added by migration 034) plus `impact_readings.tool_execution_id`. This slice is READ-ONLY over those tables and adds no Alembic revision. Stable and candidate are compatible because nothing persisted changes. If the query turns out to need an INDEX for an acceptable plan, that is still additive and expand-only — but it must be raised and this plan revised to schemaChangeInScope: true BEFORE merge, with the migration number RESERVED by Meta and never computed from head (W6 and W9-A hold unlanded numbers). Under no circumstance a backfill: `action_card_id` and `impact_readings.run_id` are deliberately nullable with no backfill, and a legacy NULL is honest data the chain reports as `unavailable`, not a gap to fill with invented links."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Without this slice the four models remain unjoined and the only way to answer 'what did this run change and did it work' is to hand-join four tables by eye — the pre-existing state. Nothing is partially applied, no schema moved, no data is at risk, and no new exposure is created by holding.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart juli-api and juli-celery-worker. Read-only and code-only: reverting removes the chain query and restores the previous absence of one; there is no schema state, no data effect, no vendor effect and no migration to reverse. One honesty caveat for the PR: if #1656's metrics or any operator runbook has begun consuming the chain by the time of a revert, those consumers lose their source and must be reverted with it — the chain is #1656's and #1657's declared upstream (the epic's landing order is A -> B -> C -> D/E), so a revert of C alone must not leave D or E reading a function that no longer exists.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_outcome_chain_query.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -k 'outcome_chain or impact_gate or impact_reading' -q",
+    "PYTHONPATH=backend/src python -m pytest tests/integration -k 'outcome_chain' -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT build a client-side join. The chain is ONE database call. Four fetches assembled in Python fails acceptance criterion 5 and is also where a partially-failed fetch becomes an unexplained empty link.",
+    "Do NOT return a bare `null` for an empty link. `pending`, `unavailable` and `missing` are three DISTINCT values and the whole slice exists to keep them apart. Do not add a fourth reason, do not alias two of them, and do not let `null` co-exist with them as a fallback.",
+    "Do NOT count a `suppressed` or `confounded` `ImpactReading` as an incremental impact. #1226 forbids it by name and #1338 made it structural at the read surface; reintroducing it here is the same defect in a different costume. Reuse the existing exclusion rule rather than writing a second one.",
+    "Do NOT collapse `suppressed` into `confounded` or either into 'zero impact'. They are different reasons (insufficient signal vs a competing change) and each is its own labelled outcome.",
+    "Do NOT copy any threshold, confidence floor or control-set rule into this query. Reference `services/impact`'s own logic (`services/impact/confidence.py`, `control_pool.py`) — a second copy of a threshold is a second thing to drift, and #1062 is the defect that class of duplication already produced.",
+    "Do NOT modify `workers/impact_reader/pipeline.py` or `queries.py`. The reader's computation and persistence are complete, scheduled and correctly pessimistic (`_PERSISTED_CONFIDENCE` maps `below_floor` to a persisted `suppressed`); if a defect is found there, REPORT it.",
+    "Do NOT seed the chain-completeness test with hand-built rows. Criterion 1 says a real run through the real runner, because a fixture proves the SQL and this slice's actual risk is the wiring. Bind vendor collaborators to the real objects' signatures, never `**kwargs` doubles.",
+    "Do NOT backfill `workflow_runs.action_card_id` or `impact_readings.run_id`. Both are deliberately nullable with no backfill; a legacy NULL is honest data the chain reports as `unavailable`, not a gap to fill.",
+    "Do NOT add a route, a response model, a serializer for a page, or any rendering. A dashboard is explicitly not in W8.",
+    "Do NOT add a status, stop_reason, or confidence value to any vocabulary. `services/agent/status.py` and the `impact_readings` CHECK constraints stay as they are; adding one is a five-place change owned by another lane.",
+    "Do NOT touch apps/**, packages/**, ios/** — this epic's doNotLoad list — and do not open the TikTok corpora catalogs (ADR-051).",
+    "Do NOT run these tests on SQLite. The reason-vs-null distinction rides on outer-join and nullable-FK semantics that must be exercised where the behaviour lives — real Postgres at head."
+  ]
+}
