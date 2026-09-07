@@ -267,6 +267,52 @@ def check_primary_tree(repo: Path, trees: list[Worktree]) -> Finding:
     return Finding("PRIMARY_TREE", OK, "primary working directory is on main")
 
 
+def check_primary_tracked_modifications(repo: Path, trees: list[Worktree]) -> Finding:
+    """Tracked files modified in the primary tree, which no task should be editing.
+
+    #1734/#1606: file-editing tools can resolve against the primary directory
+    while ``Bash`` runs in the worktree, so an agent obeying "work only in
+    .worktrees/<name>" still writes here. From inside the agent it looks like an
+    edit that succeeded and then vanished; it is undetectable without checking
+    this tree, and three agents did it in one session.
+
+    It matters more than a stray file. The primary tree is the base every other
+    worktree branches from, so an unnoticed write there is a write into
+    everyone's next branch point -- and the strays become *inputs*: a generator
+    that globs artifact bodies rewrote a committed record for an unrelated issue
+    because a stale body was lying here (#1686).
+
+    Only *tracked* modifications count. Untracked scratch accumulates
+    legitimately, and a check that fires on it becomes a red everyone learns to
+    ignore, which is how a real signal is lost.
+    """
+    primary = next((t for t in trees if t.primary), None)
+    if primary is None:
+        return Finding("PRIMARY_TRACKED_MODS", WARN, "could not identify the primary worktree")
+
+    out = git_ok(primary.path, "status", "--porcelain")
+    tracked = [ln for ln in out.splitlines() if ln.strip() and not ln.startswith("??")]
+    if not tracked:
+        return Finding("PRIMARY_TRACKED_MODS", OK, "no tracked modifications in the primary tree")
+
+    # porcelain is XY<space>PATH, but the leading status field is not always
+    # padded to the same width -- slicing a fixed offset ate the first character
+    # of every path.
+    paths = [ln[2:].strip() for ln in tracked]
+    shown = ", ".join(paths[:5])
+    overflow = "" if len(paths) <= 5 else f" (+{len(paths) - 5} more)"
+    return Finding(
+        "PRIMARY_TRACKED_MODS",
+        FAIL,
+        f"{len(paths)} tracked file(s) modified in the primary working directory",
+        f"{shown}{overflow}. Task work belongs in a worktree; a tracked edit here is either "
+        "an agent's write that escaped its worktree (#1606) or an abandoned session. Either "
+        "way the next branch cut from this tree inherits it.",
+        "git -C <primary> status  # then restore, commit deliberately, or stash",
+        {"count": len(paths), "paths": paths[:20]},
+    )
+
+
 def check_dirty(repo: Path) -> Finding:
     out = git_ok(repo, "status", "--porcelain")
     lines = [ln for ln in out.splitlines() if ln.strip()]
@@ -415,7 +461,14 @@ def check_origin_freshness(repo: Path) -> Finding:
 # means "what you are about to read or write is not what you think it is". Drift-style
 # findings (dirty tree, worktree count) inform but never block.
 BLOCKING_CHECKS = frozenset(
-    {"STALE_BASE", "MAIN_LOCATION", "NESTED_CLONE", "PRIMARY_TREE", "WORKTREE_LOCATION"}
+    {
+        "STALE_BASE",
+        "MAIN_LOCATION",
+        "NESTED_CLONE",
+        "PRIMARY_TREE",
+        "PRIMARY_TRACKED_MODS",
+        "WORKTREE_LOCATION",
+    }
 )
 
 
@@ -430,6 +483,7 @@ def run_checks(repo: Path, *, fetch: bool = False, quick: bool = False) -> list[
         check_stale_base(repo, branch),
         check_main_location(repo, trees),
         check_primary_tree(repo, trees),
+        check_primary_tracked_modifications(repo, trees),
     ]
     if not quick:
         findings += [

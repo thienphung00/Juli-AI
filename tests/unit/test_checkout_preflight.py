@@ -287,3 +287,48 @@ def test_hook_ignores_edits_outside_the_repo(origin_and_clone, tmp_path):
     outside = tmp_path / "elsewhere.txt"
     outside.write_text("x")
     assert invoke_hook(clone, outside).returncode == 0
+
+
+# ------------------------------------------------------- PRIMARY_TRACKED_MODS (#1734)
+
+
+def test_a_tracked_modification_in_the_primary_tree_fails(engine, origin_and_clone):
+    """#1734/#1606: an agent's write that escapes its worktree lands here.
+
+    Observed three times in one session under briefs that named the worktree
+    explicitly: file tools resolved against the primary directory while `Bash`
+    ran in the worktree, so an edit reported success and `cat` in the worktree
+    showed the file unchanged. It is invisible from inside the agent, and the
+    primary tree is the base every other worktree branches from.
+
+    Nothing reported it. It was found by a human running `git status` after the
+    fact, which is not a control.
+    """
+    _, clone = origin_and_clone
+    (clone / "README.md").write_text("an edit that escaped its worktree\n")
+
+    findings = engine.run_checks(clone)
+    finding = find(findings, "PRIMARY_TRACKED_MODS")
+    assert finding.severity == engine.FAIL, finding
+    assert "README.md" in (finding.detail or "") + finding.headline
+
+
+def test_an_untracked_file_in_the_primary_tree_does_not_fail(engine, origin_and_clone):
+    """Untracked scratch is noise, not an escape.
+
+    The check must not fire on the artifact bodies and scratch files that
+    legitimately accumulate in a working tree, or it becomes a red that everyone
+    learns to ignore -- which is how a real signal gets lost.
+    """
+    _, clone = origin_and_clone
+    (clone / "scratch-notes.txt").write_text("not tracked\n")
+
+    findings = engine.run_checks(clone)
+    assert find(findings, "PRIMARY_TRACKED_MODS").severity == engine.OK
+
+
+def test_a_clean_primary_tree_passes(engine, origin_and_clone):
+    """The green half: without it the test above passes on a check that always fails."""
+    _, clone = origin_and_clone
+    findings = engine.run_checks(clone)
+    assert find(findings, "PRIMARY_TRACKED_MODS").severity == engine.OK
