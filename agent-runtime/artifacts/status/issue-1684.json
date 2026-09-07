@@ -14,19 +14,19 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1684.json",
     "ownerSignoffPresent": true,
-    "sha256": "52e08ae0a7220c661e09ca9cf5bab60dd2c6a1e32a601260d20c8dacbb43acd5",
+    "sha256": "4e76a880b9c71969203c60bbab36a20bff6073c30cc48f2f78981555875c95f0",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 1409,
+      "reviewBytes": 1524,
       "validationBytes": 571
     },
     "claimVsExecuted": {
       "citedCommandCount": 0,
-      "invokedCommandCount": 12304,
+      "invokedCommandCount": 12308,
       "matchedCommandCount": 0,
       "reason": "the implementation artifact cites no commands under redGreenRefactorEvidence[].commands; there is nothing to verify",
       "recordPasses": false,
@@ -135,15 +135,15 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1684-fix",
-        "head": "586cbcdb1e5eb22cf8535e00615fa50c3591a057",
+        "head": "39879670a3bfd55f3322091724caf2aa206c7dd7",
         "shallow": true
       },
       "moduleResolution": {
-        "error": "ModuleNotFoundError: No module named 'juli_backend'",
+        "error": null,
         "expectedPrefix": "/Users/macos/Juli-AI-v2/.worktrees/w5-1684/backend/src/juli_backend",
-        "insideRepo": false,
+        "insideRepo": true,
         "module": "juli_backend",
-        "resolved": null
+        "resolved": "/Users/macos/Juli-AI-v2/.worktrees/w5-1684/backend/src/juli_backend/__init__.py"
       },
       "python": "3.12.9",
       "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/w5-1684"
