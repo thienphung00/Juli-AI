@@ -1098,13 +1098,13 @@ def test_shallow_checkout_stays_indeterminate_for_a_committable_path(tmp_path: P
 # corpus to record both successes and failures, making the gap distinguishable.
 
 
-def test_a_failed_review_is_committable_and_blocks_merge(tmp_path: Path) -> None:
+def test_a_failed_review_is_committable_guard_passes(tmp_path: Path) -> None:
     """GIVEN a review that legitimately returns FAIL WHEN its record is committed
-    THEN the record lands (retention guard passes) and the merge is blocked
-    (review.status read separately in merge gate).
+    THEN the record lands and the retention guard passes.
 
-    This test proves the guard accepts the record. The merge gate that blocks
-    on review.status is tested alongside merge-gate logic, not here."""
+    This test proves the guard accepts FAIL as evidence. The merge block is
+    enforced by check_merge_status.py, tested separately in
+    test_check_merge_status.py::test_fails_when_review_status_is_fail."""
     issue = 1569
     repo, digests = _make_repo_with_committed_artifacts(tmp_path, issue)
     status_dir = tmp_path / "status"
