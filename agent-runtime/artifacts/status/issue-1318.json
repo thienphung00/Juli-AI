@@ -1,0 +1,28 @@
+{
+  "gateVersion": 1,
+  "issue": 1318,
+  "metrics": {
+    "acceptanceMapped": 9,
+    "acceptanceTotal": 9,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "apps/demo",
+      "packages/contracts"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1318.json",
+    "ownerSignoffPresent": true,
+    "sha256": "e61fb696143ff323b60fb981691edb4cfd744942fdd794cef51c233e8683eecb",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "timestamp": "2026-08-26T14:28:21Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1318.json",
+    "sha256": "561a0d44940d71f48a599aaadfb2737258c10a53e24dcb27a2a124065454b50b",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w6"
+}

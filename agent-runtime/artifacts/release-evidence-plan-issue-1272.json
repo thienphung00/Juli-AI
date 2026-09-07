@@ -1,0 +1,90 @@
+{
+  "planId": "rep-1272-seller-facing-reason-codes",
+  "affectedPublicSurfaces": [
+    "api.app-juli.com GET /v1/demo/runs/{id}/events — tool.completed summaries reaching the seller's browser now carry reviewed Vietnamese copy instead of tool names, playbook keys and raw validation errors",
+    "workflow_run_events.payload.summary — the persisted field the SSE stream serves from"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "demo tenant only",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "an-unregistered-tool-refusal-says-nothing-internal",
+        "entryUrl": "unit: drive the runner at a tool absent from the registry",
+        "assertions": [
+          "the seller-visible summary contains no tool name",
+          "the internal detail is still logged server-side, so operators keep the diagnosis",
+          "removing the copy indirection makes this fail"
+        ]
+      },
+      {
+        "name": "a-playbook-refusal-says-nothing-internal",
+        "entryUrl": "unit: call a tool outside the playbook allow-list",
+        "assertions": [
+          "no playbook key appears in the summary",
+          "the refusal is still recorded with its reason internally"
+        ]
+      },
+      {
+        "name": "malformed-params-do-not-echo-the-validator",
+        "entryUrl": "unit: dispatch a CONFIRM tool with params that fail validation",
+        "assertions": [
+          "no pydantic validation text reaches the summary",
+          "the seller sees reviewed copy, not our vocabulary"
+        ]
+      },
+      {
+        "name": "completion-and-decline-are-vietnamese",
+        "entryUrl": "unit: a completed tool call and a declined approval",
+        "assertions": [
+          "neither summary is untranslated English",
+          "the decline path reads as a seller decision, not an error"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": ["not-applicable: API copy only"],
+    "discoverFromHtml": false,
+    "assetTypes": ["not-applicable"],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. Only the string written into an existing JSON payload field changes. Rows written by the prior release remain readable and render as they did."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy the prior release; summaries revert to carrying internal detail, which is the current state. Rows already written keep the safe copy — the change is not retroactive in either direction.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_agent_seller_facing_reason_codes.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_agent_runner_core.py tests/unit/test_agent_events_contract.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests -m 'not live and not demo_contract' -q"
+  ],
+  "doNotInfer": [
+    "Do not discard the internal detail when replacing the seller-facing string. Operators need the diagnosis; the seller must not receive it. Log one, show the other.",
+    "Do not add a stop reason to the copy map without checking BOTH TypeScript maps — STOP_REASONS and WORKFLOW_FAILED_STOP_REASON_TO_STATUS. ADR-088 split concluded_without_changes and required_steps_unfulfilled out of final_response, and checking one map has produced a false green here before.",
+    "Do not invent Vietnamese tone. The reviewed vocabulary lives in docs/product/design and the dictionary; seller-facing copy is a product artifact, not a developer string.",
+    "Do not route around the outbound guard to get copy out. If a path needs to bypass it, that is the finding, not the workaround."
+  ]
+}

@@ -348,8 +348,7 @@ def coverage_report_to_markdown(report: CoverageReport) -> str:
         f"{report.window_end.isoformat()} ({report.days_total} days)",
         f"- **generated_at:** {report.generated_at.isoformat()}",
         f"- **catalog_mode:** {report.catalog_mode}",
-        f"- **revenue+live gate (≥95%):** "
-        f"{'PASS' if report.revenue_live_gate else 'FAIL'}",
+        f"- **revenue+live gate (≥95%):** {'PASS' if report.revenue_live_gate else 'FAIL'}",
         f"- **product gate (≥90%):** {'PASS' if report.product_gate else 'FAIL'}",
         f"- **exit_ready:** {'true' if report.exit_ready else 'false'}",
         "",

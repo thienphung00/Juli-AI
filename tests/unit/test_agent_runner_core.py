@@ -644,7 +644,12 @@ class TestPlaybookAllowlist:
             if e.event_type == "tool.completed" and e.payload.tool_name == "delete_all_products"
         ]
         assert len(refusal_events) == 1
-        assert "not a registered agent capability" in refusal_events[0].payload.summary
+        # The summary must be safe Vietnamese copy, not the internal detail
+        from juli_backend.services.agent.runner.seller_facing_copy import (
+            SellerFacingRefusalReason,
+        )
+
+        assert refusal_events[0].payload.summary == SellerFacingRefusalReason.TOOL_NOT_FOUND.value
 
     async def test_registered_but_not_in_playbook_tool_is_refused_and_never_dispatched(self):
         run_id = uuid.uuid4()
@@ -684,7 +689,12 @@ class TestPlaybookAllowlist:
             if e.event_type == "tool.completed" and e.payload.tool_name == "update_product_price"
         ]
         assert len(refusal_events) == 1
-        assert "not part of the active" in refusal_events[0].payload.summary
+        # The summary must be safe Vietnamese copy, not the internal detail
+        from juli_backend.services.agent.runner.seller_facing_copy import (
+            SellerFacingRefusalReason,
+        )
+
+        assert refusal_events[0].payload.summary == SellerFacingRefusalReason.TOOL_NOT_ALLOWED.value
 
     async def test_the_three_refusal_reasons_are_pairwise_distinguishable(self):
         run_id = uuid.uuid4()
@@ -1288,7 +1298,12 @@ class TestRefusalsAreHonestOnTheWireAndInTheConversation:
         malformed = [m for m in tool_messages if m["tool_call_id"] == "c3"]
         assert len(malformed) == 1
         error = malformed[0]["content"]["error"]
-        assert "try again" in error["message"]
+        # The message should contain the Vietnamese phrase for "try again" or "retry"
+        # The seller-facing copy is Vietnamese: "Yêu cầu chứa thông tin
+        # không hợp lệ. Vui lòng thử lại."
+        assert "thử lại" in error["message"] or "try again" in error["message"], (
+            f"message should suggest retry in Vietnamese or English, got: {error['message']}"
+        )
         assert error["retryable"] is True, (
             "a params refusal whose message asks the model to correct and retry must "
             "not also tell it the failure is not retryable -- live, the model believed "

@@ -20,6 +20,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.models import (
     BronzeCtorPerformanceRawPayload,
     BronzeLiveHoursRawPayload,
@@ -260,27 +261,45 @@ class SharedComputeOrchestrator:
             },
         )
 
-        # Bronze stage: fetch and append raw payloads
-        bronze_tracker = await self._bronze_stage(self._session, job)
+        # EACH STAGE RE-ENTERS THE TENANT SCOPE, and that is load-bearing (#1576).
+        #
+        # `with_shop_scope` sets `app.current_shop_id` with SET LOCAL, which is
+        # scoped to the transaction. The per-stage commits below deliberately end
+        # the transaction, so a scope entered once by the caller is gone from the
+        # first commit onward: `app_current_shop_id()` reads NULL, and every
+        # bronze/silver/gold INSERT is then refused by its own RLS WITH CHECK
+        # with "new row violates row-level security policy".
+        #
+        # Observed in production once the runtime stopped owning its tables. A
+        # caller cannot fix this from outside — it does not know this method
+        # commits — so the scope belongs here, around each stage, which is the
+        # shape `reaper` and `impact_reader` already use.
+        #
+        # A session-level set_config would survive the commit but not reliably:
+        # after committing, the session may check out a different pooled
+        # connection, and the GUC lives on the connection.
 
-        # Commit after bronze stage to bound session growth and give partial durability
-        await self._session.commit()
+        # Bronze stage: fetch and append raw payloads
+        async with with_shop_scope(self._session, job.shop_id):
+            bronze_tracker = await self._bronze_stage(self._session, job)
+            # Commit after bronze stage to bound session growth and give partial durability
+            await self._session.commit()
 
         # Silver stage: promote bronze to normalized domain tables
-        silver_promoted = await self._silver_stage(
-            self._session,
-            job.shop_id,
-            bronze_tracker,
-        )
-
-        # Commit after silver stage for durability and to clear accumulated objects
-        await self._session.commit()
+        async with with_shop_scope(self._session, job.shop_id):
+            silver_promoted = await self._silver_stage(
+                self._session,
+                job.shop_id,
+                bronze_tracker,
+            )
+            # Commit after silver stage for durability and to clear accumulated objects
+            await self._session.commit()
 
         # Gold stage: compute and write KPI envelope
-        gold_written = await self._gold_stage(self._session, job.shop_id)
-
-        # Commit after gold stage for durability
-        await self._session.commit()
+        async with with_shop_scope(self._session, job.shop_id):
+            gold_written = await self._gold_stage(self._session, job.shop_id)
+            # Commit after gold stage for durability
+            await self._session.commit()
 
         # Decision scoring branch (#713 / B-1): dispatched from the same enqueue,
         # after the KPI envelope is durably committed. Isolated failure domain —
@@ -306,8 +325,9 @@ class SharedComputeOrchestrator:
                 },
             )
             try:
-                await self._scoring_stage(self._session, job)
-                await self._session.commit()
+                async with with_shop_scope(self._session, job.shop_id):
+                    await self._scoring_stage(self._session, job)
+                    await self._session.commit()
                 scoring_succeeded = True
             except Exception:
                 logger.exception(

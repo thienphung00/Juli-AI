@@ -440,7 +440,7 @@ jobs:
       # gates this job exercises live (tests/unit/test_mutants.py) must
       # anchor to this run's actual base, not a hardcoded `main`. At issue
       # tier that base is a wave branch; a hardcoded `main` reported the
-      # wave's own landed harness commits as drift (PR #1561; ADR-094).
+      # wave's own landed harness commits as drift (PR #1561; ADR-097).
       BASE_REF: ${{ github.base_ref }}
     steps:
       - uses: actions/checkout@v7
@@ -475,7 +475,7 @@ jobs:
       # `harness_bootstrap_pin` gate this job exercises live, via
       # tests/unit/test_mutants.py) measures drift against the wrong history.
       # At main tier `github.base_ref` *is* `main`, so this one dynamic step
-      # is correct at both tiers without a conditional (ADR-094).
+      # is correct at both tiers without a conditional (ADR-097).
       #
       # #1604 follow-up: this fetch is a second, independent depth-bounded
       # fetch against an already-shallow checkout. That combination moves the

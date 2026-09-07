@@ -1,0 +1,71 @@
+{
+  "planId": "additive-gate-api-lane-2026-09-03",
+  "affectedPublicSurfaces": [
+    "None in this slice. The change edits infra/scripts/deploy.sh, which runs during deploy. No route, asset, schema or deployed artifact changes as a result of merging. The public surface changes only when a human subsequently runs a deploy, and then only by refusing a migration that would previously have been applied unchecked."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Local script-level tests on feature/additive-gate-api-lane-issue-1555. No VPS is contacted by this slice.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "api-lane-runs-the-additive-gate",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/actions",
+        "assertions": [
+          "the API deploy lane invokes migration_additive_gate.py before safe-alembic-upgrade.sh, or deploy.sh's comment is corrected to state that it does not",
+          "a test asserts the wiring, so the comment and the code cannot drift apart again \u2014 bash -n is not sufficient",
+          "running the gate against the current migration set reports its verdict, and that verdict is read rather than suppressed",
+          "the demo lane's existing invocation in deploy-demo-release.sh:152 is unchanged"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "assetTypes": [
+      "none"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false,
+    "htmlRoutes": [
+      "GitHub Actions run summary for the deploy-script tests"
+    ],
+    "discoverFromHtml": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. This slice wires in a gate that REFUSES non-additive migrations; it is strictly narrowing. Its first run may refuse for reasons unrelated to the change being deployed, because an empty --from-revision makes it inspect the whole history \u2014 that output is information to read, not a reason to disable the gate."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Production API migrations continue to run with no additive gate while deploy.sh's comment asserts one is present, so an auditor reading that file concludes the guard is wired when it is not. The demo lane stays gated; production does not.",
+    "postCutoverFailureBehavior": "Revert the commit. The gate runs only during deploy-time migration, so reverting restores the previous behaviour with no schema, data or runtime state to unwind.",
+    "rollbackMechanism": "Revert the commit.",
+    "retainedStableRequired": false,
+    "automatic": false,
+    "dataLossRisk": "None from this slice. It can only refuse a migration, never apply one."
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "bash -n infra/scripts/deploy.sh",
+    "python -m pytest tests/unit -q -k 'deploy or additive'"
+  ],
+  "notes": "Found by an independent review of the deploy path during #1339 observation 1, and confirmed by grep: the only caller of migration_additive_gate.py in the entire repo is deploy-demo-release.sh:152. deploy.sh:421 claims 'additive-gate + apply' and calls only safe-alembic-upgrade.sh. This repo lost 128 days of analytics history to a migration on 2026-07-30; the gate written to prevent recurrence is not wired into the lane that touches production data.",
+  "doNotInfer": [
+    "Do not infer that production is protected today. It is not \u2014 that is the defect.",
+    "Do not infer that the gate passes on the current migration set. It has never run against it in this lane; report what it actually says.",
+    "Do not infer any runtime behaviour change. This slice only affects what happens during a deploy's migration step."
+  ]
+}

@@ -118,6 +118,38 @@ def sync_database_url(raw_url: str) -> str:
     return _append_query_params(url, {"hostaddr": hostaddr})
 
 
+def migration_database_url(default: str | None = None) -> str:
+    """The URL migrations and pg_dump must use: the OWNER, not the runtime role.
+
+    ONE RESOLVER, TWO CALLERS. `alembic`'s env.py and
+    `infra/scripts/safe_alembic_helpers.migration_db_url` both need this
+    precedence, and they disagreed: env.py read `DATABASE_URL` directly while the
+    helper preferred `DATABASE_DIRECT_URL`. The backup therefore ran as the owner
+    while the migration ran as `juli_app`, which cannot read
+    `public.alembic_version` — so `alembic upgrade` failed outright on production
+    (#1575). Sharing the function is what stops them drifting again.
+
+    `DIRECT` names the wrong distinction, and renaming it is out of scope: it was
+    chosen for direct-vs-pooler, while since #1339 the live question is
+    owner-vs-runtime, because `DATABASE_URL` now points at the RLS-bound
+    `juli_app`. Falling back to it silently is what makes pg_dump succeed while
+    dumping zero rows.
+
+    Args:
+        default: returned when neither variable is set. Callers that must fail
+            instead pass None, which raises.
+
+    Raises:
+        RuntimeError: when neither variable is set and no default was given.
+    """
+    direct = os.environ.get("DATABASE_DIRECT_URL", "").strip()
+    pooled = os.environ.get("DATABASE_URL", "").strip()
+    raw = direct or pooled or (default or "")
+    if not raw:
+        raise RuntimeError("DATABASE_URL (or DATABASE_DIRECT_URL) must be set for migrations")
+    return sync_database_url(raw)
+
+
 def async_database_url(raw_url: str) -> str:
     """Convert a sync Postgres URL to SQLAlchemy asyncpg form."""
     url = raw_url.strip()

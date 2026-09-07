@@ -1,0 +1,86 @@
+{
+  "planId": "decisions-executability-discriminator-2026-08-25",
+  "affectedPublicSurfaces": [
+    "`GET /v1/demo/decisions` and `GET /v1/demo/decisions/{id}` (`backend/src/juli_backend/api/routes/demo_decisions.py`) on `api.app-juli.com` — the masked envelope (`_build_masked_item`) gains an executability discriminator that reveals whether Juli can carry a recommendation out, without exposing `workflow_key` or any of the eleven-workflow taxonomy.",
+    "`POST /v1/demo/decisions/{id}/approve` on `api.app-juli.com` — `services/agent/approval.py` stops pinning every run to `OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key` regardless of the card's own `workflow_key`; a card whose `workflow_key` has no registered playbook is now refused with a named 409 (no run row, no enqueue, card stays `active`); a card whose `workflow_key` resolves to a registered playbook creates a run bound to that playbook.",
+    "`packages/contracts` — the TypeScript mirror of the decisions envelope shape gains the same discriminator field as the Pydantic model, consumed by the `demo.app-juli.com` lane; per the wave lock this must move in the same PR as the Pydantic change or the cross-language contract test fails CI.",
+    "No new route, no new HTTP verb, no schema/migration surface — the diff is additive fields on an existing response envelope plus a new named refusal path on an existing write endpoint."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest (PYTHONPATH pinned to the worktree's backend/src, per the worktree test-import hazard) proves the 409 refusal and the successful-playbook path at the service layer directly (calling approval.py's approve function, not only through the route) — asserting the persisted run's workflow_key/prompt_version, never the OPTIMIZE_PRODUCT_PLAYBOOK constant — plus a schema test on GET /v1/demo/decisions and /v1/demo/decisions/{id} asserting the discriminator is present and workflow_key is still absent, and a cross-tenant/nonexistent-card test asserting both return 404. Post-deploy: authenticated GET /v1/demo/decisions on the candidate port returns the discriminator field on every card; approving a card whose workflow_key has no registered playbook returns 409 with no run created. Post-deploy verification does NOT approve a card that DOES resolve to a registered playbook — that would enqueue a real agent run, and per the wave's owner decision writes stay sandbox-shop-bound and unattempted here; the successful-playbook path is proven pre-merge only.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is false: the post-deploy journey is a read (GET /v1/demo/decisions) plus one refusal-only write attempt (approve on a non-executable card, which the acceptance criteria require to create no run row and enqueue nothing). workersDisabledOnCandidate is false because no worker path participates in the refusal — the 409 is raised before any enqueue. The card-executes-a-real-playbook path stays proven pre-merge, never exercised as post-deploy candidate traffic, consistent with the wave-wide 'writes stay sandbox-bound' lock.",
+    "journeys": [
+      {
+        "name": "discriminator-visible-and-refusal-enforced",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1309",
+        "assertions": [
+          "pre-merge: a card whose workflow_key has no registered playbook, approved through approval.py directly, raises the named 409 condition — no run row persisted, nothing enqueued, card remains active",
+          "pre-merge: the same refusal is proven through the HTTP route (POST /v1/demo/decisions/{id}/approve) returning 409, so a future caller cannot route around the service-layer check",
+          "pre-merge: a card whose workflow_key DOES have a registered playbook, approved, creates a run — asserted by reading the persisted run's workflow_key and prompt_version columns, never by asserting the OPTIMIZE_PRODUCT_PLAYBOOK constant stayed bound",
+          "pre-merge: GET /v1/demo/decisions and GET /v1/demo/decisions/{id} both carry the executability discriminator on every card in the envelope",
+          "pre-merge: a schema test asserts workflow_key is absent from both the list and detail envelopes, discriminator or not",
+          "pre-merge: registering a fixture playbook in the registry changes the discriminator's value for a card bound to that workflow_key — proving the discriminator is derived from the real registry, not a second hand-maintained literal",
+          "pre-merge: a cross-tenant card and a nonexistent card both return 404 from GET /v1/demo/decisions/{id}, indistinguishably",
+          "pre-merge: the packages/contracts TypeScript mirror and the Pydantic model are asserted against the same golden envelope fixture in both languages",
+          "post-deploy: authenticated GET /v1/demo/decisions on the candidate port returns 200 with the discriminator field present on every card",
+          "post-deploy: approving a card whose workflow_key has no registered playbook returns 409 on the candidate port, with no run row created"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle, or static asset changes — issue body states 'No static assets'. The diff is the Pydantic envelope model, the FastAPI route, the approval.py refusal/dispatch logic, and the packages/contracts TypeScript mirror; apps/demo is an unchanged consumer of the existing GET /v1/demo/decisions and approve endpoints."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "api-json-response",
+      "contract-test-report"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Issue body states 'No migration'. The change is an additive field on an existing response envelope (the executability discriminator) plus a refusal branch in approval.py's control flow — no table, column, or persisted-shape change. Old and new code paths coexist trivially: a client that does not read the new field is unaffected, and no persisted row format changes."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed system changes until this lands — approval.py continues silently pinning every run to OPTIMIZE_PRODUCT_PLAYBOOK exactly as today, and the decisions envelope continues withholding both workflow_key and the discriminator. No new exposure introduced by this plan; the pre-existing silent-substitution behavior is the known defect this issue fixes, not a regression this plan causes.",
+    "postCutoverFailureBehavior": "Reverting restores the previous envelope, which is a strict subset of the new one — the issue body states this explicitly. Assert no consumer (apps/demo, packages/contracts) requires the new discriminator field to render before the rollback is considered safe. Reverting also restores approval.py's prior (silent-substitution) dispatch behavior; that regression is the pre-existing state, not a new one, and is acceptable as a rollback target because it is what production runs today.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit -k 'approval or decisions or executability' -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/integration -k 'approval or decisions or executability' -q",
+    "ruff check backend tests && ruff format --check backend tests"
+  ],
+  "doNotInfer": [
+    "The refusal must be proven at the service layer (approval.py) directly, not only through the HTTP route — a future caller must not be able to route around it.",
+    "Approve must run the card's OWN playbook when one is registered, never substitute a different one. Today's every-card-runs-Optimize-Product behavior is the defect being removed, not a pattern to preserve for any card.",
+    "The discriminator must reveal NO workflow taxonomy — it answers only 'can Juli execute this', never which of the eleven workflows a card belongs to. workflow_key itself stays absent from both envelopes; a schema test must assert that.",
+    "The discriminator must be derived from the REAL playbook registry, never a second hand-maintained literal — prove it by registering a fixture playbook and observing the value change.",
+    "Cross-tenant and nonexistent cards stay indistinguishable — both 404, never 403, no existence oracle.",
+    "The packages/contracts TypeScript mirror moves in the SAME PR as the Pydantic model change, or the cross-language contract test fails CI.",
+    "This does not generalize the single-workflow constraint to the other ten workflows — that is explicitly P13/W10. This slice makes today's single-workflow constraint honest (refuse instead of silently substitute); it does not remove it.",
+    "Do not approve an executable card against any real shop as part of proving this slice's post-deploy journey — the successful-playbook path is proven pre-merge via the service layer and persisted run columns, consistent with the wave-wide sandbox-bound-writes lock."
+  ]
+}

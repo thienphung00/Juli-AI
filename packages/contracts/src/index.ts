@@ -6,6 +6,18 @@ export type {
   DemoAnalyticsEnvelope,
   DemoAnalyticsEnvelopeMeta,
 } from "./analytics";
+export type {
+  DemoDecisionDetailResponse,
+  DemoDecisionExpectedImpact,
+  DemoDecisionItem,
+  DemoDecisionListResponse,
+  DemoDecisionReasoning,
+  DemoDecisionRecommendation,
+} from "./decisions";
+export {
+  GOLDEN_DEMO_DECISION_EXECUTABLE,
+  GOLDEN_DEMO_DECISION_NON_EXECUTABLE,
+} from "./decisions";
 export {
   GMV_TIKTOK_ENVELOPE_KEY,
   GMV_TIKTOK_LABEL,

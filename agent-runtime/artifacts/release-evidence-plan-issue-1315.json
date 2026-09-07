@@ -1,0 +1,73 @@
+{
+  "planId": "run-stream-and-reducer-2026-09-05",
+  "affectedPublicSurfaces": [
+    "No public surface changes in this slice. It adds two library modules to apps/demo \u2014 a pure reducer (events -> RunViewState) and a useRunStream hook wrapping the EXISTING openAgentEventStream client from #1132. Nothing renders them yet; the staged view (#1316) and the option picker (#1317) are the consumers, and they are not in this slice.",
+    "The hook reads GET /v1/demo/runs/{id}/events, an endpoint that already exists and already serves both live and replayed runs. This slice adds no route and changes no response.",
+    "Explicitly NOT touched: the recommendations surface, whose fixture fallback and wrong route constant are #1320's, and which is blocked on #1313 for an authenticated read."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge only: vitest in apps/demo. The reducer is a pure function and its tests run on the CAPTURED SCENARIO FILE (tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json), never on hand-built event objects \u2014 that is the slice's stated point. No VPS contact, no production read, no vendor call.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "Nothing here reaches a shop. The reducer imports no React, no fetch and no clock; the hook is not mounted by any page in this slice.",
+    "journeys": [
+      {
+        "name": "reducer-folds-every-event-type-and-the-hook-separates-two-error-kinds",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1315",
+        "assertions": [
+          "pre-merge: every member of AGENT_EVENT_TYPES folds into a defined transition, asserted by iterating the union's own member list so a ninth type fails rather than being ignored",
+          "pre-merge: the captured scenario reproduces the six-stage progression from PUI-DESIGN \u00a72, asserted against the scenario file rather than a hand-written expected object",
+          "pre-merge: duplicate sequence numbers are idempotent; out-of-order arrival does not corrupt state; a replayed prefix after reconnect changes nothing",
+          "pre-merge: the reducer is pure \u2014 same events twice yields equal state, and the module imports no React, no fetch and no Date.now(), asserted over its source",
+          "pre-merge: a stream disconnect yields a RECONNECTING state and workflow.failed yields a FAILED run state, and a test asserts the two values are not equal"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No route, page or bundle changes \u2014 two library modules and their tests."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "vitest-report"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration, no schema, no database access anywhere in this slice."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Nothing renders these modules, so a failure is confined to CI.",
+    "postCutoverFailureBehavior": "Revert; no consumer exists to break.",
+    "retainedStableRequired": true,
+    "automatic": true
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- run-surface",
+    "pnpm --filter @juli/demo lint"
+  ],
+  "doNotInfer": [
+    "Do NOT write a second stream client. #1132's openAgentEventStream already exists and the hook must build on it.",
+    "Do NOT test the reducer on hand-built event objects. The tests run on the captured scenario file; hand-built fixtures defeat the slice's purpose and should be rejected in review.",
+    "Do NOT conflate a stream disconnect with a failed run. They are different states and a test asserts they are not equal.",
+    "Do NOT let the reducer import React, fetch or a clock. Purity is asserted over its source."
+  ]
+}
