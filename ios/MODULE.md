@@ -28,7 +28,9 @@ navigation shell for TikTok Shop sellers.
 - Every `/v1/*` request includes `Authorization: Bearer <jwt>` header
 - Every shop-scoped request includes `X-Shop-Id` header
 - Offline cache entries carry a `cachedAt` timestamp; UI shows stale indicator when >5 min old
-- No push notification registration in this slice (deferred to #46)
+- Push registration is live: `JuliAIAppDelegate` requests notification authorization and
+  calls `registerForRemoteNotifications()`; payload parsing is covered by
+  `PushNotificationParsingTests`
 - No UIKit storyboards — pure SwiftUI single-target app
 
 ## Owners

@@ -8,6 +8,10 @@
 Approve) recorded in CONTEXT **Seller workspace**, for `apps/demo` Decisions.
 **Amends:** the CONTEXT note that the five-stage review "does not change the In Progress
 sub-tab (deferred redesign)" — that redesign is no longer deferred.
+**Amended by:** [ADR-090](090-optimize-product-realignment.md) d.6 (removes
+`optimize_product_2` from Repeat consent), [ADR-091](091-clear-excess-inventory-design.md) d.8
+(adds `clear_excess_4`), [ADR-093](093-replenish-inventory-design.md) (Replenish's impact metric
+is stock health, not GMV — narrows d.15).
 **Does not change:** [ADR-023](023-four-destination-analytics-ownership.md) four-destination
 IA; Decisions' exclusive ownership of the recommendation approval gate; Analytics'
 ownership of KPIs and charts; **Demo dry-run execution** (Mock actions still never call

@@ -46,6 +46,7 @@ backend/src/juli_backend/
 │   └── main.py                   # ASGI entrypoint (uvicorn)
 ├── services/
 │   ├── action_cards/             # Decision refresh + persistence facade
+│   ├── agent/                    # Seller-facing agent runtime (LLM loop, tools, events)
 │   ├── aggregates/               # Feature aggregates / shop profile
 │   ├── alerts/                   # Rule engine + delivery channels
 │   ├── analytics_backfill/       # Phase 2.9 historical partitions
@@ -123,6 +124,7 @@ Modular monolith upgrade.
 | [`backend/src/juli_backend/api`](../../backend/src/juli_backend/api/MODULE.md) | 1 | FastAPI REST API (`/v1/*`) — thin adapters to owning services | `create_app`, `get_active_shop`; routes for shops, orders, products, creators, recommendations, action_cards, executions, outcomes | Backend API |
 | [`backend/src/juli_backend/services/scoring`](../../backend/src/juli_backend/services/scoring/MODULE.md) | 1 | Rules-based scoring pipeline: aggregates → signals → recommendations → copy | `run_daily_scoring_for_shop`, `compute_scoring_signals`, `rank_workflow_recommendations`, `DailyScoringResult` | Intelligence |
 | [`backend/src/juli_backend/services/action_cards`](../../backend/src/juli_backend/services/action_cards/MODULE.md) | 1 | Action card refresh orchestration + sole decision persistence writer | `run_action_card_refresh`, `persist_scoring_result`, `enqueue_action_card_refresh`, dispatcher ports | Intelligence |
+| [`backend/src/juli_backend/services/agent`](../../backend/src/juli_backend/services/agent/MODULE.md) | 1 | Seller-facing agent runtime: LLM loop, guarded tool dispatch, write-path ledger, SSE events, approval pause | `WorkflowRunner`, `ToolRegistry`, `compose()`, `PersistingEventSink` | Intelligence |
 | [`backend/src/juli_backend/services/execution`](../../backend/src/juli_backend/services/execution/MODULE.md) | 1 | Celery-backed approved tool dispatch | `enqueue_approved_tool`, `run_tool`, `run_tool_async`, `ExecutionStatus`, dispatcher ports | Workers & Async |
 | [`backend/src/juli_backend/services/operations`](../../backend/src/juli_backend/services/operations/MODULE.md) | 2 | Workflow outcome tracking (partial — live pipeline deferred) | `record_workflow_outcome`, `load_workflow_outcome_metrics`, `build_workflow_outcome_metrics` | Workers & Async |
 | [`backend/src/juli_backend/services/alerts`](../../backend/src/juli_backend/services/alerts/MODULE.md) | 2 | Multi-channel seller alerts: rule engine + delivery | `configure_rules`, `evaluate_rules`, `deliver_alert`, `FcmAdapter`, `ZaloOaAdapter` | Cross-cutting |

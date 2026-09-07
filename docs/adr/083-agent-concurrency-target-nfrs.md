@@ -4,6 +4,8 @@
 **Date:** 2026-08-22
 **Deciders:** grill-with-docs (Architect) with owner
 
+**Narrowed by:** S-FR-11 (`v1-workflow-spec.md:40`, owner 2026-09-05) — one active run per
+subject **across all workflows**; d.3's cross-category concurrency is no longer permitted.
 **Builds on:** ADR-041 (Redis ephemeral — broker is never the queue of record), ADR-068/ADR-073
 (WorkflowRunner, one-active-run partial unique index, basis-snapshot concurrency guard),
 ADR-074 (Postgres-authoritative event streaming, per-run sequences), ADR-075 (approval gate,

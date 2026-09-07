@@ -582,12 +582,13 @@ declaring this module healthy for heavier Phase 3+ reliance.
 
 ## 16. Agent Execution
 
-- **Status:** partial *(W1–W4 landed and deployed; W5–W10 remaining — see
-  [PLAN.md](../product/agent-workflow-execution/PLAN.md))*
+- **Status:** partial *(W1–W5 and W7 landed and deployed; W6 partially landed; W8–W10
+  planned — see [PLAN.md](../product/agent-workflow-execution/PLAN.md))*
 - **Path:** `backend/src/juli_backend/services/agent/` (`tools/`, `llm/`, `sanitize/`,
-  `prompts/`, `playbooks/`, `runner/`, `events/`), `workers/tasks/agent_workflow.py`,
-  `workers/tasks/reaper.py`, `workers/tasks/credential_refresh_beat.py`,
-  `api/routes/agent_runs.py`, `packages/contracts/src/agent-events.ts`
+  `prompts/`, `playbooks/`, `runner/`, `events/`, `golden_scenarios/`),
+  `workers/tasks/agent_workflow.py`, `workers/tasks/reaper.py`,
+  `workers/tasks/credential_refresh_beat.py`, `api/routes/agent_runs.py`,
+  `packages/contracts/src/agent-events.ts`
 - **Purpose:** The **seller-facing agent** that executes a workflow end to end — LLM loop,
   guarded tool dispatch, write-path ledger, event stream, approval pause.
 - **Not to be confused with §11 Agent Runtime**, which is the HITL *harness that builds the
