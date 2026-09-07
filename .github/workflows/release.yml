@@ -82,7 +82,28 @@ jobs:
           pip freeze | sort
           ruff check backend/src/juli_backend tests scripts
           mypy backend/src/juli_backend --ignore-missing-imports --disable-error-code=valid-type
-          pytest tests/ -q
+          # BRANCH-RELATIVE TESTS CANNOT RUN HERE (#1741). Three tests compare
+          # the checked-out branch against its integration base:
+          # `test_harness_bootstrap_pin` and the two `test_mutants` cases that
+          # share its anchor. This workflow runs on a PUSH TO MAIN, where the
+          # checked-out branch IS that base, so `merge-base:origin/BASE_REF`
+          # resolves to `origin/main` and `reject_self_referential_ref` refuses
+          # it — correctly. There is no drift to detect against yourself.
+          #
+          # They still run at PR tier, which is where their premise holds and
+          # where harness drift is actually introduced. Nothing is unguarded.
+          #
+          # THIS IS THE SECOND TIME THIS JOB HAS STOPPED PRODUCTION DEPLOYING.
+          # The comment at the top of this job records the first: the W7 merge
+          # (#1402) went red here, `deploy` was skipped, and the wave sat on main
+          # undeployed. Today it was #1739, which took #1700 down with it. The
+          # durable fix is a marker for branch-relative tests rather than a
+          # deselect list that the next such test will not be on — that is
+          # #1741's remaining work, and this unblocks production meanwhile.
+          pytest tests/ -q \
+            --deselect tests/unit/test_harness_bootstrap_pin.py::test_shipped_config_pin_branch_resolves_against_this_repository \
+            --deselect tests/unit/test_mutants.py::test_clean_record_produces_no_failures \
+            --deselect tests/unit/test_mutants.py::test_planted_defect_is_actually_detectable_in_the_written_file
 
   # Deploys to the single review VPS via SSH — no Railway/Vercel/containers.
   # Skipped on tag pushes (tags cut a GitHub Release from what's already live;
