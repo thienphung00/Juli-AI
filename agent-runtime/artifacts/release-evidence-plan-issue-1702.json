@@ -1,0 +1,90 @@
+{
+  "planId": "approve-runs-the-cards-workflow-on-its-subject-2026-09-07",
+  "affectedPublicSurfaces": [
+    "`POST /v1/demo/decisions/{action_card_id}/approve` (`api/routes/demo_execution.py::approve_demo_decision`, router prefix `/demo/decisions`) — the WIRE shape does not move (the route still takes no request body; `DemoDecisionApproveData` still returns `run_id`/`action_card_id`/`product_id`/`status`/`celery_task_id`), but its BEHAVIOUR does: the run created by `services/agent/approval.py::approve_action_card` now carries `card.workflow_key` and `card.subject_type`/`card.subject_id` (the #1701 columns) instead of a workflow implied by the single registered playbook and a product implied by revenue. `product_id` in the response becomes the card's product subject rather than the shop's best seller — the same value for every card that exists today, a different value the moment a second card subject exists.",
+    "The revenue derivation is DELETED, and with it a failure mode: `approval.py` currently calls `ProductsRepo(session).get_highest_revenue_product(shop_id)` and raises `NoProductsForShop` when the shop has none (`approval.py`, the `product is None` branch). After this slice a card with no subject cannot be approved at all — a different, named refusal — and `NoProductsForShop` stops being reachable from this path. Any caller or test asserting that 409 must be updated deliberately, not deleted quietly.",
+    "CONTRADICTION WITH THE ISSUE BODY, and the executor must not 'fix' what is already fixed: the issue states `approval.py` \"states in its own docstring that every run it creates runs the Optimize Product playbook regardless of the approved card's `workflow_key`\". That text is NOT in the file — grep for `regardless` in `services/agent/approval.py` returns nothing. Today's code ALREADY refuses an unregistered key: `if not playbooks_module.is_workflow_executable(card.workflow_key): raise WorkflowNotExecutable(...)` runs BEFORE any row is written (ADR-084 decision 3), and `_resolve_prompt_pin(card.workflow_key)` already resolves the prompt version and sha per key through `prompts.production_version(workflow_key)`. So acceptance criterion 2 ('an unknown key is refused with no run') is largely SATISFIED today; the honest work is to prove `WorkflowNotExecutable` still holds through the registry rewrite and to name it as the error, not to invent a second refusal beside it. What is genuinely absent is the playbook/policy resolution: `playbooks/__init__.py` exports the single constants `OPTIMIZE_PRODUCT_PLAYBOOK`/`OPTIMIZE_PRODUCT_TERMINATION_POLICY`, and nothing maps a key to a playbook object.",
+    "The reaper's judgement, not its schedule. `workers/tasks/reaper.py` holds exactly ONE policy — `_DEFAULT_TERMINATION_POLICY = _agent_playbooks.OPTIMIZE_PRODUCT_TERMINATION_POLICY` — and `reap_workflow_runs(..., policy: TerminationPolicy | None = None)` plus `_ReaperEventSink(session, *, policy=...)` are already an injection seam that NO call site uses. This slice makes per-run resolution the default path: each run's policy comes from its own `workflow_key` through the same registry. The beat entry `reap-abandoned-workflow-runs` (`*/5`, `workers/celery_app.py`) is untouched; only which timeout a given row is judged by changes, and for `optimize_product_2` that value is identical (`approval_timeout_h=4`, `wall_clock_timeout_s=300`).",
+    "NO schema change, NO new route, NO new field on any response model, and NO prompt change (prompts are #1705). Nothing under `apps/`, `packages/` or `ios/` is touched."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest driven from the worktree root with PYTHONPATH pinned to the worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite. The approve transaction's fail-closed ordering (refuse before any row is written), the autoflush of the pending `card.status` UPDATE inside the open transaction, and the partial unique on non-terminal runs are all Postgres transaction behaviour that SQLite does not reproduce. The registry, `approve_action_card` and the reaper are exercised as the REAL objects; the test-only second playbook is a real `Playbook`/`TerminationPolicy` pair built through `playbooks/base.py`, never a `**kwargs` double. Post-deploy: approve ONE real card on the candidate against the sandbox shop and read the run row back; no public traffic reaches a candidate task set and no production write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the reaper half of this slice runs only inside the Celery beat/worker pair (`reap-abandoned-workflow-runs`); a candidate with workers disabled cannot exercise per-run policy resolution at all. apiSideEffectsInScope is FALSE: the only state written is this shop's own `action_cards` and `workflow_runs` rows; there is no vendor mutation and no production write, and the standing owner decision of 2026-08-21 holds.",
+    "journeys": [
+      {
+        "name": "the-approved-cards-key-and-subject-decide-the-run",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1702",
+        "assertions": [
+          "pre-merge: with a registry holding TWO keys — the real `optimize_product_2` and a test-only playbook registered in the test module — a card carrying the test key is approved and the run's `workflow_key` IS the test key, and the worker executes the TEST playbook's first step, not Optimize Product's; asserted on the step actually dispatched through the real runner, never on the registry lookup alone (tests/unit/test_approval_resolves_workflow_from_card.py::test_approving_a_card_runs_that_cards_playbook)",
+          "pre-merge: a card whose `workflow_key` is not registered is refused by the EXISTING named error `WorkflowNotExecutable`, and no `workflow_runs` row exists afterwards — asserted by counting rows in the same transaction scope, and asserted to happen BEFORE `card.status` is flipped to 'approved', so a refused approval leaves the card approvable (tests/unit/test_approval_resolves_workflow_from_card.py::test_unknown_workflow_key_is_refused_with_no_run)",
+          "pre-merge: a card with `subject_type = 'product'` produces a run whose subject EQUALS the card's subject and NOT the shop's highest-revenue product — proven on a shop where those two differ, so the assertion cannot pass by coincidence; and `ProductsRepo.get_highest_revenue_product` is no longer reachable from the approve path (its call site removed, the function itself deleted or its remaining callers named in the PR) (tests/unit/test_approval_resolves_workflow_from_card.py::test_run_subject_is_the_cards_subject_not_the_shops_top_product)",
+          "pre-merge: two runs whose registered policies differ in `approval_timeout_h` are judged by their OWN policy — move the test playbook's timeout, run the real `reap_workflow_runs` with NO `policy=` argument passed, and assert only its run is reaped while the `optimize_product_2` run at 4 h is untouched; the injectable seam must be exercised as the DEFAULT path, not by passing a policy in from the test (tests/unit/test_reaper_per_workflow_policy.py::test_reaper_uses_each_runs_own_policy)",
+          "pre-merge: a run whose `workflow_key` has no registered policy is NOT silently reaped under Optimize Product's timeout — the reaper reports it and leaves it, or fails closed with a named error; a silent fallback to `_DEFAULT_TERMINATION_POLICY` would reintroduce the exact defect this slice removes",
+          "pre-merge: ZERO behaviour change for `optimize_product_2`. The recorded run golden `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` is byte-equal through `tests/unit/test_golden_scenario_capture_from_real_runner.py::test_the_committed_scenario_is_what_the_tool_produces`, and the composed prompt golden `tests/fixtures/agent_prompt_gates/optimize_product_v3_composed.golden.md` is untouched (production version is 3, `prompts/composer.py::PRODUCTION_PROMPT_VERSION`)",
+          "pre-merge: the existing approve suite passes unchanged — `tests/unit/test_agent_approval_transaction.py` and the run-listing tests — proving the 404/409 ladder, the card-snapshot audit and the prompt pin did not move",
+          "post-deploy: `/health` on the candidate is unchanged, and approving ONE real sandbox card through the candidate's `/v1/demo/decisions/{id}/approve` produces a `workflow_runs` row whose `workflow_key` and subject columns match the card's, read back by direct query — the run is created by approve on the deployed host, not by a fixture (S-NFR-9)",
+          "post-deploy: one authenticated decisions read on the candidate returns the same shape it returned before the deploy — this slice adds no field to any response model"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is `services/agent/playbooks/__init__.py`, `services/agent/approval.py`, `workers/tasks/reaper.py` and tests. Nothing under apps/, packages/ or ios/ is touched; those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "postgres-row-dump",
+      "celery-worker-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE IN THIS SLICE. Every column this slice reads — `workflow_runs.workflow_key`, `workflow_runs.subject_type`/`subject_ref`, `action_cards.subject_type`/`subject_id` — is created by #1701 and is a hard dependency, not something to add here. Do not open a migration file. If a test cannot pass without a column, the dependency on #1701 is unmet and the answer is to report it, not to write a second migration. Old and new code coexist because the previous release neither reads nor writes those columns and the ones it does write (`product_id`, `prompt_version`, `prompt_sha256`) keep their meaning."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. The deployed system stays exactly as it is: approve keeps binding the run to `get_highest_revenue_product`, the reaper keeps judging every run by Optimize Product's 4 h `approval_timeout_h`, and the #1701 columns sit written-but-unread. Nothing is partially applied and no seller-visible behaviour changes, because no second workflow key is emitted by scoring yet.",
+    "postCutoverFailureBehavior": "Code-only rollback: redeploy the previous release and restart juli-api and juli-celery-worker. NO downgrade is required or permitted — this slice owns no migration, and #1701's columns stay populated and valid because the previous code simply never names them. Runs created under the new code keep their honest `workflow_key`/subject values; the previous code re-derives `product_id` from revenue for NEW runs only, which is the pre-existing behaviour, not a corruption. If #1701's schema must ALSO be reverted, that downgrade is #1701's and it must FAIL LOUDLY rather than proceed when any `workflow_runs` row carries a non-product `subject_type` or a NULL `product_id`, or when any run sits in `waiting_external`. Order: previous code first, any schema revert second.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_approval_resolves_workflow_from_card.py tests/unit/test_reaper_per_workflow_policy.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_approval_transaction.py tests/unit/test_agent_runs_list.py tests/unit/test_agent_tool_registry_contract.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_golden_scenario_capture_from_real_runner.py tests/unit/test_agent_prompt_snapshot_gate.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT read a migration number from head — do NOT write a migration at all. This slice has no schema change; every column it reads is #1701's. The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake.",
+    "Do NOT derive the subject from revenue, here or anywhere downstream. `ProductsRepo.get_highest_revenue_product` leaves the approve path in this slice; a fallback to it when `card.subject_id` is NULL would silently restore the exact defect (\"a card about one listing acts on my best seller\") the PRD names as a broken consent promise. A card with no subject is refused, not repaired.",
+    "Do NOT add a second reaper policy object. `TerminationPolicy` (`services/agent/playbooks/base.py`) already carries `wall_clock_timeout_s`, `approval_timeout_h`, `required_steps`, `terminal_tools` and `max_iterations`/`max_extensions`; the registry resolves an existing instance per key. A parallel policy type, a per-reaper config dict, or a second `_DEFAULT_*` constant would give the fleet two answers to one question.",
+    "Do NOT keep `_DEFAULT_TERMINATION_POLICY` as a silent fallback. Per-run resolution becomes the DEFAULT path through the existing `policy=` seam; a run whose key resolves to nothing must be reported or fail closed, never judged by Optimize Product's timer by accident.",
+    "Do NOT invent a new refusal for an unregistered key. `WorkflowNotExecutable` already exists in `approval.py` and already fires before any row is written (ADR-084 decision 3). Reuse it and keep its pre-write ordering; a second error type beside it would leave two names for one condition.",
+    "Do NOT touch prompts. `prompts/composer.py`, `_WORKFLOW_BINDINGS`, the version files under `prompts/optimize_product/` and `PRODUCTION_PROMPT_VERSION` are #1705's. `_resolve_prompt_pin` already resolves per `workflow_key`; leave it as it is.",
+    "ZERO behaviour change for `optimize_product_2`. The recorded run golden is `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` (the only golden scenario in the tree) and the composed prompt golden is `tests/fixtures/agent_prompt_gates/optimize_product_v3_composed.golden.md`. Both must pass untouched; regenerating either to make a test green is a scope breach, not a fix.",
+    "Do NOT emit or read a per-order card. Cards are keyed on a SUBJECT (`product`, `dispatch_window`, a SKU set) per ADR-087; an order is not a card subject in v1, and approve must not learn to create one.",
+    "Do NOT reuse the emission-budget suppression vocabulary. `active_cap`, `cooldown` and `weekly_novelty_cap` (`services/action_cards/emission_budget.py`) are the budget's reasons for not surfacing a card; they are not approval refusals and must not appear on this path. Card-revision reasons are #1703's.",
+    "Do NOT let the executor open the TikTok corpora catalogs (ADR-051), and do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature — the real `Playbook`/`TerminationPolicy`, the real `approve_action_card`, the real `reap_workflow_runs`. A `**kwargs` double proves routing, never that the real call would work; consumer-without-producer is the failure this whole wave exists to prevent."
+  ]
+}
