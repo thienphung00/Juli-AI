@@ -2,8 +2,8 @@
   "gateVersion": 2,
   "issue": 1752,
   "metrics": {
-    "acceptanceMapped": 4,
-    "acceptanceTotal": 6,
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 7,
     "criticalFindings": 0,
     "modulesTouched": [
       "apps/demo/src/lib/run-surface",
@@ -14,19 +14,19 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1752.json",
     "ownerSignoffPresent": true,
-    "sha256": "dcadc5583a0e6f6da6a530825b6099298826181eb766be7865072ba6107cbb16",
+    "sha256": "a0f8ee8cdf154607a169eef0a8d4cfa33f1887f05fd21ff1e2b42c314d4488f5",
     "signoffRequired": false,
     "status": "FAIL",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 3428,
-      "validationBytes": 29982
+      "reviewBytes": 3829,
+      "validationBytes": 29694
     },
     "claimVsExecuted": {
       "citedCommandCount": 10,
-      "invokedCommandCount": 13134,
+      "invokedCommandCount": 13136,
       "matchedCommandCount": 0,
       "reason": "10 of 10 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
@@ -225,7 +225,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1752-replay-content",
-        "head": "e1b000f823b46b67abc6771b9ffca7ae175659bf",
+        "head": "ed93f89c11d36677ddb684f8347edea63c7b6ed1",
         "shallow": true
       },
       "moduleResolution": {
@@ -374,10 +374,10 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-07T17:09:11Z",
+  "timestamp": "2026-09-07T17:13:16Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1752.json",
-    "sha256": "f4ecc9c5c9a8c59a3d27cde55b40073dd3ba42aef9613f8326d957c875adfc32",
+    "sha256": "0a0a79fe690850bc5fb53c176da01072574d2b7f74e6773abe46e52dafae8ae7",
     "status": "FAIL"
   },
   "wave": "wave-agent-w6"
