@@ -1,0 +1,345 @@
+{
+  "architecturalChange": {
+    "signals": [],
+    "value": false
+  },
+  "gateVersion": 2,
+  "issue": 1529,
+  "metrics": {
+    "acceptanceMapped": 7,
+    "acceptanceTotal": 7,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "agent-runtime/scripts/validate/check_adr.py",
+      "agent-runtime/scripts/ci/generate_status_records.py",
+      "agent-runtime/docs/schemas/status-record.schema.json",
+      "tests/unit/test_check_adr_evidence.py",
+      "tests/unit/test_status_record_gate.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1529.json",
+    "ownerSignoffPresent": true,
+    "sha256": "d722a6a2fe7275ef0c0f4c0787893067cd7de3ced08228e1b33f3a8284f0fda2",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "run": {
+    "artifactBytes": {
+      "reviewBytes": 9985,
+      "validationBytes": 7104
+    },
+    "claimVsExecuted": {
+      "citedCommandCount": 9,
+      "invokedCommandCount": 10354,
+      "matchedCommandCount": 0,
+      "reason": "9 of 9 cited commands have no matching invocation in the session transcripts",
+      "recordPasses": false,
+      "status": "FAIL",
+      "transcriptSources": [
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-codebase-audit-refactor-b9b867",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-open-terminal-in-code-08e55d"
+      ],
+      "transcriptsScanned": 43,
+      "unmatchedCommandCount": 9,
+      "unmatchedCommands": [
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_check_adr_evidence.py -q",
+          "cycle": 1,
+          "exitCode": 1
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_check_adr_evidence.py tests/unit/test_ratchets.py -q -p no:randomly",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "python agent-runtime/scripts/validate/check_adr.py --issue 1529  # review body absent, i.e. every CI checkout -- BEFORE, at HEAD",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "python agent-runtime/scripts/validate/check_adr.py --issue 1529  # review body absent, no status record -- AFTER",
+          "cycle": 1,
+          "exitCode": 1
+        },
+        {
+          "command": "python agent-runtime/scripts/validate/check_adr.py --issue 1529  # review body present with a breaking interfaceChanges entry -- AFTER",
+          "cycle": 1,
+          "exitCode": 1
+        },
+        {
+          "command": "python agent-runtime/scripts/validate/check_adr.py --issue 1529  # review body present and clean -- AFTER",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "python agent-runtime/scripts/validate/check_adr.py --issue 1529  # status record present and clean, i.e. CI after review lands (issue AC3) -- AFTER",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "ruff check agent-runtime/scripts/validate/check_adr.py tests/unit/test_check_adr_evidence.py && ruff format --check ...",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_three_tier_ci_contract.py -q -p no:randomly",
+          "cycle": 1,
+          "exitCode": 0
+        }
+      ],
+      "unmatchedCommandsTruncated": false,
+      "verified": true
+    },
+    "commandScope": {
+      "ciSelectors": {
+        "mypy": {
+          "command": "mypy backend/src/juli_backend --ignore-missing-imports --disable-error-code=valid-type",
+          "deselectedMarkers": [],
+          "paths": [
+            "backend/src/juli_backend"
+          ]
+        },
+        "pytest": {
+          "command": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "deselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "paths": [
+            "tests"
+          ]
+        },
+        "ruff check": {
+          "command": "ruff check backend/src/juli_backend tests scripts",
+          "deselectedMarkers": [],
+          "paths": [
+            "backend/src/juli_backend",
+            "tests",
+            "scripts"
+          ]
+        }
+      },
+      "ciWorkflow": ".github/workflows/pr.yml",
+      "commandsCited": 0,
+      "invocations": [],
+      "invocationsScored": 0,
+      "invocationsUnrecognised": 0,
+      "narrowerCount": 0,
+      "narrowerThanCI": [],
+      "unit": "invocation",
+      "unitRationale": "76 corpus commands chain 2-5 runs; scoring per command lets a broad first run launder a narrow second one, so each invocation is scored on its own selector."
+    },
+    "environment": {
+      "cwd": "/Users/macos/Juli-AI-v2/.worktrees/w5-1529",
+      "dependencies": {
+        "constraints": "/Users/macos/Juli-AI-v2/.worktrees/w5-1529/backend/constraints.txt",
+        "drift": [
+          {
+            "installed": "3.18",
+            "package": "idna",
+            "pinned": "3.19"
+          },
+          {
+            "installed": "2.24.0",
+            "package": "narwhals",
+            "pinned": "2.25.0"
+          },
+          {
+            "installed": "1.26.4",
+            "package": "numpy",
+            "pinned": "2.5.2"
+          },
+          {
+            "installed": "0.16.3",
+            "package": "ruff",
+            "pinned": "0.16.4"
+          },
+          {
+            "installed": "1.13.1",
+            "package": "scipy",
+            "pinned": "1.18.1"
+          },
+          {
+            "installed": "5.9.0",
+            "package": "stevedore",
+            "pinned": "5.9.1"
+          },
+          {
+            "installed": "0.52.3",
+            "package": "uvicorn",
+            "pinned": "0.52.4"
+          }
+        ],
+        "matched": 75,
+        "missing": [],
+        "pinned": 82
+      },
+      "executable": "/opt/homebrew/anaconda3/bin/python",
+      "git": {
+        "baseDistanceUnavailable": null,
+        "behindOriginMain": 4,
+        "branch": "feature/issue-1529-check-adr-fails-open",
+        "head": "8412e9b35c247af94b0b868a12cbb63387680249",
+        "shallow": false
+      },
+      "moduleResolution": {
+        "error": null,
+        "expectedPrefix": "/Users/macos/Juli-AI-v2/.worktrees/w5-1529/backend/src/juli_backend",
+        "insideRepo": true,
+        "module": "juli_backend",
+        "resolved": "/Users/macos/Juli-AI-v2/.worktrees/w5-1529/backend/src/juli_backend/__init__.py"
+      },
+      "python": "3.12.9",
+      "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/w5-1529"
+    },
+    "metrics": {
+      "agents": [],
+      "disagreements": [
+        {
+          "claimed": 55,
+          "field": "toolInvocationCount",
+          "observed": null,
+          "observedFrom": "unavailable",
+          "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "resolution": "unobservable"
+        },
+        {
+          "claimed": 0,
+          "field": "executionDurationMs",
+          "observed": null,
+          "observedFrom": "unavailable",
+          "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "resolution": "unobservable"
+        }
+      ],
+      "executionDurationMs": {
+        "available": false,
+        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+      },
+      "executorDomain": "backend",
+      "executorDomainSource": "implementation-artifact",
+      "gaps": [
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/cb047053-ee20-4e00-925f-7ebf36c0417b/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos/61a4eb31-9294-45c2-a803-0c26980300c6/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/491f9d6b-185a-43a4-bbea-f1fcd906bf1d/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/03369828-07b8-46b9-8587-8b7e97d289c1/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "agentsScanned": 0,
+          "detail": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "reason": "no-persisted-task-transcripts"
+        }
+      ],
+      "schemaVersion": 1,
+      "source": {
+        "agentsAttributed": 0,
+        "agentsScanned": 0,
+        "attributedBy": ".worktrees path naming issue-1529",
+        "executorsIdentified": 0,
+        "kind": "task-transcript",
+        "roleSelectedAgentId": null,
+        "roleSelectedBy": "spawn-directive",
+        "taskDirs": [
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/cb047053-ee20-4e00-925f-7ebf36c0417b/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
+          "/tmp/claude-501/-Users-macos/61a4eb31-9294-45c2-a803-0c26980300c6/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/491f9d6b-185a-43a4-bbea-f1fcd906bf1d/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/03369828-07b8-46b9-8587-8b7e97d289c1/tasks"
+        ]
+      },
+      "status": "not-measured",
+      "tokenUsage": {
+        "available": false,
+        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+      },
+      "toolInvocationCount": {
+        "available": false,
+        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+      },
+      "toolsUsed": []
+    },
+    "transcripts": {
+      "commands": {
+        "executor": 0,
+        "executorCommands": [],
+        "includesExecutorCommands": false,
+        "parent": 0,
+        "parentCommands": []
+      },
+      "coverage": {
+        "complete": false,
+        "executorsExpected": 1,
+        "executorsPersisted": 0,
+        "gaps": [
+          {
+            "agent": "executor-review agent (Opus 5) \u2014 re-review of the combined slice #1529 + #1562 at 8412e9b35 (C1 fix), base 895763137, PR #1560",
+            "reason": "no-transcript-persisted"
+          }
+        ]
+      },
+      "executorCount": 0,
+      "executors": [],
+      "parentOnly": true,
+      "schemaVersion": 1,
+      "status": "not-persisted"
+    }
+  },
+  "timestamp": "2026-09-04T04:14:15Z",
+  "validation": {
+    "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1529.json",
+    "sha256": "83a7588fb8a1608cb3f86dd4e4ecef26b9b84e89ea3284183ff3abea1c1def0f",
+    "status": "PASS"
+  },
+  "wave": "wave-harness-e-w5"
+}

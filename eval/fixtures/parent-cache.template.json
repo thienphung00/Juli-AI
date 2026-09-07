@@ -29,8 +29,8 @@
     }
   ],
   "bootstrapRef": {
-    "branch": "HEAD",
-    "commitSha": "__HEAD_SHA__",
+    "branch": "merge-base:origin/BASE_REF",
+    "commitSha": "__BOOTSTRAP_ANCHOR_SHA__",
     "copiedAt": "2026-09-01T07:19:03Z"
   },
   "lastValidatedAt": "2026-09-01T07:19:04Z"
