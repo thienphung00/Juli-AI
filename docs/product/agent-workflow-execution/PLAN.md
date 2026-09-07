@@ -660,69 +660,68 @@ view slice invents its own tokens; the rest is a real dependency chain through t
 | W6-A/P-UI-8 replay journey in CI, dictionary, MODULE.md | #1321 | #1317, #1319, #1320 |
 | **W6 gate** **HITL** — a seller steers a run in a browser | #1322 | #1317, #1319, #1321 |
 
-### W6 progress — 2026-09-07
+### W6 progress — 2026-09-07 (updated end of day)
 
-**Wave state.** Seven of the fourteen slices are merged (#1309, #1310, #1272, #1311, #1312,
-#1314, #1315, #1318). #1313 is **closed as superseded**. Five remain: #1316, #1317, #1319,
-#1320, #1321, all `ui-ux`, all on the W6-A lane. W6-B is complete.
+**Ten of fourteen slices are merged.** W6-B is complete; W6-A is down to three items.
 
-**The rescope other sessions must know about.**
-[ADR-094](../../adr/094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md)
-(**Accepted**) amends ADR-084 decisions 1 and 2 and changes what three open issues mean:
+| Merged | #1309 #1310 #1272 #1311 #1312 #1314 #1315 #1316 #1318 #1319 · #1320 *(part 1)* |
+|---|---|
+| **Open** | **#1317** (in flight), **#1320 part 2**, **#1321** |
+| **Closed, not built** | #1313 — superseded by [ADR-094](../../adr/094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md) |
+| **Gate** | #1322 — blocked on #1317 and #1321 (#1319 now merged) |
+
+**The rescope every session needs to know.** ADR-094 (**Accepted**) amends ADR-084 decisions 1 and 2:
 
 > **anonymous → client replay (no DB) · signed-in → real runs on their own shop · connect-shop → follow-up**
 
-- The anonymous *Dùng thử Demo* entry mints **no session**, calls **no authenticated route**,
-  and writes **no database row**. ADR-084's anonymous Supabase session is withdrawn.
-- The seeded demo tenant (#1312) is demoted from runtime tenant to **capture source**, so
-  `DEMO_SHOP_ID` leaves production.
-- #1353 (anonymous→signed-in run preservation) is **dissolved**, not answered — with no
-  anonymous persistence there is nothing to preserve.
-- The bodies of **#1319, #1320 and #1322 were amended on 2026-09-07** to match. Read the
-  current body, not a cached copy: #1319 carries a "Struck by ADR-094 — do not implement"
-  section, and #1320 carries a "Reconciled with ADR-094" section.
+The anonymous *Dùng thử Demo* entry mints no session, calls no authenticated route, writes no
+database row. #1353 is **dissolved**, not answered. The bodies of #1319, #1320 and #1322 were
+amended on 2026-09-07 — read the current body, never a cached copy.
 
-**Owner prerequisites — settled.** The Supabase Google provider is configured and verified
+**Order (from [the 2026-09-05 handoff](../../handoffs/2026-09-05-w6-remaining-slices.md), still authoritative):**
+
+```
+#1315 ✓ ──► #1316 ✓ ──► #1317 ──► #1320 part 2 ──► #1321
+#1319 ✓ ────────────────────────────────────────► (independent)
+```
+
+`#1320` was split: **part 1 (merged, #1733)** repointed the recommendations read from the
+never-existent `/v1/demo/recommendations` to `/v1/demo/decisions` and removed the silent
+fixture fallback. **Part 2 (deleting `startExecution` and its localStorage state) waits for
+#1317**, because deleting before the replacement exists leaves the demo with no working path.
+
+### Four things carried forward that are nobody's slice yet
+
+1. **The anonymous replay has no client-side content source.** #1311 delivered capture and
+   replay **server-side** (`services/agent/golden_scenarios/`, served through the authenticated
+   `GET /v1/demo/runs/{id}/events`). ADR-094 assigns the replay to a path that calls no
+   authenticated route, so that mechanism is unreachable from it. Exactly one captured
+   scenario exists (`tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json`) and
+   nothing exports it to `apps/demo`. Until that export exists the replay renders
+   hand-authored content — the drift ADR-084 wanted deleted, and ADR-094 decision 5's
+   accepted-but-triggered debt.
+2. **A first-time Google user has no `public.users` row**, so `get_current_user` →
+   `UsersRepo.get_for_authentication` raises `NotFound` → **401 "User not found"**. #1319
+   surfaces it honestly; provisioning is `backend` domain and needs its own slice. The pattern
+   exists: `UsersRepo.get_or_create` with a derived placeholder phone, used in four
+   `services/tiktok/*` stores.
+3. **The wave has diverged from `main` and needs reconciling.** #1315 merged straight to
+   `origin/main` (`b019b85e7`), bypassing the wave, so #1316 shipped carrying a cherry-pick
+   that is **not byte-identical** — the reducer matches, but it omits
+   `docs/handoffs/2026-09-05-w6-remaining-slices.md` and `infra/scripts/obs1/*`. No correctness
+   risk, but the next slice hits the same wall. Precedent: #1451 / #1640.
+4. **#1316's happy-path coverage is partial by construction.** The only captured scenario pauses
+   at approval, so it holds zero `assistant.text` and zero `get_seo_keywords` events; the
+   Phân tích narration and SEO populated paths are proven only by their empty-state branches.
+   A second captured scenario (an approve variant) closes it. Fabricating events would violate
+   the wave's own no-hand-built-fixtures rule.
+
+**Owner prerequisites are settled.** The Supabase Google provider is configured and verified
 (GCP project `juli-auth-51452`, `external.google = true`, `/auth/v1/authorize?provider=google`
-→ 302). Anonymous sign-in stays **off** by decision, not by omission. Remaining owner item is
-publishing the consent screen, which needs `/privacy` and `/terms` on `app-juli.com` (both 404
-today) — a Demo Launch gate, not W6 work. See `docs/handoffs/owner-hitl-queue.md` §5.
+→ 302). Anonymous sign-in stays **off by decision**. The remaining owner item is publishing the
+consent screen, which needs `/privacy` and `/terms` on `app-juli.com` (both 404 today) — a Demo
+Launch gate, not W6 work. See `docs/handoffs/owner-hitl-queue.md` §5.
 
-**Known gap that is nobody's slice yet.** A first-time Google user has no `public.users` row,
-so `get_current_user` → `UsersRepo.get_for_authentication` raises `NotFound` → **401 "User not
-found"** (`backend/src/juli_backend/core/security/dependencies.py:44-60`). Provisioning is
-`backend` domain and needs its own slice; the pattern already exists
-(`UsersRepo.get_or_create` with a derived placeholder phone, used in four `services/tiktok/*`
-stores). #1319 must surface this honestly rather than work around it.
-
-**Order — reconciled with [the 2026-09-05 remaining-slices handoff](../../handoffs/2026-09-05-w6-remaining-slices.md).**
-That handoff's dependency chain stands and supersedes any file-overlap reasoning:
-
-```
-#1315 (done) ──► #1316 staged view ──► #1317 option picker ──► #1320 delete mock ──► #1321 CI journey
-#1319 dual entry ────────────────────────────────────────────► (independent)
-```
-
-`#1320` is **last but one, not first**: it deletes `startExecution` and the fixture fallback,
-and deleting before the replacement exists leaves the demo with no working path. An earlier
-routing in this session got that backwards and was corrected in flight.
-
-**#1320 is being delivered in two parts**, per that handoff's own recommendation to pull the
-live defect out rather than wait for the run surface:
-
-- **Part 1, in flight now:** the recommendations panel calls `/v1/demo/recommendations`, which
-  **404s**, and falls back to `recommendationFixtures` — so a broken backend renders as a
-  healthy surface *today*. Repoint to `/v1/demo/decisions` and delete the silent fallback.
-- **Part 2, deferred until #1316 and #1317 land:** deleting `startExecution` and its
-  localStorage state.
-
-**In flight as of this commit.** #1320 part 1 and #1319, both `executor-ui-ux`, on disjoint
-write paths (the recommendations path versus `app/page.tsx` and the auth routes), with a known
-trivial overlap on `apps/demo/MODULE.md`. #1316 has a green Meta gate and is next.
-
-**One correction to that handoff:** it omits **#1319** from its inventory and counts six
-remaining slices. #1319 is real, open, and a blocker of gate #1322. With #1313 closed, the
-count is five: #1316, #1317, #1319, #1320, #1321.
 
 ### Public release
 
