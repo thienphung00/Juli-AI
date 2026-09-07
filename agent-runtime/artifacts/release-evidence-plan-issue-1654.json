@@ -1,0 +1,93 @@
+{
+  "planId": "log-redaction-inside-jsonformatter-2026-09-07",
+  "affectedPublicSurfaces": [
+    "EVERY log line this system emits, from every process. `configure_logging` (`core/observability/logging.py`) installs one `_JuliManagedStreamHandler` on the ROOT logger with a `JsonFormatter`, and forces `uvicorn`/`uvicorn.error`/`uvicorn.access` to propagate into it. So the redaction pass added inside `JsonFormatter.format` covers: the FastAPI API's request/access lines, every `logger.*` call site across `api/`, `services/`, `integrations/` and `workers/`, and every Celery worker and beat-task line on the single-VPS lane — including the noisy ones this wave audits by name (`cdp_batch_staggered_reconcile_*`, the reconcile/backfill tick lines in `workers/tasks/`). There is no second formatter and no per-logger handler to miss.",
+    "The exact JSON keys `JsonFormatter` emits today, which must keep their shape: `timestamp`, `level`, `logger`, `event`, plus `correlation_id` and `client_address` when the `_CorrelationFilter` bound them, plus EVERY non-standard `record.__dict__` key merged in at the top level (that merge is what makes existing `extra={...}` call sites produce useful output with no edits). Redaction changes VALUES inside that payload; it must not change the key set, the ordering guarantee, or the one-JSON-object-per-line contract the host journal parses.",
+    "The `exception` and `stack` keys: `payload['exception']` (from `record.exc_info`) and `payload['stack']` are free text that routinely carries argument values and connection strings. A redaction pass that only walks `extra=` and skips these two leaves the most likely leak path open.",
+    "Operator readability is itself a public effect: a redacted field must remain PRESENT with a marker, so an operator can tell 'this field existed and was withheld' from 'this field was never logged'. A silently dropped key makes the log lie about what the code did.",
+    "No HTTP route, response body, status code or schema changes. The API's request/response contract is untouched — this slice changes only what the server writes to stdout."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run from the worktree root with PYTHONPATH pinned to the worktree's backend/src. Every assertion reads the formatter's EMITTED OUTPUT — the JSON string `JsonFormatter.format(record)` returns, or the captured handler stream — never the formatter's source, and never a regex asserted against itself. Post-deploy: on the candidate, drive one authenticated read and one worker beat tick, then read the candidate's own journal and assert the planted markers are absent and the JSON line shape is unchanged. No public traffic is routed to a candidate task set and no production credential is planted anywhere.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE deliberately: the formatter is installed on the root logger in the worker processes too, and the beat-task lines are among the noisiest emitters, so a candidate with workers disabled would verify half the surface. apiSideEffectsInScope is FALSE — nothing is written to any table, no vendor call is made, no state changes; the only effect is the text of stdout. Planted values follow the `.gitleaksignore` fingerprint pattern for deliberately credential-shaped test constants; no real secret, and no value resembling a live token, enters the repository.",
+    "journeys": [
+      {
+        "name": "planted-secrets-vanish-and-real-values-survive",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1654",
+        "assertions": [
+          "pre-merge: a credential-shaped value planted in a record's `extra` does NOT appear anywhere in the emitted line — asserted by substring search over the FULL formatter output, not over one extracted field, so a value that leaks by being echoed into `event` or `exception` is still caught",
+          "pre-merge: a PII-shaped value — a phone number and an email address, asserted separately — planted the same way does not appear in the output",
+          "pre-merge: redaction survives NESTING: a secret one level down inside a dict in `extra` is redacted, and so is one inside a list of dicts and one two levels down — a one-level walk passes the issue's literal wording and still leaks",
+          "pre-merge: the record stays USEFUL — the key is retained with an explicit marker, so the emitted payload still contains the field name and a withheld marker, never a dropped key; asserted on the key set, not only on the absent value",
+          "pre-merge: a value that merely LOOKS structured is not mangled — a UUID and an ISO-8601 timestamp both survive byte-for-byte, asserted as equality against the planted originals (this is the false-positive guard the acceptance criteria name)",
+          "pre-merge: `correlation_id` survives intact. It is a UUID by construction (`coerce_correlation_id` accepts only a well-formed UUID) and is the one field that ties a customer report to a server event — redacting it would destroy the reason #902 added it",
+          "pre-merge: an exception path is covered — a secret appearing in `payload['exception']` (from `record.exc_info`) and in `payload['stack']` is redacted too, so the pass does not stop at the `extra=` merge loop",
+          "pre-merge: the output is still exactly ONE valid JSON object per line — `json.loads` succeeds on the emitted string and no newline is introduced by a redacted value",
+          "pre-merge: `configure_logging` remains idempotent and still removes ONLY `_JuliManagedStreamHandler` instances — `tests/unit/test_api_observability.py`, `tests/unit/test_security_event_logging.py`, `tests/unit/test_webhook_redaction.py` and `tests/unit/test_alembic_env_logging.py` pass untouched, proving pytest's `caplog` handler is still never stripped (#1013)",
+          "pre-merge: redaction runs in the FORMATTER, asserted structurally — a record built and formatted directly, with no call-site cooperation of any kind, is still redacted",
+          "post-deploy: on the candidate, an authenticated read plus one worker beat tick produce journal lines that still parse as JSON with the same key set, and a request carrying a planted credential-shaped header value leaves no copy of that value in the candidate journal"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is one module (`backend/src/juli_backend/core/observability/logging.py`) plus tests. Operator-facing output is a JSON line in the host journal, not a rendered page."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "api-journal",
+      "worker-journal"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO schema change of any kind. This slice touches exactly one Python module in the logging path and its tests; it reads no table, writes no table, and adds no Alembic revision. Stable and candidate are trivially compatible because the only difference between them is the text one of them writes to stdout — no shared persisted state is involved. If implementation concludes it needs schema (it must not — a redaction control that persists anything is the wrong design), this plan must be revised to schemaChangeInScope: true BEFORE merge, additive and nullable only."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. The tree has NO redaction anywhere in the logging path today (verified across `core/observability/logging.py`), so holding the merge changes nothing and adds no exposure — it leaves the pre-existing exposure exactly as it is. That is the honest framing: not merging is not neutral, it is choosing the status quo in which any `extra={...}` value reaches the journal verbatim.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart juli-api and juli-celery-worker. Code-only: no schema state, no data effect, no vendor effect to undo, and no migration to reverse. ONE HONEST CAVEAT IS BINDING AND MUST APPEAR IN THE PR: redaction CANNOT be rolled back for lines already emitted. Rolling forward protects only lines written after cutover; rolling back re-exposes every line written after it. A secret that reached the journal before this slice landed — or one written by a process that was rolled back — is leaked permanently, and the remediation for that is credential rotation and journal handling, which are operator acts outside this slice. Do not describe the rollback as clean without saying this.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_log_redaction.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_api_observability.py tests/unit/test_security_event_logging.py tests/unit/test_webhook_redaction.py tests/unit/test_alembic_env_logging.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -k 'logging or redaction or correlation' -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Redaction lives in `JsonFormatter`, NEVER at call sites. Do not add a redaction helper that call sites must remember to invoke, and do not edit `logger.*` call sites to sanitise their own `extra=` — a convention is a convention; a formatter is a control. That is the entire point of this slice.",
+    "Do NOT assert by reading the formatter's source, its regex list, or its key list. Every assertion plants a value and reads the EMITTED output. A test that checks the pattern set is a test of the test.",
+    "Do NOT invent real-looking secrets. Planted values follow the `.gitleaksignore` fingerprint pattern for deliberately credential-shaped test constants — no live token, no real key material, nothing that will trip a secret scanner as a genuine finding.",
+    "Do NOT drop a redacted key. The field must remain present with a marker; a removed key makes the log lie about what the code did, and criterion 4 exists precisely to forbid it.",
+    "Do NOT redact `correlation_id`, `client_address`, `timestamp`, `level`, `logger` or `event`'s message template. `correlation_id` is a UUID and is the only thread tying a customer report to a server event (#902); redacting it defeats the module's original purpose.",
+    "Do NOT mangle structurally-shaped non-secrets. UUIDs and ISO-8601 timestamps must survive byte-for-byte. An over-broad pattern that eats them is a defect of the same class as leaking, and criterion 5 is the guard.",
+    "Do NOT change `configure_logging`'s idempotency or its handler-clearing rule. It must keep removing ONLY `_JuliManagedStreamHandler` instances — wiping foreign handlers strips pytest's `LogCaptureHandler` and re-opens #1013.",
+    "Do NOT change the emitted line's contract: one JSON object per line, the same top-level keys, `extra=` still merged at the top level, `default=str` and `ensure_ascii=False` preserved. The host journal and the planned observability platform both parse this stream.",
+    "Do NOT add a logging vendor, a filter chain, an external redaction library, or a config file of patterns loaded at runtime. The redaction rules live in this module.",
+    "Do NOT claim the rollback is clean. Lines already emitted cannot be un-emitted; say so in the PR and in the release metadata.",
+    "Do NOT touch apps/**, packages/**, ios/** — this epic's doNotLoad list — and do not open the TikTok corpora catalogs (ADR-051).",
+    "Do NOT widen scope into log SHIPPING, retention, rotation, alerting or an observability vendor. This slice adds a redaction pass to an existing formatter and nothing else."
+  ]
+}
