@@ -1,0 +1,95 @@
+{
+  "planId": "w9c-capture-3-direct-discount-lifecycle-sandbox-2026-09-07",
+  "affectedPublicSurfaces": [
+    "NO seller-facing HTTP surface changes. No `/v1/**` or `/demo/**` route, no response shape, no prompt, no playbook, no ToolSpec. This is a CAPTURE slice: its public surface is the contract collection plus whatever method `PromotionResource` is still missing. Note the code fact the issue phrasing hedges around — `PromotionResource` (`resources/promotion.py`) ALREADY has `create_activity`, `get_activity`, `update_activity`, `update_activity_products` and `deactivate`, and all five paths are ALREADY in `SANDBOX_ALLOWED_REQUESTS`. The realistic diff is therefore captures plus parsing, not new plumbing; if the executor adds a method, the PR must say which call needed it and why the existing one did not serve.",
+    "Contract collection rows added, one per observed request/response pair, each carrying request, response, activity id and environment: **B-5a** Create Activity `DIRECT_DISCOUNT` at PRODUCT level; **B-5b** Create Activity `DIRECT_DISCOUNT` at VARIATION level; **A-25a** Get Activity after each create, showing `activity_type: DIRECT_DISCOUNT` and the discount; **B-7a** Update Activity Products attaching a second SKU; **B-8a** Deactivate Activity; **A-25b** Get Activity after deactivation showing `DEACTIVATED`. Row ids follow the collection's existing A-/B- convention (today it runs to A-39 / B-20); if the tip has moved, take the next free ids and say so in the PR.",
+    "Two ERROR rows, and they are as load-bearing as the success rows: the collision rejection observed when a second `DIRECT_DISCOUNT` is created for a SKU whose first activity is still ongoing, and the band violation. Both are committed with the vendor's exact `code` and `message`, and the promotion resource maps the collision code to a NAMED error rather than letting it surface as an anonymous `TOOL_ERROR_UNRECOVERABLE` (the scope report's OP-FR-5 gap). Only the codes actually OBSERVED go in — no code is guessed from documentation.",
+    "The correction this slice makes to the collection: today B-5 is captured only as `activity_type: \"FLASHSALE\"` and A-25 shows a `FIXED_PRICE` read. `DIRECT_DISCOUNT` — the single lever both Optimize Product (OP-FR-3) and Clear Excess (CE-FR-2) depend on — appears NOWHERE in code or docs, which makes both workflows v2 by S-NFR-10's own rule until this lands.",
+    "State written at the vendor: real `DIRECT_DISCOUNT` activities on SANDBOX_VN shop `7494751643546977923`. Every one of them is deactivated after capture — the epic lock is explicit that no ongoing promotion activity may be left on the sandbox shop, and A-25b is the evidence that it was not.",
+    "NOT in scope, and worth naming because the spec is wrong about it: Search/List Activities. `contract-collection.md` A-25 and `endpoints.md` both record that TikTok has NO list/search activity endpoint. Do not add one, do not capture one, do not defer it to v2 as if it were buildable — collision detection is permanently Juli-side."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the worktree root with PYTHONPATH pinned to that worktree's `backend/src`; every vendor call bound to a fake built on the REAL `TikTokClient.post`/`.put`/`.get` signature, and every parser assertion made against the COMMITTED capture bodies. Post-deploy: SANDBOX_VN shop `7494751643546977923` under authorization `7658096633384781588` only, reached through `SandboxWriteClientFactory` — which raises unless `merchant_auth_id` equals `SANDBOX_AUTH_ID`, so a production write is structurally unreachable. No public traffic reaches a candidate task set; no production credential is resolved for a write at any point.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is FALSE in the pairing-rule sense — no PUBLIC or PRODUCTION side effect — but the real side effects are stated plainly rather than hidden behind the boolean: this journey CREATES, UPDATES and DEACTIVATES promotion activities on the TikTok SANDBOX seller's own shop. That is the point of the slice. ADR-068's hard-bound SANDBOX_WRITE merchant id is the mechanism that keeps it off production, and this change must not widen it. workersDisabledOnCandidate is FALSE only because the Celery worker is not on this path at all: the captures are driven by an operator script against the guarded resource.",
+    "journeys": [
+      {
+        "name": "direct-discount-created-read-collided-and-ended-on-the-sandbox",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1717",
+        "assertions": [
+          "pre-merge: the sandbox_write token's identity is confirmed before any capture is trusted — `GET /authorization/202309/shops` through the sandbox client resolves to shop id `7494751643546977923` under authorization `7658096633384781588` (Core Function development shop `juliai-test`). A capture taken against an unverified token is not evidence.",
+          "pre-merge: `test_create_and_get_parse_the_captured_shapes` binds the create and get parsers to the COMMITTED B-5a / B-5b / A-25a bodies and asserts the activity id is exposed and `activity_type` reads `DIRECT_DISCOUNT` — asserted against captured bytes, never a hand-built dict",
+          "pre-merge: the same test covers BOTH levels — product-level and variation-level — so a single-level assertion cannot pass by accident; the variation-level body shape is asserted to differ where the capture shows it differs",
+          "pre-merge: `test_collision_rejection_is_captured_and_named` binds to the COMMITTED collision response and asserts the vendor code is mapped to a NAMED error, not surfaced anonymously; the test names the code as it was observed, and nothing in the diff invents a second code that was not seen",
+          "pre-merge: `test_deactivate_parses_the_captured_shape` binds to B-8a and A-25b and asserts the post-deactivation status reads `DEACTIVATED`",
+          "pre-merge: the sandbox allowlist is UNCHANGED by this slice (all five promotion paths are already present) — asserted by `tests/unit/test_layer2_sandbox_write_contract.py` passing unmodified; if a path had to be added, the test asserts exactly which and that nothing else moved",
+          "pre-merge: no production write path became reachable — `tests/unit/test_tiktok_capability_factories.py` passes unmodified, `SandboxWriteClientFactory` still raises on a non-`SANDBOX_AUTH_ID` config, and `ReadOnlyTransportGuard` still refuses `POST /promotion/\\d+/activities`",
+          "post-deploy: a `DIRECT_DISCOUNT` create at product level on the candidate against SANDBOX_VN returns an activity id; the ACTIVITY IDS and the vendor `request_id` for each captured call are recorded on issue #1717 — ids and request ids, not a narrated 'it worked'",
+          "post-deploy: a second create for the same SKU while the first is ongoing is REJECTED, and the vendor's code and message are recorded verbatim on the issue and committed as the collision row",
+          "post-deploy: NO ONGOING PROMOTION ACTIVITY IS LEFT ON THE SANDBOX SHOP after the capture — proved positively by a Get Activity on every activity id created during the walk showing `DEACTIVATED`, not by asserting that deactivate was called",
+          "post-deploy: no production write is attempted in the window — asserted by ABSENCE of any `production_read` capability write in the `tiktok_outbound_request` log lines for that window, never by grepping for the sandbox success"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is backend Python under `backend/src/juli_backend/integrations/tiktok/resources/promotion.py` plus tests plus one Markdown reference doc. `apps/`, `ios/`, `packages/` and `docs/product/design/` are on this epic's doNotLoad list and are not opened."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "vendor-response-capture",
+      "vendor-error-response",
+      "contract-collection-diff",
+      "outbound-request-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO schema change. Nothing this slice observes is persisted to Postgres: the activities live at the vendor and their shapes land in a Markdown reference doc. No Alembic revision is created and `backend/src/juli_backend/database/migrations/versions/` is not opened. Stable and candidate run the same schema, so a code rollback needs no downgrade. Juli-side persistence of activity ids (the reconciliation the scope report says CE-FR-1 will eventually need, since TikTok has no list endpoint) is W10-A work, not this slice — if implementation concludes a table is needed, report it, do not write a migration under this issue."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed system changes: `DIRECT_DISCOUNT` stays uncaptured, the promotion resource keeps today's behaviour, and Optimize Product and Clear Excess both stay v2 by S-NFR-10 because their one lever is unobserved. No new exposure, nothing partially applied, no data hazard. The one thing that must still be true is the sandbox hygiene rule: if the walk is abandoned midway, every activity already created is deactivated before stopping.",
+    "postCutoverFailureBehavior": "Revert the commit. Any new promotion method and any error-code mapping disappear with it; the methods have no production call sites in this slice, so nothing breaks. The committed contract rows are ADDITIVE documentation and an observed shape stays true after a code revert — leaving them is correct. The honest limit of rollback: activities CREATED on the TikTok sandbox seller during the walk are a VENDOR-SIDE effect that a code revert does NOT undo. That is acceptable because the target is the sandbox seller and every activity is deactivated at the end of the walk — but do not claim the revert reverses it. Redeploy of the previous release plus a restart of `juli-api` and `juli-celery-worker` is sufficient; no downgrade is required.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_promotion_resource_direct_discount.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_layer2_sandbox_write_contract.py tests/unit/test_tiktok_capability_factories.py tests/unit/test_tiktok_capabilities_merchant_source.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "NEVER pass a hand-written example response off as a capture. Every committed row is bytes the vendor actually returned, or it is marked 'documented, not captured' in plain words. B-16's example (`contract-collection.md` ~line 1409) is the anti-pattern this epic exists to end.",
+    "Do NOT invent a vendor error code. Only the collision and band codes actually OBSERVED go into the rows and into the named-error mapping; a code read from documentation but never seen is recorded as documented-not-captured, never as a mapping.",
+    "Do NOT leave an ongoing promotion activity on the sandbox shop. Every activity created during the walk is deactivated, and the proof is a Get Activity showing `DEACTIVATED` for each — an epic-level Architect lock.",
+    "Do NOT touch a production write path. Writes go through `SandboxWriteResources` only, and the guard must keep refusing every production write path (ADR-068). Never relax `SandboxOnlyWriteGuard` or `SandboxWriteClientFactory`'s `SANDBOX_AUTH_ID` check to make a call succeed.",
+    "Do NOT add a Search/List Activities method or row. TikTok has no such endpoint — `contract-collection.md` A-25 and `endpoints.md` both say so. Collision detection is permanently Juli-side; deferring a non-existent endpoint to v2 is a design error, not a deferral.",
+    "Do NOT commit buyer PII, a live token, `sign`, `app_key`, or ciphertext. Use the collection's `{access_token}` / `{sign}` / `{app_key}` / `{shop_cipher}` placeholders.",
+    "If a field ADR-090 d.1 or ADR-091 d.2 relies on is ABSENT from the capture, file a documentation-conflict row in PLAN.md §14 with a safe bound. Do not assume it exists and do not code around it.",
+    "Do NOT add a ToolSpec, a playbook entry, a prompt, a discount body builder for the agent, or a registry registration. `create_product_discount` is W9-B / W10-A work; this slice ends at the guarded client method and the committed rows.",
+    "Do NOT design the 8-rule discount envelope validator here (band, clamp, margin floor, collision, stock bucket, the 300-SKU cap). That is Clear Excess lane work; this slice only OBSERVES what the vendor rejects.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051), `apps/`, `ios/`, `packages/`, `docs/product/design/`, or a sibling issue's context cache — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature (`TikTokClient.post`, `.put`, `.get`, `PromotionResource`). A `**kwargs` double proves routing, not that the real call would work.",
+    "Do NOT hand-pick a 30-day window or a SKU by editing a fixture to make the capture 'clean'. The window and the SKU are recorded in the row's environment line as they were actually used."
+  ]
+}

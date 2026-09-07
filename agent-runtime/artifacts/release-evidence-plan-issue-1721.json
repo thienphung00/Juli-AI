@@ -1,0 +1,101 @@
+{
+  "planId": "w9c-capture-8-stock-operation-settings-auto-restock-captured-2026-09-07",
+  "affectedPublicSurfaces": [
+    "NO seller-facing HTTP surface changes. Nothing under `api/routes/` moves, no `/v1/**` or `/demo/**` response shape changes, no prompt, no playbook, no ToolSpec, no action-card payload. This is a CAPTURE slice: its public surface is (a) the contract collection `docs/integrations/tiktok_api/contract-collection.md` and (b) two new guarded methods on `InventoryResource`. If the executor finds itself editing a route, a card payload or a tool registry, the routing was wrong — stop and report.",
+    "`backend/src/juli_backend/integrations/tiktok/constants.py`: VERIFIED against the tree — there is no `202604` version pin and no `inventory/operation/settings` path anywhere. `PRODUCT_INVENTORY_API_VERSION = \"202309\"` exists and pins `INVENTORY_SEARCH_PATH` and `product_inventory_update_path`; it must NOT be retagged to serve `202604`. The diff adds a NEW version constant for the stock-operation-settings family plus the path(s). Version pins are observed facts, one per endpoint family.",
+    "`backend/src/juli_backend/integrations/tiktok/capabilities.py` — the load-bearing surface. Neither the update path nor any read in its family appears in `PRODUCTION_READ_POST_PATHS`, `PRODUCTION_READ_GET_EXACT`, `PRODUCTION_READ_GET_PATTERNS` or `SANDBOX_ALLOWED_REQUESTS`, so both calls are rejected pre-sign today. The diff adds the entries anchored and exact on the SANDBOX side (the captures are sandbox writes and sandbox reads). Whether the READ also belongs on the production-read side is a judgement to state in the PR, not to assume: v1 workflows only READ this setting, so a production-read entry is defensible — but it is added only if the read is confirmed to be a pure read by the capture, and never as a side effect of adding the sandbox entry.",
+    "`backend/src/juli_backend/integrations/tiktok/resources/inventory.py`: `InventoryResource` today has exactly `search` and `update`. The diff adds a settings read and a settings update. The class is already bound to BOTH `ProductionReadResources` and `SandboxWriteResources` in `factories.py`, so binding is automatic once the methods exist — no factory edit is expected. If a factory edit seems necessary, say why in the PR rather than widening a dataclass silently.",
+    "Contract collection rows added, each carrying request, response and an environment line: one row for the settings READ showing the auto-replenishment state, and one for the settings UPDATE. The update is captured TWICE (off, then on) because a round-trip is the only way to see both transitions and to prove the SKU was restored; both responses are committed. Take the next free A-/B- ids (the collection today runs to A-39 / B-20) — read into the A- series, write into the B- series — and say in the PR which ids were taken.",
+    "The read endpoint is a HYPOTHESIS, not a fact. `POST /product/202604/inventory/operation/settings` (Update Stock Operation Settings) is documented; a matching read is only EXPECTED in the same family. If no read endpoint exists, that absence is recorded as a documentation-conflict row in PLAN.md §14 with a safe bound and the UPDATE capture is kept — the slice still lands. It does NOT invent a read path, and it does NOT infer the current setting by writing and observing.",
+    "Environment: SANDBOX_VN, shop id `7494751643546977923`, authorization id `7658096633384781588`, Core Function development shop `juliai-test`, on one sandbox SKU named in the row. No order and no production data is needed for this capture, which is why this slice is unblocked and can start immediately.",
+    "State written at the vendor: the auto-replenishment toggle on ONE sandbox SKU, moved off and then back on. The SKU must end in its ORIGINAL state — that is an acceptance criterion, and the second update capture is the evidence. No production SKU is touched.",
+    "Why the write is captured at all when v1 only reads: v2's auto-restock toggle card needs a contract, and an uncaptured endpoint is v2 by S-NFR-10's own rule. Capturing the write now means the toggle card is buildable later without a second owner session. This is scope the PRD granted explicitly — it is not scope creep."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run from the worktree root with PYTHONPATH pinned to that worktree's `backend/src`, every vendor call bound to a fake built on the REAL `TikTokClient.get`/`.post` signature (never a `**kwargs` double), and every parser assertion made against the COMMITTED capture bodies — not against a hand-written example. Post-deploy: SANDBOX_VN shop `7494751643546977923` under authorization `7658096633384781588` only, on one named sandbox SKU, reached through `SandboxWriteClientFactory`, which raises unless `merchant_auth_id == SANDBOX_AUTH_ID`, so a production toggle is structurally unreachable. No public traffic reaches a candidate task set; no production credential is resolved for a write at any point.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is FALSE in the pairing-rule sense — no PUBLIC or PRODUCTION side effect — but the real side effect is stated plainly rather than hidden behind the boolean: this journey TOGGLES the auto-replenishment setting on one SKU of the TikTok SANDBOX seller's own shop, twice, ending where it started. That is the point of the slice. ADR-068's hard-bound SANDBOX_WRITE merchant id is the mechanism that keeps it off production, and this change must not widen it. workersDisabledOnCandidate is FALSE only because the Celery worker is not on this path at all: the captures are driven by an operator script against the guarded resource, so worker state is irrelevant either way and disabling them would prove nothing.",
+    "journeys": [
+      {
+        "name": "auto-restock-setting-read-toggled-and-restored-on-one-sandbox-sku",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1721",
+        "assertions": [
+          "pre-merge: the sandbox_write token's IDENTITY is confirmed BEFORE any capture is trusted — `GET /authorization/202309/shops` through the sandbox client (already allowlisted, added by #1200) resolves to shop id `7494751643546977923` under authorization `7658096633384781588` on the Core Function development shop `juliai-test`. A capture taken against an unverified token is not evidence.",
+          "pre-merge: `test_settings_read_parses_the_captured_shape` binds the parser to the COMMITTED settings-read body and asserts the auto-replenishment state is exposed TYPED — a boolean read as a boolean, an enum read as the enum the vendor actually returned, never a truthiness check on a string",
+          "pre-merge: `test_settings_update_round_trips` binds to BOTH committed update responses (off, then on) and asserts the second read returns the SKU to the state the first read observed — the round-trip is asserted against the captured before-state, not against a hard-coded expectation of what 'original' means",
+          "pre-merge: the same test asserts the request bodies differ where the toggle differs, so a test that would pass with the two calls sending identical payloads goes red",
+          "pre-merge: the allowlist gains EXACTLY the settings entries and nothing else — asserted over the whole `SANDBOX_ALLOWED_REQUESTS` tuple: every entry present before this diff is still present, no other entry appeared, and an unexamined neighbour such as `/product/202604/inventory/operation/anything_else` is still REFUSED. Exactness is asserted in both directions.",
+          "pre-merge: a negative test proves both settings calls are rejected pre-sign by `SandboxOnlyWriteGuard` on the PRE-#1721 allowlist — if it passes against the old code, the test is not exercising the gap",
+          "pre-merge: `path_contains_write_marker` classifies the UPDATE path honestly. `WRITE_PATH_PATTERNS` today does not match `inventory/operation/settings` (it matches `/inventory/update$`), so a settings write would be classified as a non-mutation by the CI static check. Either the pattern set gains the settings write, or the PR states in plain words why it should not — silently leaving a real mutation unclassified is not an option.",
+          "pre-merge: the existing suites pass UNMODIFIED — `tests/unit/test_layer2_sandbox_write_contract.py`, `tests/unit/test_tiktok_capability_factories.py`, `tests/unit/test_tiktok_capabilities_merchant_source.py`, `tests/unit/test_api_orders_products_inventory.py` — proving ADR-068's hard-bound merchant ids, the production-read read-only property and `InventoryResource`'s existing `search`/`update` behaviour did not move",
+          "post-deploy: the vendor `request_id` for EACH captured call — the read, the off-update, the on-update, and the confirming read — is recorded on issue #1721, together with the sandbox SKU id used. Request ids and the SKU id, not a narrated 'it worked'.",
+          "post-deploy: the SKU ENDS IN ITS ORIGINAL STATE — proved positively by a final settings read on the candidate returning the same value as the first read, not by asserting that the restoring update was called",
+          "post-deploy: if the READ endpoint does not exist, the vendor's refusal is captured verbatim, a documentation-conflict row is filed in PLAN.md §14 with a safe bound, the row is marked 'documented, not captured', and the UPDATE capture is kept — the slice does NOT land with an invented read path or an inferred setting",
+          "post-deploy: no production write is attempted in the window — asserted by ABSENCE of any `production_read`-capability call to a write-marker path in the `tiktok_outbound_request` log lines for that window (`guards.py::log_outbound_request` emits capability + merchant_auth_id), never by grepping for the sandbox success"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is backend Python under `backend/src/juli_backend/integrations/tiktok/` (constants.py, capabilities.py, resources/inventory.py) plus tests plus one Markdown reference doc. `apps/`, `ios/`, `packages/` and `docs/product/design/` are on this epic's doNotLoad list and are not opened."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "vendor-response-capture",
+      "vendor-error-response",
+      "contract-collection-diff",
+      "outbound-request-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO schema change. Nothing this slice observes is persisted to Postgres: the setting lives at the vendor and its shape lands in a Markdown reference doc. No Alembic revision is created, no `down_revision` is needed, and the executor must not open `backend/src/juli_backend/database/migrations/versions/`. Stable and candidate run the same schema, so a code rollback needs no downgrade. Persisting the auto-replenishment state alongside `inventory_items` is Replenish-lane work (W10-C) with its own migration — and note that `inventory_items` holds zero rows today because `run_fujiwa_poll_cycle` is not in `beat_schedule` (`scope-verification/optimize-product-clear-excess.md` CE-FR-1), which is a separate problem this slice must not try to solve. If implementation concludes a column is needed, REPORT it — do not write a migration under this issue."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed system changes: both settings paths stay unreachable (rejected pre-sign by the transport guard, as today), `InventoryResource` keeps its current `search`/`update` pair, and the auto-restock toggle stays v2 by S-NFR-10's own rule because its endpoint is uncaptured. No new exposure, nothing partially applied, no data hazard. The one thing that must still be true if the walk is abandoned midway: the sandbox SKU is restored to the state the first read observed before stopping.",
+    "postCutoverFailureBehavior": "Revert the commit. The two new client methods, the new version constant and the allowlist entries disappear with it; the methods have ZERO call sites in this slice by design, so nothing breaks. The committed contract rows are ADDITIVE documentation and an observed shape stays true after a code revert — leaving them is correct, and if they are reverted too nothing in the running system notices. The honest limit of rollback: the toggle was moved on the TikTok sandbox seller's SKU during the walk, which is a VENDOR-SIDE effect a code revert does NOT undo — but the walk itself restores it, and the final read is the evidence. Do not claim the revert reverses it; the round-trip does. Redeploy of the previous release plus a restart of `juli-api` and `juli-celery-worker` is sufficient; NO downgrade is required, because there is no schema change.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_inventory_resource_stock_settings.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_layer2_sandbox_write_contract.py tests/unit/test_tiktok_capability_factories.py tests/unit/test_tiktok_capabilities_merchant_source.py tests/unit/test_api_orders_products_inventory.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "NEVER pass a hand-written example response off as a capture. A row that was not observed is marked 'documented, not captured' in plain words, or it is not committed. B-16's example (`contract-collection.md` ~line 1409, 'no live sandbox data available at capture time') is the anti-pattern this epic exists to end.",
+    "Do NOT invent the read endpoint. A matching read is EXPECTED in the `202604` family, not known to exist. If it does not, record the absence as a documentation-conflict row in PLAN.md §14 with a safe bound and keep the update capture. Never guess a path from the write path's shape and commit the guess as a row.",
+    "Do NOT infer the current setting by writing and observing. Reading a value by changing it is not a read, and on a seller's live SKU it would be a mutation dressed as a query. If there is no read, say there is no read.",
+    "Do NOT leave the sandbox SKU toggled. It ends in the state the first read observed, and the proof is a final read showing that value — not an assertion that the restoring update was called. An acceptance criterion, not a courtesy.",
+    "Do NOT touch a production SKU's setting. Writes go through `SandboxWriteResources` only, and `SandboxWriteClientFactory` must keep raising on any `merchant_auth_id` other than `SANDBOX_AUTH_ID` (ADR-068). Never relax `SandboxOnlyWriteGuard` or `ReadOnlyTransportGuard` to make a call succeed.",
+    "Do NOT retag `PRODUCT_INVENTORY_API_VERSION` (202309). It pins Inventory Search and Update Inventory, which are a different family from stock operation settings. Add a new version constant. Version pins are observed facts, one per endpoint family.",
+    "Do NOT widen the allowlist with a loose pattern. `^/product/\\d+/inventory/.*$` would silently admit every unexamined inventory sub-path. Anchor the entries exactly and assert exactness in BOTH directions.",
+    "Do NOT leave a real mutation unclassified by `path_contains_write_marker`. The settings UPDATE is a write; `WRITE_PATH_PATTERNS` does not match it today. Either add it, or state in the PR why it should not be added — silence is not an answer.",
+    "An ABSENT field becomes a CONFLICT ROW, never an assumption. If a field ADR-093 relies on is missing from either capture, file a documentation-conflict row in PLAN.md §14 with a safe bound. Do not assume it exists and do not code around it.",
+    "Do NOT add a ToolSpec, a playbook entry, a prompt, an auto-restock toggle card, or a registry registration. v1 only READS this setting; the toggle card is v2 work. This slice ends at the guarded client method and the committed rows.",
+    "Do NOT persist the setting, and do NOT try to fix `inventory_items` being empty. The unscheduled `run_fujiwa_poll_cycle` (`scope-verification/optimize-product-clear-excess.md` CE-FR-1) is a real and separate problem; touching `beat_schedule` here would be scope creep into the Clear Excess lane.",
+    "Do NOT commit a live token, `sign`, `app_key`, `shop_cipher` or ciphertext. Use the collection's existing `{access_token}` / `{sign}` / `{app_key}` / `{shop_cipher}` / `{request_id}` placeholders. No buyer PII should appear in a settings response, but the redaction rule is unconditional if any does.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051), `apps/`, `ios/`, `packages/`, `docs/product/design/`, or a sibling issue's context cache — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature (`TikTokClient.get`, `TikTokClient.post`, `InventoryResource`). A `**kwargs` double proves routing, not that the real call would work."
+  ]
+}
