@@ -25,7 +25,7 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 8 | P8 — Streaming (SSE + Celery relay) | ✅ **implemented and live-verified** — [ADR-074](../../adr/074-agent-event-streaming-and-relay.md); PRD #1116, slices #1125–#1133 merged via #1183. Live SSE, gapless duplicate-free `Last-Event-ID` reconnect, mid-run cancel, and the fail-closed `memory://` boot assertion all proven on the deployed host — see [Wave 3 live verification](#wave-3-live-verification-2026-08-19--2026-08-20) | ✅ 2026-08-20 |
 | 9 | P7 — Structured output contract | ⏸ deferred (user, 2026-08-11) — scheduled **W9-B** with P15 (see the wave roadmap) — loop runs on ADR-072 prose output; wires in via `FinalResponse` block + prompt v2 bump (ADR-073 d.5) | ⬜ |
 | 10 | P9+P14 — Approval, safety & security prerequisites | ✅ **implemented, W5 merged 2026-08-24** — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) + [ADR-082](../../adr/082-agent-run-product-binding.md); eleven slices deployed on release `4cce75a7`. The confirmation endpoint no longer returns 501; approve-is-run-creation is the only path to a run; `POST /v1/demo/runs` is removed | 🟨 **2026-08-25 — observation 1 at six of seven steps; observation 2 blocked by owner decision.** Ten defects were found and fixed by walking it (#1287, #1289–#1293, #1299–#1301, #1302, #1304, #1305). Auth (ES256/JWKS), fast refresh + sandbox catalog sync, card surfacing, approve→run creation, SSE with replay and heartbeats, all three read tools via shop-aware credential routing, copy-guard-clean completion, and crash/clean-failure card recovery are all proven live. The final step — confirm → sandbox write lands — waits on **realistic sandbox product data (owner action)**, not on code. Observation 2 is recorded BLOCKED: no production write authorized; unblock chain is functional RLS → manual red-team pass → explicit owner authorization for a single production mutation → T+7 → a real `impact_readings` row. See [W5 live verification](#w5-live-verification-2026-08-24) and #1226's 2026-08-25 comments |
-| 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 **W6 — a third landed, 2026-09-05.** Design grilled 2026-08-12 ([ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md)), amended by [ADR-084](../../adr/084-agent-demo-surface-tenancy-and-replay.md). PRD [#1308](https://github.com/thienphung00/Juli-AI/issues/1308). **On `main`:** #1272 seller-facing reason codes, #1314 visual identity + motion, #1318 the run ledger, #1423 golden-scenario capture/replay (which is #1311's deliverable — that issue is stale, not open work), #1309 the executability discriminator. The wave was reconciled with `main` (#1451 → #1640) and landed (#1645). **Still unbuilt:** #1315 (in review, PR #1650), #1316, #1317, #1320, #1313, and #1321's replay journey; gate #1322 untouched. Scoped in [the remaining-slices handoff](../../handoffs/2026-09-05-w6-remaining-slices.md) | 🟨 2026-09-05 — **four of ten slices; the seller-facing surface is the part still missing.** #1320 is blocked on #1313: the demo's recommendations panel calls `/v1/demo/recommendations`, which 404s, and the real route `/v1/demo/decisions` is authenticated, so there is no session to call it with. It renders fixture content and reports success today. Note #1308 is CLOSED while nine children are open |
+| 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 **W6 — a third landed, 2026-09-05.** Design grilled 2026-08-12 ([ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md)), amended by [ADR-084](../../adr/084-agent-demo-surface-tenancy-and-replay.md). PRD [#1308](https://github.com/thienphung00/Juli-AI/issues/1308). **On `main`:** #1272 seller-facing reason codes, #1314 visual identity + motion, #1318 the run ledger, #1423 golden-scenario capture/replay (which is #1311's deliverable — that issue is stale, not open work), #1309 the executability discriminator. The wave was reconciled with `main` (#1451 → #1640) and landed (#1645). **Still unbuilt (2026-09-07):** #1316, #1317, #1319, #1320, #1321; gate #1322 untouched. #1315 has since landed and #1313 is **closed as superseded** by [ADR-094](../../adr/094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md). Scoped in [the remaining-slices handoff](../../handoffs/2026-09-05-w6-remaining-slices.md) | 🟨 2026-09-05 — **four of ten slices; the seller-facing surface is the part still missing.** **Superseded 2026-09-07:** #1320 was recorded as blocked on #1313 because `/v1/demo/decisions` is authenticated and there was no session to call it with. [ADR-094](../../adr/094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md) resolves that by splitting the surface — the anonymous entry is a client replay that calls nothing, and the session comes from #1319's Google door. The live defect stands regardless: the panel calls `/v1/demo/recommendations`, which 404s, renders fixture content, and reports success today. Note #1308 is CLOSED while nine children are open |
 | 11b | P-IM — Incremental impact measurement (NEW) | ✅ implemented, gate reopened in **W4** — [ADR-077](../../adr/077-incremental-impact-measurement.md); re-run wave merged to `main` (#1113, 2026-08-14), #1040–#1045 + #1068 all with status records, after the [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B refusal of the first attempt | 🟨 2026-08-21 — **reachable, still un-run.** W4 fixed all three broken reads (#1215 payload, #1216 duration, #1219 measurable set). The reading itself needs a production-shop write, because the sandbox shop has no analytics series — that is W5's gate, not a code gap |
 | 11c | P-CRED — TikTok credential lifecycle / refresh-token rotation (NEW) | ✅ **W4 closed 2026-08-21** — deployed on release `14807670` and verified against the vendor: sandbox credential refreshed through the real `refresh_credential` path, `refresh_count` 0→1, expiry moved 2026-08-27→2026-08-28. Beat and lazy layers live; **reactive layer built but wired to nothing** (#1233), so a token that dies before its recorded expiry is not self-healed. `/root/refresh_credentials.py` retired. [ADR-081](../../adr/081-refresh-token-rotation.md) | ✅ 2026-08-21 — full matrix green + one real sandbox-token refresh |
 | 11d | P-PROD — Production-write unlock (NEW) | ✅ **W7 slices landed; W7-bis (#1469) closed 2026-09-05.** Design [ADR-085](../../adr/085-production-write-preconditions.md). PRD [#1325](https://github.com/thienphung00/Juli-AI/issues/1325); gate [#1339](https://github.com/thienphung00/Juli-AI/issues/1339). The cutover to the non-owner RLS-bound role `juli_app` is **done and deployed** — and exposed six defects, all fixed: #1548, #1575 (alembic ran as the runtime role), #1576/#1599 (`SET LOCAL` discarded by commit), #1613 (the public demo read emptied by RLS), #1627 and #1631 (bronze append and sync-state write unscoped; #1631 also found a missing UPDATE grant → migration 055) | 🟨 2026-09-05 — **Observation 1 partially evidenced.** Bullets 2 and 3 pass: `juli_app`, `bypassrls=false`, owns 0 tables, cross-tenant reads return 0. Bullet 4 is 3 of 5 beats with **zero scoping errors** — `analytics_backfill_topup` (02:00 UTC) and `daily_impact_reader` (03:00 UTC) had not yet fired. Bullet 1's authenticated half needs an operator token. Bullet 4's wording was **amended 2026-09-05**: it named `system_scope()`, which writes no database GUC and has zero callers, making the condition unfalsifiable; the beats pass via `with_shop_scope`. Checks committed at `infra/scripts/obs1/`. **Root cause still open: [#1630](https://github.com/thienphung00/Juli-AI/issues/1630)** — a tenant scope set before a multi-minute vendor fetch does not survive it, so every per-statement scope added is a workaround until it lands |
@@ -508,16 +508,80 @@ view slice invents its own tokens; the rest is a real dependency chain through t
 | W6-B/P-UI-3 nothing internal on the seller's stream *(adopted, filed 2026-08-21)* | #1272 | — |
 | W6-B/P-UI-4 scenario capture tool + server-side replay | #1311 | — |
 | W6-B/P-UI-5 the seeded demo tenant | #1312 | — |
-| W6-B/P-UI-6 anonymous session scoped to that tenant | #1313 | #1312 |
+| ~~W6-B/P-UI-6 anonymous session scoped to that tenant~~ **CLOSED — superseded by [ADR-094](../../adr/094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md)** | ~~#1313~~ | — |
 | W6-A/P-UI-1 scoped tokens + motion primitives | #1314 | — |
 | W6-A/P-UI-2 `useRunStream` + the pure reducer | #1315 | #1311 |
 | W6-A/P-UI-3 the staged run view | #1316 | #1314, #1315 |
 | W6-A/P-UI-4 the consent-grade option picker | #1317 | #1316, #1272 |
 | W6-A/P-UI-5 In-Progress becomes the run ledger | #1318 | #1310, #1314 |
-| W6-A/P-UI-6 dual entry + connect-shop screen | #1319 | #1313 |
+| W6-A/P-UI-6 dual entry + connect-shop screen | #1319 | ~~#1313~~ — unblocked, #1313 closed |
 | W6-A/P-UI-7 the mock layer is deleted | #1320 | #1309, #1318 |
 | W6-A/P-UI-8 replay journey in CI, dictionary, MODULE.md | #1321 | #1317, #1319, #1320 |
 | **W6 gate** **HITL** — a seller steers a run in a browser | #1322 | #1317, #1319, #1321 |
+
+### W6 progress — 2026-09-07
+
+**Wave state.** Seven of the fourteen slices are merged (#1309, #1310, #1272, #1311, #1312,
+#1314, #1315, #1318). #1313 is **closed as superseded**. Five remain: #1316, #1317, #1319,
+#1320, #1321, all `ui-ux`, all on the W6-A lane. W6-B is complete.
+
+**The rescope other sessions must know about.**
+[ADR-094](../../adr/094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md)
+(**Accepted**) amends ADR-084 decisions 1 and 2 and changes what three open issues mean:
+
+> **anonymous → client replay (no DB) · signed-in → real runs on their own shop · connect-shop → follow-up**
+
+- The anonymous *Dùng thử Demo* entry mints **no session**, calls **no authenticated route**,
+  and writes **no database row**. ADR-084's anonymous Supabase session is withdrawn.
+- The seeded demo tenant (#1312) is demoted from runtime tenant to **capture source**, so
+  `DEMO_SHOP_ID` leaves production.
+- #1353 (anonymous→signed-in run preservation) is **dissolved**, not answered — with no
+  anonymous persistence there is nothing to preserve.
+- The bodies of **#1319, #1320 and #1322 were amended on 2026-09-07** to match. Read the
+  current body, not a cached copy: #1319 carries a "Struck by ADR-094 — do not implement"
+  section, and #1320 carries a "Reconciled with ADR-094" section.
+
+**Owner prerequisites — settled.** The Supabase Google provider is configured and verified
+(GCP project `juli-auth-51452`, `external.google = true`, `/auth/v1/authorize?provider=google`
+→ 302). Anonymous sign-in stays **off** by decision, not by omission. Remaining owner item is
+publishing the consent screen, which needs `/privacy` and `/terms` on `app-juli.com` (both 404
+today) — a Demo Launch gate, not W6 work. See `docs/handoffs/owner-hitl-queue.md` §5.
+
+**Known gap that is nobody's slice yet.** A first-time Google user has no `public.users` row,
+so `get_current_user` → `UsersRepo.get_for_authentication` raises `NotFound` → **401 "User not
+found"** (`backend/src/juli_backend/core/security/dependencies.py:44-60`). Provisioning is
+`backend` domain and needs its own slice; the pattern already exists
+(`UsersRepo.get_or_create` with a derived placeholder phone, used in four `services/tiktok/*`
+stores). #1319 must surface this honestly rather than work around it.
+
+**Order — reconciled with [the 2026-09-05 remaining-slices handoff](../../handoffs/2026-09-05-w6-remaining-slices.md).**
+That handoff's dependency chain stands and supersedes any file-overlap reasoning:
+
+```
+#1315 (done) ──► #1316 staged view ──► #1317 option picker ──► #1320 delete mock ──► #1321 CI journey
+#1319 dual entry ────────────────────────────────────────────► (independent)
+```
+
+`#1320` is **last but one, not first**: it deletes `startExecution` and the fixture fallback,
+and deleting before the replacement exists leaves the demo with no working path. An earlier
+routing in this session got that backwards and was corrected in flight.
+
+**#1320 is being delivered in two parts**, per that handoff's own recommendation to pull the
+live defect out rather than wait for the run surface:
+
+- **Part 1, in flight now:** the recommendations panel calls `/v1/demo/recommendations`, which
+  **404s**, and falls back to `recommendationFixtures` — so a broken backend renders as a
+  healthy surface *today*. Repoint to `/v1/demo/decisions` and delete the silent fallback.
+- **Part 2, deferred until #1316 and #1317 land:** deleting `startExecution` and its
+  localStorage state.
+
+**In flight as of this commit.** #1320 part 1 and #1319, both `executor-ui-ux`, on disjoint
+write paths (the recommendations path versus `app/page.tsx` and the auth routes), with a known
+trivial overlap on `apps/demo/MODULE.md`. #1316 has a green Meta gate and is next.
+
+**One correction to that handoff:** it omits **#1319** from its inventory and counts six
+remaining slices. #1319 is real, open, and a blocker of gate #1322. With #1313 closed, the
+count is five: #1316, #1317, #1319, #1320, #1321.
 
 ### Public release
 
