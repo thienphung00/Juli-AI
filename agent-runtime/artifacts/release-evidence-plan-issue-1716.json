@@ -1,0 +1,97 @@
+{
+  "planId": "w9c-capture-2-diagnosis-endpoints-contract-rows-2026-09-07",
+  "affectedPublicSurfaces": [
+    "NO seller-facing HTTP surface changes. Nothing under `api/routes/` moves, no `/v1/**` or `/demo/**` response shape changes, no prompt, no playbook, no tool registration. This is a CAPTURE slice: its public surface is (a) the contract collection `docs/integrations/tiktok_api/contract-collection.md` and (b) two new guarded client methods on `ProductsResource`. If the executor finds itself editing a route, a ToolSpec or a playbook, the routing was wrong — stop and report.",
+    "Contract collection rows added: **A-diag-1** Product Information Issue Diagnosis (`GET /product/202405/products/diagnoses`) and **A-diag-2** Diagnose-and-Optimize (`POST /product/202411/products/diagnose_optimize`), each carrying request (sanitized cURL with `{access_token}`/`{sign}`/`{app_key}` placeholders, exactly as every existing A-row does), the observed response, and the environment line naming SANDBOX_VN shop id `7494751643546977923` / authorization id `7658096633384781588`. A third data row records the Vietnam issue-code list from the listing-quality-diagnosis reference — as DATA in the contract collection, never as prompt text.",
+    "`backend/src/juli_backend/integrations/tiktok/constants.py`: two new path constants. `PRODUCT_SEO_API_VERSION = \"202405\"` already exists (it pins `seo_words`/`suggestions`), so the GET path reuses that pin; the POST needs a NEW version constant for `202411`. Do not retag either existing version pin to make one constant serve both — the versions genuinely differ.",
+    "`backend/src/juli_backend/integrations/tiktok/capabilities.py` — the allowlist, and this is the load-bearing surface. `GET /product/202405/products/diagnoses` is NOT matched by the existing `^/product/\\d+/products/\\d+$` pattern (`diagnoses` is not digits), and `POST /product/202411/products/diagnose_optimize` is not in `PRODUCTION_READ_POST_PATHS`, so BOTH calls are rejected pre-sign today by `ReadOnlyTransportGuard`. The diff adds one exact GET entry (or a `diagnoses`-anchored pattern) plus one POST path, on the production-read side, and the mirrored pair in `SANDBOX_ALLOWED_REQUESTS` so the sandbox capture is reachable at all.",
+    "`backend/src/juli_backend/integrations/tiktok/resources/products.py`: two new methods on `ProductsResource` (the class already bound to BOTH `ProductionReadResources` and `SandboxWriteResources` in `factories.py`), so binding is automatic once the methods exist — no factory edit is expected. If a factory edit seems necessary, say why in the PR rather than widening a dataclass silently.",
+    "Operator-visible effect: a scope error on the first call is a FACT to record, not a bug to route around. `OP-NFR-1` in the scope report notes no OAuth scope is stored anywhere today, so the runtime cannot pre-check `seller.product.optimize`; the only signal is the vendor's rejection. Record the vendor code and message verbatim in the issue and ask the owner to re-authorise.",
+    "Mixed-version hazard: none. No process needs restarting for a capture, because the capture is driven by a test/operator script against the guarded resource, not by `juli-api` or `juli-celery-worker`."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run from the worktree root with PYTHONPATH pinned to that worktree's `backend/src`, every vendor call bound to a fake built on the REAL `TikTokClient.get`/`.post` signature (never a `**kwargs` double), and the parser asserted against the COMMITTED capture fixture — not against a hand-written example. Post-deploy: one diagnosis read on the candidate against SANDBOX_VN shop `7494751643546977923` through `SandboxWriteClientFactory`'s guarded client only. No production write at any point; no public traffic reaches a candidate task set; the production-read credential stays read-only exactly as ADR-068 binds it.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is FALSE and the real side effects are stated plainly: both calls are READS. `diagnose_optimize` is a POST but returns suggestions and mutates no listing — that is exactly why it belongs on the production-read POST allowlist beside `products/search`, and the PR must show it is a read by pointing at the captured response, not by asserting it. workersDisabledOnCandidate is FALSE only because the journey never touches the Celery worker: the capture is driven by an operator script against the guarded resource, so worker state is irrelevant either way and disabling them would prove nothing.",
+    "journeys": [
+      {
+        "name": "diagnosis-endpoints-observed-then-bound",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1716",
+        "assertions": [
+          "pre-merge: the sandbox_write token's IDENTITY is confirmed BEFORE any capture is trusted — `GET /authorization/202309/shops` through the sandbox client (already allowlisted, added by #1200 for exactly this reason) resolves to shop id `7494751643546977923` under authorization `7658096633384781588` on the Core Function development shop `juliai-test`. A capture taken against an unverified token is not evidence.",
+          "pre-merge: `test_diagnosis_read_parses_the_captured_shape` binds the parser to the COMMITTED A-diag-1 response body and asserts `diagnosis_results` is exposed typed — the fixture is the captured bytes, so a change to the parser that stops matching the observed shape goes red",
+          "pre-merge: `test_diagnose_optimize_parses_the_captured_shape` does the same for A-diag-2's suggestions",
+          "pre-merge: `test_diagnosis_paths_are_allowlisted_exactly` asserts BOTH new paths are permitted on production-read AND on the sandbox bundle, and — the half that matters — that the allowlist did not widen: `/product/202405/products/anything_else` and `/product/202411/products/x/deactivate` are still REFUSED, and every path already allowlisted before this diff is still allowlisted and no new one appeared. Exactness is asserted over the whole tuple, not by spot-checking the two additions.",
+          "pre-merge: a negative test proves the two calls are rejected pre-sign by `ReadOnlyTransportGuard`/`SandboxOnlyWriteGuard` on the PRE-#1716 allowlist — if it passes against the old code, the test is not exercising the gap",
+          "pre-merge: `path_contains_write_marker` still returns False for both new paths, so neither is mistaken for a mutation by the CI static check",
+          "pre-merge: the existing guard suites pass UNMODIFIED — `tests/unit/test_tiktok_capability_factories.py`, `tests/unit/test_tiktok_capabilities_merchant_source.py`, `tests/unit/test_layer2_sandbox_write_contract.py`, `tests/unit/test_products_resource.py` — proving ADR-068's hard-bound merchant ids and the production-read read-only property did not move",
+          "post-deploy: one `GET /product/202405/products/diagnoses` on the candidate against SANDBOX_VN shop `7494751643546977923` returns `code: 0`, and the vendor `request_id` from that response is recorded on issue #1716 — the request id, not a narrated 'it worked'",
+          "post-deploy: one `POST /product/202411/products/diagnose_optimize` with a candidate title likewise returns `code: 0` and its `request_id` is recorded on the issue",
+          "post-deploy: if EITHER call returns a scope error, the vendor code and message are recorded verbatim on the issue, the owner is asked to re-authorise the shop, and the call is retried — the slice does NOT land with a hand-written response standing in for the capture",
+          "post-deploy: no production write is attempted in the window — asserted by ABSENCE of any production-merchant write in the outbound `tiktok_outbound_request` log lines for that window (`guards.py::log_outbound_request` emits capability + merchant_auth_id), never by grepping for a success marker"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is backend Python under `backend/src/juli_backend/integrations/tiktok/` plus tests plus one Markdown reference doc. `apps/`, `ios/`, `packages/` and `docs/product/design/` are on this epic's doNotLoad list and are not opened."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "vendor-response-capture",
+      "contract-collection-diff",
+      "outbound-request-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO schema change. Nothing is persisted by this slice: the diagnosis reads are called ad hoc and their responses land in a Markdown reference doc, not in Postgres. No Alembic revision is created, no `down_revision` is needed, and the executor must not open `backend/src/juli_backend/database/migrations/versions/`. Stable and candidate run the same schema, so they are trivially compatible and a code rollback needs no downgrade. If implementation concludes a diagnosis result must be persisted (it must not — persistence is W10 work), that is a scope change to report BEFORE writing a migration, never a migration added under this issue."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed system changes: both diagnosis paths stay unreachable (rejected pre-sign by the transport guard, as today), `ProductsResource` keeps its current method set, and Optimize Product stays v2 by S-NFR-10's own rule because its first step is uncaptured. No new exposure, nothing partially applied, no data hazard.",
+    "postCutoverFailureBehavior": "Revert the commit. The rollback is a plain code revert: removing the two client methods and the two allowlist entries returns the guard to today's exact behaviour, and no caller exists yet to break — the methods have zero call sites in this slice by design. The committed contract rows are ADDITIVE documentation; they may be left in place after a code revert (an observed shape stays true), and if they are reverted too nothing in the running system notices. Nothing was written at the vendor, so there is no vendor-side effect a revert fails to undo. Redeploy of the previous release plus a restart of `juli-api` and `juli-celery-worker` is sufficient and no downgrade is required.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_products_resource_diagnosis.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_capabilities_diagnosis_paths.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_tiktok_capability_factories.py tests/unit/test_tiktok_capabilities_merchant_source.py tests/unit/test_layer2_sandbox_write_contract.py tests/unit/test_products_resource.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "NEVER pass a hand-written example response off as a capture. A row that was not observed is marked 'documented, not captured' in plain words, or it is not committed. B-16's example response (`contract-collection.md` ~line 1409, 'no live sandbox data available at capture time') is exactly the failure this epic exists to end — do not repeat it here.",
+    "Do NOT invent the Vietnam issue-code list. It comes from the listing-quality-diagnosis reference; if a code cannot be sourced, record the gap rather than filling it in.",
+    "Do NOT widen the allowlist with a loose pattern. `^/product/\\d+/products/[^/]+$` would silently admit every unexamined product sub-path; add the two paths exactly (an exact string for the GET, an exact string for the POST) and assert exactness in both directions.",
+    "Do NOT touch a production WRITE path. Reads go through `ProductionReadResources`, sandbox calls through `SandboxWriteResources`; the guard must keep refusing every production write path (ADR-068). Never relax `ReadOnlyTransportGuard` to make a call succeed.",
+    "Do NOT commit buyer PII. A diagnosis response should carry none, but the redaction rule is unconditional: recipient fields, buyer email, phone and full address are `[REDACTED]` before commit, as every existing A-row does.",
+    "Do NOT commit a live token, `sign`, `app_key` or ciphertext. Use the collection's existing `{access_token}` / `{sign}` / `{app_key}` / `{shop_cipher}` placeholders.",
+    "If a field ADR-090 d.3 or the spec relies on is ABSENT from the capture, file a documentation-conflict row in PLAN.md §14 with a safe bound. Do not assume it exists, and do not code around it — the design of record is corrected before the dependent workflow lane opens.",
+    "A scope error is not a workaround target. If `seller.product.optimize` has not been granted on the connected shop, record the vendor code, ask the owner to re-authorise (a one-minute OAuth click), and retry. Do not degrade, stub, or swap credentials to get a green.",
+    "Do NOT add a ToolSpec, a playbook entry, a prompt, or a registry registration. This slice ends at the guarded client method and the committed rows; the Optimize Product lane (#1620) consumes them later.",
+    "The Vietnam code list goes into the contract collection as DATA. It must not be pasted into a prompt, a playbook, or copy.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051), `apps/`, `ios/`, `packages/`, `docs/product/design/`, or a sibling issue's context cache — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature (`TikTokClient.get`, `TikTokClient.post`, `ProductsResource`). A `**kwargs` double proves routing, not that the real call would work.",
+    "Do NOT reuse `PRODUCT_API_VERSION` (202309) or retag `PRODUCT_SEO_API_VERSION` for the `202411` POST. Version pins are observed facts, one per endpoint family."
+  ]
+}

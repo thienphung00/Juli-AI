@@ -1,0 +1,99 @@
+{
+  "planId": "w9c-capture-5-sandbox-order-path-and-awaiting-shipment-capture-2026-09-07",
+  "affectedPublicSurfaces": [
+    "NO seller-facing HTTP surface changes. Nothing under `api/routes/` moves, no `/v1/**` or `/demo/**` response shape changes, no prompt, no playbook, no ToolSpec, no silver/bronze column. This is a CAPTURE slice: its public surface is (a) the contract collection `docs/integrations/tiktok_api/contract-collection.md` and (b) an orders resource reachable on the SANDBOX bundle for the first time. If the executor finds itself editing a route, an ETL transformer or a model, the routing was wrong — stop and report.",
+    "The load-bearing code surface is `backend/src/juli_backend/integrations/tiktok/capabilities.py`. VERIFIED against the tree: `SANDBOX_ALLOWED_REQUESTS` contains NO order path of any kind — not `POST /order/\\d+/orders/search`, not `GET /order/\\d+/orders`. Both calls are therefore refused pre-sign by `SandboxOnlyWriteGuard` today. The diff adds exactly two entries: `(\"POST\", ^/order/\\d+/orders/search$)` and `(\"GET\", ^/order/\\d+/orders$)`, mirroring the shapes already present on the production-read side (`ORDER_SEARCH_PATH` in `PRODUCTION_READ_POST_PATHS`, `ORDER_DETAIL_PATH` in `PRODUCTION_READ_GET_EXACT`). Nothing else in the tuple moves.",
+    "`backend/src/juli_backend/integrations/tiktok/factories.py`: `SandboxWriteResources` is a frozen dataclass holding `inventory`, `products`, `fulfillment`, `promotion` — it has NO `orders` field, which is the second half of why a sandbox order read is unreachable. The diff adds `orders: OrdersResource` to that dataclass and constructs it in `SandboxWriteClientFactory.create_resources`. `OrdersResource` itself (`resources/orders.py`) already exists and is already bound on `ProductionReadResources`; it is REUSED, not forked. Adding a field to a frozen dataclass is a source-compatible widening — every existing construction site is inside this factory.",
+    "Contract collection rows added, each carrying request, sanitized response and an environment line naming the shop it came from: an Order List row and an Order Detail row for an AWAITING-SHIPMENT order, plus one PRESENCE TABLE row recording, field by field, whether `rts_sla_time`, `tts_sla_time`, `collection_due_time`, `cancel_order_sla_time`, `fulfillment_type`, `shipping_type`, `delivery_option_id` appeared, and the live `package_status` vocabulary observed. Take the next free A- ids (the collection today runs to A-39 / B-20) and say in the PR which ids were taken. The presence table is committed WHETHER OR NOT the fields are present — an absence recorded is the deliverable.",
+    "What the two existing rows actually show, because the issue body overstates it and the executor must not repeat the overstatement: A-4 (`contract-collection.md` ~line 197) and A-5 (~line 220) are both of order `577958834469439754`, status `CANCELLED`. Neither carries `rts_sla_time`, `tts_sla_time`, `collection_due_time`, `cancel_order_sla_time`, `shipping_type` or `delivery_option_id`. But A-4 DOES already carry `fulfillment_type: FULFILLMENT_BY_SELLER`, `delivery_type: HOME_DELIVERY` and a `warehouse_id` — the scope-verification report says so explicitly (`scope-verification/process-order-replenish.md` PO-FR-1: \"`fulfillment_type` is in the raw capture (`contract-collection.md:215`)\"). A-5 does not carry it. So the new capture must record `fulfillment_type` as CONFIRMED-on-list / TO-BE-CHECKED-on-detail, not as newly discovered.",
+    "Environment: the capture is taken on SANDBOX_VN, shop id `7494751643546977923`, authorization id `7658096633384781588`, the Core Function development shop `juliai-test` — recorded on the row. THE FALLBACK IS EXPLICIT AND BOUNDED: this slice is blocked by #1718, the HITL question of whether the sandbox can hold orders at all. If #1718 concludes it cannot, the capture is taken against a PRODUCTION READ of a real awaiting-shipment order through `ProductionReadResources.orders`, the response is redacted of buyer PII before commit, and the row's environment line says PRODUCTION plainly. Sandbox orders are NEVER invented to make the row look cleaner (epic Architect lock).",
+    "State written at the vendor: NONE. Both calls are reads (`POST /order/{v}/orders/search` is a search, which is why it already sits in `PRODUCTION_READ_POST_PATHS` beside `products/search`). No order is created, shipped, cancelled or modified anywhere in this journey.",
+    "Mixed-version hazard: none. The capture is driven by an operator script against the guarded resource, not by `juli-api` or `juli-celery-worker`, so no process needs restarting for the capture itself."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run from the worktree root with PYTHONPATH pinned to that worktree's `backend/src`, every vendor call bound to a fake built on the REAL `TikTokClient.get`/`.post` signature (never a `**kwargs` double), and every parser assertion made against the COMMITTED capture body — not against a hand-written example. Post-deploy: one order read on the candidate against SANDBOX_VN shop `7494751643546977923` under authorization `7658096633384781588` through `SandboxWriteClientFactory`'s guarded client, which raises unless `merchant_auth_id == SANDBOX_AUTH_ID`; or, if #1718 says the sandbox holds no orders, one PRODUCTION READ through `ProductionReadClientFactory`, whose `ReadOnlyTransportGuard` structurally cannot write. No production write at any point; no public traffic reaches a candidate task set.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is FALSE and the reason is stated rather than assumed: BOTH calls are reads. Order List is a POST because the vendor takes its filter in a body, which is exactly why `ORDER_SEARCH_PATH` already sits on the production-read POST allowlist; Order Detail is a GET. Nothing at the vendor changes, and no Juli table is written — this slice deliberately persists nothing (silver columns for `fulfillment_type`/`shipping_type` are W10-B work). workersDisabledOnCandidate is FALSE only because the Celery worker is not on this path at all: the capture is driven by an operator script against the guarded resource, so worker state is irrelevant either way and disabling them would prove nothing.",
+    "journeys": [
+      {
+        "name": "sandbox-can-read-orders-and-the-deadline-fields-are-recorded-either-way",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1719",
+        "assertions": [
+          "pre-merge: the sandbox_write token's IDENTITY is confirmed BEFORE any capture is trusted — `GET /authorization/202309/shops` through the sandbox client (already allowlisted, added by #1200 for exactly this reason) resolves to shop id `7494751643546977923` under authorization `7658096633384781588` on the Core Function development shop `juliai-test`. A capture taken against an unverified token is not evidence, and `sync.py::check_sandbox_write_catalog_identity_mismatch` exists precisely because a mislabelled token has been a real hazard here.",
+          "pre-merge: `test_order_paths_allowlisted_and_bound` asserts the two new sandbox entries are permitted AND — the half that matters — that the allowlist did not widen: `POST /order/202309/orders/anything_else` and `GET /order/202507/orders/12345` are still REFUSED, every path allowlisted before this diff is still allowlisted, and no third entry appeared. Exactness is asserted over the whole `SANDBOX_ALLOWED_REQUESTS` tuple, not by spot-checking the two additions.",
+          "pre-merge: the same test asserts `SandboxWriteResources.orders` is an `OrdersResource` bound to the guarded sandbox client — asserted by constructing through `SandboxWriteClientFactory.create_resources` with a real `ClientFactoryConfig`, never by hand-building the dataclass",
+          "pre-merge: a negative test proves both order calls are rejected pre-sign by `SandboxOnlyWriteGuard` on the PRE-#1719 allowlist — if it passes against the old code, the test is not exercising the gap",
+          "pre-merge: `test_captured_order_fields_parse_as_recorded` binds the parser to the COMMITTED awaiting-shipment response body and asserts that EVERY field the presence table marks present is exposed typed, and that every field the table marks absent is NOT synthesised, defaulted, or given a placeholder value by the parser. Absence must survive parsing as absence.",
+          "pre-merge: the presence table is asserted to cover all seven named fields plus the observed `package_status` values — a partial table fails the test; the assertion is over the SET of field names, so a field cannot be quietly dropped from the record",
+          "pre-merge: `path_contains_write_marker` still returns False for both new order paths, so neither is mistaken for a mutation by the CI static check",
+          "pre-merge: the existing suites pass UNMODIFIED — `tests/unit/test_orders_resource.py`, `tests/unit/test_layer2_sandbox_write_contract.py`, `tests/unit/test_tiktok_capability_factories.py`, `tests/unit/test_tiktok_capabilities_merchant_source.py` — proving ADR-068's hard-bound merchant ids, the production-read read-only property and `OrdersResource`'s existing production behaviour did not move",
+          "post-deploy: one Order List call on the candidate returns `code: 0` and the vendor `request_id` from that response is RECORDED ON ISSUE #1719 — the request id, not a narrated 'it worked'; the same for the Order Detail call",
+          "post-deploy: the environment line on each committed row names which shop it actually came from (SANDBOX_VN `7494751643546977923`, or PRODUCTION with the redaction note) — the row is not silently ambiguous about its own provenance",
+          "post-deploy: NO BUYER PII IS IN THE COMMITTED CAPTURE — proved positively by re-reading the committed Markdown and asserting `recipient_address`, `buyer_email`, buyer phone and any full address read `[REDACTED]`, exactly as A-4 and A-5 already do. This is checked on the committed bytes, not on the intent to redact.",
+          "post-deploy: no production WRITE is attempted in the window — asserted by ABSENCE of any write-marker path in the outbound `tiktok_outbound_request` log lines for that window (`guards.py::log_outbound_request` emits capability + merchant_auth_id), never by grepping for a success marker"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is backend Python under `backend/src/juli_backend/integrations/tiktok/` (capabilities.py, factories.py) plus tests plus one Markdown reference doc. `apps/`, `ios/`, `packages/` and `docs/product/design/` are on this epic's doNotLoad list and are not opened."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "vendor-response-capture",
+      "contract-collection-diff",
+      "field-presence-table",
+      "outbound-request-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO schema change. Nothing this slice observes is persisted to Postgres: the order responses land in a Markdown reference doc, not in silver or bronze. No Alembic revision is created, no `down_revision` is needed, and the executor must not open `backend/src/juli_backend/database/migrations/versions/`. Stable and candidate run the same schema, so they are trivially compatible and a code rollback needs no downgrade. The temptation is real and must be refused: `scope-verification/process-order-replenish.md` PO-FR-1 records that `fulfillment_type`/`shipping_type` are ABSENT from silver `Order` and from `services/etl/transform.py`, and PO-NFR-1 records that raw `AWAITING_SHIPMENT`/`AWAITING_COLLECTION` both collapse to \"confirmed\" today. Fixing either is W10-B work with its own migration. If implementation concludes a column is needed, REPORT it — do not write a migration under this issue."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed system changes: the sandbox keeps refusing both order paths pre-sign exactly as today, `SandboxWriteResources` keeps its current four fields, and Process Order stays v2 by S-NFR-10's own rule because its first read is uncaptured on the sandbox. No new exposure, nothing partially applied, no data hazard. Nothing was written at the vendor at any point, so there is nothing to unwind.",
+    "postCutoverFailureBehavior": "Revert the commit. The rollback is a plain code revert: removing the two allowlist entries and the `orders` field from `SandboxWriteResources` returns the guard and the factory to today's exact behaviour, and no caller exists yet to break — the sandbox orders binding has zero call sites in this slice by design. The committed contract rows are ADDITIVE documentation; an observed shape stays true after a code revert, so leaving them in place is correct, and if they are reverted too nothing in the running system notices. Redeploy of the previous release plus a restart of `juli-api` and `juli-celery-worker` is sufficient and NO downgrade is required, because there is no schema change. There is no vendor-side effect a revert fails to undo: every call in this journey was a read.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_sandbox_orders_resource.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_orders_resource.py tests/unit/test_layer2_sandbox_write_contract.py tests/unit/test_tiktok_capability_factories.py tests/unit/test_tiktok_capabilities_merchant_source.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "NEVER pass a hand-written example response off as a capture. Every committed row is bytes the vendor actually returned, or it is marked 'documented, not captured' in plain words. B-16's example (`contract-collection.md` ~line 1409, 'no live sandbox data available at capture time') is exactly the failure this epic exists to end.",
+    "Do NOT invent a sandbox order. If #1718 concludes the sandbox cannot hold orders, the capture is a PRODUCTION READ with the response redacted, and the row's environment line says so — an epic-level Architect lock. Seeding, faking, or hand-authoring a sandbox order to produce a cleaner row is forbidden.",
+    "Do NOT commit buyer PII. `recipient_address`, `buyer_email`, buyer phone and any full address are `[REDACTED]` before commit, exactly as A-4 and A-5 already do. This is unconditional and applies whether the capture came from the sandbox or from production.",
+    "An ABSENT field becomes a CONFLICT ROW, never an assumption. If `rts_sla_time`, `tts_sla_time`, `collection_due_time`, `cancel_order_sla_time`, `shipping_type` or `delivery_option_id` is missing from the capture, file a documentation-conflict row in PLAN.md §14 with a safe bound and record the absence in the presence table. Do not assume the field exists, do not default it, do not code around it — ADR-092's dispatch design branches on these and must be corrected before the Process Order lane opens.",
+    "Do NOT restate the issue body's claim that both existing captures lack `fulfillment_type`. A-4 already carries `fulfillment_type: FULFILLMENT_BY_SELLER` and `delivery_type: HOME_DELIVERY`; `scope-verification/process-order-replenish.md` PO-FR-1 says so. Record what the new capture actually shows, per field, against the tree — not against the issue prose.",
+    "Do NOT touch a production WRITE path. Reads go through `ProductionReadResources`, sandbox calls through `SandboxWriteResources`; the guard must keep refusing every production write path (ADR-068). Never relax `ReadOnlyTransportGuard` or `SandboxOnlyWriteGuard`, and never widen `SandboxWriteClientFactory`'s `SANDBOX_AUTH_ID` check, to make a call succeed.",
+    "Do NOT widen the allowlist with a loose pattern. `^/order/\\d+/.*$` would silently admit every unexamined order sub-path including write paths. Add the two paths anchored and exact, and assert exactness in BOTH directions — additions permitted, everything else still refused.",
+    "Do NOT add a silver or bronze column, an ETL transformer change, or a status-mapping change. `fulfillment_type`/`shipping_type` on silver and the `AWAITING_SHIPMENT`/`AWAITING_COLLECTION`/`ON_HOLD` mapping are W10-B work with their own migration. This slice persists nothing.",
+    "Do NOT add a ToolSpec, a playbook entry, a prompt, or a registry registration. This slice ends at the guarded client method and the committed rows; the Process Order lane consumes them later.",
+    "Do NOT commit a live token, `sign`, `app_key`, `shop_cipher` or ciphertext. Use the collection's existing `{access_token}` / `{sign}` / `{app_key}` / `{shop_cipher}` / `{request_id}` placeholders.",
+    "Do NOT fork `OrdersResource`. It already exists and is already bound on `ProductionReadResources`; bind the SAME class on the sandbox bundle. A second orders class would be two parsers that can disagree about one vendor shape.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051), `apps/`, `ios/`, `packages/`, `docs/product/design/`, or a sibling issue's context cache — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature (`TikTokClient.get`, `TikTokClient.post`, `OrdersResource`, `SandboxWriteClientFactory.create_resources`). A `**kwargs` double proves routing, not that the real call would work."
+  ]
+}

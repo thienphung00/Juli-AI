@@ -1,0 +1,98 @@
+{
+  "planId": "w9c-capture-7-committed-stock-and-multi-warehouse-observed-2026-09-07",
+  "affectedPublicSurfaces": [
+    "NO seller-facing HTTP surface changes. Nothing under `api/routes/` moves, no `/v1/**` or `/demo/**` response shape changes, no prompt, no playbook, no ToolSpec, no action-card payload, no ETL transformer, no column. This is a CAPTURE slice: its public surface is (a) the contract collection `docs/integrations/tiktok_api/contract-collection.md` and (b) the parser on `InventoryResource`, which stops discarding what the vendor already returns. If the executor finds itself editing `services/etl/transform.py`, `mapping.py` or a model, the routing was wrong — persistence is W10-C work. Stop and report.",
+    "`backend/src/juli_backend/integrations/tiktok/resources/inventory.py` is the whole code surface. VERIFIED: `InventoryResource.search` posts `{\"sku_ids\": [...]}` and returns the raw dict; `update` sends `skus[].inventory[]` and ALREADY accepts an optional `warehouse_id`, which it omits from the body when None. So the warehouse-scoped write is reachable today and is CAPTURED here, not built. The parser is what changes: it must expose per-warehouse rows and `committed_quantity` instead of letting them fall on the floor.",
+    "NO allowlist change, and that is a checkable claim. `INVENTORY_SEARCH_PATH` (`POST /product/202309/inventory/search`) is already in `PRODUCTION_READ_POST_PATHS` and already in `SANDBOX_ALLOWED_REQUESTS`; `POST /product/\\d+/products/\\d+/inventory/update` is already in `SANDBOX_ALLOWED_REQUESTS` and is already matched by `WRITE_PATH_PATTERNS`' `/inventory/update$`. Both calls are reachable on the sandbox today. If the executor believes an allowlist entry is needed, that is a signal to STOP and name the call in the PR — not to add the entry.",
+    "Contract collection rows: A-8 Inventory Search is REPLACED or superseded by a real multi-warehouse capture. Today A-8 (~line 287) shows ONE product, ONE SKU, ONE warehouse, `total_committed_quantity: 0` and `committed_quantity: 0` — the vendor's shape proves the fields exist, but the values prove nothing about a non-zero committed bucket or a second warehouse. B-1 Update Inventory (~line 1057) is likewise replaced or superseded: its captured body is `{\"skus\":[{\"id\":\"...\",\"inventory\":[{\"quantity\":15}]}]}` with NO `warehouse_id` at all, so a warehouse-scoped write has never been observed. Take the next free A-/B- ids if superseding rather than replacing, and say in the PR which ids were taken and which old row they supersede.",
+    "What the field actually is, since the design depends on it: `contract-collection.md` A-8 shows `total_committed_quantity` at SKU level and `committed_quantity` per entry in `warehouse_inventory[]`, alongside `total_available_quantity` and `available_quantity`. `scope-verification/optimize-product-clear-excess.md` finding 8 records that all of it is dropped: `expand_inventory_search` keeps only `available_quantity`, `normalize_inventory` synthesises only `available_quantity`, `_transform_inventory` collapses to a single `quantity` column, and `committed_quantity` is read NOWHERE in `backend/src`. S-FR-6's \"never below a committed quantity\" therefore has no data. This slice fixes the FIRST layer only — the parser — and leaves the other three to W10-C by design.",
+    "Environment: the mirrored sandbox produced by #1722, which this slice is blocked by. SANDBOX_VN, shop id `7494751643546977923`, authorization id `7658096633384781588`, Core Function development shop `juliai-test`. The subject is one SKU with TWO warehouses and a placed-but-unshipped order so `committed_quantity` is non-zero — and the honest dependency is that the committed bucket needs an ORDER, which #1718 governs. If the merchant has no multi-warehouse SKU, one is created on a sandbox product and that is noted on the issue.",
+    "State written at the vendor: one warehouse-scoped Update Inventory on the SANDBOX seller's own SKU. No production SKU quantity is changed at any point. Note the asymmetry deliberately: Inventory Search is allowlisted for production-read and may be read from production if that is where the two-warehouse SKU lives, but the WRITE is sandbox-only and structurally so.",
+    "Mixed-version hazard: none for the capture itself, which is driven by an operator script against the guarded resource. But the parser change is NOT inert: `sync_inventory` (`workers/services/polling/sync.py`) calls `InventoryResource.search` today. Widening what the parser EXPOSES is additive and safe; changing or removing what it already exposes is not. The PR must state which existing keys are untouched."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run from the worktree root with PYTHONPATH pinned to that worktree's `backend/src`, every vendor call bound to a fake built on the REAL `TikTokClient.post` signature (never a `**kwargs` double), and every parser assertion made against the COMMITTED capture bodies — not against a hand-written example, and specifically not against today's single-warehouse zero-committed A-8. Post-deploy: SANDBOX_VN shop `7494751643546977923` under authorization `7658096633384781588` only, on one named two-warehouse SKU, reached through `SandboxWriteClientFactory`, which raises unless `merchant_auth_id == SANDBOX_AUTH_ID`, so a production quantity change is structurally unreachable. No public traffic reaches a candidate task set; no production WRITE credential is resolved at any point.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is FALSE in the pairing-rule sense — no PUBLIC or PRODUCTION side effect — but the real side effect is stated plainly rather than hidden behind the boolean: this journey CHANGES a stock quantity on one warehouse of one SKU on the TikTok SANDBOX seller's own shop. That is the point of the slice. ADR-068's hard-bound SANDBOX_WRITE merchant id is the mechanism that keeps it off production, and this change must not widen it. workersDisabledOnCandidate is FALSE only because the Celery worker is not on this path at all: the captures are driven by an operator script against the guarded resource, so worker state is irrelevant either way and disabling them would prove nothing. The parser change does reach the worker's `sync_inventory` when deployed, which is why the untouched-keys assertion below is mandatory.",
+    "journeys": [
+      {
+        "name": "two-warehouses-and-a-non-zero-committed-bucket-observed-and-parsed",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1723",
+        "assertions": [
+          "pre-merge: the sandbox_write token's IDENTITY is confirmed BEFORE any capture is trusted — `GET /authorization/202309/shops` through the sandbox client (already allowlisted, added by #1200) resolves to shop id `7494751643546977923` under authorization `7658096633384781588` on the Core Function development shop `juliai-test`. A capture taken against an unverified token is not evidence, and here an unverified WRITE token would change a real seller's stock.",
+          "pre-merge: `test_parser_exposes_every_warehouse_and_committed_quantity` binds to the COMMITTED Inventory Search body and asserts the parser exposes a row per entry in `warehouse_inventory[]` — asserted over a body with TWO warehouses, so a single-warehouse assertion cannot pass by accident, and asserted on the COUNT as well as the contents so a parser that keeps the first and stops goes red",
+          "pre-merge: the same test asserts `committed_quantity` per warehouse and `total_committed_quantity` at SKU level are exposed with a NON-ZERO value from the capture. Today's A-8 shows zero for both; a test written against a zero cannot distinguish 'parsed correctly' from 'defaulted to zero', which is precisely the bug — the fixture's committed value must be non-zero.",
+          "pre-merge: a zero committed quantity and an ABSENT committed field parse differently — absence must survive parsing as absence, never as a defaulted 0. A defaulted zero is indistinguishable from a real empty bucket, and S-FR-6's floor would silently vanish.",
+          "pre-merge: `test_update_inventory_targets_a_named_warehouse` binds to the COMMITTED update capture and asserts the request body carried `warehouse_id` on the SECOND warehouse and that the response confirms the warehouse-scoped write — asserted against captured bytes, never a hand-built dict. The existing `warehouse_id=None` path (which omits the key entirely) is asserted UNCHANGED in the same test.",
+          "pre-merge: every key `InventoryResource.search` exposes today is STILL exposed with the same name and the same meaning — asserted explicitly, because `sync_inventory` (`workers/services/polling/sync.py`) calls it and a rename would break the poll cycle silently. The parser change is purely additive.",
+          "pre-merge: NO allowlist change — asserted by `tests/unit/test_layer2_sandbox_write_contract.py` and `tests/unit/test_analytics_production_read_allowlist.py` passing unmodified. Both paths are already allowlisted; a diff that adds one is a signal the slice is calling something unplanned.",
+          "pre-merge: `path_contains_write_marker` still returns True for `/inventory/update$` and False for `/inventory/search$`, so the CI static check's classification is unchanged",
+          "pre-merge: the existing suites pass UNMODIFIED — `tests/unit/test_api_orders_products_inventory.py`, `tests/unit/test_layer2_sandbox_write_contract.py`, `tests/unit/test_tiktok_capability_factories.py`, `tests/unit/test_tiktok_capabilities_merchant_source.py` — proving ADR-068's hard-bound merchant ids and `InventoryResource`'s existing behaviour did not move",
+          "post-deploy: the vendor `request_id` for the Inventory Search capture and for the Update Inventory capture is recorded on issue #1723, together with the SKU id, both warehouse ids, and the quantities before and after. Ids and request ids, not a narrated 'it worked'.",
+          "post-deploy: the committed A-8 replacement shows TWO entries in `warehouse_inventory[]` and a NON-ZERO committed quantity — asserted by re-reading the committed Markdown, not by asserting the capture was taken. If the sandbox could not produce a non-zero committed bucket (no placed-but-unshipped order, per #1718), the row is marked 'documented, not captured' for the committed field and a documentation-conflict row is filed — it is NEVER committed with a zero presented as a successful observation.",
+          "post-deploy: no production write is attempted in the window — asserted by ABSENCE of any `production_read`-capability call to a write-marker path in the `tiktok_outbound_request` log lines for that window (`guards.py::log_outbound_request` emits capability + merchant_auth_id), never by grepping for the sandbox success"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is backend Python under `backend/src/juli_backend/integrations/tiktok/resources/inventory.py` plus tests plus one Markdown reference doc. `apps/`, `ios/`, `packages/` and `docs/product/design/` are on this epic's doNotLoad list and are not opened."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "vendor-response-capture",
+      "contract-collection-diff",
+      "outbound-request-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO schema change, and this is the section most likely to be violated by good intentions. The parser stops discarding `committed_quantity` and the per-warehouse rows, but it PERSISTS NOTHING: no column on `inventory_items`, no change to `expand_inventory_search` / `normalize_inventory` (`mapping.py`), no change to `_transform_inventory` (`transform.py`), no Alembic revision, and `backend/src/juli_backend/database/migrations/versions/` is not opened. `scope-verification/optimize-product-clear-excess.md` finding 8 names all four layers that drop the field and the issue states plainly that persistence belongs to W10-C — the inventory identity `(shop, sku, warehouse)` and a persisted `committed_quantity` are that lane's work, with their own migration. Stable and candidate run the same schema, so a code rollback needs no downgrade. If implementation concludes a column is needed, REPORT it — do not write a migration under this issue."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed system changes: `InventoryResource` keeps today's parser, `committed_quantity` and the per-warehouse rows keep falling on the floor exactly as they do now, and Replenish stays v2 by S-NFR-10's own rule because Update Inventory on a multi-warehouse SKU is unobserved. No new exposure, nothing partially applied, no data hazard. The one thing that must still be true if the walk is abandoned midway: the sandbox SKU's quantities are recorded on the issue as they were left, because a stock write stands.",
+    "postCutoverFailureBehavior": "Revert the commit. The parser widening disappears with it and `InventoryResource.search` returns exactly what it returns today — safe by construction, because the change is purely ADDITIVE: every key `sync_inventory` reads is unchanged, so the poll cycle behaves identically before and after a revert. No caller consumes the new per-warehouse rows in this slice by design. The committed contract rows are ADDITIVE documentation and an observed shape stays true after a code revert — leaving them is correct, and the A-8 and B-1 replacements in particular should be KEPT, since reverting them would restore a single-warehouse zero-committed capture and a warehouse-less write body that the walk proved incomplete. The honest limit of rollback: the stock quantity CHANGED on the TikTok sandbox seller's SKU during the walk is a VENDOR-SIDE effect that a code revert does NOT undo. That is acceptable because the target is the sandbox seller's own shop — but do not claim the revert reverses it. Redeploy of the previous release plus a restart of `juli-api` and `juli-celery-worker` is sufficient; NO downgrade is required, because there is no schema change.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_inventory_resource_warehouses.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_api_orders_products_inventory.py tests/unit/test_layer2_sandbox_write_contract.py tests/unit/test_tiktok_capability_factories.py tests/unit/test_tiktok_capabilities_merchant_source.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "NEVER pass a hand-written example response off as a capture. Every committed row is bytes the vendor actually returned, or it is marked 'documented, not captured' in plain words. B-16's example (`contract-collection.md` ~line 1409, 'no live sandbox data available at capture time') is the anti-pattern this epic exists to end.",
+    "Do NOT fabricate a non-zero committed quantity. It comes from a real placed-but-unshipped order on the sandbox SKU. If #1718 leaves the sandbox without orders, the committed field is marked 'documented, not captured', a documentation-conflict row is filed in PLAN.md §14 with a safe bound, and the multi-warehouse half of the capture still lands. Editing a fixture to show a committed value that was never observed is the single most damaging thing this slice could do, because S-FR-6's stock floor would then rest on an invented number.",
+    "Do NOT invent a sandbox order to produce the committed bucket. #1718 governs how orders exist on the sandbox — an epic-level Architect lock.",
+    "An ABSENT field becomes a CONFLICT ROW, never an assumption. If a field ADR-093 relies on is missing from either capture, file a documentation-conflict row in PLAN.md §14 with a safe bound. Do not assume it exists and do not code around it.",
+    "Do NOT default an absent committed quantity to 0. Absence and zero are different facts: zero means the vendor said nothing is committed, absence means the vendor said nothing at all. A defaulted zero would make S-FR-6's floor silently unenforceable and would be indistinguishable from a real empty bucket.",
+    "Do NOT persist anything. No column on `inventory_items`, no change to `expand_inventory_search` / `normalize_inventory` in `mapping.py`, no change to `_transform_inventory` in `transform.py`, no migration. `scope-verification/optimize-product-clear-excess.md` finding 8 names all four dropping layers; this slice fixes ONE — the parser — and W10-C owns the rest. Widening the fix is scope creep into another lane's migration.",
+    "Do NOT rename or remove any key `InventoryResource.search` exposes today. `sync_inventory` in `workers/services/polling/sync.py` calls it; the change is purely additive and must be asserted so.",
+    "Do NOT keep the first warehouse and stop. That is the exact defect recorded in spec §8.2's Replenish row — the parser must expose EVERY entry in `warehouse_inventory[]`, and the test asserts the count.",
+    "Do NOT write a production SKU's quantity. Writes go through `SandboxWriteResources` only, and `SandboxWriteClientFactory` must keep raising on any `merchant_auth_id` other than `SANDBOX_AUTH_ID` (ADR-068). Never relax `SandboxOnlyWriteGuard` or `ReadOnlyTransportGuard` to make a call succeed. Production writes remain behind #1339.",
+    "Do NOT add an `update_inventory` ToolSpec, a playbook entry, a prompt, a replenish card, or a registry registration. Spec §8.2's Replenish row lists the ToolSpec as a precondition for the Replenish LANE, not as part of this capture. This slice ends at the parser and the committed rows.",
+    "Do NOT commit a live token, `sign`, `app_key`, `shop_cipher` or ciphertext, and do NOT commit buyer PII. An inventory response should carry none, but the redaction rule is unconditional; use the collection's existing `{access_token}` / `{sign}` / `{app_key}` / `{shop_cipher}` / `{request_id}` placeholders.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051), `apps/`, `ios/`, `packages/`, `docs/product/design/`, or a sibling issue's context cache — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature (`TikTokClient.post`, `InventoryResource.search`, `InventoryResource.update`). A `**kwargs` double proves routing, not that the real call would work — and here the real call changes stock."
+  ]
+}
