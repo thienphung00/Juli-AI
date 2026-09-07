@@ -256,6 +256,21 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - EN: Hide password
 - VI: Ẩn mật khẩu
 
+**`demo.try`**
+- EN: Try the Demo
+- VI: Dùng thử Demo
+- Definition: The landing's sessionless, dataless client-replay entry (ADR-094 decision 1, PUI-DESIGN §1). Mints no session, calls no `/v1/*` route.
+
+**`auth.google`**
+- EN: Sign in with Google
+- VI: Đăng nhập với Google
+- Definition: The landing's other entry — Supabase Auth (Google provider) to a real, distinct identity, then the connect-shop screen (ADR-094 decision 3).
+
+**`auth.connect_shop`**
+- EN: Connect TikTok Shop
+- VI: Kết nối TikTok Shop
+- Definition: The screen a signed-in seller reaches after Google sign-in. States its actual state honestly — no control implies a working merchant exchange before the live OAuth exchange is wired (a flagged follow-up).
+
 ## Phrases
 
 **`home.tagline`**

@@ -36,8 +36,9 @@ dependency.
 - Home contains no KPI, recommendation action, execution queue, template, or threshold.
 - User-visible copy is Vietnamese with correct diacritics.
 - Analytics (`/analytics`) performs read-only `GET /v1/demo/analytics` (no force-recompute); Home, Settings, and Decisions remain mock fixtures.
-- Mock is the only enabled mode; Sign-in remains focusable for truthful
-  coming-soon feedback but never routes or requests data.
+- Dùng thử Demo stays sessionless and issues no request; Đăng nhập với Google
+  (issue #1319) is real — it routes to Supabase Auth and, from the
+  connect-shop screen, makes a real bearer-authenticated `GET /v1/shops` call.
 - Manual Refresh re-fetches Analytics envelopes, resets mutable mock-state, and returns to
   `/decisions`, whose default view is Recommendations.
 - Contextual Juli assistance explains the active destination and never

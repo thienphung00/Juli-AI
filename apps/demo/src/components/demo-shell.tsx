@@ -40,7 +40,6 @@ function DemoShellContent({ children }: { children: ReactNode }) {
     feedback,
     mode,
     recommendationContext,
-    requestSignIn,
     resetMockState,
   } = useDemoState();
   const { refreshAnalytics } = useAnalyticsData();
@@ -98,15 +97,9 @@ function DemoShellContent({ children }: { children: ReactNode }) {
             >
               Mock
             </button>
-            <button
-              className="demo-mode-switcher__option"
-              type="button"
-              aria-disabled="true"
-              aria-pressed="false"
-              onClick={requestSignIn}
-            >
-              Sign-in
-            </button>
+            <Link className="demo-mode-switcher__option" href="/">
+              Đăng nhập
+            </Link>
           </div>
           <button
             className="demo-refresh"
