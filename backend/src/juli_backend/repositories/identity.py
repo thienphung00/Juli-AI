@@ -13,6 +13,7 @@ import uuid
 from sqlalchemy import select
 
 from juli_backend.database.exceptions import NotFound
+from juli_backend.database.tenant_context import with_user_scope
 from juli_backend.models.models import Shop, User
 from juli_backend.repositories._base import SessionRepo
 
@@ -23,6 +24,38 @@ class UsersRepo(SessionRepo):
         if user is None:
             raise NotFound(f"User {user_id} not found")
         return user
+
+    async def get_for_authentication(self, user_id: uuid.UUID) -> User:
+        """Read one user during authentication, under a scope of its own (#1691).
+
+        THE CIRCULARITY. `users` carries
+        `users_select_public USING (id = app_current_user_id())`. Authentication
+        must read `users` to learn who the caller is — but the policy wants that
+        answer first. Under the owner-exempt runtime the policy did not apply and
+        the plain `get` above worked; as `juli_app` it returned nothing, and every
+        authenticated request 401'd with "User not found" for a row that exists.
+        Measured on production 2026-09-07: 0 rows visible as `juli_app` with no
+        GUC, 1 on the owner connection.
+
+        WHY THIS LIVES HERE AND NOT IN THE AUTH DEPENDENCY. ADR-085 decision 2 is
+        explicit that the tenant seam "is not `core/security/dependencies.py`" —
+        W6 keeps sole ownership of that module. A repository, by contrast, is
+        exactly the layer that should know what its own table's policy requires.
+        The auth dependency calls this by name and stays free of tenant-context
+        imports.
+
+        WHY IT IS NOT A BYPASS. `user_id` is `sub` from a JWT the caller has
+        already verified against `SUPABASE_JWT_SECRET`, so the application asserts
+        an identity it has cryptographic grounds to assert. The policy still does
+        the narrowing — measured with the GUC set from `sub`:
+
+            own row visible: 1   another user's row: 0   total rows visible: 1
+
+        A separate method rather than a flag on `get`, so that every caller of the
+        scoped read is greppable and the exception cannot spread silently.
+        """
+        async with with_user_scope(self._session, user_id):
+            return await self.get(user_id)
 
     async def get_or_create(self, user_id: uuid.UUID, phone: str) -> User:
         """Return the user with ``user_id``, creating it with ``phone`` when absent."""
