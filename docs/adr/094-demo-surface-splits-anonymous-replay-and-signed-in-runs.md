@@ -1,6 +1,6 @@
 # ADR-094: The demo surface splits — anonymous replay without persistence, real runs behind sign-in
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-07
 **Deciders:** owner, with a Claude Code session
 **Amends:** [ADR-084](084-agent-demo-surface-tenancy-and-replay.md) decisions 1 and 2
