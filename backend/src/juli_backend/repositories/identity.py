@@ -8,6 +8,7 @@ scoped by ``user_id`` instead.
 
 from __future__ import annotations
 
+import builtins
 import uuid
 
 from sqlalchemy import select
@@ -69,7 +70,7 @@ class ShopsRepo(SessionRepo):
     async def list(self, user_id: uuid.UUID) -> list[Shop]:
         return await self._all(select(Shop).where(Shop.user_id == user_id))
 
-    async def list_for_authorization(self, user_id: uuid.UUID) -> list[Shop]:
+    async def list_for_authorization(self, user_id: uuid.UUID) -> builtins.list[Shop]:
         """List a user's shops during the request bootstrap, under a user scope (#1697).
 
         THE SECOND AND LAST PRE-SCOPE READ. `shops` carries
@@ -97,9 +98,18 @@ class ShopsRepo(SessionRepo):
         A separate method rather than a flag on `list`, for the same reason as
         `UsersRepo.get_for_authentication`: the bootstrap exception stays
         greppable and cannot spread to ordinary callers, who already hold a scope.
+
+        NOTE THE RETURN ANNOTATION. It is `builtins.list` because this class
+        defines a method called `list`, which shadows the builtin for every
+        annotation below it in the class body. `list`'s own annotation escapes
+        that only because the name is not yet bound at its definition point.
+        Written as bare `list[Shop]` here, mypy infers a partial `list?[Shop]`
+        and the CALLER fails with "has no attribute __iter__" — an error that
+        points at `api/dependencies.py`, nowhere near the cause.
         """
         async with with_user_scope(self._session, user_id):
-            return await self.list(user_id)
+            shops = await self.list(user_id)
+        return shops
 
     async def get_by_tiktok_id(self, tiktok_shop_id: str) -> Shop | None:
         """Find the shop bound to a TikTok shop id, or ``None``."""
