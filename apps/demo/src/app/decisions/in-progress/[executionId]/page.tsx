@@ -25,9 +25,11 @@ import {
 } from "../../../../components/in-progress-panel";
 import { useDemoState } from "../../../../components/demo-state";
 import { RepeatConsentBlock } from "../../../../components/repeat-consent-block";
+import { RunDetailRoute } from "../../../../components/run-detail-route";
 import { getWorkflowReviewStages } from "../../../../lib/reviews";
 import { selectRepeatConsentSurfaces } from "../../../../lib/repeat-consent";
 import { sanitizeSellerReviewText } from "../../../../lib/review-seller-copy";
+import { looksLikeRunId } from "../../../../lib/run-surface/run-id";
 
 function getApprovedInputLabel(
   workflowKey: string,
@@ -77,6 +79,15 @@ export function InProgressDetailView({ executionId }: { executionId: string }) {
   const record = mutableState.executionRecords[executionId];
 
   if (!record) {
+    // A real backend run id (UUID) never appears in the mock execution
+    // records -- that is #1316's staged run view's route, not this
+    // component's "unknown mock id" case. #1318's run-ledger cards already
+    // link here (`/decisions/in-progress/{run.id}`); this is the correct
+    // navigation contract into the staged view, not a duplicate renderer.
+    if (looksLikeRunId(executionId)) {
+      return <RunDetailRoute runId={executionId} />;
+    }
+
     return (
       <DestinationPlaceholder
         description="Luồng thực hiện này không còn trong Demo hoặc chưa được tạo. Hãy quay lại Quyết định để xem các luồng đang chạy."
