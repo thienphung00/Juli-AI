@@ -28,7 +28,7 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 **W6 — a third landed, 2026-09-05.** Design grilled 2026-08-12 ([ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md)), amended by [ADR-084](../../adr/084-agent-demo-surface-tenancy-and-replay.md). PRD [#1308](https://github.com/thienphung00/Juli-AI/issues/1308). **On `main`:** #1272 seller-facing reason codes, #1314 visual identity + motion, #1318 the run ledger, #1423 golden-scenario capture/replay (which is #1311's deliverable — that issue is stale, not open work), #1309 the executability discriminator. The wave was reconciled with `main` (#1451 → #1640) and landed (#1645). **Still unbuilt (2026-09-07):** #1316, #1317, #1319, #1320, #1321; gate #1322 untouched. #1315 has since landed and #1313 is **closed as superseded** by [ADR-094](../../adr/094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md). Scoped in [the remaining-slices handoff](../../handoffs/2026-09-05-w6-remaining-slices.md) | 🟨 2026-09-05 — **four of ten slices; the seller-facing surface is the part still missing.** **Superseded 2026-09-07:** #1320 was recorded as blocked on #1313 because `/v1/demo/decisions` is authenticated and there was no session to call it with. [ADR-094](../../adr/094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md) resolves that by splitting the surface — the anonymous entry is a client replay that calls nothing, and the session comes from #1319's Google door. The live defect stands regardless: the panel calls `/v1/demo/recommendations`, which 404s, renders fixture content, and reports success today. Note #1308 is CLOSED while nine children are open |
 | 11b | P-IM — Incremental impact measurement (NEW) | ✅ implemented, gate reopened in **W4** — [ADR-077](../../adr/077-incremental-impact-measurement.md); re-run wave merged to `main` (#1113, 2026-08-14), #1040–#1045 + #1068 all with status records, after the [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B refusal of the first attempt | 🟨 2026-08-21 — **reachable, still un-run.** W4 fixed all three broken reads (#1215 payload, #1216 duration, #1219 measurable set). The reading itself needs a production-shop write, because the sandbox shop has no analytics series — that is W5's gate, not a code gap |
 | 11c | P-CRED — TikTok credential lifecycle / refresh-token rotation (NEW) | ✅ **W4 closed 2026-08-21** — deployed on release `14807670` and verified against the vendor: sandbox credential refreshed through the real `refresh_credential` path, `refresh_count` 0→1, expiry moved 2026-08-27→2026-08-28. Beat and lazy layers live; **reactive layer built but wired to nothing** (#1233), so a token that dies before its recorded expiry is not self-healed. `/root/refresh_credentials.py` retired. [ADR-081](../../adr/081-refresh-token-rotation.md) | ✅ 2026-08-21 — full matrix green + one real sandbox-token refresh |
-| 11d | P-PROD — Production-write unlock (NEW) | ✅ **W7 slices landed; W7-bis (#1469) closed 2026-09-05.** Design [ADR-085](../../adr/085-production-write-preconditions.md). PRD [#1325](https://github.com/thienphung00/Juli-AI/issues/1325); gate [#1339](https://github.com/thienphung00/Juli-AI/issues/1339). The cutover to the non-owner RLS-bound role `juli_app` is **done and deployed** — and exposed six defects, all fixed: #1548, #1575 (alembic ran as the runtime role), #1576/#1599 (`SET LOCAL` discarded by commit), #1613 (the public demo read emptied by RLS), #1627 and #1631 (bronze append and sync-state write unscoped; #1631 also found a missing UPDATE grant → migration 055) | 🟨 2026-09-05 — **Observation 1 partially evidenced.** Bullets 2 and 3 pass: `juli_app`, `bypassrls=false`, owns 0 tables, cross-tenant reads return 0. Bullet 4 is 3 of 5 beats with **zero scoping errors** — `analytics_backfill_topup` (02:00 UTC) and `daily_impact_reader` (03:00 UTC) had not yet fired. Bullet 1's authenticated half needs an operator token. Bullet 4's wording was **amended 2026-09-05**: it named `system_scope()`, which writes no database GUC and has zero callers, making the condition unfalsifiable; the beats pass via `with_shop_scope`. Checks committed at `infra/scripts/obs1/`. **Root cause still open: [#1630](https://github.com/thienphung00/Juli-AI/issues/1630)** — a tenant scope set before a multi-minute vendor fetch does not survive it, so every per-statement scope added is a workaround until it lands |
+| 11d | P-PROD — Production-write unlock (NEW) | ✅ **W7 slices landed; W7-bis (#1469) closed 2026-09-05.** Design [ADR-085](../../adr/085-production-write-preconditions.md). PRD [#1325](https://github.com/thienphung00/Juli-AI/issues/1325); gate [#1339](https://github.com/thienphung00/Juli-AI/issues/1339). All thirteen slices #1326–#1338 are on `main` via `c06857a34` (PR #1402), each with a committed status record carrying review PASS + validation PASS. The cutover to the non-owner RLS-bound role `juli_app` is **done and deployed** — and exposed six defects on the AFK paths, all fixed: #1548, #1575 (alembic ran as the runtime role), #1576/#1599 (`SET LOCAL` discarded by commit), #1613 (the public demo read emptied by RLS), #1627 and #1631 (bronze append and sync-state write unscoped; #1631 also found a missing UPDATE grant → migration 055). **Three more surfaced on 2026-09-07**, once the authenticated surface was finally exercised: #1691 (`users`) and #1697 (`shops`) merged, #1700 (`workflow_run_events` on the SSE stream's own session) open — see [the 2026-09-07 entry](#w7-exit-gate--observation-1-three-rls-defects-deep-2026-09-07) | 🟨 2026-09-07 — **Observation 1: three bullets pass, one outstanding. Not cleared.** Bullet 2 **passes**: `juli_app`, `rolbypassrls=false`, `rolsuper=false`, owns 0 tables. Bullet 3 **passes**: under a tenant context, own shop 8168 rows, other shops 0. Bullet 4 **passes** — all **six** beats on their own schedules (`analytics_backfill_topup` 02:17:00 received → 02:17:09 succeeded, 9.78s; `daily_impact_reader` 03:23:00 → 03:23:07, 7.71s; the other four zero failures over 12h), zero scoping errors, and all **31** in-window partition days `complete` in all four buckets with no error rows; it took [seven defects](#w7-exit-gate--observation-1-three-rls-defects-deep-2026-09-07) to get there, two of which were withdrawn as self-inflicted by diagnostics. Bullet 1 **passes on the code, not on the deployed sha**: read HTTP 200 with 5 runs, SSE HTTP 200 with 2402 bytes and 8 events, measured against the real database as `juli_app` with #1691 + #1697 + #1700 applied — but #1700 has no PR and #1697's release is still pending, so nothing is verified in production yet. Its **approve element is recorded not performable** by owner decision (no run is in a confirmation state; all five terminal, newest 2026-08-20) — **not performable is not passing**, and it can be revisited when #1319 and the W6 run view produce an eligible run. Bullet 4's wording was **amended 2026-09-05**: it named `system_scope()`, which writes no database GUC and has zero callers, making the condition unfalsifiable; the beats pass via `with_shop_scope`. Checks committed at `infra/scripts/obs1/`. **#1630 is now closed** — hypothesis refuted by measurement (an idle transaction under `NullPool` held the same backend PID and an intact GUC for 25 minutes, past the 23-minute failure it was written from), so it is no longer an open root cause and there is no per-statement scoping to remove. **Observations 2, 3 and 4 have not started**, each blocked on the one before it. Sign-off on Observation 1 is the owner's; no measurement here clears it |
 | 12 | P10 — Observability baseline | ⬜ **W8** | ⬜ |
 | 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ **W9-B** (with P7), over the path W9-A realigns | ⬜ |
 | 14 | P13 — Family charter, seller journeys + rollout of the remaining workflows | 🟨 **charter recorded 2026-09-03** — four families (Product, Inventory, Campaign & Promotion, Customer Service), Livestream removed, **Process Order (5) + Handle Split Package (6) promoted to design-order item 3** with sustained mega-sale volume as its non-functional requirement, and a new **Mega Sale Readiness** workflow at item 5 as its preparation companion (owner, 2026-09-03), six seller-journey reports and eight corrections, automation/monitoring NFR grades — see [P13](#14-p13--family-charter-seller-journeys-and-rollout-of-the-remaining-workflows-charter-grilled-2026-09-03-supersedes-rollout-to-remaining-10-workflows); grill in progress. Design-order items 0–1 (template hardening + the Optimize Product pricing realignment) land in **W9-A** — see [where it lands](#where-the-optimize-product-pricing-realignment-lands-2026-09-03); items 2–9 roll out in **W10** | ⬜ |
@@ -452,6 +452,147 @@ for this.
 What landed is the infrastructure — the event protocol, the replay source, the design tokens.
 What is missing is the surface a seller uses: the stream hook (#1315, in review), the staged
 view (#1316), and the consent picker (#1317).
+
+## W7 exit gate — Observation 1, three RLS defects deep (2026-09-07)
+
+### The thirteen slices are done. The gate is not
+
+All thirteen implementation slices — #1326–#1338 — are closed and on `main` via `c06857a34`
+(PR [#1402](https://github.com/thienphung00/Juli-AI/pull/1402), `feature/w7-wave` → `main`,
+merged 2026-09-01). **Verified by artifact rather than by issue state**: every one of the
+thirteen has a committed `agent-runtime/artifacts/status/issue-<n>.json` carrying review
+`PASS` **and** validation `PASS`, timestamped 2026-08-25 → 2026-08-26. A closed issue is a
+claim; the status record is the evidence.
+
+The gate [#1339](https://github.com/thienphung00/Juli-AI/issues/1339) is **open**, and its four
+observations are strictly ordered. **Observations 2, 3 and 4 have not started** — the red-team
+pass, the authorized production mutation, and the T+7 impact reading each depend on the one
+before it, so the entire remainder of the wave sits behind Observation 1.
+
+### Observation 1 — three of four bullets pass, on measurement
+
+Evidence record posted on #1339 for deployed sha `91f783d6`, measured 2026-09-07.
+
+| Bullet | Result | Measurement |
+| --- | --- | --- |
+| 1 — an authenticated read, an approve, an SSE stream | **was failing** | see the three RLS fixes below |
+| 2 — the connected role is not an owner | **PASS** | role `juli_app`; **0** tables owned across `public`/`ops`/`bronze`/`silver`/`gold`; `rolbypassrls = false`, `rolsuper = false` |
+| 3 — another tenant's rows return nothing | **PASS** | under a tenant context on the deployed connection: own shop **8168** rows visible, other shops **0**, total **8168** |
+| 4 — the beats complete a cycle without a scoping error | **PASS** | all **six** beats succeeded on their own schedules; **zero** scoping errors; **zero** RLS denials since 2026-09-05 05:23, against **154** in the three days before; all **31** in-window partition days `complete` in all four buckets |
+
+**The record is deliberately unsigned.** #1339 states that observations 1–3 are owner acts. An
+agent can produce the measurement; it cannot produce the attestation, and the evidence record
+says so in its own first line. Nothing below closes an observation.
+
+### Bullet 4 cost seven defects, and two of them were self-inflicted
+
+| # | Disposition | What it was |
+| --- | --- | --- |
+| #1673 | fixed | failure records were rolled back, so nothing the backfill learned survived a run |
+| #1675 | fixed | `live` and `catalog` wrote a tz-aware `update_time` into a naive column; 41 of 97 partitions permanently unwritable |
+| #1683 | fixed | a failure hook escaping its task aborted `gather`, stranding siblings mid-session — `catalog` had not been attempted since 2026-08-18 |
+| #1659 | fixed | two beats scheduled to collide at 02:00 UTC, both failing; verified at runtime here |
+| #1669 | closed, resolved | the catalog `401`s were **stale records**, not a credential defect — held in place by the three bugs above, and cleared once they were |
+| #1676 | closed, not a defect | a single statement timeout on `product`, caused by my own manual diagnostics |
+| #1681 | closed, not a defect | five reconcile timeouts, same cause; 14 consecutive clean runs after the diagnostics stopped |
+
+Two of the seven were **filed as production bugs and had to be withdrawn**: manual diagnostic
+runs were contending with production beats on `analytics_performance_intervals`. The disproof
+posted first on #1681 was also wrong, in the opposite direction — it was built from the celery
+journal, which cannot see manual runs at all. Both errors are corrected on the issues rather
+than deleted, because **measuring a live system can create the failures you then attribute to
+it**, and a journal-derived "nothing was running" is only ever a claim about *scheduled* work.
+
+#1669 carries a second lesson worth keeping: a bucket that is **last** in an ordered loop
+(`revenue → live → product → catalog`) can stop running entirely and leave no signal other than
+rows quietly not changing. A `last_update` three weeks in the past was the only evidence, and
+nothing was watching it.
+
+### Bullet 1 needed three RLS fixes, each hidden behind the last
+
+`401` → `403` → `200 with zero bytes` → working. Each fix moved the failure exactly one layer up.
+
+| # | Surface | Symptom under `juli_app` | State |
+| --- | --- | --- | --- |
+| #1691 | `users`, read by `get_current_user` | `401 {"detail":"User not found"}` on a valid, correctly-signed JWT whose `sub` row demonstrably exists | merged (PR #1693, `e7c2bef9`) and deployed |
+| #1697 | `shops`, read by `get_active_shop` | `403 {"detail":"Shop not accessible"}` — `list(user.id)` ran with no GUC at all, so it saw 0 of the user's 2 shops | merged (PR #1698, `ea48b3dc`); its release run was still in flight when this was written |
+| #1700 | `workflow_run_events`, read by the SSE stream's **own** session | `200` with a **zero-byte body** for a run that has 8 events | open, no PR yet |
+
+**The generalisation is the finding, and it is two classes, not one.**
+
+- #1691 and #1697 are **pre-scope bootstrap reads**. They run before
+  `_apply_tenant_context_to_session`, and they are **bounded at two**: `get_current_user` reads
+  `users`, `get_active_shop` reads `shops`, and immediately after that
+  (`api/dependencies.py:61`) every downstream query is scoped. There is no third.
+- #1700 is a **different class — post-scope, wrong session**. `stream_run_events` depends on
+  `get_run_events_session_factory` deliberately, because a stream outlives the request session;
+  that reasoning is sound. What was missed is that `replay_events`
+  (`services/agent_runs/events.py:196`) then does `async with session_factory() as session:` and
+  selects with no tenant context. The scope exists; it just never reaches there. **A session
+  that opens its own connection inherits no scope and must take one.** `event_stream` has three
+  such uses to audit, not one: replay on the terminal path, replay on the live path, and the
+  live-tail loop.
+
+The "bounded at two" claim made on #1697 was accurate as stated and remains so. It nonetheless
+*read* as "the auth path is now complete", and it was not — a bound on one class is not a bound
+on the surface.
+
+**None of the three was reverted.** `DATABASE_URL` stays on `juli_app`: reverting would re-hide
+each defect behind the owner exemption that concealed it in the first place. The documented
+one-line revert remains available, and that call is the owner's.
+
+Stated without softening: **three RLS defects reached production**, and the third was found only
+because someone actually exercised the surface end to end. All three were invisible to CI, which
+runs the suite as `postgres` — superuser *and* table owner, and therefore exempt from every row
+policy. They were equally invisible in production, because **the authenticated surface has no
+users** (see *"Deferred: there is no way for a human to log in"* below), so its total failure
+produced no signal. A minted token is what found the first one.
+
+### The approve sub-step is recorded as not performable
+
+Bullet 1 asks for an authenticated read, an approve, **and** an SSE stream. The approve cannot be
+performed: **no run is in a confirmation state.** All five runs are terminal, the newest dated
+2026-08-20. Recorded as **not performable**, by the owner's decision, rather than manufactured by
+seeding a run to have something to approve — which would test the seeding, not the surface. The
+evidence record on #1339 was posted before that decision and still reads "no decision is recorded
+here"; **this entry is the record.**
+
+### #1630 is closed — its hypothesis was refuted by measurement
+
+The 2026-09-05 entry above records #1630 as "the root cause and still open". That is now
+superseded: it is **closed as not-planned**, and the reason is a measurement, not a
+re-prioritisation. A transaction held idle under `NullPool` with the tenant GUC set survived
+**25 minutes** with the **same backend PID** and the **GUC intact** — exceeding the 23-minute
+production failure the issue was written from. Supavisor does not replace the connection and
+`SET LOCAL` does not die with it. Two of the issue's four criteria therefore point at a mechanism
+that does not occur. The symptom is gone as well: 154 RLS denials in the three days before the
+cutover, zero since 2026-09-05 05:23.
+
+One correction it forces on the earlier entry: **there is no "per-statement scoping" to remove.**
+The only scope applications on the reconcile path are the four **per-stage** blocks in
+`shared_compute_orchestrator.py` (lines 283, 289, 299, 328). Each stage commits *inside* its own
+`with_shop_scope`, and a commit discards `SET LOCAL` — that is how `SET LOCAL` works, not a
+symptom. Re-entering the scope per stage is correct handling, not sediment.
+
+### Known open, not blocking the gate
+
+- **#1670** — `LIVE partition failed` discards the exception that caused it. 47 `live` partitions
+  carry that exact string as `last_error` with `attempt_count = 5`; each retry costs vendor calls
+  and produces the same uninformative row. All four buckets are now `complete`, so this is a
+  diagnosability defect rather than a data one — which is precisely why it will be cheap to keep
+  ignoring, and worth not ignoring.
+- **#1677** — running the unit suite rewrites a committed golden fixture in place,
+  restamping every `captured_at` in
+  `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` (23 insertions / 23
+  deletions) and leaving the tree dirty after a read-only test run. A golden fixture that
+  rewrites itself asserts nothing.
+
+### What Observation 1 still needs
+
+#1700 lands and deploys; bullet 1 is then re-verified end to end against the deployed sha — read,
+stream, and the approve sub-step recorded as not performable; and the owner signs. Only then does
+Observation 2 become available. Nothing here may be closed by disabling a control or waiving a
+precondition, and that constraint is unchanged.
 
 ## Wave 6 — sellers can watch Juli work and choose what it does (2026-08-25)
 
