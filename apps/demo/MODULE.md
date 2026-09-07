@@ -22,6 +22,15 @@ dependency.
   `prevent_refund_8c`); FBT return intake key stays non-executable.
 - `RecommendationsPanel` / `InProgressPanel` — Decisions tab panels composed by
   `RecommendationsView`.
+- `lib/recommendations.ts` — `fetchRecommendations()`'s route constant now
+  matches the server-side route that actually exists (`GET /v1/demo/decisions`,
+  `backend/src/juli_backend/api/routes/demo_decisions.py`), and the function
+  itself never falls back to `recommendationFixtures` on a failed or malformed
+  fetch (#1320, partial — see Invariants). It is not yet called from
+  `RecommendationsPanel`/`RecommendationsView`: those still render
+  `recommendationFixtures` directly and unconditionally, as before this
+  change. Wiring the live call into that shared component is **not** done in
+  this diff (see Invariants for why).
 - `AnalyticsDataProvider` / `fetchDemoAnalytics` — Phase 2.10-A live Analytics read via `GET /v1/demo/analytics` (Home/Settings/Decisions remain mock).
 
 ## Dependencies
@@ -39,6 +48,21 @@ dependency.
 - Dùng thử Demo stays sessionless and issues no request; Đăng nhập với Google
   (issue #1319) is real — it routes to Supabase Auth and, from the
   connect-shop screen, makes a real bearer-authenticated `GET /v1/shops` call.
+- `RecommendationsPanel`/`RecommendationsView` make no backend request or
+  real write anywhere in the recommendations flow (asserted in
+  `decisions-recommendations.test.tsx`) — this is deliberately **not**
+  changed by #1320's path fix. `fetchRecommendations()` targeting the real
+  `GET /v1/demo/decisions` route no longer masks a failure with
+  `recommendationFixtures` (issue #1320's defects 2 and 3, at the function
+  level), but the function is not called from this component: doing so today
+  would (a) break the "no backend request" invariant just above, since this
+  single component tree still serves both the anonymous replay and a
+  signed-in visitor identically — #1319 split the *entry points*, not this
+  component tree — and (b) make the anonymous "Dùng thử Demo" replay issue a
+  live `/v1/*` request, which ADR-094 forbids outright. Wiring the live call
+  in belongs with the component-level anonymous/signed-in split, not before
+  it — the same "delete before the replacement exists" risk the issue's own
+  dependency ordering warns about.
 - Manual Refresh re-fetches Analytics envelopes, resets mutable mock-state, and returns to
   `/decisions`, whose default view is Recommendations.
 - Contextual Juli assistance explains the active destination and never

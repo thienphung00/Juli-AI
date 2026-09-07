@@ -18,7 +18,16 @@ export interface RecommendationFixture {
   workflowKey: string;
 }
 
-export const DEMO_RECOMMENDATIONS_API_PATH = "/v1/demo/recommendations" as const;
+/**
+ * Signed-in Decisions read route (#1320, ADR-094). `/v1/demo/recommendations`
+ * never existed as a backend route — this now mirrors the server-side route
+ * actually mounted: `APIRouter(prefix="/demo/decisions")` in
+ * `backend/src/juli_backend/api/routes/demo_decisions.py`, included under
+ * `v1_router = APIRouter(prefix="/v1")` in `api/app.py`. Per ADR-094 this is
+ * the signed-in path only — the anonymous replay entry issues no `/v1/*`
+ * request at all (#1319).
+ */
+export const DEMO_DECISIONS_API_PATH = "/v1/demo/decisions" as const;
 export const ACTION_CARD_INPUTS_API_PATH = "/v1/action-cards" as const;
 
 export class DemoRecommendationsFetchError extends Error {
@@ -336,34 +345,35 @@ export const recommendationFixtures = [
   },
 ] as const satisfies readonly RecommendationFixture[];
 
+/**
+ * Signed-in recommendations read (#1320, ADR-094 — partial delivery, see
+ * `apps/demo/MODULE.md`). A failed fetch, a non-OK response, or a malformed
+ * 200 payload all reject rather than resolving to `recommendationFixtures`.
+ * A dead or unreachable backend must surface as a failure a caller can
+ * render honestly, never as fixture content standing in for it. Not yet
+ * called from `RecommendationsPanel` — see MODULE.md for why.
+ */
 export async function fetchRecommendations(
   fetchImpl: typeof fetch = fetch,
 ): Promise<readonly RecommendationFixture[]> {
-  try {
-    const response = await fetchImpl(DEMO_RECOMMENDATIONS_API_PATH, {
-      headers: { Accept: "application/json" },
-      cache: "no-store",
-    });
+  const response = await fetchImpl(DEMO_DECISIONS_API_PATH, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
 
-    if (!response.ok) {
-      throw new DemoRecommendationsFetchError(response.status);
-    }
-
-    const payload = (await response.json()) as {
-      recommendations?: RecommendationFixture[];
-    };
-
-    if (
-      Array.isArray(payload.recommendations) &&
-      payload.recommendations.length > 0
-    ) {
-      return payload.recommendations;
-    }
-  } catch {
-    // Phase 2.10 read path optional — fixtures remain authoritative in Demo.
+  if (!response.ok) {
+    throw new DemoRecommendationsFetchError(response.status);
   }
 
-  return recommendationFixtures;
+  const payload = (await response.json()) as {
+    recommendations?: RecommendationFixture[];
+  };
+
+  if (!Array.isArray(payload.recommendations)) {
+    throw new DemoRecommendationsFetchError(response.status);
+  }
+
+  return payload.recommendations;
 }
 
 export async function fetchActionCardInputs(
