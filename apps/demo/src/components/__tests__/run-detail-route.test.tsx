@@ -37,7 +37,7 @@ function buildRun(overrides: Partial<WorkflowRunListItem> = {}): WorkflowRunList
 }
 
 describe("RunDetailRoute — signed-in path (a token is present)", () => {
-  it("shows a loading state, then the staged view once the run is found", async () => {
+  it("leaves the signed-in path unchanged: with a token it still connects to the real run endpoint, never the seeded scenario", async () => {
     const fetchRuns = vi.fn().mockResolvedValue([buildRun()]);
 
     render(<RunDetailRoute fetchRuns={fetchRuns} runId={RUN_ID} token={TOKEN} />);
