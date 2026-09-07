@@ -1,0 +1,89 @@
+{
+  "planId": "rep-1320-mock-layer-deleted-failures-honest",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com Decisions (apps/demo/src/app/decisions)",
+    "demo.app-juli.com In-Progress (apps/demo/src/app/decisions/in-progress)"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Load the candidate demo build — zero public canary traffic; the change removes client-side fallbacks and repoints one fetch path",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "Issue's own Release evidence section: 'with the API reachable, decisions load from the API; with the API blocked, an honest error renders and no fixture content appears.' Transcribed verbatim; no additional surfaces inferred. Per ADR-094 the signed-in path is the live-backed one — the replay entry must issue no /v1/* request at all, which is asserted structurally rather than by a journey.",
+    "journeys": [
+      {
+        "name": "decisions-load-from-api-when-reachable",
+        "entryUrl": "/decisions",
+        "assertions": [
+          "html_200",
+          "decisions render from GET /v1/demo/decisions, the route that exists — not /v1/demo/recommendations",
+          "no recommendationFixtures content appears anywhere on the page"
+        ]
+      },
+      {
+        "name": "api-blocked-renders-honest-error",
+        "entryUrl": "/decisions",
+        "assertions": [
+          "html_200",
+          "with the API blocked, an error state renders",
+          "no fixture content and no captured-scenario content is substituted for the failed fetch",
+          "the surface does not look healthy while the backend is unreachable"
+        ]
+      },
+      {
+        "name": "in-progress-has-no-mock-execution-state",
+        "entryUrl": "/decisions/in-progress",
+        "assertions": [
+          "html_200",
+          "no startExecution-created record appears; localStorage holds no mock execution state for the Optimize Product path"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": ["/decisions", "/decisions/in-progress"],
+    "discoverFromHtml": true,
+    "assetTypes": ["js"],
+    "failOnMissing": true,
+    "failOnNon200": true,
+    "notes": "Issue text: 'assert the removed fixture module is no longer in the built bundle — a deletion that leaves the bytes shipped is not a deletion.' The check reads the built artifact, not the source tree."
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Issue text: 'No migration.' Client-side removal in apps/demo only — no database schema, no persisted-shape change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false,
+    "notes": "Issue text: 'reverting restores the mock; assert that is a *visible* regression rather than a silent one, so a rollback is diagnosable.' A rollback that silently returns to fixture-backed content is the failure mode this assertion exists to catch."
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm check:demo",
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit"
+  ],
+  "doNotInfer": [
+    "release evidence fields beyond what the issue's Release evidence (ADR-035) section states",
+    "removing mock flows for the other ten workflows — this is a scoped removal for the Optimize Product surfaces only, and their tests are the regression net",
+    "editing the other ten workflows' tests to accommodate this removal",
+    "making the replay entry call /v1/demo/decisions — per ADR-094 the replay path issues no authenticated request",
+    "substituting captured-scenario content for a failed signed-in fetch — that is the same silent-health defect in a new costume",
+    "deleting the offline state along with the fixture fallback — a genuinely offline client still renders the calm offline state"
+  ]
+}
