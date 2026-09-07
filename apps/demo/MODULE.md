@@ -45,8 +45,9 @@ dependency.
 - Home contains no KPI, recommendation action, execution queue, template, or threshold.
 - User-visible copy is Vietnamese with correct diacritics.
 - Analytics (`/analytics`) performs read-only `GET /v1/demo/analytics` (no force-recompute); Home, Settings, and Decisions remain mock fixtures.
-- Mock is the only enabled mode; Sign-in remains focusable for truthful
-  coming-soon feedback but never routes or requests data.
+- Dùng thử Demo stays sessionless and issues no request; Đăng nhập với Google
+  (issue #1319) is real — it routes to Supabase Auth and, from the
+  connect-shop screen, makes a real bearer-authenticated `GET /v1/shops` call.
 - `RecommendationsPanel`/`RecommendationsView` make no backend request or
   real write anywhere in the recommendations flow (asserted in
   `decisions-recommendations.test.tsx`) — this is deliberately **not**
@@ -55,13 +56,13 @@ dependency.
   `recommendationFixtures` (issue #1320's defects 2 and 3, at the function
   level), but the function is not called from this component: doing so today
   would (a) break the "no backend request" invariant just above, since this
-  single component tree currently serves both the anonymous replay and any
-  future signed-in visitor identically — there is no split at this layer yet
-  (ADR-094, #1319, not yet landed on this branch) — and (b) make the
-  anonymous "Dùng thử Demo" replay issue a live `/v1/*` request, which
-  ADR-094 forbids outright. Wiring the live call in belongs with (or after)
-  the anonymous/signed-in split, not before it — the same "delete before the
-  replacement exists" risk the issue's own dependency ordering warns about.
+  single component tree still serves both the anonymous replay and a
+  signed-in visitor identically — #1319 split the *entry points*, not this
+  component tree — and (b) make the anonymous "Dùng thử Demo" replay issue a
+  live `/v1/*` request, which ADR-094 forbids outright. Wiring the live call
+  in belongs with the component-level anonymous/signed-in split, not before
+  it — the same "delete before the replacement exists" risk the issue's own
+  dependency ordering warns about.
 - Manual Refresh re-fetches Analytics envelopes, resets mutable mock-state, and returns to
   `/decisions`, whose default view is Recommendations.
 - Contextual Juli assistance explains the active destination and never

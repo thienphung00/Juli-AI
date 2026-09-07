@@ -1960,3 +1960,108 @@ a {
 .repeat-consent__actions button {
   min-height: var(--juli-touch-target);
 }
+
+/* Dual-entry landing (#1319) — two deliberately asymmetric doors */
+.demo-landing__doors {
+  display: grid;
+  gap: var(--juli-space-5);
+  margin-top: clamp(2rem, 6vw, 4rem);
+}
+
+.demo-landing__door {
+  border: 1px solid var(--juli-border-accent);
+  border-radius: var(--juli-radius-large);
+  background: var(--juli-surface);
+  padding: clamp(1.5rem, 5vw, 2rem);
+  box-shadow: var(--juli-shadow-small);
+}
+
+.demo-landing__door h2 {
+  margin: var(--juli-space-2) 0;
+  font-size: 1.4rem;
+  letter-spacing: -0.02em;
+}
+
+.demo-landing__door p {
+  margin: 0 0 var(--juli-space-4);
+  color: var(--juli-muted-foreground);
+  line-height: 1.6;
+}
+
+.demo-landing__door-eyebrow {
+  margin: 0;
+  color: var(--juli-primary-text);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.demo-landing__door--google {
+  border-color: color-mix(in srgb, var(--juli-primary) 35%, var(--juli-border-accent));
+}
+
+.demo-landing__google-link {
+  text-decoration: none;
+}
+
+.demo-landing__google-link--disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+@media (min-width: 56rem) {
+  .demo-landing__doors {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Kết nối TikTok Shop (#1319) — states honestly, no control implies a live
+   merchant exchange that is not wired. */
+.connect-shop__identity {
+  margin: var(--juli-space-3) 0 0;
+  color: var(--juli-muted-foreground);
+}
+
+.connect-shop__error {
+  margin: var(--juli-space-5) 0 0;
+  border: 1px solid color-mix(in srgb, var(--juli-destructive) 45%, var(--juli-border));
+  border-radius: var(--juli-radius);
+  background: var(--juli-destructive-tint);
+  padding: var(--juli-space-4);
+  color: var(--juli-foreground);
+  line-height: 1.6;
+}
+
+.connect-shop__empty,
+.connect-shop__ready {
+  margin-top: var(--juli-space-5);
+  display: grid;
+  gap: var(--juli-space-3);
+}
+
+.connect-shop__picker {
+  display: grid;
+  gap: var(--juli-space-2);
+}
+
+.connect-shop__picker-option {
+  display: flex;
+  align-items: center;
+  gap: var(--juli-space-2);
+  min-height: var(--juli-touch-target);
+  border: 1px solid var(--juli-border);
+  border-radius: var(--juli-radius);
+  padding: 0 var(--juli-space-3);
+}
+
+.connect-shop__active-shop {
+  color: var(--juli-foreground);
+}
+
+.connect-shop__disclaimer {
+  margin: 0;
+  color: var(--juli-muted-foreground);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
