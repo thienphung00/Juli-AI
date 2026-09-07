@@ -1,0 +1,30 @@
+# AGT-W9C-INT — v1 P0 / capture lane; see agent-runtime.config.yml epicRegistry 1620/1622 and
+# docs/product/agent-workflow-execution/v1-workflow-spec.md §8.
+AGT-W9C-INT:
+  executorDomain: integrations
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/090-optimize-product-realignment.md
+    - docs/adr/092-process-order-dispatch-design.md
+    - docs/adr/093-replenish-inventory-design.md
+    - docs/integrations/tiktok_api/endpoints.md
+  requiredModules:
+    - backend/src/juli_backend/integrations/tiktok/constants.py
+    - backend/src/juli_backend/integrations/tiktok/capabilities.py
+    - backend/src/juli_backend/integrations/tiktok/factories.py
+    - backend/src/juli_backend/integrations/tiktok/resources/products.py
+    - backend/src/juli_backend/integrations/tiktok/resources/promotion.py
+    - backend/src/juli_backend/integrations/tiktok/resources/fulfillment.py
+    - backend/src/juli_backend/integrations/tiktok/resources/inventory.py
+    - docs/integrations/tiktok_api/contract-collection.md
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/execution/sandbox_guard.py
+    - 
+    - docs/product/agent-workflow-execution/scope-verification/
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

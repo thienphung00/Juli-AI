@@ -483,6 +483,58 @@ workflow_prompt_cache:
         - docs/product/design/
         - docs/integrations/tiktok_corpora/
         - Sibling issue context caches
+    # 1620 - W9-A/P-SHARED: the runtime can host more than one workflow (v1 P0 ladder).
+    # Serial, lands before every workflow lane; first slices are Fable exemplars.
+    1620:
+      defaultSliceId: AGT-W9A-BE
+      handoffPath: docs/product/agent-workflow-execution/v1-workflow-spec.md
+      parentScopeBlock: "# Parent #1620 - W9-A/P-SHARED: the runtime can host more than one workflow (constant)\n## Which lane you are in\n- AGT-W9A-DP - migrations only (workflow_key, polymorphic subject, ADR-087 card columns, act records, checklist items); no readers\n- AGT-W9A-BE - registry, approval, dispatcher, prompts, waiting_external, stop reasons, seller inputs, locks, scheduled producers, act-record and checklist endpoints, intervention guard\n- AGT-W9A-INT - webhook-to-run dispatcher, OAuth scope persistence\n## Architect locks\n- Spec of record is v1-workflow-spec.md S1 and S8.1; ADRs 087, 090-093 are the design; one issue = one P0 item\n- Migration numbers are RESERVED by Meta, never read from head (W6 and W7-bis are open)\n- Zero behaviour change for optimize_product_2 in every slice: goldens and existing tool tests pass untouched\n- Status/stop-reason additions touch all five pinned places in ONE slice (enum, DB CHECK, TS union, totality tests, non-terminal set)\n- Every tenant read in a beat task runs under with_shop_scope (ADR-089); no fleet-wide read\n- The params hash of a report confirmation covers seller-supplied values, single-use; corrections are new rows\n- Never a cancel tool, never a base-price write, never a stock write below committed\n- Tests live flat in tests/unit/; bind to real objects, never **kwargs doubles (consumer-without-producer is the failure this wave exists to prevent)\n## Epic deferrals\n- Push/email/Zalo transports; the autonomy ladder; repeat consent; the deadline-clock escalation service; the event outcome store; any workflow behaviour (W9-B, W10-A/B/C)\n"
+      childSlices:
+        1701: AGT-W9A-DP
+        1712: AGT-W9A-DP
+        1702: AGT-W9A-BE
+        1703: AGT-W9A-BE
+        1704: AGT-W9A-BE
+        1705: AGT-W9A-BE
+        1706: AGT-W9A-BE
+        1707: AGT-W9A-BE
+        1709: AGT-W9A-BE
+        1710: AGT-W9A-BE
+        1711: AGT-W9A-BE
+        1713: AGT-W9A-BE
+        1715: AGT-W9A-BE
+        1708: AGT-W9A-INT
+        1714: AGT-W9A-INT
+      doNotLoad:
+        - apps/
+        - ios/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
+    # 1622 - W9-C/P-CAPTURE: contract captures, TikTok app scope, sandbox mirror (HITL-heavy).
+    # Day-one lane in parallel with W9-A; integrations executor; owner issues 1718/1724 are HITL
+    # and never pass through the Meta gate.
+    1622:
+      defaultSliceId: AGT-W9C-INT
+      handoffPath: docs/product/agent-workflow-execution/v1-workflow-spec.md
+      parentScopeBlock: "# Parent #1622 - W9-C/P-CAPTURE: contract captures, TikTok app scope, sandbox mirror (constant)\n## Product boundary\n- Captures, client methods, guard entries and the sandbox mirror only; no workflow behaviour, no prompts, no UI\n- Every capture is committed to docs/integrations/tiktok_api/contract-collection.md with request, response (PII redacted) and environment\n## Architect locks\n- Reads through ProductionReadResources, writes through SandboxWriteResources only; the guard must refuse any production write path\n- Never commit buyer PII; redact recipient fields\n- Leave no ongoing promotion activity on the sandbox after a capture\n- A capture that contradicts an ADR or the spec is filed as a documentation-conflict row in PLAN.md S14 with a safe bound, before the dependent workflow lane opens\n- If the sandbox cannot hold orders (issue 1718), P-CAPTURE-5/6 capture against production reads and mark rows documented-not-captured; do not invent sandbox orders\n## Epic deferrals\n- Programmatic order mirroring; production writes (#1339); Search Activities (does not exist at TikTok)\n"
+      childSlices:
+        1716: AGT-W9C-INT
+        1717: AGT-W9C-INT
+        1719: AGT-W9C-INT
+        1720: AGT-W9C-INT
+        1721: AGT-W9C-INT
+        1722: AGT-W9C-INT
+        1723: AGT-W9C-INT
+        1718: AGT-W9C-INT
+        1724: AGT-W9C-INT
+      doNotLoad:
+        - apps/
+        - ios/
+        - packages/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
     # 1469 - W7-bis / fleet-scoped work under tenant isolation (ADR-089).
     # system_scope() is a Python flag and a log line; its correctness rested on
     # the runtime connecting as the table owner, which W7 removes. Five beat

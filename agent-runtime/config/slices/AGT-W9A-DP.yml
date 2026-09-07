@@ -1,0 +1,23 @@
+# AGT-W9A-DP — v1 P0 / capture lane; see agent-runtime.config.yml epicRegistry 1620/1622 and
+# docs/product/agent-workflow-execution/v1-workflow-spec.md §8.
+AGT-W9A-DP:
+  executorDomain: data-platform
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/087-subject-scoped-action-cards-and-card-revisions.md
+    - docs/adr/086-runtime-database-role-and-tenant-isolation.md
+    - docs/adr/089-fleet-scoped-work-under-tenant-isolation.md
+  requiredModules:
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/database/migrations/
+    - backend/src/juli_backend/database/tenant_scoped_tables.py
+  loadWhenNeeded:
+    - tests/unit/test_agent_runtime_boot_check_7_rls_preconditions.py
+    - tests/unit/test_workflow_run_status_mapping.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
