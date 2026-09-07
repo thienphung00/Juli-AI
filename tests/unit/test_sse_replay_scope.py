@@ -115,5 +115,14 @@ async def test_shop_id_is_required_not_optional() -> None:
     def factory():
         return session
 
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError) as excinfo:
         _ = [r async for r in replay_events(cast("object", factory), uuid.uuid4(), 0)]
+
+    # Named rather than left to the bare raise. The corpus guard counts a test
+    # whose only assertion lives inside `pytest.raises` as having none, and the
+    # honest fix is to say what is being asserted rather than to move the
+    # committed figure — the figure is the point of the guard.
+    assert "shop_id" in str(excinfo.value), (
+        f"the missing argument must be named `shop_id`, or a caller cannot tell which "
+        f"scope it forgot: {excinfo.value}"
+    )
