@@ -251,18 +251,52 @@ async def _restore_tenant_gucs(
     `SET LOCAL` anyway, which is the fail-closed state this function exists to
     reach.
 
-    When the body did NOT raise, a failed restore is a genuine error and is
-    raised. Swallowing it there would leave the leak in place silently, which
-    is the whole defect (#1495).
+    When the body did NOT raise AND the session is still usable, a failed
+    restore is a genuine error and is raised. Swallowing it there would leave
+    the leak in place silently, which is the whole defect (#1495).
+
+    "THE BODY RAISED" IS NOT THE ONLY WAY THE SESSION BREAKS (#1576). A body can
+    catch its own flush failure and return normally, leaving the transaction
+    rolled back and the session unusable while `body_failed` is False. This
+    guard then tried to write and raised PendingRollbackError from the `finally`,
+    which REPLACED the caller's real error — in production it masked an RLS
+    "new row violates row-level security policy" and turned a one-line diagnosis
+    into reading past a misleading traceback.
+
+    THIS NEVER RAISES. A cleanup step running in a `finally` must not replace the
+    caller's exception, and #1495's original rule — re-raise when the body did not
+    fail — could not tell the two apart. A body can catch its own flush failure
+    and return normally, leaving the session unusable while `body_failed` is
+    False; the write below then failed and its exception surfaced INSTEAD of the
+    caller's. In production that masked an RLS "new row violates row-level
+    security policy" behind a PendingRollbackError from this function.
+
+    Narrowing to one exception type does not work either. Measured: the same
+    broken-session condition raises PendingRollbackError when SQLAlchemy refuses
+    the statement and DBAPIError when Postgres does. `session.in_transaction()`
+    is no better — it still returns True after a caught statement error while the
+    next execute raises.
+
+    So the failure is always swallowed and always reported, at ERROR when the
+    body was healthy — a genuine restore failure that deserves attention — and at
+    WARNING when the body had already failed, where an unusable session is
+    expected. Not restoring is safe on its own: SET LOCAL dies with the
+    transaction, which is the fail-closed state this function exists to reach.
     """
     try:
         await _write_tenant_gucs(session, shop, user)
     except Exception:
-        if not body_failed:
-            raise
-        logger.warning(
-            "tenant_context_restore_skipped",
-            extra={"reason": "transaction already failed; rollback clears SET LOCAL"},
+        logger.log(
+            logging.WARNING if body_failed else logging.ERROR,
+            "tenant_context_restore_failed",
+            extra={
+                "body_failed": body_failed,
+                "reason": (
+                    "session unusable after the body failed; rollback clears SET LOCAL"
+                    if body_failed
+                    else "restore failed on a session the body left usable — investigate"
+                ),
+            },
             exc_info=True,
         )
 
@@ -385,6 +419,27 @@ async def with_shop_scope(
                 await _restore_tenant_gucs(session, prior_shop, prior_user, body_failed=body_failed)
         finally:
             _shop_scope_active.reset(token)
+
+
+async def reapply_shop_scope(session: AsyncSession, shop_id: uuid.UUID) -> None:
+    """Re-establish the shop GUC after a COMMIT discarded it.
+
+    `with_shop_scope` sets `app.current_shop_id` with SET LOCAL, which is
+    transaction-scoped: a commit throws it away. Any caller that commits in the
+    middle of a scope — because it wants progress to be durable rather than all
+    -or-nothing — must put the GUC back, or every write after the first commit
+    is refused by RLS. That is #1627 and #1631 in a different costume.
+
+    `with_shop_scope` cannot serve here: it sets on entry and RESTORES on exit,
+    so entering and leaving it immediately puts back the pre-commit value, which
+    after a commit is nothing at all.
+
+    The user GUC is deliberately left empty, exactly as `with_shop_scope` leaves
+    it (#1478): shop-scoped work has no user, and a withheld GUC makes every
+    user-keyed policy deny structurally rather than by convention.
+    """
+    _require_shop_for_shop_scope(shop_id)
+    await _write_tenant_gucs(session, str(shop_id), "")
 
 
 @asynccontextmanager

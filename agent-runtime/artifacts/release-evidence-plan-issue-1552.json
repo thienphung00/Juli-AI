@@ -1,0 +1,73 @@
+{
+  "planId": "migration-db-url-fail-closed-2026-09-03",
+  "affectedPublicSurfaces": [
+    "None in this slice. The change edits infra/scripts/safe_alembic_helpers.py and infra/scripts/safe-alembic-upgrade.sh, both of which run during deploy. No route, asset, schema or deployed artifact changes as a result of merging. The runtime connection path (DATABASE_URL, RLS-bound juli_app) is deliberately untouched."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Local tests on feature/migration-url-fail-closed-issue-1552 against a disposable Postgres. No VPS is contacted by this slice.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "migration-db-url-refuses-the-runtime-role",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/actions",
+        "assertions": [
+          "migration_db_url() raises when the resolved URL's role cannot UPDATE public.alembic_version, and the error names the role it resolved to",
+          "migration_db_url() returns normally when DATABASE_DIRECT_URL names the owner",
+          "the refusal is proven against the juli_app role via tests/integration/two_tenant.py::juli_app_session, not against the owner \u2014 an owner-connected test cannot observe this defect",
+          "a pre-migration row-count snapshot of zero on a table known to be non-empty aborts before alembic upgrade runs",
+          "safe-alembic-upgrade.sh still completes unchanged when DATABASE_DIRECT_URL is set correctly, verified by running it rather than reading it"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "assetTypes": [
+      "none"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false,
+    "htmlRoutes": [
+      "GitHub Actions run summary for the helper unit and integration tests"
+    ],
+    "discoverFromHtml": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. This slice edits the guard that runs BEFORE alembic, not any migration. Its effect is to refuse a migration whose connection cannot UPDATE alembic_version, which is strictly narrowing: every upgrade that succeeds today still succeeds, and ones that would have run against the RLS-bound runtime role now fail loudly instead of producing an empty backup."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. migration_db_url() continues to fall back from DATABASE_DIRECT_URL to DATABASE_URL, so on any host where the former is unset, pg_dump runs as the RLS-bound juli_app and produces a backup containing zero rows while reporting success, and the row-count guard compares 0 to 0 and passes vacuously.",
+    "rollbackMechanism": "Revert the commit. No schema, data or deployed state changes, so revert is complete by itself.",
+    "dataLossRisk": "None from this slice. It strictly narrows what is accepted before a migration runs.",
+    "postCutoverFailureBehavior": "Revert the commit. The guard runs only during deploy-time migration, so reverting restores the previous fall-back behaviour immediately with no schema, data or runtime state to unwind.",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python -m pytest tests/unit/test_safe_alembic_helpers.py -q",
+    "python -m pytest tests/integration/test_migration_db_url_fail_closed.py -v",
+    "bash -n infra/scripts/safe-alembic-upgrade.sh"
+  ],
+  "notes": "Found by #1339 observation 1. Setting DATABASE_DIRECT_URL in AWS Secrets Manager (done out of band) restores deploys but does NOT close the hazard: the fallback still exists, so the next host that omits the key gets an empty backup and a vacuous guard with no error. This slice removes the silent degrade. Context: this repo lost 128 days of analytics history to a migration on 2026-07-30, which is why a backup that reports success while containing nothing is treated as the primary defect rather than an inconvenience.",
+  "doNotInfer": [
+    "Do not infer that production is fixed by merging. DATABASE_DIRECT_URL was set in AWS by a human before this slice; the code change prevents recurrence elsewhere and does not alter the already-corrected prod value.",
+    "Do not infer that the variable was renamed. DATABASE_DIRECT_URL still encodes direct-vs-pooler, not owner-vs-runtime; renaming is explicitly out of scope and only the semantics are documented.",
+    "Do not infer any change to the runtime connection. DATABASE_URL remains the RLS-bound juli_app connection used by the API and workers."
+  ]
+}

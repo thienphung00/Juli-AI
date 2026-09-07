@@ -376,6 +376,66 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - VI: Trợ lý AI cho người bán TikTok Shop
 - Definition: Footer brand tagline under the logo lockup.
 
+**`run.awaiting_you`**
+- EN: Waiting for you
+- VI: Đang chờ bạn
+- Definition: Run ledger section heading (PUI-DESIGN.md §4) for `waiting_approval` runs, pinned to the top.
+
+**`run.status.running`**
+- EN: Running
+- VI: Đang chạy
+- Definition: Run ledger section heading and status chip for `queued`/`running` runs.
+
+**`run.status.queued`**
+- EN: Queued
+- VI: Trong hàng đợi
+- Definition: Status chip for a `queued` run with zero events yet — visible because the ledger reads the polled list, not the event stream.
+
+**`run.section.finished`**
+- EN: Finished
+- VI: Hoàn tất
+- Definition: Run ledger section heading for the four terminal `status` values, labelled per their honest `stop_reason`.
+
+**`run.expiry`**
+- EN: Offer valid for {time}
+- VI: Đề xuất còn hiệu lực {time}
+- Definition: Expiry countdown on a `waiting_approval` run's card, driven by the server-carried `decision_summary.expires_at`.
+
+**`run.declined_note`**
+- EN: You chose not to change the price
+- VI: Bạn đã chọn không thay đổi giá
+- Definition: `completed_after_decline` terminal-state explanation (`stop_reason=confirmation_declined`) — a choice, not a failure.
+
+**`run.worker_lost`**
+- EN: Juli hit a problem while executing
+- VI: Juli gặp sự cố khi thực hiện
+- Definition: `worker_lost` terminal-state label/explanation (`stop_reason=worker_lost`) — named honestly, never dressed as another outcome.
+
+**`run.terminal.cancelled`**
+- EN: Cancelled
+- VI: Đã hủy
+- Definition: `cancelled` terminal-state label (`stop_reason=cancelled_by_seller`).
+
+**`run.terminal.expired`**
+- EN: Expired
+- VI: Đã hết hạn
+- Definition: `expired` terminal-state label (`stop_reason=confirmation_expired`) — distinct from `cancelled`, even though both map to `WorkflowRunStatus.CANCELLED` server-side.
+
+**`run.terminal.timed_out`**
+- EN: Timed out
+- VI: Quá thời gian
+- Definition: `timed_out` terminal-state label (`stop_reason` ∈ `wall_clock_timeout`, `iteration_cap_exceeded`).
+
+**`run.terminal.failed`**
+- EN: Failed
+- VI: Thất bại
+- Definition: `failed` terminal-state label for the remaining failure-class `stop_reason` values, with a seller-terms explanation, never a raw internal reason.
+
+**`run.no_retry`**
+- EN: Want to make a new change? Go back to Decisions to approve a new recommendation.
+- VI: Muốn thực hiện thay đổi mới? Hãy quay lại Quyết định để phê duyệt đề xuất mới.
+- Definition: Explanation on every failed/cancelled/expired/timed-out/worker_lost run's card — no retry-in-place control exists; a new run needs a new approval.
+
 **`agent.narration.extension_grant`**
 - EN: Continuing past the standard iteration limit: granting [extension_iterations] more iteration(s) (extension [granted] of [max]).
 - VI: Đã đạt giới hạn số lượt thực hiện tiêu chuẩn, Juli gia hạn thêm [extension_iterations] lượt để hoàn tất công việc (lần gia hạn [granted]/[max]).

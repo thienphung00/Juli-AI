@@ -30,3 +30,5 @@ c2bf2d0efaad846371a587bc49211f1f0fa6f9ed:apps/demo/src/lib/recommendations.ts:ge
 # later is still caught. (Deliberately not quoting the literal: the comment itself
 # would trip the same rule.)
 9dfb7c503862c400a0fbd17832da3722b364f259:tests/unit/test_transcript_persistence_provider.py:generic-api-key:43
+
+9bbbae4e5b43211f693ad182ef9ea2c8a59a8c68:packages/theme/__tests__/run-surface-tokens.test.ts:generic-api-key:30

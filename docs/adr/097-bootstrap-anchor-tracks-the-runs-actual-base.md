@@ -1,4 +1,4 @@
-# ADR-094 — The bootstrap anchor's base ref tracks the run's actual base
+# ADR-097 — The bootstrap anchor's base ref tracks the run's actual base
 
 **Status:** Accepted — 2026-09-04 (#1608, PR TBD)
 

@@ -330,7 +330,7 @@ workflow_prompt_cache:
     # base is a `feature/*-wave` branch, and that wave can carry harness
     # commits `main` does not yet have — a hardcoded `origin/main` reported
     # those landed, reviewed wave commits as drift on every subsequent
-    # issue-tier PR (PR #1561's live failure; ADR-094). `test`/`full-regression`
+    # issue-tier PR (PR #1561's live failure; ADR-097). `test`/`full-regression`
     # in pr.yml set BASE_REF from `github.base_ref` and fetch that same ref —
     # the anchor spec and the fetched ref must always name the same value. At
     # main tier `github.base_ref` is `main`, so this one dynamic form is

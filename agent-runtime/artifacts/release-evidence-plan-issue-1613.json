@@ -1,0 +1,78 @@
+{
+  "planId": "demo-analytics-scope-restores-public-read-2026-09-05",
+  "affectedPublicSurfaces": [
+    "GET /v1/demo/analytics \u2014 the public, unauthenticated read that has returned 404 since the #1339 Obs 1 cutover. It is the ONLY genuinely public read in the demo family: /v1/demo/decisions is authenticated (401 unauthenticated, so it resolves a shop and establishes context) and demo_execution is POST-only. The change scopes the existing read with with_shop_scope(session, reference_shop_id) using the shop id the route already resolves; it adds no route, no parameter, and no new data to the response.",
+    "The response body is unchanged: mask_public_analytics_envelope still applies, and the chart-range window still applies. This slice restores a read that RLS empties, it does not widen what the public sees. A payload that changed shape would be a defect, not a success.",
+    "deploy.sh's verify_api_shape probes this exact route on every release, so the API lane has failed after migrations succeed. Restoring the route unblocks deployment; that is a consequence of the fix, never the justification for weakening the check."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest against local Postgres, reading AS A NON-OWNER ROLE with no ambient tenant context \u2014 the only shape that can tell the fix from the bug, because an owner connection is exempt from RLS and returns the row either way. No VPS contact, no production write. Post-deploy: an unauthenticated GET against the candidate's own port before promotion, which is what verify_api_shape already does. Read-only throughout: the route performs a single SELECT and mutates nothing.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "The standing owner decision of 2026-08-21 holds \u2014 nothing here approves or writes against Fujiwa Vietnam Store (2b1da87b) or any production shop. The demo reference shop is server-bound via DEMO_REFERENCE_SHOP_ID and the route rejects a caller-supplied shop_id with 400; that rejection must survive this change.",
+    "journeys": [
+      {
+        "name": "public-demo-read-works-without-owner-exemption",
+        "entryUrl": "https://api.app-juli.com/v1/demo/analytics",
+        "assertions": [
+          "pre-merge: reading gold.kpi_envelopes as a NON-OWNER role with no tenant GUC returns zero rows, and the same read inside with_shop_scope(reference_shop_id) returns the row \u2014 the two halves of the bug, asserted directly rather than through the handler",
+          "pre-merge: the handler returns 200 with the masked envelope when the session is bound to a non-owner role; against the pre-fix code the same test returns 404",
+          "pre-merge: the scope is released after the read, so a later unscoped query on the same session sees no tenant context \u2014 a scope that leaks would be a cross-tenant hazard worse than the 404",
+          "pre-merge: shop_id supplied as a query parameter is still rejected with 400, and the response is still the masked payload with mask_public_analytics_envelope applied",
+          "pre-merge: a regression guard fails when a public route reads a tenant-scoped table without establishing scope, so the next unscoped public read is caught in CI rather than by a failed deploy",
+          "post-deploy: an unauthenticated GET /v1/demo/analytics against the candidate returns 200 with computed_at and the five KPIs verify_api_shape requires",
+          "post-deploy: the same request against the promoted release returns 200, confirming the read works as juli_app in production rather than only under a test role"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is backend Python \u2014 one async context manager around an existing read, plus tests. The response is JSON."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "api-json-response"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration. The RLS policy on gold.kpi_envelopes is correct and unchanged \u2014 the caller was not scoping. Explicitly NOT adding a permissive or anon-read policy, which would reopen exactly what the W7 isolation work exists to prove. Stable and candidate both read the same schema, so either can serve during the swap."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "The candidate fails verify_api_shape and is never promoted; the stable release keeps serving on its port. That is exactly what happened on 2026-09-04 and it is the mechanism working \u2014 production stayed healthy on e1d09bd3 while the candidate shut down cleanly.",
+    "postCutoverFailureBehavior": "Revert to the retained stable release. No schema undo is needed because this slice ships no migration, and the previous code reads the same table. Worst case the route returns to its current 404, which is the state production is already in.",
+    "retainedStableRequired": true,
+    "automatic": true
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest tests/unit/test_demo_analytics_scope.py -q",
+    "pytest tests/integration/test_demo_analytics_non_owner_read.py -q",
+    "ruff check backend tests && ruff format --check backend tests",
+    "curl -s -o /dev/null -w '%{http_code}' https://api.app-juli.com/v1/demo/analytics"
+  ],
+  "doNotInfer": [
+    "Do NOT add a permissive, anon or bypass policy on gold.kpi_envelopes, and do not grant BYPASSRLS to juli_app. The policy is correct; the caller was not scoping.",
+    "Do NOT relax or remove verify_api_shape's check on this route to make the deploy pass. The check found a real production outage and is doing its job.",
+    "Do NOT widen the masked payload or accept a caller-supplied shop_id. The reference shop stays server-bound and the 400 on shop_id stays.",
+    "Do NOT assert the fix with an owner connection. The owner is exempt from RLS, so such a test passes identically with the bug present and proves nothing."
+  ]
+}

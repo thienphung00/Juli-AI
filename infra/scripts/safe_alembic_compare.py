@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 from safe_alembic_helpers import PROTECTED_TABLES, is_decrease_allowed

@@ -448,7 +448,7 @@ def test_base_anchored_jobs_fetch_the_dynamic_base_ref_after_checkout(job: str) 
     fetching it by name answers a question nobody asked. The fetch must name
     `${BASE_REF}` -- the same env this test's sibling above requires -- so
     every gate anchored to a base ref has *the run's actual base* to anchor
-    to, at both tiers, via one dynamic step (ADR-094).
+    to, at both tiers, via one dynamic step (ADR-097).
     """
     workflow = yaml.safe_load(_workflow())
     steps = workflow["jobs"][job]["steps"]

@@ -1,18 +1,27 @@
-import os
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from juli_backend.core.config.runtime import sync_database_url
+from juli_backend.core.config.runtime import migration_database_url
 from juli_backend.database.database import Base
 from juli_backend.models.models import Shop, TikTokCredential, User  # noqa: F401 — register models
 
 config = context.config
 
+# DATABASE_DIRECT_URL first, then DATABASE_URL (#1575).
+#
+# This read DATABASE_URL directly, which since #1339's cutover is the non-owner
+# runtime role `juli_app`. It cannot read public.alembic_version, so alembic
+# failed before applying anything — while every other step in the migration path
+# (pg_dump, row counts, the revision read) resolved through the helper and
+# correctly used the owner. The backup and the migration ran as two roles.
+#
+# The precedence lives in migration_database_url so this file and
+# safe_alembic_helpers cannot drift apart again.
 config.set_main_option(
     "sqlalchemy.url",
-    sync_database_url(os.environ.get("DATABASE_URL", "postgresql://localhost/juli")),
+    migration_database_url(default="postgresql://localhost/juli"),
 )
 
 # disable_existing_loggers=False: fileConfig() defaults to True, which sets

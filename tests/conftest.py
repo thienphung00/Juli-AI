@@ -185,6 +185,9 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         "test_juli_app_role_downgrade_cross_database.py",
         "test_migrations.py",
         "test_restore_drill.py",
+        # Same reason: it calls command.downgrade(cfg, "base") twice against
+        # DATABASE_URL while proving a restore preserves tenant isolation (#1554).
+        "test_rls_restore_integrity.py",
         "test_safe_alembic_upgrade.py",
         "test_safe_alembic_upgrade_local.py",
         # Downgrades to base twice (`:98`, `:142`) — but never writes the word,
@@ -236,10 +239,6 @@ _SHARED_STATE_MODULES = frozenset(
         # Reason 2 again: seeds two tenants for #1513 (mock_analytics_reconcile per-shop
         # context via with_shop_scope).
         "test_mock_analytics_reconcile_two_tenant.py",
-        # Reason 2 again: seeds two tenants to verify juli_app SELECT privilege
-        # on bronze tables (issue #1548). Tests must run as juli_app against the same
-        # tenants as other isolation tests to ensure privilege set is correct.
-        "test_juli_app_bronze_select_1548.py",
     }
 )
 
