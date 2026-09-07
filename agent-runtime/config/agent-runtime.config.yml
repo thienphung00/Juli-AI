@@ -483,6 +483,26 @@ workflow_prompt_cache:
         - docs/product/design/
         - docs/integrations/tiktok_corpora/
         - Sibling issue context caches
+    # 1652 - W8/P10: a run can be accounted for after the fact, and the four questions are answered
+    # separately. One backend lane; #1658 is the HITL gate (owner) and never passes the Meta gate.
+    1652:
+      defaultSliceId: AGT-W8-BE
+      handoffPath: docs/adr/077-incremental-impact-measurement.md
+      parentScopeBlock: "# Parent #1652 - W8: a run can be accounted for after the fact (P10) (constant)\n## Product boundary\n- Observability of agent runs only: per-run rollup columns, log redaction in the formatter, the five-link outcome-chain query, the three unconflated metrics, and business impact computed honestly from the chain\n- No UI, no dashboard, no alerting, no thresholds (all deferred by the PRD)\n## Architect locks\n- Landing order W8-A -> W8-B (independent) -> W8-C (needs A) -> W8-D (needs A, C) -> W8-E (needs C); gate #1658 last\n- The rollup is written by the runner as it runs, never inferred from logs; succeeded with tool_call_count=0 and rows_affected=0 must be readable as a no-op\n- Redaction lives in JsonFormatter, never at call sites; planted test secrets follow the .gitleaksignore fingerprint pattern\n- An empty chain link carries a reason: pending | unavailable | missing are distinct values, never null\n- The four metrics are never blended; each reports numerator and denominator; an empty denominator returns no-data, never 0\n- suppressed and confounded ImpactReadings are never counted as readings (#1226, #1338); W8-E reuses services/impact's confidence floor by reference\n- Migration numbers for the rollup columns are RESERVED by Meta, never read from head\n- Tests run through the real runner and real Postgres where the behaviour lives; bind to real objects, never **kwargs doubles\n## Epic deferrals\n- Backfilling existing runs; trends, alerting, dashboards; producing a real reading (#1339, owner)\n"
+      childSlices:
+        1653: AGT-W8-BE
+        1654: AGT-W8-BE
+        1655: AGT-W8-BE
+        1656: AGT-W8-BE
+        1657: AGT-W8-BE
+        1658: AGT-W8-BE
+      doNotLoad:
+        - apps/
+        - ios/
+        - packages/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
     # 1620 - W9-A/P-SHARED: the runtime can host more than one workflow (v1 P0 ladder).
     # Serial, lands before every workflow lane; first slices are Fable exemplars.
     1620:
