@@ -275,3 +275,176 @@ def test_explicit_unavailable_survives_the_builder_uncorrupted(tmp_path: Path, l
     assert passed is True, detail
     assert details["tokenUsageUnavailableReason"] == honest["reason"]
     assert caller_copy == honest, "the builder mutated the caller's dict"
+
+
+# ---------------------------------------------------------------------------
+# #1578: schema validation on write. The generators must refuse payloads that
+# do not conform to their schemas, exiting non-zero and not writing the file.
+# ---------------------------------------------------------------------------
+
+
+def test_generator_refuses_a_schema_invalid_payload(tmp_path: Path, monkeypatch) -> None:
+    """Payload with a forbidden key must fail at generation, not pass through.
+
+    #1571's executor planted five invalid keys and didn't get caught until
+    review. The schema forbids additional properties, so the generator should
+    validate before writing.
+    """
+    impl_dir = tmp_path / "artifacts" / "implementations"
+    impl_dir.mkdir(parents=True)
+
+    import common
+
+    monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", impl_dir)
+    monkeypatch.setattr(common, "REPO_ROOT", tmp_path)
+
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(
+        json.dumps(
+            {
+                "executionDurationMs": 900,
+                "tokenUsage": {"input": 20, "output": 10, "total": 30},
+                "toolInvocationCount": 4,
+                "contextFilesLoaded": ["scripts/ci/generate_implementation_artifact.py"],
+                "skillsLoaded": ["focus", "backend"],
+                "implementationSummary": "Test with forbidden key",
+                # Forbidden key — schema has additionalProperties: false
+                "acceptanceCriteria": ["criterion 1", "criterion 2"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    from generate_implementation_artifact import main as generate_main
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "generate_implementation_artifact.py",
+            "--issue",
+            "247",
+            "--executor-domain",
+            "backend",
+            "--input-json",
+            str(overrides),
+        ],
+    )
+
+    # Generator should exit non-zero and not write the file
+    exit_code = generate_main()
+    assert exit_code != 0, "generator should refuse schema-invalid payload"
+
+    artifact_path = impl_dir / "implementation-issue-247.json"
+    assert not artifact_path.exists(), "file should not be written when validation fails"
+
+
+def test_generator_rejects_a_malformed_tools_used(tmp_path: Path, monkeypatch) -> None:
+    """toolsUsed as bare strings must fail, schema requires objects.
+
+    #1571's executor supplied toolsUsed as bare strings instead of objects.
+    The schema defines items as objects with required properties, so the
+    generator should catch this at emit time.
+    """
+    impl_dir = tmp_path / "artifacts" / "implementations"
+    impl_dir.mkdir(parents=True)
+
+    import common
+
+    monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", impl_dir)
+    monkeypatch.setattr(common, "REPO_ROOT", tmp_path)
+
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(
+        json.dumps(
+            {
+                "executionDurationMs": 900,
+                "tokenUsage": {"input": 20, "output": 10, "total": 30},
+                "toolInvocationCount": 4,
+                "contextFilesLoaded": ["scripts/ci/generate_implementation_artifact.py"],
+                "skillsLoaded": ["focus", "backend"],
+                "implementationSummary": "Test with malformed toolsUsed",
+                # Malformed: bare strings instead of objects
+                "toolsUsed": ["Read", "Bash", "Edit"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    from generate_implementation_artifact import main as generate_main
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "generate_implementation_artifact.py",
+            "--issue",
+            "247",
+            "--executor-domain",
+            "backend",
+            "--input-json",
+            str(overrides),
+        ],
+    )
+
+    # Generator should exit non-zero and not write the file
+    exit_code = generate_main()
+    assert exit_code != 0, "generator should reject malformed toolsUsed"
+
+    artifact_path = impl_dir / "implementation-issue-247.json"
+    assert not artifact_path.exists(), "file should not be written when validation fails"
+
+
+def test_generator_rejects_zero_total_with_nonzero_inputs(tmp_path: Path, monkeypatch) -> None:
+    """tokenUsage with total=0 beside non-zero input/output must fail.
+
+    #1667's review caught a measurement where total was 0 alongside non-zero
+    input/output — not a real measurement. The gate rejects this downstream as
+    'reads as a measurement and is not one'. The generator should catch it
+    at emit time using the same check.
+    """
+    impl_dir = tmp_path / "artifacts" / "implementations"
+    impl_dir.mkdir(parents=True)
+
+    import common
+
+    monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", impl_dir)
+    monkeypatch.setattr(common, "REPO_ROOT", tmp_path)
+
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(
+        json.dumps(
+            {
+                "executionDurationMs": 900,
+                "tokenUsage": {"input": 95000, "output": 25000, "total": 0},
+                "toolInvocationCount": 4,
+                "contextFilesLoaded": ["test.py"],
+                "skillsLoaded": ["backend"],
+                "implementationSummary": "Test with zero total",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    from generate_implementation_artifact import main as generate_main
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "generate_implementation_artifact.py",
+            "--issue",
+            "247",
+            "--executor-domain",
+            "backend",
+            "--input-json",
+            str(overrides),
+        ],
+    )
+
+    # Generator should exit non-zero and not write the file
+    exit_code = generate_main()
+    assert exit_code != 0, "generator should reject tokenUsage with total=0"
+
+    artifact_path = impl_dir / "implementation-issue-247.json"
+    assert not artifact_path.exists(), "file should not be written when validation fails"

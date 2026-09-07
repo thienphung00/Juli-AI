@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -15,12 +16,15 @@ sys.path.insert(0, str(REPO_ROOT / "agent-runtime" / "scripts"))
 
 from ensure_workflow_cache import (  # noqa: E402
     ensure_workflow_caches,
+    in_scope_paths_for_epic,
     load_issue_prepare_overlay,
     load_runtime_config,
     parse_parent_issue_id,
     parse_slice_id,
+    refresh_in_scope,
     resolve_linkage,
     single_domain_harness_utility,
+    unescape_scope_block,
 )
 from issue_load_profile import load_slice_routing_rules  # noqa: E402
 
@@ -76,9 +80,12 @@ def test_single_domain_harness_utility_never_dual() -> None:
     assert skills[0]["path"].endswith("/domain/backend/SKILL.md")
 
 
-def test_ensure_workflow_caches_bootstraps_parent_and_child(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def _bootstrap_caches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
+    """Drive ensure_workflow_caches over a synthetic repo and return its summary.
+
+    Extracted (#1583) so the document test and the bootstrap test exercise the
+    same call rather than two hand-built approximations that can drift.
+    """
     repo = tmp_path / "repo"
     (repo / "agent-runtime" / "config").mkdir(parents=True)
     (repo / "agent-runtime" / "artifacts" / "workflow-cache").mkdir(parents=True)
@@ -104,7 +111,10 @@ def test_ensure_workflow_caches_bootstraps_parent_and_child(
                 "    419:",
                 "      defaultSliceId: P2-OPS-1",
                 "      handoffPath: docs/adr/027-database-migration-safety-pipeline.md",
-                "      parentScopeBlock: '# Parent 419'",
+                "      parentScopeBlock: '# Parent 419\\n- NO product code: web/ is out of scope'",
+                "      inScopePaths:",
+                "        - infra/scripts/",
+                "        - tests/unit/",
                 "      doNotLoad:",
                 "        - web/",
             ]
@@ -186,6 +196,14 @@ def test_ensure_workflow_caches_bootstraps_parent_and_child(
         issue_labels_fetcher=lambda _iid: [],
     )
 
+    return summary
+
+
+def test_ensure_workflow_caches_bootstraps_parent_and_child(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    summary = _bootstrap_caches(tmp_path, monkeypatch)
+    repo = tmp_path / "repo"
     assert summary["readyForExecutor"] is True
     assert summary["parentIssueId"] == 419
     assert summary["sliceId"] == "P2-OPS-1"
@@ -231,7 +249,10 @@ def test_ensure_persists_label_only_public_release(
                 "    419:",
                 "      defaultSliceId: P2-OPS-1",
                 "      handoffPath: docs/adr/027-database-migration-safety-pipeline.md",
-                "      parentScopeBlock: '# Parent 419'",
+                "      parentScopeBlock: '# Parent 419\\n- NO product code: web/ is out of scope'",
+                "      inScopePaths:",
+                "        - infra/scripts/",
+                "        - tests/unit/",
                 "      doNotLoad:",
                 "        - web/",
             ]
@@ -397,3 +418,119 @@ def test_issue_prepare_overlay_cli_precedence(tmp_path: Path) -> None:
     assert linkage["sliceId"] == "CLI-SLICE"
     assert linkage["handoffPath"] == "docs/from-cli.md"
     assert load_issue_prepare_overlay(615, repo)["sliceId"] == "CDP-A2-1"
+
+
+# --- #1583: the scope document must carry the epic's authorised paths --------
+
+
+def test_a_stale_cache_without_authorised_paths_is_refreshed_not_kept() -> None:
+    """#1583: `inScope` is persisted in the child cache, so `.get("inScope") or ...`
+    keeps whatever a previous run wrote.
+
+    Found while verifying the fix end-to-end: regenerating the scope document for
+    a real issue still produced the old two-line list, because the cache from
+    before the fix already had one. Every cache written before this change is in
+    that state, so without a refresh the fix reaches only new issues — and the
+    executors it exists to unblock are working on issues that already have caches.
+    """
+    stale = ["Slice CI-WAVE-1 acceptance criteria", "Executor domain: backend"]
+    authorised = in_scope_paths_for_epic({"inScopePaths": ["agent-runtime/", "eval/"]})
+    assert authorised, "fixture must name paths or this asserts nothing"
+
+    refreshed = refresh_in_scope(stale, authorised, parent_id=1434)
+    assert any("agent-runtime/" in line for line in refreshed), (
+        "a cache written before this change keeps its pathless inScope, so the "
+        "executor still sees prohibitions without authorisations"
+    )
+    # Refreshing must not drop what was already there.
+    for line in stale:
+        assert any(line in r for r in refreshed), f"refresh lost {line!r}"
+    # And it must be idempotent -- running twice must not double the entry.
+    assert refresh_in_scope(refreshed, authorised, parent_id=1434) == refreshed
+
+
+def test_no_epic_authorises_a_path_its_own_scope_block_forbids() -> None:
+    """#1583: the first version of this mined paths out of prose, skipping lines
+    that matched prohibition marker phrases. Review defeated it, and a scan of
+    the real registry showed why: **24 distinct leaks across 38 epics**.
+
+    Epic #1325 authorised `core/security/dependencies.py` off a line reading
+    "W6 IS RUNNING IN PARALLEL AND OWNS THESE FILES. Never edit: ..." — a
+    security-relevant epic, handed an executor exactly the file another lane
+    owns. Others leaked `UI/UX`, `I/O`, `W7/W8` and a bare `/` as though they
+    were directories.
+
+    A denylist over natural language cannot be made safe by adding phrases; the
+    next epic writes a prohibition in wording nobody enumerated. Authorisation
+    must be declared, not inferred. This test runs over the whole shipped
+    registry so a new epic cannot reintroduce the class.
+    """
+    cfg = load_runtime_config(REPO_ROOT)
+    registry = (cfg.get("workflow_prompt_cache") or {}).get("epicRegistry") or {}
+    assert registry, "epicRegistry is empty; this test would assert nothing"
+
+    prohibition = re.compile(
+        r"must not|off-limits|excluded|restricted|not yours|do not|no product|never",
+        re.IGNORECASE,
+    )
+    leaks: list[str] = []
+    for epic_id, entry in registry.items():
+        block = unescape_scope_block(entry.get("parentScopeBlock") or "")
+        for path in in_scope_paths_for_epic(entry):
+            for line in block.splitlines():
+                if path in line and prohibition.search(line):
+                    leaks.append(f"#{epic_id}: {path!r} from {line.strip()[:80]!r}")
+    assert leaks == [], "authorised paths taken from prohibition lines:\n" + "\n".join(leaks[:8])
+
+
+def test_authorised_paths_are_declared_not_inferred() -> None:
+    """The registry entry declares them; nothing is parsed out of prose."""
+    assert in_scope_paths_for_epic({}) == []
+    assert in_scope_paths_for_epic({"parentScopeBlock": "- Harness only: eval/, apps/"}) == [], (
+        "paths were inferred from the scope block; declaration is the only source"
+    )
+    assert in_scope_paths_for_epic({"inScopePaths": ["eval/", "tests/unit/"]}) == [
+        "eval/",
+        "tests/unit/",
+    ]
+
+
+def test_written_scope_document_carries_the_authorised_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#1583 AC1 and AC2, asserted against the written document.
+
+    Both acceptance criteria name `scope-alignment-issue-N.md` as the point of
+    observation, and review found nothing read it: the other tests here are
+    pure-function unit tests, and the pre-existing integration test only asserts
+    the file exists. So the behaviour an executor actually consumes -- the text
+    of that document -- was verified by hand and by eye, which is the gap this
+    whole slice is about.
+
+    This drives `ensure_workflow_caches` end-to-end and reads the file.
+    """
+    summary = _bootstrap_caches(tmp_path, monkeypatch)
+    repo = tmp_path / "repo"
+    child = json.loads((repo / summary["childCachePath"]).read_text(encoding="utf-8"))
+    document = (repo / child["scopeAlignmentPath"]).read_text(encoding="utf-8")
+
+    in_scope = document.split("## In scope", 1)[1].split("## Out of scope", 1)[0]
+    out_of_scope = document.split("## Out of scope", 1)[1].split("## Notes", 1)[0]
+
+    # AC1: the declared paths reach the document an executor reads.
+    for path in ("infra/scripts/", "tests/unit/"):
+        assert path in in_scope, f"{path!r} missing from the in-scope section:\n{in_scope}"
+
+    # AC2: no path is both authorised and forbidden. A document that says both
+    # is worse than one that only forbids -- the reader cannot tell which half
+    # to trust, which is how three executors ended up refusing valid work.
+    for line in out_of_scope.splitlines():
+        forbidden = line.strip().lstrip("-").strip()
+        if forbidden:
+            assert forbidden not in in_scope, (
+                f"{forbidden!r} appears in both sections:\nIN:{in_scope}\nOUT:{out_of_scope}"
+            )
+
+    # The domain label must not read as a path; that mismatch is what the
+    # refusals actually turned on.
+    assert "an executor lane, not a path" in in_scope

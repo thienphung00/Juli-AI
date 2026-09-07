@@ -11,6 +11,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ci"))
 from common import (  # noqa: E402
     REPO_ROOT,
+    ChangedFilesUnresolved,
     backend_module_root,
     collect_import_graph,
     git_changed_files,
@@ -66,13 +67,31 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:  # noqa: ARG001
     graph = collect_import_graph(modules)
     cycles = [c for c in tarjan_scc(graph) if len(c) > 1]
 
-    changed = git_changed_files()
+    try:
+        changed = git_changed_files()
+    except ChangedFilesUnresolved as exc:
+        # Cycles were computed from the whole tree and stay valid, but the
+        # import-violation half of this gate reads the diff. Reporting PASS on
+        # half an answer is the #1571 defect, so degrade with the cause named.
+        return (
+            False,
+            f"Changed-file set unresolved: {exc.reason}",
+            {
+                "violations": [],
+                "cycles": cycles,
+                "modulesTouched": 0,
+                "warning": None,
+                "changedFilesUnresolved": exc.reason,
+            },
+        )
     py_files = [
         REPO_ROOT / path
         for path in changed
         if path.endswith(".py") and path.startswith("backend/src/juli_backend/")
     ]
-    touched_modules = {module_for_file(p.relative_to(REPO_ROOT).as_posix(), modules) for p in py_files}
+    touched_modules = {
+        module_for_file(p.relative_to(REPO_ROOT).as_posix(), modules) for p in py_files
+    }
     touched_modules.discard(None)
 
     violations = violations_in_files(py_files, modules)
@@ -100,7 +119,9 @@ def main() -> int:
         return 1
     passed, _, details = run_check(issue)
     detail = ""
-    if details.get("violations"):
+    if details.get("changedFilesUnresolved"):
+        detail = f"changed-file set unresolved: {details['changedFilesUnresolved']}"
+    elif details.get("violations"):
         detail = f"{len(details['violations'])} import violations"
     elif details.get("cycles"):
         detail = f"{len(details['cycles'])} cycles"

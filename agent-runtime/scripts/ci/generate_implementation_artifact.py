@@ -10,12 +10,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (  # noqa: E402
     EXECUTOR_DOMAINS,
+    SchemaValidationError,
     build_implementation_artifact,
     implementation_artifact_path,
     load_implementation_artifact,
     load_json,
     resolve_issue_number,
-    write_json,
+    write_json_with_schema_validation,
 )
 
 
@@ -54,17 +55,29 @@ def main() -> int:
     existing = None if args.fresh else load_implementation_artifact(issue)
     overrides = load_json(args.input_json) if args.input_json and args.input_json.exists() else None
 
-    artifact = build_implementation_artifact(
-        issue,
-        args.executor_domain,
-        existing=existing,
-        overrides=overrides,
-        fresh=args.fresh,
-        phase_run_id=args.phase_run_id,
-    )
+    try:
+        # Semantic validation of tokenUsage in overrides before build normalizes it
+        if overrides and "tokenUsage" in overrides:
+            from common import check_token_usage_semantic
 
-    out = implementation_artifact_path(issue)
-    write_json(out, artifact)
+            semantic_errors = check_token_usage_semantic(overrides["tokenUsage"])
+            if semantic_errors:
+                raise SchemaValidationError("implementation", semantic_errors)
+
+        artifact = build_implementation_artifact(
+            issue,
+            args.executor_domain,
+            existing=existing,
+            overrides=overrides,
+            fresh=args.fresh,
+            phase_run_id=args.phase_run_id,
+        )
+
+        out = implementation_artifact_path(issue)
+        write_json_with_schema_validation(out, artifact, "implementation")
+    except SchemaValidationError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
     print(f"wrote {out} domain={artifact.get('executorDomain')}")
     return 0
 
