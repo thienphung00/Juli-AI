@@ -333,7 +333,25 @@ async def backfill_analytics_history(
                 # `retryable=False` never reached a row. The hook has to put the
                 # record back after the rollback, not before it.
                 if on_partition_failed is not None:
-                    await on_partition_failed(bucket, partition_date, e)
+                    try:
+                        await on_partition_failed(bucket, partition_date, e)
+                    except Exception:
+                        # Recording a failure is best-effort; failing to record one
+                        # must not take the run down with it. Before #1683 this
+                        # exception escaped the task, and because `gather` below ran
+                        # without `return_exceptions` it aborted the whole batch
+                        # while sibling partitions were still mid-session — which
+                        # surfaced as `IllegalStateChangeError: Method 'close()'
+                        # can't be called here` when the caller's session context
+                        # exited underneath them.
+                        logger.exception(
+                            "analytics_backfill_failure_record_failed",
+                            extra={
+                                "shop_id": str(shop_id),
+                                "bucket": bucket,
+                                "partition_date": partition_date.isoformat(),
+                            },
+                        )
                 logger.error(
                     "analytics_backfill_partition_failed",
                     extra={
@@ -381,11 +399,52 @@ async def backfill_analytics_history(
                 for bucket, partition_date in partitions_to_run
             ]
 
-            # Run all tasks concurrently (semaphore limits to concurrency_limit)
-            results = await asyncio.gather(*tasks)
+            # DEFENCE IN DEPTH, not the fix itself (#1683). The fix is the guard
+            # around `on_partition_failed` above: the task body already catches
+            # `Exception`, so the failure hook was the ONLY way an exception could
+            # escape, and that is the path production actually took.
+            #
+            # This matters anyway because of what escaping costs. Without
+            # `return_exceptions`, the first task to raise propagates out of
+            # `gather` immediately while its siblings are still running against
+            # the SHARED AsyncSession. The
+            # caller's `async with factory() as session:` then closes that session
+            # underneath them, and the run dies with
+            #
+            #   IllegalStateChangeError: Method 'close()' can't be called here;
+            #   method '_connection_for_bind()' is already in progress
+            #
+            # followed by `greenlet is being finalized` and a garbage-collected
+            # connection. Observed in production 2026-09-04 and again on
+            # 2026-09-07, where it killed the run partway through `live` so the
+            # `catalog` bucket — last in the order — had not been attempted since
+            # 2026-08-18.
+            #
+            # Collecting exceptions instead lets every partition finish, which is
+            # what makes the session safe to close.
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Normalise: with `return_exceptions=True` a slot may hold a raised
+            # exception rather than the (was_completed, error) tuple. Treat it as
+            # the failure it is, so the loop below stays a single shape.
+            normalised: list[tuple[bool, str | None]] = []
+            for (bucket_i, date_i), raw in zip(partitions_to_run, results):
+                if isinstance(raw, BaseException):
+                    logger.error(
+                        "analytics_backfill_partition_raised_out_of_task",
+                        extra={
+                            "shop_id": str(shop_id),
+                            "bucket": bucket_i,
+                            "partition_date": date_i.isoformat(),
+                            "error": f"{type(raw).__name__}: {raw}",
+                        },
+                    )
+                    normalised.append((False, f"{type(raw).__name__}: {raw}"))
+                else:
+                    normalised.append(raw)
 
             # Process results in order
-            for (bucket_i, date_i), (was_completed, error) in zip(partitions_to_run, results):
+            for (bucket_i, date_i), (was_completed, error) in zip(partitions_to_run, normalised):
                 if error == "budget_exhausted":
                     # Budget stopped this task and all subsequent ones
                     stopped_reason = "budget"
