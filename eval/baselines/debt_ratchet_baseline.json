@@ -1,14 +1,14 @@
 {
   "issue": 1462,
   "schema": "debt-ratchet-baseline/1",
-  "generatedAt": "2026-09-05T08:07:16Z",
-  "generator": "python -m eval.ratchets tighten --write (scoped: suppressions only, re-run after eliminating the noqa:BLE001 suppression per PR #1638 review; see PR #1638 / issue #1600)",
+  "generatedAt": "2026-09-07T01:25:40Z",
+  "generator": "python -m eval.ratchets measure --write",
   "classes": {
     "broken_doc_refs": {
       "kind": "identities",
       "stats": {
-        "docs_scanned": 650,
-        "relative_links_checked": 2168,
+        "docs_scanned": 661,
+        "relative_links_checked": 2211,
         "occurrences": 467,
         "docs_with_broken_refs": 110
       },
@@ -365,9 +365,9 @@
     "mypy_statement_coverage": {
       "kind": "scalar",
       "stats": {
-        "files_scanned": 436,
-        "checked_statements": 20729,
-        "total_statements": 20729,
+        "files_scanned": 440,
+        "checked_statements": 20922,
+        "total_statements": 20922,
         "unchecked_modules": [],
         "exclude_patterns": [],
         "ignore_errors_patterns": [],
@@ -381,7 +381,7 @@
     "suppressions": {
       "kind": "identities",
       "stats": {
-        "files_scanned": 1033,
+        "files_scanned": 1039,
         "lines": 410,
         "occurrences": 412,
         "distinct_identities": 213,
@@ -656,14 +656,14 @@
         "bytes_per_file": {
           ".cursor/rules/core-orchestration.mdc": 6634,
           ".cursor/rules/core-safety.mdc": 807,
-          ".cursor/rules/git-baseline.mdc": 7587,
+          ".cursor/rules/git-baseline.mdc": 11345,
           ".cursor/rules/mcp-usage.mdc": 1454,
-          "CLAUDE.md": 10709
+          "CLAUDE.md": 12978
         },
-        "total_bytes": 27191,
+        "total_bytes": 33218,
         "bytes_per_token": 4
       },
-      "scalar": 6797.0,
+      "scalar": 8304.0,
       "direction": "must_not_rise"
     },
     "unused_ts_exports": {
@@ -843,5 +843,5 @@
       }
     }
   },
-  "tightenedFrom": "2026-09-05T07:52:23Z"
+  "tightenedFrom": "2026-09-07T01:21:46Z"
 }

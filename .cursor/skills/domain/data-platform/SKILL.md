@@ -35,8 +35,8 @@ dedup/persist/DLQ (`services/etl/`).
 
 - [`data-sources.md`](../../../docs/architecture/data-sources.md), [`docs/api/data-models/`](../../../docs/api/data-models/)
 - Migrations: root `alembic.ini` → `backend/src/juli_backend/database/migrations/`
-- **Standard + exemplars:** [`docs/architecture/code-standard.md`](../../../docs/architecture/code-standard.md);
-  [`repositories/MODULE.md`](../../../backend/src/juli_backend/repositories/MODULE.md) is the package map
+- **Standard + exemplars:** [`docs/architecture/code-standard.md`](../../../../docs/architecture/code-standard.md);
+  [`repositories/MODULE.md`](../../../../backend/src/juli_backend/repositories/MODULE.md) is the package map
 - **Load map:** `SKILL.md` → `REFERENCE.md` → `postgres-patterns.md`, `python-testing.md`
 
 ## Juli recipes

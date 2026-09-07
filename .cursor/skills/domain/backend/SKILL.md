@@ -33,7 +33,7 @@ feedback, operations), Celery workers for product orchestration.
 ## Required context + load map
 
 - `MODULE.md` under `backend/src/juli_backend/`; [ADR-031](../../../docs/adr/031-integrations-executor-domain.md)
-- **Standard + exemplars:** [`docs/architecture/code-standard.md`](../../../docs/architecture/code-standard.md)
+- **Standard + exemplars:** [`docs/architecture/code-standard.md`](../../../../docs/architecture/code-standard.md)
   — copy `services/agent_runs/` for a service and `api/routes/agent_runs.py` for a route
 - **Load map:** `SKILL.md` → `REFERENCE.md` → `domain/testing-patterns/python-{patterns,testing}.md`
 
