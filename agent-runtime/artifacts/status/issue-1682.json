@@ -1,0 +1,25 @@
+{
+  "gateVersion": 1,
+  "issue": 1682,
+  "metrics": {
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "eval/quality_detectors.py",
+      "tests/unit/test_test_quality.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "local:agent-runtime/artifacts/reviews/review-issue-1682.json",
+    "sha256": "e81a4668d1f248da3b3fcdaa1e16a69b2b361fa1",
+    "status": "PASS"
+  },
+  "timestamp": "2026-09-07T09:15:00Z",
+  "validation": {
+    "artifactRef": "local:agent-runtime/artifacts/validation/validation-issue-1682.json",
+    "sha256": "e81a4668d1f248da3b3fcdaa1e16a69b2b361fa1",
+    "status": "PASS"
+  },
+  "wave": "wave-harness-e-w5"
+}
