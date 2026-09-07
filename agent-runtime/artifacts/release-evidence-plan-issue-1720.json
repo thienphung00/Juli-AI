@@ -1,0 +1,100 @@
+{
+  "planId": "w9c-capture-6-batch-ship-partial-error-package-detail-document-handover-2026-09-07",
+  "affectedPublicSurfaces": [
+    "NO seller-facing HTTP surface changes. Nothing under `api/routes/` moves, no `/v1/**` or `/demo/**` response shape changes, no prompt, no playbook, no ToolSpec, no agent tool registration. This is a CAPTURE slice: its public surface is (a) the contract collection `docs/integrations/tiktok_api/contract-collection.md` and (b) three new read methods on `FulfillmentResource` plus a per-package outcome shape on the existing `batch_ship_packages`. If the executor finds itself registering an agent tool, the routing was wrong — `tests/unit/test_agent_tool_registry_contract.py` asserts `fulfillment.process_order` is deliberately NOT an agent tool, and that assertion must keep passing.",
+    "`backend/src/juli_backend/integrations/tiktok/resources/fulfillment.py` — VERIFIED against the tree: `FulfillmentResource` today has `combine_packages`, `ship_package`, `batch_ship_packages`, `split_order`, `uncombine_package`, `confirm_shipment` and NOTHING ELSE. Get Package Detail, Get Package Shipping Document and Handover Time Slots are all absent as methods. The diff adds the three reads and gives `batch_ship_packages` a return shape that surfaces PER-PACKAGE outcomes rather than a single success.",
+    "Guard state, corrected against the tree because the issue body overstates it: only TWO of the three reads exist as guard regexes. `SANDBOX_ALLOWED_REQUESTS` in `capabilities.py` already carries `(\"GET\", ^/fulfillment/\\d+/packages/\\d+$)` (package detail) and `(\"GET\", ^/fulfillment/\\d+/packages/\\d+/shipping_documents$)` (shipping document). HANDOVER TIME SLOTS APPEARS NOWHERE — not in `constants.py`, not in either allowlist, not in the contract collection. `scope-verification/process-order-replenish.md` PO-FR-6 says the same thing in the same words: \"two exist as guard regexes only\". So the allowlist diff is ONE new sandbox entry for handover slots, not three; the other two need constants and methods only. Note also that neither fulfillment read is on the PRODUCTION-READ allowlist, so these reads are sandbox-reachable only — that is a fact to record, not a gap to close under this issue.",
+    "`backend/src/juli_backend/integrations/tiktok/constants.py`: path helpers for the three reads. `FULFILLMENT_API_VERSION = \"202309\"` already exists and already pins `packages/combine`, `packages/{id}/ship`, `packages/ship`, `orders/{id}/split`, `packages/{id}/uncombine` — reuse it for package detail and shipping document, which A-12 and A-13 both record as `202309`. Handover Time Slots' version is UNOBSERVED: pin it to what the vendor actually answers on, and if that differs from 202309 add a separate constant rather than retagging `FULFILLMENT_API_VERSION`.",
+    "Contract collection rows: B-16 Batch Ship is REPLACED — today it is a hand-written example, marked in the file itself as \"example — no live sandbox data available at capture time\" (~line 1409), with an invented package id `12321312312431` and an invented error `10007014`. That row is the named anti-pattern of this whole epic. It is replaced by a real capture showing the top-level `code: 0` WITH a populated `errors[]`, or it is explicitly re-marked 'documented, not captured' — it is never left as-is while the slice claims Batch Ship is captured. New rows: Handover Time Slots (new id), the pre-ship refusal of the shipping-document call, and post-ship captures for A-12 and A-13. A-12 currently carries a `(verify)` marker on its path and A-13 was captured against PRODUCTION — both markers are updated to reflect what this walk actually observed.",
+    "Environment: SANDBOX_VN, shop id `7494751643546977923`, authorization id `7658096633384781588`, Core Function development shop `juliai-test`. THE FALLBACK IS EXPLICIT AND BOUNDED, and this slice is blocked by #1719: if the sandbox holds no orders, the three read methods are implemented against the DOCUMENTED schemas, every affected row is marked 'documented, not captured' in plain words, and the walk STOPS and moves to the canary. Half a walk honestly labelled beats a whole walk with invented data.",
+    "State written at the vendor: a real Batch Ship on SANDBOX_VN packages — this is the one genuine mutation in the slice, and it is deliberately partial: two packages, one of which is invalid, so the partial-error shape is observed rather than reasoned about. No production order is ever shipped. Get Package Detail, Get Package Shipping Document and Handover Time Slots are all reads.",
+    "Mixed-version hazard: none. The walk is driven by an operator script against the guarded resource, not by `juli-api` or `juli-celery-worker`; no process needs restarting for the capture itself. `batch_ship_packages` has ZERO call sites in the tree today (`scope-verification/process-order-replenish.md` PO-FR-6), so changing its return shape breaks no caller."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run from the worktree root with PYTHONPATH pinned to that worktree's `backend/src`, every vendor call bound to a fake built on the REAL `TikTokClient.get`/`.post` signature (never a `**kwargs` double), and every parser assertion made against the COMMITTED capture bodies — not against the hand-written B-16 example that this slice exists to replace. Post-deploy: SANDBOX_VN shop `7494751643546977923` under authorization `7658096633384781588` only, reached through `SandboxWriteClientFactory`, which raises unless `merchant_auth_id == SANDBOX_AUTH_ID`, so a production ship is structurally unreachable. No public traffic reaches a candidate task set; no production credential is resolved for a write at any point.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is FALSE in the pairing-rule sense — no PUBLIC or PRODUCTION side effect — but the real side effect is stated plainly rather than hidden behind the boolean: this journey SHIPS packages on the TikTok SANDBOX seller's own shop. That is the point of the slice, and it is irreversible at the vendor. ADR-068's hard-bound SANDBOX_WRITE merchant id is the mechanism that keeps it off production, and this change must not widen it. workersDisabledOnCandidate is FALSE only because the Celery worker is not on this path at all: the walk is driven by an operator script against the guarded resource, so worker state is irrelevant either way and disabling them would prove nothing.",
+    "journeys": [
+      {
+        "name": "batch-ship-walked-for-real-with-one-package-deliberately-invalid",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1720",
+        "assertions": [
+          "pre-merge: the sandbox_write token's IDENTITY is confirmed BEFORE any capture is trusted — `GET /authorization/202309/shops` through the sandbox client (already allowlisted, added by #1200) resolves to shop id `7494751643546977923` under authorization `7658096633384781588` on the Core Function development shop `juliai-test`. A capture taken against an unverified token is not evidence.",
+          "pre-merge: `test_partial_success_is_surfaced_per_package` binds to the COMMITTED Batch Ship response and asserts that a body with top-level `code: 0` AND a populated `errors[]` is surfaced as PER-PACKAGE outcomes — the test fails if the client returns a single boolean success, because a top-level zero with a failed package is the exact shape that would otherwise be read as 'all shipped'",
+          "pre-merge: the same test asserts the per-package outcome names WHICH package failed, carrying the vendor `code`, `message` and the package id from `detail` — an aggregate error count is not enough to dispatch on",
+          "pre-merge: `test_documents_only_after_ship` binds to BOTH captures — the pre-ship REFUSAL of the shipping-document call and the post-ship success — and asserts the refusal is surfaced as a named, distinguishable outcome rather than an anonymous error. The refusal capture is as load-bearing as the success capture: it is what tells the dispatch design that document fetch has an ordering precondition.",
+          "pre-merge: `test_handover_slots_parse` binds to the COMMITTED Handover Time Slots body and asserts the slot shape (each slot's start and end) is exposed typed",
+          "pre-merge: the sandbox allowlist gains EXACTLY the handover-slots entry and nothing else — asserted over the whole `SANDBOX_ALLOWED_REQUESTS` tuple: the two fulfillment GET regexes already present are unchanged, every other entry is unchanged, and no third entry appeared. Package detail and shipping document need NO allowlist change; a diff that adds them is adding duplicates and must be corrected.",
+          "pre-merge: `path_contains_write_marker` still returns False for the three read paths and still returns True for `^/fulfillment/\\d+/packages/ship$`, so the CI static check's classification of Batch Ship as a mutation is unchanged",
+          "pre-merge: `tests/unit/test_agent_tool_registry_contract.py` passes UNMODIFIED — `fulfillment.process_order` is still deliberately not an agent tool; this slice adds client methods, not tools",
+          "pre-merge: the existing suites pass UNMODIFIED — `tests/unit/test_layer2_sandbox_write_contract.py`, `tests/unit/test_tiktok_capability_factories.py`, `tests/unit/test_tiktok_capabilities_merchant_source.py` — proving ADR-068's hard-bound merchant ids and the production-read read-only property did not move",
+          "post-deploy: the captured Batch Ship REQUEST ID is recorded on issue #1720, along with the two package ids used and which one was deliberately invalid — request id and package ids, not a narrated 'it worked'",
+          "post-deploy: B-16 in the committed collection no longer contains the invented package id `12321312312431` or the invented error code `10007014`, and no longer carries the phrase 'no live sandbox data available at capture time' — asserted by re-reading the committed Markdown. If the walk could not run, B-16 instead carries an explicit 'documented, not captured' marker; what it must NEVER carry is a hand-written example presented as observed.",
+          "post-deploy: NO PRODUCTION ORDER IS SHIPPED in the window — asserted by ABSENCE of any `production_read`-capability call to a write-marker path in the `tiktok_outbound_request` log lines for that window (`guards.py::log_outbound_request` emits capability + merchant_auth_id), never by grepping for the sandbox success",
+          "post-deploy: no buyer PII reaches the committed rows — package detail returns `recipient_address` and `sender_address`, and both read `[REDACTED]` in the committed bytes, exactly as A-13 already does"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is backend Python under `backend/src/juli_backend/integrations/tiktok/` (constants.py, capabilities.py, resources/fulfillment.py) plus tests plus one Markdown reference doc. `apps/`, `ios/`, `packages/` and `docs/product/design/` are on this epic's doNotLoad list and are not opened."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "vendor-response-capture",
+      "vendor-error-response",
+      "contract-collection-diff",
+      "outbound-request-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO schema change. Nothing this slice observes is persisted to Postgres: the packages live at the vendor and their shapes land in a Markdown reference doc. No Alembic revision is created, no `down_revision` is needed, and the executor must not open `backend/src/juli_backend/database/migrations/versions/`. Stable and candidate run the same schema, so a code rollback needs no downgrade. Persisting package status, raw TikTok order status, or a dispatch ledger is W10-B work with its own migration — `scope-verification/process-order-replenish.md` PO-NFR-1 records that `AWAITING_SHIPMENT`/`AWAITING_COLLECTION` both collapse to \"confirmed\" today and `ON_HOLD` is unmapped, and fixing that is NOT this slice. If implementation concludes a table or column is needed, REPORT it — do not write a migration under this issue."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed system changes: `FulfillmentResource` keeps today's six methods, `batch_ship_packages` keeps its current return shape (which has zero call sites), handover slots stays unreachable, and Process Order stays v2 by S-NFR-10's own rule because its one write is uncaptured. No new exposure, nothing partially applied, no data hazard. The one thing that must still be true if the walk is abandoned midway: whatever was shipped on the sandbox is recorded on the issue, because a ship cannot be un-shipped.",
+    "postCutoverFailureBehavior": "Revert the commit. The three new read methods, the one new allowlist entry and the per-package return shape disappear with it; `batch_ship_packages` has ZERO call sites in the tree, so no caller breaks. The committed contract rows are ADDITIVE documentation and an observed shape stays true after a code revert — leaving them is correct, and the B-16 replacement in particular should be KEPT, since reverting it would restore a hand-written example that the walk proved wrong. The honest limit of rollback: packages SHIPPED on the TikTok sandbox seller during the walk are a VENDOR-SIDE effect that a code revert does NOT undo, and a shipped package cannot be returned to unshipped. That is acceptable because the target is the sandbox seller's own shop — but do not claim the revert reverses it. Redeploy of the previous release plus a restart of `juli-api` and `juli-celery-worker` is sufficient; NO downgrade is required, because there is no schema change.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_fulfillment_resource_batch_ship.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_layer2_sandbox_write_contract.py tests/unit/test_tiktok_capability_factories.py tests/unit/test_tiktok_capabilities_merchant_source.py tests/unit/test_agent_tool_registry_contract.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "NEVER pass a hand-written example response off as a capture. This slice EXISTS because B-16 did exactly that: `contract-collection.md` ~line 1409 says 'example — no live sandbox data available at capture time', with an invented package id and an invented error code, and PO-NFR-1 records that this makes the spec's claim that Batch Ship is captured false. Replace it with observed bytes or mark it 'documented, not captured' in plain words. There is no third option.",
+    "Do NOT invent a sandbox order or a sandbox package. If #1719 concludes the sandbox holds no orders, implement the three reads against the DOCUMENTED schemas, mark every affected row 'documented, not captured', and STOP — the walk moves to the canary. Seeding a fake order to complete the walk is an epic-level Architect lock violation.",
+    "Do NOT ship a real production order. Ever, under any circumstance, for any reason. Writes go through `SandboxWriteResources` only, and `SandboxWriteClientFactory` must keep raising on any `merchant_auth_id` other than `SANDBOX_AUTH_ID` (ADR-068). Never relax `SandboxOnlyWriteGuard` or `ReadOnlyTransportGuard` to make a call succeed.",
+    "Do NOT invent a vendor error code. Only the partial-failure code actually OBSERVED goes into the row and into any named-error mapping. The `10007014` currently sitting in B-16 was never observed on this shop — it came from a documentation sample and must not be carried forward as if it had been.",
+    "Do NOT report the three reads as 'three existing guard regexes'. Package detail and shipping document ARE already in `SANDBOX_ALLOWED_REQUESTS`; Handover Time Slots is in no allowlist, no constant and no contract row. Add exactly the one entry that is missing and assert the rest of the tuple is unchanged.",
+    "Do NOT widen the allowlist with a loose pattern. `^/fulfillment/\\d+/.*$` would silently admit every unexamined fulfillment path including writes. Anchor the handover-slots entry exactly and assert exactness in BOTH directions.",
+    "An ABSENT field becomes a CONFLICT ROW, never an assumption. If a field ADR-092's dispatch design relies on is missing from the Batch Ship, package detail, shipping document or handover response, file a documentation-conflict row in PLAN.md §14 with a safe bound. Do not assume it exists and do not code around it.",
+    "Do NOT reduce the partial-error shape to a boolean. A top-level `code: 0` with a populated `errors[]` means SOME packages shipped and some did not; collapsing that into one success is precisely the bug this capture exists to prevent, and no caller can recover the lost detail afterwards.",
+    "Do NOT add a ToolSpec, a playbook entry, a prompt, or an agent-tool registration. `tests/unit/test_agent_tool_registry_contract.py` asserts `fulfillment.process_order` is deliberately not an agent tool and that assertion must keep passing; the dispatch ToolSpec is W10-B work.",
+    "Do NOT commit buyer PII. Package detail returns `recipient_address` and `sender_address`; both are `[REDACTED]` before commit, exactly as A-13 already does. Do NOT commit a live token, `sign`, `app_key`, `shop_cipher`, ciphertext, or a signed `doc_url` — A-12's `{signed_document_url}` placeholder is the pattern to follow, because a signed document URL is a bearer credential.",
+    "Do NOT touch `confirm_shipment`. It targets the Supply Chain sync path, is uncaptured, and is correctly unused (`scope-verification/process-order-replenish.md` PO-FR-6). Leave it alone.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051), `apps/`, `ios/`, `packages/`, `docs/product/design/`, or a sibling issue's context cache — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature (`TikTokClient.get`, `TikTokClient.post`, `FulfillmentResource`). A `**kwargs` double proves routing, not that the real call would work."
+  ]
+}
