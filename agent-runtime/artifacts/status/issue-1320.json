@@ -3,7 +3,7 @@
   "issue": 1320,
   "metrics": {
     "acceptanceMapped": 3,
-    "acceptanceTotal": 4,
+    "acceptanceTotal": 3,
     "criticalFindings": 0,
     "modulesTouched": [
       "apps/demo"
@@ -12,19 +12,19 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1320.json",
     "ownerSignoffPresent": true,
-    "sha256": "8c10d6d916fbbe84dc68f36b1455630dad9224bdd21ba7640923ec71888e626e",
+    "sha256": "e0bfaf9b294dd9cc24a8176199292f7c594bb8c9230ee9925eef1cc641befa88",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 6561,
+      "reviewBytes": 6865,
       "validationBytes": 26589
     },
     "claimVsExecuted": {
       "citedCommandCount": 4,
-      "invokedCommandCount": 12807,
+      "invokedCommandCount": 12820,
       "matchedCommandCount": 0,
       "reason": "4 of 4 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
@@ -193,7 +193,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1320-mock-layer-deleted",
-        "head": "33f8b3e57cc673b321a9194cc515fa669ec3e0ee",
+        "head": "ccf278dd3c7dee3ae206aa499012d68f62e86b21",
         "shallow": true
       },
       "moduleResolution": {
