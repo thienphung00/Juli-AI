@@ -67,8 +67,22 @@ since 2026-09-05 05:23; all four partition buckets complete across 31 in-window 
 **failed** — every authenticated request returned 401 because RLS hid the `users` row from the
 authenticator — diagnosed and fixed in #1691 / PR #1693.
 
-**Next action: #1693 merged and its release was still deploying at 2026-09-07 03:48Z. When it
-lands, re-verify bullet 1.** Observation 1 cannot be recorded as cleared until then.
+**Bullet 1 re-verified 2026-09-07 and the mechanism is fixed.** The #1693 release deployed
+successfully and is live — `~/releases/current` → `/root/releases/e7c2bef9`, both blue/green
+candidates (8000, 8020) healthy. Reproducing the commit's own measurement as `juli_app` against
+the deployed database, for auth id `00000000-0000-4000-8000-000000000001`:
+
+```
+no GUC                  users row visible: 0     ← the old failure
+GUC set from `sub`      users row visible: 1     ← the fix
+GUC set from `sub`      total rows visible: 1    ← policy still narrows; not a bypass
+```
+
+**What this does not do is sign the observation off.** It confirms the database-level mechanism
+on the live release; it is not an end-to-end authenticated HTTP request, which needs the
+`gate-1226@app-juli.com` password. The remaining step is one authenticated call against
+`api.app-juli.com` returning 200 rather than 401 — then bullets 1–4 are all green and the
+observation is the owner's to close.
 
 ### 2. Manual red-team pass
 
