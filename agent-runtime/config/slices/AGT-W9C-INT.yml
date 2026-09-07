@@ -20,7 +20,7 @@ AGT-W9C-INT:
     - docs/integrations/tiktok_api/contract-collection.md
   loadWhenNeeded:
     - backend/src/juli_backend/services/execution/sandbox_guard.py
-    - 
+    - backend/src/juli_backend/integrations/tiktok/mapping.py
     - docs/product/agent-workflow-execution/scope-verification/
   doNotLoad:
     - apps/
