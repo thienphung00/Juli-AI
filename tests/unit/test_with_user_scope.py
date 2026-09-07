@@ -220,3 +220,81 @@ async def test_the_plain_get_still_sets_no_scope() -> None:
         f"plain `get` set a user scope ({session.user_guc!r}); the scoped read must "
         f"stay a separate, named method"
     )
+
+
+# ---------------------------------------------------------------------------
+# The second and last pre-scope read (#1697)
+# ---------------------------------------------------------------------------
+
+
+class _ShopsSession(_RecordingSession):
+    """Records the user GUC as the shops query executes."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.user_guc: str | None = None
+        self.guc_at_query: str | None = None
+
+    async def execute(self, statement, *args, **kwargs):
+        params = dict(statement.compile().params) if hasattr(statement, "compile") else {}
+        if params.get("user_key") == "app.current_user_id":
+            self.user_guc = params.get("user_val")
+            return await super().execute(statement, *args, **kwargs)
+        text = str(statement)
+        if "FROM shops" in text or "from shops" in text:
+            # The ownership query itself. Snapshot the GUC as it runs — with no
+            # user context the policy matches nothing and every request 403s.
+            self.guc_at_query = self.user_guc
+            return _EmptyScalars()
+        return await super().execute(statement, *args, **kwargs)
+
+
+class _EmptyScalars:
+    def scalars(self):
+        return self
+
+    def all(self):
+        return []
+
+
+@pytest.mark.asyncio
+async def test_the_shops_bootstrap_read_sets_the_guc_first() -> None:
+    """`get_active_shop`'s ownership check runs before any tenant context exists.
+
+    #1691's scope is a loan — it hands the GUCs back on exit — so this read had
+    none. `shops_select_public USING (user_id = app_current_user_id())` then
+    matched nothing, no shop matched the `X-Shop-Id` header, and every
+    authenticated request ended in `403 Shop not accessible`.
+
+    Measured on the deployed connection as `juli_app`:
+        no GUC -> 0 shops        app.current_user_id set -> 2 shops
+    """
+    from juli_backend.repositories.identity import ShopsRepo
+
+    session = _ShopsSession()
+    user_id = uuid.uuid4()
+
+    await ShopsRepo(cast("object", session)).list_for_authorization(user_id)
+
+    assert session.guc_at_query == str(user_id), (
+        f"the user GUC was {session.guc_at_query!r} when the shops query ran; without it "
+        f"the ownership check reads zero rows and every request 403s"
+    )
+
+
+@pytest.mark.asyncio
+async def test_the_plain_shops_list_still_sets_no_scope() -> None:
+    """The bootstrap exception must not spread to ordinary callers.
+
+    Everything downstream of `_apply_tenant_context_to_session` already holds a
+    scope; `list` must keep assuming that rather than quietly asserting its own.
+    """
+    from juli_backend.repositories.identity import ShopsRepo
+
+    session = _ShopsSession()
+    await ShopsRepo(cast("object", session)).list(uuid.uuid4())
+
+    assert session.user_guc is None, (
+        f"plain `list` set a user scope ({session.user_guc!r}); the bootstrap read must "
+        f"stay a separate, named method"
+    )

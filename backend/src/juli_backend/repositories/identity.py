@@ -69,6 +69,38 @@ class ShopsRepo(SessionRepo):
     async def list(self, user_id: uuid.UUID) -> list[Shop]:
         return await self._all(select(Shop).where(Shop.user_id == user_id))
 
+    async def list_for_authorization(self, user_id: uuid.UUID) -> list[Shop]:
+        """List a user's shops during the request bootstrap, under a user scope (#1697).
+
+        THE SECOND AND LAST PRE-SCOPE READ. `shops` carries
+        `shops_select_public USING (user_id = app_current_user_id())`, and
+        `get_active_shop` runs this before any tenant context exists — #1691's
+        scope is a loan and has already been handed back. With no GUC the read
+        returns nothing, no shop matches the `X-Shop-Id` header, and every
+        authenticated request ends in `403 Shop not accessible`.
+
+        Measured on the deployed connection as `juli_app`:
+
+            no GUC                     shops by user_id: 0
+            app.current_user_id set    shops by user_id: 2
+
+        WHY A USER SCOPE AND NOT A SHOP SCOPE. This read answers "which shops
+        does this user own?", so that the header's shop id can be checked
+        against the answer. Scoping it by that same shop id would assume the
+        conclusion — the header is exactly what is not yet trusted.
+
+        The chain ends here. `api/dependencies.py` calls
+        `_apply_tenant_context_to_session` immediately after this read, and
+        everything downstream runs scoped; `users` (#1691) and `shops` are the
+        only two reads that precede it.
+
+        A separate method rather than a flag on `list`, for the same reason as
+        `UsersRepo.get_for_authentication`: the bootstrap exception stays
+        greppable and cannot spread to ordinary callers, who already hold a scope.
+        """
+        async with with_user_scope(self._session, user_id):
+            return await self.list(user_id)
+
     async def get_by_tiktok_id(self, tiktok_shop_id: str) -> Shop | None:
         """Find the shop bound to a TikTok shop id, or ``None``."""
         return await self._one_or_none(select(Shop).where(Shop.tiktok_shop_id == tiktok_shop_id))
