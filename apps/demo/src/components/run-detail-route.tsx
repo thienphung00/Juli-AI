@@ -98,6 +98,7 @@ export function RunDetailRoute({ runId, fetchRuns = fetchDemoRuns, token }: RunD
 
   return (
     <RunStagedView
+      confirmationToken={token}
       events={events}
       isReconnecting={streamStatus === "reconnecting"}
       productName={run.product_name}

@@ -40,7 +40,7 @@ import {
 import { RUN_STAGE_NAV_COPY, RUN_STREAM_RECONNECTING_COPY } from "../lib/run-surface/stage-copy";
 import { prefersReducedMotion, resolveRunSurfaceMotion } from "../lib/run-surface/motion";
 import { RUN_SURFACE_DATA_ATTRIBUTE, RUN_SURFACE_DATA_VALUE } from "../lib/run-surface/tokens";
-import { RunStageCanvas } from "./run-stage-canvas";
+import { RunStageCanvas, type RunStageCanvasProps } from "./run-stage-canvas";
 import { RunStepper, type RunStepperNode } from "./run-stepper";
 
 export interface RunStagedViewProps {
@@ -53,6 +53,15 @@ export interface RunStagedViewProps {
    *  error, never a run error (PUI-DESIGN.md §8). Absent/false renders
    *  nothing extra. */
   readonly isReconnecting?: boolean;
+  /** Bearer token for the Đề xuất option picker's confirmation POST
+   *  (#1317) -- same "absent means not connected yet" contract as
+   *  `useRunStream`'s own `token` (see `RunDetailRoute`'s docstring,
+   *  ADR-094). Threaded straight through to `RunStageCanvas`. */
+  readonly confirmationToken?: string;
+  readonly confirmationBaseUrl?: string;
+  readonly confirmationFetchImpl?: typeof fetch;
+  /** Injectable for tests; defaults to the real client. */
+  readonly confirm?: RunStageCanvasProps["confirm"];
 }
 
 function stagePanelId(stageId: string): string {
@@ -90,6 +99,10 @@ export function RunStagedView({
   events,
   requestedStageId,
   isReconnecting = false,
+  confirmationToken,
+  confirmationBaseUrl,
+  confirmationFetchImpl,
+  confirm,
 }: RunStagedViewProps) {
   const liveView = useMemo(() => reduceRunView(events), [events]);
   const liveEdgeIndex = stageIndexOf(liveView.currentStage);
@@ -214,11 +227,16 @@ export function RunStagedView({
         }}
       >
         <RunStageCanvas
+          confirm={confirm}
+          confirmationBaseUrl={confirmationBaseUrl}
+          confirmationFetchImpl={confirmationFetchImpl}
+          confirmationToken={confirmationToken}
           events={effectiveEvents}
           headingRef={headingRef}
           isTerminal={isTerminal}
           nowMs={nowMs}
           productName={productName}
+          runId={runId}
           stageId={viewingStageId}
           view={displayView}
         />

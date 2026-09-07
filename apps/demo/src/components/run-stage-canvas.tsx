@@ -20,11 +20,9 @@ import type { AgentEvent } from "@juli/contracts";
 
 import type { RefObject } from "react";
 
-import { resolveExpiryCountdown } from "../lib/run-ledger/expiry";
 import {
   RUN_TERMINAL_STATE_COPY,
   RUN_TERMINAL_STATE_UNKNOWN_COPY,
-  formatRunExpiryCopy,
 } from "../lib/run-ledger/copy";
 import { resolveRunTerminalState } from "../lib/run-ledger/terminal-state";
 import type { RunStageId, RunViewState } from "../lib/run-surface/reduce-run-view";
@@ -40,6 +38,8 @@ import {
 } from "../lib/run-surface/stage-copy";
 import { prefersReducedMotion, resolveRunSurfaceMotion } from "../lib/run-surface/motion";
 import { RUN_SURFACE_PANEL_CLASS_NAMES } from "../lib/run-surface/tokens";
+import { submitConfirmationDecision } from "../lib/run-surface/confirmation-client";
+import { OptionPicker } from "./option-picker";
 
 export interface RunStageCanvasProps {
   readonly stageId: RunStageId;
@@ -54,6 +54,14 @@ export interface RunStageCanvasProps {
    *  the live edge, per the "finished run opens fully frozen" AC. */
   readonly isTerminal: boolean;
   readonly headingRef?: RefObject<HTMLHeadingElement | null>;
+  /** The run id the Đề xuất option picker (#1317) needs to address its
+   *  confirmation POST -- otherwise unused by every other stage. */
+  readonly runId: string;
+  readonly confirmationToken?: string;
+  readonly confirmationBaseUrl?: string;
+  readonly confirmationFetchImpl?: typeof fetch;
+  /** Injectable for tests; defaults to the real client. */
+  readonly confirm?: typeof submitConfirmationDecision;
 }
 
 function proposedChangeEntries(change: Record<string, unknown>): Array<[string, string]> {
@@ -165,7 +173,25 @@ function SeoContent({ events, view }: { events: readonly AgentEvent[]; view: Run
   );
 }
 
-function DecisionContent({ view, nowMs }: { view: RunViewState; nowMs: number | null }) {
+function DecisionContent({
+  view,
+  nowMs,
+  productName,
+  runId,
+  confirmationToken,
+  confirmationBaseUrl,
+  confirmationFetchImpl,
+  confirm,
+}: {
+  view: RunViewState;
+  nowMs: number | null;
+  productName: string;
+  runId: string;
+  confirmationToken?: string;
+  confirmationBaseUrl?: string;
+  confirmationFetchImpl?: typeof fetch;
+  confirm?: typeof submitConfirmationDecision;
+}) {
   const decision = view.decisionRequest;
   if (!decision) {
     return (
@@ -173,28 +199,23 @@ function DecisionContent({ view, nowMs }: { view: RunViewState; nowMs: number | 
     );
   }
 
-  const expiry = nowMs !== null ? resolveExpiryCountdown(decision.expiresAt, nowMs) : null;
   const options = decision.options && decision.options.length > 0 ? decision.options : [
     { option_id: "default", proposed_change: decision.proposedChange, rationale: "", params_sha: "" },
   ];
 
   return (
-    <div>
-      {options.map((option) => (
-        <article className={RUN_SURFACE_PANEL_CLASS_NAMES.panel} key={option.option_id}>
-          <dl className="run-stage__proposed-change">
-            {proposedChangeEntries(option.proposed_change).map(([key, value]) => (
-              <div className="run-stage__proposed-change-row" key={key}>
-                <dt>{key}</dt>
-                <dd>{value}</dd>
-              </div>
-            ))}
-          </dl>
-          {option.rationale ? <p>{option.rationale}</p> : null}
-        </article>
-      ))}
-      {expiry ? <p className="run-stage__expiry">{formatRunExpiryCopy(expiry.label)}</p> : null}
-    </div>
+    <OptionPicker
+      baseUrl={confirmationBaseUrl}
+      confirm={confirm}
+      expiresAt={decision.expiresAt}
+      fetchImpl={confirmationFetchImpl}
+      nowMs={nowMs}
+      options={options}
+      productName={productName}
+      runId={runId}
+      token={confirmationToken}
+      toolCallId={decision.toolCallId}
+    />
   );
 }
 
@@ -264,6 +285,11 @@ export function RunStageCanvas({
   nowMs,
   isTerminal,
   headingRef,
+  runId,
+  confirmationToken,
+  confirmationBaseUrl,
+  confirmationFetchImpl,
+  confirm,
 }: RunStageCanvasProps) {
   const isActive = view.currentStage === stageId;
 
@@ -285,7 +311,18 @@ export function RunStageCanvas({
         <ProductSnapshotContent events={events} productName={productName} view={view} />
       ) : null}
       {stageId === "seo" ? <SeoContent events={events} view={view} /> : null}
-      {stageId === "de-xuat" ? <DecisionContent nowMs={nowMs} view={view} /> : null}
+      {stageId === "de-xuat" ? (
+        <DecisionContent
+          confirm={confirm}
+          confirmationBaseUrl={confirmationBaseUrl}
+          confirmationFetchImpl={confirmationFetchImpl}
+          confirmationToken={confirmationToken}
+          nowMs={nowMs}
+          productName={productName}
+          runId={runId}
+          view={view}
+        />
+      ) : null}
       {stageId === "cap-nhat" ? <UpdateContent events={events} view={view} /> : null}
       {stageId === "hoan-tat" ? <TerminalContent view={view} /> : null}
     </section>
