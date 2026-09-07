@@ -6,13 +6,20 @@
 > Full index: [`docs/README.md`](docs/README.md)
 
 **Owner:** Product lead · **Last reset:** Phase 2.5 complete → Phase 2 active (2026-07-04)  
-**Currency check (2026-08-09):** the reset line above is historical. Live work is **Phase 3.5** —
-3.5-A0 ([#598](https://github.com/thienphung00/Juli-AI/issues/598)) and 3.5-A2
-([#602](https://github.com/thienphung00/Juli-AI/issues/602)) are closed; 3.5-A1
-([#601](https://github.com/thienphung00/Juli-AI/issues/601)) and 3.5-B
-([#599](https://github.com/thienphung00/Juli-AI/issues/599)) are open. The CDP slice structure is
-specified in [ADR-046](docs/adr/046-cdp-medallion-physical-model.md)–[ADR-050](docs/adr/050-cdp-slice-3-5-c-two-gated-exits.md)
-and is **not yet reflected in the phase tables below** — a Product-lead pass is owed.
+**Currency check (2026-09-07):** the reset line above and the phase tables below are historical.
+Live work is the **agent-workflow-execution waves** — W8
+([#1652](https://github.com/thienphung00/Juli-AI/issues/1652)), W9-A
+([#1620](https://github.com/thienphung00/Juli-AI/issues/1620)), W9-B
+([#1621](https://github.com/thienphung00/Juli-AI/issues/1621)), W9-C
+([#1622](https://github.com/thienphung00/Juli-AI/issues/1622)), W9-D
+([#1623](https://github.com/thienphung00/Juli-AI/issues/1623)) and W10-A/B/C
+([#1624](https://github.com/thienphung00/Juli-AI/issues/1624)–[#1626](https://github.com/thienphung00/Juli-AI/issues/1626)).
+**That programme's phase, slice and gate law lives in
+[`docs/product/agent-workflow-execution/PLAN.md`](docs/product/agent-workflow-execution/PLAN.md),
+not here**, and its designs are
+[ADR-068](docs/adr/068-agent-workflow-execution-boundary.md)–[ADR-097](docs/adr/097-bootstrap-anchor-tracks-the-runs-actual-base.md)
+(see the [ADR index](docs/adr/README.md)). The phase tables below have not been reflowed onto the waves —
+a Product-lead pass is owed.
 
 ---
 

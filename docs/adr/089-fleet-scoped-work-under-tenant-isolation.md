@@ -1,6 +1,6 @@
 # ADR-089: Fleet-scoped work under tenant isolation
 
-**Status:** Proposed
+**Status:** Accepted
 
 **Supersedes/amends:** Amends ADR-086 (the runtime database role) by answering a question it
 did not ask. Constrains #1339 observation 1 and the W7-bis work that follows it.
