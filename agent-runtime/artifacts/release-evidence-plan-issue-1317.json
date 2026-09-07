@@ -1,0 +1,91 @@
+{
+  "planId": "rep-1317-consent-grade-option-picker",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com run route — the Đề xuất stage option picker (apps/demo)",
+    "the confirmation call to api.app-juli.com (POST /v1/demo/runs/{run_id}/confirmations/{tool_call_id})"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Load the candidate demo build — zero public canary traffic. This surface authorizes a real mutation, so the candidate journey runs against a replayed decision request only; no production write is in scope",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": true,
+    "notes": "Issue's own Release evidence section: 'reach a replayed decision request, select an option, confirm, and observe the chosen continuation.' Transcribed verbatim; no additional surfaces inferred. apiSideEffectsInScope is true because confirming issues a real confirmation call — the journey stays on a replayed run so the side effect is bounded.",
+    "journeys": [
+      {
+        "name": "two-step-consent-then-chosen-continuation",
+        "entryUrl": "/decisions",
+        "assertions": [
+          "html_200",
+          "reaching a replayed decision request renders the options as side-by-side cards",
+          "selecting elevates the card, dims siblings and arms the CTA — a single click sends nothing",
+          "confirming sends the SELECTED option's id and the run's tool_call_id on the outbound request",
+          "the chosen continuation is observed and the selected card carries into the Cập nhật stage"
+        ]
+      },
+      {
+        "name": "decline-is-a-choice-not-an-error",
+        "entryUrl": "/decisions",
+        "assertions": [
+          "the Không thực hiện control is reachable and never hidden behind the confirm",
+          "declining sends a decline and renders the declined outcome copy",
+          "the declined terminal state renders as a choice, never as an error state"
+        ]
+      },
+      {
+        "name": "expiry-and-rejection-render-honestly",
+        "entryUrl": "/decisions",
+        "assertions": [
+          "an expired offer stops accepting input and says why, driven by the server-carried expiry",
+          "a rejected confirmation (fingerprint mismatch, already-decided, not-awaiting) renders the server's distinct condition, not a generic failure"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": ["/decisions", "/decisions/in-progress"],
+    "discoverFromHtml": true,
+    "assetTypes": ["js", "css"],
+    "failOnMissing": true,
+    "failOnNon200": true,
+    "notes": "Issue text: 'the new components must be in the built bundle.' Assert against the built artifact, not the source tree."
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Issue text: 'No migration.' Client components in apps/demo consuming an existing confirmation endpoint."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false,
+    "notes": "Issue text: 'the picker is additive; assert a run reaching a decision request without it degrades to a readable waiting state rather than a blank screen.' A rollback must not strand a paused run behind a blank canvas."
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm check:demo",
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit"
+  ],
+  "doNotInfer": [
+    "release evidence fields beyond what the issue's Release evidence (ADR-035) section states",
+    "any client-side computation of an expected-effect number — every rendered number and string must trace to a field in the event payload",
+    "a client-side expiry timer — the countdown reflects the server's own expiry, which is the only thing that cannot drift",
+    "a single-click path that authorizes a mutation; two-step consent is a security property here, not UX polish",
+    "rendering a declined run as an error or a failure exit",
+    "a generic failure message for a rejected confirmation — fingerprint mismatch, already-decided and not-awaiting are distinct server conditions and render distinctly",
+    "a retry-in-place control — ADR-084 decision 6 forbids it by name"
+  ]
+}

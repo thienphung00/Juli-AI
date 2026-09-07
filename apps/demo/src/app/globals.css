@@ -1910,6 +1910,201 @@ a {
   }
 }
 
+/* Consent-grade option picker (issue #1317, ADR-076 decision 4,
+   PUI-DESIGN.md §3/§5/§6). Scoped to [data-juli-surface="run"] the same as
+   every other run-surface rule above; `.juli-run-cta--armed` (packages/
+   theme/run-surface-tokens.css) is reused unmodified for the armed CTA --
+   this file adds no fourth reference to --juli-run-live-edge. */
+.option-picker__heading {
+  margin: 0 0 var(--juli-space-3);
+  font-weight: 600;
+}
+
+.option-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--juli-space-4);
+}
+
+.option-picker__card {
+  display: grid;
+  gap: var(--juli-space-2);
+  padding: var(--juli-space-4);
+  text-align: left;
+  border: 1px solid var(--juli-run-border);
+  border-radius: var(--juli-radius-medium, 0.75rem);
+  background: var(--juli-run-surface);
+  color: var(--juli-run-foreground);
+  cursor: pointer;
+  animation-name: option-picker-card-arrive;
+  animation-fill-mode: backwards;
+  transition-property: transform, opacity, border-color;
+}
+
+.option-picker__card:disabled {
+  cursor: not-allowed;
+}
+
+.option-picker__card--selected {
+  border-color: var(--juli-run-focus-ring);
+  transform: scale(1.02);
+}
+
+.option-picker__card--dimmed {
+  opacity: 0.6;
+}
+
+.option-picker__headline {
+  display: grid;
+  gap: var(--juli-space-1);
+}
+
+.option-picker__headline-label {
+  margin: 0;
+  color: var(--juli-run-muted-foreground);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.option-picker__headline-value {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.option-picker__headline-diff {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--juli-space-2);
+  font-size: 0.9rem;
+}
+
+.option-picker__diff {
+  display: grid;
+  gap: var(--juli-space-2);
+  margin: var(--juli-space-2) 0 0;
+}
+
+.option-picker__diff-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--juli-space-3);
+}
+
+.option-picker__diff-arrow {
+  color: var(--juli-run-muted-foreground);
+}
+
+.option-picker__diff-before {
+  color: var(--juli-run-muted-foreground);
+  text-decoration: line-through;
+}
+
+.option-picker__diff-after {
+  color: var(--juli-run-info);
+  font-weight: 600;
+}
+
+.option-picker__rationale {
+  margin: 0;
+  color: var(--juli-run-muted-foreground);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.option-picker__expiry {
+  margin: var(--juli-space-4) 0 0;
+}
+
+.option-picker__rejection {
+  margin: var(--juli-space-2) 0 0;
+  color: var(--juli-run-destructive);
+  font-weight: 600;
+}
+
+.option-picker__no-retry {
+  margin: var(--juli-space-2) 0 0;
+  color: var(--juli-run-muted-foreground);
+}
+
+.option-picker__submitting {
+  margin: var(--juli-space-2) 0 0;
+  color: var(--juli-run-muted-foreground);
+}
+
+.option-picker__outcome {
+  margin: 0;
+  color: var(--juli-run-foreground);
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.option-picker__actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--juli-space-3);
+  margin-top: var(--juli-space-4);
+}
+
+.option-picker__decline,
+.option-picker__confirm {
+  min-height: var(--juli-touch-target);
+  padding: var(--juli-space-2) var(--juli-space-4);
+  border-radius: var(--juli-radius-medium, 0.75rem);
+  border: 1px solid var(--juli-run-border);
+  background: var(--juli-run-surface);
+  color: var(--juli-run-foreground);
+  cursor: pointer;
+}
+
+.option-picker__confirm:disabled,
+.option-picker__decline:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.option-picker__confirm.juli-run-cta--armed {
+  border-color: transparent;
+}
+
+@keyframes option-picker-card-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes option-picker-card-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .option-picker__card {
+    animation-name: option-picker-card-fade;
+    transition-duration: 0ms;
+  }
+
+  .option-picker__card--dimmed {
+    opacity: 1;
+  }
+
+  .option-picker__card--selected {
+    transform: none;
+  }
+}
+
 /* Repeat consent — asked only after finished work, once per workflow kind */
 .repeat-consent {
   margin: var(--juli-space-4) 0 0;

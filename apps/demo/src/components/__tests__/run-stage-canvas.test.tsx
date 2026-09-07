@@ -41,6 +41,7 @@ describe("RunStageCanvas -- product snapshot stage", () => {
         isTerminal={false}
         nowMs={1000}
         productName={PRODUCT_NAME}
+        runId="run-1"
         stageId="thong-tin-san-pham"
         view={view}
       />,
@@ -57,6 +58,7 @@ describe("RunStageCanvas -- product snapshot stage", () => {
         isTerminal={false}
         nowMs={1000}
         productName={PRODUCT_NAME}
+        runId="run-1"
         stageId="thong-tin-san-pham"
         view={view}
       />,
@@ -76,6 +78,7 @@ describe("RunStageCanvas -- SEO stage (never entered by this scenario)", () => {
         isTerminal={false}
         nowMs={1000}
         productName={PRODUCT_NAME}
+        runId="run-1"
         stageId="seo"
         view={view}
       />,
@@ -96,12 +99,16 @@ describe("RunStageCanvas -- Đề xuất stage (the paused decision request)", (
         isTerminal={false}
         nowMs={new Date("2026-08-28T09:32:13.308159Z").getTime()} // 1h before expires_at
         productName={PRODUCT_NAME}
+        runId="run-1"
         stageId="de-xuat"
         view={view}
       />,
     );
 
-    expect(screen.getByText("Tiêu đề đã tối ưu")).toBeInTheDocument();
+    // The option card's headline value AND its before/after diff caption
+    // both carry the proposed title (PUI-DESIGN.md §3 mockup repeats the
+    // value the same way) -- at least one occurrence is the assertion.
+    expect(screen.getAllByText("Tiêu đề đã tối ưu").length).toBeGreaterThan(0);
     expect(screen.getByText(/Đề xuất còn hiệu lực/)).toBeInTheDocument();
     expect(screen.queryByText(/update_product_listing/)).not.toBeInTheDocument();
   });
@@ -116,6 +123,7 @@ describe("RunStageCanvas -- Cập nhật stage", () => {
         isTerminal={true}
         nowMs={1000}
         productName={PRODUCT_NAME}
+        runId="run-1"
         stageId="cap-nhat"
         view={view}
       />,
@@ -135,6 +143,7 @@ describe("RunStageCanvas -- Cập nhật stage", () => {
         isTerminal={true}
         nowMs={1000}
         productName={PRODUCT_NAME}
+        runId="run-1"
         stageId="cap-nhat"
         view={view}
       />,
@@ -153,6 +162,7 @@ describe("RunStageCanvas -- Hoàn tất stage", () => {
         isTerminal={true}
         nowMs={1000}
         productName={PRODUCT_NAME}
+        runId="run-1"
         stageId="hoan-tat"
         view={view}
       />,
@@ -171,6 +181,7 @@ describe("RunStageCanvas -- Hoàn tất stage", () => {
         isTerminal={true}
         nowMs={1000}
         productName={PRODUCT_NAME}
+        runId="run-1"
         stageId="hoan-tat"
         view={view}
       />,
@@ -198,6 +209,7 @@ describe("RunStageCanvas -- no leaked internals, across every stage", () => {
         isTerminal={true}
         nowMs={1000}
         productName={PRODUCT_NAME}
+        runId="run-1"
         stageId={stageId}
         view={view}
       />,

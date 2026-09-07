@@ -59,7 +59,10 @@ describe("RunStagedView -- the six stages, in PUI-DESIGN.md §2 order, driven by
     render(<RunStagedView events={scenario.events} productName={PRODUCT_NAME} runId="run-1" />);
 
     expect(screen.getByRole("tab", { name: /Đề xuất/ })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("Tiêu đề đã tối ưu")).toBeInTheDocument();
+    // The option card's headline value AND its before/after diff caption
+    // both carry the proposed title (PUI-DESIGN.md §3 mockup repeats the
+    // value the same way) -- at least one occurrence is the assertion.
+    expect(screen.getAllByText("Tiêu đề đã tối ưu").length).toBeGreaterThan(0);
   });
 
   it("shows the bound product visible from the product-snapshot stage, well before any confirmation", async () => {

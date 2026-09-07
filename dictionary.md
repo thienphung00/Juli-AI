@@ -511,6 +511,66 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - VI: Đang xử lý
 - Definition: Staged run view (issue #1316) fallback label for an unrecognized tool call — honest and generic, never the raw tool name.
 
+**`run.confirm_option`**
+- EN: Confirm this option
+- VI: Xác nhận phương án này
+- Definition: The Đề xuất option picker's armed CTA (issue #1317, PUI-DESIGN.md §3/§7) -- disabled until an option is selected, so no single click authorizes a mutation.
+
+**`run.decline_option`**
+- EN: Don't apply
+- VI: Không thực hiện
+- Definition: The Đề xuất option picker's decline control (issue #1317, PUI-DESIGN.md §3/§7) -- always reachable, never gated behind selecting an option or hidden behind the confirm CTA. A choice, not a failure exit.
+
+**`run.option_picker.heading`**
+- EN: Juli proposes {count} option(s):
+- VI: Juli đề xuất {count} phương án:
+- Definition: Heading above the Đề xuất option cards (issue #1317, PUI-DESIGN.md §3), generic across the N=1 (binary confirm) and N=3 cases -- `{count}` is `options.length`, never a literal.
+
+**`run.decline_outcome`**
+- EN: Juli finishes without changing anything, and the analysis is kept.
+- VI: Juli sẽ hoàn tất mà không thay đổi gì, và phần phân tích được giữ lại.
+- Definition: Renders immediately once a decline decision is accepted (issue #1317, PUI-DESIGN.md §3) -- states the real outcome. A choice, never an error state.
+
+**`run.option_picker.expired`**
+- EN: This offer has expired.
+- VI: Đề xuất đã hết hiệu lực.
+- Definition: Đề xuất option picker (issue #1317) -- shown once the server-carried `expires_at` has passed; input is disabled from this point, driven by the server's own deadline, never a client timer.
+
+**`run.confirmation_rejected.already_decided`**
+- EN: This offer has already been decided.
+- VI: Đề xuất này đã được quyết định trước đó.
+- Definition: `confirmation_already_decided` rejection (issue #1317) -- a distinct, honest condition, never a generic failure message.
+
+**`run.confirmation_rejected.not_awaiting`**
+- EN: This run is no longer awaiting a confirmation.
+- VI: Luồng thực hiện này không còn chờ xác nhận.
+- Definition: `run_not_awaiting_confirmation` rejection (issue #1317).
+
+**`run.confirmation_rejected.fingerprint_mismatch`**
+- EN: This offer changed since you last saw it; go back to Decisions to see the latest.
+- VI: Đề xuất đã thay đổi kể từ khi bạn xem; hãy quay lại Quyết định để xem đề xuất mới nhất.
+- Definition: `params_sha_mismatch` rejection (issue #1317) -- the change the seller saw is not the change that would run; refused rather than silently substituted.
+
+**`run.confirmation_rejected.generic`**
+- EN: This option could not be confirmed.
+- VI: Không thể xác nhận lựa chọn này.
+- Definition: Fallback for a rejected-confirmation `error_code` this surface has no dedicated copy for yet (issue #1317) -- still names the fact honestly, never a spinner-forever or silent retry.
+
+**`run.option_field.price`**
+- EN: Price
+- VI: Giá
+- Definition: Seller-facing label for a `proposed_change.price` field on an option card's diff (issue #1317) -- never the raw JSON key.
+
+**`run.option_field.title`**
+- EN: Title
+- VI: Tiêu đề
+- Definition: Seller-facing label for a `proposed_change.title` field on an option card's diff (issue #1317).
+
+**`run.option_picker.submitting`**
+- EN: Sending your choice…
+- VI: Đang gửi lựa chọn của bạn…
+- Definition: Transient status while the confirmation POST is in flight (issue #1317) -- cards and both CTAs disable to prevent a double submission.
+
 **`agent.narration.extension_grant`**
 - EN: Continuing past the standard iteration limit: granting [extension_iterations] more iteration(s) (extension [granted] of [max]).
 - VI: Đã đạt giới hạn số lượt thực hiện tiêu chuẩn, Juli gia hạn thêm [extension_iterations] lượt để hoàn tất công việc (lần gia hạn [granted]/[max]).
