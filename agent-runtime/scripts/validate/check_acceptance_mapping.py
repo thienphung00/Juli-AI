@@ -81,7 +81,19 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:
 
     # AC3: Compare artifact total against issue body criteria count (#1732)
     issue_criteria_count = extract_criteria_count_from_issue_body(issue)
-    if issue_criteria_count is not None and total != issue_criteria_count:
+    if issue_criteria_count is None:
+        # Architect lock 2: a check must never pass because it could not
+        # determine an answer. The whole point of reading the issue is that the
+        # count comes from somewhere the graded agent cannot write; if that
+        # source is unreachable, the artifact's own number is the only one left,
+        # which is the self-referential comparison this check exists to replace.
+        problems.append(
+            f"cannot read the acceptance-criteria count for issue {issue} from its body "
+            "(gh unavailable, unauthenticated, timed out, or no 'Acceptance criteria' "
+            "section found), so the artifact's total cannot be checked against a source "
+            "the agent does not control; failing closed rather than accepting it"
+        )
+    elif total != issue_criteria_count:
         problems.append(
             f"acceptance total ({total}) != criteria count from issue ({issue_criteria_count})"
         )
