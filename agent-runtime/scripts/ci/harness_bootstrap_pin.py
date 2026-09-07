@@ -255,7 +255,7 @@ def identity_coincides_with_head_note(ref: str, resolved_sha: str, repo_root: Pa
     fixed list of symbolic HEAD forms (``is_self_referential_anchor``).
     Neither enumerates SHAs, so a raw or abbreviated commit SHA that happens
     to equal HEAD's own commit passes both silently -- the exact
-    self-referential defect ADR-092 exists to prevent, reached through a
+    self-referential defect ADR-095 exists to prevent, reached through a
     spelling nobody enumerated (#1611). Screening by resolved commit identity
     instead closes every spelling at once, including ones nobody has thought
     of yet: it does not matter whether the coincidence was spelled as a SHA,
@@ -285,7 +285,7 @@ def identity_coincides_with_head_note(ref: str, resolved_sha: str, repo_root: Pa
         "as it stops the moment real work lands. If this keeps appearing across runs "
         "of the same branch, the anchor is not a fixed historical point but is being "
         "resolved against HEAD dynamically, which is the self-referential defect "
-        "(ADR-092) reached through a different spelling."
+        "(ADR-095) reached through a different spelling."
     )
 
 

@@ -200,7 +200,7 @@ def dissolution_violations(
 ) -> set[str]:
     """Rows that are UNREACHABLE and not already known to be dissolved.
 
-    Extracted (#1618) so the production assertion and its ADR-092 exhibit call
+    Extracted (#1618) so the production assertion and its ADR-095 exhibit call
     the *same* code. The first version of that exhibit asserted set arithmetic
     on a synthetic literal and never touched this path, so weakening the real
     check left the exhibit green — it proved nothing. Anything that neuters this
@@ -622,7 +622,7 @@ def test_fix_commit_curation_is_pinned_to_the_trunk() -> None:
 
 
 def test_dissolution_check_still_bites_in_a_complete_clone() -> None:
-    """#1618 / ADR-092 exhibit: gating a check is legitimate only if it can still
+    """#1618 / ADR-095 exhibit: gating a check is legitimate only if it can still
     fail somewhere. Exhibit the input that still turns it red.
 
     The first version of this test asserted set arithmetic on a synthetic literal

@@ -120,7 +120,7 @@ NO_TRANSCRIPT_REASON = (
 
 #: #1582: a scan that raised is a different state from a scan that completed
 #: and genuinely found nothing, and the two must not share a reason string
-#: (ADR-093). ``task_transcripts.discover_task_dirs``/``read_task_dir`` raising
+#: (ADR-096). ``task_transcripts.discover_task_dirs``/``read_task_dir`` raising
 #: (a settle-clock bug did exactly this, unconditionally, in production) is
 #: already caught below and named in ``gaps[]`` as "task-store-unreadable" or
 #: "task-dir-unreadable" — but reusing :data:`NO_TRANSCRIPT_REASON` for the

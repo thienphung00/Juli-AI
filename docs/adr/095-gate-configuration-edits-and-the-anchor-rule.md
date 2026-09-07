@@ -1,4 +1,4 @@
-# ADR-092 — When a gate's configuration may be edited
+# ADR-095 — When a gate's configuration may be edited
 
 **Status:** Accepted — 2026-09-03 (#1540, PR #1561)
 

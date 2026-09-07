@@ -221,7 +221,7 @@ def test_merge_base_anchor_is_screened_by_resolved_identity_not_spelling(
     ``merge-base:`` base ref that is HEAD's own SHA -- raw or abbreviated --
     names none of those spellings, so the string guard lets it through and,
     before this fix, ``resolve_bootstrap_anchor_with_note`` returned HEAD's
-    own SHA with ``note=None``: the self-referential defect ADR-092 exists to
+    own SHA with ``note=None``: the self-referential defect ADR-095 exists to
     prevent, reached through a spelling nobody enumerated.
 
     Parametrised over both name spellings and SHA spellings in one test so
@@ -719,7 +719,7 @@ def test_base_ref_token_anchor_still_catches_drift_the_issue_branch_introduces(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC1/AC2 combined: the anchor must allow the issue branch's own committed
-    drift (AC1), but still catch uncommitted drift (AC2). ADR-092 criterion 2
+    drift (AC1), but still catch uncommitted drift (AC2). ADR-095 criterion 2
     requires that uncommitted drift make the gate red on a harness-changing
     branch."""
     repo, _main_tip, wave_tip = wave_repo
@@ -938,7 +938,7 @@ def test_uncommitted_edit_still_fails_after_drift_decomposition(
 ) -> None:
     """AC2: Uncommitted edits still FAIL on a harness-changing branch.
 
-    ADR-092 criterion 2: the docstring's original concern was unreviewed drift
+    ADR-095 criterion 2: the docstring's original concern was unreviewed drift
     while a run is in flight. An uncommitted edit lands in drift(HEAD->working)
     regardless of what the PR itself does, so it must still fail.
     """
@@ -1058,7 +1058,7 @@ def test_clean_record_produces_no_failures_on_a_harness_changing_branch(
     # Step 3: Add an uncommitted edit under a different watched path.
     _write(repo, DOCS_REL, "# agent runtime\nuncommitted edit, not reviewed\n")
 
-    # Step 4: Verify the gate fails (ADR-092 criterion 2) — uncommitted drift
+    # Step 4: Verify the gate fails (ADR-095 criterion 2) — uncommitted drift
     # must fail even on a harness-changing branch.
     passed, description, details = _validate(repo, parent)
     assert passed is False, "Gate must fail on uncommitted drift"

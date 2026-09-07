@@ -69,7 +69,7 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:
     # declaration: an artifact that predates this field has asserted nothing,
     # whereas one that explicitly writes evidenceState: "unavailable" has
     # asserted it has no evidence. Reading the first as the second is the
-    # ADR-093 error class ("could not determine" counted as an answer) and is
+    # ADR-096 error class ("could not determine" counted as an answer) and is
     # what made this gate fail every pre-#1603 artifact outright — the mutants
     # clean-record fixture and the public-release e2e matrices among them —
     # the moment it shipped. So: all-omitted (legacy) passes; all-explicitly-

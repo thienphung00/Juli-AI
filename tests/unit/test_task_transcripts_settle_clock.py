@@ -1,6 +1,6 @@
 """#1582: ``settle_clock`` must not ``NameError`` on a never-reset fresh import,
 and a scan that raises must not be reported the same way as a scan that
-completed and genuinely found nothing (ADR-093 discipline).
+completed and genuinely found nothing (ADR-096 discipline).
 
 ``task_transcripts._settle_clock`` was declared ``global`` and read inside
 ``settle_clock()`` but carried no module-level definition at all. Every test
@@ -158,7 +158,7 @@ def test_a_raising_scanner_is_reported_unavailable_never_as_a_clean_empty_answer
         assert "value" not in measurement, field
         # The load-bearing distinction: the reason must name the crash, not
         # restate the generic "nothing was found" text reserved for a scan
-        # that completed and genuinely found nothing (ADR-093).
+        # that completed and genuinely found nothing (ADR-096).
         assert measurement["reason"] != run_metrics.NO_TRANSCRIPT_REASON, field
         assert "raised" in measurement["reason"], field
 
