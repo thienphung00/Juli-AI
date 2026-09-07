@@ -124,7 +124,7 @@ EVIDENCE_STATES = frozenset(
 # claim of no evidence. An artifact that predates the field asserted nothing;
 # one that explicitly writes ``evidenceState: "unavailable"`` asserts it has
 # none. Those are different states and must not share a bucket: "could not
-# determine" collapsing into "no" is exactly the failure class ADR-093
+# determine" collapsing into "no" is exactly the failure class ADR-096
 # records.
 EVIDENCE_STATE_OMITTED = "omitted"
 

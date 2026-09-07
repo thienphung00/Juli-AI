@@ -1,4 +1,4 @@
-# ADR-093 — A query that cannot answer must not return a value that means something else
+# ADR-096 — A query that cannot answer must not return a value that means something else
 
 **Status:** Accepted — 2026-09-04 (#1571, PR #1577)
 
@@ -30,7 +30,7 @@ report that it could not check, it reports that there was nothing to check.
 
 The evidence that this is one class and not one incident:
 
-- It is the common root under **#1529** (`check_adr` saw `changed=[]` with ADR-092 committed
+- It is the common root under **#1529** (`check_adr` saw `changed=[]` with ADR-095 committed
   in the tree), **#1570** (`differential_tdd` could not resolve a merge base against
   `origin/main`), and the two W5 reviewers who measured red→green by hand and recorded
   `manualDifferentialTdd` because the automated path told them nothing.
@@ -123,7 +123,7 @@ written.* Any helper that answers a question on behalf of a gate — a changed-f
 base, a coverage number, an artifact lookup — must be able to say "I could not tell" in a way
 that is structurally distinct from every legitimate answer it can give. Where the neighbouring
 bootstrap-pin gate had to degrade rather than raise, it recorded `anchorDegraded` with a reason
-(#1540, [ADR-092](092-gate-configuration-edits-and-the-anchor-rule.md)): different mechanism,
+(#1540, [ADR-095](095-gate-configuration-edits-and-the-anchor-rule.md)): different mechanism,
 same rule — never to a silent pass.
 
 ## Consequences
@@ -139,7 +139,7 @@ same rule — never to a silent pass.
 - **This ADR is the evidence `check_adr` asked for, not a way around it.** The gate fired on
   `interfaceChanges[].breaking: true`; review confirmed the label is accurate and declined to
   flip it, since editing a gate's input to clear the gate is exactly what
-  [ADR-092](092-gate-configuration-edits-and-the-anchor-rule.md) forbids. The decision is
+  [ADR-095](095-gate-configuration-edits-and-the-anchor-rule.md) forbids. The decision is
   recorded instead.
 - **The artifact half of the same silence stays open, and this ADR does not claim it.**
   `check_adr` reads `interfaceChanges` from `agent-runtime/artifacts/reviews/`, which
@@ -155,7 +155,7 @@ same rule — never to a silent pass.
 - **`pr.yml`'s existing workaround still works and is retained.** The `reset --soft` +
   `unset GITHUB_BASE_REF` path drives the working-tree fallback, which is unchanged. It is now
   redundant in principle, but this ADR does not authorize removing it: any removal must
-  demonstrate the gates can still be made red without it, per ADR-092 criterion 2.
+  demonstrate the gates can still be made red without it, per ADR-095 criterion 2.
 - **A consequence for reading local runs.** With `GITHUB_BASE_REF` unset and no `base_ref`
   argument, the query answers "what is in the working tree versus `HEAD`". After a commit that
   is legitimately empty, and gates scoped by it legitimately see nothing — the same reason

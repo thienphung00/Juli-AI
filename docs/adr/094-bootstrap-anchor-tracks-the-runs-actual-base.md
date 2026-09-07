@@ -4,7 +4,7 @@
 
 ## Context
 
-ADR-092 (#1540) replaced `pinBranch: HEAD` with `pinBranch: merge-base:origin/main` — the fork
+ADR-095 (#1540) replaced `pinBranch: HEAD` with `pinBranch: merge-base:origin/main` — the fork
 point between a branch and `main`, resolved fresh at check time. That closed the defect where
 the anchor tracked the branch's own tip. It introduced a narrower one: `origin/main` is a
 **hardcoded** base ref, and `classify-tier` in `pr.yml` sets CI tier `issue` exactly when
@@ -91,7 +91,7 @@ would keep scoring the *old* spec forever, silently. `_bootstrap_anchor_spec()` 
 `workflow_prompt_cache.bootstrap.pinBranch` from the shipped config directly; the template's
 `bootstrapRef.branch` literal was updated to `merge-base:origin/BASE_REF` to match.
 
-## ADR-092's lock-6 exhibit, applied
+## ADR-095's lock-6 exhibit, applied
 
 Lock 6 forbids clearing a red by moving what a gate is measured against. Criterion 2 requires
 a demonstrated FAIL under the *new* configuration, not an assertion that one is possible.
@@ -103,7 +103,7 @@ change is not drift (`test_base_ref_token_anchor_does_not_misreport_the_landed_w
 the AC from the #1608 escalation, proven directly). Then the issue branch itself edits a
 skill file on top of that anchor, and the gate still fails, naming the file. A fix that only
 suppressed the false positive without preserving this would have converted an
-occasionally-wrong gate into an always-green one — strictly worse, per ADR-092's own framing.
+occasionally-wrong gate into an always-green one — strictly worse, per ADR-095's own framing.
 `test_hardcoded_main_anchor_misreports_a_landed_wave_change_as_drift`, in the same fixture,
 reproduces the original bug for contrast (`merge-base:origin/main`, no `BASE_REF` set, drift
 reported on the wave's own commit).
@@ -149,7 +149,7 @@ because the substitution is opt-in by construction — a config that names an ex
 never invokes this path at all — and because failing closed here would break every local
 invocation of a gate that has run this way, uneventfully, since before this ADR. The
 degradation is recorded in `details["anchorDegradationReason"]`, never silent, matching the
-precedent ADR-092 already set for the shallow-checkout fallback.
+precedent ADR-095 already set for the shallow-checkout fallback.
 
 Git's own upstream-tracking ref was chosen over two alternatives considered for the local case.
 A candidate-enumeration approach (compute `git merge-base HEAD <c>` against every known
@@ -195,4 +195,4 @@ thing every issue branch in this repo does.
   correction, not a workflow change this ADR mandates elsewhere — the self-reference screen is
   what makes the mechanism safe in general, not developer discipline about push flags.
 - Not addressed here, and out of scope: `sourcePaths` narrowing as a lock-6 surface is tracked
-  separately (#1563, per ADR-092's own consequences section).
+  separately (#1563, per ADR-095's own consequences section).

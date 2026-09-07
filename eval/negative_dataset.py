@@ -115,7 +115,7 @@ class Resolution(Enum):
     here" into "this checks out", which is the vacuous pass this epic exists to
     end; collapsing ``UNREACHABLE`` into ``MISMATCH`` does the opposite and
     reports a defect that is not there. A query that cannot answer must not
-    return a value that means something else (ADR-093).
+    return a value that means something else (ADR-096).
     """
 
     RESOLVED = "resolved"
