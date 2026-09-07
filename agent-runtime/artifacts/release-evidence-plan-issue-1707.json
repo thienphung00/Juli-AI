@@ -1,0 +1,99 @@
+{
+  "planId": "v1-stop-reason-vocabulary-of-named-causes-2026-09-07",
+  "affectedPublicSurfaces": [
+    "STOP REASONS ON THE RUN LIST AND THE EVENT STREAM. `services/agent_runs/listing.py::RunListItem` exposes `stop_reason: str | None` on `GET /demo/runs`, and the `workflow.completed`/`workflow.failed` payloads carry it on the SSE stream at `GET /demo/runs/{run_id}/events`. Every value added here can appear on a seller's screen from the first run after cutover, so this is a vocabulary change on a live surface, not an internal enum.",
+    "THREE MIRRORS OF ONE VOCABULARY, all of which must move together: `services/agent/status.py::StopReason` (sixteen members today) plus its TOTAL `STOP_REASON_TO_STATUS` map; the Postgres CHECK `ck_workflow_runs_stop_reason`, whose sixteen-value IN-list is declared BOTH in `models.py::WorkflowRun.__table_args__` and in a migration; and `packages/contracts/src/agent-events.ts`'s `STOP_REASONS` const array backing `export type StopReason`, together with the twelve-member `WORKFLOW_FAILED_STOP_REASON_TO_STATUS` table that mirrors the failure-class subset.",
+    "CONTRADICTION 1 — `confirmation_expired` IS NOT NEW. The issue lists it among the causes to add, but `StopReason.CONFIRMATION_EXPIRED = \"confirmation_expired\"` already exists, is already in the CHECK, is already in the TypeScript array, and already maps to `WorkflowRunStatus.CANCELLED`. The issue's rule 'each maps to `completed` except the two vendor/expiry failures' would silently REMAP an existing reason from `cancelled` to `completed` — a semantic regression on live data that the totality test would happily accept. Leave its mapping exactly as it is and say so in the PR. `external_wait_expired` is likewise already added by #1706 and must not be re-declared. So the issue's twenty-one names are NINETEEN additions, which is what spec §8.1 P0-9's '~20 new causes' actually means.",
+    "CONTRADICTION 2 — 'the TS union equals the backend enum' IS ASSERTED BY NOTHING TODAY. `tests/unit/test_agent_events_contract.py` is the repo's dual-language test (it shells out to `node -e` and `require(\"typescript\")` against `packages/contracts`), but its mapping assertion is `test_workflow_failed_stop_reason_to_status_mapping_matches_python_for_all_twelve_members` — the twelve-member FAILURE subset only. Nothing anywhere compares the full sixteen-member `STOP_REASONS` to the Python `StopReason`. Worse, `packages/contracts/src/__tests__/agent-events.test.ts` asserts `expect(STOP_REASONS).toHaveLength(13)` against an array that already holds sixteen — that vitest assertion is RED today and `.github/workflows/pr.yml` never runs vitest for `packages/contracts`, which is why it has gone unnoticed. Acceptance criterion 1 therefore requires ADDING the full-union equality assertion (and fixing or deliberately deleting the stale length assertion), not extending one that exists.",
+    "THE TERMINAL TOOL'S SIGNATURE. `services/agent/tools/terminal.py` (behind `TERMINAL_TOOL_HANDLERS`) exposes `conclude_without_changes`, the one terminal tool named in `OPTIMIZE_PRODUCT_TERMINATION_POLICY.terminal_tools`. It gains a `cause` argument constrained to this vocabulary; an unknown cause is refused. Because the tool's `input_model` is part of the composed prompt's tool block, a shape change here is visible to the playbook-consistency gate — expect it to fire and treat that as the gate working.",
+    "SELLER COPY, in Vietnamese, for every cause. Each new cause needs a completion line through the existing outbound banned-pattern guard (`packages/contracts/seller-copy-banned-patterns.json`, `tests/unit/test_agent_banned_patterns_contract.py`, `tests/unit/test_agent_prompt_copy_governance_gate.py`): second person, no English, no internal identifiers, no projected impact magnitudes, no causal claims (S-NFR-4).",
+    "The `String(32)` ceiling on `workflow_runs.stop_reason` binds every name. The longest proposed is `not_received_by_needed_date` (27); `expired_stock_remaining` (23) and `vendor_partial_failure` (22) also fit. Assert the ceiling in the test rather than trusting the count."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the worktree root with PYTHONPATH pinned to the worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite. The CHECK constraint IS the assertion: SQLite ignores it and would let a forbidden `stop_reason` insert silently, proving the opposite of the claim. The dual-language half additionally needs the node toolchain and `packages/contracts`' dependency graph installed, or `tests/unit/test_agent_events_contract.py` fails with a bare CalledProcessError instead of skipping. The terminal tool is driven through the REAL registry and the REAL runner, so the cause lands on the row through the code path a seller's run actually takes. Post-deploy: `alembic upgrade head` on the candidate, one operator-triggered sandbox run ended through the terminal tool, read back; no public traffic reaches a candidate task set and no production write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the terminal tool executes inside the Celery worker as part of a run; a candidate with workers disabled can apply the CHECK but never produce a run that carries a new cause. apiSideEffectsInScope is FALSE: the run ends through the terminal tool without a vendor write, and no production write occurs.",
+    "journeys": [
+      {
+        "name": "every-end-state-has-a-named-cause-that-maps-and-mirrors",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1707",
+        "assertions": [
+          "pre-merge: the totality test passes in BOTH directions — every member of `StopReason` has an entry in `STOP_REASON_TO_STATUS`, and every `WorkflowRunStatus` outside `NON_TERMINAL_STATUSES` is targeted by at least one reason — with the nineteen genuinely new causes included (tests/unit/test_workflow_run_status_mapping.py::test_every_stop_reason_maps_and_ts_union_matches)",
+          "pre-merge: the FULL TypeScript `STOP_REASONS` array equals the Python `StopReason` enum, member for member, asserted through the dual-language node introspection in `tests/unit/test_agent_events_contract.py` — a NEW assertion, since only the twelve-member failure subset is compared today; proven to fail when either side is edited alone",
+          "pre-merge: `packages/contracts/src/__tests__/agent-events.test.ts`'s stale `expect(STOP_REASONS).toHaveLength(13)` is corrected to the true count (or replaced by the dual-language equality) and the PR states which, since that assertion is red against today's sixteen-member array and vitest is not run for this package in pr.yml",
+          "pre-merge: `confirmation_expired` KEEPS its existing mapping to `cancelled` and `external_wait_expired` keeps the mapping #1706 gave it — asserted explicitly, so the issue's 'each maps to completed' rule cannot silently remap two pre-existing reasons",
+          "pre-merge: every name is ≤ 32 characters, asserted programmatically over the enum against `workflow_runs.stop_reason`'s `String(32)`, and every name inserts successfully against the REAL widened `ck_workflow_runs_stop_reason` while an unlisted name is REJECTED by Postgres",
+          "pre-merge: the terminal tool called with `cause = goal_met` ends the run with that `stop_reason` and `status = 'completed'`, read back off the `workflow_runs` row after a REAL run; an unknown cause is refused at the tool boundary before any state is written (tests/unit/test_terminal_tool_causes.py::test_named_cause_lands_on_the_run_and_unknown_cause_is_refused)",
+          "pre-merge: EVERY cause has a Vietnamese completion line that passes the banned-pattern guard — asserted by iterating the enum, so a cause added later without copy fails the suite instead of reaching a seller as a bare identifier (tests/unit/test_terminal_tool_causes.py::test_every_cause_has_seller_copy)",
+          "pre-merge: ZERO behaviour change for `optimize_product_2`'s existing end states — the recorded run golden `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` passes untouched, and `tests/unit/test_agent_events_contract.py`'s eight-event-type, payload-field-set and golden-fixture round-trip assertions are unchanged",
+          "pre-merge: `alembic upgrade head`, then `downgrade -1`, then `upgrade head` round-trips cleanly on a real Postgres 16 already at the current tip, and the previous release reads and writes `workflow_runs` unchanged with the widened CHECK present",
+          "post-deploy: `alembic upgrade head` on the candidate applies the CHECK widening, `/health` and one authenticated `GET /demo/runs` read return byte-identical shape to before, and ONE sandbox run ended through the terminal tool shows its named cause on the run row and on the SSE stream — observed on the stream, not inferred from a log line"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page or bundle changes. `packages/contracts/src/agent-events.ts` IS touched — the `STOP_REASONS` array and the failure-mapping table — but it is a TypeScript source module consumed by the dual-language contract test, not a served static asset; nothing under apps/ or ios/ is touched. Verify the contracts package still type-checks (`tsc --noEmit`)."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "alembic-history",
+      "postgres-catalog-dump",
+      "typescript-contract-report",
+      "seller-copy-report"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "ONE ADDITIVE, EXPAND-ONLY migration that WIDENS `ck_workflow_runs_stop_reason` and drops nothing. A widened IN-list accepts every value it accepted before, so the previous release keeps writing and reading `workflow_runs` unchanged — it simply never emits the new causes. No column is added, dropped, renamed or retyped; no backfill, no NOT NULL, and `workflow_runs.stop_reason` stays `String(32)` (assert the longest new name, `not_received_by_needed_date` at 27 characters, against that width rather than counting by eye). The same constraint text also lives in `models.py::WorkflowRun.__table_args__` and must move in the SAME commit or the schema-parity test finds the drift after the fact. Two names in the issue's list are NOT additions and must not be re-declared: `confirmation_expired` already exists and maps to `cancelled`; `external_wait_expired` was added by #1706. The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. The vocabulary stays at sixteen reasons, none of the causes ADR-090–093 name exist, and a run that ends for a workflow-specific reason keeps borrowing `final_response` or `concluded_without_changes` — indistinguishable end states, which is the pre-existing defect. Nothing is exposed, nothing is partially applied, no data hazard.",
+    "postCutoverFailureBehavior": "Redeploy the previous release FIRST and restart juli-api and juli-celery-worker: the previous code neither writes nor recognises the new causes, so it runs correctly against the widened CHECK and needs no downgrade — a historical row carrying `goal_met` is simply a string it does not enumerate, and `RunListItem.stop_reason` is a plain `str | None` on the way out. Only if the schema must ALSO be reverted, `alembic downgrade -1` narrows the CHECK back, and that downgrade MUST FAIL LOUDLY with an explicit named error, never silently delete or coerce a row, when ANY `workflow_runs` row carries one of the new causes — and, when #1706's or #1701's schema is being reverted in the same operation, when any row sits in `waiting_external` or carries a non-product `subject_type` or a NULL `product_id`. Both refusals are asserted pre-merge. Order: previous code first, downgrade second, so no live process is mid-write against a constraint being narrowed. The honest caveat to state in the PR: a client with an exhaustive switch over the TypeScript union that has already shipped will meet an unknown cause after a partial rollback — the seller copy must degrade to a neutral Vietnamese completion line, never to a blank or to the raw identifier.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_workflow_run_status_mapping.py tests/unit/test_terminal_tool_causes.py -q",
+    "pnpm install --frozen-lockfile --filter \"./packages/contracts...\"   # required or the dual-language contract test fails with CalledProcessError, not a skip",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_events_contract.py -q",
+    "pnpm --filter @juli/contracts type-check && pnpm --filter @juli/contracts test",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_banned_patterns_contract.py tests/unit/test_agent_prompt_copy_governance_gate.py tests/unit/test_agent_prompt_playbook_consistency_gate.py tests/unit/test_agent_runs_list.py tests/integration/test_schema_parity.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake. This slice DOES carry a migration, so the reservation is binding, not advisory.",
+    "Do NOT remap an existing reason. `confirmation_expired` already maps to `cancelled` and `external_wait_expired` was mapped by #1706. The issue's 'each maps to completed except the two vendor/expiry failures' applies to the NINETEEN genuinely new causes only; applying it literally would silently change the meaning of live historical rows.",
+    "Do NOT claim the TypeScript union is already asserted equal to the backend enum. It is not: `tests/unit/test_agent_events_contract.py` compares only the twelve-member failure subset, and the vitest `toHaveLength(13)` assertion is stale against a sixteen-member array in a suite pr.yml never runs. Add the full-union equality assertion and fix or deliberately remove the stale one.",
+    "Do NOT exceed `String(32)`. Assert every name's length programmatically against the column width; do not count characters by eye and do not widen the column to fit a name — rename the cause instead.",
+    "Do NOT add a cause with no seller copy, and do NOT write that copy in English. Every line goes through the existing outbound banned-pattern guard, in Vietnamese, second person, with no internal identifiers, no projected impact magnitudes and no causal claims (S-NFR-4).",
+    "Do NOT add a cause the ADRs do not name. This vocabulary comes from ADR-090–093 and spec §8.1 P0-9; a convenience cause invented at the call site is a fifth mirror nobody will maintain.",
+    "Do NOT split the pinned places. Enum, `STOP_REASON_TO_STATUS`, the model CheckConstraint, the migration, the TypeScript array and the failure-mapping table move in ONE commit.",
+    "Do NOT add a second reaper policy object and do NOT touch `workers/tasks/reaper.py`'s timers. Which cause the reaper assigns is #1706's; which causes EXIST is this slice's.",
+    "ZERO behaviour change for `optimize_product_2`: the recorded run golden `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` and the prompt golden `tests/fixtures/agent_prompt_gates/optimize_product_v3_composed.golden.md` pass untouched. If the playbook-consistency gate fires because the terminal tool's input model changed, that is the gate working — update the gate's expectation deliberately and say so; do not regenerate a golden to silence it.",
+    "Do NOT derive the subject from revenue, do NOT emit a per-order card, and do NOT reuse the emission-budget suppression vocabulary (`active_cap`/`cooldown`/`weekly_novelty_cap`) — a suppression reason and a stop reason are different vocabularies for different objects and must never be merged.",
+    "Do NOT add a push, email or Zalo transport. A named end state notifies nobody in this slice; the in-app act record is #1712/#1713.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); beyond `packages/contracts/src/agent-events.ts` and its own test, do NOT touch apps/**, packages/** or ios/**.",
+    "Bind every test collaborator to the REAL object's signature — the real terminal tool through the real registry, the real runner, the real Postgres CHECK. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

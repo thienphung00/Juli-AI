@@ -1,0 +1,92 @@
+{
+  "planId": "shared-prompt-sections-per-workflow-bindings-and-parametrised-gates-2026-09-07",
+  "affectedPublicSurfaces": [
+    "THE PRODUCTION PROMPT VERSION PIN — the one genuinely seller-visible effect in this slice. `prompts/composer.py` holds `PRODUCTION_PROMPT_VERSION: dict[str, int] = {OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key: 3}`, so every run created today is pinned to v3 by `approval.py::_resolve_prompt_pin` → `prompts.production_version(workflow_key)` → `prompt_version(...)`/`prompt_sha256(...)`, stamped onto `workflow_runs.prompt_version`/`prompt_sha256`. Extracting shared sections CHANGES the composed bytes, so a new version file `prompts/optimize_product/v4.md` is added and the pin moves 3 → 4. From the deploy forward, every new run executes different prompt bytes; that is a change to what the model is told, and it reaches a real seller on the first run after cutover.",
+    "The prompt COMPOSITION structure: `prompts/` holds only `composer.py` and `optimize_product/{v1,v2,v3}.md` today, and `_WORKFLOW_BINDINGS` (a `dict[str, _WorkflowPromptBinding]`) has exactly ONE entry, keyed on `OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key`. This slice moves the workflow-invariant sections (role, mandate, source-role rules, prohibitions) into shared section files composed into every workflow prompt, and makes the binding a registry entry per workflow supplied by #1702's playbook registry.",
+    "THE THREE PINNED GATE TESTS, and the count matters: `PLAN.md` says two, the code has THREE, all importing `WORKFLOW_KEY` from `playbooks/optimize_product.py` — `tests/unit/test_agent_prompt_snapshot_gate.py` (byte-for-byte against `tests/fixtures/agent_prompt_gates/optimize_product_v{1,2,3}_composed.golden.md`), `tests/unit/test_agent_prompt_budget_gate.py` (a ceiling PLUS an exact recorded proxy-token measurement near the top of the file), and `tests/unit/test_agent_prompt_playbook_consistency_gate.py` (`test_the_real_registry_and_the_one_real_playbook_agree_on_six_tools`). All three become parametrised over every registered workflow, each with its own golden and its own ceiling. The budget gate's exact recorded measurement WILL move when shared sections are extracted — re-record it deliberately in the PR and say what it moved from and to; do not quietly loosen the ceiling instead.",
+    "There are also FOUR further prompt tests the issue does not name and that must be kept honest: `tests/unit/test_agent_prompt_optimize_product_v1_contract.py`, `..._v2_contract.py`, `..._v3_contract.py` and `tests/unit/test_agent_prompt_copy_governance_gate.py` (plus `test_agent_prompt_no_tool_fences_in_worked_example.py`). A v4 needs its own contract test alongside the v1–v3 ones; the released v1/v2/v3 files and their goldens are IMMUTABLE (ADR-072 decision 4) and must not be edited to absorb the shared sections.",
+    "NO HTTP surface, NO schema change, NO new route or response field. `workflow_runs.prompt_version`/`prompt_sha256` are existing columns; only the VALUE written into them changes."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the worktree root with PYTHONPATH pinned to the worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite; the pin is stamped inside the approve transaction and read back on resume, and the resume path's fail-closed `prompt_version_unrecoverable` behaviour is asserted against real rows. Composition is exercised through the REAL `compose(...)` and the REAL registry, and the test-only second workflow is registered through #1702's real registry — a hand-written composed string proves nothing about the composer. Post-deploy: ONE operator-triggered run on the candidate against the sandbox shop, whose `workflow_runs.prompt_version` is read back and asserted to be the new pin; no public traffic reaches a candidate task set and no production write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the run that proves the new pin executes inside the Celery worker; with workers disabled the candidate can stamp a pin but never execute against it, which is the half that matters. apiSideEffectsInScope is FALSE: the run stops at the CONFIRM pause, no vendor write occurs, and no production write occurs — the 2026-08-21 owner decision holds.",
+    "journeys": [
+      {
+        "name": "one-rule-one-file-composed-into-every-workflow-with-gates-per-workflow",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1705",
+        "assertions": [
+          "pre-merge: editing a behaviour rule in a SHARED section file changes EVERY registered workflow's composed prompt, and NO workflow-specific prompt file contains that rule's text — asserted by searching the composed output of every registered key for the edited text AND by searching the per-workflow source files for its absence, so 'shared' means one source, not one copy per file (tests/unit/test_agent_prompt_shared_sections.py::test_shared_rule_appears_once_and_composes_into_every_workflow)",
+          "pre-merge: the snapshot, budget and playbook-consistency gates each execute ONCE PER REGISTERED WORKFLOW KEY, each against its own golden and its own ceiling — asserted by parametrisation over the live registry, so registering a workflow without a golden FAILS the suite rather than silently skipping it (tests/unit/test_agent_prompt_snapshot_gate.py parametrised, tests/unit/test_agent_prompt_budget_gate.py, tests/unit/test_agent_prompt_playbook_consistency_gate.py)",
+          "pre-merge: a TEST-ONLY workflow registered with a two-line prompt composes to a string containing the shared sections AND its own playbook block, and passes all three gates — the extension point proven by using it, not by inspecting it (tests/unit/test_agent_prompt_shared_sections.py::test_second_workflow_composes_and_passes_gates)",
+          "pre-merge: `prompts/optimize_product/v1.md`, `v2.md` and `v3.md` and their committed goldens `tests/fixtures/agent_prompt_gates/optimize_product_v{1,2,3}_composed.golden.md` are BYTE-IDENTICAL to their pre-change content — asserted against the diff; released versions are immutable under ADR-072 decision 4 and a shared-section extraction must add v4, never edit a released file",
+          "pre-merge: `compose(WORKFLOW_KEY, 4)` matches a NEW committed golden `optimize_product_v4_composed.golden.md`, regenerated once through the file's own deterministic regeneration helper and reviewed in the PR — never hand-edited; the snapshot gate's own 'the golden is not hand-edited' assertion covers v4 as it covers v1",
+          "pre-merge: the budget gate's exact recorded proxy-token measurement for `optimize_product_2` is RE-RECORDED to its new value and the PR states the before and after numbers; the ceiling itself is not raised to hide a growth, and the composed v4 is asserted to be at or below the named ceiling",
+          "pre-merge: `PRODUCTION_PROMPT_VERSION` moves to 4 for `optimize_product_2` and a NEW run created through the real `approve_action_card` stamps `workflow_runs.prompt_version`/`prompt_sha256` for v4 — read back off the row, not off the composer",
+          "pre-merge: a run SUSPENDED at CONFIRM with v3 pinned RESUMES on v3, not on v4 — the pin is per run, and the pin is what consent was bound to; asserted end to end through the real resume path, and a row whose pin is missing or unparseable still fails closed with `prompt_version_unrecoverable` rather than silently composing the new version",
+          "pre-merge: the per-version contract tests still pass, a v4 contract test exists alongside `tests/unit/test_agent_prompt_optimize_product_v{1,2,3}_contract.py`, and `tests/unit/test_agent_prompt_copy_governance_gate.py` passes for the composed v4 — every seller-facing line still goes through the outbound banned-pattern guard, in Vietnamese, with no internal identifiers",
+          "post-deploy: `/health` on the candidate is unchanged, and ONE run started by approving a real sandbox card on the candidate records `prompt_version` = the v4 pin and completes — read back by direct query against `workflow_runs`, and the run's SSE stream observed rather than inferred from a log line"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is `services/agent/prompts/composer.py`, new shared section files and `prompts/optimize_product/v4.md` under backend/src, the three gate tests and one new golden fixture under tests/fixtures/agent_prompt_gates/. Nothing under apps/, packages/ or ios/ is touched; those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "prompt-golden-diff",
+      "token-budget-measurement"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE IN THIS SLICE. `workflow_runs.prompt_version` (String(255)) and `prompt_sha256` (String(64)) already exist and already hold a per-run pin; only the value written into them changes. Do not open a migration file. Old and new code coexist because the pin is per row: a stable process reading a row pinned to v4 resolves v4 only if the v4 file is on ITS disk, which is the one real coexistence hazard and the reason the rollback ordering below is not optional. State it in the PR."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. `prompts/` keeps one workflow's version files, `_WORKFLOW_BINDINGS` keeps its single entry, the three gate tests stay pinned to `optimize_product_2`, the production pin stays 3 and every run keeps executing exactly the v3 bytes it executes today. Nothing is exposed, nothing is partially applied, and no seller sees a change.",
+    "postCutoverFailureBehavior": "Code-only rollback: redeploy the previous release and restart juli-api and juli-celery-worker. There is NO schema to revert and NO downgrade to run — this slice owns no migration. The previous release restores the v3 pin for NEW runs, and v1/v2/v3 are untouched on disk and immutable (ADR-072 decision 4), so historical runs stay resolvable. THE ONE REAL HAZARD, which must be stated in the PR and asserted pre-merge: a run created on the candidate and pinned to v4, still suspended at CONFIRM when the rollback lands, will try to resume on a release whose disk has no `v4.md` — and will fail CLOSED with `prompt_version_unrecoverable` rather than silently executing v3, because consent was bound to v4's bytes. That is the correct behaviour and must be proven, not discovered. Rollback ordering therefore matters: drain or let expire the runs pinned to v4 before redeploying, or accept the named fail-closed and say so.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_prompt_shared_sections.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_prompt_snapshot_gate.py tests/unit/test_agent_prompt_budget_gate.py tests/unit/test_agent_prompt_playbook_consistency_gate.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_prompt_copy_governance_gate.py tests/unit/test_agent_prompt_no_tool_fences_in_worked_example.py tests/unit -q -k 'agent_prompt_optimize_product and contract'",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_golden_scenario_capture_from_real_runner.py tests/unit/test_agent_approval_transaction.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT read a migration number from head — do NOT write a migration at all. This slice has no schema change. The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake.",
+    "NEVER edit a released prompt version in place. `prompts/optimize_product/v1.md`, `v2.md` and `v3.md` and their committed goldens are immutable under ADR-072 decision 4 — runs are pinned to them by `workflow_runs.prompt_version`/`prompt_sha256` and their consent was bound to those exact bytes. The shared-section extraction adds `v4.md`; it does not refactor v3.",
+    "Do NOT loosen the budget gate's ceiling to absorb the new composed size. The exact recorded proxy-token measurement near the top of `tests/unit/test_agent_prompt_budget_gate.py` moves — re-record it deliberately, state the before and after in the PR, and keep the ceiling where it is. A raised ceiling hides the growth this gate exists to surface.",
+    "Do NOT hand-edit a golden. Regenerate `optimize_product_v4_composed.golden.md` through the snapshot gate's own deterministic regeneration helper and review the diff; the gate asserts the committed golden equals the regeneration byte for byte, so a hand-edit fails, loudly, in the right place.",
+    "Do NOT delete or skip a gate to make parametrisation land. All THREE gates stay (the count in PLAN.md says two — the code has three: snapshot, budget, playbook-consistency), and a registered workflow with no golden must FAIL, never silently skip.",
+    "Do NOT change what the pin means. `_resolve_prompt_pin` in `approval.py` already resolves per `workflow_key`; the resume path already fails closed with `prompt_version_unrecoverable` when a stored version is missing or unparseable (issue #1359, ADR-072 d.4, ADR-075 d.2). Neither behaviour may be softened to make a rollback smoother.",
+    "ZERO behaviour change for `optimize_product_2` OTHER than the deliberate version bump. The recorded run golden `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` must still pass; note that `tests/unit/test_golden_scenario_capture_from_real_runner.py::test_the_captured_scenario_carries_the_current_production_prompt` binds that scenario to the production pin, so re-capturing it is part of the version bump and must be reviewed as such — not silently regenerated to make a red test green.",
+    "Do NOT put a workflow-specific rule into a shared section, and do NOT leave a shared rule duplicated in a workflow file. The whole point is one rule, one file; a rule that exists in both places is the defect this slice removes.",
+    "Do NOT touch the tool dispatcher (#1704), the approve path or the reaper (#1702), or `services/action_cards/**` (#1703). Do NOT emit a per-order card and do NOT reuse the emission-budget suppression vocabulary (`active_cap`/`cooldown`/`weekly_novelty_cap`) anywhere in this diff.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature — the real `compose`, the real registry, the real `approve_action_card`, the real resume path. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

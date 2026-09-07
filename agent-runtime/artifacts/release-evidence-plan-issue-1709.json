@@ -1,0 +1,98 @@
+{
+  "planId": "seller-supplied-inputs-and-the-report-kind-confirmation-2026-09-07",
+  "affectedPublicSurfaces": [
+    "THE APPROVE REQUEST BODY. `api/routes/demo_execution.py::approve_demo_decision` (`POST /v1/demo/decisions/{action_card_id}/approve`) today takes NO request body at all — its signature is `(action_card_id, shop=Depends(...), user=Depends(...), session=Depends(...))`. It gains an OPTIONAL typed body: a small map of seller inputs, VALIDATED PER WORKFLOW against what that workflow declares. Backward compatible by construction — an absent body and an empty body must both behave exactly as today, which is the post-deploy assertion. An undeclared key is REFUSED, not ignored; silently dropping a value the seller typed is the failure mode this slice exists to prevent.",
+    "THE CONFIRMATION DECIDE BODY. `api/routes/agent_runs.py::submit_confirmation_decision` (`POST /v1/demo/runs/{run_id}/confirmations/{tool_call_id}`) today accepts `ConfirmationDecisionRequest {decision, option_id}`. For the new `report` kind it gains a `values` map. The single-option shape (N = 1, S-FR-3) is UNCHANGED for every tool that exists today, asserted against a golden.",
+    "`run_confirmations` GAINS A `kind` COLUMN — and the executor must know what is and is not there today. `models.py::RunConfirmation` (migration 039) has exactly `id`, `workflow_run_id`, `tool_call_id`, `options` (JSON), `status`, `selected_option_id`, `created_at`, `decided_at`, `expires_at`. There is NO `kind` column, and — important — THERE IS NO `params_sha` COLUMN EITHER: the hash lives inside each `options[]` entry in the JSON blob. Do not go looking for a column to change; the hash's home is the option entry.",
+    "THE DIRECTION OF THE CONSENT HASH INVERTS, and this is the substance of the slice. `services/agent_runs/confirmations.py` computes `expected_params_sha = compute_params_sha(pending_state[\"arguments\"])` — the MODEL's own stored tool-call arguments — and rejects a mismatch with `ERROR_PARAMS_SHA_MISMATCH` (`compute_params_sha` itself lives in `services/agent/runner/confirmation.py`: a SHA-256 hex digest over the canonicalised params). For a `report` kind the hash must instead cover THE SELLER-SUPPLIED VALUES AT DECIDE TIME, because those values do not exist when the run creates the confirmation. Today NO path exists where params are seller-supplied — the only seller-supplied value anywhere in a run is `pending_image_bytes`, a staged FILE in run context. This inversion touches ADR-075's consent binding and must be built as a NEW kind beside the existing one, never by loosening the existing check.",
+    "RUN STATE AND THE APPROVAL AUDIT. Seller inputs live in run state (the `state` JSON on `workflow_runs`) and are included in the card-snapshot audit that `approval.py` captures BEFORE it flips `card.status` to 'approved' — so the audit records what was shown AND what the seller typed. `action_card_approvals` is already tenant-scoped under RLS; the snapshot's shape widens, its tenancy does not.",
+    "NOT IN SCOPE, though the wire allows it: the FORM UI. W9-D builds it. This slice makes the values expressible and binding; nothing renders them."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the worktree root with PYTHONPATH pinned to the worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite. The decide path is a transaction that must be single-use under concurrency, the confirmation's 4 h expiry and `decided_at` are row state, and the JSON round-trip of `options[]` (where the hash lives) is Postgres behaviour. The approve route and the decide route are exercised through the REAL FastAPI app with real dependency overrides, and the executed tool is the REAL tool through the REAL registry — a hand-called handler proves the hash function, not the binding. Post-deploy: approve with an EMPTY body on the candidate against the sandbox shop and confirm nothing changed; no public traffic reaches a candidate task set and no production write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the decide path enqueues `resume_agent_workflow` and the executed tool runs in the Celery worker; with workers disabled the candidate can record a decision but never prove the executed tool received the seller's number, which is the whole claim. apiSideEffectsInScope is FALSE: the report tool used in the journey is a test-only tool, no vendor write occurs and no production write occurs — the 2026-08-21 owner decision holds.",
+    "journeys": [
+      {
+        "name": "the-number-the-seller-typed-is-the-number-that-executes",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1709",
+        "assertions": [
+          "pre-merge: a workflow declaring a `stock_goal` seller input, approved with a body carrying it, stores that value in RUN STATE and includes it in the approval audit snapshot — read back off the `workflow_runs.state` row and off the stored snapshot, not off the request; and a body carrying an UNDECLARED key is REFUSED with a named error and creates no run (tests/unit/test_seller_inputs_and_reports.py::test_declared_seller_input_is_stored_and_audited)",
+          "pre-merge: approve with NO body and approve with an EMPTY body both behave exactly as today — same run created, same response shape, same 404/409 ladder; asserted against the existing approve suite passing untouched, because backward compatibility is the property that lets this ship at all",
+          "pre-merge: a `report` confirmation declaring `accepted_quantity`, decided by the seller with the value 40, causes the EXECUTED TOOL to receive exactly 40 — asserted on the arguments the real tool handler actually received, never on the request body or on the stored option; and the hash STORED equals `compute_params_sha` over the SELLER-SUPPLIED values, not over the model's `pending_state[\"arguments\"]` (tests/unit/test_seller_inputs_and_reports.py::test_report_hash_binds_seller_values_and_edit_is_a_new_report)",
+          "pre-merge: a decide whose values DIFFER from the displayed write produces a NEW REPORT ROW, not a mutation of the decided one — asserted by re-reading the first row and finding it unchanged and still `decided`, and by finding a second row; a corrected value must never rewrite consent that was already given",
+          "pre-merge: a decided report CANNOT be re-decided — a second decide on the same `(run_id, tool_call_id)` is refused with a named error, asserted under CONCURRENCY (two simultaneous decides yield exactly one execution), because single-use is a transaction property, not a status check",
+          "pre-merge: an EXISTING single-option confirmation decided the way it is decided today is BYTE-IDENTICAL in behaviour — the recorded run golden `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` passes untouched through `tests/unit/test_golden_scenario_capture_from_real_runner.py`, which is exactly a confirm-pause scenario with two continuations (tests/unit/test_seller_inputs_and_reports.py::test_single_option_confirmation_unchanged)",
+          "pre-merge: the existing `ERROR_PARAMS_SHA_MISMATCH` path is UNTOUCHED for non-report kinds — a tampered option on a normal confirmation still fails closed and still produces `confirmation_diverged` from `runner/core.py::resume`'s consent check, the only sanctioned producer of that reason",
+          "pre-merge: the confirmation's 4 h expiry (S-NFR-2) applies to a `report` kind exactly as to any other, and an expired report cannot be decided; the approvals rate limit (5/h burst 2 per shop) still applies to approve with a body",
+          "pre-merge: `alembic upgrade head`, then `downgrade -1`, then `upgrade head` round-trips cleanly on a real Postgres 16 already at the current tip, and the previous release creates and decides confirmations unchanged with the `kind` column present",
+          "post-deploy: `alembic upgrade head` on the candidate, then `/health` unchanged and approving a real sandbox card WITH AN EMPTY BODY through the candidate succeeds and returns the response shape it returned before the deploy — the backward-compatible half proven on the deployed host, not asserted in prose"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is `api/routes/demo_execution.py`, `api/routes/agent_runs.py`, `services/agent/approval.py`, `services/agent_runs/confirmations.py`, one additive Alembic migration and tests. The seller-facing FORM is explicitly W9-D; nothing under apps/, packages/ or ios/ is touched."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "alembic-history",
+      "postgres-row-dump",
+      "openapi-schema-diff"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "ONE ADDITIVE, EXPAND-ONLY migration adding a NULLABLE `kind` column to `run_confirmations` (migration 039's table). No column is dropped, renamed or retyped; no backfill; no NOT NULL. Existing rows keep NULL, which must READ as the pre-existing single-option kind — decide that default explicitly in code, because a NULL that silently becomes 'report' would let the seller-value hashing path run over a model-argument confirmation. Note what is NOT being added: `params_sha` is NOT and does not become a column — it lives inside each `options[]` entry in the existing JSON blob, and this slice keeps it there. Old and new code coexist: the previous release neither writes nor reads `kind`, and every confirmation it creates is the single-option shape it already understands. The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Approve keeps taking no body, the params hash keeps covering only the model's stored tool arguments, no confirmation kind exists where the seller supplies the values, and Clear Excess's stock goal and Replenish's received report stay unexpressible. That is the pre-existing state; nothing is exposed and nothing is partially applied.",
+    "postCutoverFailureBehavior": "Redeploy the previous release FIRST and restart juli-api and juli-celery-worker: the previous code neither reads nor writes `kind` and rejects an unexpected request body the way FastAPI already rejects one, so it runs correctly with the column present and needs NO downgrade. Stored seller inputs are INERT to it — a `state` blob key it never reads. THE ONE REAL HAZARD, to state in the PR and assert pre-merge: a `report` confirmation created on the candidate and still PENDING when the rollback lands cannot be decided by the previous release, because its hash covers values the previous decide path never collects. It must fail CLOSED with the existing named error and expire on its own 4 h timer — never execute with the model's arguments substituted, which would be an unconsented write. Only if the schema must also be reverted, `alembic downgrade -1` drops `kind`, and that downgrade MUST FAIL LOUDLY when any `run_confirmations` row carries a non-default `kind` in a non-terminal status (and, when #1701's or #1706's schema is being reverted in the same operation, on any non-product `subject_type`, NULL `product_id`, or `waiting_external` row). Order: previous code first, downgrade second.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_seller_inputs_and_reports.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_approval_transaction.py tests/unit/test_golden_scenario_capture_from_real_runner.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'confirmation or approve or params_sha'",
+    "PYTHONPATH=backend/src python -m pytest tests/integration/test_schema_parity.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake. This slice DOES carry a migration (`run_confirmations.kind`), so the reservation is binding, not advisory.",
+    "Do NOT hash the model's arguments for a report confirmation. `compute_params_sha(pending_state[\"arguments\"])` is the EXISTING binding for the existing kind and must keep working exactly as it does. A `report` hashes THE SELLER-SUPPLIED VALUES AT DECIDE TIME — that inversion is the point of the slice. Hashing the model's arguments and calling it a report would bind consent to a number the seller never typed.",
+    "Do NOT loosen the existing consent check to accommodate the new kind. `ERROR_PARAMS_SHA_MISMATCH` and `confirmation_diverged` (produced only by `runner/core.py::resume`'s consent check) stay exactly as they are; the report kind is a NEW branch beside them, never a relaxation of them.",
+    "Do NOT look for a `params_sha` column — there isn't one, and do not add one. The hash lives inside each `options[]` entry in `run_confirmations.options`. Adding a column would create a second place for the same fact.",
+    "Do NOT let a NULL `kind` mean 'report'. Existing rows have NULL and are the pre-existing single-option kind; decide that default explicitly in code so a historical confirmation can never be routed through the seller-value path.",
+    "Do NOT mutate a decided report. A corrected value is a NEW report row; rewriting the decided one would rewrite consent that has already been given, and the audit would no longer show what the seller actually saw.",
+    "Do NOT allow a report to be decided twice. Single-use must hold under concurrency inside the transaction, not as a status read followed by a write.",
+    "Do NOT change the single-option shape (N = 1, S-FR-3) for any existing tool, and do NOT change the 4 h confirmation expiry or the 5/h burst-2 approval rate limit (S-NFR-2). ZERO behaviour change for `optimize_product_2` — the golden `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` is a confirm-pause scenario and must pass UNREGENERATED.",
+    "Do NOT build the form UI. W9-D renders it; this slice only makes the values expressible and binding. A route that returns render instructions is out of scope.",
+    "Do NOT silently ignore an undeclared key in the approve body. Refuse it. A dropped value the seller typed is exactly the class of defect this wave exists to eliminate.",
+    "Do NOT derive the subject from revenue, do NOT emit a per-order card, and do NOT reuse the emission-budget suppression vocabulary (`active_cap`/`cooldown`/`weekly_novelty_cap`) — none of it belongs on a consent path.",
+    "Do NOT add a second reaper policy object, and do NOT add a push, email or Zalo transport. A pending report notifies nobody in this slice; the in-app act record is #1712/#1713.",
+    "Do NOT gate anything on a checklist tick — checklist items exist in #1712/#1713 and never gate a stage in v1 (S-FR-12).",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature — the real routes through the real app, the real `compute_params_sha`, the real tool through the real registry. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

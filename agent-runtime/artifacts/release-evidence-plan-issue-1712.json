@@ -1,0 +1,93 @@
+{
+  "planId": "act-records-and-checklist-items-schema-only-2026-09-07",
+  "affectedPublicSurfaces": [
+    "NO PUBLIC SURFACE AT ALL — and that is the assertion, not a disclaimer. Two new tables land with NO reader and NO writer: `run_act_records` (run id, shop id, `kind` ∈ reminder | digest | automated_act | completion | exception, what, when, why, otherwise, undo hint, `state` ∈ pending | delivered | read | failed, `channel` = in_app) and `run_checklist_items` (run id, shop id, key, text, done, done_at, edited_by_seller, position). No route, no response model, no service, no task touches them. The deployed runtime must be BYTE-IDENTICAL in behaviour after the migration; if implementation finds itself editing a service or a route to make a test pass, the scope has slipped — exactly as with #1701.",
+    "THE TENANT-ISOLATION SURFACE, which is the real risk here. Both tables are tenant-scoped: they must be added to `database/tenant_scoped_tables.py`, carry the standard RLS policies alongside those in `045_rls_policies.py`, and be granted to the non-owner runtime role `juli_app` through the EXPLICIT PER-TABLE grant map introduced by `043_juli_app_role.py` (ADR-085, #1326) — never a schema-wide grant. A table that exists but is ungranted fails at runtime as a permission error; a table that is granted but has no policy is a cross-tenant leak. Both failure modes are silent until someone reads across a tenant.",
+    "CONTRADICTION WITH THE ISSUE BODY — the test it names does not exist. The issue says `tests/unit/test_rls_coverage.py (extended)`. THERE IS NO SUCH FILE. The real coverage test is `tests/unit/test_rls_policies_migration.py`, and its `test_migration_covers_all_tenant_scoped_tables` asserts against the MIGRATION SOURCE TEXT using literal table names (`tiktok_credentials`, `products`, `action_cards`, `workflow_runs`, `workflow_run_events`, `run_confirmations`, `impact_readings`, `action_card_approvals`) rather than iterating a shared constant. Extending it means adding two literals AND — better — making it iterate `database/tenant_scoped_tables.py` so the next table cannot be forgotten. State which was done in the PR.",
+    "RLS POLICIES GO THROUGH THE GUC HELPER, not a raw `current_setting`. Migration `050_rls_guc_helpers.py` exists precisely because a policy comparing a raw GUC breaks on the empty string; both new tables' policies must use the helper, and the ADR-086 behaviour — a read without tenant context returns ZERO ROWS and raises the NAMED APPLICATION ERROR — must be asserted for each of them.",
+    "NOT IN THIS SLICE, and each is its own issue: writing an act record at a notification point, listing them, ticking a checklist item, or any transport. Every one of those is #1713. A writer here would be a producer with no reviewed consumer, which is the inverse of the defect this wave exists to remove but just as unreviewable."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the worktree root with PYTHONPATH pinned to the worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — NEVER SQLite. Row-level security, role grants, GUC-backed session settings and an Alembic down-revision round trip have no SQLite equivalent at all, and an isolation test that does not actually enforce RLS asserts nothing. Every isolation assertion is made while CONNECTED AS THE RUNTIME ROLE `juli_app`, never as the table owner, and against the live `information_schema`/`pg_policies` catalog rather than against the migration's own source text — a test that reads the migration file is a test of the test. Post-deploy: `alembic upgrade head` on the candidate, then `/health` and one authenticated read, both unchanged; no public traffic reaches a candidate task set and no production write occurs.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is TRUE because nothing in this slice executes in a Celery worker: the diff is one Alembic migration, two model classes and tests. apiSideEffectsInScope is FALSE — no route, no vendor call, no production write, and no reader or writer of either table exists. The journey's entire point is proving a no-op for the running process.",
+    "journeys": [
+      {
+        "name": "two-tenant-scoped-tables-land-with-nothing-reading-them",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1712",
+        "assertions": [
+          "pre-merge: on a clean Postgres 16, `alembic upgrade head` creates BOTH tables with their full column sets, and `downgrade -1` then `upgrade head` round-trips cleanly — asserted against the live catalog, including the `kind`, `state` and `channel` constraints or enums, not against the migration source (tests/unit/test_migration_act_records_roundtrip.py::test_upgrade_downgrade_roundtrip)",
+          "pre-merge: both tables appear in `database/tenant_scoped_tables.py` AND the RLS coverage test covers them — note the issue names `tests/unit/test_rls_coverage.py`, which DOES NOT EXIST; the real test is `tests/unit/test_rls_policies_migration.py::test_migration_covers_all_tenant_scoped_tables`, which asserts literal table names against the migration text. Extend it, and prefer making it ITERATE the tenant-scoped table list so the next table cannot be forgotten",
+          "pre-merge: as the RUNTIME ROLE `juli_app` with NO tenant context, a read of either table returns ZERO ROWS and raises the NAMED application error (ADR-086) — asserted for each table separately, because one covered table and one uncovered table is exactly the silent half-fix this assertion exists to catch",
+          "pre-merge: as `juli_app` WITH tenant context for shop A, a row belonging to shop B is invisible on both tables — inserted as the owner, read as the runtime role, so the policy is what hides it and not the query (tests/unit/test_migration_act_records_roundtrip.py::test_tables_are_tenant_isolated)",
+          "pre-merge: both tables' policies use the GUC HELPER from `050_rls_guc_helpers.py` rather than a raw `current_setting`, asserted against `pg_policies`' expression text — a raw comparison breaks on the empty string, which is the defect that helper exists to prevent",
+          "pre-merge: `juli_app`'s grants for both tables come from the EXPLICIT PER-TABLE grant map established by `043_juli_app_role.py` (ADR-085) — asserted against `information_schema.role_table_grants` for exactly the privileges intended, and asserted that no schema-wide grant was issued",
+          "pre-merge: NOTHING READS OR WRITES either table. Asserted structurally across `backend/src`: zero references to `run_act_records`/`run_checklist_items` or their model classes outside `models/models.py`, the migration, `tenant_scoped_tables.py` and tests. A reader here is scope slip",
+          "pre-merge: the deployed runtime is unaffected — the existing suite passes untouched and `tests/integration/test_schema_parity.py` shows the model and migration agree, closing the drift gap that has bitten this repo before",
+          "post-deploy: `alembic upgrade head` on the candidate creates both tables, and the candidate's `/health` plus one authenticated read return EXACTLY what they returned before the upgrade — the migration is a no-op for the running process, which neither reads nor writes the new tables"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is one Alembic migration, two model classes in `backend/src/juli_backend/models/models.py`, an entry each in `database/tenant_scoped_tables.py`, and tests. Nothing under apps/, packages/ or ios/ is touched; those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "alembic-history",
+      "postgres-catalog-dump",
+      "rls-policy-dump"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "ONE ADDITIVE, EXPAND-ONLY migration CREATING TWO NEW TABLES and altering nothing that already exists. `run_act_records` and `run_checklist_items` are new: no existing column is added, dropped, renamed or retyped, no existing constraint moves, and there is no backfill. Creating a table is the safest possible expand step — the previous release does not know the tables exist and is completely unaffected by their presence, so old and new code coexist trivially. Both tables are tenant-scoped: add them to `database/tenant_scoped_tables.py`, give them the standard RLS policies routed through the GUC helper from `050_rls_guc_helpers.py`, and grant them to `juli_app` through the EXPLICIT PER-TABLE grant map from `043_juli_app_role.py` (ADR-085) — never a schema-wide grant. The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Neither table exists, no act is recorded anywhere, no checklist concept exists, and P0-8 and P0-13 stay blocked for Clear Excess, Process Order and Replenish. Nothing about the deployed system changes, nothing is exposed, nothing is partially applied, no data hazard.",
+    "postCutoverFailureBehavior": "Code-only rollback is sufficient and is the default: redeploy the previous release and restart juli-api and juli-celery-worker. The previous code does not know the tables exist, so it runs correctly with them present and NO downgrade is required. Only if the schema must also be reverted, `alembic downgrade -1` DROPS BOTH TABLES — which is safe here precisely BECAUSE this slice ships no writer: at the moment of rollback the tables are guaranteed empty, so nothing is lost. That guarantee expires the instant #1713 lands, and the downgrade must therefore FAIL LOUDLY with a named error, never silently drop, if EITHER table contains any row — an act record is the seller's evidence of what Juli did, and dropping it destroys the only copy. Assert that refusal pre-merge, while the tables are still empty and the assertion is cheap. If #1701's, #1706's, #1707's or #1709's schema is being reverted in the same operation, those downgrades must likewise refuse on any non-product `subject_type` row, NULL `product_id`, `waiting_external` row, new stop-reason cause, or non-default confirmation `kind`. Order: previous code first, downgrade second.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_migration_act_records_roundtrip.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_rls_policies_migration.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'rls or tenant_scope or grant'",
+    "PYTHONPATH=backend/src python -m pytest tests/integration/test_schema_parity.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake. This slice DOES carry a migration (two new tables), so the reservation is binding, not advisory.",
+    "Do NOT add a reader or a writer. No route, no service call, no Celery task, no repository method invoked from production code. Writing act records at notification points, listing them and ticking checklist items are ALL #1713. A writer here ships behaviour whose consumer has not been reviewed.",
+    "Do NOT cite `tests/unit/test_rls_coverage.py` — it does not exist. The real test is `tests/unit/test_rls_policies_migration.py::test_migration_covers_all_tenant_scoped_tables`, which asserts literal table names against the migration source. Extend that, and prefer making it iterate `database/tenant_scoped_tables.py` so the next table cannot be forgotten.",
+    "Do NOT issue a schema-wide grant. Grants go into the EXPLICIT PER-TABLE map established by `043_juli_app_role.py` (ADR-085, #1326). A schema-wide grant hands `juli_app` every future table by default, which is the opposite of least privilege.",
+    "Do NOT write an RLS policy against a raw `current_setting`. Route it through the GUC helper from `050_rls_guc_helpers.py`, which tolerates the empty string; a raw comparison is the exact defect that helper exists to prevent.",
+    "Do NOT assert isolation as the table owner. RLS only binds for the non-owner runtime role `juli_app`; an isolation test run as the owner passes whatever the policies say and proves nothing. Run the real role, and assert against the live catalog rather than the migration's own source text.",
+    "Do NOT add a push, email or Zalo transport, and do NOT touch `services/alerts/`. `channel` is `in_app` and only `in_app` in v1 — the PRD defers push, email and Zalo by name, `FcmAdapter._deliver` is a `fcm_send_stub` with no callers, and there is no device-token store.",
+    "Do NOT let a checklist item gate anything. `run_checklist_items` carries `done`/`done_at`/`edited_by_seller`; S-FR-12 is explicit that ticks do NOT gate a run stage in v1. Do not add a foreign key, a constraint or a trigger that could make a stage depend on a tick.",
+    "Do NOT model an act record as a per-order card, and do NOT reuse the emission-budget suppression vocabulary (`active_cap`/`cooldown`/`weekly_novelty_cap`) or the card `status` vocabulary for `state`. An act record's states are `pending`/`delivered`/`read`/`failed`; a card's are a different concept on a different object.",
+    "Do NOT derive the subject from revenue, do NOT add a second reaper policy object, and do NOT touch `workflow_runs`, `action_cards` or `run_confirmations` — those tables belong to #1701, #1706, #1707 and #1709.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object — the real Postgres catalog, the real `juli_app` role, the real Alembic chain. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

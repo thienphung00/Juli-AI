@@ -1,0 +1,92 @@
+{
+  "planId": "cards-emitted-per-subject-with-revisions-and-named-suppression-2026-09-07",
+  "affectedPublicSurfaces": [
+    "The seller's DECISIONS LIST — the one surface a seller reads before approving anything. Cards emitted after this slice carry `subject_type`/`subject_id` (#1701's columns) and a `revision`, and one shop can now hold SEVERAL cards for one `workflow_key` where today the table's `UniqueConstraint(\"shop_id\", \"workflow_key\", name=\"uq_action_cards_shop_workflow\")` permits exactly one. Any list query or client that assumed at most one card per workflow key per shop must be checked; the fan-out is the point of the slice, and it is visible to a real seller the first refresh after deploy.",
+    "The card WRITE path: `services/action_cards/persist.py::persist_scoring_result` → `ActionCardsRepo.upsert`, whose own docstring states it is \"Idempotent on `(shop_id, workflow_key)`\". That idempotency key becomes `(shop_id, workflow_key, subject_type, subject_id)` and the upsert becomes a chained-revision insert: a successor row with `revision + 1` and `supersedes_card_id` pointing at the predecessor, written ONLY when the subject's basis snapshot changed since the last executed revision. This is a behaviour change on the one path every card in production comes from.",
+    "The `suppressed_reason` VOCABULARY, which is the trap in this slice. `models.py::ActionCard.suppressed_reason` exists (migration 027) but its three values — `SUPPRESSED_REASON_ACTIVE_CAP = \"active_cap\"`, `SUPPRESSED_REASON_COOLDOWN = \"cooldown\"`, `SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP = \"weekly_novelty_cap\"` (`services/action_cards/emission_budget.py`) — belong to the emission BUDGET, a separate, independently-scheduled pass (`apply_emission_budget`), and `persist.py`'s own docstring records that persist never writes `surfaced_at`/`suppressed_reason`. This slice adds `basis_unchanged` and `active_card_exists` DELIBERATELY as a second, disjoint set on the persist path. Two concepts, one column: the disjointness must be asserted, not assumed.",
+    "ADR-087 flips from Proposed to Accepted in THIS PR (`docs/adr/087-*.md`), and CONTEXT.md's Card revision entry gains the two new reasons in the same change. That is the documented public record of the decision; landing the code without the flip leaves the ADR lying about its own status, which is what the 2026-09-05 scope verification flagged as \"S-FR-10 presents ADR-087 as landed\".",
+    "NO HTTP surface is added or removed: no new route, no new response field, no change to `POST /v1/action-cards/refresh` (`api/routes/action_cards.py`) or its cooldown gate. NO schema change — every column used here is #1701's. Nothing under apps/, packages/ or ios/ is touched."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the worktree root with PYTHONPATH pinned to the worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite. The partial unique on active cards, the chained-revision insert, `ON CONFLICT` behaviour under a NULL `subject_id` and concurrent double emission are Postgres constraint behaviour that SQLite silently tolerates. The REAL `persist_scoring_result` and the REAL `apply_emission_budget` are exercised end to end; a hand-built `ActionCard` row proves the DDL, not the emission path. Post-deploy: one manual card refresh on the candidate against the sandbox shop; no public traffic reaches a candidate task set and no production write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the card refresh executes in the Celery worker (`juli_backend.refresh_action_cards`, `workers/tasks/action_card_refresh.py`); with workers disabled the candidate cannot emit a card at all and the journey proves nothing. apiSideEffectsInScope is FALSE: the only rows written are this shop's own `action_cards`; no vendor call, no production write, nothing outside the tenant.",
+    "journeys": [
+      {
+        "name": "one-active-card-per-subject-with-chained-revisions-and-named-suppression",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1703",
+        "assertions": [
+          "pre-merge: with an ACTIVE card for a subject, a further scoring emission whose basis snapshot is UNCHANGED writes NO row and records `suppressed_reason = 'basis_unchanged'` — asserted by counting `action_cards` rows before and after through the REAL `persist_scoring_result`, not by inspecting a return value (tests/unit/test_action_card_revisions.py::test_unchanged_basis_suppresses_with_named_reason)",
+          "pre-merge: with an EXECUTED card for a subject whose basis then CHANGES, a new row is written with `revision + 1` and `supersedes_card_id` pointing at the predecessor, and the predecessor's payload is NOT copied into the successor — asserted field by field on the two rows, so a copy-forward implementation fails (tests/unit/test_action_card_revisions.py::test_changed_basis_emits_chained_successor_without_copying)",
+          "pre-merge: with an ACTIVE card for a subject, a second emission for the same `(shop, workflow_key, subject)` is suppressed with `active_card_exists` and NEVER produces a second active row — asserted both at the service level and at the Postgres catalog level (the partial unique on the active tuple actually rejects the insert), so the guard is not service-only (tests/unit/test_action_card_revisions.py::test_second_active_card_for_subject_is_suppressed)",
+          "pre-merge: the emission budget's reasons are UNCHANGED and DISJOINT from the revision reasons — `apply_emission_budget` still writes only `active_cap`/`cooldown`/`weekly_novelty_cap`, `persist.py` writes only `basis_unchanged`/`active_card_exists`, and the two sets share no member; asserted as a set-intersection over the real constants, so adding a name to either module later trips the test (tests/unit/test_action_card_revisions.py::test_budget_reasons_and_revision_reasons_are_disjoint)",
+          "pre-merge: the basis snapshot that decides 'changed' is derived from the scoring result the emission already holds, and comparing a card to ITSELF is stable — running the same scoring result twice produces exactly one card and one `basis_unchanged`, so an unstable hash (dict ordering, a timestamp, a float) cannot masquerade as a changed basis and emit a card per refresh",
+          "pre-merge: two CONCURRENT emissions for one subject produce exactly one active card — the coexistence hazard #1701's plan names, proven here under real concurrency rather than argued in prose",
+          "pre-merge: ZERO behaviour change for `optimize_product_2` beyond the subject fan-out — the recorded run golden `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` passes untouched via `tests/unit/test_golden_scenario_capture_from_real_runner.py`, and the existing persist and emission-budget suites pass unchanged",
+          "pre-merge: ADR-087's front matter reads `Status: Accepted` in this PR's diff, and CONTEXT.md's Card revision entry names `basis_unchanged` and `active_card_exists` — asserted by reading the files in the diff, since this is the one slice where the doc change is part of the acceptance criteria",
+          "post-deploy: ONE manual card refresh on the candidate for the sandbox shop emits cards that all carry a non-null subject, and no subject has two active cards — read back by direct query against `action_cards`, counting `WHERE status = 'active' GROUP BY shop_id, workflow_key, subject_type, subject_id HAVING count(*) > 1` returning zero rows",
+          "post-deploy: `/health` on the candidate is unchanged and one authenticated decisions read returns cards in the existing response shape — this slice adds no field to any route"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is `services/action_cards/persist.py`, `docs/adr/087-*.md`, `CONTEXT.md` and tests. Nothing under apps/, packages/ or ios/ is touched; those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "postgres-catalog-dump",
+      "postgres-row-dump"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE IN THIS SLICE. `subject_type`, `subject_id`, `revision`, `supersedes_card_id`, the full unique and the active partial unique are all created by #1701 and are a hard dependency of this one. Do not open a migration file; if a constraint is missing, the dependency is unmet and the answer is to report it. Old and new code coexist because the previous release writes cards naming none of the new columns — but note the hazard #1701 records: while the previous release writes a NULL `subject_id`, two of its concurrent emissions do not collide under the new partial unique. This slice is the point at which subjects start being written, so state in the PR whether #1701 chose deterministic subject defaults or kept the old constraint, and prove the chosen path under the concurrent-emission test."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Card emission stays one row per `(shop_id, workflow_key)`, the ADR-087 columns stay written-but-unread, `suppressed_reason` keeps only the three emission-budget values, and ADR-087 stays `Proposed`. No seller sees a change, nothing is partially applied, and the pre-existing decisions list is exactly what it was.",
+    "postCutoverFailureBehavior": "Code-only rollback: redeploy the previous release and restart juli-api and juli-celery-worker. Rows already written stay VALID — a card carrying `subject_type`/`subject_id`/`revision`/`supersedes_card_id` is readable by the previous code, which simply never names those columns. The one honest caveat to state in the PR: the previous release's `(shop_id, workflow_key)` idempotency will treat several subject-scoped siblings as one card and can upsert over whichever it finds first, so a rollback should be followed by a refresh rather than trusted to reconcile itself. NO downgrade is required or permitted here — this slice owns no migration. If #1701's schema must also be reverted, that downgrade is #1701's, and it must FAIL LOUDLY when any `workflow_runs` row carries a non-product subject or a NULL `product_id`, when any run sits in `waiting_external`, or when two `action_cards` rows share `(shop_id, workflow_key)` — which after this slice they routinely will. Order: previous code first, any schema revert second.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_action_card_revisions.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_action_cards_persist.py tests/unit/test_action_cards_contract.py tests/unit/test_action_card_inputs_contract.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_golden_scenario_capture_from_real_runner.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT read a migration number from head — do NOT write a migration at all. Every column and constraint this slice uses is #1701's. The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake.",
+    "Do NOT reuse the emission-budget suppression vocabulary. `active_cap`, `cooldown` and `weekly_novelty_cap` (`services/action_cards/emission_budget.py`) mean 'the budget declined to surface this card'; `basis_unchanged` and `active_card_exists` mean 'there is nothing new to say about this subject'. They are different concepts sharing one column by deliberate decision — keep the two sets disjoint, assert the disjointness, and never map one onto the other or widen a budget reason to cover a revision case.",
+    "Do NOT derive the subject from revenue. The card's subject comes from the scoring result that produced it. `ProductsRepo.get_highest_revenue_product` has no place on the emission path — it is exactly the derivation #1702 deletes from approve, and re-introducing it here would put it back one layer up.",
+    "Do NOT emit a per-order card. ADR-087's subject is a product, a dispatch window or a SKU set; an order is not a card subject in v1. A card per order would multiply the decisions list by the shop's order volume and is out of scope in every direction.",
+    "Do NOT copy the predecessor's payload into a successor revision. The successor is emitted BECAUSE the basis changed; carrying the old payload forward would present stale numbers under a new revision number and defeat the chain's whole purpose.",
+    "Do NOT make the basis snapshot depend on anything unstable — wall-clock time, dict iteration order, an unrounded float, or an object id. An unstable basis emits a fresh card on every refresh, which is indistinguishable from the fan-out this slice is supposed to create, and would reach real sellers as spam.",
+    "Do NOT touch the approve path, the reaper or the registry — those are #1702's, already landed by the time this runs. Do NOT touch prompts (#1705) or the tool dispatcher (#1704).",
+    "ZERO behaviour change for `optimize_product_2`'s run: the recorded run golden `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` and the composed prompt golden `tests/fixtures/agent_prompt_gates/optimize_product_v3_composed.golden.md` both pass untouched. Regenerating either to make a test green is a scope breach.",
+    "Do NOT add a push, email or Zalo transport, and do NOT call anything in `services/alerts/`. That package has zero callers outside itself, `FcmAdapter._deliver` is a stub that logs `fcm_send_stub`, and there is no device-token store. Notification transports are explicitly deferred by the PRD; the in-app record is #1712/#1713.",
+    "Do NOT let a checklist tick, an approval, or any human action gate emission. This slice decides what to emit from the BASIS, nothing else.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature — the real `persist_scoring_result`, the real `ActionCardsRepo`, the real `apply_emission_budget`. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}
