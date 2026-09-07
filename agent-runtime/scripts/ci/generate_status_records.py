@@ -291,7 +291,7 @@ def migrate(*, scope: int | None = None, dry_run: bool = False) -> list[int]:
     return generated
 
 
-def relabel_policy_local_refs(*, dry_run: bool = False) -> list[int]:
+def relabel_policy_local_refs(*, scope: int | None = None, dry_run: bool = False) -> list[int]:
     """One-off correction for records committed before #1497.
 
     #1438's generator stamped ``git-history:`` onto body paths ``.gitignore``
@@ -318,7 +318,16 @@ def relabel_policy_local_refs(*, dry_run: bool = False) -> list[int]:
     changed: list[int] = []
     if not STATUS_DIR.is_dir():
         return changed
-    for path in sorted(STATUS_DIR.glob("issue-*.json")):
+    # #1734: the relabel pass reaches every tracked status record too. Scoping
+    # migrate() alone would have left the same unscoped blast radius one flag away.
+    paths = (
+        [STATUS_DIR / f"issue-{scope}.json"]
+        if scope is not None
+        else sorted(STATUS_DIR.glob("issue-*.json"))
+    )
+    for path in paths:
+        if not path.is_file():
+            continue
         try:
             record = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
@@ -389,7 +398,7 @@ def main() -> int:
         )
 
     if args.relabel_policy_local_refs:
-        changed = relabel_policy_local_refs(dry_run=args.dry_run)
+        changed = relabel_policy_local_refs(scope=args.issue, dry_run=args.dry_run)
         verb = "would relabel" if args.dry_run else "relabelled"
         print(f"status records: {verb} {len(changed)} for issues {changed}")
         return 0
