@@ -113,8 +113,21 @@ def validation_failure_count(validation: dict[str, Any] | None) -> int:
     return sum(1 for check in validation.get("checks", []) if check.get("status") == "FAIL")
 
 
-def token_usage(implementation: dict[str, Any] | None) -> dict[str, int]:
+def token_usage(implementation: dict[str, Any] | None) -> dict[str, int | bool | str]:
+    """Extract token usage from implementation artifact.
+
+    Returns either a measured dict with input/output/total keys (all non-negative integers),
+    or an unavailable dict with {available: false, reason: str} — never coerces unmeasured
+    runs to 0. #1732: returning 0 masks the difference between "measured zero" and
+    "unmeasured", and baselineMetrics.tokenUsageTotal must not read 0 for an unmeasured run.
+    """
     usage = (implementation or {}).get("tokenUsage") or {}
+
+    # Unavailable shape: {available: false, reason: ...}
+    if usage.get("available") is False:
+        return {"available": False, "reason": usage.get("reason", "unknown")}
+
+    # Measured shape: {input?, output?, total?}
     input_tokens = as_int(usage.get("input"))
     output_tokens = as_int(usage.get("output"))
     total = as_int(usage.get("total"), input_tokens + output_tokens)
@@ -266,7 +279,7 @@ def collect_metrics(
         "toolInvocationCount": tool_count,
         "baselineMetrics": {
             "executionTimeMs": execution_duration,
-            "tokenUsageTotal": usage["total"],
+            "tokenUsageTotal": usage.get("total") if "total" in usage else None,
             "testPassRate": test_pass_rate(validation, review),
             "coveragePercentage": coverage_percentage(validation, review),
             "reviewFailureRate": 1.0 if review_failures else 0.0,

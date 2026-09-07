@@ -59,8 +59,24 @@
       "format": "date-time"
     },
     "executionDurationMs": {
-      "type": "integer",
-      "minimum": 0
+      "description": "#1732: exactly two shapes. A measured duration carries a positive integer; an unmeasured run carries {available: false, reason}. A zero is a measurement claim and is rejected — it reads as measured and is not one. Unavailable has a shape of its own.",
+      "oneOf": [
+        {
+          "title": "measured",
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "title": "unavailable",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["available", "reason"],
+          "properties": {
+            "available": { "const": false },
+            "reason": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
     },
     "tokenUsage": {
       "description": "#1441: exactly two shapes. A measured reading carries {input, output, total}; an unmeasured run carries {available: false, reason} and NO value key, matching assemble_evidence.unavailable(). Before this the field was optional but, when present, admitted only the measured shape — jointly unsatisfiable with check_implementation_artifact's hard requirement on tokenUsage.total, which is how an annotated {0,0,0} sentinel entered the corpus this epic measures. A zero is exactly as unsourceable as 1800000 and is the more convincing lie, so 'unavailable' now has a shape of its own and the value key is excluded from it by construction.",
@@ -109,8 +125,24 @@
       }
     },
     "toolInvocationCount": {
-      "type": "integer",
-      "minimum": 0
+      "description": "#1732: exactly two shapes. A measured count carries a positive integer; an unmeasured run carries {available: false, reason}. A zero is a measurement claim and is rejected — it reads as measured and is not one. Unavailable has a shape of its own.",
+      "oneOf": [
+        {
+          "title": "measured",
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "title": "unavailable",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["available", "reason"],
+          "properties": {
+            "available": { "const": false },
+            "reason": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
     },
     "contextFilesLoaded": {
       "type": "array",
@@ -150,11 +182,6 @@
         "required": ["cycle"],
         "properties": {
           "cycle": { "type": "integer", "minimum": 1 },
-          "evidenceState": {
-            "type": "string",
-            "enum": ["witnessed", "reconstructed", "unavailable"],
-            "description": "#1603: whether this cycle's red state was observed this session (witnessed), inferred from commit history/diff rather than observed (reconstructed), or not backed by either (unavailable). Optional for backward compatibility with cycles written before this field existed — an omitted value is treated as unavailable by check_implementation_tdd_evidence.py, never as a silent pass."
-          },
           "failingTestEvidence": { "type": "string" },
           "passingTestEvidence": { "type": "string" },
           "refactorEvidence": { "type": "string" },
