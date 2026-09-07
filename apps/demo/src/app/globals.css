@@ -1734,6 +1734,182 @@ a {
   }
 }
 
+/* Staged run view (issue #1316, ADR-076 decision 3, PUI-DESIGN.md §2/§6).
+   Scoped to [data-juli-surface="run"] (packages/theme/run-surface-tokens.css,
+   issue #1314) via the same data attribute the run ledger uses. */
+.run-staged-view {
+  display: grid;
+  gap: var(--juli-space-6);
+  margin: var(--juli-space-6) 0 0;
+  padding: var(--juli-space-6);
+  border-radius: var(--juli-radius, 1rem);
+}
+
+.run-staged-view__reconnecting {
+  margin: 0;
+  color: var(--juli-run-warning);
+  font-weight: 600;
+}
+
+.run-stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--juli-space-2);
+}
+
+.run-stepper__node {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--juli-space-1);
+  padding: var(--juli-space-2) var(--juli-space-3);
+  border-radius: var(--juli-radius-medium, 0.75rem);
+  border: 1px solid var(--juli-run-border);
+  background: var(--juli-run-surface);
+  color: var(--juli-run-foreground);
+  min-height: var(--juli-touch-target);
+  cursor: pointer;
+}
+
+.run-stepper__node:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.run-stepper__node--frozen {
+  background: var(--juli-run-surface-raised);
+}
+
+.run-stepper__node--viewing {
+  border-color: var(--juli-run-focus-ring);
+}
+
+.run-stepper__node-index {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.run-stepper__node-label {
+  font-weight: 600;
+}
+
+.run-stepper__node-status {
+  font-size: 0.7rem;
+}
+
+.run-staged-view__canvas-wrapper {
+  animation-name: run-stage-advance;
+  animation-fill-mode: backwards;
+}
+
+.run-stage__tool-list {
+  list-style: none;
+  margin: var(--juli-space-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--juli-space-2);
+}
+
+.run-stage__tool-item {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--juli-space-3);
+  padding: var(--juli-space-2) var(--juli-space-3);
+  border-radius: var(--juli-radius-medium, 0.75rem);
+  background: var(--juli-run-surface);
+}
+
+.run-stage__thinking-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--juli-run-info);
+  margin-right: var(--juli-space-2);
+  animation-name: run-stage-breathe;
+  animation-iteration-count: infinite;
+}
+
+.run-stage__proposed-change {
+  display: grid;
+  gap: var(--juli-space-2);
+  margin: var(--juli-space-3) 0;
+}
+
+.run-stage__proposed-change-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--juli-space-3);
+}
+
+.run-stage__expiry {
+  font-weight: 600;
+  color: var(--juli-run-warning);
+}
+
+.run-staged-view__nav {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--juli-space-3);
+}
+
+.run-staged-view__nav button {
+  min-height: var(--juli-touch-target);
+  padding: var(--juli-space-2) var(--juli-space-4);
+  border-radius: var(--juli-radius-medium, 0.75rem);
+  border: 1px solid var(--juli-run-border);
+  background: var(--juli-run-surface);
+  color: var(--juli-run-foreground);
+  cursor: pointer;
+}
+
+.run-staged-view__nav button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+@keyframes run-stage-advance {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes run-stage-breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-staged-view__canvas-wrapper {
+    animation-name: run-stage-crossfade;
+  }
+
+  .run-stage__thinking-dot {
+    animation: none;
+  }
+}
+
+@keyframes run-stage-crossfade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* Repeat consent — asked only after finished work, once per workflow kind */
 .repeat-consent {
   margin: var(--juli-space-4) 0 0;

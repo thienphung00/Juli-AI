@@ -1,0 +1,100 @@
+{
+  "planId": "rep-1316-staged-run-view-frozen-past-locked-future",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com new run route (apps/demo/src/app — dedicated per-run page)",
+    "demo.app-juli.com Decisions tab (must remain working; the new route is additive)"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Load the candidate demo build — zero public canary traffic; the run view renders reducer output from a captured scenario and performs no marketplace write",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "Issue's own Release evidence section: 'open a replay run, walk forward to the live edge, back to a frozen stage, and confirm a future stage is unreachable.' Transcribed verbatim; no additional surfaces inferred.",
+    "journeys": [
+      {
+        "name": "walk-forward-to-live-edge",
+        "entryUrl": "/decisions",
+        "assertions": [
+          "html_200",
+          "approving navigates to the dedicated run route",
+          "the six stages render in PUI-DESIGN.md §2 order: Phân tích, Thông tin sản phẩm, SEO, Đề xuất, Cập nhật, Hoàn tất",
+          "one stage owns the canvas at a time; a thinking state is a state of a stage, not a separate screen",
+          "the bound product is visible at the product-snapshot stage",
+          "no tool name, playbook key, or raw error structure appears in rendered output"
+        ]
+      },
+      {
+        "name": "frozen-past-and-locked-future",
+        "entryUrl": "/decisions",
+        "assertions": [
+          "back-navigation to a completed stage shows it frozen — no live updates land in it",
+          "returning to the live edge is one action",
+          "a stage beyond the live edge is unreachable by click, by keyboard, and by direct URL"
+        ]
+      },
+      {
+        "name": "finished-run-reopens-fully-frozen",
+        "entryUrl": "/decisions/in-progress",
+        "assertions": [
+          "html_200",
+          "a finished run opened from scratch renders every stage frozen",
+          "the terminal stage shows the run's actual outcome, not a state dressed as another"
+        ]
+      },
+      {
+        "name": "decisions-tab-unaffected",
+        "entryUrl": "/decisions",
+        "assertions": [
+          "html_200",
+          "the Decisions tab works with the new route absent — the route is additive, which is also the rollback assertion"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": ["/decisions", "/decisions/in-progress"],
+    "discoverFromHtml": true,
+    "assetTypes": ["js", "css"],
+    "failOnMissing": true,
+    "failOnNon200": true,
+    "notes": "Issue text: 'the new route must be present in the built output — assert the route file exists in the artifact, the failure mode being a next-start 500 on missing chunks.' Read the built artifact, not the source tree."
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Issue text: 'No migration.' A new client route in apps/demo rendering reducer output — no database schema, no persisted-shape change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false,
+    "notes": "Issue text: 'the route is additive; assert the Decisions tab still works without it.' Removing the route must not degrade the Decisions surface."
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm check:demo",
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit"
+  ],
+  "doNotInfer": [
+    "release evidence fields beyond what the issue's Release evidence (ADR-035) section states",
+    "stage content the reducer did not produce — the canvas renders what the events said and nothing it computed itself",
+    "a stage order or content mapping that differs from PUI-DESIGN.md §2",
+    "hardcoded English placeholder copy — Vietnamese strings come from dictionary.md and new strings land in #1321",
+    "a retry-in-place control — ADR-084 decision 6 forbids it, and a new run requires a new approval",
+    "motion driven by a bare timer with no event or state transition, and any path without a reduced-motion alternative"
+  ]
+}

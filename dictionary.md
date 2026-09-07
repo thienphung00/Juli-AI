@@ -436,6 +436,66 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - VI: Muốn thực hiện thay đổi mới? Hãy quay lại Quyết định để phê duyệt đề xuất mới.
 - Definition: Explanation on every failed/cancelled/expired/timed-out/worker_lost run's card — no retry-in-place control exists; a new run needs a new approval.
 
+**`run.reconnecting`**
+- EN: Reconnecting
+- VI: Đang kết nối lại
+- Definition: Staged run view (issue #1316, PUI-DESIGN.md §8) inline status when the event stream drops mid-run — a stream error, never a run error; the run keeps executing server-side while this shows.
+
+**`run.stage.back`**
+- EN: Review
+- VI: Xem lại
+- Definition: Staged run view (issue #1316, PUI-DESIGN.md §2 footer) back-navigation control — steps to the previous frozen stage.
+
+**`run.stage.continue`**
+- EN: Continue
+- VI: Tiếp
+- Definition: Staged run view (issue #1316, PUI-DESIGN.md §2 footer) forward control — returns to the live edge in one action from any frozen stage.
+
+**`run.stage.status.frozen`**
+- EN: Completed
+- VI: Đã hoàn tất
+- Definition: Staged run view stepper node accessible status for a past, revisitable stage (issue #1316).
+
+**`run.stage.status.active`**
+- EN: In progress
+- VI: Đang diễn ra
+- Definition: Staged run view stepper node accessible status for the live-edge stage (issue #1316).
+
+**`run.stage.status.locked`**
+- EN: Not yet unlocked
+- VI: Chưa mở khoá
+- Definition: Staged run view stepper node accessible status for a stage beyond the live edge — unreachable by click, keyboard, or URL (issue #1316).
+
+**`run.product_binding.label`**
+- EN: Product being processed
+- VI: Sản phẩm đang xử lý
+- Definition: Label preceding the bound product's name on the staged run view (issue #1316) — visible from the first stage, well before the Đề xuất confirmation (ADR-082 decision 5's disclosure).
+
+**`run.tool_action.get_product_information`**
+- EN: Viewing product information
+- VI: Xem thông tin sản phẩm
+- Definition: Staged run view (issue #1316) seller-facing label for the `get_product_information` tool call — never the raw tool name, which `SELLER_COPY_BANNED_PATTERNS` forbids.
+
+**`run.tool_action.get_seo_keywords`**
+- EN: Finding SEO keywords
+- VI: Tìm từ khoá SEO
+- Definition: Staged run view (issue #1316) seller-facing label for the `get_seo_keywords` tool call.
+
+**`run.tool_action.update_product_listing`**
+- EN: Updating product information
+- VI: Cập nhật thông tin sản phẩm
+- Definition: Staged run view (issue #1316) seller-facing label for the `update_product_listing` tool call.
+
+**`run.tool_action.upload_staged_image`**
+- EN: Uploading product image
+- VI: Tải ảnh sản phẩm
+- Definition: Staged run view (issue #1316) seller-facing label for the `upload_staged_image` tool call.
+
+**`run.tool_action.fallback`**
+- EN: Processing
+- VI: Đang xử lý
+- Definition: Staged run view (issue #1316) fallback label for an unrecognized tool call — honest and generic, never the raw tool name.
+
 **`agent.narration.extension_grant`**
 - EN: Continuing past the standard iteration limit: granting [extension_iterations] more iteration(s) (extension [granted] of [max]).
 - VI: Đã đạt giới hạn số lượt thực hiện tiêu chuẩn, Juli gia hạn thêm [extension_iterations] lượt để hoàn tất công việc (lần gia hạn [granted]/[max]).
