@@ -2045,3 +2045,51 @@ walk is currently the *only* end-to-end test of this path (see ADR-088 decision
 4 on the live smoke that has never run), so redesigning mid-walk would remove
 the one instrument that has found every one of these defects. Close the gate,
 then design this properly as an ADR.
+
+---
+
+## Deferred: there is no way for a human to log in — DESIGN AND IMPLEMENT NEEDED
+
+**Status: not started. Needs design before implementation. Do not build ad hoc.**
+
+Found on 2026-09-07 while attempting Observation 1 bullet 1 of the W7 gate
+(#1339), which requires an authenticated read, an approve and an SSE stream.
+None could be performed, because **the deployed system has no login surface at
+all**:
+
+- `apps/dashboard` holds the only login page (`src/app/login/page.tsx`) and is
+  **deliberately retired from production** — `release.yml:140`: *"apps/dashboard
+  is absent on purpose: it is npm-owned, is not a pnpm workspace member, and PRD
+  #820 retires it from production rather than deploying it."*
+- `app-juli.com` serves the **landing** app. `/login`, `/signin`, `/dashboard`
+  all return 404.
+- `demo.app-juli.com` runs in mock mode; it consumes a bearer token and never
+  mints one.
+
+So no seller — and no owner — can obtain a token against production today.
+
+### What needs designing
+
+1. **Adapt or reuse the dashboard's login for `app-juli.com` and
+   `demo.app-juli.com`.** The page exists and is Supabase-backed; the question
+   is where it should live now that its host app is retired, and whether the two
+   domains share one auth surface or each get their own.
+2. **An onboarding flow for the demo page (UI design).** A seller arriving at
+   `demo.app-juli.com` currently has no path from landing to an authenticated
+   session with a shop bound to it.
+
+Both are **owner-led design first** — to be taken through the Architect agent
+before any implementation. This note exists so that agents routing work in this
+area know the gap is known, is deliberate, and is **not** to be closed by
+improvising a login.
+
+### Why it stayed invisible
+
+The authenticated surface has no users, so its total failure produces no signal.
+That is exactly how **#1691** went unnoticed: under `juli_app` *every*
+authenticated request 401s, because the `users` RLS policy reads a GUC that
+authentication has not set yet, and the runtime was previously owner-exempt from
+that policy. A login surface would have surfaced it immediately.
+
+Fix #1691 first — a login that reaches a backend which cannot authenticate
+anyone is not a working login.
