@@ -44,48 +44,96 @@ form), #1372 (ADR-088), #1690 (ADR-094), #1693 (#1691 auth RLS fix).
 
 ## 3. HITL — gate #1339 (W7 exit gate), four observations
 
-Not startable until the W7-A/W7-B implementation issues land. Each has a recorded
-"legitimate result" that is **not** success, so an honest negative closes the observation:
+**W7 implementation is complete.** #1326–#1338 are all closed; #1339 is the only open issue
+in the wave. State below verified against the deployed database on 2026-09-07.
 
-1. **Role cutover** on the deployed host (connect as the non-owner `juli_app` role) — a
-   clean revert plus a diagnosis is a pass.
-2. **Manual red-team pass** — open findings are the pass *working*; produces an attestation
-   bound to the deployed release sha, which #1336's precondition 4 reads.
-3. **Authorization for one production mutation** — **declining is the default and a pass.**
-   Requires functional RLS and the red-team pass first; the mutation is a single listing of
-   the owner's choosing. Standing rule until then: sandbox-only writes, never Fujiwa
-   (`2b1da87b-d0a8-46a6-b3c6-2132be0b5f4f`).
-4. **T+7 impact reading** — a real `impact_readings` row with a value and confidence tier.
-   Recording a `suppressed` reading as a reading is forbidden by name (ADR-077's gate stays
-   open until a real one exists).
+Each observation has a recorded "legitimate result" that is **not** success, so an honest
+negative closes it.
 
-#1339 **supersedes #1226 observation 2**; #1226 stays open for observation 1 only (§1).
+### 1. Role cutover — substantially done, one bullet pending a deploy
+
+The cutover **has happened**: `DATABASE_URL` now connects as `juli_app`, which is a non-owner
+role (`rolcanlogin = t`, `rolsuper = f`), while all 35 `public` tables are owned by `postgres`.
+So the owner exemption that made the original ten policies dead is gone.
+
+RLS coverage: **33 of 35** tables. The two without are both intentional —
+`alembic_version` (migration bookkeeping, no tenant data) and `webhook_raw_events`, which
+migration `045_rls_policies.py` documents as "no policy (no read grant in #1326)". Verified
+that the grant defense actually holds: `juli_app` has **INSERT only** on that table, and
+`select count(*) from webhook_raw_events` returns `ERROR: permission denied`.
+
+A prior session recorded bullets 2, 3 and 4 as **pass** (zero scoping errors; zero RLS denials
+since 2026-09-05 05:23; all four partition buckets complete across 31 in-window days). Bullet 1
+**failed** — every authenticated request returned 401 because RLS hid the `users` row from the
+authenticator — diagnosed and fixed in #1691 / PR #1693.
+
+**Next action: #1693 merged and its release was still deploying at 2026-09-07 03:48Z. When it
+lands, re-verify bullet 1.** Observation 1 cannot be recorded as cleared until then.
+
+### 2. Manual red-team pass
+
+Not started. Open findings are the pass *working*. Produces an attestation bound to the
+deployed release sha, which #1336's precondition 4 reads.
+
+### 3. Authorization for one production mutation — **declining is the default and a pass**
+
+**No decision is recorded either way.** #1335 made owner authorization *become a row*, and
+`production_write_authorizations` currently holds **0 rows**. So this is not "declined" — it is
+unanswered. Requires functional RLS and the red-team pass first. The mutation is a single
+listing of the owner's choosing. Standing rule until then: sandbox-only writes, never Fujiwa
+(`2b1da87b-d0a8-46a6-b3c6-2132be0b5f4f`).
+
+### 4. T+7 impact reading — **not satisfied; the only two rows are the forbidden kind**
+
+`impact_readings` holds 2 rows, both on the sandbox shop, both computed 2026-09-03:
+
+```
+kind=preliminary  confidence=suppressed  metric=conversion_rate  impact_pct=NULL
+kind=preliminary  confidence=suppressed  metric=items_sold       impact_pct=NULL
+```
+
+ADR-077's gate forbids recording a `suppressed` reading as a reading, **by name** — and these
+carry no value at all (`impact_pct` is NULL). So the observation is open, and these rows must
+not be mistaken for having satisfied it. It needs a real reading with a value and a confidence
+tier, which in turn needs observation 3 to produce a write worth measuring.
+
+#1339 **supersedes #1226 observation 2**; #1226 is closed (§1).
 
 ---
 
 ## 4. Four W7 decisions
 
-From `docs/handoffs/w7-production-readiness.md`. Answers change scope, not correctness —
-the implementation verifies at runtime either way.
+Two of these have been **answered by events** since the list was written. Verified against the
+deployed database 2026-09-07.
 
-1. **Does `postgres` actually own the tables** on the deployed Supabase project? Repo
-   evidence (migration `032`'s docstring, `api.env.example`) says the runtime connects as
-   the pooler `postgres` role — which owns the tables and is therefore **exempt from row
-   policies**, the reason the existing 10 RLS policies are dead. If ownership differs,
-   #1326's grant map narrows.
-2. **`juli_app` login provisioning** — deliberately out of git (NOLOGIN role + grants
-   in-repo; membership granted out of band). Confirm, or switch to a Supabase
-   console-managed role.
-3. **ADR-050 C2 (fleet cold-start engine)** — removed from W7 with a recorded trigger
-   because it roughly doubles the wave. Confirm it stays deferred, or make it W7-bis.
-4. **GA per-shop credential model** — assessed and deferred; what remains is per-shop
-   `seller_connect` scoping, which is an architecture change, not a fix. Confirm or pull
-   forward.
+### 1. ✅ Answered — `postgres` does own the tables
 
-Context for #1: the capability taxonomy (`production_read` / `sandbox_write` /
+All **35** `public` tables are owned by `postgres`. The hypothesis in the original entry was
+correct, so **#1326's grant map does not narrow**. The consequence that mattered is already
+handled: the runtime no longer connects as the owner, so the exemption that made the ten
+original policies dead no longer applies.
+
+### 2. ✅ Answered — `juli_app` has login and is the runtime role
+
+`rolcanlogin = t`, `rolsuper = f`, and `DATABASE_URL` uses it. Provisioning stayed out of git
+as designed (NOLOGIN role + grants in-repo, membership granted out of band); the deployed
+reality confirms the approach worked. No switch to a console-managed role is needed.
+
+### 3. ⬜ Open — ADR-050 C2 (fleet cold-start engine)
+
+Removed from W7 with a recorded trigger because it roughly doubles the wave. W7 shipped
+without it (#1326–#1338 all closed), so it is deferred **in fact**. Confirm it stays deferred,
+or make it W7-bis.
+
+### 4. ⬜ Open — GA per-shop credential model
+
+Assessed and deferred; unchanged. What remains is per-shop `seller_connect` scoping, which is
+an architecture change, not a fix. Confirm or pull forward.
+
+Context for #1 and #4: the capability taxonomy (`production_read` / `sandbox_write` /
 `seller_connect`) is test-era scaffolding — two env-configured merchant ids plus a
-least-privilege residual bucket. At GA the axis rotates from "which of our tokens may do
-what" to per-shop tenant isolation.
+least-privilege residual bucket. At GA the axis rotates from "which of our tokens may do what"
+to per-shop tenant isolation.
 
 ---
 
