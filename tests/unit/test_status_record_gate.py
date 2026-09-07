@@ -1488,3 +1488,35 @@ def test_committed_rewrite_of_a_preexisting_record_is_caught(tmp_path: Path) -> 
             base_ref=base_sha,
             records_at=lambda ref: _records_at(ref, repo_root=repo),
         )
+
+
+# ----------------------------------------------------------- scope (#1734 / #1686)
+
+
+def test_the_cli_refuses_to_run_without_an_explicit_scope() -> None:
+    """#1686: unscoped, it rewrote a committed record for an unrelated issue.
+
+    It discovers work by globbing *gitignored* artifact bodies, which accumulate
+    from earlier sessions, then rewrites across every tracked status record. Run
+    once in the primary working directory it upgraded issue-1337 from
+    gateVersion 1 to 2 and turned a `git-history:` artifactRef -- retrievable,
+    with a checkable sha256 -- into `local-only:`, which claims the body is
+    unretrievable by policy. It was one `git add -A` from being committed, and
+    the trigger was a stale file no gate can see.
+
+    The CLI must therefore make its blast radius explicit rather than inferring
+    it from whatever happens to be lying on disk.
+    """
+    script = CI_DIR / "generate_status_records.py"
+    proc = subprocess.run(
+        [sys.executable, str(script), "--dry-run"],
+        capture_output=True,
+        text=True,
+    )
+
+    assert proc.returncode != 0, (
+        "the generator ran without a scope; unscoped it rewrites every tracked "
+        f"status record it can reach. stdout={proc.stdout!r}"
+    )
+    combined = (proc.stderr + proc.stdout).lower()
+    assert "--issue" in combined or "--all" in combined, combined[:400]
