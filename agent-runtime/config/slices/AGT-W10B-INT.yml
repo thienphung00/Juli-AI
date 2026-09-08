@@ -1,0 +1,24 @@
+# AGT-W10B-INT — v1 build lane; see agent-runtime.config.yml epicRegistry and the epic's ADR.
+AGT-W10B-INT:
+  executorDomain: integrations
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/092-process-order-dispatch-design.md
+    - docs/product/agent-workflow-execution/seller-journeys/process-order-actors.md
+    - docs/integrations/tiktok_api/webhooks.md
+  requiredModules:
+    - backend/src/juli_backend/services/etl/transform.py
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/services/tiktok/webhook_handlers.py
+    - backend/src/juli_backend/services/tiktok/webhook_catalog.py
+    - backend/src/juli_backend/integrations/tiktok/resources/fulfillment.py
+  loadWhenNeeded:
+    - docs/integrations/tiktok_api/contract-collection.md
+    - backend/src/juli_backend/repositories/workflow.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

@@ -547,6 +547,108 @@ workflow_prompt_cache:
         - docs/product/design/
         - docs/integrations/tiktok_corpora/
         - Sibling issue context caches
+    1621:
+      defaultSliceId: AGT-W9B-BE
+      handoffPath: docs/adr/090-optimize-product-realignment.md
+      parentScopeBlock: "# Parent #1621 - W9-B/P-OP: Optimize Product v1 (constant)\n## Which lane you are in\n- AGT-W9B-BE - tools, playbook, prompt v4, rule, guards, end states (#1773-#1784)\n- AGT-W9B-UI - the shop maximum setting and the confirmation-sheet consequence lines (#1787)\n## Architect locks\n- Spec of record is v1-workflow-spec.md S1 (shared FR/NFR) and S8.3 (resolved decisions); the ADR is the design; one issue = one lever or one surface\n- Migration numbers are RESERVED by Meta, never read from head\n- The model never picks a price or quantity: a deterministic rule does; one lever per run; single proposal (N=1)\n- Re-verify before the write; exactly one write per run; never cancel an order, never write a base price, never write stock below committed\n- Honest end states: completed with a named cause; no impact reading for a run that wrote nothing\n- Every seller string is Vietnamese through the sanitiser; never an internal identifier in seller-facing text\n- UI slices mount on the seven identical surfaces (card, plan review, confirmation sheet, run view, completion message + exception list, notification centre, deadline list); a slice needing a new surface is wrong\n- Tests flat in tests/unit/ (backend) or apps/demo/src/__tests__/ (UI) with real contract payloads, never **kwargs doubles or hand-authored event JSON\n- Reprice only through a Product Discount; update_product_price is deregistered; depth off list price under the required seller-confirmed shop maximum; one discount per SKU per 30 days\n- Diagnosis first; never claim a TikTok tier or code the API did not return; Search Activities does not exist\n## Epic deferrals\n- Repeat consent (barred), lapse revision cards, per-SKU overrides, median-price base, N>1 options\n"
+      childSlices:
+        1773: AGT-W9B-BE
+        1774: AGT-W9B-BE
+        1775: AGT-W9B-BE
+        1778: AGT-W9B-BE
+        1780: AGT-W9B-BE
+        1782: AGT-W9B-BE
+        1784: AGT-W9B-BE
+        1787: AGT-W9B-UI
+        1788: AGT-W9B-BE
+      doNotLoad:
+        - apps/
+        - ios/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
+    1623:
+      defaultSliceId: AGT-W9D-UI
+      handoffPath: docs/product/agent-workflow-execution/v1-workflow-spec.md
+      parentScopeBlock: "# Parent #1623 - W9-D/P-UI-V1: the seller surface for the four v1 workflows (constant)\n## Product boundary\n- apps/demo mobile-web only; Vietnamese only; real merchants via Google -> Supabase -> TikTok OAuth; non-connected visitors see replayed runs on the same components\n- Deltas beyond W6 (#1316 run view, #1317 picker, #1318 ledger, #1320 mock deletion, #1321 copy table): never rebuild those\n## Architect locks\n- Spec of record is v1-workflow-spec.md S1 (shared FR/NFR) and S8.3 (resolved decisions); the ADR is the design; one issue = one lever or one surface\n- Migration numbers are RESERVED by Meta, never read from head\n- The model never picks a price or quantity: a deterministic rule does; one lever per run; single proposal (N=1)\n- Re-verify before the write; exactly one write per run; never cancel an order, never write a base price, never write stock below committed\n- Honest end states: completed with a named cause; no impact reading for a run that wrote nothing\n- Every seller string is Vietnamese through the sanitiser; never an internal identifier in seller-facing text\n- UI slices mount on the seven identical surfaces (card, plan review, confirmation sheet, run view, completion message + exception list, notification centre, deadline list); a slice needing a new surface is wrong\n- Tests flat in tests/unit/ (backend) or apps/demo/src/__tests__/ (UI) with real contract payloads, never **kwargs doubles or hand-authored event JSON\n- Contract payloads come from the backend (packages/contracts); never hand-authored event JSON (ADR-084 d.2); the repeat-consent block is dark for the four v1 keys\n## Epic deferrals\n- iOS, dashboard app, English toggle, push/email/Zalo, timeline visualisation, exception cards with writes, N>1 pickers\n"
+      childSlices:
+        1777: AGT-W9D-UI
+        1779: AGT-W9D-UI
+        1781: AGT-W9D-UI
+        1783: AGT-W9D-UI
+        1786: AGT-W9D-UI
+        1789: AGT-W9D-UI
+        1790: AGT-W9D-UI
+        1791: AGT-W9D-UI
+        1793: AGT-W9D-UI
+      doNotLoad:
+        - apps/dashboard/
+        - ios/
+        - backend/src/juli_backend/ai/
+        - backend/src/juli_backend/workers/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
+    1624:
+      defaultSliceId: AGT-W10A-BE
+      handoffPath: docs/adr/091-clear-excess-inventory-design.md
+      parentScopeBlock: "# Parent #1624 - W10-A/P-CE: Clear Excess Inventory v1 (constant)\n## Which lane you are in\n- AGT-W10A-BE - inventory rows, demand helpers, excess signal, rule + validator, playbook, suspended run, guard, measure (#1811-#1818)\n- AGT-W10A-UI - stock-goal chips + checklist + copy (#1819), copy removal (#1820)\n## Architect locks\n- Spec of record is v1-workflow-spec.md S1 (shared FR/NFR) and S8.3 (resolved decisions); the ADR is the design; one issue = one lever or one surface\n- Migration numbers are RESERVED by Meta, never read from head\n- The model never picks a price or quantity: a deterministic rule does; one lever per run; single proposal (N=1)\n- Re-verify before the write; exactly one write per run; never cancel an order, never write a base price, never write stock below committed\n- Honest end states: completed with a named cause; no impact reading for a run that wrote nothing\n- Every seller string is Vietnamese through the sanitiser; never an internal identifier in seller-facing text\n- UI slices mount on the seven identical surfaces (card, plan review, confirmation sheet, run view, completion message + exception list, notification centre, deadline list); a slice needing a new surface is wrong\n- Tests flat in tests/unit/ (backend) or apps/demo/src/__tests__/ (UI) with real contract payloads, never **kwargs doubles or hand-authored event JSON\n- Excess is TikTok's days-of-supply formula at SKU grain with the four exclusions; Product Discount is the only lever; no markdown, no stock write, no flash sale\n- Stock goal set at approval; goal-triggered deactivation needs no fresh confirmation; seller intervention closes the run; card KPI tie unchanged\n## Epic deferrals\n- Flash Sale, republish, expiry revision cards, revenue impact reading, per-SKU floor overrides\n"
+      childSlices:
+        1811: AGT-W10A-BE
+        1812: AGT-W10A-BE
+        1813: AGT-W10A-BE
+        1814: AGT-W10A-BE
+        1815: AGT-W10A-BE
+        1816: AGT-W10A-BE
+        1817: AGT-W10A-BE
+        1818: AGT-W10A-BE
+        1819: AGT-W10A-UI
+        1820: AGT-W10A-UI
+        1821: AGT-W10A-BE
+      doNotLoad:
+        - apps/
+        - ios/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
+    1625:
+      defaultSliceId: AGT-W10B-BE
+      handoffPath: docs/adr/092-process-order-dispatch-design.md
+      parentScopeBlock: "# Parent #1625 - W10-B/P-PO: Process Order v1 (constant)\n## Which lane you are in\n- AGT-W10B-INT - order facts on silver, cancellation transformer, order-scoped signals (#1796)\n- AGT-W10B-BE - predicate + deadline ladder, dispatch-window subject + producer, batch shape, re-verify + Batch Ship, digest/reminder/measure, dry-run (#1797-#1806)\n- AGT-W10B-UI - batch sheet, window card, exception list (#1808)\n## Architect locks\n- Spec of record is v1-workflow-spec.md S1 (shared FR/NFR) and S8.3 (resolved decisions); the ADR is the design; one issue = one lever or one surface\n- Migration numbers are RESERVED by Meta, never read from head\n- The model never picks a price or quantity: a deterministic rule does; one lever per run; single proposal (N=1)\n- Re-verify before the write; exactly one write per run; never cancel an order, never write a base price, never write stock below committed\n- Honest end states: completed with a named cause; no impact reading for a run that wrote nothing\n- Every seller string is Vietnamese through the sanitiser; never an internal identifier in seller-facing text\n- UI slices mount on the seven identical surfaces (card, plan review, confirmation sheet, run view, completion message + exception list, notification centre, deadline list); a slice needing a new surface is wrong\n- Tests flat in tests/unit/ (backend) or apps/demo/src/__tests__/ (UI) with real contract payloads, never **kwargs doubles or hand-authored event JSON\n- The platform does NOT refuse a ship write during a pending cancellation: hard-exclude at selection and at re-verify; never a vendor-refusal branch\n- Deadline = rts_sla_time -> tts_sla_time -> collection_due_time with the rung recorded; documented cutoff only as last resort\n- Subset-only execution after re-verify; Batch Ship read per package; never auto-ship on expiry; FBS + platform shipping only in v1; FBT monitor-only\n## Epic deferrals\n- Chunking, higher cadence, last-chance card, exception cards with writes, combine/split, SOF, standing approval\n"
+      childSlices:
+        1796: AGT-W10B-INT
+        1797: AGT-W10B-BE
+        1799: AGT-W10B-BE
+        1801: AGT-W10B-BE
+        1803: AGT-W10B-BE
+        1805: AGT-W10B-BE
+        1806: AGT-W10B-BE
+        1808: AGT-W10B-UI
+        1810: AGT-W10B-BE
+      doNotLoad:
+        - apps/
+        - ios/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
+    1626:
+      defaultSliceId: AGT-W10C-BE
+      handoffPath: docs/adr/093-replenish-inventory-design.md
+      parentScopeBlock: "# Parent #1626 - W10-C/P-RI: Replenish Inventory v1 (constant)\n## Which lane you are in\n- AGT-W10C-DP - schema: inventory identity + committed_quantity, suppliers, purchase_orders, receipts, supply_events (#1794)\n- AGT-W10C-INT - the sync keeps every warehouse and the committed bucket (#1795)\n- AGT-W10C-BE - stockout signal + card, two attested reports as supply events, guarded delta write, guard + measure (#1798-#1804)\n- AGT-W10C-UI - report forms, two-numbers display, event-date field (#1807)\n## Architect locks\n- Spec of record is v1-workflow-spec.md S1 (shared FR/NFR) and S8.3 (resolved decisions); the ADR is the design; one issue = one lever or one surface\n- Migration numbers are RESERVED by Meta, never read from head\n- The model never picks a price or quantity: a deterministic rule does; one lever per run; single proposal (N=1)\n- Re-verify before the write; exactly one write per run; never cancel an order, never write a base price, never write stock below committed\n- Honest end states: completed with a named cause; no impact reading for a run that wrote nothing\n- Every seller string is Vietnamese through the sanitiser; never an internal identifier in seller-facing text\n- UI slices mount on the seven identical surfaces (card, plan review, confirmation sheet, run view, completion message + exception list, notification centre, deadline list); a slice needing a new surface is wrong\n- Tests flat in tests/unit/ (backend) or apps/demo/src/__tests__/ (UI) with real contract payloads, never **kwargs doubles or hand-authored event JSON\n- No TikTok endpoint returns a replenishment recommendation: the baseline is Juli-computed with TikTok's formula and labelled so; the uplift applies only to a seller-entered event date; 90-days-of-supply upper guard\n- The received report's form is the consent (hash over the confirmed values); the write is a DELTA on a freshly re-read level, abort on drift; confirmed receipts only\n- supplier is untrusted provenance; no supplier API, ever; Zalo is not a supplier channel\n## Epic deferrals\n- Reconciliation run, auto-restock toggle card, spike detection, event outcome store, FBT, photo/OCR and e-invoice sources\n"
+      childSlices:
+        1794: AGT-W10C-DP
+        1795: AGT-W10C-INT
+        1798: AGT-W10C-BE
+        1800: AGT-W10C-BE
+        1802: AGT-W10C-BE
+        1804: AGT-W10C-BE
+        1807: AGT-W10C-UI
+        1809: AGT-W10C-BE
+      doNotLoad:
+        - apps/
+        - ios/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
     # 1620 - W9-A/P-SHARED: the runtime can host more than one workflow (v1 P0 ladder).
     # Serial, lands before every workflow lane; first slices are Fable exemplars.
     1620:
