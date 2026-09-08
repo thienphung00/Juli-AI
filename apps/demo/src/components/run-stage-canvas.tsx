@@ -38,7 +38,7 @@ import {
 } from "../lib/run-surface/stage-copy";
 import { prefersReducedMotion, resolveRunSurfaceMotion } from "../lib/run-surface/motion";
 import { RUN_SURFACE_PANEL_CLASS_NAMES } from "../lib/run-surface/tokens";
-import { submitConfirmationDecision } from "../lib/run-surface/confirmation-client";
+import type { ConfirmDecisionFn } from "../lib/run-surface/confirmation-decision";
 import { OptionPicker } from "./option-picker";
 
 export interface RunStageCanvasProps {
@@ -61,7 +61,7 @@ export interface RunStageCanvasProps {
   readonly confirmationBaseUrl?: string;
   readonly confirmationFetchImpl?: typeof fetch;
   /** Injectable for tests; defaults to the real client. */
-  readonly confirm?: typeof submitConfirmationDecision;
+  readonly confirm?: ConfirmDecisionFn;
 }
 
 function proposedChangeEntries(change: Record<string, unknown>): Array<[string, string]> {
@@ -190,7 +190,7 @@ function DecisionContent({
   confirmationToken?: string;
   confirmationBaseUrl?: string;
   confirmationFetchImpl?: typeof fetch;
-  confirm?: typeof submitConfirmationDecision;
+  confirm?: ConfirmDecisionFn;
 }) {
   const decision = view.decisionRequest;
   if (!decision) {

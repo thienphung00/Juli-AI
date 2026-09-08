@@ -51,12 +51,36 @@ const SRC_ROOT = resolve(__dirname, "..");
  * fetch (`GET /v1/demo/analytics`, triggered from `analytics-dashboard.tsx`
  * on a visit to `/analytics`) is a separate, pre-existing mechanism this
  * issue does not touch and this test does not walk into.
+ * whatever "Dùng thử Demo" reveals, and the run route it eventually lands
+ * on) and fails if that closure ever comes to include a module that
+ * performs a fetch to a `/v1/*` route.
+ *
+ * Deliberately scoped to the replay entry's own reachable graph, not the
+ * whole pre-existing internal app shell — `DemoShell`'s Analytics data
+ * fetch (`GET /v1/demo/analytics`) is pre-existing, already-documented
+ * (`apps/demo/MODULE.md`) behaviour reached only by an explicit visit to
+ * `/analytics`, not by the "Dùng thử Demo" action itself.
+ *
+ * `components/replay-run-detail.tsx` (issue #1764) is the third entry
+ * point below -- the run route a replay visitor's browser actually lands
+ * on after approving the landing gate. It was missing entirely until
+ * #1764: the confirmation client the Đề xuất option picker's confirm
+ * button reached was only ever wired up on THAT route, so its own real,
+ * unauthenticated `POST /v1/demo/runs/.../confirmations/...` request was
+ * invisible to a graph walk that never started there. `run-detail-route.tsx`
+ * itself is deliberately NOT the entry point: it composes both ADR-094
+ * doors in one file, unconditionally importing the signed-in door's own
+ * clients (`fetchDemoRuns`, `submitConfirmationDecision`) that a replay
+ * visitor's browser never actually calls but a static import graph cannot
+ * see that. `replay-run-detail.tsx` is the replay door's OWN module,
+ * importing only what that door actually uses.
  */
 
 const ENTRY_POINTS = [
   "components/demo-landing.tsx",
   "components/home-launcher.tsx",
   "app/decisions/recommendations/[recommendationId]/page.tsx",
+  "components/replay-run-detail.tsx",
 ];
 
 const RESOLVABLE_EXTENSIONS = [".tsx", ".ts", "/index.tsx", "/index.ts"];

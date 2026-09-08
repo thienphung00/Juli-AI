@@ -1,7 +1,8 @@
 /**
  * Fetch client for `POST /v1/demo/runs/{run_id}/confirmations/{tool_call_id}`
  * (issue #1317, ADR-075 decision 2 / PUI-DESIGN.md §3) -- the consent-grade
- * option picker's ONLY write path.
+ * option picker's ONLY write path, and the ONLY module in this tree that
+ * performs it.
  *
  * Same-origin relative base path, matching `agent-event-stream.ts`'s
  * `AGENT_EVENT_STREAM_DEFAULT_BASE_URL` convention (demo workspace contract
@@ -25,50 +26,33 @@
  * rather than a generic failure. A malformed or non-JSON error body (rate
  * limit's plain-string `detail`, a network-layer 5xx) still raises with a
  * `null` `errorCode` -- callers branch on that too.
+ *
+ * TYPES/ERROR CLASS LIVE IN `confirmation-decision.ts` (issue #1764), and
+ * are re-exported below unchanged so every existing import of these names
+ * from this module keeps working. The split matters because that neutral
+ * module is what the Đề xuất option picker actually imports -- never this
+ * one -- so the replay door's reachable module graph never includes this
+ * file's `fetch()` call site or its `/v1/demo` route literal (see that
+ * module's own docstring, and `src/__tests__/replay-module-graph.test.ts`).
  */
 
+export {
+  ConfirmationRejectedError,
+  type ConfirmationDecisionKind,
+  type ConfirmationDecisionResult,
+  type ConfirmationErrorCode,
+  type ConfirmDecisionFn,
+  type SubmitConfirmationDecisionOptions,
+} from "./confirmation-decision";
+
+import {
+  ConfirmationRejectedError,
+  type ConfirmationDecisionKind,
+  type ConfirmationDecisionResult,
+  type SubmitConfirmationDecisionOptions,
+} from "./confirmation-decision";
+
 export const CONFIRMATION_API_DEFAULT_BASE_URL = "/v1/demo" as const;
-
-export type ConfirmationDecisionKind = "approve" | "decline";
-
-export interface SubmitConfirmationDecisionOptions {
-  readonly token?: string;
-  readonly baseUrl?: string;
-  readonly fetchImpl?: typeof fetch;
-}
-
-export interface ConfirmationDecisionResult {
-  readonly decision: ConfirmationDecisionKind;
-  readonly status: string;
-  readonly celeryTaskId: string;
-}
-
-/** Mirrors `services/agent_runs/confirmations.py`'s `ERROR_*` constants --
- *  transcribed, not re-derived, so a code this client does not recognize
- *  still carries its raw string through rather than being coerced into a
- *  known one. */
-export type ConfirmationErrorCode =
-  | "run_not_awaiting_confirmation"
-  | "confirmation_not_found"
-  | "confirmation_already_decided"
-  | "confirmation_expired"
-  | "invalid_decision"
-  | "option_id_required"
-  | "unknown_option_id"
-  | "params_sha_mismatch"
-  | "run_state_not_reconstructable"
-  | (string & {});
-
-export class ConfirmationRejectedError extends Error {
-  constructor(
-    public readonly status: number,
-    public readonly errorCode: ConfirmationErrorCode | null,
-    message: string,
-  ) {
-    super(message);
-    this.name = "ConfirmationRejectedError";
-  }
-}
 
 export function buildConfirmationDecisionUrl(
   runId: string,
