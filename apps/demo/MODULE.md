@@ -79,31 +79,38 @@ Invariants below.
   REPLAY/anonymous door stays request-free for *reaching and viewing* a run,
   exactly as ADR-094 decision 1 requires — verified directly against a
   running build, not inferred.
-- **Known gap, verified against this branch, not yet fixed here:** the
-  replay door's Đề xuất option picker has no replay-local confirm path.
-  Selecting an option and clicking "Xác nhận phương án này" or "Không thực
-  hiện" in the anonymous replay currently falls through to `OptionPicker`'s
-  default `confirm = submitConfirmationDecision` — the same real,
-  bearer-less `POST /v1/demo/runs/{id}/confirmations/{tool_call_id}` the
-  signed-in door uses, observed 404ing (no backend session backs the replay
-  door) and leaving the run stuck in a "cannot be confirmed" state. This
-  contradicts ADR-094 decision 1 and is a real defect, recorded here rather
-  than silently patched (out of the file boundary of the issue that found
-  it) — a replay-local confirm that resolves from the captured scenario's
-  own `continuations.approve`/`continuations.decline` without a network call
+- **Approving "Tối ưu sản phẩm" from Decisions reaches this captured run's
+  staged view (issue #1320 part 2 / #1762).** The list card's "Phê duyệt"
+  navigates to the review page; a second "Phê duyệt" in
+  `.demo-plan__actions` arms a `ConfirmDialog` (two-step consent, #1317);
+  confirming inside that dialog is what triggers `onApproveConfirm`'s push
+  to `/decisions/in-progress/{REPLAY_SCENARIO_RUN_ID}`
+  (`recommendation-review.tsx`). Verified end to end by
+  `e2e/exit-gate/replay-run-journey.spec.ts` walking the real click path
+  including the consent gate — not by a direct URL.
+- **Known gap, verified against this branch, not yet fixed here — tracked
+  as issue #1764.** The replay door's Đề xuất option picker has no
+  replay-local confirm path. Selecting an option and clicking "Xác nhận
+  phương án này" or "Không thực hiện" in the anonymous replay currently
+  falls through to `OptionPicker`'s default `confirm =
+  submitConfirmationDecision` — the same real, bearer-less `POST
+  /v1/demo/runs/{id}/confirmations/{tool_call_id}` the signed-in door uses,
+  observed 404ing (no backend session backs the replay door) and leaving
+  the run stuck in a "cannot be confirmed" state. This contradicts ADR-094
+  decision 1. `e2e/exit-gate/replay-run-journey.spec.ts` asserts this fails
+  loudly (no rejection alert) immediately after the confirm click, and is
+  expected to keep failing there until #1764 lands — a replay-local
+  confirm that resolves from the captured scenario's own
+  `continuations.approve`/`continuations.decline` without a network call
   does not exist yet.
 - **A second known gap, same investigation:** the captured golden scenario's
   `workflow.approval_required.expires_at` (`2026-08-28T12:32:13.308159Z`) is
   never rebased — only the envelope's own `timestamp` is shifted to "now"
   (`lib/run-surface/replay-scenario.ts`'s `rebaseEvent`). Once real
   wall-clock time passes that fixed date, the option picker renders
-  permanently expired for every visitor. Not fixed here for the same reason
-  as the gap above.
-- **A third known gap:** approving "Tối ưu sản phẩm" from Decisions does not
-  yet navigate to this captured run's staged view — it still falls through
-  to the pre-existing five-stage mock review flow. `RunDetailRoute` is
-  reachable only by a direct URL to `/decisions/in-progress/{runId}` today.
-  That wiring is issue #1320 part 2's stated scope.
+  permanently expired for every visitor. Not fixed here — out of this
+  issue's file boundary; worked around for test determinism only via a
+  pinned fake clock in the e2e spec, never in production source.
 - Contextual Juli assistance explains the active destination and never
   authorizes approval, rejection, or execution.
 - Every navigation target is keyboard accessible with a visible focus state and

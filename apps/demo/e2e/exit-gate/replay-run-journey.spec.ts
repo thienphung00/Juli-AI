@@ -21,81 +21,65 @@ import {
  * THIS spec only — flakiness here is a specified failure, never something
  * a retry papers over (release-evidence-plan `doNotInfer`).
  *
+* ============================================================================
+ * STATUS AS OF 2026-09-08 (branch feature/issue-1321-replay-journey,
+ * after #1762 / issue #1320 part 2 merged into the wave) — read before
+ * touching the assertions below rather than weakening them.
  * ============================================================================
- * WHY THIS TEST IS CURRENTLY RED (as of 2026-09-08, branch
- * feature/issue-1321-replay-journey) — read before touching the
- * assertions below rather than weakening them.
- * ============================================================================
  *
- * This issue is filed "Blocked by #1317, #1319, #1320" and #1320's own
- * "Part 2" scope (added 2026-09-08) states plainly: "Taking Dùng thử Demo
- * and approving reaches the staged run view, and the stages advance...
- * That is the wiring #1752 deliberately stopped short of... left reaching
- * the view from an approval to this slice." That wiring does not exist on
- * this branch yet — verified directly (not inferred) against the running
- * build before writing this spec:
+ * GAP 1 (approval → run-view navigation) IS RESOLVED. #1762 wired
+ * `RecommendationReview` to push `/decisions/in-progress/{runId}` for
+ * Optimize Product's `onApproveConfirm` (`recommendation-review.tsx:59-64`).
+ * A first pass of this spec still failed after that merge — not because
+ * the wiring was wrong, but because THIS SPEC skipped the two-step
+ * consent gate ADR-055 item 8's `PlanReviewCard` requires: clicking the
+ * list card's "Phê duyệt" only reaches the REVIEW page
+ * (`/decisions/recommendations/{workflowKey}`); a second "Phê duyệt" in
+ * `.demo-plan__actions` only ARMS a `ConfirmDialog` (`role="dialog"`,
+ * heading "Xác nhận phê duyệt"); only the CONFIRM button *inside that
+ * dialog* triggers `onApproveConfirm`'s navigation
+ * (`review-test-helpers.ts`'s `confirmApproveThroughGate` encodes the same
+ * sequence for the unit suite). Skipping straight from the list-card click
+ * to asserting the run-view URL was asserting less than the product's own
+ * "no single click authorizes anything" guarantee (#1317) — fixed by
+ * walking the gate explicitly below, with an assertion that the URL stays
+ * on the review route after the FIRST click and only changes after the
+ * dialog's own confirm.
  *
- * 1. Clicking "Phê duyệt" on the "Tối ưu sản phẩm" card in Decisions still
- *    goes through the pre-existing five-stage mock review flow
- *    (`recommendations-panel.tsx` / `recommendation-review.tsx`) and never
- *    navigates to `/decisions/in-progress/{runId}` — `RunDetailRoute`
- *    (issue #1316/#1752) is reachable ONLY by a direct URL today. This is
- *    exactly, and only, #1320 part 2's stated remaining scope.
+ * GAP 2 (replay-mode confirm hits real network) IS STILL OPEN, own issue
+ * #1764. `ReplayRunDetail` (the anonymous/no-token branch of
+ * `run-detail-route.tsx`) renders `RunStagedView` with no `confirm`
+ * override and no `confirmationToken`, so `OptionPicker`'s default
+ * `confirm = submitConfirmationDecision` fires a REAL
+ * `POST /v1/demo/runs/{id}/confirmations/{toolCallId}` the instant a
+ * visitor clicks "Xác nhận phương án này" or "Không thực hiện" in replay
+ * mode — verified by a manual probe against this branch's build (request
+ * observed, then a 404 since no backend is running, then the generic
+ * "Không thể xác nhận lựa chọn này." rejection copy). This directly
+ * violates ADR-094 decision 1 ("no `/v1/*` request, ever"). This spec's
+ * OWN second test below ("the confirmation decision route is never
+ * requested from the replay door") is the one that catches it — expected
+ * to keep failing at the confirm step until #1764 lands, per the
+ * coordinator's instruction not to work around it.
  *
- * 2. A second, deeper gap exists past that one: `ReplayRunDetail` (the
- *    anonymous/no-token branch of `run-detail-route.tsx`) renders
- *    `RunStagedView` with no `confirm` override and no `confirmationToken`,
- *    so `OptionPicker`'s default `confirm = submitConfirmationDecision`
- *    fires a REAL `POST /v1/demo/runs/{id}/confirmations/{toolCallId}` the
- *    instant a visitor clicks "Xác nhận phương án này" or "Không thực
- *    hiện" in replay mode — verified by a manual probe against this
- *    branch's build (request observed, then a 404 since no backend is
- *    running, then the generic "Không thể xác nhận lựa chọn này."
- *    rejection copy). This directly violates ADR-094 decision 1 ("no
- *    `/v1/*` request, ever") and #1320 part 2's own added criterion ("the
- *    stages advance... with no `/v1/*` request for the whole journey").
- *    Nothing in this branch wires a replay-local confirm (e.g. one that
- *    reads the golden scenario's own `continuations.approve` /
- *    `continuations.decline` and advances the reducer without a network
- *    round trip) — that wiring does not exist yet either.
+ * GAP 3 (unrebased `expires_at`) is a real production defect (flagged in
+ * `apps/demo/MODULE.md`, not fixed here — out of this issue's file
+ * boundary), worked AROUND for pure testability via the pinned fake clock
+ * below (`REPLAY_SCENARIO_CLOCK_PIN`) — a test-determinism choice, not a
+ * shortcut past product behavior.
  *
- * 3. A THIRD gap, independent of the above two: the captured scenario's
- *    `workflow.approval_required.expires_at` is a fixed absolute
- *    timestamp (`2026-08-28T12:32:13.308159Z`) that `rebaseEvent()`
- *    (`lib/run-surface/replay-scenario.ts`) never rebases (only the
- *    envelope's own `timestamp` field is shifted to "now" — the nested
- *    payload field is left as captured). Once real wall-clock time passes
- *    that date, the Đề xuất option picker renders permanently expired
- *    ("Đề xuất đã hết hiệu lực.") for every visitor, with no way to select
- *    an option at all. This is out of this issue's file boundary
- *    (`lib/run-surface/replay-scenario.ts` is production source, not an
- *    e2e spec/dictionary/MODULE.md/CI-config) — flagged in the
- *    implementation report for Meta/Architect to route, not silently
- *    patched here.
+ * GAP 4 (no disconnect/reconnect mechanism on the replay-only path) is
+ * still open, flagged for Meta/Architect — nothing in this codebase gives
+ * "disconnect" a meaning on a stream-free, `setTimeout`-paced replay.
  *
- * 4. A FOURTH, structural gap: "a forced mid-run disconnect and reconnect
- *    is part of the journey" (issue text) describes a property built for
- *    the SIGNED-IN path's `useRunStream` (real SSE, real backoff/replay
- *    via `Last-Event-ID`). The anonymous replay path this journey is
- *    specified to run entirely inside has no stream to disconnect at
- *    all: `ReplayRunDetail` hardcodes `isReconnecting={false}` and
- *    `useReplayEvents` is pure `setTimeout` pacing with zero network
- *    dependency. There is currently no mechanism, anywhere in this
- *    codebase, for a "disconnect" to mean anything on the replay-only
- *    path this journey is scoped to. This looks like a genuine planning
- *    gap rather than something assignable to #1320 part 2's stated scope
- *    (which only names "no `/v1/*` request", not reconnect) — flagged
- *    for Meta/Architect rather than invented here.
- *
- * This spec exercises the REAL click path throughout — no direct-URL
- * shortcut past the missing approval→run-view navigation, no
+ * This spec exercises the REAL click path throughout, including the full
+ * two-step consent gate — no direct-URL shortcut past any navigation, no
  * `page.route()` fulfillment standing in for the missing replay-local
  * confirm handler, and no reduced assertion set. It is expected to fail at
- * the point documented in each `step()` call below, honestly, until the
- * blocking issues above are resolved. Once #1320 part 2 (and the two
- * follow-up gaps above) land, this test should be re-run and, if it goes
- * green end to end, is the CI-visible half of ADR-076's phase gate.
- */
+ * the confirm step (gap 2, #1764) until that lands. Once #1764 (and gap 4)
+ * are resolved, this test should be re-run and, if it goes green end to
+ * end, is the CI-visible half of ADR-076's phase gate.
+  */
 test.describe("Replay journey — issue #1321 (ADR-076 decision 7)", () => {
   test.describe.configure({ retries: 0 });
 
@@ -144,7 +128,7 @@ test.describe("Replay journey — issue #1321 (ADR-076 decision 7)", () => {
       await expect(page).toHaveURL(/\/decisions$/);
     });
 
-    await test.step("approve the captured scenario's own recommendation", async () => {
+    await test.step("navigate from the Decisions list card to its review page", async () => {
       const card = page.locator(
         `article[data-workflow-key="${REPLAY_SCENARIO_WORKFLOW_KEY}"]`,
       );
@@ -153,11 +137,40 @@ test.describe("Replay journey — issue #1321 (ADR-076 decision 7)", () => {
         card.getByRole("heading", { level: 3, name: REPLAY_SCENARIO_WORKFLOW_TITLE }),
       ).toBeVisible();
       await card.scrollIntoViewIfNeeded();
-      await card.getByRole("button", { name: "Phê duyệt" }).click();
+      await Promise.all([
+        page.waitForURL(
+          new RegExp(`/decisions/recommendations/${REPLAY_SCENARIO_WORKFLOW_KEY}$`),
+        ),
+        card.getByRole("button", { name: "Phê duyệt" }).click(),
+      ]);
+    });
 
-      // THE CURRENTLY-BLOCKED STEP (gap 1 above, #1320 part 2's stated
-      // scope): approving this card must reach the captured run's staged
-      // view, never the pre-existing five-stage mock review flow.
+    await test.step("walk the two-step consent gate on the review page — no single click authorizes anything (#1317)", async () => {
+      // ADR-055 item 8's Situation → Decision → Details spine
+      // (`PlanReviewCard`) renders the first "Phê duyệt" in its
+      // `.demo-plan__actions` footer; clicking it only ARMS the gate
+      // (`setApproveGateOpen(true)`) — it must not, by itself, navigate
+      // anywhere. Asserted explicitly below rather than assumed, per the
+      // coordinator's note: this turns an incidental step into a checked
+      // product property, the same one `review-test-helpers.ts`'s
+      // `confirmApproveThroughGate` encodes for the unit suite.
+      await page
+        .locator(".demo-plan__actions")
+        .getByRole("button", { name: "Phê duyệt" })
+        .click();
+      await expect(page).toHaveURL(
+        new RegExp(`/decisions/recommendations/${REPLAY_SCENARIO_WORKFLOW_KEY}$`),
+      );
+
+      const dialog = page.getByRole("dialog");
+      await expect(dialog).toBeVisible();
+      await expect(
+        dialog.getByRole("heading", { name: "Xác nhận phê duyệt" }),
+      ).toBeVisible();
+      await dialog.getByRole("button", { name: "Phê duyệt" }).click();
+
+      // THE PREVIOUSLY-BLOCKED STEP (gap 1, #1320 part 2's stated scope) —
+      // #1762 landed this navigation; confirmed here rather than assumed.
       await expect(page).toHaveURL(
         new RegExp(`/decisions/in-progress/${REPLAY_SCENARIO_RUN_ID}`),
       );
@@ -206,6 +219,16 @@ test.describe("Replay journey — issue #1321 (ADR-076 decision 7)", () => {
       // already specifies for the initial reveal) — bounded and explicit
       // rather than depending on real wall-clock timing.
       await page.clock.fastForward(10_000);
+
+      // EXPECTED TO FAIL HERE — issue #1764 (gap 2, see the module
+      // docstring): the replay door has no replay-local confirm path yet,
+      // so this click actually fires a real, bearer-less confirmation POST
+      // that 404s, and `OptionPicker` renders its generic rejection alert
+      // instead of advancing. Asserted explicitly and immediately after
+      // the click — rather than deferred to a later step — so the failure
+      // is attributed to this exact defect, not an incidental side effect
+      // somewhere downstream.
+      await expect(page.getByRole("alert")).toHaveCount(0);
     });
 
     await test.step("forced mid-run disconnect and reconnect — never renders as a run failure", async () => {
