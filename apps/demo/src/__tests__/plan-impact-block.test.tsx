@@ -40,6 +40,7 @@ import { PREVENT_REFUND_WORKFLOW_KEY } from "../lib/workflows/prevent-refund";
 import { getPreventRefundPlanReview } from "../lib/workflows/prevent-refund/plan";
 import { CREATE_HERO_PRODUCT_WORKFLOW_KEY } from "../lib/workflows/create-hero-product";
 import { getCreateHeroProductPlanReview } from "../lib/workflows/create-hero-product/plan";
+import { REPLAY_SCENARIO_RUN_ID } from "../lib/run-surface/replay-scenario";
 import {
   confirmApproveThroughGate,
   makeValidPngFile,
@@ -63,6 +64,13 @@ interface ImpactTableEntry {
    * unblock it first. The impact block itself is unaffected.
    */
   sellerUploadGate?: true;
+  /**
+   * #1320 part 2, ADR-094 — true only for Optimize Product. Approval routes
+   * straight to the staged run view's replay run id and never calls
+   * `startExecution`; the impact block's "unaffected by approval" claim
+   * still holds, it just needs a different signal that approval happened.
+   */
+  replayRunEntry?: true;
 }
 
 const IMPACT_WORKFLOWS: ImpactTableEntry[] = [
@@ -73,6 +81,7 @@ const IMPACT_WORKFLOWS: ImpactTableEntry[] = [
   {
     workflowKey: OPTIMIZE_PRODUCT_WORKFLOW_KEY,
     getPlan: getOptimizeProductPlanReview,
+    replayRunEntry: true,
   },
   {
     workflowKey: CREATE_ACTIVITY_WORKFLOW_KEY,
@@ -188,7 +197,7 @@ function stubAnalyticsFetch(
 
 describe.each(IMPACT_WORKFLOWS)(
   "Impact block — $workflowKey",
-  ({ workflowKey, getPlan, sellerUploadGate }) => {
+  ({ workflowKey, getPlan, sellerUploadGate, replayRunEntry }) => {
     const plan = getPlan();
     const metricKey = plan.impact.metricKey;
     const definition = getMainKpiDefinition(metricKey);
@@ -321,7 +330,17 @@ describe.each(IMPACT_WORKFLOWS)(
       }
 
       await confirmApproveThroughGate(user);
-      expect(mockStartExecution).toHaveBeenCalledTimes(1);
+
+      if (replayRunEntry) {
+        // Optimize Product's approval never calls startExecution (#1320
+        // part 2) — it routes straight to the staged run view instead.
+        expect(mockStartExecution).not.toHaveBeenCalled();
+        expect(push).toHaveBeenCalledWith(
+          `/decisions/in-progress/${REPLAY_SCENARIO_RUN_ID}`,
+        );
+      } else {
+        expect(mockStartExecution).toHaveBeenCalledTimes(1);
+      }
 
       expect(screen.getByTestId("plan-impact").outerHTML).toBe(restingHtml);
     });
