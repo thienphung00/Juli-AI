@@ -8,8 +8,7 @@ export {
 
 export { getOptimizeProductPlanReview } from "./plan";
 
-export {
-  buildOptimizeProductExecution,
-  createOptimizeProductTimeline,
-  resetOptimizeProductExecutionCountersForTests,
-} from "./execution";
+// `./execution.ts` is deleted (#1320 part 2, ADR-094): Optimize Product's
+// approval reaches the staged run view directly instead of a
+// localStorage-persisted mock ExecutionRecord. There is no execution module
+// left in this directory to re-export.

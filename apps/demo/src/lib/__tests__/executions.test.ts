@@ -70,14 +70,15 @@ describe("startExecution", () => {
     expect(record.approvedInputs.warehouse_id).toBe("WH-HCM-01");
   });
 
-  it("starts workflow 2 with optimize_product tool and eleven-step timeline", () => {
-    const { executionId, record } = startExecution("optimize_product_2");
-
-    expect(executionId).toBe("exec-optimize_product_2-1");
-    expect(record.toolName).toBe("listing.optimize_product");
-    expect(record.lifecycleStatus).toBe("executing");
-    expect(record.timeline).toHaveLength(11);
-    expect(record.timeline[0]?.status).toBe("running");
+  it("rejects optimize_product_2 — the mock execution path is deleted for the Optimize Product surfaces (#1320 part 2, ADR-094)", () => {
+    // Optimize Product's approval reaches the staged run view (the replay's
+    // captured golden scenario, or a real signed-in run) instead of a
+    // localStorage-persisted mock ExecutionRecord. There is no timeline
+    // configuration left to seed for this key — the same "Unsupported
+    // workflow key" path an unknown key already takes.
+    expect(() => startExecution("optimize_product_2")).toThrow(
+      /Unsupported workflow key/,
+    );
   });
 
   it("starts workflow 5 with fulfillment.process_order tool and twenty-step timeline", () => {
