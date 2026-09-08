@@ -298,7 +298,16 @@ async def seed_demo_cohort_for_impact(session: AsyncSession) -> None:
         if days_from_t < 0:
             target_effect[current_date] = Decimal(1)
         else:
-            target_effect[current_date] = Decimal(1) + (Decimal(days_from_t + 1) * Decimal("0.08"))
+            # 0.03/day compounds to roughly +15% over the T+1..T+7 window. The
+            # magnitude is chosen for CREDIBILITY, not to reach a tier: a single
+            # price change that lifted GMV 40% (what 0.08 produced) is not a
+            # result a seller would believe, and a demo that overstates what
+            # Juli achieves is its own kind of dishonesty — the mirror of the
+            # null result it replaced. The tier remains the algorithm's to
+            # assign; at 0.02/day `sku_orders` falls to `trung_binh`, which is
+            # the confidence code disagreeing with the fixture rather than
+            # obeying it.
+            target_effect[current_date] = Decimal(1) + (Decimal(days_from_t + 1) * Decimal("0.03"))
 
     for day_offset in range((end_date - start_date).days + 1):
         current_date = start_date + timedelta(days=day_offset)

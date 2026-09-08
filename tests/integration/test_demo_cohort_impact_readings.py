@@ -83,6 +83,11 @@ async def test_demo_cohort_has_analytics_covering_windows(
         intervals_result = await session.execute(
             select(AnalyticsPerformanceInterval).where(
                 (AnalyticsPerformanceInterval.shop_id == shop.id)
+                # Without this filter the query returned every row in the shop,
+                # so each of the eight iterations asserted `232 >= 20` and the
+                # loop variable did nothing. Seven of eight products could have
+                # had no analytics at all and this still passed eight times.
+                & (AnalyticsPerformanceInterval.tiktok_product_id == product.tiktok_product_id)
                 & (AnalyticsPerformanceInterval.start_date >= pre_start)
                 & (AnalyticsPerformanceInterval.start_date <= post_end)
             )
@@ -91,8 +96,8 @@ async def test_demo_cohort_has_analytics_covering_windows(
 
         # Expect at least 20 days of data (should be 29 if complete)
         assert len(intervals) >= 20, (
-            f"Product {product.id} should have analytics for at least 20 days in window; "
-            f"got {len(intervals)}"
+            f"Product {product.tiktok_product_id} should have analytics for at least "
+            f"20 days in window; got {len(intervals)}"
         )
 
 
@@ -243,11 +248,19 @@ async def test_demo_cohort_produces_below_floor_reading(session: AsyncSession, d
     volume_floor = volume_floor_for(metric)
     volume_of = volume_indicator_for(metric)
 
+    # NAME THE PRODUCT. The earlier version of this loop had no
+    # `tiktok_product_id` filter, so every iteration re-read all ~230 rows in
+    # the shop and compared a SHOP-WIDE mean against the floor. It passed on the
+    # first iteration regardless of which product that was, and it would have
+    # kept passing with `cohort-below-floor` deleted from the cohort entirely —
+    # its analytics rows alone dragged the shop-wide mean under 1.0. It was
+    # asserting a property of the shop, not of the refusal case it is named for.
     found_below_floor = False
     for product in products:
         intervals_result = await session.execute(
             select(AnalyticsPerformanceInterval).where(
                 (AnalyticsPerformanceInterval.shop_id == shop.id)
+                & (AnalyticsPerformanceInterval.tiktok_product_id == product.tiktok_product_id)
                 & (AnalyticsPerformanceInterval.start_date >= pre_start)
                 & (AnalyticsPerformanceInterval.start_date <= pre_end)
             )
@@ -277,12 +290,14 @@ async def test_demo_cohort_produces_below_floor_reading(session: AsyncSession, d
 
             mean_volume = sum(volumes, start=Decimal(0)) / Decimal(len(volumes))
             if mean_volume < volume_floor:
-                found_below_floor = True
+                found_below_floor = product.tiktok_product_id
                 break
 
-    assert found_below_floor, (
-        f"Cohort must include at least one product below the volume floor ({volume_floor}); "
-        "this is a deliberate refusal case to demonstrate the product works correctly"
+    assert found_below_floor == "cohort-below-floor", (
+        f"the deliberate refusal case must be cohort-below-floor, but the product "
+        f"under the volume floor ({volume_floor}) was {found_below_floor!r}. A "
+        f"different product falling under the floor means the cohort no longer "
+        f"demonstrates what ADR-099 d.4 asks it to."
     )
 
 
