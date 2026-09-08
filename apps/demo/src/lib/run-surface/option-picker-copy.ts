@@ -4,7 +4,7 @@
  * (ADR-028) -- this module is the runtime constant, the dictionary entry is
  * the governance record; keep them byte-identical.
  */
-import type { ConfirmationErrorCode } from "./confirmation-client";
+import type { ConfirmationErrorCode } from "./confirmation-decision";
 
 /** `run.confirm_option` */
 export const OPTION_PICKER_CONFIRM_LABEL = "Xác nhận phương án này";

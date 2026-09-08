@@ -23,7 +23,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentEvent, ConfirmationOptionPayload } from "@juli/contracts";
 
 import { OptionPicker } from "../option-picker";
-import { ConfirmationRejectedError } from "../../lib/run-surface/confirmation-client";
+import {
+  ConfirmationRejectedError,
+  submitConfirmationDecision,
+} from "../../lib/run-surface/confirmation-client";
 import {
   OPTION_PICKER_DECLINE_OUTCOME,
   OPTION_PICKER_EXPIRED_COPY,
@@ -121,6 +124,7 @@ describe("OptionPicker -- two-step consent (security property, not polish)", () 
     );
     render(
       <OptionPicker
+        confirm={submitConfirmationDecision}
         expiresAt={CAPTURED_EXPIRES_AT}
         fetchImpl={fetchImpl as unknown as typeof fetch}
         nowMs={NOW_BEFORE_EXPIRY}
@@ -169,6 +173,7 @@ describe("OptionPicker -- decline is quiet and first class", () => {
     );
     render(
       <OptionPicker
+        confirm={submitConfirmationDecision}
         expiresAt={CAPTURED_EXPIRES_AT}
         fetchImpl={fetchImpl as unknown as typeof fetch}
         nowMs={NOW_BEFORE_EXPIRY}

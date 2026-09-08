@@ -38,10 +38,10 @@ import { resolveExpiryCountdown } from "../lib/run-ledger/expiry";
 import { buildOptionDiffRows, describeOptionField } from "../lib/run-surface/option-diff";
 import {
   ConfirmationRejectedError,
-  submitConfirmationDecision,
   type ConfirmationErrorCode,
+  type ConfirmDecisionFn,
   type SubmitConfirmationDecisionOptions,
-} from "../lib/run-surface/confirmation-client";
+} from "../lib/run-surface/confirmation-decision";
 import {
   OPTION_PICKER_CONFIRM_LABEL,
   OPTION_PICKER_DECLINE_LABEL,
@@ -67,8 +67,18 @@ export interface OptionPickerProps {
   readonly token?: string;
   readonly baseUrl?: string;
   readonly fetchImpl?: typeof fetch;
-  /** Injectable for tests; defaults to the real client. */
-  readonly confirm?: typeof submitConfirmationDecision;
+  /** Required -- issue #1764 removed the implicit "defaults to the real
+   *  HTTP client" fallback that silently let a caller forget to wire one
+   *  up (exactly the bug that shipped the replay door's confirm button
+   *  firing a real, unauthenticated request). Every real call site now
+   *  wires this explicitly: the signed-in door passes
+   *  `submitConfirmationDecision` (`confirmation-client.ts`), the replay
+   *  door passes its own local continuation-resolving handler
+   *  (`replay-confirm.ts`). Left optional in the TYPE (not required) only
+   *  so tests that never exercise the confirm/decline path do not have to
+   *  supply one -- `decide()` below fails loudly if it is ever actually
+   *  invoked without one. */
+  readonly confirm?: ConfirmDecisionFn;
 }
 
 type PickerStatus = "idle" | "submitting" | "confirmed" | "declined" | "rejected";
@@ -87,7 +97,7 @@ export function OptionPicker({
   token,
   baseUrl,
   fetchImpl,
-  confirm = submitConfirmationDecision,
+  confirm,
 }: OptionPickerProps) {
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [focusedIndex, setFocusedIndex] = useState(0);
@@ -107,6 +117,14 @@ export function OptionPicker({
   async function decide(decision: "approve" | "decline") {
     if (interactionDisabled) return;
     if (decision === "approve" && !selectedOptionId) return;
+
+    if (!confirm) {
+      // Every real call site must wire a confirm handler explicitly (see
+      // the prop's own doc comment) -- reaching here means a caller
+      // forgot, which must fail loudly rather than silently do nothing or
+      // silently reach for a network client that was never intended.
+      throw new Error("OptionPicker rendered without a confirm handler");
+    }
 
     setStatus("submitting");
     try {
