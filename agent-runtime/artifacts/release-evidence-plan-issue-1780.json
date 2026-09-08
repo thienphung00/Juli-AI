@@ -1,0 +1,102 @@
+{
+  "planId": "guards-tiktok-does-not-give-cooldown-title-length-bundle-2026-09-08",
+  "affectedPublicSurfaces": [
+    "NO HTTP surface is ADDED and none changes shape: nothing under `backend/src/juli_backend/api/routes/` is opened, no `/v1/**` or `/demo/**` request or response model moves, no field appears or disappears. What changes is WHICH PROPOSALS EXIST — some proposals that would previously have reached the seller are now refused earlier. That is a real, seller-observable behaviour change and it is the whole point of the slice.",
+    "THE COOLDOWN — one Juli-created discount per SKU per 30 days, checked against Juli's OWN activity ledger from #1778. This is the only place the question 'did Juli already discount this SKU' can be answered, because `Search Activities` does NOT exist as a usable read (contract-collection A-25; `endpoints.md:509`). The refusal happens BEFORE the proposal reaches the seller: the seller never sees an option that would be rejected. Its boundary is stated honestly — a discount Juli did not create, and any platform campaign, is invisible to this check and always will be.",
+    "THE TITLE-LENGTH GUARD — any edit that TOUCHES the title enforces ≥ 25 characters. `_build_listing_edit_body` (`backend/src/juli_backend/services/agent/tools/product_write.py:242`) has NO length check today; the guard lands in the input model and at dispatch. TikTok grandfathers existing short titles but enforces the rule on the next edit, so the correction happens BEFORE the CONFIRM pause — no confirmation is ever created carrying a sub-25-character title, and the seller never approves something TikTok will reject.",
+    "THE FOUR-FIELD BUNDLE REFUSAL — title, category, images and description can never all change in one run. Nothing anywhere refuses this today. That combination is the fingerprint of prohibited listing repurposing (listing-guide §3.1.7/§3.1.8), so it is refused STRUCTURALLY with a named error and nothing is written, never discouraged in prose.",
+    "ALL THREE GUARDS LIVE IN THE INPUT MODELS AND THE DISPATCH VALIDATOR, NEVER IN PROMPT TEXT. That placement is the load-bearing decision: a guard that lives in a prompt can be removed by a prompt revision, and ADR-090 d.4 requires guards that survive one. A test that only proves the prompt discourages the behaviour does not discharge any of these criteria.",
+    "THE CONFIRMATION SURFACE, indirectly: a refusal that a seller can see is Vietnamese through the seller-copy sanitiser, with no internal identifier, no projected impact magnitude and no causal claim (S-NFR-4). This slice adds NO new end state — it reuses the vocabulary #1707 landed.",
+    "FAIL-CLOSED IS THE MODE. A cooldown or bundle refusal is recorded in the ledger as a refusal — never a silent retry, never a silent downgrade to a different lever without evidence. A guard that fails open on a missing ledger row or an unreadable clock is worse than no guard, because it looks like coverage.",
+    "NO SCHEMA CHANGE: the cooldown READS #1778's ledger and writes nothing new. Nothing under `apps/`, `packages/` or `ios/` is touched — this epic's doNotLoad list.",
+    "Mixed-version hazard: `juli-api` and `juli-celery-worker` must move onto the same release together, because the guards run at dispatch inside the worker. A stable worker without the guards beside a candidate API is a window in which an unguarded proposal can execute."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest driven by the REAL `WorkflowRunner` against the fake LLM adapter (built on `LLMService.complete`'s real signature) from the worktree root with `PYTHONPATH` pinned to that worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite. THE COOLDOWN IS ASSERTED AGAINST REAL LEDGER ROWS written by #1778's persistence path with real timestamps, and the clock is MOVED rather than stubbed at a reading, so the 10-day and 31-day verdicts follow the data instead of following a mock. The edit-body builder is the REAL `_build_listing_edit_body` and the validator the REAL dispatch validator — never a `**kwargs` double. Post-deploy: the candidate's `/health` plus ONE authenticated read of the run list, which must be unchanged. No public traffic reaches a candidate task set and no vendor write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is FALSE: every effect of this slice is a REFUSAL. It adds no vendor call and removes some — the cooldown's whole purpose is that no promotion request is issued. workersDisabledOnCandidate is FALSE because the guards fire at dispatch inside the Celery worker; a candidate with workers disabled could not reach a single one of them and the journey would prove nothing.",
+    "journeys": [
+      {
+        "name": "three-guards-tiktok-does-not-give-fire-fail-closed-and-only-on-the-fields-they-own",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1780",
+        "assertions": [
+          "pre-merge (GIVEN a Juli discount 10 days old / THEN refused before any proposal; 31 days / THEN allowed): `tests/unit/test_optimize_product_guards.py::test_one_discount_per_sku_per_thirty_days` seeds REAL ledger rows from #1778's persistence path, moves the clock, and asserts the verdict FOLLOWS the data at 10 and at 31 days — a relationship, not two pinned cases. At 10 days it asserts (a) the discount lever is refused BEFORE any proposal is built, so no `run_confirmations` row and no option ever exists, and (b) ZERO promotion calls are attempted, asserted on the transport fake's recorded requests so a call made and discarded still fails",
+          "pre-merge (the cooldown's blind spot is asserted, not assumed): a discount Juli did NOT create is invisible to the ledger and therefore does not trigger the cooldown; the test states this explicitly so the guard is never mistaken for platform-wide coverage",
+          "pre-merge (GIVEN a 24-character title / THEN never reaches CONFIRM): `::test_title_below_twenty_five_never_reaches_confirm` asserts the proposal is corrected or refused BEFORE the CONFIRM pause and that NO `run_confirmations` row exists anywhere carrying a sub-25-character title — asserted by scanning the persisted confirmations, not by inspecting an in-memory object; boundary cases 24, 25 and 26 are all exercised",
+          "pre-merge (GIVEN title+category+images+description together / THEN refused, nothing written): `::test_the_four_field_bundle_is_impossible` asserts a NAMED error, that nothing is written, and that the refusal comes from the input model and the dispatch validator — not from the prompt. A three-field subset is separately asserted to still be permitted, so the guard is the four-field bundle and not a stealth two-field rule",
+          "pre-merge (GIVEN a description-only edit / THEN the title guard does not fire): `::test_guards_fire_only_on_the_fields_they_own` asserts a run that never touches the title is unaffected by the length rule, and that a listing edit with no discount is unaffected by the cooldown — over-firing is as much a defect as under-firing",
+          "pre-merge (GIVEN a cooldown or bundle refusal / THEN fail-closed and recorded): `::test_refusals_are_fail_closed_and_recorded` asserts each refusal is RECORDED in the ledger, is never a silent retry, and never downgrades to a different lever without evidence; and separately that an UNREADABLE ledger or a missing row fails CLOSED (refuse) rather than open (allow)",
+          "pre-merge (the guards survive a prompt revision — the structural claim): with the prompt's guard-related text removed or adversarially rewritten in the test, all three guards STILL fire. If a guard's test passes only with the shipped prompt in place, the guard is in the wrong layer",
+          "pre-merge (nothing new is invented): the diff adds NO new `StopReason` value, no new end state, and no new copy vocabulary beyond what #1707 landed — asserted over the enum so an accidental addition is visible",
+          "pre-merge (the existing write path still works): `tests/unit/test_agent_tools_product_write.py` passes with the guard cases added, a compliant listing edit still reaches CONFIRM unchanged, and `tests/unit/test_create_product_discount.py` (#1778) passes UNMODIFIED for a SKU with no prior Juli discount",
+          "post-deploy: the candidate's `/health` is unchanged, and ONE authenticated read of the run list returns byte-identical content to stable",
+          "post-deploy: deploying changes NO existing run and creates NO promotion — asserted by an unchanged activity-ledger row count across the deploy window and by the ABSENCE of any `POST /promotion/.../activities` request attributable to that window in the outbound request log, never by grepping for a success marker"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is backend Python under `backend/src/juli_backend/services/agent/` — the input models, `tools/product_write.py`'s edit-body builder and the dispatch validator — plus tests. `apps/`, `ios/`, `packages/` and `docs/product/design/` are on this epic's doNotLoad list and are not opened."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "refusal-ledger-rows",
+      "activity-ledger-row-count",
+      "outbound-request-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE. No column, index, constraint, table or grant is touched and NO Alembic revision file is created — the executor must not open `backend/src/juli_backend/database/migrations/versions/` at all. The cooldown READS the Juli activity-id ledger that #1778's own migration already created; this slice adds no storage of its own, and the refusal records go into the existing run ledger as ordinary rows. Stable and candidate therefore run the identical schema and coexist trivially on one database — the only difference between them is that the candidate refuses more, which is never a data-compatibility problem. If implementation concludes a new column is needed to make a guard work, that is a scope change to report BEFORE writing a migration, never a migration added under this issue."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed system changes: there is no cooldown of any kind, `_build_listing_edit_body` still has no length check, and nothing refuses a four-field listing edit — today's exact state. Nothing is exposed, nothing is partially applied, no vendor call is made, no data hazard. The cost of not merging is that unguarded proposals stay possible, which is a product risk, not a rollback risk.",
+    "postCutoverFailureBehavior": "Code-only rollback: redeploy the previous release and restart `juli-api` AND `juli-celery-worker` together. There is no schema to revert and no downgrade to run — this slice owns no migration. THE GUARDS DISAPPEAR AND NO DATA WRITTEN UNDER THEM BECOMES INVALID: a refusal recorded in the ledger is an ordinary row that the reverted code reads without interpreting, and a proposal that the guards allowed was, by construction, one the pre-guard code would also have allowed. State the direction of the risk plainly: rolling back RE-OPENS the possibility of a second discount inside 30 days, a sub-25-character title edit and a four-field bundle — the revert is safe for data and unsafe for policy, so it is a deliberate decision, not a default. A run SUSPENDED at CONFIRM across the rollback resumes correctly: consent is bound by `params_sha` over the tool call's arguments and neither the arguments nor the hash function move in this slice — assert this pre-merge rather than assuming it. Restart both processes on the same release; a stable worker without the guards beside a candidate API that relies on them is the one mixed-version state to avoid.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_optimize_product_guards.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_tools_product_write.py tests/unit/test_create_product_discount.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_runner_tool_executor.py tests/unit/test_agent_tool_registry_contract.py tests/unit/test_agent_prompt_playbook_consistency_gate.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT write a BASE PRICE, and do NOT let a cooldown refusal become a reason to reach for one. `resources.products.update_prices` has no caller on this path; #1773 removed the tool and ADR-090 d.1 rejected the fallback by name. A refused discount means a content lever with evidence, or an honest conclusion.",
+    "The MODEL NEVER PICKS A DEPTH, and a guard must never 'correct' one. #1778's deterministic rule computes the depth; these guards refuse or clamp FIELDS and TIMING, never numbers the model supplied. A validator that silently rewrites a model-supplied value hides a prompt failure.",
+    "Do NOT ship a DEFAULT SHOP MAXIMUM or any default depth. #1775's setting is required and seller-confirmed; unset means the price lever is unavailable, and no guard may fill it in.",
+    "Do NOT claim a TIKTOK TIER OR CODE the API did not return (OP-NFR-2). A refusal message must not say TikTok flagged anything unless a diagnosis code was actually returned by #1774's read; the Price Diagnostics tier and the 14 card recommendations are never claimed.",
+    "Do NOT reach for SEARCH ACTIVITIES to implement the cooldown. `POST /promotion/202309/activities/search` does NOT exist as a usable read (contract-collection A-25; `endpoints.md:509`). The cooldown reads JULI'S OWN ledger and nothing else, and its blind spot — discounts Juli did not create, and platform campaigns — is stated in the code and in the tests rather than implied away.",
+    "Do NOT enable or lean on REPEAT CONSENT. Optimize Product is barred from it in v1 (ADR-090 d.6, narrowing ADR-055 d.19). A cooldown is not a standing permission for the discount that follows it.",
+    "Do NOT READ A MIGRATION NUMBER FROM HEAD — do not write a migration at all. This slice has no schema change. Never run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive a number from the newest filename. Migration numbers are RESERVED BY META.",
+    "Do NOT put ANY of these guards in prompt text, a playbook intent, a tool description or a system message. They belong in the input models and the dispatch validator; a prompt revision must not be able to remove one (ADR-090 d.4).",
+    "Do NOT let a guard FAIL OPEN. A missing ledger row, an unreadable timestamp or an exception refuses the lever — it never allows it. Fail-open coverage is worse than none, because it reads as protection.",
+    "Do NOT stub the CLOCK at a fixed reading to make the cooldown pass. Move the clock and let the verdict follow real ledger rows; a stubbed reading proves the assertion, not the guard.",
+    "Do NOT SILENTLY RETRY a refusal or downgrade to another lever without evidence. Every refusal is recorded, and a content lever may only follow if it has a diagnosis code behind it.",
+    "Do NOT add a new `StopReason`, a new end state or new copy vocabulary. #1707 landed the vocabulary and #1784 owns the end states; this slice reuses what exists.",
+    "Do NOT turn the four-field rule into a two-field or three-field rule. The prohibition is the FOUR-field bundle (listing-guide §3.1.7/§3.1.8); a narrower guard silently blocks legitimate edits, and a wider one is a different design decision that belongs with the owner.",
+    "Do NOT put an internal identifier in seller-facing text. Refusal copy the seller can see is Vietnamese through the seller-copy sanitiser, with no projected impact magnitude and no causal claim (S-NFR-4).",
+    "Do NOT touch `apps/**`, `ios/**`, `packages/**`, `docs/product/design/**` or the TikTok corpora catalogs (ADR-051) — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature — the real `_build_listing_edit_body`, the real dispatch validator, the real activity ledger, the real `WorkflowRunner`, the existing fake LLM adapter over `LLMService.complete`. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

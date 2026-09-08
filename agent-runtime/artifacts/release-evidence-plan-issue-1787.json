@@ -1,0 +1,107 @@
+{
+  "planId": "shop-maximum-setting-and-discount-consequence-lines-ui-2026-09-08",
+  "affectedPublicSurfaces": [
+    "THE DEMO SETTING SCREEN — `apps/demo/src/components/settings-thresholds-panel.tsx`, rendered through `settings-view.tsx`, backed by `apps/demo/src/lib/settings` (`fixtures.ts` for the field definitions, `validation.ts` for `validateSettingsField`/`getEffectiveSettingsValue`, `save.ts` for `persistSettingsSave`, re-exported from `index.ts`). The shop maximum discount joins the EXISTING threshold fields as a REQUIRED field: the deepest discount Juli may ever propose on any SKU. NO NEW SURFACE and NO NEW NAVIGATION ENTRY is added — this mounts on one of the seven surfaces that already exist (S-FR-1). A slice that needs a new surface is a signal the design is wrong: stop and report.",
+    "THE UNSET STATE IS ITSELF A SURFACE. While no maximum is set, the panel says PLAINLY, in Vietnamese, that no discount runs until it is set. That sentence is the seller's only warning that a whole lever is switched off, so it is asserted as rendered text, not as a prop.",
+    "THE CONFIRMATION SHEET gains FOUR CONSEQUENCE LINES for DISCOUNT proposals only — the depth, the 30-day window, the ≥ 1-day price hold, and that a discount lowers the floor a future flash sale must beat (OP-FR-7, ADR-090 d.2's consequence disclosure). The seller consents to a constraint on their NEXT promotion, not only to a number. THE SHEET ITSELF IS W9-D's (#1779, W9-D/P-UI-2): this slice RENDERS the four lines INSIDE it and neither builds nor forks it.",
+    "THE NEGATIVE ON THE SHEET, which is the golden: a LISTING-FIELD confirmation renders with the discount-specific lines ABSENT and the sheet's existing content byte-unchanged. Adding a conditional block to a shared sheet is the classic way to change an unrelated payload's rendering by accident.",
+    "SELLER COPY. Every string this slice adds is Vietnamese, second person, through the seller-copy guard (`apps/demo/src/lib/review-seller-copy.ts` and the existing copy-guard test pattern in `apps/demo/src/__tests__/recommendations-copy-guard.test.tsx`): no internal identifier, no projected impact magnitude, no causal claim, and NEVER a Price Diagnostics tier claim (OP-NFR-2, S-NFR-4).",
+    "CLIENT-SIDE BAND VALIDATION IS FEEDBACK, NOT AUTHORITY. The 1–90 band is checked in the form so the seller gets an inline error and no save request is issued for an out-of-band value — but #1775's server endpoint remains the authority, and this slice must not duplicate or reimplement that authority. `validateSettingsField` already implements exactly this min/max shape and returns a Vietnamese message, so the field reuses it rather than growing a parallel validator.",
+    "A CODE FACT THAT CHANGES WHAT 'SAVES AND READS BACK' CAN MEAN HERE: `apps/demo/src/lib/settings/save.ts::persistSettingsSave()` is a STUB — a 20 ms timer with a test-only failure switch and NO HTTP call at all — and saved values live in the demo's own `mutableState.settingsSaved`. So the demo settings surface today persists NOTHING to the backend, and #1775's endpoint has no client. The round-trip this slice can honestly assert is through the app's own save/read path; wiring the panel to the real endpoint is a larger change than the issue describes. Decide this explicitly with the owner before implementation — either the round-trip assertion is scoped to the app's save path (and the plan says so), or the endpoint wiring is added and `persistSettingsSave` stops being a stub. DO NOT quietly assert a server round-trip the code cannot perform.",
+    "WEB ONLY. iOS is out of v1 (S-NFR-12); `ios/` and `apps/dashboard/` are on this slice's doNotLoad list, as is `backend/src/juli_backend/ai/` and `workers/`.",
+    "NO SCHEMA CHANGE and no backend edit: the value is stored by #1775, which also keeps enforcing the band server-side."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: VITEST COMPONENT TESTS on a real runner (`pnpm --filter @juli/demo test`, which runs `vitest run`) driving the REAL `SettingsThresholdsPanel` and the REAL W9-D confirmation sheet through `@testing-library/react` and `user-event` — rendering the actual components, never a shallow stub — with REAL CONTRACT PAYLOADS: the discount confirmation payload shape as `packages/contracts` declares it and #1778 produces it, and the listing-field payload from the existing fixtures used by `plan-review-spine.test.tsx` and `review-test-helpers.ts`. Never hand-authored event JSON. Plus `pnpm -w turbo run build` and the workspace lint and type-check. Post-deploy: the candidate's `/health`, the settings screen opened on the candidate, and ONE existing NON-DISCOUNT confirmation rendered on the candidate, which must be byte-unchanged against stable. No public traffic reaches a candidate task set and no backend write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is FALSE: this is a rendering and form-validation slice — it issues no vendor call, and it must issue no save request at all for an out-of-band value. workersDisabledOnCandidate is FALSE because the demo app does not execute a Celery task; disabling workers on the candidate would prove nothing about a component render either way, and the post-deploy confirmation render reads an EXISTING run rather than creating one.",
+    "journeys": [
+      {
+        "name": "one-required-setting-and-four-consequence-lines-on-surfaces-that-already-exist",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1787",
+        "assertions": [
+          "pre-merge (GIVEN no maximum set / THEN required and explained, no new surface): `apps/demo/src/__tests__/shop-maximum-discount-setting.test.tsx::test_unset_maximum_is_required_and_explained` renders the REAL settings view and asserts the field is shown as REQUIRED with its Vietnamese explanation that no discount runs until it is set — asserted on rendered text a seller can read, not on a prop — AND that the navigation entries and screen count are UNCHANGED against the existing `navigation.test.tsx` expectations, so 'no new surface' is verified rather than promised",
+          "pre-merge (GIVEN an out-of-band value / THEN inline error and NO save request): `::test_band_is_validated_before_save_and_a_valid_value_round_trips` types 0, 91 and a non-numeric value through `user-event` and asserts an inline VIETNAMESE error appears and that the save path is NOT called even once — asserted on a spy over the real save function, so a request that is issued and then ignored still fails",
+          "pre-merge (GIVEN an in-band value / THEN it round-trips): the same test saves a value inside 1–90 and reads it back through the app's own save/read path; the assertion states EXPLICITLY which layer it proves, because `persistSettingsSave` is a stub with no HTTP call — a test that claims a server round-trip here would be asserting something the code cannot do",
+          "pre-merge (the server stays the authority): the test asserts the client check is FEEDBACK — the component does not treat its own validation as the final word and does not reimplement #1775's band as a second source of truth",
+          "pre-merge (GIVEN a discount confirmation payload / THEN four lines): `apps/demo/src/__tests__/discount-consequence-lines.test.tsx::test_all_four_consequence_lines_render_for_a_discount_proposal` renders the REAL W9-D sheet (#1779) with a REAL discount payload and asserts all four lines are present — depth, 30-day window, one-day hold, flash-sale floor — and that each is Vietnamese",
+          "pre-merge (GIVEN a listing-field payload / THEN unchanged, golden): `::test_listing_proposals_are_unchanged` asserts the discount-specific lines are ABSENT and the sheet's existing content is byte-unchanged against the committed golden — the assertion that catches a conditional block leaking into an unrelated payload",
+          "pre-merge (GIVEN every added string / THEN the copy guard passes): `::test_new_copy_passes_the_seller_copy_guard` asserts no added string contains an internal identifier, a projected impact magnitude, a causal claim or a Price Diagnostics tier claim — run over the strings this slice adds, enumerated, so a string added later without a guard check is visible",
+          "pre-merge (the sheet is not forked): the diff contains NO new confirmation-sheet component and no copy of #1779's; asserted by the file list in review",
+          "pre-merge (nothing backend moves): the diff touches no file under `backend/`, and `apps/dashboard/` and `ios/` are untouched — this slice's doNotLoad list",
+          "pre-merge (the workspace is green as CI runs it): `pnpm -w turbo run build`, the workspace lint and the workspace type-check all pass, run with the same commands CI runs rather than a narrower local subset",
+          "post-deploy: the candidate's `/health` is unchanged; the SETTINGS SCREEN opens on the candidate and shows the required field in its unset state with the Vietnamese explanation — observed in the browser, not inferred from a bundle diff",
+          "post-deploy: ONE EXISTING NON-DISCOUNT CONFIRMATION opened on the candidate renders BYTE-UNCHANGED against stable — the load-bearing post-deploy assertion, since this slice edits a shared sheet",
+          "post-deploy: deploying sets NO shop's maximum and changes no stored value — asserted by an unchanged count of confirmed maxima across the deploy window"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/settings — the existing demo settings surface (`settings-view.tsx` / `settings-thresholds-panel.tsx`), which gains one required field and no new navigation entry",
+      "The existing decision/confirmation route on which the W9-D confirmation sheet (#1779) mounts — the sheet gains four lines for discount proposals only and is otherwise unchanged",
+      "No route is ADDED. The seven-surface set (card, plan review, confirmation sheet, run view, completion message + exception list, notification centre, deadline list) is unchanged in count; a diff that adds a route or a nav entry has broken S-FR-1 and must stop and report."
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "js",
+      "css",
+      "vitest-report",
+      "turbo-build-log",
+      "confirmation-render-golden",
+      "screenshot"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE and no backend edit of any kind. The per-shop maximum is stored by #1775, whose additive migration and server-side band enforcement land there; this slice renders and validates for feedback only, and the executor must not open `backend/src/juli_backend/database/migrations/versions/` or any backend module. Stable and candidate serve the same API and the same schema, so an old bundle and a new bundle coexist: an older client simply does not show the field, and the server keeps refusing an out-of-band value from either. If a `packages/contracts` type must change to carry the discount proposal shape, that is an ADDITIVE optional field, published to both apps at once — never a required field that an older consumer would fail to satisfy."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed app changes: the settings surface keeps its existing threshold fields with no maximum-discount field, the seller has nowhere to see or set the number, and the confirmation sheet carries no discount consequence lines. The backend keeps enforcing #1775's band regardless, so nothing is exposed, nothing is partially applied, and no stored value is at risk.",
+    "postCutoverFailureBehavior": "Revert the bundle: redeploy the previous demo build. There is no schema to revert, no downgrade to run and no backend process to restart for this slice. THE STORED MAXIMUM IS UNTOUCHED by the revert and THE BACKEND KEEPS ENFORCING IT (#1775) — the server was the authority all along, which is exactly why removing the client is safe: a seller who already confirmed a maximum keeps it, and runs keep reading it. The field disappears from the screen and the four consequence lines disappear from discount confirmations. State the direction of the risk plainly: after a revert a discount confirmation would be shown WITHOUT its consequence disclosure, so if any discount proposal can reach a seller at that moment, the correct rollback is to revert the discount lever too (#1778) rather than to ship a proposal with no disclosure. A confirmation OPEN in a browser across the revert is re-rendered on the next load from the same server payload — no client-side state is stranded, because nothing this slice adds is persisted in the browser.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo exec vitest run src/__tests__/shop-maximum-discount-setting.test.tsx src/__tests__/discount-consequence-lines.test.tsx",
+    "pnpm --filter @juli/demo test",
+    "pnpm lint:demo && pnpm type-check:demo",
+    "pnpm -w turbo run build"
+  ],
+  "doNotInfer": [
+    "Do NOT render, imply or offer a BASE-PRICE change anywhere in this UI. Juli's price lever is a Product Discount only (ADR-090 d.1); the base-price tool left the workflow in #1773, and copy that says Juli will change the listing price is false.",
+    "Do NOT let the SELLER OR THE MODEL pick the DEPTH in this UI. The depth is computed by #1778's deterministic rule and only DISPLAYED here; the maximum is the seller's ceiling, not the depth itself. A form control that edits the proposed depth would move a pricing decision into the client.",
+    "Do NOT PREFILL a DEFAULT SHOP MAXIMUM that ships untouched. The field is REQUIRED and UNSET until the seller confirms a number; a prefilled 20 % that a seller taps past is a value no one chose. If an agent-proposed default is shown, it is visibly a proposal that must be confirmed.",
+    "Do NOT CLAIM A TIKTOK TIER OR A CODE THE API DID NOT RETURN (OP-NFR-2). Never the Price Diagnostics tier, never the 14 card-diagnostic recommendations, and 'TikTok flags…' only where a code was actually returned in the payload being rendered.",
+    "Do NOT surface a SEARCH-ACTIVITIES-style promise. Nothing in this UI may tell the seller that Juli checked for existing campaigns or flash sales — `POST /promotion/202309/activities/search` does not exist (contract-collection A-25; `endpoints.md:509`), and platform campaigns are invisible to Juli. Do not imply coverage Juli does not have.",
+    "Do NOT render or re-enable REPEAT CONSENT for this workflow. Optimize Product is barred from it in v1 (ADR-090 d.6, narrowing ADR-055 d.19); `repeat-consent-block.tsx` exists in this app for legacy mock workflows and must not be mounted on an Optimize Product discount confirmation. Every run needs a fresh approval and a fresh confirmation.",
+    "Do NOT READ A MIGRATION NUMBER FROM HEAD, and do not write a migration or touch the backend at all. This slice has no schema change; the value is stored by #1775. Never run `alembic heads` and never open `backend/src/juli_backend/database/migrations/versions/`.",
+    "Do NOT ADD A NEW SURFACE, screen, route or navigation entry. Mount on the existing seven surfaces (S-FR-1). A slice that needs a new surface is a signal the design is wrong — stop and report instead of adding one.",
+    "Do NOT BUILD OR FORK THE CONFIRMATION SHEET. It is W9-D's #1779; render the four lines inside it. A second sheet component is a fork that will drift.",
+    "Do NOT TREAT THE CLIENT VALIDATION AS THE AUTHORITY. The server enforces the 1–90 band (#1775); the client check exists so the seller sees an inline error and no request is wasted. Never duplicate the rule as a second source of truth, and never let a client bypass imply the value is acceptable.",
+    "Do NOT ASSERT A SERVER ROUND-TRIP THE CODE CANNOT PERFORM. `apps/demo/src/lib/settings/save.ts::persistSettingsSave()` is a stub with no HTTP call; if the field is meant to reach #1775's endpoint, that wiring is an explicit decision with the owner, not an assumption baked into a test name.",
+    "Do NOT hand-author event or confirmation JSON for the tests. Use REAL contract payloads from `packages/contracts` and the existing fixtures (`review-test-helpers.ts`); a hand-written payload proves the component renders what the test author imagined.",
+    "Do NOT change how a NON-DISCOUNT confirmation renders. That golden is the assertion that a shared sheet did not shift under an unrelated payload.",
+    "Do NOT put an internal identifier, a projected impact magnitude or a causal claim in any string. Vietnamese, second person, through the seller-copy guard (S-NFR-4).",
+    "Do NOT touch `ios/**` (out of v1, S-NFR-12), `apps/dashboard/**`, `backend/src/juli_backend/ai/**`, `backend/src/juli_backend/workers/**`, the TikTok corpora catalogs (ADR-051), or a sibling issue's context cache — this slice's doNotLoad list."
+  ]
+}
