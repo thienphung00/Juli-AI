@@ -2,31 +2,39 @@
   "gateVersion": 2,
   "issue": 1320,
   "metrics": {
-    "acceptanceMapped": 3,
-    "acceptanceTotal": 3,
+    "acceptanceMapped": 2,
+    "acceptanceTotal": 2,
     "criticalFindings": 0,
     "modulesTouched": [
-      "apps/demo"
+      "apps/demo/src/components/plan-review-card.tsx",
+      "apps/demo/src/components/recommendation-review.tsx",
+      "apps/demo/src/__tests__/plan-review-spine.test.tsx",
+      "apps/demo/src/__tests__/plan-impact-block.test.tsx",
+      "apps/demo/src/lib/executions.ts",
+      "apps/demo/src/lib/__tests__/executions.test.ts",
+      "apps/demo/src/lib/__tests__/executions-module-graph.test.ts",
+      "apps/demo/src/lib/workflows/optimize-product/execution.ts",
+      "apps/demo/src/lib/workflows/optimize-product/__tests__/execution.test.ts"
     ]
   },
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1320.json",
     "ownerSignoffPresent": true,
-    "sha256": "e0bfaf9b294dd9cc24a8176199292f7c594bb8c9230ee9925eef1cc641befa88",
+    "sha256": "2c575d4537e019876c7bc5ae1b3835f45070f0c011b0b72c51d9102df7350784",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 6865,
-      "validationBytes": 26589
+      "reviewBytes": 2478,
+      "validationBytes": 26613
     },
     "claimVsExecuted": {
-      "citedCommandCount": 4,
-      "invokedCommandCount": 12820,
+      "citedCommandCount": 10,
+      "invokedCommandCount": 13198,
       "matchedCommandCount": 0,
-      "reason": "4 of 4 cited commands have no matching invocation in the session transcripts",
+      "reason": "10 of 10 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
       "status": "FAIL",
       "transcriptSources": [
@@ -36,26 +44,56 @@
         "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-open-terminal-in-code-08e55d"
       ],
       "transcriptsScanned": 45,
-      "unmatchedCommandCount": 4,
+      "unmatchedCommandCount": 10,
       "unmatchedCommands": [
         {
-          "command": "pnpm --filter @juli/demo exec vitest run src/__tests__/recommendations-routing.test.ts",
+          "command": "pnpm --filter @juli/demo test -- src/lib/__tests__/executions.test.ts --no-file-parallelism",
           "cycle": 1,
           "exitCode": 1
         },
         {
-          "command": "pnpm --filter @juli/demo exec vitest run src/__tests__/recommendations-routing.test.ts",
+          "command": "pnpm --filter @juli/demo test -- --no-file-parallelism",
           "cycle": 1,
           "exitCode": 0
         },
         {
-          "command": "git checkout -- apps/demo/src/components/demo-state.tsx apps/demo/src/lib/executions.ts apps/demo/src/lib/__tests__/executions.test.ts apps/demo/src/__tests__/demo-state-execution.test.tsx",
+          "command": "pnpm --filter @juli/demo test -- src/lib/__tests__/executions-module-graph.test.ts --no-file-parallelism",
+          "cycle": 2,
+          "exitCode": 1
+        },
+        {
+          "command": "pnpm --filter @juli/demo test -- --no-file-parallelism",
           "cycle": 2,
           "exitCode": 0
         },
         {
+          "command": "pnpm --filter @juli/demo test -- --no-file-parallelism",
+          "cycle": 3,
+          "exitCode": 1
+        },
+        {
+          "command": "pnpm --filter @juli/demo test -- --no-file-parallelism",
+          "cycle": 3,
+          "exitCode": 0
+        },
+        {
+          "command": "pnpm --filter @juli/demo exec tsc --noEmit",
+          "cycle": 3,
+          "exitCode": 0
+        },
+        {
+          "command": "pnpm --filter @juli/demo lint",
+          "cycle": 3,
+          "exitCode": 0
+        },
+        {
+          "command": "pnpm --filter @juli/demo test -- --no-file-parallelism",
+          "cycle": 3,
+          "exitCode": 0
+        },
+        {
           "command": "pnpm check:demo",
-          "cycle": 2,
+          "cycle": 3,
           "exitCode": 0
         }
       ],
@@ -104,9 +142,9 @@
       "unitRationale": "76 corpus commands chain 2-5 runs; scoring per command lets a broad first run launder a narrow second one, so each invocation is scored on its own selector."
     },
     "environment": {
-      "cwd": "/Users/macos/Juli-AI-v2/.worktrees/issue-1320-mock-deletion",
+      "cwd": "/Users/macos/Juli-AI-v2/.worktrees/issue-1320-part2",
       "dependencies": {
-        "constraints": "/Users/macos/Juli-AI-v2/.worktrees/issue-1320-mock-deletion/backend/constraints.txt",
+        "constraints": "/Users/macos/Juli-AI-v2/.worktrees/issue-1320-part2/backend/constraints.txt",
         "drift": [
           {
             "installed": "8.4.2",
@@ -192,25 +230,25 @@
       "git": {
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
-        "branch": "feature/issue-1320-mock-layer-deleted",
-        "head": "ccf278dd3c7dee3ae206aa499012d68f62e86b21",
+        "branch": "feature/issue-1320-part2-delete-mock",
+        "head": "bcc0cc5e2688d82024562dbea5010a25b1bcc4ec",
         "shallow": true
       },
       "moduleResolution": {
         "error": "ModuleNotFoundError: No module named 'juli_backend'",
-        "expectedPrefix": "/Users/macos/Juli-AI-v2/.worktrees/issue-1320-mock-deletion/backend/src/juli_backend",
+        "expectedPrefix": "/Users/macos/Juli-AI-v2/.worktrees/issue-1320-part2/backend/src/juli_backend",
         "insideRepo": false,
         "module": "juli_backend",
         "resolved": null
       },
       "python": "3.12.9",
-      "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/issue-1320-mock-deletion"
+      "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/issue-1320-part2"
     },
     "metrics": {
       "agents": [],
       "disagreements": [
         {
-          "claimed": 132,
+          "claimed": 177,
           "field": "toolInvocationCount",
           "observed": null,
           "observedFrom": "unavailable",
@@ -218,7 +256,7 @@
           "resolution": "unobservable"
         },
         {
-          "claimed": 3848000,
+          "claimed": 0,
           "field": "executionDurationMs",
           "observed": null,
           "observedFrom": "unavailable",
@@ -240,12 +278,12 @@
         },
         {
           "detail": "NameError: name '_settle_clock' is not defined",
-          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
           "reason": "task-dir-unreadable"
         },
         {
           "detail": "NameError: name '_settle_clock' is not defined",
-          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
           "reason": "task-dir-unreadable"
         },
         {
@@ -295,8 +333,8 @@
         "roleSelectedBy": "spawn-directive",
         "taskDirs": [
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
-          "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/cb047053-ee20-4e00-925f-7ebf36c0417b/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
@@ -330,7 +368,7 @@
         "executorsPersisted": 0,
         "gaps": [
           {
-            "agent": "executor-guardrails skill",
+            "agent": "executor-review skill",
             "reason": "no-transcript-persisted"
           }
         ]
@@ -342,10 +380,10 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-07T05:52:06Z",
+  "timestamp": "2026-09-08T03:25:16Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1320.json",
-    "sha256": "af6442e12922ddceb3647eac1a261d488244c5f64edc8ef7930d0049eee7d847",
+    "sha256": "20fb0332b6f916427f9afbe5d48a75643be1c67e05c2b365eb1126b784306887",
     "status": "PASS"
   },
   "wave": "wave-agent-w6"

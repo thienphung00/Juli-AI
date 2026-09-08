@@ -28,11 +28,6 @@ import {
   createDeleteActivityTimeline,
 } from "./workflows/delete-activity";
 import {
-  createOptimizeProductTimeline,
-  OPTIMIZE_PRODUCT_TOOL_NAME,
-  OPTIMIZE_PRODUCT_WORKFLOW_KEY,
-} from "./workflows/optimize-product";
-import {
   createProcessOrderTimeline,
   PROCESS_ORDER_TOOL_NAME,
   PROCESS_ORDER_WORKFLOW_KEY,
@@ -87,6 +82,19 @@ export { CREATE_HERO_PRODUCT_TOOL_NAME, createHeroProductTimeline };
 
 const executionCounters = new Map<string, number>();
 
+/**
+ * Ten workflows, deliberately not eleven (#1320 part 2, ADR-094). Optimize
+ * Product is not a key here: its approval reaches the staged run view
+ * directly (the replay's captured golden scenario, or a real signed-in run)
+ * instead of a localStorage-persisted mock `ExecutionRecord`. Calling
+ * `startExecution("optimize_product_2")` throws the same "Unsupported
+ * workflow key" every unknown key already throws — see
+ * `lib/__tests__/executions.test.ts` and
+ * `lib/__tests__/executions-module-graph.test.ts` (the latter walks this
+ * module's reachable closure and asserts it never re-acquires the deleted
+ * `execution.ts` module's former timeline/execution builders, so the wiring
+ * cannot be reintroduced quietly).
+ */
 const SUPPORTED_WORKFLOWS: Record<
   string,
   {
@@ -97,10 +105,6 @@ const SUPPORTED_WORKFLOWS: Record<
   [CREATE_HERO_PRODUCT_WORKFLOW_KEY]: {
     toolName: CREATE_HERO_PRODUCT_TOOL_NAME,
     createTimeline: createHeroProductTimeline,
-  },
-  [OPTIMIZE_PRODUCT_WORKFLOW_KEY]: {
-    toolName: OPTIMIZE_PRODUCT_TOOL_NAME,
-    createTimeline: createOptimizeProductTimeline,
   },
   [REPLENISH_INVENTORY_WORKFLOW_KEY]: {
     toolName: REPLENISH_INVENTORY_TOOL_NAME,
