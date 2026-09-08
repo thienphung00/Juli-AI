@@ -3,11 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildDecisionsHighlightHref,
   buildRecommendationDetailHref,
+  recommendationFixtures,
+} from "../lib/recommendations";
+import {
   DEMO_DECISIONS_API_PATH,
   DemoRecommendationsFetchError,
   fetchRecommendations,
-  recommendationFixtures,
-} from "../lib/recommendations";
+} from "../lib/recommendations-api-client";
 
 describe("recommendations routing helpers", () => {
   it("builds detail and highlight hrefs for list ↔ detail navigation", () => {

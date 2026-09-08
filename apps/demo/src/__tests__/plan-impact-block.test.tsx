@@ -7,6 +7,7 @@ import { RecommendationReview } from "../components/recommendation-review";
 import { IMPACT_UNAVAILABLE_TEXT } from "../components/impact-block";
 import { AnalyticsDataProvider } from "../lib/analytics/analytics-data-context";
 import { createMockDemoAnalyticsEnvelope } from "../lib/analytics/__tests__/fixtures";
+import { clearAuthSession, storeAuthSession } from "../lib/supabase-auth";
 import {
   IMPACT_METRIC_KEYS,
   buildAnalyticsMetricHref,
@@ -195,8 +196,24 @@ function stubAnalyticsFetch(
   return fetchStub;
 }
 
+const SIGNED_IN_JWT =
+  "eyJhbGciOiJIUzI1NiJ9." +
+  "eyJzdWIiOiJ1MSIsImVtYWlsIjoic2VsbGVyQGV4YW1wbGUuY29tIn0." +
+  "sig";
+
+/**
+ * Every case below renders through a STORED session (`storeAuthSession`),
+ * i.e. the signed-in door (ADR-094 decision 3, issue #1772) — the review
+ * page's live impact rendering is reached only once a session exists. See
+ * the "anonymous replay path" describe block near the end of this file for
+ * the no-session case, which must render the honest unavailable state and
+ * issue no fetch at all. The distinction the whole suite is organised
+ * around is "does this surface have a session", not "is this the review
+ * page" — both describe blocks render the exact same
+ * `RecommendationReview` component; only the stored session differs.
+ */
 describe.each(IMPACT_WORKFLOWS)(
-  "Impact block — $workflowKey",
+  "Impact block — $workflowKey — signed-in session",
   ({ workflowKey, getPlan, sellerUploadGate, replayRunEntry }) => {
     const plan = getPlan();
     const metricKey = plan.impact.metricKey;
@@ -215,10 +232,17 @@ describe.each(IMPACT_WORKFLOWS)(
     beforeEach(() => {
       push.mockClear();
       mockStartExecution.mockClear();
+      storeAuthSession({
+        accessToken: SIGNED_IN_JWT,
+        refreshToken: "r-1",
+        expiresIn: 3600,
+        tokenType: "bearer",
+      });
     });
 
     afterEach(() => {
       vi.unstubAllGlobals();
+      clearAuthSession();
     });
 
     it("reads the tied KPI from the workflow's existing binding, never a new map", () => {
@@ -434,5 +458,99 @@ describe("Impact block — structural guards across every workflow", () => {
         expect(goal).not.toMatch(pattern);
       }
     }
+  });
+});
+
+describe("Impact block — anonymous replay path (no session, issue #1772)", () => {
+  const plan = getOptimizeProductPlanReview();
+  const metricKey = plan.impact.metricKey;
+  const definition = getMainKpiDefinition(metricKey);
+  const deepLinkName = `Xem ${definition.name} trên Phân tích`;
+
+  beforeEach(() => {
+    push.mockClear();
+    mockStartExecution.mockClear();
+    clearAuthSession();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    clearAuthSession();
+  });
+
+  /**
+   * ADR-094 decision 1: the anonymous replay door mints no session and
+   * calls no authenticated route — the review page mounting `ImpactBlock`
+   * must not be the one place that breaks that. Regression test for
+   * issue #1772: `GET /v1/demo/analytics` used to fire unconditionally on
+   * mount, regardless of session.
+   */
+  it("issues no analytics fetch when no session is stored", async () => {
+    const fetchStub = stubAnalyticsFetch();
+
+    render(
+      <AnalyticsDataProvider>
+        <RecommendationReview workflowKey={OPTIMIZE_PRODUCT_WORKFLOW_KEY} />
+      </AnalyticsDataProvider>,
+    );
+
+    const impact = screen.getByTestId("plan-impact");
+    await within(impact).findByText(IMPACT_UNAVAILABLE_TEXT);
+
+    // Give any stray async work (a fetch that should never have been
+    // scheduled) a chance to surface before asserting its absence.
+    await waitFor(() => {
+      expect(impact).toBeInTheDocument();
+    });
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it("renders the honest unavailable state — goal and deep link intact, no digits", async () => {
+    stubAnalyticsFetch();
+
+    render(
+      <AnalyticsDataProvider>
+        <RecommendationReview workflowKey={OPTIMIZE_PRODUCT_WORKFLOW_KEY} />
+      </AnalyticsDataProvider>,
+    );
+
+    const impact = screen.getByTestId("plan-impact");
+    await within(impact).findByText(IMPACT_UNAVAILABLE_TEXT);
+
+    expect(impact.textContent ?? "").not.toMatch(/\d/);
+    expect(
+      within(impact).getByText(plan.impact.directionalGoal),
+    ).toBeInTheDocument();
+    expect(
+      within(impact).getByRole("link", { name: deepLinkName }),
+    ).toBeInTheDocument();
+  });
+
+  it("still shows real figures once a session is stored on the same surface", async () => {
+    // Same route, same component — only the stored session differs. This
+    // is the "signed-in review page must keep working" bar from #1772:
+    // the fix must not be "the review page never fetches", it must be
+    // "the review page fetches only when there is somewhere to fetch FOR".
+    storeAuthSession({
+      accessToken:
+        "eyJhbGciOiJIUzI1NiJ9." +
+        "eyJzdWIiOiJ1MSIsImVtYWlsIjoic2VsbGVyQGV4YW1wbGUuY29tIn0." +
+        "sig",
+      refreshToken: "r-1",
+      expiresIn: 3600,
+      tokenType: "bearer",
+    });
+    const fetchStub = stubAnalyticsFetch();
+
+    render(
+      <AnalyticsDataProvider>
+        <RecommendationReview workflowKey={OPTIMIZE_PRODUCT_WORKFLOW_KEY} />
+      </AnalyticsDataProvider>,
+    );
+
+    const impact = screen.getByTestId("plan-impact");
+    const expected = EXPECTED_FROM_ENVELOPE[metricKey]!;
+    await within(impact).findByText(expected.formattedValue);
+    expect(fetchStub).toHaveBeenCalled();
   });
 });

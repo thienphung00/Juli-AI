@@ -10,6 +10,47 @@ const SRC_ROOT = resolve(__dirname, "..");
  * no session and issues no authenticated request... asserted structurally
  * over the module graph, not by observing one page." Walks the real
  * TypeScript import graph reachable from the replay entry (the landing gate,
+ * whatever "Dùng thử Demo" reveals, and the review page the golden walk
+ * passes through between Decisions and the staged run view) and fails if
+ * that closure ever comes to include a module that performs a fetch to a
+ * `/v1/*` route.
+ *
+ * `app/decisions/recommendations/[recommendationId]/page.tsx` (issue #1772)
+ * is the third entry below — pointed at the literal Next.js App Router page
+ * file for the review route, rather than at a hand-picked inner component
+ * name. That is deliberate: this entry list has already been widened twice
+ * reactively — once at authoring, once by #1764 (which added
+ * `components/replay-run-detail.tsx` for the run route, a different gap) —
+ * and each widening added exactly the one surface that had just been found
+ * missing, `plan-review-card.tsx → impact-block.tsx → analytics
+ * api-client` among them, never derived structurally. Anchoring on the
+ * route file itself means the walk automatically follows whatever that
+ * route delegates to today AND tomorrow, with no further manual edit to
+ * this list required when the page's implementation changes underneath it
+ * — only a new ROUTE, a much rarer and more visible event, can go missing
+ * the same way again.
+ *
+ * Full derivation straight from the replay journey's own e2e spec (its
+ * most authoritative source of "routes actually visited") was judged
+ * impractical here: that spec lives on `feature/issue-1321-replay-journey`,
+ * a branch not merged into this one's base, so a hard dependency on reading
+ * it from this test would break for any checkout of this branch on its
+ * own. The page-file anchor above is the most mechanical, self-verifying
+ * source available from inside this branch.
+ *
+ * `app/decisions/in-progress/[executionId]/page.tsx` — the staged run view
+ * the same journey visits next — is deliberately NOT added here. Its
+ * component, `run-detail-route.tsx`, composes BOTH ADR-094 doors in one
+ * file and unconditionally imports the signed-in door's own client
+ * (`fetchDemoRuns`); a static import graph cannot see that the replay
+ * visitor's browser never actually calls it. That surface belongs to
+ * issue #1764's own scope, not this one's.
+ *
+ * Deliberately scoped to the replay entry's own reachable graph, not the
+ * whole pre-existing internal app shell. `DemoShell`'s own Analytics data
+ * fetch (`GET /v1/demo/analytics`, triggered from `analytics-dashboard.tsx`
+ * on a visit to `/analytics`) is a separate, pre-existing mechanism this
+ * issue does not touch and this test does not walk into.
  * whatever "Dùng thử Demo" reveals, and the run route it eventually lands
  * on) and fails if that closure ever comes to include a module that
  * performs a fetch to a `/v1/*` route.
@@ -38,6 +79,7 @@ const SRC_ROOT = resolve(__dirname, "..");
 const ENTRY_POINTS = [
   "components/demo-landing.tsx",
   "components/home-launcher.tsx",
+  "app/decisions/recommendations/[recommendationId]/page.tsx",
   "components/replay-run-detail.tsx",
 ];
 
