@@ -287,10 +287,26 @@ async def test_demo_cohort_produces_below_floor_reading(session: AsyncSession, d
 
 
 @pytest.mark.asyncio
-async def test_demo_cohort_includes_series_source_synthetic(
+async def test_seeded_analytics_carry_every_column_the_metrics_need(
     session: AsyncSession, demo_cohort
 ) -> None:
-    """Verify seeded analytics have structure for series_source='synthetic' marking."""
+    """Every metric the mutation map can select must have its source column populated.
+
+    RENAMED in review (#1767). This was called
+    `test_demo_cohort_includes_series_source_synthetic`, which it never asserted:
+    it checks analytics columns, and `series_source` lives on `impact_readings`,
+    which this seeder deliberately does not write. A test named for a guarantee it
+    does not make reads as coverage to anyone scanning names, which is worse than
+    having no test.
+
+    `series_source` is enforced where readings are PERSISTED, which is #1768's
+    wiring. The column is NOT NULL with no default (#1766), so that path cannot
+    silently omit it.
+
+    What this does check is load-bearing: `metric_map` selects impressions, ctr,
+    conversion_rate, gmv or sku_orders depending on the mutation, so a seed missing
+    any one produces a reading that refuses for the wrong reason.
+    """
     # This is a forward-looking test: when impact readings are computed from the seeded data,
     # they must set series_source='synthetic'. We verify the seeder has the data structure
     # needed for this (the test becomes real once the demo execution flow writes readings).
@@ -311,3 +327,53 @@ async def test_demo_cohort_includes_series_source_synthetic(
         assert interval.gmv is not None, "Analytics must have GMV"
         assert interval.sku_orders is not None, "Analytics must have sku_orders"
         assert interval.visitors is not None, "Analytics must have visitors"
+
+
+@pytest.mark.asyncio
+async def test_demo_cohort_produces_a_suppressed_reading(
+    session: AsyncSession, demo_cohort
+) -> None:
+    """ADR-099 decision 4's third case, which was claimed but never covered.
+
+    The seeder creates `cohort-degenerate` for exactly this, and nothing asserted
+    what it yields. A refusal case that is seeded and never checked can stop
+    working silently — and the refusals are the half of this algorithm a demo most
+    needs to show honestly.
+
+    `compute.py` suppresses the percentage form on three degenerate inputs:
+    `control_pre == 0`, `pre == 0`, `expected <= 0`. Any is a valid suppression;
+    what matters is that the pre-period is degenerate so the branch can fire, not
+    which one does.
+    """
+    from juli_backend.services.impact.metric_map import METRIC_MAP, MutationKind
+
+    shop = demo_cohort["shop"]
+    # T is `date.today()` in the seeder, matching how the sibling tests in
+    # this module derive it. The fixture does not expose it.
+    t = date.today()
+
+    rows = (
+        (
+            await session.execute(
+                select(AnalyticsPerformanceInterval).where(
+                    AnalyticsPerformanceInterval.shop_id == shop.id,
+                    AnalyticsPerformanceInterval.tiktok_product_id == "cohort-degenerate",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert rows, "the seeder must create cohort-degenerate, or this case is untested"
+
+    # PRICE's primary metric is gmv (metric_map.py); read it directly rather than
+    # through MetricSpec, which carries no `.name` for a message.
+    assert METRIC_MAP[MutationKind.PRICE].primary is not None
+    pre = [r.gmv for r in rows if r.start_date < t and r.gmv is not None]
+    pre_mean = sum(pre) / len(pre) if pre else None
+
+    assert pre_mean is None or pre_mean == 0, (
+        f"cohort-degenerate must have a degenerate pre-period (gmv) so the "
+        f"suppression branch can fire; got pre mean {pre_mean!r}. If the seed drifts "
+        f"so this is non-zero, the suppressed case stops being exercised silently."
+    )
