@@ -310,8 +310,8 @@ Phase 2 executors assume **Fulfillment by Seller (FBS)** only. FBT is **monitor-
 _Avoid_: implementing FBT clearance or restock writes in Phase 2
 
 **Attested report**:
-A seller-supplied, human-relayed statement of an off-platform fact (a supplier order placed, goods received) whose form *is* the consent moment; its params hash covers the seller-supplied values and corrections are new reports ([ADR-093](docs/adr/093-replenish-inventory-design.md)). Juli operates no supplier or ERP integration — no such surface exists at TikTok.
-_Avoid_: Replenish via Supplier, Replenish via ERP (retired workflow names), supplier API, ERP sync (no such surface exists), treating the seller's report as a hint rather than the consent
+A seller-supplied, human-relayed statement of an off-platform fact (a supplier order placed, goods received) whose form *is* the consent moment; its params hash covers the seller-supplied values and corrections are new reports ([ADR-093](docs/adr/093-replenish-inventory-design.md)). Juli operates no supplier or ERP integration — no such surface exists at TikTok. Stored as a supply event with a pluggable `source` (v1: the seller's form); confirmation, not source, is the consent ([ADR-093](docs/adr/093-replenish-inventory-design.md) amendment 2026-09-08).
+_Avoid_: Replenish via Supplier, Replenish via ERP (retired workflow names), supplier API, ERP sync (no such surface exists), treating the seller's report as a hint rather than the consent, treating a supplier's message as a confirmed fact
 
 **Customer Service execution**:
 Approval-gated workflow actions for Resolve Recurring Customer Complaints (Phase 3 deferred) and live Post-sales workflows **Request Return (8b)**, **Request Cancellation (8a)**, **Request Refund (8c)**. Phase 2 CSAT is advisory-only with **no live workflow key**. Step catalogs: `execution_layer.md`.
