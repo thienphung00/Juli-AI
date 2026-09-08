@@ -1,0 +1,107 @@
+{
+  "planId": "honest-end-states-and-the-discount-measure-2026-09-08",
+  "affectedPublicSurfaces": [
+    "STOP REASONS ON THE RUN LIST — a seller- and operator-visible surface. #1707 already added `no_diagnosis_codes`, `price_lever_locked`, `scope_unavailable` and `declined` to the `StopReason` enum, the DB CHECK and the TS union; this slice makes Optimize Product ACTUALLY REACH all four. Each ends the run `completed` (never `failed`) with its own cause, so the four facts are distinguishable in the run list and countable in run quality. Today's shipped enum (`services/agent/status.py`) carries `final_response`, `confirmation_declined`, `concluded_without_changes`, `tool_error_unrecoverable` and eleven more — the four causes are the discriminators ADR-090 d.7 puts beside `concluded_without_changes`, not replacements for it.",
+    "THE COMPLETION MESSAGE — four DISTINCT Vietnamese seller messages, one per cause, each through the ADR-070 outbound banned-pattern guard. One generic 'nothing to do' would make four different facts indistinguishable, which is exactly the failure ADR-088 diagnosed on `final_response`. The cause NAMES are internal identifiers and must never appear in the seller's words (S-NFR-4).",
+    "IMPACT READINGS GAIN ROWS FOR DISCOUNT WRITES — the measure. `classify_mutation_kinds` (`backend/src/juli_backend/workers/impact_reader/classify.py:57-66`) keys off `price_update`/`image_uri`/`title`/`description` and returns `[]` for a discount payload, so a discount execution is SELECTED as due by `measurable_tool_names()` (because #1778's tool is WRITE-registered) and then SILENTLY SKIPPED. This slice adds a DISCOUNT MUTATION KIND to `MutationKind` (`services/impact/metric_map.py:52-66`, today `SEO_KEYWORDS_TITLE`/`DESCRIPTION`/`IMAGE`/`PRICE`) with its metric spec, plus the classify branch that recognises a discount payload. A discount is a PRICE-SHAPED mutation, so it reads the EXISTING revenue metric (`GMV` in `metric_map.py`) — CTOR IS NOT A METRIC ANYWHERE IN THIS CODEBASE (`METRIC_MAP` holds impressions, ctr, conversion_rate, items_sold, gmv, sku_orders, gmv_per_order and nothing else) and is NOT introduced here.",
+    "THE LISTING-EDIT CLASSIFICATION IS A GOLDEN. A listing edit must classify EXACTLY as it does today, byte-for-byte — adding a branch to a heuristic that already keys off four payload fields is the classic place to change an existing verdict by accident.",
+    "READINGS STAY HEDGED at 7 and 14 days on the EXISTING windows (`services/impact/windows.py`). No new window, no new confidence vocabulary, no new hedging rule.",
+    "REPEAT-CONSENT ELIGIBILITY refuses this workflow key. ADR-090 d.6 NARROWS ADR-055 d.19, which listed `optimize_product_2` as Repeat-consent *Eligible* — that eligibility was assessed against a listing-content edit, and the lever is now a priced, expiring promotion. Every run needs a fresh approval AND a fresh confirmation. The eligibility check is the enforcement point, not the prompt.",
+    "SILENT LAPSE. The 30-day discount expires on its own and V1 DOES NOTHING: no renewal, no scheduled re-card, no revert. A successor card comes ONLY from the standard nightly ADR-087 emission path, where the partial unique index (one active card per shop/workflow/subject) makes a duplicate STRUCTURALLY impossible rather than merely unlikely. This v1 behaviour deliberately TRIMS ADR-090 d.6's lapse-driven revision — the spec records the trim, and the emission path is identical either way, so nothing is built twice.",
+    "A RUN THAT WROTE NOTHING PRODUCES NO IMPACT READING and counts SEPARATELY from a failure (S-FR-7, `CONTEXT.md`'s four-metric separation). The absence of a row is the assertion, not the presence of a zero.",
+    "A VENDOR ERROR ON THE DIAGNOSIS READ that survives retry STAYS on the failure terminal (`tool_error_unrecoverable`, status `failed`). It must never be laundered into one of the four honest causes.",
+    "NO HTTP route contract changes and NO schema change: #1707 already extended the enum, the DB CHECK and the TS union, and the new mutation kind is a CODE-LEVEL enum value in `services/impact/metric_map.py`, never a database object. Nothing under `apps/`, `packages/` or `ios/` is touched — this epic's doNotLoad list."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest driven by the REAL `WorkflowRunner` against the fake LLM adapter (built on `LLMService.complete`'s real signature) from the worktree root with `PYTHONPATH` pinned to that worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite, because the run rows, the `impact_readings` unique key on `(tool_execution_id, metric, kind)` and the ABSENCE assertions the journey depends on are Postgres behaviour. EACH OF THE FOUR CAUSES IS REACHED THROUGH A REAL RUN, never by writing a stop reason into a row by hand, and THE READER IS EXERCISED AGAINST REAL `tool_executions` ROWS written by #1778's persistence path rather than hand-built payloads. Post-deploy: the candidate's `/health` plus ONE authenticated read of an existing COMPLETED run whose stop reason and impact readings must be unchanged. No public traffic reaches a candidate task set and no vendor write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is FALSE: this slice adds no vendor call at all — it names end states and classifies payloads that already exist. workersDisabledOnCandidate is FALSE because both halves of the slice live in workers: `WorkflowRunner` reaches the end states inside the Celery worker and the impact reader IS a Celery beat task. A candidate with workers disabled could exercise neither, and the journey would prove nothing.",
+    "journeys": [
+      {
+        "name": "four-causes-are-reachable-and-distinct-and-a-discount-is-finally-measured",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1784",
+        "assertions": [
+          "pre-merge (GIVEN each of the four causes through a REAL run / THEN completed, distinct, own copy): `tests/unit/test_optimize_product_end_states.py::test_each_cause_is_reachable_distinct_and_has_its_own_copy` drives four real runs to `no_diagnosis_codes`, `price_lever_locked`, `scope_unavailable` and `declined`, asserting for each that the run row carries THAT stop reason with status `completed`, and that the four Vietnamese completion lines are pairwise DISTINCT and each passes the banned-pattern guard — pairwise distinctness is the assertion, because four causes sharing one message is precisely the ADR-088 `final_response` failure",
+          "pre-merge (the cause names never leak): none of the four literal identifiers appears in any seller-facing string (S-NFR-4)",
+          "pre-merge (the failure terminal is not absorbed): a vendor error on the diagnosis read surviving retry ends `failed` on `tool_error_unrecoverable` — NOT `completed`, and NOT one of the four causes",
+          "pre-merge (GIVEN a confirmed discount write / THEN classified, mapped, scanned): `::test_a_discount_write_classifies_and_is_measured_and_listing_edits_are_unchanged` asserts against a REAL `tool_executions` row written by #1778's path that `classify_mutation_kinds` yields the DISCOUNT kind, that the kind maps to the EXISTING revenue metric (`GMV`) in `metric_map.py`, and that the execution is SCANNED rather than skipped — asserted by an `impact_readings` row actually existing at the 7- and 14-day windows",
+          "pre-merge (the listing-edit GOLDEN): the SAME test asserts a listing-edit payload classifies EXACTLY as today — the full ordered kind list compared, so a new branch that reorders or absorbs an existing verdict fails; the deterministic order (price, image, SEO/title, description) is preserved",
+          "pre-merge (CTOR is not introduced): `METRIC_MAP` is asserted to contain exactly its existing keys plus nothing named `ctor`; the spec's OP-NFR-3 wording naming CTOR is a documented spec-vs-code conflict and the CODE is right — a CTOR MetricSpec must not appear in this diff",
+          "pre-merge (GIVEN a run that wrote nothing / THEN no reading, not a failure): `::test_a_no_change_run_produces_no_reading_and_is_not_a_failure` asserts the ABSENCE of any `impact_readings` row for that run — absence, not a zero-valued row — and that it counts as a no-change completion rather than a failure",
+          "pre-merge (hedging and windows unchanged): readings stay at the existing T+7 and T+14 windows with the existing `suppressed` confidence semantics; no new window and no new confidence value is introduced",
+          "pre-merge (GIVEN a completed run / THEN repeat consent refused): `::test_repeat_consent_is_barred_for_this_workflow` asserts the eligibility check REFUSES `optimize_product_2` and that the next run requires a fresh approval AND a fresh confirmation — asserted at the eligibility check, not by reading prompt text, so a prompt revision cannot re-enable it",
+          "pre-merge (GIVEN a lapsed 30-day window / THEN silence and no duplicate): `::test_lapse_is_silent_and_no_duplicate_card_is_emitted` asserts nothing renews the discount, nothing reverts it, no scheduled re-card fires, and that a successor card arrives ONLY through the standard emission path with an ACTIVE card suppressing a duplicate — the ADR-087 partial unique index is exercised, not merely cited",
+          "pre-merge (nothing new is invented at the DB level): the diff creates NO Alembic revision and does NOT alter the `stop_reason` CHECK or the TS union — #1707 already shipped them; asserted by the absence of a versions-directory change in the diff",
+          "post-deploy: the candidate's `/health` is unchanged, and ONE authenticated read of an existing COMPLETED run returns the SAME stop reason and the SAME impact readings as stable — byte-compared, since this slice touches the classifier that produced them",
+          "post-deploy: deploying creates no reading and changes no run — asserted by an unchanged `impact_readings` row count for pre-existing executions across the deploy window, never by grepping for a success marker"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is backend Python under `services/agent/`, `services/impact/metric_map.py` and `workers/impact_reader/classify.py`, plus tests. The TS union #1707 shipped is not re-edited here. `apps/`, `ios/`, `packages/` and `docs/product/design/` are on this epic's doNotLoad list and are not opened."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "stop-reason-coverage-report",
+      "classification-golden-diff",
+      "impact-readings-row-count"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE. No column, index, constraint, table or grant is touched and NO Alembic revision file is created — the executor must not open `backend/src/juli_backend/database/migrations/versions/`. #1707 ALREADY extended the `stop_reason` enum, the DB CHECK and the TS union, so the four causes are existing permitted values that this slice merely makes reachable; the discount MUTATION KIND is a CODE-LEVEL Python enum value in `services/impact/metric_map.py` and is stored in `impact_readings.kind` as an ordinary string, never as a database enum type or a CHECK member. Verify that claim against #1707's landed migration before writing a line — if the CHECK does not in fact permit all four causes, STOP and report rather than adding a migration under this issue. Stable and candidate run the identical schema: a stable process reading a run whose stop reason is one of the four resolves it because #1707's enum already contains it, and a stable impact reader that meets a row with the new mutation kind must ignore it rather than crash — assert that tolerance pre-merge."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed system changes: the four causes stay unreachable vocabulary that #1707 shipped but nothing produces, a discount write keeps classifying as `[]` and being silently skipped by the impact reader, repeat-consent eligibility keeps whatever ADR-055 d.19 left it as, and a lapse keeps doing nothing. Nothing is exposed, nothing is partially applied, no vendor call is made, no data hazard.",
+    "postCutoverFailureBehavior": "Code-only rollback: redeploy the previous release and restart `juli-api` AND `juli-celery-worker` together. There is no schema to revert and no downgrade to run — this slice owns no migration. ROWS WRITTEN WITH THE NEW MUTATION KIND STAY READABLE: `impact_readings.kind` holds a string, so the reverted reader meets a value it does not recognise and must IGNORE it rather than crash — assert that tolerance pre-merge, because it is the whole reason the revert is safe. THE FOUR CAUSES REMAIN VALID VALUES in the enum, the DB CHECK and the TS union that #1707 shipped, so a run completed under the candidate with `price_lever_locked` still loads, still renders and still counts after the revert; what is lost is the ability to REACH those causes on new runs, not the ability to read old ones. State the direction of the risk plainly: after a revert, a discount write stops being measured again, and repeat consent is no longer refused at the eligibility check — the revert is safe for data and re-opens a policy gap. A run SUSPENDED at CONFIRM across the rollback resumes correctly: consent is bound by `params_sha` over the tool call's arguments and neither the arguments nor the hash function move in this slice.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_optimize_product_end_states.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_impact_reader_classify.py tests/unit/test_impact_metric_map.py tests/unit/test_impact_reader_queries.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_status_mapping.py tests/unit/test_repeat_consent_eligibility.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_action_card_revisions.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT write a BASE PRICE, and do NOT let an end state be reached by taking one. `resources.products.update_prices` has no caller on this path (#1773); `price_lever_locked` is what happens INSTEAD of a base-price fallback, and ADR-090 d.1 rejected that fallback by name.",
+    "The MODEL NEVER PICKS A DEPTH. This slice adds no numeric parameter; if one appears, the work has drifted into #1778's pricing rule.",
+    "Do NOT ship a DEFAULT SHOP MAXIMUM or any default depth, in code, config, fixture or test data. #1775's setting is required and seller-confirmed.",
+    "Do NOT CLAIM A TIKTOK TIER OR A CODE THE API DID NOT RETURN (OP-NFR-2). The `no_diagnosis_codes` message says Juli found nothing to act on — it must not imply TikTok graded the listing. The Price Diagnostics tier and the 14 card recommendations are never claimed.",
+    "Do NOT reach for SEARCH ACTIVITIES to detect a lapse. `POST /promotion/202309/activities/search` does not exist as a usable read (contract-collection A-25; `endpoints.md:509`). V1 does NOTHING on lapse; there is no polling loop to write.",
+    "Do NOT enable REPEAT CONSENT. It is BARRED for this workflow key in v1 (ADR-090 d.6, narrowing ADR-055 d.19's `optimize_product_2` eligibility). Refuse it at the ELIGIBILITY CHECK, never only in prompt text, and do not delete the repeat-consent component — dark-flagging this workflow key is the change.",
+    "Do NOT READ A MIGRATION NUMBER FROM HEAD — do not write a migration at all. This slice has no schema change; #1707 already landed the enum, the CHECK and the TS union. Never run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive a number from the newest filename. Migration numbers are RESERVED BY META. If the CHECK turns out not to permit a cause, STOP and report rather than adding one here.",
+    "DO NOT INTRODUCE CTOR. It exists nowhere in this codebase — `METRIC_MAP` holds impressions, ctr, conversion_rate, items_sold, gmv, sku_orders and gmv_per_order — and the spec's OP-NFR-3 wording naming CTOR is a recorded spec-vs-code conflict where the code is right. A CTOR MetricSpec and its backing daily column are v2 if wanted.",
+    "Do NOT change how a LISTING EDIT classifies. The existing four branches and their deterministic order are a golden; a discount branch that reorders, absorbs or shadows an existing verdict silently re-attributes historical impact.",
+    "Do NOT shape a discount payload so the existing `price_update` branch classifies it. A faked classification is worse than a skipped execution — add the kind honestly.",
+    "Do NOT build LAPSE-DRIVEN CARD REVISIONS, a renewal, a revert, or a scheduled re-card. V1 is SILENT LAPSE (spec §2 Deferred, trimming ADR-090 d.6); a successor card comes only from the standard nightly emission path.",
+    "Do NOT emit a card outside the STANDARD PATH. ADR-087 decision 2's partial unique index is what makes a duplicate structurally impossible; a bespoke emission bypasses the one guarantee that holds.",
+    "Do NOT turn a NO-CHANGE run into a failure, and do NOT write a zero-valued impact reading for it. Absence of a row is the correct record (S-FR-7).",
+    "Do NOT map a VENDOR ERROR onto an honest cause. A diagnosis-read error surviving retry stays on the failure terminal; conflating the two hides a broken integration behind an honest-looking completion.",
+    "Do NOT put an internal identifier in seller-facing text. `no_diagnosis_codes`, `price_lever_locked`, `scope_unavailable` and `declined` are stop-reason names; the seller reads Vietnamese, second person, through the outbound guard, with no projected impact magnitude and no causal claim (S-NFR-4).",
+    "Do NOT touch `apps/**`, `ios/**`, `packages/**`, `docs/product/design/**` or the TikTok corpora catalogs (ADR-051) — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature — real `tool_executions` rows from #1778's path, the real classifier, the real `WorkflowRunner`, the real eligibility check, the existing fake LLM adapter over `LLMService.complete`. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

@@ -1,0 +1,100 @@
+{
+  "planId": "base-price-tool-leaves-the-optimize-product-workflow-2026-09-08",
+  "affectedPublicSurfaces": [
+    "The AGENT TOOL REGISTRY for this workflow, which is a public surface even though no HTTP route moves. `UPDATE_PRODUCT_PRICE_SPEC` (`backend/src/juli_backend/services/agent/tools/product_write.py:407`) is deregistered: its `registry.register(UPDATE_PRODUCT_PRICE_SPEC)` call (`product_write.py:436`) and its `PRODUCT_WRITE_TOOL_HANDLERS` entry (`product_write.py:428`) both go. After this slice the model can emit the name and get nothing but the unknown-tool failure — removal by construction (ADR-068 d.4's NEVER class, ADR-090 d.1), never a policy string in a prompt.",
+    "The PLAYBOOK `optimize_product_2` (`services/agent/playbooks/optimize_product.py`): step 6 — the `update_product_price` CONFIRM step at `optimize_product.py:125` — is deleted, and `required_steps = (\"update_product_listing\", \"update_product_price\")` (`optimize_product.py:72`, inside `OPTIMIZE_PRODUCT_TERMINATION_POLICY`) collapses to the one-lever shape ADR-090 d.4 names: one confirmed write, or a terminal tool call. The remaining steps (1 read, 2+3 SEO, 4/4.5 image inspect, 5 listing write, 6.5 status check) keep their ids and their order.",
+    "The CONCURRENCY FIELD-LOCK MAP `FIELD_SCOPE_BY_OPERATION` (`services/agent/runner/concurrency.py:180`) loses its `\"update_product_price\": (\"price\",)` entry, so `field_scope_for(\"update_product_price\")` raises `UnknownConcurrencyScopedOperationError` — the map's own documented contract for a tool name it does not own. `\"update_product_listing\": (\"title\", \"description\", \"images\")` must be byte-identical after the diff.",
+    "The IMPACT READER'S MEASURABLE SET, and this is the surface most likely to be edited by mistake. `workers/impact_reader/queries.py::measurable_tool_names()` (`queries.py:41-65`) is DERIVED from `services/agent/composition.py::measurable_write_tool_names()` (`composition.py:163`) unioned with the frozen legacy literal `{\"listing.optimize_product\"}`. Deregistering the spec therefore removes the name from the measurable set AUTOMATICALLY, with zero edits to `queries.py` or `composition.py`. The scope-verification report's line that removal \"also touches `impact_reader/queries.py`'s measurable-tool derivation\" describes the CONSEQUENCE, not an edit site — hand-adding `update_product_price` to a literal to keep old rows scannable would re-create exactly the hand-maintained-literal defect #1219 fixed.",
+    "OPERATOR-VISIBLE consequence of that derivation, stated plainly because it is a real loss and not a no-op: `load_measurable_executions` and `load_touch_dates` both filter `ToolExecution.tool_name.in_(measurable_tool_names())` (`queries.py:118`, `:141`, `:253`). Any ALREADY-WRITTEN `update_product_price` execution whose T+7 or T+14 window has not yet been read stops being selected the moment this deploys — its pending reading is silently never taken. Existing `impact_readings` and `tool_executions` rows stay valid and readable; what is lost is the FUTURE read of an in-flight execution. Count those rows on the candidate before merge and record the number on the issue; do not describe this slice as \"only new scans stop matching\" without that count.",
+    "NO HTTP surface changes. Nothing under `backend/src/juli_backend/api/routes/` is opened, no `/v1/**` or `/demo/**` request or response model moves, no field is added or removed from any payload a seller or the demo app reads. Nothing under `apps/`, `packages/` or `ios/` is touched — those are on this epic's doNotLoad list.",
+    "INTERMEDIATE STATE, deliberate and stated: between this slice and #1778 the workflow has NO price lever at all. A run proposes one listing field or concludes. That is the correct intermediate — it is not a regression to be patched with a temporary fallback, and the seller-visible effect (no price proposal for the duration) is accepted by ADR-090 d.1.",
+    "Mixed-version hazard: `juli-api` and `juli-celery-worker` must both be restarted onto the same release. A stable worker still holding the old registry while the candidate API serves the new playbook could dispatch `update_product_price` for a run created under the new shape; the retained-stable rollback below assumes both processes move together."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest driven by a REAL runner from the worktree root with `PYTHONPATH` pinned to that worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite, because the run rows, `workflow_run_events` ordering and the `tool_executions` JSON round-trip the assertions read are Postgres behaviour. The registry is the REAL `ToolRegistry` built by `composition.build_product_tool_registry()`, the playbook is the REAL `OPTIMIZE_PRODUCT_PLAYBOOK`, and the LLM is the existing fake adapter bound to `LLMService.complete`'s real signature — never a `**kwargs` double. Post-deploy: the candidate's `/health`, plus ONE authenticated read of an existing completed run through the run list, whose stop reason, tool ledger and impact readings must be byte-unchanged. No public traffic reaches a candidate task set and no vendor write occurs at any point.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is FALSE: this slice REMOVES a write capability and adds none, so no vendor call of any kind is made by the journey — the post-deploy step is a read. workersDisabledOnCandidate is FALSE because `WorkflowRunner` executes inside the Celery worker; a candidate with workers disabled cannot dispatch a tool at all and the journey would prove nothing about the registry it is meant to prove.",
+    "journeys": [
+      {
+        "name": "the-base-price-lever-is-gone-by-construction-and-the-listing-lever-is-untouched",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1773",
+        "assertions": [
+          "pre-merge (GIVEN the tool registration / THEN absent and unknown): `tests/unit/test_optimize_product_has_no_base_price_tool.py::test_base_price_tool_is_not_registered_for_this_workflow` asserts against the REAL registry that `update_product_price` resolves to nothing, that the name is absent from `PRODUCT_WRITE_TOOL_HANDLERS`, AND that asking the executor to dispatch it fails closed with the named unknown-tool error recording `tool_error_unrecoverable` — not a silent no-op and not a KeyError escaping as a 500",
+          "pre-merge (same criterion, the half that is easy to miss): the other five product tools still resolve — `get_product_information`, `get_seo_keywords`, `check_product_status`, `inspect_product_image`, `update_product_listing`, `upload_product_image` — asserted over the WHOLE registry tuple so a diff that removes one tool too many goes red",
+          "pre-merge (GIVEN the playbook / THEN one confirmed write satisfies it): `::test_required_steps_is_one_lever_and_a_single_write_satisfies_it` drives a full run through the real runner and the fake LLM in which the model makes ONE confirmed `update_product_listing` write and stops; the run ends `completed` on `final_response` with NO `required_steps_unfulfilled` and NO forced retry fired — the termination policy is read off the real `OPTIMIZE_PRODUCT_TERMINATION_POLICY`, never a hand-built one",
+          "pre-merge (same criterion, the negative): a run that makes zero writes and calls `conclude_without_changes` still ends `completed` on `concluded_without_changes`, so collapsing `required_steps` did not turn an honest conclusion into a defect signal",
+          "pre-merge (GIVEN `field_scope_for` / THEN raises): `::test_price_leaves_the_field_lock_map_and_listing_is_unchanged` asserts `field_scope_for(\"update_product_price\")` raises `UnknownConcurrencyScopedOperationError` AND that `field_scope_for(\"update_product_listing\") == (\"title\", \"description\", \"images\")` exactly — the whole mapping is compared, so an entry silently added or reordered fails",
+          "pre-merge (the derivation, asserted rather than assumed): `measurable_write_tool_names()` no longer contains `update_product_price`, `measurable_tool_names()` still contains the frozen legacy `listing.optimize_product`, and `queries.py`/`composition.py` are UNCHANGED in the diff — asserted on the real functions, so a hand-edited literal would be visible in review as a diff that should not exist",
+          "pre-merge (the pending-reading loss, measured not narrated): with real `tool_executions` rows for `update_product_price` seeded in Postgres inside their T+7 window, `load_measurable_executions` returns them BEFORE the change and returns zero AFTER — the test states the loss explicitly rather than leaving it as a surprise in production",
+          "pre-merge (no orphan reference): a repo-wide assertion that `update_product_price` survives ONLY where it must — historical comments, the ADR/spec prose and the migration-free legacy notes — and appears in NO live registry, playbook, handler table, field-lock map or prompt text",
+          "pre-merge: the gate tests that pin the two-write shape are RE-PINNED, never deleted — `tests/unit/test_agent_prompt_playbook_consistency_gate.py` and `tests/unit/test_agent_tool_registry_contract.py` are updated to the one-lever shape and still assert a registry↔playbook agreement; a contract test deleted because its shape moved is how a contract stops being one",
+          "pre-merge: the existing write-path suite `tests/unit/test_agent_tools_product_write.py` passes with only the price-tool cases removed, and the golden `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` is REGENERATED ONCE and its diff reviewed line by line — the golden legitimately moves here (a step is gone), so the review artifact must show the regenerated diff, not merely assert it passed",
+          "post-deploy: the candidate's `/health` is unchanged, and ONE authenticated read of an existing completed Optimize Product run returns the same stop reason, the same ledger rows and the same impact readings as stable — observed on the response, not inferred from a log line",
+          "post-deploy: no vendor call is made by deploying — asserted by the ABSENCE of any outbound TikTok request attributable to this release window in the outbound request log, never by grepping for a success marker"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is backend Python under `backend/src/juli_backend/services/agent/` plus tests plus one regenerated golden fixture. `apps/`, `ios/`, `packages/` and `docs/product/design/` are on this epic's doNotLoad list and are not opened."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "golden-scenario-diff",
+      "tool-registry-snapshot",
+      "measurable-execution-count"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE. No column, index, constraint, table or grant is touched and NO Alembic revision file is created — the executor must not open `backend/src/juli_backend/database/migrations/versions/` at all. `update_product_price` is a code-level tool name, never an enum value or a CHECK constraint member, so removing it changes no database object. Historical `tool_executions.tool_name = 'update_product_price'` rows and their `impact_readings` remain valid, readable and untouched; only the FUTURE scan stops selecting them, which is a code behaviour and not a data change. Stable and candidate therefore run the identical schema and coexist trivially on one database."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed system changes: `update_product_price` stays registered and dispatchable, step 6 stays in the playbook, `required_steps` keeps demanding two confirmed writes, `\"price\"` keeps its field-lock entry and the impact reader keeps scanning price executions. That is today's state — nothing is exposed, nothing is partially applied, no data hazard, and no seller sees a difference.",
+    "postCutoverFailureBehavior": "Code-only rollback: redeploy the previous release and restart `juli-api` AND `juli-celery-worker` together. There is no schema to revert and no downgrade to run — this slice owns no migration. Runs COMPLETED under the candidate stay valid: they recorded one confirmed write and a real stop reason, and the reverted code reads both unchanged. A run SUSPENDED at CONFIRM across the rollback resumes correctly, because consent is bound by `params_sha` over the tool call's arguments and neither the arguments nor the hash function move in this slice — assert this pre-merge rather than assuming it. The one asymmetry to state out loud: a `update_product_price` execution that fell out of the measurable scan during the candidate window becomes scannable again after the revert, but its T+7/T+14 window may have passed in the meantime, so the reading is not recovered by the revert. Restart both processes on the same release; a stable worker on the old registry beside a candidate API on the new playbook is the one mixed-version state this slice must not sit in.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_optimize_product_has_no_base_price_tool.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_prompt_playbook_consistency_gate.py tests/unit/test_agent_tool_registry_contract.py tests/unit/test_agent_tool_definition_contract.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_tools_product_write.py tests/unit/test_agent_runner_tool_executor.py tests/unit/test_golden_scenario_capture_from_real_runner.py tests/unit/test_agent_golden_scenarios.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_impact_reader_queries.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT keep, re-add, alias or hide a BASE-PRICE WRITE anywhere on this workflow's path. `resources.products.update_prices` must have no caller in the Optimize Product tool set after this diff — not behind a feature flag, not behind CONFIRM, not as a fallback for a locked SKU. ADR-090 d.1 rejected the CONFIRM-guarded fallback by name, because it re-opens the harmful path exactly when the agent is most motivated to take it.",
+    "Do NOT let a MODEL choose a price, a depth or any number here. This slice adds no numeric parameter at all; if the implementation finds itself reaching for one, it has drifted into #1778's scope. Deterministic rules compute numbers (S-FR-4); the model chooses subject, wording and whether to proceed.",
+    "Do NOT ship a DEFAULT SHOP MAXIMUM, or any default discount depth, as a placeholder. The shop maximum is #1775's required seller-confirmed setting; a default shipped untouched is a number no seller ever saw, and it must not appear in this slice's code, config, fixtures or tests.",
+    "Do NOT add copy — or a test expectation — that claims a TikTok tier or a diagnosis code. No code has been returned on this path at all in this slice (the diagnosis reads are #1774), so no \"TikTok flags…\", no Price Diagnostics tier, no card-diagnostic recommendation may appear in any string this diff adds (OP-NFR-2).",
+    "Do NOT reach for SEARCH ACTIVITIES. `POST /promotion/202309/activities/search` does NOT exist as a usable read here — `contract-collection.md` A-25 and `endpoints.md:509` both record that TikTok exposes no list/search activity endpoint. Nothing in this slice needs it, and no test may stub it into existence.",
+    "Do NOT enable, extend or lean on REPEAT CONSENT. Optimize Product is barred from repeat consent in v1 (ADR-090 d.6, narrowing ADR-055 d.19's `optimize_product_2` eligibility). Collapsing `required_steps` must not be implemented as, or tested as, \"one approval now covers the next run\".",
+    "Do NOT read a MIGRATION NUMBER from head — do not write a migration at all. This slice has no schema change of any kind. Never run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive a number from the newest filename. Migration numbers are RESERVED BY META and supplied with the issue; the tree already carries two same-numbered `043_*` files from exactly this mistake.",
+    "Do NOT hand-edit `measurable_tool_names()` or `measurable_write_tool_names()`. The measurable set is DERIVED from the registry on purpose (#1219 / AGT-W4B); adding a literal to preserve old scanning re-creates the exact defect that derivation fixed. If old rows must stay scannable, that is a separate decision with the owner, not a literal added here.",
+    "Do NOT delete a gate test because its shape moved. `test_agent_prompt_playbook_consistency_gate.py` and `test_agent_tool_registry_contract.py` are RE-PINNED to the one-lever shape. A deleted assertion is a deleted contract.",
+    "Do NOT hand-edit the golden snapshot to make a gate green. `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` is regenerated ONCE by the real runner and its diff is reviewed; a golden edited by hand is a green that proves nothing.",
+    "Do NOT add a replacement price lever, a placeholder tool, or a temporary discount stub. The workflow correctly has no price lever between this slice and #1778, and shipping a stand-in would put an unreviewed capability in front of sellers.",
+    "Do NOT touch `apps/**`, `ios/**`, `packages/**`, `docs/product/design/**` or the TikTok corpora catalogs (ADR-051) — this epic's doNotLoad list. An executor that believes it needs a design reference here was mis-routed: stop and report.",
+    "Bind every test collaborator to the REAL object's signature — the real `ToolRegistry`, the real `OPTIMIZE_PRODUCT_PLAYBOOK`, the real `WorkflowRunner`, the existing fake LLM adapter over `LLMService.complete`. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}
