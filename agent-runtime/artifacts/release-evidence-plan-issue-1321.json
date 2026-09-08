@@ -1,0 +1,90 @@
+{
+  "planId": "rep-1321-replay-journey-dictionary-module-md",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com run surfaces (apps/demo — landing, Decisions, staged run view, option picker)",
+    "the release workflow's browser suite (release.yml apps/demo E2E)"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "The suite runs against the built candidate before cutover, matching how the existing apps/demo E2E already runs in release.yml. Deterministic because it is replay — no model, no marketplace, no external network",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "Issue's own Release evidence section, transcribed verbatim; no additional surfaces inferred. The journey is replay-driven, so it performs no marketplace write and needs no synthetic shop.",
+    "journeys": [
+      {
+        "name": "replay-journey-end-to-end",
+        "entryUrl": "/",
+        "assertions": [
+          "html_200",
+          "Dùng thử Demo → Decisions → approve → staged run view → stages advance → pick an option → confirm → completion",
+          "the journey asserts the confirmation request the client SENT, so a UI that looks right while sending the wrong option fails",
+          "deterministic across ten consecutive runs — flakiness is a failure, not a retry"
+        ]
+      },
+      {
+        "name": "forced-disconnect-reconnect-is-gapless",
+        "entryUrl": "/",
+        "assertions": [
+          "a forced mid-run disconnect and reconnect is part of the journey",
+          "the post-reconnect view state equals the uninterrupted one",
+          "the reconnect renders as a stream condition, never as a run failure"
+        ]
+      },
+      {
+        "name": "fixture-absence-fails-loudly",
+        "entryUrl": "/",
+        "assertions": [
+          "the journey FAILS rather than skips when the scenario fixture is missing from the built artifact",
+          "a rolled-back build lacking the run route makes the suite fail rather than pass, so a bad rollback is visible"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": ["/", "/decisions", "/decisions/in-progress"],
+    "discoverFromHtml": true,
+    "assetTypes": ["js", "css"],
+    "failOnMissing": true,
+    "failOnNon200": true,
+    "notes": "Issue text: 'the scenario fixtures and the new routes must be present in the artifact the suite runs against — assert, do not assume.' Read the built artifact, not the source tree."
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Issue text: 'No migration.' A CI journey, dictionary entries and documentation truthfulness — no database schema, no persisted-shape change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false,
+    "notes": "Issue text: 'assert the suite fails rather than passes against a rolled-back build that lacks the run route, so a bad rollback is visible.' A rollback that silently passes the suite is the failure mode this assertion exists to catch."
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm check:demo",
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit"
+  ],
+  "doNotInfer": [
+    "release evidence fields beyond what the issue's Release evidence (ADR-035) section states",
+    "a retry or rerun wrapper around the replay journey — flakiness across ten consecutive runs is specified as a failure, not something to paper over",
+    "a journey that skips when the scenario fixture is absent; it must fail loudly",
+    "editing the other ten workflows' suites to accommodate anything here — they are the regression net and stay unedited",
+    "a second, local copy of the banned-pattern guard — the check runs through the shared source",
+    "hardcoded Vietnamese or English seller-facing literals in the new components; every string resolves through dictionary.md",
+    "claiming an accessibility property in MODULE.md that no CI check asserts"
+  ]
+}
