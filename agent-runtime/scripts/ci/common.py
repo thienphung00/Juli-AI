@@ -1219,7 +1219,11 @@ def enrich_validation_artifact(
     artifact["testsFailed"] = tests_failed
     artifact.setdefault("coveragePercentage", 0)
     artifact.setdefault("benchmarkStatus", "not_run")
-    artifact.setdefault("executionDurationMs", unavailable_measurement("executionDurationMs"))
+    # #1732 governs the *implementation* artifact. The validation artifact's own
+    # schema still requires a plain integer here, so the two-shape default does
+    # not belong in this builder -- extending it is a separate slice, not a
+    # side effect of this one.
+    artifact.setdefault("executionDurationMs", 0)
     if review and review.get("phaseRunId"):
         artifact["phaseRunId"] = review["phaseRunId"]
     # Stamp releaseEvidencePlanId from implementation so ADR-035 continuity
