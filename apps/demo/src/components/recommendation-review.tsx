@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { getWorkflowPlanReview } from "../lib/plan-reviews";
+import { OPTIMIZE_PRODUCT_WORKFLOW_KEY } from "../lib/reviews";
+import { REPLAY_SCENARIO_RUN_ID } from "../lib/run-surface/replay-scenario";
 import { PlanReviewCard } from "./plan-review-card";
 
 interface RecommendationReviewProps {
@@ -37,6 +40,8 @@ function RecommendationReviewNotFound() {
 }
 
 export function RecommendationReview({ workflowKey }: RecommendationReviewProps) {
+  const router = useRouter();
+
   // Route by workflow key (ADR-055 item 8): all eleven reviewable workflows
   // carry a plan review and render the Situation → Decision → Details spine.
   // The superseded five-stage review was removed by #910; a key without a
@@ -44,7 +49,19 @@ export function RecommendationReview({ workflowKey }: RecommendationReviewProps)
   const plan = getWorkflowPlanReview(workflowKey);
 
   if (plan) {
-    return <PlanReviewCard plan={plan} />;
+    // Optimize Product is the one workflow whose approval does not create a
+    // mock `ExecutionRecord` (#1320 part 2, ADR-094): it reaches the staged
+    // run view directly, via the well-known replay run id
+    // (`lib/run-surface/replay-scenario.ts`). The other ten workflows pass
+    // no override and keep `PlanReviewCard`'s original mock-execution
+    // default, unchanged. This is the one place that knows which workflow
+    // is which — `PlanReviewCard` itself stays workflow-agnostic.
+    const onApproveConfirm =
+      workflowKey === OPTIMIZE_PRODUCT_WORKFLOW_KEY
+        ? () => router.push(`/decisions/in-progress/${REPLAY_SCENARIO_RUN_ID}`)
+        : undefined;
+
+    return <PlanReviewCard onApproveConfirm={onApproveConfirm} plan={plan} />;
   }
 
   return <RecommendationReviewNotFound />;
