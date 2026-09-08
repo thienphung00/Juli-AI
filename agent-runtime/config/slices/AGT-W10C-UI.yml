@@ -2,6 +2,7 @@
 AGT-W10C-UI:
   executorDomain: ui-ux
   requiredDocs:
+    - dictionary.md
     - "{handoffPath}"
     - CONTEXT.md
     - docs/adr/093-replenish-inventory-design.md
