@@ -1,0 +1,23 @@
+# AGT-W10B-UI — v1 build lane; see agent-runtime.config.yml epicRegistry and the epic's ADR.
+AGT-W10B-UI:
+  executorDomain: ui-ux
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/092-process-order-dispatch-design.md
+    - 
+  requiredModules:
+    - apps/demo/src/components/plan-review-card.tsx
+    - apps/demo/src/lib/workflows/process-order/review.ts
+    - packages/contracts/src/review.ts
+    - packages/contracts/src/agent-events.ts
+  loadWhenNeeded:
+    - apps/demo/src/lib/review-seller-copy.ts
+    - docs/product/agent-workflow-execution/PUI-DESIGN.md
+  doNotLoad:
+    - apps/dashboard/
+    - ios/
+    - backend/src/juli_backend/ai/
+    - backend/src/juli_backend/workers/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

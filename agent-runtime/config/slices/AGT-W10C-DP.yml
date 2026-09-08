@@ -1,0 +1,21 @@
+# AGT-W10C-DP — v1 build lane; see agent-runtime.config.yml epicRegistry and the epic's ADR.
+AGT-W10C-DP:
+  executorDomain: data-platform
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/093-replenish-inventory-design.md
+    - docs/adr/086-runtime-database-role-and-tenant-isolation.md
+  requiredModules:
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/database/migrations/
+    - backend/src/juli_backend/database/tenant_scoped_tables.py
+  loadWhenNeeded:
+    - tests/unit/test_rls_policies_migration.py
+    - tests/unit/test_agent_runtime_boot_check_7_rls_preconditions.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

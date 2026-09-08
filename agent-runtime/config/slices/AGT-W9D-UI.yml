@@ -1,0 +1,33 @@
+# AGT-W9D-UI — v1 build lane; see agent-runtime.config.yml epicRegistry and the epic's ADR.
+AGT-W9D-UI:
+  executorDomain: ui-ux
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/055-decision-plan-review.md
+    - docs/adr/084-agent-demo-surface-tenancy-and-replay.md
+    - docs/adr/094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md
+    - docs/product/agent-workflow-execution/PUI-DESIGN.md
+    - docs/product/agent-workflow-execution/scope-verification/ux-surface.md
+  requiredModules:
+    - apps/demo/src/components/plan-review-card.tsx
+    - apps/demo/src/components/recommendations-panel.tsx
+    - apps/demo/src/components/in-progress-panel.tsx
+    - apps/demo/src/lib/agent-event-stream.ts
+    - apps/demo/src/lib/plan-reviews.ts
+    - apps/demo/src/lib/repeat-consent.ts
+    - packages/contracts/src/agent-events.ts
+    - packages/contracts/src/review.ts
+  loadWhenNeeded:
+    - apps/demo/src/lib/review-seller-copy.ts
+    - apps/demo/src/components/impact-block.tsx
+    - 
+    - backend/src/juli_backend/api/routes/agent_runs.py
+    - backend/src/juli_backend/api/routes/demo_execution.py
+  doNotLoad:
+    - apps/dashboard/
+    - ios/
+    - backend/src/juli_backend/ai/
+    - backend/src/juli_backend/workers/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
