@@ -193,7 +193,6 @@ async def seed_demo_cohort_for_impact(session: AsyncSession) -> None:
         },
     ]
 
-    product_ids_by_role = {}
     for prod_data in cohort_products:
         product_stmt = select(Product).where(
             (Product.shop_id == demo_shop_id)
@@ -221,9 +220,6 @@ async def seed_demo_cohort_for_impact(session: AsyncSession) -> None:
                 updated_at=now,
             )
             session.add(product)
-            product_ids_by_role.setdefault(prod_data["role"], []).append(product.id)
-        else:
-            product_ids_by_role.setdefault(prod_data["role"], []).append(existing_product.id)
 
     await session.flush()
 

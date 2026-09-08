@@ -331,10 +331,18 @@ def build_reading_row(
     confidence: str,
     control_set_json: str,
     computed_at: datetime,
+    series_source: str,
 ) -> ImpactReading:
     """Build (but do not add/flush) one ``ImpactReading`` row — the caller
     owns the session lifecycle so it can batch every metric for one
-    ``(execution, kind)`` into a single flush."""
+    ``(execution, kind)`` into a single flush.
+
+    ``series_source`` is required, with no default, for the same reason the
+    column has none (ADR-099 d.2, #1766): the value you get by forgetting must
+    not be the one that reads as a real measurement. A synthetic reading
+    silently recorded as ``measured`` is a claim about what Juli achieved that
+    nothing downstream can retract.
+    """
     return ImpactReading(
         id=uuid.uuid4(),
         run_id=None,
@@ -349,4 +357,5 @@ def build_reading_row(
         confidence=confidence,
         control_set_json=control_set_json,
         computed_at=computed_at,
+        series_source=series_source,
     )

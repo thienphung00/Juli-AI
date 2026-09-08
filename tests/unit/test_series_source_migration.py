@@ -3,6 +3,13 @@
 series_source is a required column on impact_readings that tracks whether the
 underlying series data is measured (real data) or synthetic (simulated data).
 No default is allowed — a writer that omits provenance must FAIL.
+
+The migration's backfill of pre-existing rows to 'measured' is deliberately NOT
+tested here. This module runs on SQLite, where migration 056 never executes, so
+a query for backfilled rows returns nothing and any assertion over them passes
+vacuously. The property is also self-enforcing: step 3 of the migration sets
+NOT NULL, which aborts if step 2 left a single NULL behind. Enforcement against
+a real Postgres schema lives in tests/integration/test_series_source_enforced.py.
 """
 
 from __future__ import annotations
@@ -14,7 +21,7 @@ from pathlib import Path
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import text
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -104,21 +111,17 @@ class TestSeriesSourceColumn:
             # series_source is intentionally omitted
         )
         session.add(reading)
-        # The constraint should be enforced at flush/commit time
-        with pytest.raises((IntegrityError, ValueError)):
+        # The constraint must be enforced at flush time, and it must be THIS
+        # constraint. `pytest.raises` alone would pass on any IntegrityError the
+        # fixtures happened to trigger — a NOT NULL somewhere else, a duplicate
+        # key — and would still pass if `series_source` were nullable. Naming the
+        # column is what makes this a test of the column.
+        with pytest.raises((IntegrityError, ValueError)) as excinfo:
             await session.flush()
-
-    @pytest.mark.asyncio
-    async def test_existing_rows_read_as_measured(self, session: AsyncSession) -> None:
-        """The two existing rows backfill as 'measured'."""
-        # Query the existing rows to verify they have series_source = 'measured'
-        result = await session.execute(
-            text("SELECT series_source FROM public.impact_readings WHERE series_source IS NOT NULL")
+        assert "series_source" in str(excinfo.value), (
+            f"expected the write to be refused for series_source, but the database "
+            f"refused it for something else: {excinfo.value}"
         )
-        rows = result.fetchall()
-        # Should have the two existing measured rows
-        for (series_source,) in rows:
-            assert series_source == "measured"
 
     @pytest.mark.asyncio
     async def test_write_with_measured_succeeds(
@@ -191,10 +194,23 @@ class TestSeriesSourceColumn:
         session.add_all([measured, synthetic])
         await session.flush()
 
-        # Query for measured only
-        result = await session.execute(
-            text("SELECT COUNT(*) FROM public.impact_readings WHERE series_source = 'measured'")
+        # Filter through the ORM, not raw SQL: this module runs on SQLite, where
+        # a `public.` schema prefix does not resolve. The point of the test is
+        # that `series_source` is a queryable column rather than a JSON path
+        # (ADR-099 d.2) — that holds on either backend.
+        measured_ids = (
+            (
+                await session.execute(
+                    select(ImpactReading.id).where(
+                        ImpactReading.tool_execution_id == tool_execution.id,
+                        ImpactReading.series_source == "measured",
+                    )
+                )
+            )
+            .scalars()
+            .all()
         )
-        (count,) = result.one()
-        # Should include our measured reading plus any from backfill
-        assert count >= 1
+        assert list(measured_ids) == [measured.id], (
+            "filtering on series_source must select the measured row and exclude "
+            "the synthetic one written against the same execution"
+        )
