@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { WorkflowRunListItem } from "@juli/contracts";
 
@@ -108,6 +109,61 @@ describe("RunDetailRoute — replay path (no token, issue #1752)", () => {
     expect(
       screen.getByRole("status", { name: "Không tìm thấy luồng thực hiện" }),
     ).toBeInTheDocument();
+    expect(fetchRuns).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    fetchSpy.mockRestore();
+  });
+
+  // Issue #1764: before this fix, `ReplayRunDetail` rendered `RunStagedView`
+  // with no `confirm` override, so clicking either control here fell
+  // through to `OptionPicker`'s old default, `submitConfirmationDecision`
+  // -- a real, bearer-less POST to the confirmation route, observed
+  // 404ing. Both tests below drive the actual click and assert zero
+  // network for the whole journey, then assert the run actually reaches a
+  // terminal state (the decision was genuinely resolved, not silently
+  // swallowed).
+  it("confirming an option resolves the decision locally -- zero network, and the run reaches a terminal state", async () => {
+    const fetchRuns = vi.fn();
+    const fetchSpy = vi.spyOn(global, "fetch");
+    const user = userEvent.setup();
+
+    render(<RunDetailRoute fetchRuns={fetchRuns} runId={REPLAY_SCENARIO_RUN_ID} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("radio")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("radio"));
+    await user.click(screen.getByRole("button", { name: "Xác nhận phương án này" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Hoàn tất")).toBeInTheDocument();
+    });
+
+    expect(fetchRuns).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    fetchSpy.mockRestore();
+  });
+
+  it("declining resolves the decision locally -- zero network, and the run reaches its declined terminal state", async () => {
+    const fetchRuns = vi.fn();
+    const fetchSpy = vi.spyOn(global, "fetch");
+    const user = userEvent.setup();
+
+    render(<RunDetailRoute fetchRuns={fetchRuns} runId={REPLAY_SCENARIO_RUN_ID} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Không thực hiện" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Không thực hiện" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Hoàn tất — không đổi")).toBeInTheDocument();
+    });
+
     expect(fetchRuns).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();
 

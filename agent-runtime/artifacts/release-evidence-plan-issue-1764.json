@@ -1,0 +1,88 @@
+{
+  "planId": "rep-1764-replay-expiry-rebase-and-local-confirm",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com replay run route — the Đề xuất stage, its confirm and decline controls (apps/demo)"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Load the candidate demo build — zero public canary traffic. The fix removes a network call from the replay path rather than adding one, so there is no API side effect in scope",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "Issue's own Release evidence section, transcribed verbatim; no additional surfaces inferred. Both defects are in code merged by #1752 (PR #1753) and both block gate #1322 observation 1.",
+    "journeys": [
+      {
+        "name": "replay-run-completes-by-confirming",
+        "entryUrl": "/",
+        "assertions": [
+          "html_200",
+          "Dùng thử Demo → approve → the Đề xuất stage is reached",
+          "the offer is NOT expired — its expiry is rebased relative to now, not the captured wall-clock time",
+          "confirming reaches a completion state",
+          "the browser issues no /v1/* request for the whole journey"
+        ]
+      },
+      {
+        "name": "replay-run-completes-by-declining",
+        "entryUrl": "/",
+        "assertions": [
+          "declining renders the declined outcome as a choice, never an error",
+          "no /v1/* request is issued by the decline path either"
+        ]
+      },
+      {
+        "name": "signed-in-path-still-calls-the-real-endpoint",
+        "entryUrl": "/",
+        "assertions": [
+          "with a token present, confirming still POSTs to the real confirmations endpoint",
+          "the replay-local confirm handler does not shadow the signed-in path"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": ["/", "/decisions", "/decisions/in-progress"],
+    "discoverFromHtml": true,
+    "assetTypes": ["js"],
+    "failOnMissing": true,
+    "failOnNon200": true,
+    "notes": "No new assets. The existing captured scenario must still be present in the built artifact — verify-replay-scenario-in-build.mjs stays wired and passing."
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Issue text: 'No migration.' Client-side rebasing and a local confirm handler in apps/demo."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false,
+    "notes": "Issue text: a rollback must not leave the replay door reachable with a confirm control that fires an unauthenticated request. The pre-change behaviour is the LESS safe one, so a rollback is a known regression to be recorded, not a neutral revert."
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm check:demo",
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit"
+  ],
+  "doNotInfer": [
+    "release evidence fields beyond what the issue's Release evidence (ADR-035) section states",
+    "editing the captured scenario fixture to change expires_at — the fixture is byte-identical to the capture tool's output by acceptance criterion, and rebasing happens at read time, not in the file",
+    "an unauthenticated server replay endpoint — ADR-075 keeps every agent route authenticated and this path must call none",
+    "letting the replay-local confirm handler shadow or weaken the signed-in path's real POST",
+    "pinning or faking a clock in production source to hide the expiry — the rebasing must be real",
+    "widening the module-graph test's entry points without also making the assertion hold for them"
+  ]
+}
