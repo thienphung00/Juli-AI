@@ -15,12 +15,20 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CI_DIR = REPO_ROOT / "agent-runtime" / "scripts" / "ci"
-sys.path.insert(0, str(CI_DIR))
 
-from check_merge_status import (  # noqa: E402
-    evaluate,
-    parse_issue_number,
-)
+
+def _gate():
+    """Import the gate behind a path shim, without an E402 suppression.
+
+    A module-level `sys.path.insert` followed by a late import is an E402, and
+    silencing it adds a suppression identity the ratchet then has to carry
+    forever. Deferring the import into a helper keeps the module's import block
+    clean and the debt set unchanged.
+    """
+    sys.path.insert(0, str(CI_DIR))
+    import check_merge_status
+
+    return check_merge_status
 
 
 def _write_record(
@@ -63,12 +71,12 @@ def _write_record(
     [None, "", "   ", "abc", "0", "-1", "12.5"],
 )
 def test_parse_issue_number_returns_none_for_non_issue_input(raw) -> None:
-    assert parse_issue_number(raw) is None
+    assert _gate().parse_issue_number(raw) is None
 
 
 def test_parse_issue_number_parses_a_real_issue_number() -> None:
-    assert parse_issue_number("1569") == 1569
-    assert parse_issue_number(" 1569 ") == 1569
+    assert _gate().parse_issue_number("1569") == 1569
+    assert _gate().parse_issue_number(" 1569 ") == 1569
 
 
 # --- AC1: FAIL records block merge ---
@@ -80,7 +88,7 @@ def test_fails_when_review_status_is_fail(tmp_path: Path) -> None:
     issue = 1569
     _write_record(tmp_path, issue, review_status="FAIL")
 
-    passed, detail = evaluate(issue, status_dir=tmp_path)
+    passed, detail = _gate().evaluate(issue, status_dir=tmp_path)
     assert passed is False
     assert "review.status is 'FAIL'" in detail
     assert "merge blocked" in detail
@@ -95,7 +103,7 @@ def test_passes_when_review_status_is_pass(tmp_path: Path) -> None:
     issue = 1569
     _write_record(tmp_path, issue, review_status="PASS")
 
-    passed, detail = evaluate(issue, status_dir=tmp_path)
+    passed, detail = _gate().evaluate(issue, status_dir=tmp_path)
     assert passed is True
     assert "review.status PASS" in detail
     assert "merge allowed" in detail
@@ -133,7 +141,7 @@ def test_pass_with_warnings_passes_with_signoff(tmp_path: Path) -> None:
     }
     path.write_text(json.dumps(payload), encoding="utf-8")
 
-    passed, detail = evaluate(issue, status_dir=status_dir)
+    passed, detail = _gate().evaluate(issue, status_dir=status_dir)
     assert passed is True
     assert "PASS_WITH_WARNINGS" in detail
 
@@ -167,7 +175,7 @@ def test_pass_with_warnings_fails_without_signoff(tmp_path: Path) -> None:
     }
     path.write_text(json.dumps(payload), encoding="utf-8")
 
-    passed, detail = evaluate(issue, status_dir=status_dir)
+    passed, detail = _gate().evaluate(issue, status_dir=status_dir)
     assert passed is False
     assert "warningsAcknowledged" in detail
 
@@ -178,7 +186,7 @@ def test_pass_with_warnings_fails_without_signoff(tmp_path: Path) -> None:
 def test_fails_when_record_missing(tmp_path: Path) -> None:
     """Missing record blocks merge with clear error."""
     issue = 1569
-    passed, detail = evaluate(issue, status_dir=tmp_path)
+    passed, detail = _gate().evaluate(issue, status_dir=tmp_path)
     assert passed is False
     assert "missing" in detail.lower()
     assert f"issue-{issue}.json" in detail
@@ -192,7 +200,7 @@ def test_fails_when_json_malformed(tmp_path: Path) -> None:
     path = status_dir / f"issue-{issue}.json"
     path.write_text("{not valid json", encoding="utf-8")
 
-    passed, detail = evaluate(issue, status_dir=status_dir)
+    passed, detail = _gate().evaluate(issue, status_dir=status_dir)
     assert passed is False
     assert "not valid JSON" in detail
 
@@ -210,6 +218,6 @@ def test_fails_when_record_unreadable(tmp_path: Path, monkeypatch) -> None:
         return original_read_bytes(self)
 
     monkeypatch.setattr(Path, "read_bytes", _raise)
-    passed, detail = evaluate(issue, status_dir=status_dir)
+    passed, detail = _gate().evaluate(issue, status_dir=status_dir)
     assert passed is False
     assert "could not read" in detail
