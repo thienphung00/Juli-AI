@@ -69,7 +69,14 @@ async def seed_demo_cohort_for_impact(session: AsyncSession) -> None:
     demo_user_uuid_int = uuid.UUID("12345678-1234-5678-1234-567812345678").int
     demo_user_id = uuid.UUID(int=(int(demo_shop_id) ^ demo_user_uuid_int))
 
-    now = datetime.now(UTC)
+    # Naive UTC, deliberately. Every timestamp column this seeder writes —
+    # users, shops, products, analytics_performance_intervals — is
+    # `timestamp without time zone`, and asyncpg refuses a tz-aware value for
+    # one with "can't subtract offset-naive and offset-aware datetimes". SQLite
+    # accepts it, which is why the tests beside this file did not notice: the
+    # seeder raised on its first INSERT against the Postgres it actually has to
+    # run on. See tests/integration/test_demo_cohort_seeds_on_postgres.py.
+    now = datetime.now(UTC).replace(tzinfo=None)
 
     # === Create demo user (idempotent) ===
     stmt = select(User).where(User.id == demo_user_id)
