@@ -21,7 +21,6 @@ AGT-W9D-UI:
   loadWhenNeeded:
     - apps/demo/src/lib/review-seller-copy.ts
     - apps/demo/src/components/impact-block.tsx
-    - 
     - backend/src/juli_backend/api/routes/agent_runs.py
     - backend/src/juli_backend/api/routes/demo_execution.py
   doNotLoad:

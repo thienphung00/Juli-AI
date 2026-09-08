@@ -5,7 +5,6 @@ AGT-W10A-UI:
     - "{handoffPath}"
     - CONTEXT.md
     - docs/adr/091-clear-excess-inventory-design.md
-    - 
   requiredModules:
     - apps/demo/src/components/plan-review-card.tsx
     - apps/demo/src/lib/workflows/clear-excess/review.ts

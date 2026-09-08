@@ -6,7 +6,6 @@ AGT-W9B-UI:
     - CONTEXT.md
     - docs/adr/090-optimize-product-realignment.md
     - docs/adr/055-decision-plan-review.md
-    - 
   requiredModules:
     - apps/demo/src/components/plan-review-card.tsx
     - apps/demo/src/lib/plan-reviews.ts
