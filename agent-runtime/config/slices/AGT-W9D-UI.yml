@@ -2,6 +2,7 @@
 AGT-W9D-UI:
   executorDomain: ui-ux
   requiredDocs:
+    - dictionary.md
     - "{handoffPath}"
     - CONTEXT.md
     - docs/adr/055-decision-plan-review.md

@@ -2,6 +2,7 @@
 AGT-W9B-UI:
   executorDomain: ui-ux
   requiredDocs:
+    - dictionary.md
     - "{handoffPath}"
     - CONTEXT.md
     - docs/adr/090-optimize-product-realignment.md

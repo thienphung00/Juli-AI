@@ -2,6 +2,7 @@
 AGT-W10B-UI:
   executorDomain: ui-ux
   requiredDocs:
+    - dictionary.md
     - "{handoffPath}"
     - CONTEXT.md
     - docs/adr/092-process-order-dispatch-design.md
