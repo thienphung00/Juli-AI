@@ -1488,3 +1488,95 @@ def test_committed_rewrite_of_a_preexisting_record_is_caught(tmp_path: Path) -> 
             base_ref=base_sha,
             records_at=lambda ref: _records_at(ref, repo_root=repo),
         )
+
+
+# ----------------------------------------------------------- scope (#1734 / #1686)
+
+
+def test_the_cli_refuses_to_run_without_an_explicit_scope() -> None:
+    """#1686: unscoped, it rewrote a committed record for an unrelated issue.
+
+    It discovers work by globbing *gitignored* artifact bodies, which accumulate
+    from earlier sessions, then rewrites across every tracked status record. Run
+    once in the primary working directory it upgraded issue-1337 from
+    gateVersion 1 to 2 and turned a `git-history:` artifactRef -- retrievable,
+    with a checkable sha256 -- into `local-only:`, which claims the body is
+    unretrievable by policy. It was one `git add -A` from being committed, and
+    the trigger was a stale file no gate can see.
+
+    The CLI must therefore make its blast radius explicit rather than inferring
+    it from whatever happens to be lying on disk.
+    """
+    script = CI_DIR / "generate_status_records.py"
+    proc = subprocess.run(
+        [sys.executable, str(script), "--dry-run"],
+        capture_output=True,
+        text=True,
+    )
+
+    assert proc.returncode != 0, (
+        "the generator ran without a scope; unscoped it rewrites every tracked "
+        f"status record it can reach. stdout={proc.stdout!r}"
+    )
+    combined = (proc.stderr + proc.stdout).lower()
+    assert "--issue" in combined or "--all" in combined, combined[:400]
+
+
+def test_a_git_history_ref_outside_the_body_dirs_is_never_downgraded(tmp_path, monkeypatch):
+    """AC3 of #1734. `local-only:` is a claim, not a fallback.
+
+    `git-history:` says the body is retrievable and its sha256 checkable.
+    `local-only:` says it is unretrievable *by policy* -- true only for the five
+    gitignored artifact body directories (#1497). Applying it to anything else
+    converts a verifiable provenance claim into an unverifiable one, which is
+    ADR-093's rule in miniature: a query that cannot answer must not return a
+    value that means something else.
+    """
+    import generate_status_records as gsr
+
+    status_dir = tmp_path / "status"
+    status_dir.mkdir()
+    outside = "docs/adr/097-bootstrap-anchor-tracks-the-runs-actual-base.md"
+    record = {
+        "issue": 4242,
+        "gateVersion": gsr.GATE_VERSION,
+        "review": {"status": "PASS", "artifactRef": f"git-history:{outside}", "sha256": "0" * 64},
+    }
+    before = json.dumps(record, indent=2, sort_keys=True) + "\n"
+    (status_dir / "issue-4242.json").write_text(before, encoding="utf-8")
+    monkeypatch.setattr(gsr, "STATUS_DIR", status_dir)
+
+    gsr.relabel_policy_local_refs()
+
+    after = (status_dir / "issue-4242.json").read_text(encoding="utf-8")
+    assert after == before, "a git-history ref outside the body directories was rewritten"
+    assert "local-only:" not in after
+
+
+def test_relabel_honours_scope_like_migrate(tmp_path, monkeypatch):
+    """#1686 again: the relabel pass globs every tracked record too.
+
+    Scoping migrate() alone would leave the same unscoped reach one flag away.
+    """
+    import generate_status_records as gsr
+
+    status_dir = tmp_path / "status"
+    status_dir.mkdir()
+    body = "agent-runtime/artifacts/reviews/review-issue-777.json"
+    record = {
+        "issue": 777,
+        "gateVersion": gsr.GATE_VERSION,
+        "review": {"status": "PASS", "artifactRef": f"git-history:{body}", "sha256": "0" * 64},
+    }
+    before = json.dumps(record, indent=2, sort_keys=True) + "\n"
+    (status_dir / "issue-777.json").write_text(before, encoding="utf-8")
+    monkeypatch.setattr(gsr, "STATUS_DIR", status_dir)
+
+    # asked about a different issue: this record must not move
+    gsr.relabel_policy_local_refs(scope=9999)
+    assert (status_dir / "issue-777.json").read_text(encoding="utf-8") == before
+
+    # asked about it: the #1497 correction still applies
+    changed = gsr.relabel_policy_local_refs(scope=777)
+    assert changed == [777]
+    assert "local-only:" in (status_dir / "issue-777.json").read_text(encoding="utf-8")

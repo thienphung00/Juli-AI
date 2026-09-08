@@ -51,7 +51,11 @@ async def get_current_user(
         )
 
     try:
-        return await UsersRepo(session).get(user_id)
+        # The scoped read (#1691): `users` is policy-gated on a GUC that
+        # authentication has not set yet, and the repository owns knowing that.
+        # ADR-085 decision 2 keeps the tenant seam out of this module, so the
+        # scope lives in UsersRepo, not here.
+        return await UsersRepo(session).get_for_authentication(user_id)
     except NotFound:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

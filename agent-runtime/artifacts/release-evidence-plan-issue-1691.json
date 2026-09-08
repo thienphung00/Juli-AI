@@ -1,0 +1,82 @@
+{
+  "planId": "rep-1691-auth-user-scope",
+  "affectedPublicSurfaces": [
+    "every authenticated /v1 route — all of them currently 401 under juli_app"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "/v1/demo/runs on the candidate, exercised with a minted short-lived JWT",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "an-authenticated-read-succeeds-under-juli_app",
+        "entryUrl": "GET /v1/demo/runs with a valid bearer token and X-Shop-Id",
+        "assertions": [
+          "HTTP 200, not 401",
+          "the body carries the shop's runs rather than an empty list",
+          "the connected role is juli_app, not an owner"
+        ]
+      },
+      {
+        "name": "isolation-is-not-widened",
+        "entryUrl": "repository-level check on the deployed connection",
+        "assertions": [
+          "get_for_authentication for a different user id returns nothing",
+          "the plain get with no scope is still refused",
+          "total rows visible inside the scope is exactly 1"
+        ]
+      },
+      {
+        "name": "the-scope-does-not-leak",
+        "entryUrl": "the same request continuing into get_active_shop",
+        "assertions": [
+          "app.current_user_id is restored after the lookup",
+          "no shop GUC is set by the authentication step"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": ["not-applicable: API-only change, no HTML route"],
+    "discoverFromHtml": false,
+    "assetTypes": ["not-applicable"],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change and no policy change. The existing users_select_public policy is left exactly as it is; the application now sets the GUC that policy already reads."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "revert to 91f783d6; the authenticated surface returns to 401-for-everyone, which is the current state and loses nothing",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest -q tests/unit/test_with_user_scope.py",
+    "pytest -q tests/unit/test_tenant_context_seam.py",
+    "python agent-runtime/scripts/ci/check_artifact_retention_guard.py --issue 1691"
+  ],
+  "doNotInfer": [
+    "Do not read this as end-to-end auth verification — no login surface is deployed, so Supabase's own login remains untested (PLAN.md, PR #1692)",
+    "Do not widen the scope to the plain `get`: the exception is deliberately a separate, greppable method so it cannot spread",
+    "Do not move the scope into core/security/dependencies.py — ADR-085 decision 2 keeps the tenant seam out of that module, which is why it lives in the repository",
+    "Do not relax the users_select_public policy; the policy is correct and is what preserves isolation inside the scope"
+  ]
+}
