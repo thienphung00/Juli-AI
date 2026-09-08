@@ -17,19 +17,19 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1734.json",
     "ownerSignoffPresent": true,
-    "sha256": "ed7e598e7d22cd2c459f77408e3ea8445d08a3abc83fc3346bcfa408fa78cb57",
+    "sha256": "60c020b3d52d91cd1e6c6b392291f2550b320a0f3be2c32b713e480159dcd934",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 4151,
+      "reviewBytes": 4153,
       "validationBytes": 28965
     },
     "claimVsExecuted": {
       "citedCommandCount": 1,
-      "invokedCommandCount": 13269,
+      "invokedCommandCount": 13278,
       "matchedCommandCount": 0,
       "reason": "1 of 1 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
@@ -184,7 +184,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1734-fix",
-        "head": "f4aa11b70f6ef38997bcdb6bd4d5dff8a057b1aa",
+        "head": "0ec2279c52a1029ca9c93a6713c777ef33872dae",
         "shallow": true
       },
       "moduleResolution": {
@@ -247,9 +247,9 @@
         "roleSelectedAgentId": null,
         "roleSelectedBy": "spawn-directive",
         "taskDirs": [
-          "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
-          "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/cb047053-ee20-4e00-925f-7ebf36c0417b/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
