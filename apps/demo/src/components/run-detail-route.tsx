@@ -8,7 +8,9 @@
  * (`GET /v1/demo/runs`, #1310/#1318's existing client, reused rather than
  * duplicated) and connects `useRunStream` (#1315) for the live event list.
  * Exactly #1316's original behavior, untouched by issue #1752 -- see
- * `SignedInRunDetail` below.
+ * `SignedInRunDetail` below. Its Đề xuất confirm handler is wired
+ * EXPLICITLY to `submitConfirmationDecision` (issue #1764) -- there is no
+ * default inside `OptionPicker` to fall back to any more.
  *
  * REPLAY (no `token`): ADR-094 decision 1's anonymous door has no session
  * and calls no authenticated route, ever -- so this branch never touches
@@ -19,6 +21,13 @@
  * here, rather than inventing a second "am I in replay mode" flag, keeps
  * one source of truth for "is this connected to anything real".
  *
+ * `ReplayRunDetail` itself lives in its own module, `replay-run-detail.tsx`
+ * (issue #1764) -- see that file's docstring for why: this file
+ * unconditionally imports the signed-in door's own clients
+ * (`fetchDemoRuns`, `submitConfirmationDecision`), and the replay door's
+ * own module graph must never be able to reach those (or the `fetch()`
+ * call site / `/v1/` route literal underneath them).
+ *
  * Split into two subcomponents rather than one big conditional so each
  * side owns its own, internally consistent set of hooks -- no hook here is
  * ever conditionally skipped within a single component instance.
@@ -28,16 +37,13 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { WorkflowRunListItem } from "@juli/contracts";
 
-import { DestinationPlaceholder } from "./destination-placeholder";
+import { ReplayRunDetail } from "./replay-run-detail";
 import { RunStagedView } from "./run-staged-view";
+import { DestinationPlaceholder } from "./destination-placeholder";
 import { fetchDemoRuns } from "../lib/run-ledger/api-client";
 import { RUN_LEDGER_LOADING } from "../lib/run-ledger/copy";
 import { useRunStream } from "../lib/run-surface/use-run-stream";
-import { useReplayEvents } from "../lib/run-surface/use-replay-events";
-import {
-  REPLAY_SCENARIO_PRODUCT_NAME,
-  REPLAY_SCENARIO_RUN_ID,
-} from "../lib/run-surface/replay-scenario";
+import { submitConfirmationDecision } from "../lib/run-surface/confirmation-client";
 
 export interface RunDetailRouteProps {
   readonly runId: string;
@@ -92,32 +98,6 @@ function useRunLookup(
   return { status, run };
 }
 
-/** ADR-094 decision 1's anonymous door. No token, no session, no
- *  `fetchRuns` call, no `useRunStream` connection -- ever. */
-function ReplayRunDetail({
-  requestedStageId,
-  runId,
-}: {
-  readonly requestedStageId: string | null;
-  readonly runId: string;
-}) {
-  const { events } = useReplayEvents();
-
-  if (runId !== REPLAY_SCENARIO_RUN_ID) {
-    return NOT_FOUND_PLACEHOLDER;
-  }
-
-  return (
-    <RunStagedView
-      events={events}
-      isReconnecting={false}
-      productName={REPLAY_SCENARIO_PRODUCT_NAME}
-      requestedStageId={requestedStageId}
-      runId={runId}
-    />
-  );
-}
-
 /** The signed-in door -- #1316's original behavior, unchanged by #1752. */
 function SignedInRunDetail({
   fetchRuns,
@@ -147,6 +127,7 @@ function SignedInRunDetail({
 
   return (
     <RunStagedView
+      confirm={submitConfirmationDecision}
       confirmationToken={token}
       events={events}
       isReconnecting={streamStatus === "reconnecting"}
