@@ -17,8 +17,10 @@ The test:
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import date, timedelta
+from decimal import Decimal
 
 import pytest
 import pytest_asyncio
@@ -26,14 +28,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database import Product, Shop
-from juli_backend.models.models import AnalyticsPerformanceInterval
+from juli_backend.models.models import AnalyticsPerformanceInterval, ToolExecution
 from juli_backend.services.impact.confidence import volume_floor_for, volume_indicator_for
-from juli_backend.services.impact.control_pool import (
-    ControlCandidate,
-    select_control_pool,
-)
 from juli_backend.services.impact.metric_map import resolve_metric
-from juli_backend.services.impact.reading import compute_mutation_readings
 from juli_backend.services.seeds.demo_cohort import seed_demo_cohort_for_impact
 
 
@@ -83,6 +80,11 @@ async def test_demo_cohort_has_analytics_covering_windows(
         intervals_result = await session.execute(
             select(AnalyticsPerformanceInterval).where(
                 (AnalyticsPerformanceInterval.shop_id == shop.id)
+                # Without this filter the query returned every row in the shop,
+                # so each of the eight iterations asserted `232 >= 20` and the
+                # loop variable did nothing. Seven of eight products could have
+                # had no analytics at all and this still passed eight times.
+                & (AnalyticsPerformanceInterval.tiktok_product_id == product.tiktok_product_id)
                 & (AnalyticsPerformanceInterval.start_date >= pre_start)
                 & (AnalyticsPerformanceInterval.start_date <= post_end)
             )
@@ -91,138 +93,85 @@ async def test_demo_cohort_has_analytics_covering_windows(
 
         # Expect at least 20 days of data (should be 29 if complete)
         assert len(intervals) >= 20, (
-            f"Product {product.id} should have analytics for at least 20 days in window; "
-            f"got {len(intervals)}"
+            f"Product {product.tiktok_product_id} should have analytics for at least "
+            f"20 days in window; got {len(intervals)}"
         )
 
 
 @pytest.mark.asyncio
 async def test_demo_cohort_produces_real_tier_reading(session: AsyncSession, demo_cohort) -> None:
-    """The cohort produces at least one reading in a real confidence tier."""
+    """The cohort, run through the REAL surface, produces a confident reading.
+
+    REWRITTEN (#1767). The previous version re-implemented the wiring inline —
+    its own series fetch, its own `select_control_pool` loop — and asserted on
+    that local copy. It never imported `impact_surface`, so deleting
+    `compute_and_persist_demo_readings` entirely would have left it green while
+    it carried a name promising the cohort "produces a reading". It also picked
+    its target with `products[0]` from a query with no ORDER BY, so which
+    product it called "the target" was whatever Postgres returned first.
+
+    Calling the real function fixes all three: the target is chosen by the
+    implementation, the arithmetic is the shipped arithmetic, and the assertions
+    are about rows that were actually persisted.
+    """
     shop = demo_cohort["shop"]
-    products = demo_cohort["products"]
 
-    # Separate target (first) from candidates (rest)
-    target_product = products[0]
-    candidate_products = products[1:]
+    from juli_backend.services.demo_decisions.impact_surface import (
+        compute_and_persist_demo_readings,
+    )
+    from juli_backend.services.impact.metric_map import MutationKind
 
-    t = date.today()
+    execution = ToolExecution(
+        id=uuid.uuid4(),
+        shop_id=shop.id,
+        approval_id=f"cohort-real-tier-{uuid.uuid4()}",
+        tool_name="listing.optimize_product",
+        payload_json=json.dumps({"workflow_id": "optimize_product_2"}),
+        status="succeeded",
+    )
+    session.add(execution)
+    await session.flush()
 
-    # Fetch analytics for all products
-    async def fetch_daily_series(product_id: str) -> dict:
-        """Fetch daily series for a product as RawDailyRecord mapping."""
-        from decimal import Decimal
-
-        from juli_backend.services.impact.metric_map import RawDailyRecord
-
-        result = await session.execute(
-            select(AnalyticsPerformanceInterval).where(
-                (AnalyticsPerformanceInterval.shop_id == shop.id)
-                & (AnalyticsPerformanceInterval.tiktok_product_id == product_id)
-                & (AnalyticsPerformanceInterval.start_date >= (t - timedelta(days=14)))
-                & (AnalyticsPerformanceInterval.start_date <= (t + timedelta(days=14)))
-            )
-        )
-        intervals = result.scalars().all()
-
-        daily: dict[date, RawDailyRecord] = {}
-        for interval in intervals:
-            # Convert to Decimal where needed
-            daily[interval.start_date] = RawDailyRecord(
-                impressions=Decimal(interval.impressions) if interval.impressions else None,
-                ctr=Decimal(interval.click_through_rate) if interval.click_through_rate else None,
-                conversion_rate=Decimal(interval.click_order_rate)
-                if interval.click_order_rate
-                else None,
-                items_sold=Decimal(interval.items_sold) if interval.items_sold else None,
-                gmv=Decimal(interval.gmv) if interval.gmv else None,
-                sku_orders=Decimal(interval.sku_orders) if interval.sku_orders else None,
-                visitors=Decimal(interval.visitors) if interval.visitors else None,
-            )
-        return daily
-
-    target_daily = await fetch_daily_series(target_product.tiktok_product_id)
-
-    # Build candidates
-    candidates = []
-    for candidate_product in candidate_products:
-        candidate_daily = await fetch_daily_series(candidate_product.tiktok_product_id)
-        first_active_date = t - timedelta(days=20)  # Active > 14 days before T
-
-        candidates.append(
-            ControlCandidate(
-                product_id=candidate_product.tiktok_product_id,
-                daily=candidate_daily,
-                touched=False,
-                first_active_date=first_active_date,
-            )
-        )
-
-    # Attempt to select control pool for all metrics in price mutation
-    from juli_backend.services.impact.metric_map import METRIC_MAP, MutationKind
-
-    mutation_kind = MutationKind.PRICE
-    mutation_metrics = METRIC_MAP[mutation_kind]
-    all_metrics = [mutation_metrics.primary] + list(mutation_metrics.secondary)
-
-    control_daily_by_metric = {}
-    for metric in all_metrics:
-        volume_floor = volume_floor_for(metric)
-        control_result = select_control_pool(
-            metric=metric,
-            target_daily=target_daily,
-            candidates=candidates,
-            t=t,
-            kind="preliminary",
-            volume_floor=volume_floor,
-            volume_of=volume_indicator_for(metric),
-        )
-        control_daily_by_metric[metric.key] = control_result.control_daily
-    readings = compute_mutation_readings(
-        mutation=mutation_kind,
-        target_daily=target_daily,
-        control_daily_by_metric=control_daily_by_metric,
-        t=t,
-        kind="preliminary",
-        confounded=False,
+    readings = await compute_and_persist_demo_readings(
+        session,
+        shop_id=shop.id,
+        tool_execution_id=execution.id,
+        mutation_kind=MutationKind.PRICE,
+        reference_date=date.today(),
     )
 
-    # Check primary reading (gmv for price mutation)
-    primary_reading = readings.primary
-    assert primary_reading.status == "ok", (
-        f"Primary reading should not be confounded; got status={primary_reading.status}"
+    assert readings, "the seeded cohort produced no reading at all"
+
+    by_metric = {r.metric: r for r in readings}
+    assert "gmv" in by_metric, f"expected the PRICE primary metric; got {sorted(by_metric)}"
+    gmv = by_metric["gmv"]
+
+    # ADR-099 d.3: the seeder exists so the control pool can actually select.
+    # `cao` is the tier that proves it — it requires both a control set the pool
+    # accepted and an effect larger than the noise band. A cohort whose controls
+    # carried the target's own treatment cannot reach it: the expectation
+    # absorbs the effect and the reading collapses toward zero.
+    assert gmv.confidence == "cao", (
+        f"gmv tiered {gmv.confidence!r}. The cohort is seeded so the control pool "
+        f"selects and the effect clears the noise band; anything lower means the "
+        f"siblings are no longer a counterfactual or the volumes no longer clear "
+        f"floor x 3."
+    )
+    assert gmv.impact_pct is not None, "a cao reading must carry a number"
+    assert gmv.impact_pct > Decimal("0.05"), (
+        f"gmv impact was {gmv.impact_pct}, which is indistinguishable from no "
+        f"effect. This is the exact failure the counterfactual split fixed: when "
+        f"the controls grow with the target, expected == post and incremental is "
+        f"zero by construction."
     )
 
-    # Verify at least one control pool was selected (not a fallback)
-    # by checking that at least one metric has non-empty control_ids
-    gmv_metric = resolve_metric("gmv")
-    volume_floor = volume_floor_for(gmv_metric)
-    gmv_control_result = select_control_pool(
-        metric=gmv_metric,
-        target_daily=target_daily,
-        candidates=candidates,
-        t=t,
-        kind="preliminary",
-        volume_floor=volume_floor,
-        volume_of=volume_indicator_for(gmv_metric),
+    control_set = json.loads(gmv.control_set_json)
+    assert control_set["control_ids"], (
+        f"gmv reported {gmv.confidence} with an EMPTY control set "
+        f"(fallback_reason={control_set.get('fallback_reason')!r}) — the pool fell "
+        f"back rather than selecting, so no control-adjusted claim was made"
     )
-
-    control_set = gmv_control_result.as_control_set_json()
-    has_selected_controls = len(control_set.get("control_ids", [])) > 0
-
-    assert has_selected_controls, (
-        "Cohort should produce at least one real-tier reading (cao/trung_binh/thap); "
-        f"got control_ids={control_set.get('control_ids', [])} "
-        f"fallback_reason={control_set.get('fallback_reason')}"
-    )
-
-    # Verify the reading has numerical values
-    assert primary_reading.incremental is not None, (
-        "Reading with selected controls should have incremental value"
-    )
-    assert primary_reading.impact_pct is not None, (
-        "Reading with selected controls should have impact_pct value"
-    )
+    assert not control_set["used_fallback"], "the pool fell back instead of selecting"
 
 
 @pytest.mark.asyncio
@@ -236,18 +185,23 @@ async def test_demo_cohort_produces_below_floor_reading(session: AsyncSession, d
     pre_start = t - timedelta(days=14)
     pre_end = t - timedelta(days=1)
 
-    from juli_backend.services.impact.confidence import volume_floor_for, volume_indicator_for
-    from juli_backend.services.impact.metric_map import resolve_metric
-
     metric = resolve_metric("gmv")
     volume_floor = volume_floor_for(metric)
     volume_of = volume_indicator_for(metric)
 
+    # NAME THE PRODUCT. The earlier version of this loop had no
+    # `tiktok_product_id` filter, so every iteration re-read all ~230 rows in
+    # the shop and compared a SHOP-WIDE mean against the floor. It passed on the
+    # first iteration regardless of which product that was, and it would have
+    # kept passing with `cohort-below-floor` deleted from the cohort entirely —
+    # its analytics rows alone dragged the shop-wide mean under 1.0. It was
+    # asserting a property of the shop, not of the refusal case it is named for.
     found_below_floor = False
     for product in products:
         intervals_result = await session.execute(
             select(AnalyticsPerformanceInterval).where(
                 (AnalyticsPerformanceInterval.shop_id == shop.id)
+                & (AnalyticsPerformanceInterval.tiktok_product_id == product.tiktok_product_id)
                 & (AnalyticsPerformanceInterval.start_date >= pre_start)
                 & (AnalyticsPerformanceInterval.start_date <= pre_end)
             )
@@ -277,12 +231,14 @@ async def test_demo_cohort_produces_below_floor_reading(session: AsyncSession, d
 
             mean_volume = sum(volumes, start=Decimal(0)) / Decimal(len(volumes))
             if mean_volume < volume_floor:
-                found_below_floor = True
+                found_below_floor = product.tiktok_product_id
                 break
 
-    assert found_below_floor, (
-        f"Cohort must include at least one product below the volume floor ({volume_floor}); "
-        "this is a deliberate refusal case to demonstrate the product works correctly"
+    assert found_below_floor == "cohort-below-floor", (
+        f"the deliberate refusal case must be cohort-below-floor, but the product "
+        f"under the volume floor ({volume_floor}) was {found_below_floor!r}. A "
+        f"different product falling under the floor means the cohort no longer "
+        f"demonstrates what ADR-099 d.4 asks it to."
     )
 
 
