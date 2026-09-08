@@ -21,6 +21,57 @@ Owner framing (2026-09-04): this workflow's main functionality is to **analyze a
 inventory spike for a mega sale, interact with the supplier, and update stock** — replenishment is
 one of its levers, inventory-risk forecasting is its job.
 
+> **Amendment 2026-09-08 (supply intake, owner decision).** Decision 2's supplier relay is
+> not a form — it is an **intake pipe with a pluggable source**, and v1 plugs exactly one
+> source into it. Evidence for the shape:
+> [`research/supplier-handling-vietnam-tools.md`](../product/agent-workflow-execution/research/supplier-handling-vietnam-tools.md)
+> (eight VN tools: no supplier API anywhere, supplier is a contact record, the bridges are
+> e-invoice pull, emailed PO, Excel import, barcode scan, photo/OCR) and
+> [`research/supplier-connectivity-global-tools.md`](../product/agent-workflow-execution/research/supplier-connectivity-global-tools.md)
+> (ten global tools: acknowledgement is a status a human sets, receipt is a separate entity
+> from the purchase order, document capture always drafts and never posts).
+>
+> **(a) Every report is a supply event.** Each "ordered" and "received" report of d.2 is
+> stored as a **supply event** carrying `source` (v1: `seller_form` only), the parsed
+> fields, a **per-field confidence**, a reference to the source document when one exists,
+> and `confirmed_by` / `confirmed_at`. ADR-075's params hash binds the **confirmed** values,
+> never the parsed ones — a parse is a proposal, a confirmation is the consent. The stock
+> delta write of d.2 consumes **confirmed receipts only**. This is what makes a second
+> source additive rather than a re-design: a photo or an e-invoice line enters the same
+> event with a different `source` and a lower confidence, and still cannot move stock until
+> a human confirms it.
+>
+> **(b) Two records, not one.** A **purchase record** carries the state machine
+> `draft → sent → acknowledged (as-is | with-changes | rejected) → partially_received →
+> received → closed`; a **receipt record** is written **per delivery**, with **accepted**
+> and **short** per line. Retrofitting multi-shipment onto a `qty_received` column is the
+> documented trap (global research §2); the acknowledgement triple is EDI 855's and Odoo's,
+> reachable in v1 by the seller setting it after reading a chat message.
+>
+> **(c) A supplier record per shop.** A **supplier** entity — stable id, name, lead time,
+> contact fields, and a **supplier-SKU → Juli-SKU alias map** that starts empty and fills
+> as receipts are confirmed — replaces d.2's "supplier and lead time remembered from the
+> seller's prior runs" and the `supplier` card field's payload-level memory. Every tool
+> surveyed models the supplier this way, and the alias map is the join a v2 document source
+> needs on its first line.
+>
+> **(d) `supplier` joins the sanitiser's provenance vocabulary.** ADR-070 d.3's source
+> roles gain `supplier`, handled **untrusted like `vendor`** — a supplier's message,
+> delivery note or invoice line is data, never an instruction, and never a fact.
+>
+> **(e) v2 sources, in evidence order.** **Photo/OCR of the delivery note** first — it is
+> also how a Zalo message arrives, since the seller forwards the image; then the **tax
+> authority's e-invoice feed** (the KiotViet "Hóa đơn đầu vào" / MISA INBOT pattern, the
+> highest-coverage supplier traffic found in VN); then **Excel import** of PO lines and
+> delivery notes. **No per-supplier API** is in scope at any version — none of the eighteen
+> tools surveyed exposes one, and the long tail is chat, email and PDF. **Zalo Notification
+> Service is customer-only** by Zalo's own template rules (no partner/supplier purpose tag)
+> and is **not a supplier channel**.
+>
+> **(f) The v1 seller experience is unchanged.** The report form still creates *and*
+> confirms the event in one tap; the pipe is behind it. Nothing in Stage C/D's step table
+> changes for v1.
+
 ## Context
 
 **TikTok already computes the run-rate number.** Quản lý hàng tồn kho publishes a 30-day sales
@@ -184,14 +235,29 @@ outcome store, and the stock-health series as the impact reading. No revenue.
 - **Tool set.** `search_inventory` (READ), `get_stock_operation_settings` / `update_stock_operation_settings`
   (READ / WRITE-CONFIRM, uncaptured), `update_inventory` (WRITE-CONFIRM, §B-1 captured), plus the
   cancellation/order webhook consumers for the reconciliation tally. No supplier tool exists;
-  the supplier is a checklist item and two attested reports.
+  the supplier is a checklist item and two attested reports — *amended 2026-09-08:* two supply
+  events on an intake pipe whose v1 source is the seller's form. No per-supplier API at any
+  version.
 - **Attested report as consent.** `run_confirmations` gains a report kind whose bound parameters are
   seller-supplied; the report form renders the exact write; per-warehouse quantities when
-  multi-warehouse. Shared with Process Order v2's pack-time "short" control.
+  multi-warehouse. Shared with Process Order v2's pack-time "short" control. *Amended
+  2026-09-08:* the report is stored as a **supply event** with a `source` (v1 `seller_form`),
+  per-field confidence and a source-document reference; the hash binds the **confirmed**
+  values, and only confirmed receipts reach the write.
 - **Event outcome store.** A small table keyed seller × SKU × event holding proposed uplift, actual
   event sales, stockout hours, and stranded units restored; read by d.1, written by d.4.
+- **Data items (amended 2026-09-08).** `supply_events` (one row per "ordered"/"received" report:
+  `source`, parsed fields, per-field confidence, source-document reference, `confirmed_by` /
+  `confirmed_at`), `purchase_orders` (draft → sent → acknowledged → partially_received →
+  received → closed), `receipts` (one per delivery, accepted and short per line), and
+  `suppliers` (per shop: stable id, name, lead time, contact fields, supplier-SKU → Juli-SKU
+  alias map).
+- **Sanitiser provenance (amended 2026-09-08).** ADR-070 d.3's source-role vocabulary gains
+  `supplier`, handled untrusted like `vendor` — data, never instructions, never a fact.
 - **Card fields.** `supplier`, `lead_time_days`, `needed_by`, and the once-answered
-  `syncs_stock_externally` flag remembered per shop.
+  `syncs_stock_externally` flag remembered per shop. *Amended 2026-09-08:* supplier and lead
+  time resolve from the shop's `suppliers` record (a `supplier_id` reference), not from the
+  card payload.
 - **`execution_layer.md` §3 rewrite** as its own slice: step 2a's "Supplier/ERP API" rows become
   the checklist + two reports; add the reconciliation lever and the toggle card; the FBT branch
   stays deferred with its three preconditions.
