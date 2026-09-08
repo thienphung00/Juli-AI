@@ -13,10 +13,13 @@
  * IMPORTED, NOT FETCHED. A static `import` of the JSON module is bundled
  * into the built JS by webpack at compile time -- present in the built
  * artifact by construction, checked by `scripts/verify-replay-scenario-in-
- * build.mjs` (run as part of `next build`). A `fetch()` here would also
- * trip `src/__tests__/replay-module-graph.test.ts`'s "no fetch() call site
- * reachable from the replay entry" assertion, and would need a network
- * round trip the replay path must never make.
+ * build.mjs` (run as part of `next build`). A network call here would also
+ * trip `src/__tests__/replay-module-graph.test.ts`'s "no network call site
+ * reachable from the replay entry" assertion, and would need a round trip
+ * the replay path must never make. (Spelled out without the literal call
+ * syntax on purpose -- that exact text once matched the very regex this
+ * paragraph describes, the first time this file entered that test's
+ * reachable graph, issue #1772.)
  *
  * TIMESTAMP REBASING mirrors the server's own algorithm exactly
  * (`backend/.../golden_scenarios/replay.py::seed_replay_run`): delta from

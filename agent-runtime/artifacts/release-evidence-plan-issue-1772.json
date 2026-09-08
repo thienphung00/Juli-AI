@@ -1,0 +1,79 @@
+{
+  "planId": "rep-1772-replay-issues-no-authenticated-request",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com replay path — Decisions list, review page (/decisions/recommendations/<key>), staged run route (apps/demo)"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Load the candidate demo build — zero public canary traffic. The change removes a request from the replay path rather than adding one",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "Issue's own Release evidence section, transcribed verbatim. The defect is that the replay path issues GET /v1/demo/analytics via ImpactBlock mounted by the review page, violating ADR-094 decision 1.",
+    "journeys": [
+      {
+        "name": "replay-walk-issues-no-authenticated-request",
+        "entryUrl": "/",
+        "assertions": [
+          "html_200",
+          "Dùng thử Demo → Decisions → approve → review page → staged run view → confirm",
+          "the browser issues NO /v1/* request at any point in that walk — including GET /v1/demo/analytics from the review page",
+          "no Supabase session is created and no bearer token is stored"
+        ]
+      },
+      {
+        "name": "signed-in-surfaces-still-load-analytics",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "the analytics screen still loads its data — the fix must not disable analytics where it is legitimately wanted",
+          "a signed-in review page still renders its impact figures rather than an empty state caused by this fix"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": ["/", "/decisions", "/decisions/in-progress"],
+    "discoverFromHtml": true,
+    "assetTypes": ["js"],
+    "failOnMissing": true,
+    "failOnNon200": true,
+    "notes": "No new assets. The captured scenario must still be present in the built artifact — verify-replay-scenario-in-build.mjs stays wired and passing."
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Issue text: 'No migration.' Client-side fetch suppression and a widened structural test in apps/demo."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false,
+    "notes": "Issue text: a rollback must not silently restore the analytics call on the replay path. The pre-change behaviour is the LESS correct one, so a rollback is a recorded regression rather than a neutral revert."
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm check:demo",
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit"
+  ],
+  "doNotInfer": [
+    "release evidence fields beyond what the issue's Release evidence (ADR-035) section states",
+    "disabling analytics anywhere it is legitimately wanted — the /analytics screen and the signed-in review page must keep working",
+    "suppressing the request by unmounting or hiding ImpactBlock on surfaces where the seller should see impact figures",
+    "narrowing #1319's exclusion note instead of removing it — the claim that the analytics fetch is reached only by an explicit visit to /analytics is false",
+    "hand-maintaining the module-graph test's entry points when they could be derived from the routes the replay journey visits",
+    "weakening the exit-gate journey's zero-/v1/* assertion to make it pass"
+  ]
+}
