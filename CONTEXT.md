@@ -401,6 +401,14 @@ _Avoid_: caller-supplied product_id on the agent path, re-resolving the product 
 The generalized CONFIRM pause (ADR-075 pending, user directive): at a mutation point the agent presents 1..N reasoned HOW-level options instead of a single approve/decline diff — plan-mode style. Recorded as a single-use `run_confirmations` row storing each option's `proposed_change` verbatim + `params_sha`; the seller approves one option or declines all; on resume only the selected option's hash-matched params may execute. Decline is a conversation, not a kill: the model wraps up honestly → `completed`/`confirmation_declined`. Binary confirm is the N=1 case. **v1 is N = 1 only** ([ADR-090](docs/adr/090-optimize-product-realignment.md) d.5): a single reasoned proposal; the multi-option shape is the schema, not the behaviour. Free-form mid-run seller Q&A is deferred with P-CS.
 _Avoid_: approve/decline-only confirmation framing, decline-kills-run, executing anything not shown to the seller, model-invocable request_approval tools
 
+**Onboarding layer**:
+The first-time experience of the demo app (ADR-098): a layer keyed on which of the five workflow stages the seller has met, rendered on the existing surfaces — five one-sentence explainers shown once, a setup card that marks "bắt đầu từ đây" on the first card of the list's own ordering and shows progress, a one-sheet "what Juli does", and the first impact-reading act record as the closing moment. Identical for the demo visitor (replay) and the connected seller (own shop); seen-state in browser storage in v1.
+_Avoid_: a tour before the first list, a workflow-specific onboarding, preference quizzes, an autonomy-mode question, any new surface
+
+**Bootstrap status**:
+A per-shop record written by the seven-day bootstrap (backfill and polls) as it progresses and read by the app to drive the connected seller's empty-list step list — kết nối shop, đọc sản phẩm và đơn hàng, chuẩn bị đề xuất đầu tiên — where a step is done only when its job finished (ADR-098 d.6). Replaces the "trong vòng 24 giờ" promise.
+_Avoid_: a fake progress percentage, a static waiting notice, marking a step done on a timer
+
 **Demo session**:
 An anonymous Supabase sign-in session created by "Dùng thử Demo" (ADR-076 pending): a real JWT (distinct user per visitor, meaningful audit rows) whose active shop is structurally pinned to the reference shop; rate buckets keyed per user-session. Demo runs are recorded replays of golden scenarios served through the identical SSE endpoint — live mode sits behind a config flag. Upgradeable to a Google identity via Supabase identity linking. Distinct from the real-merchant path: Google → Supabase Auth (identity) → TikTok OAuth (shop authorization) — two separate facts, never conflated.
 _Avoid_: shared demo accounts, TikTok OAuth as login/identity, unauthenticated demo routes, hand-authored mock event data
