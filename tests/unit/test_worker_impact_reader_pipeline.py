@@ -257,6 +257,15 @@ async def test_multi_mutation_run_covers_all_three_metric_families(session: Asyn
     for row in readings:
         assert row.confidence in ("cao", "trung_binh", "thap", "suppressed", "confounded")
         assert row.control_set_json  # required column, always populated
+        # This pipeline reads a shop's own analytics intervals, so every row it
+        # writes is measured — never synthetic. The column exists so a claim
+        # about what Juli achieved can exclude synthetic readings with a WHERE
+        # clause (ADR-099 d.2, #1766); a production writer that declared
+        # "synthetic", or omitted the value and got one by default, would put a
+        # real result outside every such claim.
+        assert row.series_source == "measured", (
+            f"the impact reader persisted {row.metric} as series_source={row.series_source!r}"
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -86,6 +86,7 @@ class TestHonestyRule:
                 confidence="suppressed",
                 control_set_json="{}",
                 computed_at=datetime.now(UTC),
+                series_source="measured",
             )
             session.add(row)
         await session.flush()
@@ -114,6 +115,7 @@ class TestHonestyRule:
                 confidence="confounded",
                 control_set_json="{}",
                 computed_at=datetime.now(UTC),
+                series_source="measured",
             )
             session.add(row)
         await session.flush()
@@ -141,6 +143,7 @@ class TestHonestyRule:
             confidence="cao",
             control_set_json="{}",
             computed_at=datetime.now(UTC),
+            series_source="measured",
         )
         suppressed_row = ImpactReading(
             id=uuid.uuid4(),
@@ -155,6 +158,7 @@ class TestHonestyRule:
             confidence="suppressed",
             control_set_json="{}",
             computed_at=datetime.now(UTC),
+            series_source="measured",
         )
         session.add_all([cao_row, suppressed_row])
         await session.flush()
@@ -184,6 +188,7 @@ class TestHonestyRule:
             confidence="suppressed",
             control_set_json="{}",
             computed_at=datetime.now(UTC),
+            series_source="measured",
         )
         confounded_row = ImpactReading(
             id=uuid.uuid4(),
@@ -198,6 +203,7 @@ class TestHonestyRule:
             confidence="confounded",
             control_set_json="{}",
             computed_at=datetime.now(UTC),
+            series_source="measured",
         )
         session.add_all([suppressed_row, confounded_row])
         await session.flush()
@@ -229,6 +235,7 @@ class TestHonestyRule:
                 confidence=tier,
                 control_set_json="{}",
                 computed_at=datetime.now(UTC),
+                series_source="measured",
             )
             session.add(row)
         await session.flush()

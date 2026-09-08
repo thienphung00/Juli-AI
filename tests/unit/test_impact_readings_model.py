@@ -45,6 +45,7 @@ def test_impact_readings_table_columns():
         "confidence",
         "control_set_json",
         "computed_at",
+        "series_source",
     }
 
 
@@ -165,6 +166,10 @@ def _reading(tool_execution_id: uuid.UUID, **overrides) -> ImpactReading:
         confidence="trung_binh",
         control_set_json='{"control_ids": [], "correlations": [], "windows": {}}',
         computed_at=datetime.now(UTC),
+        # Real data by default: this factory stands in for readings the impact
+        # reader produced from a shop's own series. Tests about synthetic
+        # provenance override it explicitly (#1766, ADR-099 d.2).
+        series_source="measured",
     )
     fields.update(overrides)
     return ImpactReading(**fields)
