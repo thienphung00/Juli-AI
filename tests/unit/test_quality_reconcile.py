@@ -18,6 +18,13 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
+#: A full corpus scan over ~4,800 test functions takes most of pytest's default
+#: 30s timeout on its own, and tips over it when another scanning suite runs in
+#: the same session. The work is genuinely that expensive; the default is what
+#: is wrong for these three, not the scan. test_ratchets.py carries the same
+#: standing flake risk for the same reason.
+pytestmark = pytest.mark.timeout(180)
+
 
 def _qd():
     sys.path.insert(0, str(REPO_ROOT))
