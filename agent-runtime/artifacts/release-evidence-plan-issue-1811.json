@@ -1,0 +1,104 @@
+{
+  "planId": "inventory-poll-cycle-scheduled-under-tenant-scope-2026-09-08",
+  "affectedPublicSurfaces": [
+    "THE CELERY BEAT SCHEDULE — the operational surface this slice actually changes, and the only public surface it changes. `workers/celery_app.py::beat_schedule` holds SIX entries today, VERIFIED 2026-09-08: `mock-analytics-hourly-reconcile` (:44, `crontab(minute=0)`), `cdp-batch-staggered-reconcile` (:51, BARE `crontab()` — EVERY MINUTE), `analytics-backfill-topup` (:59, `crontab(hour=2, minute=17)`), `daily-impact-reader` (:81, `crontab(hour=3, minute=23)`), `reap-abandoned-workflow-runs` (:97, `*/5`) and `credential-refresh-beat` (:110, `*/30`). A seventh entry appears here. THE ISSUE BODY'S PHRASE 'the four at `:00`' IS WRONG ABOUT THE CODE: exactly ONE entry is at `crontab(minute=0)`, and `cdp-batch-staggered-reconcile` is a bare `crontab()` that fires every minute of every hour — so a literal reading of 'no two entries share a minute-and-hour' is UNSATISFIABLE against that entry, and the collision rule must be stated as Meta means it: the new entry shares no minute-and-hour with any FIXED-TIME entry (`minute=0`, 02:17, 03:23) and does not land on a `*/5` or `*/30` boundary. Decide it deliberately and say so in the PR. The 02:17 and 03:23 minutes are not decoration — they carry #1659's lesson in their own comments. A beat entry is a standing commitment on a shared worker fleet: its cadence, its per-shop fan-out and its behaviour on a missed tick are the release risk, not the code.",
+    "NO HTTP SURFACE CHANGES. There is no route, no response model and no seller-visible string in this slice. `POST /v1/action-cards/refresh` — whose task `services/action_cards/refresh.py` is `run_fujiwa_poll_cycle`'s ONLY live caller today — keeps its path, its cooldown gate and its response byte-identical. Nothing a client can call behaves differently.",
+    "`inventory_items` STOPS BEING EMPTY. That is a data-shape change every downstream reader feels even though no reader's code moves. ADR-087:89 and the scope verification both record the table at zero rows; `forecaster.py:181` reads `InventoryItem` and gets nothing today, and five readers have been running against an empty table. After this slice they see rows. A reader that silently depended on the empty result — a `max()` over an empty sequence, a divide guarded only by emptiness — will start executing a path it has never executed in production. Enumerate the five readers and state in the PR what each does with a non-empty result.",
+    "ONE ADDITIVE, NULLABLE `committed_quantity` COLUMN on the inventory row, and the transform that fills it. The vendor returns `total_committed_quantity` plus a per-warehouse `committed_quantity` (contract-collection A-8:304, `samples/inventory-search-response.json:23,27`), and every layer drops it today, VERIFIED 2026-09-08: `expand_inventory_search` (`integrations/tiktok/mapping.py:396-433`) emits only `sku_id / product_id / available_quantity / warehouse_id / seller_sku` — and at `:414-420` it takes the FIRST warehouse and `break`s, so a multi-warehouse SKU loses the rest before the committed number is even considered; `normalize_inventory` (`mapping.py:437-465`) synthesises only `available_quantity`/`quantity`; `_transform_inventory` (`services/etl/transform.py:230-253`) collapses to the single `\"quantity\"` at `:238-243`. `committed_quantity` is read NOWHERE in `backend/src` today and `models.py:265-289` has no such column. S-FR-6's \"never below a committed quantity\" and CE-3's Luôn sẵn hàng exclusion have no data at all without it. NOTE THE BOUNDARY: this slice persists the committed quantity for the identity the table already has — `ix_inventory_shop_sku` is `(shop_id, tiktok_sku_id)` (`models.py:282-287`), warehouse is NOT in the key — and does NOT change that identity. Per-warehouse identity `(shop, sku, warehouse)` and the first-warehouse-only fix are #1794/#1795 in a DIFFERENT epic's lane; keeping the first-warehouse behaviour here is deliberate and must be stated in the PR, not fixed in passing.",
+    "PER-TENANT SCOPE ON A SCHEDULED WRITER (S-NFR-8 / ADR-089). The task resolves its tenant and does every tenant read and write inside `with_shop_scope` (`database/tenant_context.py:346`). Enumerating the shops is the ONE sanctioned unscoped step. This is a fleet-wide behaviour, not a per-request one: a single unscoped query \"for efficiency\" writes one shop's vendor data into another shop's rows and no HTTP test would ever see it.",
+    "`inventory_items.velocity` IS NOT A SURFACE AND MUST NOT BECOME ONE. `_transform_inventory` writes the literal string `\"low\"` for every row (`transform.py:245`; `normalize_inventory` never emits a velocity) and nothing reads it — a consumer-without-producer inverted. Leave it exactly as it is or delete it in a stated, separate decision; do NOT let the excess signal grow a dependency on a constant."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run by the REAL runner from the worktree root with `PYTHONPATH` pinned to this worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite. The unique index `ix_inventory_shop_sku` on `(shop_id, tiktok_sku_id)` IS the idempotence assertion, and SQLite would let a duplicate insert succeed, proving the exact opposite of what the test claims; tenant scope is enforced by RLS and GUC-backed session settings that exist only in Postgres, so a cross-tenant assertion must run AS THE RUNTIME ROLE `juli_app` (`043_juli_app_role.py`, ADR-085), never as the table owner. The beat entry is asserted from the BUILT Celery app object's own `beat_schedule` mapping, never from a hand-written dict or from the source file's text. Post-deploy: `alembic upgrade head` on the candidate, then candidate `/health` and one authenticated read, both unchanged; the beat entry is read from the running candidate's own schedule and one DRY cycle logs exactly one line per shop under tenant scope. No public traffic reaches the candidate and no activity is created on any shop by deploying.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE, deliberately departing from ADR-035's default, because the entire slice IS a beat entry: a candidate with schedulers disabled cannot demonstrate that the entry resolves, that it fires under tenant scope, or that it collides with nothing. The candidate runs the cycle DRY — it logs one line per shop and performs no vendor write. apiSideEffectsInScope is FALSE: there is no vendor write anywhere in this slice, and the only rows written are each shop's own `inventory_items`.",
+    "journeys": [
+      {
+        "name": "inventory-rows-exist-because-a-tenant-scoped-beat-writes-them-and-a-re-run-writes-no-duplicate",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1811",
+        "assertions": [
+          "pre-merge: an inventory-poll entry EXISTS in the built Celery app's `beat_schedule` and resolves to the poll-cycle task, and the new entry SHARES NO minute-and-hour with any fixed-time entry (`crontab(minute=0)` at :44, 02:17 at :59, 03:23 at :81) and lands on no `*/5` or `*/30` boundary — asserted over the live mapping on the BUILT app object, never over the source file's text or a hand-written dict. The literal 'no two entries share a minute-and-hour' cannot hold as written because `cdp-batch-staggered-reconcile` (:51) is a bare `crontab()` firing every minute; the test must encode the rule Meta means, and the PR must say which reading it implemented (tests/unit/test_inventory_poll_schedule.py::test_inventory_poll_is_scheduled_without_a_beat_collision)",
+          "pre-merge: the six pre-existing beat entries are asserted UNCHANGED in name, task and crontab, so the seventh is proven additive rather than a rename of the 02:17 or 03:23 slot",
+          "pre-merge: with TWO shops each holding inventory rows, running the scheduled task for ONE of them performs every read and write inside `with_shop_scope` for that shop, and the other shop's rows are byte-identical afterwards — asserted AS THE RUNTIME ROLE `juli_app` UNDER RLS, so an escaped read returns zero rows and raises the named application error (ADR-086) instead of quietly succeeding, and asserted on the tenant context actually in force during the call, never on a call count (tests/unit/test_inventory_poll_schedule.py::test_poll_task_runs_under_shop_scope_only)",
+          "pre-merge: NO FLEET-WIDE READ occurs anywhere in the task. Enumerating shops is the one sanctioned unscoped step; every tenant read after it is inside `with_shop_scope` (`database/tenant_context.py:346`), the pattern `workers/tasks/reaper.py` and `credential_refresh_beat` already use",
+          "pre-merge: over ONE inventory snapshot, running the cycle TWICE yields a row count after the second run equal to the count after the first, and quantities equal to the snapshot — the unique index `ix_inventory_shop_sku` on `(shop_id, tiktok_sku_id)` is what makes this hold, so it is asserted against real Postgres where that index is enforced (tests/unit/test_inventory_poll_schedule.py::test_second_cycle_writes_no_duplicate_rows)",
+          "pre-merge: a MISSED cadence is tolerated (S-NFR-6) — skipping a tick and running the next one covers the gap and emits no backlog and no duplicate row",
+          "pre-merge: a vendor payload carrying `total_committed_quantity` AND a per-warehouse `committed_quantity` survives `expand_inventory_search`, `normalize_inventory` and `_transform_inventory` and is READABLE OFF THE PERSISTED ROW, distinct from the available quantity — asserted end to end through the real mapping and the real `InventoryRepo`, not by reading the mapper's return value alone, because the drop happens in three separate layers and fixing two of them still loses the number (tests/unit/test_inventory_committed_quantity.py::test_committed_quantity_survives_transform_and_persist)",
+          "pre-merge: after ONE scheduled cycle the reference shop's `inventory_items` count is GREATER THAN ZERO and every row carries a SKU id — the slice's whole promise, asserted on the count and not on a log line, because a task that raises before it logs is invisible to a success-marker grep (tests/unit/test_inventory_committed_quantity.py::test_reference_shop_has_inventory_rows_after_one_cycle)",
+          "pre-merge: `POST /v1/action-cards/refresh`, its cooldown gate and its response are UNCHANGED — the existing route suite passes untouched, proving the manual caller of `run_fujiwa_poll_cycle` was not disturbed by scheduling it",
+          "pre-merge: `alembic upgrade head`, then `downgrade -1`, then `upgrade head` round-trips cleanly on a real Postgres 16 already at the current tip, and the new column is covered by the runtime role's per-table grants and by the existing RLS policies — asserted as `juli_app`, never as the owner",
+          "post-deploy: `alembic upgrade head` on the candidate, then candidate `/health` returns healthy and one authenticated read returns a byte-identical shape to before the upgrade; NO ACTIVITY IS CREATED ON ANY SHOP BY DEPLOYING",
+          "post-deploy: THE BEAT ENTRY APPEARS IN THE CANDIDATE'S SCHEDULE and ONE DRY CYCLE LOGS PER SHOP UNDER TENANT SCOPE — read from the running candidate's own `beat_schedule`, one log line per enrolled shop, no cross-tenant read and no vendor write"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is `workers/celery_app.py`, the poll-cycle task wiring under `workers/`, `integrations/tiktok/mapping.py`, `services/etl/transform.py`, `repositories/commerce.py`, the inventory model, one additive Alembic migration and tests. Nothing under apps/, packages/ or ios/ is touched — those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "alembic-history",
+      "celery-beat-schedule-dump",
+      "celery-worker-log",
+      "postgres-catalog-dump"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "ONE ADDITIVE, EXPAND-ONLY migration adding a NULLABLE `committed_quantity` column to the inventory row. Nothing is dropped, renamed or retyped; there is no NOT NULL and no backfill — an existing row simply carries NULL until the next cycle rewrites it, and NULL means 'not yet observed', never zero. Old and new code coexist: the previous release neither reads nor writes the column and keeps writing `quantity` exactly as before. THE MIGRATION NUMBER AND `down_revision` ARE RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update`, but W6, W8, W9 and the sibling W10 lanes all hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake. The table is tenant-scoped, so the new column must be covered by the runtime role's existing per-table grants from `043_juli_app_role.py` (ADR-085) and by the existing RLS policies — assert that coverage as `juli_app`, never as the owner. Do NOT alter `ix_inventory_shop_sku`: it is the idempotence guarantee the second acceptance criterion rests on, and widening or dropping it turns a re-run into a duplicate writer. Do NOT add a per-warehouse identity column here — `(shop, sku, warehouse)` identity is #1794's, in a different epic's lane, and starting it here forks the schema."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. `beat_schedule` keeps its six entries, `run_fujiwa_poll_cycle` keeps its single manual caller in `services/action_cards/refresh.py`, `inventory_items` stays empty, and `committed_quantity` stays dropped at all three layers. Every Clear Excess slice downstream stays blocked on the same missing rows they are blocked on today — the pre-existing state, unchanged, with nothing partially applied and no data hazard.",
+    "postCutoverFailureBehavior": "REMOVE THE BEAT ENTRY FIRST, then redeploy the previous release and restart juli-api, juli-celery-worker and juli-celery-beat. Order matters: a beat process still holding the new schedule keeps enqueueing a task the redeployed workers no longer define, producing a queue of permanently failing messages. With the entry gone, nothing is scheduled and the previous code runs correctly with the `committed_quantity` column present — it simply never names it and needs NO downgrade. Rows already written are ordinary inventory rows the manual refresh would have produced anyway, so no data is lost and no reader breaks. Only if the schema must ALSO be reverted, `alembic downgrade -1` drops the nullable column, which destroys the committed-quantity observations and nothing else; that downgrade must fail loudly with a named error rather than proceed silently if any consumer of the column has already shipped. State in the PR the one thing that does NOT roll back: the shop now has inventory rows, and every downstream reader that had only ever seen an empty table continues to see a non-empty one. No run can be in `waiting_external` on account of this slice, so no drain is required here.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_inventory_poll_schedule.py tests/unit/test_inventory_committed_quantity.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_celery_beat_unit_contract.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'tenant_scope or rls or inventory or action_card_refresh'",
+    "PYTHONPATH=backend/src python -m pytest tests/integration/test_schema_parity.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. This slice DOES carry a migration, so the reservation is binding, not advisory.",
+    "Do NOT compute days of supply, sell-through or any excess signal here. That is #1812 and #1813. The slice's promise is exactly 'rows exist and carry what the signal needs' — starting the helper here couples two slices and makes neither reviewable.",
+    "Do NOT emit a card, and do NOT touch the webhook #68 ingest path. This is a producer of rows, not a producer of decisions.",
+    "Do NOT do a fleet-wide read in the beat task. Enumerating shops is the ONE sanctioned unscoped step; every tenant read after it runs inside `with_shop_scope` (ADR-089, S-NFR-8). A single unscoped query 'for efficiency' is the defect the second acceptance criterion exists to catch.",
+    "Do NOT assert tenant isolation as the table owner. The runtime role is `juli_app` (`043_juli_app_role.py`, ADR-085) and RLS only binds for it; a scoping test run as the owner passes regardless and proves nothing. This is the narrow-verification trap by name.",
+    "Do NOT test idempotence on SQLite. `ix_inventory_shop_sku` is a Postgres unique index; without it a duplicate insert succeeds and the test asserts the opposite of the truth.",
+    "Do NOT let the excess signal grow a dependency on `inventory_items.velocity`. `transform.py:245` writes the literal `\"low\"` for every row and nothing reads it. Leave it alone or delete it in a stated decision — never read it.",
+    "Do NOT take the issue's 'the four at `:00`' at face value — it is WRONG about the code. Verified 2026-09-08: ONE entry is at `crontab(minute=0)` (:44) and `cdp-batch-staggered-reconcile` (:51) is a bare `crontab()` firing EVERY minute, so a literal 'no two entries share a minute-and-hour' is unsatisfiable. Implement the rule as: no collision with a FIXED-TIME entry (`minute=0`, 02:17, 03:23) and no landing on a `*/5` or `*/30` boundary. State the reading in the PR.",
+    "Do NOT fix the first-warehouse-only truncation in `expand_inventory_search` (`mapping.py:414-420`) or change the `(shop_id, tiktok_sku_id)` inventory identity. Per-warehouse identity and the multi-warehouse sync are #1794/#1795 in the W10-C lane; touching them here forks the schema across two epics.",
+    "Do NOT infer a flash sale, a markdown, a base-price write or a stock write from anything in this slice. This workflow has ONE lever — a Product Discount — and it arrives in #1815; no write of any kind reaches a vendor here.",
+    "Do NOT let a model choose any number. Nothing in this slice is model-driven; the cycle is a deterministic producer (S-FR-4).",
+    "Do NOT enforce a goal on a timer, and do NOT add a second reaper policy. Nothing here waits, nothing here resumes, and the reaper is untouched.",
+    "Do NOT change the card's KPI tie. `KPI_WORKFLOW_KEYS` maps `clear_excess_4` to `inventory_turnover` and `dsi` (`services/scoring/kpi_catalog.py:46-47`) while ADR-055 d.15's table says AOV; CE-NFR-3 leaves the disagreement exactly as it is, and the tie stays whatever the surface renders today.",
+    "Do NOT read revenue anywhere. v1 records facts only; the revenue reading on cleared SKUs is deferred to v2.",
+    "Do NOT reach for `Search Activities`. It DOES NOT EXIST at TikTok (resolved 2026-09-05 — `contract-collection.md` A-25, `endpoints.md:509`, `scope-verification/optimize-product-clear-excess.md:69`); collision detection is Juli-side permanently and is not this slice's business at all.",
+    "Do NOT ask for a fresh CONFIRM anywhere in this slice — there is no run, no approval and no consent surface in it.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature — the real Celery app, the real `with_shop_scope`, the real `InventoryRepo`, the real mapping and transform functions. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

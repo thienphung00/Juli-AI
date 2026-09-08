@@ -1,0 +1,108 @@
+{
+  "planId": "waiting-external-goal-resume-and-named-expiry-causes-2026-09-08",
+  "affectedPublicSurfaces": [
+    "RUN STATES — a wire contract a seller's client reads. A Clear Excess run can now SIT IN `waiting_external` and RESUME ON ITS OWN, a lifecycle no run has ever had. `services/agent/status.py:88-97` `WorkflowRunStatus` holds exactly SEVEN members today (`queued`, `running`, `waiting_approval`, `completed`, `cancelled`, `timed_out`, `failed`), mirrored as `WORKFLOW_RUN_STATUSES` in `packages/contracts/src/agent-events.ts` and exposed on `GET /demo/runs` and on the SSE stream. #1706 widens that vocabulary; THIS slice is its first real consumer, so a client with an exhaustive switch will now actually RECEIVE the state rather than merely being able to.",
+    "ACT RECORDS — a new seller-readable row where previously the run would simply have terminated. The goal-triggered deactivation is RECORDED AS AN ACT (#1713) so the seller can read what Juli did while they were not looking. A write that happens with no fresh confirmation and no act record is indistinguishable, from the seller's side, from a write that never happened.",
+    "THE NOTIFICATION, which is seller-facing copy on a surface the seller acts on. It names THE GOAL, that JULI ENDED THE DISCOUNT, and HOW MANY UNITS REMAIN — Vietnamese, second person, through the seller-copy sanitiser, with NO internal identifier (no `activity_id`, no workflow key) reaching the string (S-NFR-4).",
+    "THE REAPER'S JUDGEMENT OF A RUN. Verified 2026-09-08: `workers/tasks/reaper.py` has two closures — `_reap_stale_running_and_queued` (:400) over `(QUEUED, RUNNING)` at `policy.wall_clock_timeout_s + STALE_RUN_SLACK_S` (:404, slack 300 s at :125) → `WORKER_LOST`/`FAILED`; and `_reap_expired_waiting_approval` (:441) over `(WAITING_APPROVAL,)` at `policy.approval_timeout_h * 3600` (:458) → `CONFIRMATION_EXPIRED`/`CANCELLED`. Both score EVERY run against a single `_DEFAULT_TERMINATION_POLICY = OPTIMIZE_PRODUCT_TERMINATION_POLICY` (:119). A Clear Excess run must be judged by THE DISCOUNT WINDOW PLUS A MARGIN and NEVER by `waiting_approval`'s four hours, whose paused wall clock is load-bearing for consent expiry (ADR-073).",
+    "`workflow_webhook_signals` GAINS ITS FIRST PRODUCTION READER. Verified 2026-09-08: the model is `models.py:491-511`, its only repo accessor is `WorkflowWebhookSignalsRepo.list_for_shop` (`repositories/workflow.py:32-37`), and EVERY caller of that accessor is a TEST — zero callers in `backend/src`. It is a write-only table in production today. After #1708's dispatcher and this slice, rows in it MOVE RUNS. Note the confirmation flags that decide what can be trusted: #68 `inventory_changed` is `confirmed=True` (`webhook_catalog.py:179-186`), while #27 `inventory_status_change` (:118-125) and #39 `activity_status_change` (:134-146) are BOTH `confirmed=False`. A resume driven by an unconfirmed signal shape is a resume driven by a guess.",
+    "NO NEW HTTP ROUTE AND NO CHANGE TO ANY RESPONSE MODEL. What changes is which values a run's `status` and `stop_reason` can carry, and that an act record and a notification now exist for a run that would previously have ended silently."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run by the REAL runner from the worktree root with `PYTHONPATH` pinned to this worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite, because the `ck_workflow_runs_status` and `ck_workflow_runs_stop_reason` CHECK constraints ARE the assertions here and SQLite does not enforce them, which would let a forbidden value insert silently and prove the opposite of the claim. EVERY RESUME IS DRIVEN BY WRITING A REAL `workflow_webhook_signals` ROW AND ASSERTING THE RUN MOVED — NEVER BY CALLING THE CONFIRMATION ENDPOINT. That is the assertion that distinguishes a real webhook-driven resume from a renamed manual one, and a test that reaches for `submit_confirmation_decision` proves nothing about production, where no person is present. The reaper is exercised as the REAL `reap_workflow_runs` with NO `policy=` injected, so per-run policy resolution is exercised as the default path. Post-deploy: candidate `/health`, one authenticated read of an existing run unchanged, and the reaper's behaviour on `waiting_approval` runs verified unchanged. NO ACTIVITY IS CREATED ON ANY SHOP BY DEPLOYING — the candidate creates no discount and deactivates nothing.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE, deliberately departing from ADR-035's default, because the entire slice IS worker behaviour: with schedulers disabled the candidate cannot demonstrate that an externally-waiting run survives the four-hour approval timer, that the reaper closes it at the window plus its margin, or that the dispatcher resumes it. apiSideEffectsInScope is FALSE: the candidate does not create a discount and does not deactivate one, so no vendor write occurs; the assertions about `deactivate_activity` being called once are pre-merge, against the real tool spec. syntheticShopRequired is TRUE because two shops' signal rows are needed to prove a signal moves only its own run.",
+    "journeys": [
+      {
+        "name": "a-run-waits-on-the-world-resumes-on-a-persisted-signal-and-ends-with-a-named-cause",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1816",
+        "assertions": [
+          "pre-merge: when the discount write completes, the run's status is `waiting_external` and its REAPER DEADLINE IS THE DISCOUNT WINDOW PLUS THE MARGIN, NOT FOUR HOURS — asserted by advancing past `approval_timeout_h` and showing the run SURVIVES, then advancing past the window plus margin and showing it closes; the survival half is what distinguishes a real per-state timer from a renamed field (tests/unit/test_clear_excess_waiting_external.py::test_run_waits_under_its_own_reaper_policy)",
+          "pre-merge: the reaper is exercised as the REAL `reap_workflow_runs` with NO `policy=` argument, so per-run resolution runs as the default path rather than through a test-only seam",
+          "pre-merge: a PERSISTED inventory signal showing available AT OR BELOW the goal resumes the run, `deactivate_activity` is called ONCE with THE ACTIVITY JULI CREATED, NO CONFIRMATION IS REQUESTED, and the run ends `goal_met` — driven by WRITING A REAL `workflow_webhook_signals` ROW and asserting the transition, NEVER by calling the confirmation endpoint (tests/unit/test_clear_excess_goal_resume.py::test_goal_signal_deactivates_without_a_fresh_confirmation)",
+          "pre-merge: the deactivation targets the activity id JULI PERSISTED AT CREATE TIME, asserted by id — deactivating an activity Juli did not create would be writing on a seller's own promotion",
+          "pre-merge: NO CONFIRMATION IS REQUESTED on the goal resume, asserted on the ABSENCE of a confirmation row and on the run never entering `waiting_approval` — this is the one act ADR-091 d.4 exempts, and asserting the absence is the only way to prove the exemption was implemented rather than the pause merely being auto-answered",
+          "pre-merge: an ACT RECORD for the deactivation is LISTABLE ON THE RUN, and the notification NAMES THE GOAL, THE DEACTIVATION AND THE REMAINING UNITS with NO internal identifier in the text — asserted against the seller-copy guard, Vietnamese, second person (tests/unit/test_clear_excess_goal_resume.py::test_deactivation_is_recorded_as_an_act_with_seller_safe_copy)",
+          "pre-merge: a persisted `EXPIRED` activity signal WITH STOCK ABOVE THE GOAL ends the run `expired_stock_remaining`, and THE SAME SIGNAL WITH THE GOAL ALREADY MET ends it `expired_goal_met` — two distinct causes off one signal shape, and NEITHER BRANCH EMITS A CARD (tests/unit/test_clear_excess_expiry.py::test_expiry_ends_with_the_named_cause_and_no_card)",
+          "pre-merge: NO REVISION CARD ON EXPIRY. The v1 spec TRIMS ADR-091 d.4's republish branch and lets scoring re-card; asserted on the absence of an `action_cards` row for that subject after expiry, because ADR-091's own text describes a card this slice must not emit",
+          "pre-merge: a run in `waiting_external` with NO SIGNAL AT ALL ends `completed` with its named cause when the reaper passes the window plus the margin, and NO VENDOR WRITE IS ATTEMPTED — this is S-NFR-6's degradation and ADR-091's stated mitigation for its one unverified fact, so it is asserted, not assumed (tests/unit/test_clear_excess_waiting_external.py::test_missing_webhook_degrades_to_the_reaper_policy)",
+          "pre-merge: a signal for SHOP A does not move SHOP B's run — asserted AS THE RUNTIME ROLE `juli_app` UNDER RLS with two shops' signal rows present, because a dispatcher that resolves a run by activity id alone would cross tenants invisibly",
+          "pre-merge: the resume is IDEMPOTENT — the same persisted signal dispatched twice deactivates once and ends the run once, since webhook delivery is at-least-once and a duplicate must not issue a second vendor write",
+          "pre-merge: `waiting_approval` runs are REAPED EXACTLY AS BEFORE at `approval_timeout_h * 3600` → `CONFIRMATION_EXPIRED`/`CANCELLED` (`reaper.py:441-476`), and `(QUEUED, RUNNING)` runs at `wall_clock_timeout_s + 300` → `WORKER_LOST`/`FAILED` (`reaper.py:400-433`) — the existing reaper suite passes untouched",
+          "pre-merge: ZERO behaviour change for `optimize_product_2`, whose policy cannot enter `waiting_external` at all — its recorded run golden and its prompt goldens pass untouched",
+          "pre-merge: NO INTERVENTION GUARD and NO run facts appear in the diff — those are #1817 and #1818; asserted over the diff",
+          "post-deploy: candidate `/health` returns healthy, one authenticated read of an existing run returns a byte-identical shape, and the reaper's behaviour on `waiting_approval` runs is verified UNCHANGED on the candidate. NO ACTIVITY IS CREATED ON ANY SHOP BY DEPLOYING"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is the post-write transition into `waiting_external`, the resume branches under `services/agent/runner/`, the reaper policy resolution in `workers/tasks/reaper.py`, the act record and notification, and tests. `packages/contracts`' status union is #1706's, already landed; nothing under apps/ or ios/ is touched — this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "celery-worker-log",
+      "postgres-catalog-dump",
+      "golden-scenario-capture"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE HERE IF #1706 LANDED the `waiting_external` value and its widened `ck_workflow_runs_status` CHECK, and if the stop reasons this slice names — `goal_met`, `expired_stock_remaining`, `expired_goal_met` — are inside the widened `ck_workflow_runs_stop_reason` list. Verified 2026-09-08 that NONE of them exists on main: `WorkflowRunStatus` has seven members (`services/agent/status.py:88-97`) and `StopReason` has sixteen (`:100-158`), containing none of the three; all fit the `String(32)` budget. CHECK BEFORE WRITING ANY CODE that #1706 actually widened both constraints — if it did not, STOP AND REPORT rather than widening them here, because the status vocabulary is pinned in FIVE places at once (the Python enum, the DB CHECK in both the model and a migration, the TypeScript union in `packages/contracts/src/agent-events.ts`, the status-mapping totality test, and `NON_TERMINAL_STATUSES` at `status.py:172-174`) and a four-place version passes tests and breaks the wire. IF ANY ADDITIVE COLUMN IS NEEDED for the reaper deadline or the act record, ITS NUMBER IS RESERVED BY META and supplied with the issue; it must be nullable, with no backfill and no NOT NULL, so the previous release coexists unchanged. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update`, but W6, W8, W9 and the sibling W10 lanes hold unlanded numbers off-tree and this tree already carries two duplicate-numbered pairs (`003_*`, `043_*`) from exactly this mistake."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. A Clear Excess run terminates after its write instead of waiting; nothing resumes on a webhook; `workflow_webhook_signals` keeps its zero production readers (`repositories/workflow.py:32-37` called only from tests); and the reaper keeps judging every run against `_DEFAULT_TERMINATION_POLICY` (`reaper.py:119`). #1817 and #1818 stay blocked on a suspended run that does not exist. Nothing is exposed, nothing is partially applied, no data hazard — and critically, no run can be stranded in a state nothing recognises, because no run ever enters one.",
+    "postCutoverFailureBehavior": "DRAIN OR REAP EVERY RUN IN `waiting_external` FIRST — this is the ordering that matters most in the whole epic. A rollback that removes the resume path strands a suspended run: the previous code does not recognise `waiting_external`, its reaper judges only `(QUEUED, RUNNING)` and `(WAITING_APPROVAL,)` (`reaper.py:400,441`), so the run is INERT — it will never resume and never be reaped, and the live TikTok discount behind it keeps running past the seller's goal with nothing watching. Enumerate those runs, let them close or close them deliberately, and DEACTIVATE THEIR ACTIVITIES BY HAND if the goal has already been met, BEFORE the rollback. Then redeploy the previous release and restart juli-api, juli-celery-worker and juli-celery-beat. No downgrade is needed: #1706's widened CHECK constraints accept every value the previous code writes, and this slice adds no column of its own. If a reaper-deadline column WAS migrated, the previous release never names it and still needs no downgrade; a schema revert would come last, must fail loudly rather than coerce or delete a row, and must never narrow a CHECK under live rows carrying the new values. STATE IN THE PR: a Product Discount already created on a vendor SURVIVES the revert, and with the resume gone Juli will not end it.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_clear_excess_waiting_external.py tests/unit/test_clear_excess_goal_resume.py tests/unit/test_clear_excess_expiry.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'reaper or waiting_approval or termination_policy'",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'webhook_signal or webhook_catalog or resume'",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_workflow_run_status_mapping.py tests/unit/test_agent_events_contract.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT drive a resume from the confirmation endpoint. EVERY resume test writes a REAL `workflow_webhook_signals` row and asserts the run moved. `resume_agent_workflow`'s only pre-existing caller is `api/routes/agent_runs.py::_enqueue_resume_agent_workflow` from `submit_confirmation_decision`; a test that reaches for it proves nothing about production, where no person is present to press anything.",
+    "Do NOT reap an externally-waiting run by `approval_timeout_h`. That is S-NFR-6's named defect. The deadline is THE DISCOUNT WINDOW PLUS A MARGIN, and the assertion that proves it is the run SURVIVING past four hours, not merely closing at the right later time.",
+    "Do NOT add a SECOND reaper policy object. `external_wait_timeout_h` is one additive field on the existing `TerminationPolicy`, resolved per run through #1702's registry via the existing `policy=` seam on `reap_workflow_runs`. A parallel policy type, a second `_DEFAULT_*` constant or a reaper-local config dict gives the fleet two answers to one question.",
+    "Do NOT ask for a fresh CONFIRM on the goal resume. This is THE ONE act ADR-091 d.4 exempts: the seller defined the stopping condition at approval and saw it restated at CONFIRM, deactivation sets no price and is reversible for seven days through republish, and a missed card would leave the discount running below the goal. EVERY OTHER WRITE IN THIS WORKFLOW STILL PAUSES. Assert the absence of the confirmation, not merely that the run completed.",
+    "Do NOT emit a revision card on expiry. The v1 spec TRIMS ADR-091 d.4's second branch and lets scoring re-card. ADR-091's own text describes a republish card this slice must not build; the ADR is the design, the spec §3 Deferred list is the scope.",
+    "Do NOT build `republish_activity`. It is deferred to v2 with the expiry revision card.",
+    "Do NOT implement the intervention guard here, and do NOT catch an UPWARD stock move. That is #1817. Catching an increase here would be building an unreviewed guard; catching a DECREASE there would make the goal path unreachable.",
+    "Do NOT record the days-of-supply facts or goal progress. That is #1818.",
+    "Do NOT deactivate an activity Juli did not create. The target is the activity id Juli persisted at create time, asserted by id — anything else is writing on a seller's own promotion.",
+    "Do NOT trust an unconfirmed signal shape blindly. #68 is `confirmed=True` (`webhook_catalog.py:179-186`) while #27 (:118-125) and #39 (:134-146) are `confirmed=False`; state in the PR which shape each resume branch parses and what happens when a field is absent — fail closed, never resume on a guess (S-NFR-1).",
+    "Do NOT let a duplicate signal write twice. Webhook delivery is at-least-once; the resume must be idempotent, asserted by dispatching the same persisted row twice.",
+    "Do NOT resolve a run by activity id alone across tenants. Assert isolation AS THE RUNTIME ROLE `juli_app` (`043_juli_app_role.py`, ADR-085) UNDER RLS; a test run as the table owner passes regardless and proves nothing.",
+    "Do NOT infer a flash sale, a markdown, a base-price write or a stock write. The only writes in this slice are the deactivation and the run's own rows; S-FR-6 forbids the rest outright.",
+    "Do NOT let a model choose any number or decide the resume. The stopping condition is the seller's goal and the trigger is a persisted signal (S-FR-4).",
+    "Do NOT change the card's KPI tie. `KPI_WORKFLOW_KEYS` maps `clear_excess_4` to `inventory_turnover` and `dsi` (`services/scoring/kpi_catalog.py:46-47`) while ADR-055 d.15 says AOV; CE-NFR-3 leaves both alone and the tie stays whatever the surface renders today.",
+    "Do NOT read revenue. v1 records facts only; the revenue reading on cleared SKUs is deferred to v2.",
+    "Do NOT reach for `Search Activities`. It DOES NOT EXIST at TikTok (resolved 2026-09-05 — `contract-collection.md` A-25, `endpoints.md:509`); reconciliation is Juli-side through webhook #39 and Juli's own persisted ids.",
+    "Do NOT widen a status or stop-reason CHECK here. If #1706 did not land `waiting_external` and the three causes, STOP AND REPORT — the vocabulary is pinned in five places at once and a four-place version passes tests and breaks the wire. Any additive column's number is RESERVED BY META.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object — the real signal row, the real `reap_workflow_runs`, the real runner transition, the real tool spec. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}
