@@ -1,0 +1,102 @@
+{
+  "planId": "order-facts-the-predicate-can-read-raw-status-cancellation-transformer-order-scoped-signals-2026-09-08",
+  "affectedPublicSurfaces": [
+    "THE SILVER `Order` ROW SHAPE — `models/models.py:128-162`, written by `services/etl/transform.py`. Today `transform.py:115-129` collapses `AWAITING_SHIPMENT`, `PARTIALLY_SHIPPING` and `AWAITING_COLLECTION` into the single coarse silver value `\"confirmed\"` and has no `ON_HOLD` key at all, so `ON_HOLD` falls through the `status_map.get(status, str(value).lower())` default at `transform.py:131` to the incidental value `\"on_hold\"` — not a deliberate silver state, and not one any reader treats as a remorse-window fact. Nothing downstream can tell an order still inside its one-hour remorse window from one the courier already collected. This slice adds a NULLABLE raw-status column beside the coarse one and keeps the coarse mapping BYTE-IDENTICAL for every existing reader — the aggregates, the KPI precompute and every authenticated order read must see exactly the value they see today. A change to the coarse status is the one thing this slice may never do, and it is the thing that would be easiest to do by accident while editing the same mapping table.",
+    "THE CANCELLATION-PENDING FACT, which does not exist today. Silver `Order` carries only `cancel_reason`/`is_seller_fault` (`models/models.py:145-146`) — both of which appear only once a cancellation has COMPLETED, which is far too late for the predicate. Webhook #11 `CANCELLATION_STATUS_CHANGE` is in `services/tiktok/webhook_catalog.py:86-93` but has NO transformer branch in `transform_for_channel` (`transform.py:408-457`). THE ISSUE BODY SAYS THAT CHANNEL RAISES; IT DOES NOT — verified in this tree, a #11 body carries `data.order_id`, so the fallback OR-clause at `transform.py:409-424` CATCHES IT AND MISROUTES IT THROUGH `_transform_order`, silently upserting a bogus silver `Order` with `status=\"unknown\"`. That is worse than a raise, and it means this slice's first job is to stop an existing SILENT CORRUPTION of silver, not merely to add a branch. The new branch records a per-order pending fact with its observed-at timestamp. Note the catalog entry carries `confirmed=False`: its payload shape is an ASSUMPTION, not a capture, so the transformer must fail closed and record the event unparsed rather than guess a field name and invent a cancellation that is not there.",
+    "THE `workflow_webhook_signals` ROW SHAPE. It is shop-scoped with no order reference, and its sole reader `list_for_shop` (`repositories/workflow.py:32-38`) has ZERO CALL SITES IN PRODUCTION CODE — no route, no service, no worker reads it; its only six callers are tests (`tests/unit/test_webhook_catalog.py:180,231,261`, `tests/integration/test_tiktok_layer3_ingestion_e2e.py:358,381`, `tests/integration/test_material_deployed_webhook_handoff.py:118`). A producer that has never had a consumer, kept alive only by its own tests. This slice adds a NULLABLE order reference written by the #11 and #3 (`RECIPIENT_ADDRESS_UPDATE`) handlers plus an order-keyed reader answering \"for this order, since this timestamp\". `list_for_shop` keeps its exact current behaviour: a row written before this slice must still come back from it, which is what makes the widening additive rather than a replacement.",
+    "TENANCY IS PART OF THE CONTRACT (ADR-089, S-NFR-8). `workflow_webhook_signals` is already listed in `database/tenant_scoped_tables.py` and already carries RLS policies from migration `045_rls_policies.py`; the runtime connects as the non-owner role `juli_app` (`043_juli_app_role.py`, ADR-085). The new columns must be covered by that role's existing per-table grants, and the new order-keyed read must run inside `with_shop_scope` (`database/tenant_context.py`). Assert this AS `juli_app` UNDER RLS — a test run as the table owner passes whatever the policies say and proves nothing.",
+    "THE WEBHOOK ACK CONTRACT, which must not move. `api/routes/webhook_tiktok.py::handle_tiktok_webhook` is the one route TikTok itself calls: same path, same signature verification, same status codes, same ACK semantics, before and after. Today a #11 delivery reaches a channel that raises; after this slice it is recorded. A vendor that stops receiving its ACK stops retrying and starts disabling the subscription, so the ACK is the most fragile thing in this diff.",
+    "NO new HTTP route and NO change to any response model. The only public surface is the two row shapes above and the additive migration behind them."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the WORKTREE ROOT with PYTHONPATH pinned to the worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite. RLS, the `juli_app` role's per-table grants, the GUC-backed tenant context and the `event_id` unique on `workflow_webhook_signals` are Postgres behaviour with no SQLite equivalent, and a tenancy assertion run without RLS proves nothing. Webhooks are replayed as CAPTURED payloads through the REAL `handle_tiktok_webhook` route and the REAL `DurableWebhookHandler` and the REAL transformer, never by inserting a silver row or a signal row by hand — a hand-built row proves the reader, not the producer, and consumer-without-producer is the failure this wave exists to prevent. Post-deploy: candidate `/health` plus ONE authenticated order read whose coarse status is byte-identical to the value it returns on stable; no public traffic reaches the candidate and NO vendor write of any kind occurs — this slice calls nothing outbound.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the ETL channels and the webhook handler execute inside the Celery worker; with workers disabled the candidate can ACK a webhook but can never transform it, which is the entire slice. apiSideEffectsInScope is FALSE: the diff makes no vendor call at all — it only reads payloads TikTok already pushed. NO PACKAGE IS SHIPPED ON ANY SHOP BY DEPLOYING THIS SLICE; it adds facts and nothing that consumes them. The first live proof of a Process Order write is the #1806 dry run, then the seeded sandbox batch of the #1810 walk — never production, which stays gated on #1339 (S-NFR-3).",
+    "journeys": [
+      {
+        "name": "the-four-predicate-facts-become-readable-without-moving-any-existing-reader",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1796",
+        "assertions": [
+          "pre-merge: raw order payloads with statuses `ON_HOLD`, `AWAITING_SHIPMENT` and `AWAITING_COLLECTION` transform to THREE DISTINCT raw statuses on silver, and the COARSE status of all three is UNCHANGED from today's value — asserted field by field against the pre-slice mapping, so the `\"confirmed\"` collapse in `_canonical_order_status` (`transform.py:117-131`) survives untouched for every existing consumer (tests/unit/test_order_raw_status_kept_on_silver.py::test_three_dispatch_statuses_stay_distinct_and_coarse_status_is_unchanged)",
+          "pre-merge: a `CANCELLATION_STATUS_CHANGE` (#11) body routed through its ETL CHANNEL is RECOGNISED BY ITS OWN BRANCH and a cancellation-pending fact for that order id with its observed-at timestamp is READABLE afterwards — and, the half the issue body missed, THAT BODY NO LONGER FALLS THROUGH THE ORDER OR-CLAUSE at `transform.py:409-424` INTO `_transform_order`: asserted by showing NO silver `Order` upsert with `status=\"unknown\"` results from the #11, which is what happens today. Exercised through the real channel and the real transformer on a real Postgres 16 (tests/unit/test_cancellation_transformer.py::test_pending_cancellation_is_recorded_for_the_order)",
+          "pre-merge: with a #11 and a #3 for order A and a #3 for order B, reading the signals FOR ORDER A since a timestamp before them returns exactly A's two signals and nothing of B's; reading since a timestamp after them returns NONE — the since-a-read-time semantics the predicate depends on, asserted on the real repository (tests/unit/test_order_scoped_webhook_signals.py::test_signals_are_readable_per_order_and_since_a_read_time)",
+          "pre-merge: a shop-scoped signal row written BEFORE this slice still returns from `list_for_shop` — the widening is additive and the pre-existing reader is not narrowed; its six existing test call sites pass untouched, and the absence of production callers is not a licence to delete or re-signature it (tests/unit/test_order_scoped_webhook_signals.py::test_existing_shop_scoped_rows_still_readable)",
+          "pre-merge: the #11 payload shape is an ASSUMPTION (`webhook_catalog.py:86-93` carries `confirmed=False`). A body whose expected field is absent or differently named must FAIL CLOSED — recorded as an unparsed signal with a named reason — and must NEVER be read as 'no cancellation pending'. A missing fact and an absent cancellation are different facts and the predicate will treat them differently",
+          "pre-merge: with two tenants, the order-keyed read for tenant A returns ZERO rows of tenant B — asserted while connected AS THE RUNTIME ROLE `juli_app` UNDER RLS, never as the table owner; and the read run WITHOUT tenant context returns zero rows AND raises the named application error (ADR-086) rather than silently degrading to a fleet-wide read",
+          "pre-merge: the webhook ACK contract is unchanged — an uncatalogued event, an unknown shop and a signature failure each produce exactly the status and body they produce today, asserted by the existing webhook suite passing UNTOUCHED",
+          "pre-merge: the same #11 delivered TWICE records the pending fact ONCE — the existing UNIQUE `event_id` and `record_if_new` already give at-most-once persistence and the new write inherits it rather than building a second dedup mechanism",
+          "pre-merge: `alembic upgrade head`, then `downgrade -1`, then `upgrade head` round-trips cleanly on a real Postgres 16 already at the current tip, and the PREVIOUS release's transformer still writes a silver `Order` naming none of the new columns",
+          "post-deploy: `alembic upgrade head` on the candidate, then `/health` and ONE authenticated order read returning the SAME COARSE STATUS as stable for the same order; one CAPTURED #11 replayed against the candidate is ACKed and its pending fact read back off the row — observed on the row itself, not inferred from a log line, because a channel that raises before it logs is invisible to a success-marker grep",
+          "post-deploy: NO PACKAGE IS SHIPPED ON ANY SHOP BY DEPLOYING THIS SLICE — there is no ship call in the diff, no tool is registered, and the candidate makes no outbound vendor request. The first live proof of the Process Order write is the #1806 dry run, then the seeded sandbox batch (#1810), never production, which is gated on #1339"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is `services/etl/transform.py`, `services/tiktok/webhook_handlers.py`, `repositories/workflow.py`, `models/models.py`, one additive Alembic migration and tests. Nothing under apps/, packages/ or ios/ is touched; those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "alembic-history",
+      "webhook-replay-capture",
+      "postgres-row-dump",
+      "celery-worker-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "ONE ADDITIVE, EXPAND-ONLY migration: a NULLABLE raw TikTok order-status column on silver `Order`, the per-order cancellation-pending record, and a NULLABLE order reference on `workflow_webhook_signals`. No column is dropped, renamed or retyped; the existing coarse status column keeps its name, type and values; the UNIQUE on `event_id` is untouched; there is no backfill, and historical orders and signals keep NULL in the new columns — an honest gap, since the raw status and the order reference cannot be recovered from what the previous release parsed. THE MIGRATION NUMBER AND `down_revision` ARE RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename — this tree already carries two same-numbered `043_*` files from exactly that mistake, and W6, W7-bis, W9 and W10-A all hold unlanded numbers off-tree. Both touched tables are tenant-scoped (`database/tenant_scoped_tables.py`) and already carry RLS policies from `045_rls_policies.py`, so no new policy is created — but the new columns must be covered by the runtime role's existing per-table grants from `043_juli_app_role.py` (ADR-085), and that coverage must be asserted as `juli_app`, never as the owner. Old and new code coexist: the previous release neither reads nor writes the new columns and its coarse mapping is unchanged."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Silver keeps collapsing `AWAITING_SHIPMENT`, `PARTIALLY_SHIPPING` and `AWAITING_COLLECTION` to `\"confirmed\"` with `ON_HOLD` unmapped; the #11 channel keeps raising; `workflow_webhook_signals` stays shop-scoped with a reader nobody calls. That is the pre-existing state, the clean predicate (#1797) stays blocked on facts it cannot read, and nothing about the deployed system changes. No partial landing is acceptable: shipping the raw-status column without the cancellation transformer would let a later slice believe the cancellation fact exists.",
+    "postCutoverFailureBehavior": "Redeploy the previous release FIRST and restart juli-api and juli-celery-worker: the previous code neither reads nor writes the new columns, so it runs correctly with them present and needs NO downgrade; the rows written since cutover are INERT to it. Only if the schema must also be reverted, `alembic downgrade -1` drops the new columns and destroys only the raw statuses, pending facts and order references written since cutover; no order, no signal and no seller-visible state is lost, because every existing column keeps its value. Order matters: previous code first, downgrade second, so no live reader is mid-read against a column being dropped. The webhook endpoint keeps ACKing throughout in BOTH directions — that is the one property a rollback here may never break, since a vendor that stops being ACKed disables the subscription. A downgrade must FAIL LOUDLY rather than silently if any downstream slice (#1797's predicate, #1799's producer) is already deployed and reading those columns.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_order_raw_status_kept_on_silver.py tests/unit/test_cancellation_transformer.py tests/unit/test_order_scoped_webhook_signals.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'transform or webhook or etl or tenant_scope or rls'",
+    "PYTHONPATH=backend/src python -m pytest tests/integration/test_schema_parity.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. This slice DOES carry a migration, so the reservation is binding, not advisory.",
+    "Do NOT change the coarse silver status mapping. `AWAITING_SHIPMENT`, `PARTIALLY_SHIPPING` and `AWAITING_COLLECTION` keep collapsing to `\"confirmed\"` for every existing reader; the raw status is a NEW column beside it. Narrowing or re-splitting the coarse value is a silent break of the aggregates and the KPI precompute.",
+    "Do NOT approve, reject, decide or otherwise write ANY cancellation. Recording that a cancellation request is pending is the whole job; the approve/reject writes belong to workflow 8a and to no part of Process Order, ever. There is no cancel tool in this allowlist.",
+    "Do NOT build a vendor-refusal branch and do NOT record the fact as 'the vendor will block the ship'. ADR-092's 2026-09-05 amendment records that TikTok does NOT refuse a ship write while a cancellation is pending — the write goes through and the cancellation is approved anyway. The pending fact exists so JULI'S OWN CODE can hard-exclude the order; nothing downstream may lean on a refusal that will not come.",
+    "Do NOT assume the #11 channel currently RAISES — the issue body says so and it is WRONG in this tree. A #11 body carrying `data.order_id` is caught by the fallback OR-clause at `transform.py:409-424` and silently upserted through `_transform_order` as a silver `Order` with `status=\"unknown\"`. Fixing that silent misroute is part of this slice; a new branch added without narrowing the fallback leaves the corruption in place for any #11 shape the branch does not match.",
+    "Do NOT invent a payload field for webhook #11. Its catalog entry carries `confirmed=False`, so its shape is an assumption, not a capture. An unparsable body is recorded UNPARSED with a named reason and fails closed; it is never read as 'no cancellation pending'.",
+    "Do NOT do a fleet-wide read. The order-keyed reader runs inside `with_shop_scope` (`database/tenant_context.py`) exactly as the reaper and `credential_refresh_beat` do (ADR-089, S-NFR-8); find the tenant from the signal's `shop_id` first, then scope, then read.",
+    "Do NOT assert tenant isolation as the table owner. The runtime role is `juli_app` (`043_juli_app_role.py`, ADR-085) and RLS only binds for it.",
+    "Do NOT change the webhook endpoint's ACK, path, signature verification or status codes.",
+    "Do NOT build the clean predicate, do NOT schedule a read, do NOT emit a card, and do NOT register any agent tool. This slice adds facts and NOTHING that consumes them; the predicate is #1797 and the producer is #1799.",
+    "Do NOT add a Create Packages or a Confirm Package Shipment path. In SEA TikTok creates the package at order time, and Confirm Package Shipment is a certified-warehouse-provider endpoint, not a seller one (ADR-092 Context defects 1 and 2). Neither belongs anywhere in Process Order.",
+    "Do NOT add FBT or Seller Own Fleet handling. v1 is fulfilled-by-seller with platform shipping only; FBT is monitor-only by design (`21008025`) and SOF is v2.",
+    "Do NOT build a second idempotency mechanism. `workflow_webhook_signals.event_id` is UNIQUE and `record_if_new` already gives at-most-once persistence.",
+    "Do NOT narrow, rename or repurpose `list_for_shop`. It has zero call sites today, which makes it tempting to delete; a row written before this slice must still come back from it.",
+    "Do NOT verify with a success-marker grep. An ETL channel that raises before it logs is invisible to one; assert on the silver row, the signal row and the channel's completion.",
+    "Do NOT touch the agent runner or any `/v1` route — this is vendor ingest only. Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/**, which are on this epic's doNotLoad list.",
+    "Bind every test to the REAL transformer, the REAL route, the REAL `DurableWebhookHandler` and the REAL repository. A `**kwargs` double proves routing, never that the real call would work.",
+    "Do NOT delete, rename or re-signature `list_for_shop` because it has no production callers. It has six test callers and a pre-slice row must still come back from it."
+  ]
+}

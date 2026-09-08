@@ -1,0 +1,108 @@
+{
+  "planId": "digest-reminder-end-states-and-the-measure-completion-act-six-causes-shipped-before-deadline-2026-09-08",
+  "affectedPublicSurfaces": [
+    "THE COMPLETION ACT — the seller-visible record of what the run actually did, written on #1713's act records. It names EVERY order it shipped, EVERY order dropped at re-verify with its reason, and EVERY order the predicate excluded with its reason, each carrying a SELLER CENTER DEEP LINK. Neither a digest mechanism nor a Seller Center URL template exists anywhere in `backend/src` or `apps/*/src` today — verified: every `digest` hit in this tree is a cryptographic hash, and the only `seller_center` hits are enum literals in dashboard mock data, never a URL. So the deep-link template is NEW and its correctness is on nobody's existing test. Exceptions are NOTIFICATION-ONLY in v1 (ADR-092 d.4): no exception card, no exception write, nothing cancelled.",
+    "THE NOTIFICATION CENTRE — one in-app reminder, the ONLY wired v1 channel (§8.3 decision 4), written on #1789's notification record TWO HOURS BEFORE the window's earliest deadline if the batch is still unconfirmed. Exactly one per window: a second pass creates no second one, and a confirmed batch creates none. On expiry the next scheduled run re-proposes with urgency marked. JULI NEVER AUTO-SHIPS — the standing approval is ADR-092's deferred option 2.",
+    "THE DEADLINE LIST (#1790) gains Process Order's clocked exclusions. It is one of the seven surfaces (S-FR-1); nothing here adds an eighth.",
+    "THE STOP-REASON VOCABULARY AND ITS DB CHECK CONSTRAINT — six causes appended: `shipped_all`, `shipped_subset`, `nothing_clean`, `confirmation_expired`, `declined`, `vendor_partial_failure`. Today `services/agent/status.py`'s `StopReason` enum and `ck_workflow_runs_stop_reason` (`models/models.py:631-641`, name at `:640` — the issue body's `:630-640` is off by one) hold EXACTLY SIXTEEN values each, matching one another verbatim; `confirmation_expired` and `declined` need checking against `confirmation_expired` and `confirmation_declined` which ALREADY EXIST, so the addition may be four values, not six — resolve that against the enum rather than appending blindly and creating a near-duplicate. The addition is additive by design, and the enum, the DB CHECK, the TS union, the status-mapping totality test and the non-terminal set are all pinned places that move in ONE slice.",
+    "THE MEASURE — orders shipped before their deadline ÷ orders due, per run, computed FROM THE RUNG #1797's predicate recorded. Today `services/aggregates/thresholds.py:11` holds a global `ORDER_DISPATCH_SLA_HOURS = 48` and `compute_orders_at_sla_risk` (`computed_kpis.py:136-154`) measures against `_order_reference_time` — `payment_time or tiktok_created_at or created_at` (`:85-86`), a fallback chain, not `payment_time` alone. The new measure is a FACT, unhedged, and SEPARATE from any impact reading (S-NFR-7).",
+    "HONEST END STATES (S-FR-7). A run where NOTHING WAS CLEAN ends `completed` with its cause — NEVER `failed`. A Batch Ship call that fails outright stays on the EXISTING terminal failure path and does not acquire a new cause.",
+    "SELLER COPY. Vietnamese through the outbound guard (`services/agent/sanitize`, ADR-070, over the shared `packages/contracts/seller-copy-banned-patterns.json`); no order id, no stop-reason enum, no English string reaches the seller."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the WORKTREE ROOT with PYTHONPATH pinned to the worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite. The stop-reason CHECK CONSTRAINT is the point: a new cause that the constraint rejects fails only on Postgres, and a run inserted under SQLite would pass while production rolls back. The reminder is exercised as the REAL scheduled task under `with_shop_scope`, and the completion act is written through the REAL #1713 act-record path, never by inserting a row by hand. Post-deploy: END ONE SANDBOX RUN PER CAUSE on the candidate and read its act back through the AUTHENTICATED act route; confirm `/health` and one authenticated read are unchanged for a shop with no Process Order run.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the reminder is a scheduled worker task and the completion act is written by the runner inside the worker; with workers disabled neither exists. apiSideEffectsInScope is FALSE: this slice writes Juli's own rows — act records, one notification, a stop reason, a computed ratio — and makes NO vendor call. NO PACKAGE IS SHIPPED ON ANY SHOP BY DEPLOYING THIS SLICE: it reports on writes #1803 performed and never performs one itself, and it explicitly NEVER AUTO-SHIPS on expiry. The first live proof of the Process Order write is the #1806 dry run, then the seeded sandbox batch of the #1810 walk — never production, which stays gated on #1339 (S-NFR-3).",
+    "journeys": [
+      {
+        "name": "a-run-is-honest-about-what-it-shipped-dropped-excluded-and-measured",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1805",
+        "assertions": [
+          "pre-merge: a run that shipped TWO of FOUR confirmed orders, with ONE dropped at re-verify and ONE excluded by the predicate, writes a completion act NAMING ALL FOUR orders with their outcome AND their reason, each carrying a SELLER CENTER LINK — asserted on the act row through the real #1713 path, and asserted that the link is built from the shared template rather than string-concatenated at the call site (tests/unit/test_process_order_completion_act.py::test_shipped_dropped_and_excluded_orders_are_all_named)",
+          "pre-merge: with a batch still UNCONFIRMED, reaching two hours before its earliest deadline yields EXACTLY ONE in-app notification for that window, a SECOND PASS CREATES NO SECOND ONE, and a CONFIRMED batch creates NONE — the idempotency and the negative case both asserted, since a reminder storm is the failure mode of a deadline-relative scheduler (tests/unit/test_process_order_reminder.py::test_one_reminder_two_hours_before_the_earliest_deadline)",
+          "pre-merge: EACH of the six outcomes ends the run with the matching cause AND THE CHECK CONSTRAINT ACCEPTS IT on a real Postgres 16, and a run that shipped nothing BECAUSE NOTHING WAS CLEAN ends `completed`, never `failed` (S-FR-7) — asserted by actually inserting and committing each cause, not by comparing two Python lists (tests/unit/test_process_order_end_states.py::test_each_of_the_six_causes_is_reachable_and_accepted)",
+          "pre-merge: the enum in `services/agent/status.py`, the DB CHECK `ck_workflow_runs_stop_reason` (`models/models.py:631-641`), the TypeScript union, the status-mapping totality test and the non-terminal set all move TOGETHER in this one slice and agree verbatim — the existing sixteen values are UNCHANGED, and any cause that duplicates an existing one (`confirmation_expired`, `confirmation_declined`) reuses it rather than adding a near-twin",
+          "pre-merge: a run with THREE orders due of which TWO shipped before their RECORDED deadline reports two of three FROM THE RECORDED RUNG, and moving one order's deadline before its ship time CHANGES THE RATIO — proving the measure reads #1797's rung and not `ORDER_DISPATCH_SLA_HOURS = 48` off `_order_reference_time` (tests/unit/test_process_order_measure.py::test_shipped_before_deadline_over_due_reads_the_recorded_rung)",
+          "pre-merge: the completion copy passes the outbound guard — NO order id, NO stop-reason enum and NO English string reaches the seller, and the copy is Vietnamese; asserted through the real `services/agent/sanitize` chokepoint over the shared banned-pattern source, not a regex written in the test (tests/unit/test_process_order_completion_act.py::test_completion_copy_is_sanitised_vietnamese)",
+          "pre-merge: a Batch Ship call that FAILS OUTRIGHT stays on the EXISTING terminal failure path and acquires none of the six new causes — the new vocabulary describes outcomes, not infrastructure failures",
+          "pre-merge: the measure is a FACT, unhedged, and SEPARATE from any impact reading (S-NFR-7); a run that wrote nothing produces NO impact reading at all",
+          "pre-merge: NOTHING is cancelled and NO exception card is written. An excluded or dropped order is reported with a deep link and nothing else (ADR-092 d.4); exception cards with writes are v2",
+          "pre-merge: the existing global 48-hour dispatch-SLA path and `compute_orders_at_sla_risk` keep working for every non-Process-Order consumer, and their tests pass untouched — the new measure is introduced beside the proxy, not swapped in under it",
+          "pre-merge: `alembic upgrade head`, then `downgrade -1`, then `upgrade head` round-trips cleanly on a real Postgres 16 already at the current tip",
+          "post-deploy: `alembic upgrade head` on the candidate, then END ONE SANDBOX RUN PER CAUSE and read each act back through the AUTHENTICATED act route — observed on the act row and the route response, never inferred from a log line, because a completion path that raises before it logs is invisible to a success-marker grep",
+          "post-deploy: `/health` and ONE authenticated read UNCHANGED for a shop with no Process Order run, and that shop's notification centre, deadline list and completion messages identical to stable's",
+          "post-deploy: NO PACKAGE IS SHIPPED ON ANY SHOP BY DEPLOYING THIS SLICE — this slice reports on writes and performs none, and an expired window is never auto-shipped. The first live proof of the write is the #1806 dry run, then the seeded sandbox batch (#1810), never production, which is gated on #1339"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes in this slice. The completion message, notification centre and deadline list are rendered by #1808 and by W9-D's existing surfaces; here they only gain DATA. The diff is `services/agent/workflows/process_order/completion.py`, a reminder task under `workers/tasks/`, `services/agent/status.py`, `models/models.py`, a Seller Center deep-link template, `services/aggregates/`, one additive Alembic migration and tests. apps/, packages/ and ios/ are on this epic's doNotLoad list; the only permitted cross-check is that the TypeScript stop-reason union moves in the same change and `pnpm -w turbo run build` still passes."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "alembic-history",
+      "act-record-dump",
+      "notification-row-dump",
+      "stop-reason-constraint-dump",
+      "celery-worker-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "ONE ADDITIVE, EXPAND-ONLY migration: the new stop-reason values APPENDED to `ck_workflow_runs_stop_reason` (`models/models.py:631-641`). Today the constraint and the `StopReason` enum in `services/agent/status.py` each hold exactly SIXTEEN values and agree verbatim — `confirmation_expired` and `confirmation_declined` are already among them, so check each proposed cause against the existing list and REUSE rather than append a near-twin; appending `declined` beside `confirmation_declined` would leave two spellings of one fact forever. No value is removed and no column is dropped, renamed or retyped, so old rows stay valid. THE MIGRATION NUMBER AND `down_revision` ARE RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename — this tree already carries two same-numbered `043_*` files from exactly that mistake, and W6, W7-bis, W9 and W10-A all hold unlanded numbers off-tree. THE ASYMMETRY THAT MATTERS: widening a CHECK constraint is safe in the expand direction and UNSAFE in the contract direction — the old constraint would REJECT any row already carrying a new cause, so the downgrade is gated on those runs being closed (see rollback). `workflow_runs` is tenant-scoped and already carries RLS policies from `045_rls_policies.py`; new act and notification rows must be covered by the runtime role's existing per-table grants from `043_juli_app_role.py` (ADR-085), asserted as `juli_app`, never as the owner. Old and new code coexist: the previous release never emits a new cause and reads `stop_reason` as an opaque string."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. A Process Order run executes (#1803) but says nothing honest about it: no completion act, no deep links, no reminder, no cause and no measure. That is a bad state to ship into, so #1803 and #1805 should reach production together or not at all — a write that reports nothing is precisely the silent-failure shape ADR-090's honest end states exist to prevent. Nothing about the currently deployed system changes if this is held.",
+    "postCutoverFailureBehavior": "REDEPLOY THE PREVIOUS RELEASE FIRST and restart juli-api and juli-celery-worker, then REMOVE THE REMINDER'S BEAT/ETA SCHEDULING so no further notifications are produced. The previous code runs correctly against the WIDENED constraint — a wider CHECK accepts everything it used to write — and reads `stop_reason` as an opaque string, so runs carrying a new cause are inert to it; act records and notifications written since cutover simply have no producer any more. DO NOT ROLL THE CONSTRAINT BACK IN THE SAME OPERATION. `alembic downgrade -1` narrows the CHECK and the OLD constraint WOULD REJECT every row already carrying a new cause, so the downgrade must run ONLY after all runs bearing the new causes are closed and must FAIL LOUDLY, never silently, if any such row remains — a silent narrowing here corrupts the run table rather than reverting it. Order: previous code, reminder off, constraint last and only when clear. Nothing in either direction ships or un-ships a package: this slice performs no vendor write, and a package #1803 already shipped cannot be un-shipped by any rollback — the remediation is human, and Juli never cancels.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_process_order_completion_act.py tests/unit/test_process_order_reminder.py tests/unit/test_process_order_end_states.py tests/unit/test_process_order_measure.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'stop_reason or status_mapping or workflow_run_status or agent_banned_patterns'",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'thresholds or computed_kpis or impact_reader'",
+    "PYTHONPATH=backend/src python -m pytest tests/integration/test_schema_parity.py -q",
+    "pnpm -w turbo run build",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. This slice DOES carry a migration, so the reservation is binding.",
+    "Do NOT append a cause that duplicates one of the existing sixteen. `confirmation_expired` and `confirmation_declined` are ALREADY in the enum and the CHECK constraint; reuse them rather than shipping two spellings of one fact.",
+    "Do NOT move the stop-reason vocabulary in only some of its pinned places. The enum (`services/agent/status.py`), the DB CHECK (`models/models.py:631-641`), the TS union, the status-mapping totality test and the non-terminal set all move in ONE change.",
+    "Do NOT end a run `failed` because nothing was clean. 'Nothing to do' is never a failure (S-FR-7); it ends `completed` with its named cause. A Batch Ship call that fails outright stays on the EXISTING terminal failure path.",
+    "Do NOT auto-ship on expiry, and do NOT add a standing or repeat approval. On expiry the next scheduled run re-proposes with urgency marked; the standing approval is ADR-092's DEFERRED option 2.",
+    "Do NOT add a six-hour nag, a last-chance card, or push, email or Zalo transports. IN-APP IS THE ONLY WIRED CHANNEL IN v1 (§8.3 decision 4); the rest are v2 and each is its own transport slice.",
+    "Do NOT write a per-order exception card or any exception write. Exceptions are NOTIFICATION-ONLY in v1 (ADR-092 d.4): reported with a reason and a deep link, and nothing else.",
+    "Do NOT cancel anything, and do NOT add a cancel tool. An order excluded, dropped or advised-to-cancel by an error string is REPORTED, never acted on. Every cancellation is a human act on workflow 8a's surface.",
+    "Do NOT compute the measure from `ORDER_DISPATCH_SLA_HOURS = 48` or from `_order_reference_time` (`computed_kpis.py:85-86`, `payment_time or tiktok_created_at or created_at`). Read the RUNG #1797's predicate recorded; do NOT recompute a cutoff for an order that carried a deadline field, and do NOT edit the existing constant or `compute_orders_at_sla_risk` out from under its other consumers.",
+    "Do NOT hedge the measure or blend it with an impact reading. It is a fact, unhedged, and separate (S-NFR-7); a run that wrote nothing produces no impact reading.",
+    "Do NOT build a vendor-refusal branch or describe a dropped order as 'blocked by TikTok'. TikTok does NOT refuse a ship write during a pending cancellation (ADR-092 amendment 2026-09-05); Juli excluded it, and the digest must say so honestly.",
+    "Do NOT add a Create Packages or Confirm Package Shipment reference to the digest, and do NOT report FBT or Seller Own Fleet orders as actionable. FBT is monitor-only by design (`21008025`) and SOF is v2; both are LISTED with their reasons only.",
+    "Do NOT let an order id, a stop-reason enum or an English string reach the seller. Everything goes through the real outbound guard at `services/agent/sanitize` over the shared `packages/contracts/seller-copy-banned-patterns.json`.",
+    "Do NOT string-concatenate Seller Center URLs at call sites. None exists in the tree today, so build ONE template and use it everywhere; a second spelling of the link is a second thing to get wrong.",
+    "Do NOT add an eighth seller surface. The completion message, notification centre and deadline list already exist (S-FR-1); this slice gives them data.",
+    "Do NOT verify with a success-marker grep. A completion path that raises before it logs is invisible to one; assert on the act row, the notification row and the run's own stop reason.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/** or ios/** beyond the TypeScript stop-reason union that must move in the same change — they are on this epic's doNotLoad list."
+  ]
+}
