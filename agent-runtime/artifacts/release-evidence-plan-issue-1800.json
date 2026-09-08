@@ -1,0 +1,106 @@
+{
+  "planId": "two-attested-reports-as-supply-events-on-one-run-2026-09-08",
+  "affectedPublicSurfaces": [
+    "RUN STATES — ONE RUN SUSPENDS TWICE IN `waiting_external`. The state itself lands as #1706 (it does not exist in this tree today: `services/agent/status.py::WorkflowRunStatus` is a seven-member StrEnum — `queued`, `running`, `waiting_approval`, `completed`, `cancelled`, `timed_out`, `failed` — and `ck_workflow_runs_status` in `models.py::WorkflowRun.__table_args__` lists exactly those seven). This slice USES it twice on one run: first waiting on the \"ordered\" report, then waiting on the \"received\" report. It adds no status of its own.",
+    "CONFIRMATION KINDS — THE `report` KIND ON THE EXISTING CONFIRMATION SHEET, FOR THIS WORKFLOW ONLY. The kind lands as #1709; this slice binds Replenish's two reports to it. No new seller surface appears: both reports render on the existing confirmation sheet and run view (the seven surfaces of S-FR-1 are fixed).",
+    "THE CONSENT HASH DIRECTION, WHICH IS THE SUBSTANCE OF THE SLICE. `services/agent/runner/confirmation.py::build_confirmation_options` (line 132) calls `compute_params_sha(proposed_change)` over the MODEL's own verbatim tool `arguments` at PAUSE time — `compute_params_sha` (line 122) is a SHA-256 hex digest over the canonicalised params. An ATTESTED REPORT needs the hash over the SELLER's CONFIRMED VALUES at DECIDE time, because those values do not exist when the run creates the confirmation. ADR-093 amendment (a) states it plainly: a parse is a proposal, a confirmation is the consent. The received form's hash covers exactly the accepted and short numbers the form DISPLAYED and the seller confirmed — never parsed values, never model-supplied ones.",
+    "THE SANITISER'S PROVENANCE VOCABULARY GAINS `supplier`, HANDLED UNTRUSTED EXACTLY LIKE `vendor` (ADR-093 amendment (d), amending ADR-070 d.3). `services/agent/sanitize/provenance.py` is deliberately CLOSED today and the closure is structural, not conventional: `ProvenanceSource = Literal[\"juli\", \"vendor\", \"seller\"]`, `PROVENANCE_SOURCES = get_args(ProvenanceSource)` so the tuple cannot drift from the type, three frozen dataclasses (`JuliText`, `VendorText`, `SellerText`) each pinning `source` with `field(default=..., init=False)` so no caller — and no text content claiming a trust level inside itself — can set it, and a `_BY_SOURCE` map behind `from_source`. Its own docstring says \"Because exactly three dataclasses exist ... no fourth origin is representable.\" Adding `supplier` therefore means widening the Literal, adding a FOURTH frozen dataclass with `source` fixed and `init=False`, and registering it in `_BY_SOURCE` — and the forgery property must survive: a `supplier` field whose text claims another source still yields the supplier envelope.",
+    "THE PURCHASE RECORD'S STATE ADVANCES, AND THE RECEIPT ROW IS WRITTEN PER DELIVERY. The \"ordered\" report advances `purchase_orders` from `draft`/`sent` toward `acknowledged`; the confirmed \"received\" report writes a `receipts` row PER DELIVERY carrying accepted and short per line, and moves the purchase record to `partially_received` or `received`. Both tables are #1794's; this slice is their FIRST WRITER, which is why RI-1's tables stop being empty at exactly this point.",
+    "THE REAPER POLICY AND THE ONE IN-APP REMINDER. `workers/tasks/reaper.py` today covers stale `running`/`queued` and expired `waiting_approval` under ONE global policy. For the \"ordered\" wait the deadline is the EXPECTED DATE PLUS A MARGIN, and exactly ONE in-app reminder is scheduled relative to the **needed-by** date, NOT the expected date — the seller needs warning while there is still time to act. Getting that reference date wrong is the defect this bullet exists to prevent, and it is invisible in any test that sets the two dates equal.",
+    "A CORRECTION IS A NEW EVENT, NEVER AN EDIT. The ledger holds both the original and the correction; the later supply event supersedes the first, and the first remains unchanged and still confirmed. Rewriting a confirmed event would rewrite consent that has already been given, and the audit would no longer show what the seller actually saw.",
+    "WHAT IS DELIBERATELY ABSENT. NO STOCK IS WRITTEN by this slice — RI-5 (#1802) consumes the confirmed receipt. No second intake source at any version (no photo, OCR, e-invoice, Excel or messaging adapter), no supplier API, no new route, no new seller surface. The demo deliberately REMOVED `received_quantity` from the approval flow as post-execution (`apps/demo/src/lib/workflows/replenish-inventory/review.ts:38-45`, issue #766); this slice does not put it back at approve time — it lives on the confirmation sheet at receipt time, and rendering it is #1807's."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest driven by the REAL runner from the worktree root with PYTHONPATH pinned to that worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite. The two reports are driven END TO END against a real run: the run's state transitions, the single-use property of a confirmation under concurrency, the ledger holding both an event and its correction, and the CHECK-constrained purchase-order transitions are all transaction and constraint behaviour SQLite would tolerate silently. Bind to the REAL confirmation object, the REAL `compute_params_sha`, the REAL `reap_workflow_runs` with no `policy=` injected, and the REAL provenance envelopes — never `**kwargs` doubles. Post-deploy: one authenticated run read on the candidate for a run of ANOTHER workflow key, expected unchanged; no public traffic reaches a candidate task set, no vendor call is attempted, and NO STOCK IS WRITTEN ON ANY SHOP BY DEPLOYING — this slice has no write path to the vendor at all.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the reaper and the resume-on-decide path both run in the Celery beat/worker pair; with workers disabled the candidate could record a report but never demonstrate that the deadline resolves to the expected date plus a margin, that the reminder fires against the needed-by date, or that a decided report resumes the run — which is most of the claim. apiSideEffectsInScope is FALSE: no vendor call, no production write and NO STOCK WRITE occur anywhere in this slice; the only rows written are this shop's own runs, confirmations, supply events, purchase orders and receipts.",
+    "journeys": [
+      {
+        "name": "two-attested-reports-suspend-a-run-and-the-hash-binds-what-the-seller-confirmed",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1800",
+        "assertions": [
+          "pre-merge: on an approved replenish run, submitting the \"ordered\" report with reference, quantity and expected date creates a supply event with `source = 'seller_form'`, ADVANCES the purchase record, leaves the run in `waiting_external`, and performs **NO STOCK WRITE** — the absence asserted on the real guarded resource (no call reached it), not merely on an unchanged row (tests/unit/test_replenish_attested_reports.py::test_ordered_report_suspends_without_writing)",
+          "pre-merge: for a run waiting on the \"ordered\" report, the REAL reaper resolves the deadline to THE EXPECTED DATE PLUS THE MARGIN, and EXACTLY ONE in-app reminder is scheduled relative to the **NEEDED-BY** date — asserted with the expected date and the needed-by date set to DIFFERENT values, so a reminder computed off the expected date fails loudly instead of passing on a coincidence (tests/unit/test_replenish_attested_reports.py::test_reaper_policy_and_the_needed_by_reminder)",
+          "pre-merge: a second reminder is NOT scheduled — exactly one, per RI-FR-7 and spec §6 item 6 (the deadline clock as a shared escalation service is explicitly not in v1)",
+          "pre-merge: a \"received\" report showing accepted and short, once CONFIRMED, produces a params hash covering EXACTLY the confirmed accepted and short values THE FORM DISPLAYED — asserted by computing `compute_params_sha` over the seller's values and comparing to the stored hash, AND by asserting the stored hash does NOT equal the hash over the model's own pending arguments, so a test that hashes model arguments cannot pass (tests/unit/test_replenish_attested_reports.py::test_hash_binds_the_confirmed_values_not_the_parsed_ones)",
+          "pre-merge: the same confirmation writes a `receipts` ROW FOR THAT DELIVERY, and a second delivery against the same purchase order writes a SECOND receipt row rather than accumulating into the first",
+          "pre-merge: an UNCONFIRMED supply event has `confirmed_by`/`confirmed_at` NULL and moves nothing — a parse is a proposal; only the confirmation writes the receipt",
+          "pre-merge: when the seller CORRECTS a confirmed receipt, a NEW supply event and a NEW confirmation are created, the first remains in the ledger UNCHANGED and still confirmed on re-read, and the LATER event is the one a consumer reads — asserted by re-reading the first row and by reading through the consumer, not by counting rows alone (tests/unit/test_replenish_attested_reports.py::test_a_correction_is_a_new_event_not_an_edit)",
+          "pre-merge: a decided report CANNOT be decided twice — asserted under CONCURRENCY (two simultaneous decides yield exactly one confirmed event), because single-use is a transaction property, not a status read followed by a write",
+          "pre-merge: text tagged `supplier` passing the inbound chokepoint is enveloped UNTRUSTED ON THE SAME PATH AS `vendor`, and a `supplier` field whose text CLAIMS any other source still yields the supplier envelope — the forgery property `provenance.py` already guarantees for the existing three must survive the fourth (tests/unit/test_supplier_provenance_is_untrusted.py::test_supplier_text_is_untrusted_like_vendor)",
+          "pre-merge: `PROVENANCE_SOURCES` still derives from `get_args(ProvenanceSource)` and `_BY_SOURCE` still covers every member — asserted by iterating the Literal, so a fourth source added to the type but not to the map cannot ship silently",
+          "pre-merge: the purchase record's transitions stay inside ADR-093 amendment (b)'s chain — the \"ordered\" report cannot jump a state, and the \"received\" report lands `partially_received` when short and `received` when complete",
+          "pre-merge: ZERO behaviour change for every other workflow key — the existing confirmation, approval and runner suites pass untouched, the single-option (N = 1) shape is unchanged for every tool that exists today, and the 4 h confirmation expiry and the 5/h burst-2 approval rate limit (S-NFR-2) apply to a `report` exactly as to any other kind",
+          "post-deploy: the candidate's `/health` and ONE AUTHENTICATED RUN READ for a run of ANOTHER workflow key return exactly what they returned before the deploy, and NO STOCK IS WRITTEN ON ANY SHOP BY DEPLOYING — this slice attempts no vendor call, resolves no write credential, and leaves every supply event and receipt it writes UNCONSUMED until RI-5 ships"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is under `backend/src/juli_backend/services/agent/runner/`, `services/agent/sanitize/provenance.py`, `workers/tasks/reaper.py` and tests. Both reports render on the EXISTING confirmation sheet and run view; building those forms is #1807 (ui-ux). Nothing under apps/, packages/ or ios/ is touched, and those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "postgres-row-dump",
+      "run-event-stream-capture"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE OF ITS OWN, and this is the section most likely to be violated by good intentions. This slice is the FIRST WRITER of RI-1's (#1794) `supply_events`, `purchase_orders` and `receipts` tables, and everything it does to them is ADDITIVE: it INSERTS rows, it advances a purchase order's state within the CHECK constraint #1794 already declared, and it never alters a confirmed row — a correction is a new event, so even a correction is an insert. The `waiting_external` status and its CHECK widening are #1706's; the `report` confirmation kind and its column are #1709's; both land before this slice opens. The `supplier` provenance addition is CODE ONLY — `ProvenanceSource`, a fourth frozen dataclass and `_BY_SOURCE` — with no column, no enum in Postgres and no migration behind it. This slice writes no Alembic revision and does not open `backend/src/juli_backend/database/migrations/versions/`. Stable and candidate therefore run the SAME schema and a code rollback needs no downgrade. If implementation concludes a column is needed, REPORT it and stop — do not write a migration under this issue, and if one nonetheless proves unavoidable, its number and `down_revision` are RESERVED BY META and supplied with the issue, never read from `alembic heads` or from the tip of the versions directory."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. No replenish run suspends on a report, no supply event exists, `purchase_orders` and `receipts` stay empty, the params hash keeps covering only the model's own stored tool arguments, no reminder fires against a needed-by date, and `supplier` remains unrepresentable in the sanitiser's closed three-source vocabulary — the pre-existing state RI-NFR-1 and §8.1 P0-6 name. No new exposure, nothing partially applied, no vendor call made, no stock touched on any shop.",
+    "postCutoverFailureBehavior": "Redeploy the previous release FIRST and restart juli-api and juli-celery-worker. NO DOWNGRADE IS INVOLVED — this slice ships no schema change, so stable and candidate run the same schema, and supply events, purchase orders and receipts already written stay READABLE and UNCONSUMED (RI-5 has not shipped, so nothing can act on them). THE ONE REAL HAZARD, to state in the PR and to assert pre-merge: a run left in `waiting_external` on a PENDING report when the rollback lands cannot be decided by the previous release, because its hash covers values the previous decide path never collects. It must FAIL CLOSED with the existing named error and expire on its own timer — NEVER execute with the model's arguments substituted, which would be an unconsented write. A second, milder consequence to state: text that the candidate enveloped as `supplier` is re-enveloped by the reverted code through whichever existing source its field maps to; because `supplier` is handled untrusted exactly like `vendor`, that fallback must also be untrusted — assert it, do not assume it. Order matters: previous code first, and no schema step second because there is none.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_replenish_attested_reports.py tests/unit/test_supplier_provenance_is_untrusted.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'confirmation or provenance or reaper or waiting_external'",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_approval_transaction.py tests/unit/test_golden_scenario_capture_from_real_runner.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT infer a TikTok replenishment-recommendation endpoint — none exists (`partner-catalog.json` holds only packaging and title/description/category recommenders). Nothing on this path calls one or names one.",
+    "Do NOT label a Juli number as TikTok's. The baseline's Vietnamese label is #1798's and is never a claim that TikTok returned the number (S-NFR-4's no-false-attribution rule).",
+    "Do NOT record or propagate an absolute stock set. The write is a DELTA on a freshly re-read level (ADR-093 amendment 2026-09-05) and it belongs to #1802; a supply event carries what the seller reported ACCEPTED, not a target level.",
+    "Do NOT apply an uplift, and do NOT infer one without a seller-entered event date. There is no campaign calendar — `models.py::Campaign` is a creator-collaboration outcome record — and the uplift is #1798's rule.",
+    "Do NOT accept or advance an order beyond 90 days of supply. The 90-days-of-supply upper guard suppresses the proposal before a run exists; nothing here may reintroduce a suppressed proposal.",
+    "Do NOT add a supplier API client, a portal, an EDI adapter, or a Zalo channel. No per-supplier API is in scope at ANY version (ADR-093 amendment (e)), and Zalo Notification Service is customer-only by Zalo's own template rules — it is not a supplier channel. The supplier reaches Juli only as untrusted text and as a row the seller confirms.",
+    "Do NOT treat a supplier message, delivery note or invoice line as a confirmed fact. `supplier` is UNTRUSTED provenance handled exactly like `vendor` — data, never an instruction and never a fact — and a supply event stays unconfirmed until a human confirms it.",
+    "Do NOT hash model-supplied or PARSED values for a report. The hash binds the CONFIRMED values the form displayed. A test that hashes `pending_state[\"arguments\"]` proves the hash function, not the consent, and would bind consent to a number the seller never typed.",
+    "Do NOT write stock, and do NOT create any path that could write stock below the committed quantity. RI-5 (#1802) consumes the confirmed receipt; this slice's own assertion is that NO stock write occurred.",
+    "Do NOT loosen the EXISTING consent check to accommodate the report kind. `ERROR_PARAMS_SHA_MISMATCH` and `confirmation_diverged` stay exactly as they are; the report path is a branch beside them, never a relaxation of them.",
+    "Do NOT mutate a decided or confirmed supply event. A correction is a NEW event and a NEW confirmation; the first stays in the ledger unchanged, or the audit stops showing what the seller actually saw.",
+    "Do NOT schedule the reminder against the EXPECTED date. It fires relative to the NEEDED-BY date, and a test that sets the two dates equal cannot tell the difference — set them apart.",
+    "Do NOT add a second reminder, a push, email or Zalo transport, or a shared deadline-escalation service. In-app is the only v1 channel (§8.3 decision 4) and exactly one reminder fires (spec §6 item 6).",
+    "Do NOT add a second intake source at any version — no photo, OCR, e-invoice, Excel or messaging adapter. `supply_events.source` accepts `seller_form` only in v1; the v2 order is fixed in ADR-093 amendment (e) and is an epic deferral.",
+    "Do NOT add a new seller surface. Both reports render on the EXISTING confirmation sheet and run view; the forms themselves are #1807's, and the seven surfaces of S-FR-1 are fixed.",
+    "Do NOT write a migration, add a column, or open `backend/src/juli_backend/database/migrations/versions/`. The tables are #1794's, `waiting_external` is #1706's, the report kind is #1709's; if something seems missing, report it.",
+    "Do NOT gate a run stage on a checklist tick. Checklist items are #1713's, are seller-editable, and never gate a stage in v1 (S-FR-12).",
+    "Do NOT put an internal identifier, a projected impact magnitude or a causal claim in seller-facing text. Copy is Vietnamese through the seller-copy sanitiser (S-NFR-4).",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every collaborator to the REAL object — the real confirmation, the real `compute_params_sha`, the real `reap_workflow_runs` with no injected policy, the real provenance envelopes, a real async session against a real Postgres 16. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

@@ -1,0 +1,107 @@
+{
+  "planId": "the-guarded-delta-write-update-inventory-over-the-existing-resource-2026-09-08",
+  "affectedPublicSurfaces": [
+    "THE AGENT TOOL REGISTRY GAINS ONE WRITE-CONFIRM TOOL, `update_inventory`, REGISTERED IN #1704's DOMAIN DISPATCHER — no new route, no new seller surface. `services/agent/tools/` holds `registry.py`, `product.py`, `product_write.py` and `terminal.py` today; the registry's contract test pins the registered set, so adding a tool moves a pinned list and that movement must be deliberate and asserted, not absorbed by regenerating the pin.",
+    "THE TOOL SITS OVER THE **EXISTING GUARDED RESOURCE** AND MUST REUSE IT, NOT RE-IMPLEMENT IT. `services/execution/inventory_leakage.py::run_replenish_inventory_chain` (line 45) already calls `resources.inventory.update(...)` through `SandboxWriteResources`, registered at `services/execution/leakage_handlers.py:140` (`register_async_tool(\"inventory.replenish\", replenish_inventory_handler)`) and resolved via `production_write_resolver` → `services/execution/sandbox_guard.py::build_sandbox_write_resources` (line 23), which RAISES unless `config.merchant_auth_id == SANDBOX_AUTH_ID`. Production is refused by default and that guard must not widen by one character.",
+    "THE VENDOR CALL IS AN ABSOLUTE QUANTITY, AND THE **DELTA** IS WHAT JULI COMPUTES BEFORE IT. `integrations/tiktok/resources/inventory.py::InventoryResource.update` has the signature `update(*, product_id: str, sku_id: str, quantity: int, warehouse_id: str | None = None)` and posts `{\"skus\": [{\"id\": sku_id, \"inventory\": [{\"quantity\": ..., \"warehouse_id\": ...}]}]}` — the vendor receives an ABSOLUTE number. \"Delta write\" therefore means the number sent is `re-read available + accepted`, COMPUTED AT CALL TIME, never an absolute figure computed when the form rendered. Sapo's documented failure mode is exactly that blind overwrite of a marketplace-side change (`research/receiving-forms-and-stock-targets.md`, via ADR-093's 2026-09-05 amendment). Do not change `InventoryResource.update`'s signature to take a delta; compute the delta above it.",
+    "FOUR RE-VERIFICATION READS IMMEDIATELY BEFORE THE CALL (RI-FR-5, S-FR-5). Re-read AVAILABLE and COMMITTED stock for the exact `(shop, SKU, warehouse)` row; read the AUTO-RESTOCK SETTING (#1721's captured stock-operation-settings read); respect the **Luôn sẵn hàng** committed quantity so the resulting available never falls below it; and VALIDATE THE WAREHOUSE — an accepted quantity naming a warehouse the SKU does not stock is REFUSED, never silently routed to a first match.",
+    "THE LEGACY CHAIN'S UNRANKED RESOLUTION MUST NOT BE REACHABLE FROM THE TOOL. `inventory_leakage.py::_first_inventory_match` (line 14, NOT lines 26-42 as the issue body states — lines 26-42 are `_resolve_product_sku`) iterates `search_result[\"inventory\"]` and returns the FIRST product/SKU pair it finds, unranked; and `run_replenish_inventory_chain` passes `payload.get(\"warehouse_id\")` straight through with no resolution and sends `int(payload[\"quantity\"])` verbatim. The legacy Celery path stays exactly as it is — it is not deleted and not fixed here — but the ToolSpec must not route through it.",
+    "TWO EXPLICIT FAILURE SURFACES ON THE RUN. If the re-read level DIFFERS from the level the confirmation was taken against, the run **ABORTS** with a named cause, no vendor call is made, and the proposal is NEVER WIDENED (S-FR-5 permits dropping or narrowing only). If the SKU is locked by a campaign or flash sale, the vendor's refusal is a **FAILED WRITE**, surfaced as such — never a silent retry (S-NFR-1) and never reported as landed. Seller story 10 in PRD #1626 is exactly this: a seller must never be told a write landed when it did not.",
+    "THE TOOL CONSUMES **CONFIRMED RECEIPTS ONLY**. An unconfirmed supply event — whatever its `source` or its per-field confidence — cannot move stock (ADR-093 amendment (a)). The receipt rows are #1794's and their confirmation is #1800's; this slice reads them and refuses anything unconfirmed.",
+    "EXACTLY ONE WRITE PER RUN (S-FR-6), AND WRITES STAY SANDBOX-ONLY UNTIL #1339. No second write, no retry, no compensating call. The production-write gate is a separate issue and this slice must not anticipate it; nothing in the diff may make a production write reachable.",
+    "NOT IN SCOPE: the report forms (#1807), the end states and the measure (#1804), the sandbox gate walk (#1809/RI-8). This slice adds no second write and no new endpoint."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest driven by the REAL runner from the worktree root with PYTHONPATH pinned to that worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite, because the confirmed-receipt read, the re-read of the `(shop, SKU, warehouse)` row and the run's abort transition are all row and transaction behaviour. The vendor call is bound to the REAL `InventoryResource.update` signature (`product_id`, `sku_id`, `quantity`, `warehouse_id`) — a `**kwargs` double proves routing, not that the call would work — and the guard is the REAL `build_sandbox_write_resources`, which raises unless `merchant_auth_id == SANDBOX_AUTH_ID`, so a production write is structurally unreachable in the journey. The sandbox walk itself is RI-8 (#1809) and is deliberately NOT part of this journey. Post-deploy: candidate `/health` and one authenticated read confirming the tool-registry contract test still pins the registered set; no public traffic reaches a candidate task set, no production write credential is resolved at any point, and NO STOCK IS WRITTEN ON ANY SHOP BY DEPLOYING — registering a ToolSpec dispatches nothing.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because an agent tool executes inside the Celery worker after a confirmation is decided; with workers disabled the candidate could show the tool registered but never that the executed call carried `re-read available + accepted`, which is the whole claim. apiSideEffectsInScope is FALSE: no PUBLIC and no PRODUCTION side effect occurs in this journey — every vendor call in it is bound to a fake built on the real `InventoryResource.update` signature, and the only real sandbox quantity change in this epic happens in RI-8's walk, not here. ADR-068's hard-bound SANDBOX_WRITE merchant id is the mechanism that keeps writes off production, and this slice must not widen it.",
+    "journeys": [
+      {
+        "name": "the-write-is-a-delta-on-a-freshly-re-read-level-and-every-refusal-is-named",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1802",
+        "assertions": [
+          "pre-merge: given a CONFIRMED receipt of N accepted units and a re-read available level L, the vendor call carries `L + N` — asserted on the arguments the REAL `InventoryResource.update` signature actually received, and asserted with L DIFFERENT from the level shown when the form rendered, so a tool that reuses the rendered level fails loudly instead of passing on equal numbers (tests/unit/test_update_inventory_delta_write.py::test_write_is_a_delta_on_the_re_read_level)",
+          "pre-merge: the value sent is an ABSOLUTE quantity to the vendor, computed as the delta at call time — `InventoryResource.update`'s signature is unchanged and the tool does not attempt to send a difference the API would misread as a level",
+          "pre-merge: a level that has DRIFTED between confirmation and dispatch causes the tool to ABORT with a NAMED cause, NO vendor call is made — asserted on the real guarded resource receiving nothing, not on an unchanged row — and the proposal is never widened (tests/unit/test_update_inventory_delta_write.py::test_drifted_level_aborts_before_the_call)",
+          "pre-merge: with a committed quantity held under a **Luôn sẵn hàng** lock, the resulting available NEVER falls below the committed quantity, and an accepted quantity that would breach it is REFUSED with a named cause rather than clamped silently — a silent clamp would write a number the seller never confirmed (tests/unit/test_update_inventory_delta_write.py::test_available_never_written_below_committed)",
+          "pre-merge: an accepted quantity naming a warehouse the SKU DOES NOT STOCK fails closed, and the legacy chain's unranked first-match resolution (`inventory_leakage.py::_first_inventory_match`) is NOT REACHABLE from the tool — asserted by exercising the tool on a payload the legacy path would have silently accepted (tests/unit/test_update_inventory_delta_write.py::test_unknown_warehouse_is_refused)",
+          "pre-merge: the AUTO-RESTOCK SETTING is read before the call through #1721's captured stock-operation-settings read, and the tool NEVER FLIPS IT — reading is in scope, writing the toggle is an epic deferral",
+          "pre-merge: when the vendor refuses the write because the SKU is CAMPAIGN-LOCKED, the run records a FAILED WRITE, the seller is told it did NOT land, and NO RETRY is issued — asserted on the call count as well as the recorded outcome (tests/unit/test_update_inventory_delta_write.py::test_marketplace_lock_is_a_failed_write)",
+          "pre-merge: a supply event that has NOT been confirmed cannot move stock — the tool refuses it with a named cause regardless of its `source` or its per-field confidence, and only a CONFIRMED receipt is a valid input (tests/unit/test_update_inventory_delta_write.py::test_unconfirmed_event_cannot_move_stock)",
+          "pre-merge: EXACTLY ONE write per run — asserted on the call count against the real resource across a full confirmed-receipt dispatch, including the campaign-lock and drift paths where the count must be zero",
+          "pre-merge: the PRODUCTION path stays unreachable — `build_sandbox_write_resources` still RAISES for any `merchant_auth_id` other than `SANDBOX_AUTH_ID`, asserted directly, and nothing in the diff widens the guard or resolves a production write credential",
+          "pre-merge: the LEGACY chain is untouched — `run_replenish_inventory_chain` and its `inventory.replenish` registration behave exactly as before, and the existing inventory-leakage suite passes unchanged",
+          "pre-merge: the tool-registry contract test PINS the registered set including the new tool, and the pin is updated deliberately rather than regenerated — a tool appearing in the registry without a pinned entry must go red",
+          "post-deploy: the candidate's `/health` and ONE AUTHENTICATED READ confirm the tool-registry contract test still pins the registered set, no production write is reachable (writes stay sandbox-only until #1339), and NO STOCK IS WRITTEN ON ANY SHOP BY DEPLOYING — registering a ToolSpec dispatches nothing, and every stock quantity on every shop is byte-for-byte unchanged by the deploy"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is under `backend/src/juli_backend/services/agent/tools/` (the `update_inventory` ToolSpec and its registration) plus tests. The report forms that gather the accepted and short numbers are #1807 (ui-ux); nothing under apps/, packages/ or ios/ is touched, and those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "tool-registry-pin",
+      "run-event-stream-capture"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE. The `receipts` rows this tool reads and the `committed_quantity` column it respects are RI-1's (#1794), landed before this slice opens; the confirmation that makes a receipt consumable is #1800's. This slice writes no Alembic revision, adds no column, and does not open `backend/src/juli_backend/database/migrations/versions/`. Stable and candidate therefore run the SAME schema, so a code rollback needs no downgrade of any kind. If implementation concludes a column is needed — to record a failed write, an abort cause, or the re-read level — REPORT it and stop; the run's own fact recording is #1804's and its constraint values are #1707's. If a migration nonetheless proves unavoidable, its number and `down_revision` are RESERVED BY META and supplied with the issue, never read from `alembic heads` and never derived from the tip of the versions directory."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Stock stays writable only through the legacy Celery chain, which is not agent-routed, passes `warehouse_id` through unresolved, takes the first inventory match unranked, and sends whatever quantity the payload carried — with no re-read, no committed-quantity guard, no auto-restock read and no warehouse validation. That is the pre-existing state the scope verification recorded, and it is reachable only from the legacy path, not from a run. No new exposure, nothing partially applied, and no stock written on any shop.",
+    "postCutoverFailureBehavior": "REVERT THE ToolSpec REGISTRATION and redeploy the previous release; restart juli-api and juli-celery-worker. NO DOWNGRADE IS INVOLVED — this slice ships no schema change. NO STOCK WRITE IS LEFT HALF-APPLIED because there is EXACTLY ONE vendor call per run: either it was made and the run recorded its outcome, or it was not made at all — there is no compensating call to unwind and no retry in flight. The legacy chain is untouched by the revert and keeps behaving exactly as it did. THE ONE HAZARD to state in the PR and assert pre-merge: a run suspended on a confirmed receipt when the rollback lands has no tool to dispatch to, so it must fail closed on its own reaper policy with a named cause and NEVER fall back to the legacy `inventory.replenish` chain, which would write an unguarded absolute quantity against an unranked first match — an unconsented write. Confirmed receipts already written stay readable and simply go unconsumed. Order matters: previous code first, and no schema step second because there is none.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_update_inventory_delta_write.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'tool_registry or inventory_leakage or sandbox_guard'",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'agent and tool'",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT infer a TikTok replenishment-recommendation endpoint — none exists (`partner-catalog.json` holds only packaging and title/description/category recommenders). The only vendor endpoints on this path are Inventory Search, Update Inventory and #1721's stock-operation-settings READ.",
+    "Do NOT label a Juli number as TikTok's. Nothing on this path may present a computed level or delta as a value the vendor returned (S-NFR-4's no-false-attribution rule).",
+    "Do NOT write an ABSOLUTE stock set computed when the form rendered. The number sent is `re-read available + accepted`, computed at call time. This is the single defect the slice exists to prevent, and it is Sapo's documented failure mode: blindly overwriting a marketplace-side change.",
+    "Do NOT change `InventoryResource.update`'s signature to accept a delta. The vendor takes an absolute quantity; Juli computes the delta ABOVE the resource and sends the resulting absolute number.",
+    "Do NOT apply an uplift or any event-derived adjustment at write time, and never one without a seller-entered event date. The uplift shapes the PROPOSED order quantity (#1798); the write moves the ACCEPTED units and nothing else.",
+    "Do NOT write a quantity derived from an order beyond 90 days of supply. That proposal is suppressed before a run exists (#1798's guard); nothing here may reintroduce one.",
+    "Do NOT add a supplier API client, a portal, an EDI adapter or a Zalo channel. No per-supplier API is in scope at any version, and Zalo Notification Service is customer-only by Zalo's own template rules — not a supplier channel.",
+    "Do NOT treat a supplier message, delivery note or invoice line as a confirmed fact that can move stock. `supplier` is untrusted provenance; only a CONFIRMED receipt is a valid input, whatever an event's source or per-field confidence says.",
+    "Do NOT hash model-supplied values for a report. The consent this tool acts on is #1800's hash over the seller's CONFIRMED accepted and short values; re-deriving it from the model's arguments would let an unconsented number reach the vendor.",
+    "Do NOT write stock below the committed quantity, and do NOT clamp silently when an accepted quantity would breach it — REFUSE with a named cause. A silent clamp writes a number the seller never confirmed.",
+    "Do NOT widen the proposal on drift. S-FR-5 permits dropping or narrowing only; a drifted level ABORTS with a named cause and makes no vendor call.",
+    "Do NOT retry a refused write, and do NOT report it as landed. A campaign or flash-sale lock is a FAILED write surfaced as such (S-NFR-1); seller story 10 in PRD #1626 is precisely this.",
+    "Do NOT re-implement the guarded resource, and do NOT widen `sandbox_guard.py::build_sandbox_write_resources`'s `merchant_auth_id == SANDBOX_AUTH_ID` check by one character. Writes stay sandbox-only until the production-write gate (#1339); this slice must not anticipate it.",
+    "Do NOT route through, resurrect, or 'fix' the legacy chain. `inventory_leakage.py::_first_inventory_match` (line 14) takes the first hit unranked and `run_replenish_inventory_chain` (line 45) passes `payload.get(\"warehouse_id\")` through unresolved; the legacy path stays exactly as it is and must be unreachable from the ToolSpec. Note the issue body cites `_first_inventory_match` at lines 26-42 — that range is `_resolve_product_sku`; read the file rather than the line numbers.",
+    "Do NOT flip the auto-restock toggle. Reading the setting is in scope; the toggle CARD and any write to that endpoint are epic deferrals.",
+    "Do NOT add a second write, a compensating call, or a retry. Exactly one write per run (S-FR-6).",
+    "Do NOT build the report forms (#1807), decide end states or compute the measure (#1804), or perform the sandbox walk (#1809). One domain per issue.",
+    "Do NOT write a migration, add a column, or open `backend/src/juli_backend/database/migrations/versions/`. The receipt rows and `committed_quantity` are #1794's; run facts are #1804's.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test double to the REAL `InventoryResource.update` signature and the REAL guard. A `**kwargs` double proves routing, never that the real call would work — and here a routing-only proof would ship a tool that cannot actually move stock."
+  ]
+}

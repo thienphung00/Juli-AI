@@ -1,0 +1,100 @@
+{
+  "planId": "the-sync-keeps-every-warehouse-and-the-committed-bucket-2026-09-08",
+  "affectedPublicSurfaces": [
+    "THE SYNC MAPPING — `integrations/tiktok/mapping.py::expand_inventory_search` (line 396). Today it walks each SKU's `warehouse_inventory` list and **`break`s on the first entry that has a `warehouse_id`**, then emits exactly ONE row per SKU carrying that one warehouse. This slice deletes the `break` and emits ONE ROW PER SKU PER WAREHOUSE. No route, no seller-visible string — but every later Replenish slice reads the rows this function produces, so a silent loss here is a silent wrong number on a card.",
+    "THE PER-WAREHOUSE QUANTITY IS NOT THE SKU TOTAL, AND THIS IS THE EASIEST THING TO GET WRONG. Today the emitted `available_quantity` prefers `sku.get(\"total_available_quantity\")` and falls back to `sku.get(\"available_quantity\")` — a SKU-LEVEL TOTAL. Once the expansion emits a row per warehouse, copying that total onto each row DOUBLE-COUNTS the stock: capture A-8 shows the shape plainly — `{\"total_available_quantity\":995, \"total_committed_quantity\":0, \"warehouse_inventory\":[{\"available_quantity\":995,\"committed_quantity\":0,\"warehouse_id\":\"7272949914115966726\"}]}`. Each per-warehouse row must read that WAREHOUSE ENTRY's own `available_quantity` and `committed_quantity`; the SKU-level totals are only the fallback for a response with no breakdown at all.",
+    "THE COMMITTED BUCKET, CARRIED THROUGH FOUR LAYERS THAT ALL DROP IT TODAY. `committed_quantity` has ZERO hits anywhere under `backend/src`. The vendor returns it on the same object (`inventory-search-202309.md:219-225`; capture A-8 shows it as zero on the only single-warehouse capture recorded, `contract-collection.md:304`). It must survive `expand_inventory_search` → `normalize_inventory` (`mapping.py:437`) → `_transform_inventory` (`services/etl/transform.py:230-252`, whose returned dict today names only `tiktok_product_id`, `tiktok_sku_id`, `quantity`, `warehouse_id`, `velocity`, `update_time`) → the upsert, landing on the column RI-1 (#1794) added.",
+    "`InventoryRepo`'s LOOKUP KEY. `repositories/commerce.py:150-152` is exactly three lines: `class InventoryRepo(ShopScopedRepo[InventoryItem])`, `_model = InventoryItem`, `_lookup_attrs = (\"tiktok_sku_id\",)`. Keyed on SKU alone, the second warehouse's row OVERWRITES the first instead of joining it — the two-row assertion would pass in the mapper and fail at the database. `_lookup_attrs` must become `(\"tiktok_sku_id\", \"warehouse_id\")`.",
+    "THE POLL CYCLE'S IDEMPOTENCY KEY — A SECOND SILENT-LOSS HAZARD THE ISSUE DOES NOT NAME. `workers/services/polling/sync.py::_inventory_snapshot_event_id` (line 70) digests `(sku_id, product_id, warehouse_id, available_quantity)`. `warehouse_id` is already in the digest, so per-warehouse rows will get distinct ids — good. But `committed_quantity` is NOT, so a snapshot in which ONLY the committed bucket moved (an order placed, available unchanged) produces the SAME `event_id` and is deduplicated away, and the committed change never lands. Add `committed_quantity` to the digest parts and assert it, or the column persists a stale number forever while every other test passes.",
+    "BOTH CONSUMERS OF THE MAPPER, NOT ONE. The poll cycle (`sync.py:383-394`, which loops the expanded rows through `normalize_inventory` and hands each off to `tiktok.inventory.raw`) AND the ETL channel through `_transform_inventory`. A change proven on one path and not the other is the half-verification this repo has been bitten by before.",
+    "THE DEPLOYED EFFECT IS A ROW-COUNT RISE, NOT A VALUE CHANGE, AND MUST BE STATED AS SUCH. After this ships, a shop with a multi-warehouse SKU gains rows; a single-warehouse shop's row count is unchanged. Every row still satisfies RI-1's three-column identity because a response with no warehouse breakdown maps to RI-1's single-warehouse SENTINEL. Note the coexistence edge RI-1's plan also records: a row backfilled to the sentinel is NOT updated in place once this slice starts emitting the SKU's real warehouse id — it becomes a stale sibling row. Whichever slice owns retiring those rows, say so in the PR.",
+    "NOT IN SCOPE, though adjacent: no new endpoint (Inventory Search is already allowlisted and bound), no write path, no agent tool, no days-of-supply computation, no card. The columns are #1794's, the signal #1798's, the write #1802's."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest driven by the REAL runner from the worktree root with PYTHONPATH pinned to that worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite, because the claim that a re-sync does not collapse two warehouses is a UNIQUE-INDEX and upsert-conflict claim, and SQLite would let a collapsing upsert pass. Every parser assertion is made against the COMMITTED #1723 capture body as recorded, never a hand-built dict — a hand-built dict proves routing, and specifically must not be today's single-warehouse zero-committed A-8 body, which cannot fail a first-warehouse-only parser. The vendor call is bound to the REAL `InventoryResource.search` signature. Post-deploy: the candidate reads production through `ProductionReadResources` only; no write credential is resolved on any path in this slice, no public traffic reaches a candidate task set, and NO STOCK IS WRITTEN ON ANY SHOP BY DEPLOYING.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the poll cycle IS the Celery worker path: `sync_inventory` runs there, and with workers disabled the candidate could never demonstrate that two rows land and survive a re-sync, which is the whole claim. apiSideEffectsInScope is FALSE — this slice changes only the READ path: no vendor write, no production write, no tool. The only rows written are this shop's own `inventory_items`.",
+    "journeys": [
+      {
+        "name": "every-warehouse-and-the-committed-bucket-survive-from-the-vendor-body-to-the-row",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1795",
+        "assertions": [
+          "pre-merge: an Inventory Search response for ONE SKU with TWO `warehouse_inventory` entries expands to TWO rows, one per warehouse, each carrying its OWN available and committed quantity — asserted on the COUNT as well as the contents, so a parser that keeps the first entry and stops goes red, and no row is dropped for having a later index (tests/unit/test_inventory_sync_keeps_every_warehouse.py::test_two_warehouse_entries_expand_to_two_rows)",
+          "pre-merge: each per-warehouse row's available quantity equals THAT WAREHOUSE ENTRY's `available_quantity`, not the SKU-level `total_available_quantity` — asserted with a body whose two warehouse entries hold DIFFERENT numbers whose sum equals the SKU total, so copying the total onto both rows fails loudly instead of passing on equal values",
+          "pre-merge: a response whose SKU reports a NON-ZERO `committed_quantity` upserts through the poll cycle to a persisted row whose committed quantity equals the vendor's — proven end to end through the REAL mapper, the REAL normaliser and the REAL `_transform_inventory`, never by asserting on an intermediate dict alone (tests/unit/test_inventory_sync_keeps_every_warehouse.py::test_committed_quantity_survives_to_the_row)",
+          "pre-merge: a SKU whose response carries NO warehouse breakdown expands to EXACTLY ONE row on RI-1's single-warehouse sentinel, and that row satisfies the `(shop, sku, warehouse)` identity — asserted by persisting it, not by inspecting the dict (tests/unit/test_inventory_sync_keeps_every_warehouse.py::test_missing_breakdown_maps_to_the_sentinel)",
+          "pre-merge: TWO syncs of the same two-warehouse SKU leave TWO rows and neither has overwritten the other — asserted against real Postgres after the second sync, which fails today because `InventoryRepo._lookup_attrs` is `(\"tiktok_sku_id\",)` alone (tests/unit/test_inventory_sync_keeps_every_warehouse.py::test_resync_does_not_collapse_warehouses)",
+          "pre-merge: the #1723 CAPTURE FIXTURE parses AS RECORDED — every field the presence table records as present is read, and a field recorded ABSENT is not required by the parser; asserted against the committed capture body, so the parser is bound to what was observed rather than to what the design hoped for (tests/unit/test_inventory_sync_keeps_every_warehouse.py::test_capture_fixture_parses_as_recorded)",
+          "pre-merge: the poll cycle's idempotency key distinguishes a snapshot in which ONLY the committed quantity changed — two handoffs with identical available and different committed produce DIFFERENT `event_id`s, so the committed change is not deduplicated away by `_inventory_snapshot_event_id`",
+          "pre-merge: the ETL channel and the poll cycle are BOTH exercised — `_transform_inventory` returns the committed quantity and the per-warehouse discriminator on its own path, not only through `sync.py`; a change proven on one consumer and not the other is not proven",
+          "pre-merge: nothing else in the sync moves — the existing inventory sync suite passes untouched, and a single-warehouse shop's row count and quantities are byte-for-byte what they were before the change",
+          "post-deploy: the candidate's `/health` and ONE AUTHENTICATED INVENTORY READ show the row count RISE ONLY where a SKU is genuinely multi-warehouse and stay otherwise unchanged — asserted against a named SKU, not as a global count; and NO STOCK IS WRITTEN ON ANY SHOP BY DEPLOYING, because this slice resolves no write credential and calls no write endpoint on any path"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is `integrations/tiktok/mapping.py`, `services/etl/transform.py`, `repositories/commerce.py`, `workers/services/polling/sync.py` and tests. Nothing under apps/, packages/ or ios/ is touched; those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "postgres-row-dump",
+      "contract-capture-fixture"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE. RI-1 (#1794) owns the columns and the identity: `committed_quantity`, the NOT NULL warehouse discriminator, the three-column unique index and the four supply tables. This slice writes no Alembic revision, adds no column, and does not open `backend/src/juli_backend/database/migrations/versions/` at all. Stable and candidate therefore run the SAME schema, so a code rollback needs no downgrade of any kind. The one thing to state in the PR is a data-shape consequence rather than a schema one: after this ships, a multi-warehouse SKU occupies more rows than before, and rows RI-1 backfilled onto the single-warehouse sentinel are not updated in place by the first real-warehouse sync — they persist as stale siblings until whichever slice owns retiring them does so. If implementation concludes a column is needed, REPORT it and stop — do not write a migration under this issue."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. The sync keeps the first warehouse and stops, `committed_quantity` stays dropped at all four layers, and `InventoryRepo` keys on SKU alone — the pre-existing state RI-NFR-1 names as unmet, and the exact blockage every later Replenish slice sits behind. No new exposure, nothing partially applied, no vendor call made, no stock touched.",
+    "postCutoverFailureBehavior": "Revert the code and redeploy the previous release; restart juli-api and juli-celery-worker. NO DOWNGRADE IS INVOLVED because this slice ships no schema change — stable and candidate run the same schema. Rows already written stay valid under RI-1's widened identity: the previous release reads them through `InventoryRepo`'s SKU-only lookup, which returns one of the SKU's rows rather than erroring, so the failure mode of the rollback is a stale-but-valid number on a multi-warehouse SKU, never a crash and never a wrong write — there is no write path in this slice at all. State that consequence in the PR rather than leaving it to be discovered, and note that no stock quantity on any shop was changed either by deploying or by rolling back.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_inventory_sync_keeps_every_warehouse.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'inventory and (mapping or transform or sync or repo)'",
+    "PYTHONPATH=backend/src python -m pytest tests/integration -k 'inventory' -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT infer a TikTok replenishment-recommendation endpoint — none exists. The scope verification checked `docs/integrations/tiktok_corpora/partner-catalog.json` and found only packaging and title/description/category recommenders. Inventory Search returns QUANTITIES only.",
+    "Do NOT label a Juli-computed number as TikTok's. Nothing in this slice computes a recommendation; a field name or comment implying the vendor returned one breaches S-NFR-4's no-false-attribution rule.",
+    "Do NOT turn a synced level into an absolute stock set. This slice has no write path; the write is a DELTA on a freshly re-read level and it belongs to #1802.",
+    "Do NOT apply an uplift or any event-derived adjustment to a synced quantity. There is no campaign calendar (`models.py::Campaign` is a creator-collaboration outcome record), and the uplift applies only to a seller-entered event date on the card — #1798's rule, not a mapper's.",
+    "Do NOT derive, cap or flag an order beyond 90 days of supply here. The 90-days-of-supply upper guard is #1798's suppression rule.",
+    "Do NOT add a supplier API client, a portal, an EDI adapter, or a Zalo channel. No per-supplier API exists at any version, and Zalo Notification Service is customer-only by Zalo's own template rules — not a supplier channel.",
+    "Do NOT treat a supplier message, delivery note or invoice line as a fact that can adjust a synced quantity. Supplier text is untrusted data; the intake pipe and its confirmation are #1800's.",
+    "Do NOT hash model-supplied values for a report; no confirmation exists on this path at all.",
+    "Do NOT write stock below the committed quantity — and more precisely, do NOT write stock AT ALL. This slice changes only the read path.",
+    "Do NOT copy the SKU-level `total_available_quantity` / `total_committed_quantity` onto every per-warehouse row. Each row reads its own `warehouse_inventory[]` entry; the SKU totals are the fallback only when there is no breakdown, and copying them double-counts the shop's stock.",
+    "Do NOT assert against a hand-built dict, and do NOT assert against today's A-8 capture as the multi-warehouse case — A-8 is a SINGLE warehouse with `committed_quantity` ZERO (`contract-collection.md:304`) and cannot fail a first-warehouse-only parser. Bind to the #1723 two-warehouse capture as recorded.",
+    "Do NOT leave `InventoryRepo._lookup_attrs` keyed on `tiktok_sku_id` alone. With the mapper fixed and the repository unfixed, the mapper test passes and the second warehouse silently overwrites the first at the database.",
+    "Do NOT write a migration, add a column, or open `backend/src/juli_backend/database/migrations/versions/`. RI-1 (#1794) owns the schema; if a column seems missing, report it.",
+    "Do NOT add an agent tool, a ToolSpec, a card, a signal or an endpoint. Inventory Search is already allowlisted and bound; the tool is #1802's and the card #1798's.",
+    "Do NOT commit vendor PII in a fixture. Redact anything identifying before the capture body enters the tree.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every collaborator to the REAL signature — the real `InventoryResource.search`, the real `InventoryRepo`, a real async session against a real Postgres 16. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}
