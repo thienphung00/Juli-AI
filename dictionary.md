@@ -571,6 +571,106 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - VI: Đang gửi lựa chọn của bạn…
 - Definition: Transient status while the confirmation POST is in flight (issue #1317) -- cards and both CTAs disable to prevent a double submission.
 
+**`run.running_body_fallback`**
+- EN: Juli is working on this product.
+- VI: Juli đang xử lý sản phẩm này.
+- Definition: Run ledger (issue #1318) "Đang chạy" card body before the first narration line arrives; reused verbatim (never re-authored) as the staged run view's (issue #1316) Phân tích stage fallback (`lib/run-surface/stage-copy.ts`'s `RUN_STAGE_ANALYZING_FALLBACK`) -- one string, one meaning, on both surfaces. Landed by issue #1321: referenced by a code comment on both surfaces since #1316/#1318 but missing from this file until now.
+
+**`run.stage.name.phan_tich`**
+- EN: Analysis
+- VI: Phân tích
+- Definition: Staged run view (issue #1316, PUI-DESIGN.md §2) stage 1 stepper/heading label. Landed by issue #1321.
+
+**`run.stage.name.thong_tin_san_pham`**
+- EN: Product info
+- VI: Thông tin sản phẩm
+- Definition: Staged run view (issue #1316, PUI-DESIGN.md §2) stage 2 stepper/heading label. Landed by issue #1321.
+
+**`run.stage.name.seo`**
+- EN: SEO
+- VI: SEO
+- Definition: Staged run view (issue #1316, PUI-DESIGN.md §2) stage 3 stepper/heading label. Landed by issue #1321.
+
+**`run.stage.name.de_xuat`**
+- EN: Proposal
+- VI: Đề xuất
+- Definition: Staged run view (issue #1316, PUI-DESIGN.md §2) stage 4 stepper/heading label -- reuses `decisions.recommendation`'s VI verbatim, per PUI-DESIGN.md §7's own footnote ("existing terms ... are reused, never renamed"). Landed by issue #1321.
+
+**`run.stage.name.cap_nhat`**
+- EN: Update
+- VI: Cập nhật
+- Definition: Staged run view (issue #1316, PUI-DESIGN.md §2) stage 5 stepper/heading label. Landed by issue #1321.
+
+**`run.stage.name.hoan_tat`**
+- EN: Complete
+- VI: Hoàn tất
+- Definition: Staged run view (issue #1316, PUI-DESIGN.md §2) stage 6 stepper/heading label -- reuses `run.section.finished`'s VI verbatim. Landed by issue #1321.
+
+**`run.stage.empty.thong_tin_san_pham`**
+- EN: No product info yet.
+- VI: Chưa có thông tin sản phẩm.
+- Definition: Staged run view (issue #1316) empty-state copy for stage 2 before its tool activity has produced anything. Landed by issue #1321.
+
+**`run.stage.empty.seo`**
+- EN: No SEO keyword step in this run.
+- VI: Không có bước phân tích từ khoá SEO trong luồng này.
+- Definition: Staged run view (issue #1316) empty-state copy for stage 3. Landed by issue #1321.
+
+**`run.stage.empty.de_xuat`**
+- EN: No proposal waiting yet.
+- VI: Chưa có đề xuất nào đang chờ.
+- Definition: Staged run view (issue #1316) empty-state copy for stage 4 before a `workflow.approval_required` event has arrived. Landed by issue #1321.
+
+**`run.stage.empty.cap_nhat`**
+- EN: No changes made yet.
+- VI: Chưa có thay đổi nào được thực hiện.
+- Definition: Staged run view (issue #1316) empty-state copy for stage 5. Landed by issue #1321.
+
+**`run.stage.empty.hoan_tat`**
+- EN: Waiting for the final result.
+- VI: Đang chờ kết quả cuối cùng.
+- Definition: Staged run view (issue #1316) empty-state copy for stage 6 before a terminal event has arrived. Landed by issue #1321.
+
+**`run.terminal.completed.body`**
+- EN: Juli finished and applied the approved change.
+- VI: Juli đã hoàn tất và áp dụng thay đổi được phê duyệt.
+- Definition: `completed` terminal-state explanation (run ledger #1318 and the staged run view's Hoàn tất stage, #1316 -- one shared table, `lib/run-ledger/copy.ts`'s `RUN_TERMINAL_STATE_COPY`). Landed by issue #1321.
+
+**`run.terminal.cancelled.body`**
+- EN: You cancelled this run before it finished.
+- VI: Bạn đã hủy luồng này trước khi hoàn tất.
+- Definition: `cancelled` terminal-state explanation, same shared table as above. Landed by issue #1321.
+
+**`run.terminal.expired.body`**
+- EN: The offer expired before you confirmed.
+- VI: Đề xuất đã hết hạn trước khi bạn xác nhận.
+- Definition: `expired` terminal-state explanation, same shared table as above. Landed by issue #1321.
+
+**`run.terminal.timed_out.body`**
+- EN: The run took too long and Juli stopped.
+- VI: Luồng mất quá nhiều thời gian và Juli đã dừng lại.
+- Definition: `timed_out` terminal-state explanation, same shared table as above. Landed by issue #1321.
+
+**`run.terminal.failed.body`**
+- EN: Something went wrong while Juli was executing; see Decisions for details.
+- VI: Đã xảy ra lỗi khi Juli thực hiện; hãy xem lại tại Quyết định.
+- Definition: `failed` terminal-state explanation, same shared table as above. Landed by issue #1321.
+
+**`run.terminal.completed_after_decline.label`**
+- EN: Complete — unchanged
+- VI: Hoàn tất — không đổi
+- Definition: `completed_after_decline` terminal-state chip label (same shared table as above) — distinct from the plain `completed` label so a declined-but-finished run is never dressed as a plain success. Landed by issue #1321.
+
+**`run.terminal.worker_lost.label`**
+- EN: Issue
+- VI: Sự cố
+- Definition: `worker_lost` terminal-state chip label (same shared table as above) — distinct, honest label alongside its already-dictionaried body (`run.worker_lost`). Landed by issue #1321.
+
+**`run.terminal.unknown`**
+- EN: Ended
+- VI: Đã kết thúc
+- Definition: Fallback label for a terminal `stop_reason` this table has no dedicated bucket for yet -- honest ("ended"), never one of the seven named outcomes it is not. Body: "Luồng đã kết thúc. Vui lòng xem lại tại Quyết định." ("The run has ended. Please review it in Decisions."). Landed by issue #1321.
+
 **`agent.narration.extension_grant`**
 - EN: Continuing past the standard iteration limit: granting [extension_iterations] more iteration(s) (extension [granted] of [max]).
 - VI: Đã đạt giới hạn số lượt thực hiện tiêu chuẩn, Juli gia hạn thêm [extension_iterations] lượt để hoàn tất công việc (lần gia hạn [granted]/[max]).
