@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "status",
+  "id": "status-issue-1764",
+  "issue": 1764,
+  "timestamp": "2026-09-08T09:02:46.062455Z",
+  "status": "PASS",
+  "decision": "ready_for_ship",
+  "reviewStatus": "PASS",
+  "validationStatus": "PASS",
+  "readyForMerge": true,
+  "readyForShip": true,
+  "testCoverage": {
+    "acceptance": {
+      "total": 0,
+      "mapped": 0,
+      "unmapped": [],
+      "mappings": []
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
+    }
+  },
+  "acceptanceCriteria": {
+    "total": 0,
+    "mapped": 0
+  },
+  "artifacts": {
+    "review": "agent-runtime/artifacts/reviews/review-issue-1764.json",
+    "validation": "agent-runtime/artifacts/validation/validation-issue-1764.json",
+    "implementation": "agent-runtime/artifacts/implementations/implementation-issue-1764.json",
+    "intentReview": "agent-runtime/artifacts/intent-reviews/intent-review-issue-1764.json",
+    "releaseEvidencePlan": "agent-runtime/artifacts/release-evidence-plan-issue-1764.json"
+  },
+  "executorDomain": "ui-ux",
+  "releaseEvidencePlanId": "rep-1764-replay-expiry-rebase-and-local-confirm"
+}
