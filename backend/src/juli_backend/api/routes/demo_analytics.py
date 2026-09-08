@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.config.runtime import require_env
 from juli_backend.database import get_session
+from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.services.analytics_kpi_masking import mask_public_analytics_envelope
 from juli_backend.services.gold_kpi_cache import (
     get_gold_kpi_envelope,
@@ -92,11 +93,27 @@ async def get_demo_analytics(
             detail="shop_id is not accepted on public demo endpoints",
         )
 
-    envelope = await get_gold_kpi_envelope(
-        session,
-        reference_shop_id,
-        redis_client=redis_client,
-    )
+    # SCOPE THE READ. This is a public, unauthenticated route, so nothing
+    # upstream sets a tenant GUC — `get_session` sets it only via
+    # `get_active_shop` or a task wrapper, and this route depends on
+    # `get_demo_reference_shop_id` instead. `gold.kpi_envelopes` is RLS'd on
+    # `shop_id = app_current_shop_id()`, so with no context the policy matched
+    # nothing and this returned 404 in production from the #1339 cutover
+    # onward (#1613).
+    #
+    # It worked before only because the API connected as the table's OWNER,
+    # which Postgres exempts from RLS. That exemption was load-bearing and
+    # invisible. Scoping to the shop the route has already resolved is the
+    # honest fix: the demo IS one server-bound shop, so saying so restores the
+    # read without granting anything. Do NOT "fix" this with a permissive or
+    # anon policy on gold.kpi_envelopes — that reopens what the isolation work
+    # exists to prove, to serve one masked row.
+    async with with_shop_scope(session, reference_shop_id):
+        envelope = await get_gold_kpi_envelope(
+            session,
+            reference_shop_id,
+            redis_client=redis_client,
+        )
     if envelope is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

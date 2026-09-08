@@ -1,0 +1,77 @@
+{
+  "planId": "rep-1318-in-progress-run-ledger",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com In-Progress sub-tab (apps/demo/src/app/decisions/in-progress, in-progress-panel.tsx) — replaced by the three-section run ledger",
+    "consumes the existing GET /v1/demo/runs polled read model (#1310, already merged) — read-only; this slice adds no server route"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Load the candidate demo build — zero public canary traffic; the ledger is a read-only consumer of GET /v1/demo/runs with no write side effects",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "Issue's own Release evidence section: 'on the candidate demo, see a queued, a waiting, and a finished run in the right sections and open the finished one frozen.' A LIVE browser walk of that journey needs an authenticated demo session, which is minted by the entry path (#1313 anonymous session / #1319 dual entry) — not built yet and owner-gated on the Supabase anonymous toggle. So the slice-level verification here is the deterministic component suite that folds run rows in each lifecycle state into the three sections and asserts a finished run opens frozen; the live candidate walk composes at the wave gate (#1322) once the entry path exists. This mirrors the wave's 'built against captured artifacts, live-mode at the gate' scoping.",
+    "journeys": [
+      {
+        "name": "run-ledger-three-sections-render",
+        "entryUrl": "/decisions/in-progress",
+        "assertions": [
+          "html_200",
+          "the In-Progress sub-tab renders three sections — waiting on you, running, finished — with runs sorted so those needing the seller are at the top",
+          "a queued run (no events yet) is visible in the correct section, proving the panel reads the polled read model and not the event stream",
+          "each finished run is labelled with its actual terminal state (completed, completed-after-decline, cancelled, expired, timed out, failed, worker-lost) — never a single generic 'done'",
+          "opening a finished run opens it frozen via the existing per-run replay path"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions/in-progress"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true,
+    "notes": "Issue text: 'built bundle carries the new panel.' The new run-ledger panel must be discoverable in the built JS output, not only in apps/demo source."
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Issue text: 'No migration.' This is an apps/demo panel replacement that reads an already-merged endpoint; no database schema or persisted-shape change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false,
+    "notes": "Issue text: 'assert the previous In-Progress panel is not left half-wired to the mock it no longer has.' The mock state the old panel read is deleted in the mock-layer slice (#1320), NOT here — so this slice's rollback assertion is that reverting restores the prior panel intact and does not strand it against a mock this slice did not remove."
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit"
+  ],
+  "doNotInfer": [
+    "release evidence fields beyond what the issue's Release evidence (ADR-035) section states",
+    "deleting the mock layer or its other consumers — that is #1320, not this slice; here the old panel is replaced but the mock is left intact",
+    "minting or wiring an anonymous demo session — that is #1313/#1319; this slice consumes an authenticated session, it does not create one",
+    "adding, changing, or multiplexing any server route — the ledger is a polled read of the existing GET /v1/demo/runs; a per-shop multiplexed stream is explicitly out of scope",
+    "computing any run's terminal state client-side — the label comes from the persisted run row the read model returns",
+    "any retry-in-place affordance — a failed run's card points back to Decisions; there is no retry that would skip the approval gate"
+  ]
+}

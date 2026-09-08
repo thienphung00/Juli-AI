@@ -1,0 +1,95 @@
+{
+  "planId": "business-impact-honest-when-there-is-no-reading-2026-09-07",
+  "affectedPublicSurfaces": [
+    "The fourth unconflated metric — 'did the action actually improve the metric?' — computed from #1655's outcome chain as the before/after delta on the recommendation's target metric, sourced from `impact_readings` (`models/models.py::ImpactReading`: `pre`/`post`/`expected`/`incremental` on Numeric(18,2), `impact_pct` on Numeric(10,6), plus `confidence`, `kind`, `control_set_json`, `run_id` and `tool_execution_id`).",
+    "The no-readings state is the load-bearing public surface. With zero countable rows the metric must return an explicit 'no readings' value — never `0`, never `0%`, never 'no measurable impact'. Those are claims about the world and the world has not been measured yet. That state must be assertably NOT EQUAL to the state returned for a genuine zero delta: 'we measured nothing' and 'we measured no change' are different facts, and conflating them is #1226's named dishonesty in its next costume.",
+    "The countable-reading rule, inherited from #1338 and #1226: a `suppressed` reading is not a reading, and a `confounded` reading is not a reading. With ONLY suppressed rows present the metric still reports 'no readings' and the gate-closing query returns ZERO rows. `suppressed` (insufficient signal) and `confounded` (a competing change) must stay distinguishable from each other at the surface — they are different reasons and collapsing them loses which applied.",
+    "The n is part of the answer: a delta is reported WITH its n, so a single observation cannot read as a trend. A bare delta with no count is the same class of hidden-denominator defect #1656 forbids for the other three metrics.",
+    "The thresholds this metric obeys are NOT its own: it reuses `services/impact`'s confidence floor and control-set logic by reference — `services/impact/confidence.py` (`VOLUME_FLOORS`, `volume_floor_for`, `pre_period_volume`, the six-valued `TierOutcome`) and `services/impact/control_pool.py` (`MIN_CANDIDATES`), exactly as `services/impact/readiness.py` (#1338) already does. A second copy of a threshold is a second thing to drift, and #1062 is the HIGH-severity defect that exact duplication class already produced.",
+    "No HTTP route changes and no new endpoint; no change to `workers/impact_reader/pipeline.py`'s computation or persistence. This slice's CODE is not gated; only its DATA is (a real reading needs a production write, #1339 observations 3 and 4, plus a T+7 window — an owner act, not engineering)."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run from the worktree root with PYTHONPATH pinned to the worktree's backend/src, on seeded `impact_readings` and `analytics_performance_intervals` data against a real Postgres migrated to head — never SQLite, because the metric's central honesty rule turns on what an aggregate over zero qualifying rows actually returns (NULL, not 0) and on the Numeric scales the readings are stored at. No live TikTok call, no VPS contact, no production write anywhere. Post-deploy: operator-only invocation on the candidate, read-only over `impact_readings`; no public traffic reaches a candidate task set.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "Read-side only: the metric reads `impact_readings` and the chain; it writes nothing, calls no vendor, and mutates no listing. The standing owner decision of 2026-08-21 holds — nothing here approves or writes against Fujiwa Vietnam Store (2b1da87b) or any production shop, and this slice must not be the thing that tests that boundary. syntheticShopRequired is FALSE because every assertion is driven by SEEDED reading populations (zero rows, only-suppressed, only-confounded, one genuine) which cannot be arranged on a live shop. The candidate will honestly return 'no readings' — no real reading exists yet, that is #1339's gate — and that honest 'no readings' IS the post-deploy deliverable, not a shortfall.",
+    "journeys": [
+      {
+        "name": "no-readings-is-not-zero-and-a-suppressed-row-is-not-a-reading",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1657",
+        "assertions": [
+          "pre-merge: with ZERO `impact_readings` rows the metric returns an explicit 'no readings' state, asserted NOT EQUAL to the state it returns for a genuine zero delta (one countable reading whose `incremental` is 0) — the inequality is the assertion, not merely the presence of a marker",
+          "pre-merge: the 'no readings' state is not `0`, not `0.0`, not `0%`, not `None`-coerced-to-zero and not the string 'no measurable impact' — asserted on the returned value itself, including that it does not compare equal to 0 in Python",
+          "pre-merge: with ONLY `confidence='suppressed'` rows present, the metric still reports 'no readings' and the gate-closing query returns ZERO rows, asserted directly — a suppressed reading is not a reading (#1226, #1338)",
+          "pre-merge: with ONLY `confidence='confounded'` rows present, the metric likewise reports 'no readings'; and a seeded pair of one suppressed plus one confounded row surfaces the two as DISTINCT labelled outcomes — each reason readable, neither collapsed into the other, neither rendered as zero impact",
+          "pre-merge: given ONE genuine (non-suppressed, non-confounded) reading, the metric reports the delta WITH its n = 1, asserted on both fields, so a single observation cannot read as a trend",
+          "pre-merge: with a mixed population — some genuine, some suppressed, some confounded — the reported n counts ONLY the countable readings, and the delta is computed over exactly those rows; asserted with a seeded set whose 'all rows' answer differs from its 'countable rows' answer, so a query that forgot the exclusion cannot pass",
+          "pre-merge: the metric reaches `services/impact`'s OWN confidence floor and control-set logic by reference — asserted against the real symbols (`services/impact/confidence.py`, `services/impact/control_pool.py::MIN_CANDIDATES`), the same way `services/impact/readiness.py` does; a grep-level and structural check that no threshold literal is redeclared in this module",
+          "pre-merge: the metric consumes #1655's chain query rather than re-joining `action_cards`/`tool_executions`/`workflow_outcome_records`/`impact_readings` itself — one call, asserted structurally",
+          "pre-merge: `preliminary` and `final` `kind` values are handled explicitly and the choice is asserted, not left implicit — the `uq_impact_readings_execution_metric_kind` constraint permits both for one execution, so an unfiltered aggregate would double-count the same execution",
+          "pre-merge: `workers/impact_reader/pipeline.py` and `queries.py` are UNCHANGED — the existing reader suite (`tests/unit/test_impact_compute.py`, `test_impact_confidence.py`, `test_impact_control_pool.py`, `test_impact_gate_placebo.py`, `test_impact_gate_envelope_compat.py`) passes untouched, proving the write path did not move",
+          "post-deploy: on the candidate, the metric returns the honest 'no readings' state — no real reading exists because producing one is #1339's gate and an owner decision — and that state is confirmed to be the no-readings value, not a zero"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is backend Python (one metric computed over `impact_readings` via #1655's chain, reusing `services/impact`) plus tests. Rendering is explicitly out of W8; the output is a Python/JSON structure, not a page."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "api-json-response"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO schema change. Everything this metric reads already exists: `impact_readings.pre`/`post`/`expected`/`incremental`/`impact_pct`/`confidence`/`kind`/`control_set_json`/`computed_at` (migration 033), `impact_readings.run_id` with its FK to `workflow_runs` (migration 034, #1117) and `tool_execution_id`, plus #1655's chain query, which lands BEFORE this slice per the epic's landing order (C -> E). This slice is READ-ONLY and adds no Alembic revision; the reader keeps persisting `suppressed` and `confounded` rows exactly as ADR-077 designed, and that write path does not move. Stable and candidate are compatible because nothing persisted changes. Do NOT add a `confidence` value or relax the `kind IN ('preliminary','final')` CHECK to make an aggregate simpler. If implementation concludes it needs schema (it should not), this plan must be revised to schemaChangeInScope: true BEFORE merge, additive and nullable only, with the migration number RESERVED by Meta and never computed from head (W6 and W9-A hold unlanded numbers)."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing computes business impact from any source today, so holding leaves the pre-existing state: the fourth question is unanswered and there is no structural rule preventing a future implementation from answering it with a `0`. Nothing is partially applied, no schema moved, no data at risk, and no production write is or ever was involved.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart juli-api and juli-celery-worker. Read-only and code-only: reverting removes the metric and restores the previous absence of one; no schema state, no data effect, no vendor effect and no migration to reverse. Two caveats binding on the PR: (1) this slice depends on #1655's chain (epic landing order C -> E), so reverting the chain must revert this metric with it rather than leave it calling a function that no longer exists; (2) if any operator report has quoted this metric's output, the revert removes its source and the number must NOT be carried forward from memory — and if the number quoted was 'no readings', that remains the correct answer after the revert, because nothing about the world was measured either way.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_business_impact_metric.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -k 'business_impact or impact_reading or impact_gate' -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_impact_compute.py tests/unit/test_impact_confidence.py tests/unit/test_impact_control_pool.py tests/unit/test_impact_gate_placebo.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT return `0`, `0.0`, `0%`, `None`-coerced-to-zero, or 'no measurable impact' when there are no countable readings. Those are claims about the world and the world has not been measured. The no-readings state is its own value and must not compare equal to zero.",
+    "Do NOT let 'we measured nothing' and 'we measured no change' share a representation. Criterion 1 is an INEQUALITY assertion, and a shared sentinel silently fails it.",
+    "Do NOT count a `suppressed` reading as a reading. #1226 forbids closing the gate on one by name and #1338 made the exclusion structural at the read surface; reuse that exclusion rather than writing a second one.",
+    "Do NOT count a `confounded` reading as a reading, and do NOT collapse `confounded` into `suppressed`. They are different reasons — a competing change versus insufficient signal — and collapsing them loses which applied.",
+    "Do NOT copy `services/impact`'s confidence floor, volume floor, tier boundary or control-set minimum into this module. Reference the real symbols (`services/impact/confidence.py`, `services/impact/control_pool.py`), exactly as `services/impact/readiness.py` does. If the logic is not reusable as-is, REPORT that rather than duplicating it — #1062 is the HIGH-severity defect a duplicated floor already produced.",
+    "Do NOT report a delta without its n. A single observation must not be able to read as a trend, and a bare delta hides the same denominator #1656 forbids hiding.",
+    "Do NOT blend this metric with #1656's three. Business impact stays its own number with its own source and its own denominator — a single combined score is the one artefact that lets a good approval rate hide a bad business impact.",
+    "Do NOT re-join the outcome chain. Consume #1655's single query; a second client-side join across `action_cards`/`tool_executions`/`workflow_outcome_records`/`impact_readings` reintroduces exactly what C removed.",
+    "Do NOT modify `workers/impact_reader/pipeline.py` or `queries.py`, and do not change how readings are computed or persisted. The reader is complete, scheduled (`daily-impact-reader`, 03:00 UTC) and correctly pessimistic; if a defect is found there, REPORT it.",
+    "Do NOT produce a reading, schedule one, backfill one, or synthesise one for a test fixture that then leaks into a real query path. Producing the reading is #1339's gate and an owner decision, not engineering.",
+    "Do NOT perform any production write and do not target Fujiwa Vietnam Store (2b1da87b) — the standing owner decision of 2026-08-21 holds for the whole wave, and this read-only slice must not be the thing that tests that boundary.",
+    "Do NOT add a `confidence` value, relax the `kind IN ('preliminary','final')` CHECK, or widen any vocabulary to simplify an aggregate.",
+    "Do NOT add trends, thresholds, alerting, judgement or rendering. This slice computes the metric; judging it is not in W8.",
+    "Do NOT touch apps/**, packages/**, ios/** — this epic's doNotLoad list — and do not open the TikTok corpora catalogs (ADR-051)."
+  ]
+}

@@ -9,12 +9,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (
+    SchemaValidationError,
     build_review_artifact,
     load_json,
     load_review_artifact,
     resolve_issue_number,
     review_artifact_path,
-    write_json,
+    write_json_with_schema_validation,
 )
 
 
@@ -34,16 +35,25 @@ def main() -> int:
     args = parser.parse_args()
     issue = resolve_issue_number(args.issue)
     if issue is None:
-        print("error: could not resolve issue number (use --issue or feat/issue-N branch)", file=sys.stderr)
+        print(
+            "error: could not resolve issue number (use --issue or feat/issue-N branch)",
+            file=sys.stderr,
+        )
         return 1
 
     existing = None if args.fresh else load_review_artifact(issue)
     overrides = load_json(args.input_json) if args.input_json and args.input_json.exists() else None
 
-    artifact = build_review_artifact(issue, existing=existing, overrides=overrides, fresh=args.fresh)
+    artifact = build_review_artifact(
+        issue, existing=existing, overrides=overrides, fresh=args.fresh
+    )
 
     out = review_artifact_path(issue)
-    write_json(out, artifact)
+    try:
+        write_json_with_schema_validation(out, artifact, "review")
+    except SchemaValidationError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
     print(f"wrote {out} status={artifact.get('status')}")
     return 0
 

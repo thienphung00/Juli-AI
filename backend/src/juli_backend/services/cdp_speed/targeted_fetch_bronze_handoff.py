@@ -12,6 +12,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.services.etl import (
     append_targeted_ctor_payload,
     append_targeted_live_hours_payload,
@@ -77,7 +78,29 @@ def make_targeted_fetch_bronze_handoff(
     """Return a handoff that append-only writes Partner rows to bronze."""
 
     async def handoff(channel: str, shop_key: str, payload: bytes) -> None:
-        del shop_key  # shop scope enforced by caller + shop_id
+        # This used to read `del shop_key  # shop scope enforced by caller + shop_id`,
+        # and that assumption is what broke. Every bronze table is RLS'd with
+        # WITH CHECK (shop_id = app_current_shop_id()), so an append whose
+        # connection has no `app.current_shop_id` is REFUSED, not merely
+        # filtered:
+        #
+        #   InsufficientPrivilegeError: new row violates row-level security
+        #   policy for table "order_raw_payloads"
+        #
+        # That is what mock_analytics_hourly_reconcile hit on every run after
+        # the #1339 cutover moved the runtime off the table owner, which had
+        # been RLS-exempt by virtue of ownership (#1627).
+        #
+        # The orchestrator DOES wrap its bronze stage in with_shop_scope, and
+        # the scope is nonetheless absent by the time this flushes. The upstream
+        # reason is not yet identified — ruled out so far: a commit inside the
+        # fetch chain (there is none), a different session (it is the same one),
+        # and nesting under NullPool (reproduces clean locally).
+        #
+        # So this asserts its own scope rather than trusting a caller several
+        # frames up. `shop_id` is already bound here, so the boundary that
+        # performs the write is also the one that establishes permission to.
+        del shop_key  # the scope is asserted below from shop_id, not inferred
         try:
             data = json.loads(payload)
         except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
@@ -91,6 +114,16 @@ def make_targeted_fetch_bronze_handoff(
 
         received_at = clock() if clock else datetime.now(tz=UTC)
 
+        async with with_shop_scope(session, shop_id):
+            await _append_for_channel(channel, data=data, received_at=received_at)
+
+    async def _append_for_channel(
+        channel: str,
+        *,
+        data: dict[str, Any],
+        received_at: datetime,
+    ) -> None:
+        """The append itself. Split out so one scope covers every branch."""
         if channel == "tiktok.orders.raw":
             row_id = await append_targeted_order_payload(
                 session,

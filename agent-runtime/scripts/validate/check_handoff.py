@@ -9,6 +9,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ci"))
 from common import (  # noqa: E402
+    ChangedFilesUnresolved,
     git_changed_files,
     handoff_files_on_branch,
     parse_architecture_map,
@@ -33,7 +34,16 @@ def validate_handoff(path: Path, modules: dict) -> list[str]:
 
 
 def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:  # noqa: ARG001
-    changed = git_changed_files()
+    try:
+        changed = git_changed_files()
+    except ChangedFilesUnresolved as exc:
+        # "No handoff on branch (skipped)" is indistinguishable from "could not
+        # read the branch" unless the failure is reported here (#1571).
+        return (
+            False,
+            f"Changed-file set unresolved: {exc.reason}",
+            {"required": False, "missingFields": {}, "changedFilesUnresolved": exc.reason},
+        )
     handoffs = handoff_files_on_branch(changed)
     if not handoffs:
         return True, "No handoff on branch (skipped)", {"required": False, "missingFields": []}
@@ -59,7 +69,9 @@ def main() -> int:
         return 1
     passed, _, details = run_check(issue)
     detail = ""
-    if details.get("missingFields"):
+    if details.get("changedFilesUnresolved"):
+        detail = f"changed-file set unresolved: {details['changedFilesUnresolved']}"
+    elif details.get("missingFields"):
         detail = str(details["missingFields"])
     return print_check_result("handoff_structure", passed, detail)
 

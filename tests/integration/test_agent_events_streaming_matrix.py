@@ -547,8 +547,12 @@ class TestHandoffOverlap:
 
         original_replay = stream_events.replay_events
 
-        async def hooked_replay(session_factory_arg, run_id_arg, after_seq_arg):
-            async for row in original_replay(session_factory_arg, run_id_arg, after_seq_arg):
+        async def hooked_replay(session_factory_arg, run_id_arg, after_seq_arg, shop_id_arg):
+            # `shop_id` is threaded through because the stream's own session is
+            # not the request's and must take its own tenant scope (#1700).
+            async for row in original_replay(
+                session_factory_arg, run_id_arg, after_seq_arg, shop_id_arg
+            ):
                 yield row
             # By construction this runs strictly after `event_stream` has
             # already subscribed (subscribe-before-replay, ADR-074 d.3) and

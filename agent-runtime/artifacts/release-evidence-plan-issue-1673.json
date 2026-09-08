@@ -1,0 +1,84 @@
+{
+  "planId": "rep-1673-persist-partition-failure-records",
+  "affectedPublicSurfaces": [
+    "no public surface; the analytics_backfill_topup Celery beat task only"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "worker-only change; no candidate HTTP route required",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "a-failure-record-survives-the-run-that-created-it",
+        "entryUrl": "worker: trigger analytics_backfill_topup once on the deployed sha",
+        "assertions": [
+          "at least one row in ops.analytics_backfill_partitions has updated_at AFTER the deploy timestamp",
+          "attempt_count on a previously-failed row is strictly greater than its pre-deploy value",
+          "last_error is a real exception string, not the literal 'LIVE partition failed'"
+        ]
+      },
+      {
+        "name": "the-1668-guarantee-still-holds",
+        "entryUrl": "worker: same run",
+        "assertions": [
+          "zero PendingRollbackError in the worker journal for that run",
+          "partitions continue to run after the first failure rather than cascading"
+        ]
+      },
+      {
+        "name": "1672-can-finally-act",
+        "entryUrl": "worker: same run",
+        "assertions": [
+          "a partition whose error carries 401/403/404 is committed with retryable=false"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: worker-only change, no HTML route"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. Writes to ops.analytics_backfill_partitions use columns that already exist; the change is transaction ordering, not shape. Stable and candidate can run concurrently against the same table."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "revert to fbc7ef1c; the task returns to discarding failure records, which is the pre-existing behaviour and loses no committed data",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest -q tests/unit/test_backfill_failure_records_survive.py",
+    "pytest -q tests/unit/test_backfill_durable_progress.py",
+    "python agent-runtime/scripts/ci/check_artifact_retention_guard.py --issue 1673"
+  ],
+  "doNotInfer": [
+    "Do not claim this removes the analytics_backfill_topup timeout — it makes the real failures observable; the three persistence bugs behind them are separate issues",
+    "Do not treat the 75 already-mis-marked rows as repaired — they need one run to be re-attempted and correctly re-marked",
+    "Do not read a run that completes without raising as evidence — the failure mode this fixes was a successful no-op that recorded nothing (ADR-089 evidence standard)",
+    "Do not revert #1668's rollback while fixing its side effect — the cascade it prevents was observed in production twice"
+  ]
+}

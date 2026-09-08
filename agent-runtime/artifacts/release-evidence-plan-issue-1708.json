@@ -1,0 +1,98 @@
+{
+  "planId": "a-webhook-signal-wakes-the-run-waiting-on-its-subject-2026-09-07",
+  "affectedPublicSurfaces": [
+    "THE WEBHOOK ENDPOINT — `api/routes/webhook_tiktok.py::handle_tiktok_webhook` (`@router.post(WEBHOOK_PATH)`), the one route TikTok itself calls. Its WIRE CONTRACT MUST NOT MOVE: same path, same signature verification, same ACK semantics, same status codes. Webhook #63 (activity change) becomes a CATALOGUED event so it is ACKed and persisted instead of falling through — a widening of what is recognised, never a change in how anything is answered. A vendor that stops receiving its ACK stops retrying and starts disabling; treat the ACK as the most fragile thing in this slice.",
+    "`PHASE2_CATALOG` in `services/tiktok/webhook_catalog.py` — a `dict[int, CatalogEntry]` mapping catalog id → entry with its `workflow_keys` and `etl_channel`. Of the seven the issue names, all seven are present today (#1 ORDER_STATUS_CHANGE, #3 RECIPIENT_ADDRESS_UPDATE, #4 PACKAGE_UPDATE, #11 CANCELLATION_STATUS_CHANGE, #27 INVENTORY_STATUS_CHANGE, #39 ACTIVITY_STATUS_CHANGE, #68 INVENTORY_CHANGED), and #63 is genuinely ABSENT — the catalog jumps from 58 to 64. Note that #11 and #27 carry `confirmed=False`, so their payload shape is an assumption, not a capture; a subject extractor built on an unconfirmed shape must fail closed and say so rather than guess a field name.",
+    "THE SIGNAL ROW'S SHAPE. `DurableWebhookHandler.on_catalog_event` writes a `WorkflowWebhookSignal` (`models.py`, table `workflow_webhook_signals`) through `WorkflowWebhookSignalsRepo.record_if_new` with `shop_id`, `tiktok_shop_id`, `catalog_id`, `event_type`, `workflow_keys`, `intent` ∈ {`pause_automation`, `re_auth_required`, `workflow_gate`}, a UNIQUE `event_id` from `extract_event_id(...)` and the raw `payload`. It is SHOP-SCOPED AND SUBJECTLESS — no order id, no SKU id, no activity id column anywhere. This slice adds those subject columns additively and starts writing them; the existing `intent` vocabulary and the `event_id` idempotency key are untouched.",
+    "THE RESUME PATH, which today has EXACTLY ONE PRODUCER. `workers/tasks/agent_workflow.py::resume_agent_workflow` is enqueued only by `api/routes/agent_runs.py::_enqueue_resume_agent_workflow`, called from `submit_confirmation_decision` — a human tapping a confirmation. This slice adds the SECOND producer: a consumer that finds the single run in `waiting_external` (#1706's state) whose subject and awaited condition match a persisted signal, and enqueues its resume with the signal attached. The seller-visible effect is on the SSE stream — a suspended run wakes up without anyone touching the app.",
+    "TENANCY IS PART OF THE CONTRACT, NOT AN AFTERTHOUGHT (ADR-089, S-NFR-8). `workflow_webhook_signals` is already in `database/tenant_scoped_tables.py` and already carries RLS policies from migration `045_rls_policies.py`; the runtime connects as the non-owner role `juli_app` created by `043_juli_app_role.py` with explicit per-table grants (ADR-085). The consumer MUST run every tenant read inside `with_shop_scope` (`database/tenant_context.py`) — the pattern the reaper and `credential_refresh_beat` already use — and a read without tenant context must return zero rows AND raise the named application error (ADR-086), not quietly return nothing.",
+    "NO new HTTP route and no change to any response model. The only schema change is the additive subject columns on `workflow_webhook_signals`."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the worktree root with PYTHONPATH pinned to the worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite. RLS, the `juli_app` role's per-table grants, the GUC-backed tenant context and the `event_id` unique are Postgres behaviour with no SQLite equivalent, and a cross-tenant assertion run without RLS proves nothing at all. Webhooks are replayed as CAPTURED payloads through the REAL `handle_tiktok_webhook` route and the REAL `DurableWebhookHandler`, never by inserting a signal row by hand — a hand-built row proves the consumer, not the producer, and consumer-without-producer is the failure this wave exists to prevent. Post-deploy: replay ONE captured inventory webhook against the candidate and watch the matching TEST run resume on the SSE stream; no public traffic reaches a candidate task set and no production write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the consumer and `resume_agent_workflow` both execute inside the Celery worker; with workers disabled the candidate can persist a signal but can never resume a run, which is the entire slice. apiSideEffectsInScope is FALSE: the resumed run makes no vendor write in this slice and no production write occurs — the 2026-08-21 owner decision holds.",
+    "journeys": [
+      {
+        "name": "the-signal-for-a-subject-wakes-exactly-the-run-waiting-on-it",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1708",
+        "assertions": [
+          "pre-merge: with a run waiting on SKU X's inventory change, replaying a captured INVENTORY webhook for SKU X through the real route resumes EXACTLY that run, with the signal payload attached, under the RUN's tenant context — asserted on the enqueue actually made to `resume_agent_workflow` and on the run's own state, and asserted that the `with_shop_scope` in force is the run's shop, not the caller's (tests/unit/test_webhook_resume_dispatcher.py::test_inventory_signal_resumes_the_run_waiting_on_that_sku)",
+          "pre-merge: with a run waiting on activity A, a #39 or #63 event for activity B resumes NOTHING and the signal is recorded as UNMATCHED — a positive fact on the row, not the absence of a resume; asserted by re-reading the signal row and by asserting zero enqueues (tests/unit/test_webhook_resume_dispatcher.py::test_signal_for_another_subject_resumes_nothing)",
+          "pre-merge: webhook #63 is CATALOGUED (present in `PHASE2_CATALOG`, which today jumps 58 → 64), is ACKed with the same status the other catalogued events receive, and is persisted with the activity id in the new subject column — asserted end to end through the real route (tests/unit/test_webhook_resume_dispatcher.py::test_activity_change_webhook_is_catalogued_and_persisted)",
+          "pre-merge: with two tenants, processing a signal for tenant A reads NO row of tenant B — asserted while connected AS THE RUNTIME ROLE `juli_app` UNDER RLS, not as the owner; a test run as the table owner would pass regardless and prove nothing (tests/unit/test_webhook_resume_dispatcher.py::test_consumer_reads_only_its_tenant)",
+          "pre-merge: the consumer run WITHOUT tenant context returns zero rows AND raises the named application error (ADR-086), so a missing `with_shop_scope` fails loudly instead of silently degrading to a fleet-wide read",
+          "pre-merge: a signal matching TWO waiting runs is a REFUSED INVARIANT — it raises a named error and resumes NEITHER; it must never double-resume and must never pick one arbitrarily. Assert the refusal and assert both runs are untouched",
+          "pre-merge: the same webhook delivered TWICE resumes the run ONCE — the existing `event_id` unique on `workflow_webhook_signals` and `record_if_new` already give at-most-once persistence, and the resume must inherit that idempotency rather than fire per delivery attempt",
+          "pre-merge: a signal arriving for a subject whose run is NOT in `waiting_external` (queued, running, or already terminal) resumes nothing and is recorded — the state check is explicit, so a completed run cannot be woken by a late webhook",
+          "pre-merge: the ACK contract is unchanged — an uncatalogued event, an event for an unknown shop (`webhook_shop_not_found`), and a signature failure all produce exactly the status and body they produce today; asserted against the existing webhook suite passing untouched",
+          "pre-merge: `alembic upgrade head`, then `downgrade -1`, then `upgrade head` round-trips cleanly on a real Postgres 16 already at the current tip, and the previous release's `record_if_new` still writes a signal naming none of the new subject columns",
+          "post-deploy: `alembic upgrade head` on the candidate, then `/health` and the webhook endpoint answering a replayed captured event with its usual ACK; ONE captured inventory webhook replayed against the candidate wakes the matching TEST run, OBSERVED ON THE SSE STREAM at `GET /demo/runs/{run_id}/events` rather than inferred from a log line — a success-marker grep cannot see a task that raises before it logs"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is `services/tiktok/webhook_catalog.py`, `services/tiktok/webhook_handlers.py`, the signals repository, a new consumer under workers/, one additive Alembic migration and tests. Nothing under apps/, packages/ or ios/ is touched; those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "alembic-history",
+      "webhook-replay-capture",
+      "sse-event-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "ONE ADDITIVE, EXPAND-ONLY migration adding NULLABLE subject columns to `workflow_webhook_signals` (a subject kind plus a subject reference — order id, SKU id or activity id — shaped to match #1701's `subject_type`/`subject_ref` vocabulary rather than inventing a second one). No column is dropped, renamed or retyped; the UNIQUE on `event_id` and the existing `intent` vocabulary are untouched; there is no backfill, and historical signals keep NULL subjects — an honest gap, since the subject cannot be recovered from a payload the previous release did not parse. The table is ALREADY tenant-scoped: it is listed in `database/tenant_scoped_tables.py` and already carries RLS policies from `045_rls_policies.py`, so no new policy is created — but the new columns must be covered by the runtime role's existing per-table grants from `043_juli_app_role.py` (ADR-085), and that coverage must be asserted as `juli_app`, never as the owner. Old and new code coexist: the previous release neither reads nor writes the subject columns and `record_if_new` keeps working unchanged. The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Signals keep being persisted shop-scoped and subjectless with zero readers, `resume_agent_workflow` keeps its single human caller, webhook #63 keeps falling through uncatalogued, and a run in `waiting_external` can only ever be reaped. That is the pre-existing state — a producer that ships without its consumer — and nothing about the deployed system changes.",
+    "postCutoverFailureBehavior": "Redeploy the previous release FIRST and restart juli-api and juli-celery-worker: the previous code neither reads nor writes the subject columns, so it runs correctly with them present and needs NO downgrade, and persisted signals are INERT to it — they are rows nothing consumes, exactly as before. Only if the schema must also be reverted, `alembic downgrade -1` drops the subject columns and destroys only subject annotations written since cutover; no signal, no run and no seller-visible state is lost. That downgrade MUST FAIL LOUDLY, never silently, when any run sits in `waiting_external` with no other way to be woken — dropping the subject columns strands such a run until its own reaper timer fires, so the operator must be told rather than surprised; and when #1701's schema is being reverted in the same operation it must also refuse on any non-product `subject_type` or NULL `product_id` row. Order: previous code first, downgrade second, so no live consumer is mid-read against a column being dropped. The webhook endpoint keeps ACKing throughout in both directions — that is the one property a rollback may never break.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_webhook_resume_dispatcher.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'webhook or tenant_scope or rls'",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_reaper_external_wait.py tests/unit/test_workflow_run_status_mapping.py tests/integration/test_schema_parity.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake. This slice DOES carry a migration, so the reservation is binding, not advisory.",
+    "Do NOT do a fleet-wide read anywhere in the consumer. Every tenant read runs inside `with_shop_scope` (`database/tenant_context.py`), the pattern `workers/tasks/reaper.py` and `credential_refresh_beat` already use (ADR-089, S-NFR-8). A cross-tenant scan 'just to find the waiting run' is the precise anti-pattern; find the tenant from the signal's `shop_id` first, then scope, then read.",
+    "Do NOT assert tenant isolation as the table owner. The runtime role is `juli_app` (`043_juli_app_role.py`, ADR-085) and RLS only binds for it; a cross-tenant test run as the owner passes whatever the policies say and proves nothing.",
+    "Do NOT change the webhook endpoint's ACK, path, signature verification or status codes. `api/routes/webhook_tiktok.py::handle_tiktok_webhook` answers the vendor; a vendor that stops getting its ACK stops retrying and starts disabling the subscription.",
+    "Do NOT invent a payload field for an UNCONFIRMED catalog entry. #11 (CANCELLATION_STATUS_CHANGE) and #27 (INVENTORY_STATUS_CHANGE) carry `confirmed=False` — their shapes are assumptions. A subject extractor for an unconfirmed entry must fail closed and record the signal unmatched, never guess a key and resume the wrong run.",
+    "Do NOT resume more than one run for one signal, and do NOT pick one arbitrarily when two match. Two matching runs is a refused invariant with a named error — S-FR-11's whole point is that one subject has one active run, so two matches means an invariant already broke upstream and must be surfaced, not papered over.",
+    "Do NOT build a second idempotency mechanism. `workflow_webhook_signals.event_id` is UNIQUE and `record_if_new` already gives at-most-once persistence; the resume inherits it. A separate dedup table or an in-memory seen-set would be a second answer to a solved question.",
+    "Do NOT change the `intent` vocabulary (`pause_automation`, `re_auth_required`, `workflow_gate`) and do NOT reuse it as a subject or a resume reason. Do NOT reuse the emission-budget suppression vocabulary (`active_cap`/`cooldown`/`weekly_novelty_cap`) for an unmatched signal — record unmatched as its own named fact.",
+    "Do NOT emit a card of any kind from the consumer, and specifically NOT a per-order card. A signal wakes a run; it does not produce a decision.",
+    "Do NOT add a push, email or Zalo transport, and do NOT call `services/alerts/`. A resumed run notifies nobody in this slice; the in-app act record is #1712/#1713.",
+    "Do NOT derive the subject from revenue and do NOT fall back to a product when a signal's subject is a SKU or an activity. The run's subject comes from the run row (#1701) and the signal's subject from the payload; if they cannot be matched, the signal is unmatched.",
+    "Do NOT add a second reaper policy object. A signal that never arrives degrades to #1706's `external_wait_timeout_h` — that is S-NFR-6's intended behaviour and it already exists.",
+    "Do NOT verify with a success-marker grep. A consumer that raises before it logs is invisible to one; assert on the run row, the enqueue and the SSE stream instead.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature — the real route, the real `DurableWebhookHandler`, the real `WorkflowWebhookSignalsRepo`, the real `resume_agent_workflow` task. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

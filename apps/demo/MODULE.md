@@ -3,8 +3,8 @@
 ## Responsibility
 
 Standalone public-facing Next.js Demo for Juli's four-destination product shape.
-Phase 2.6 uses deterministic mock data and has no backend or authentication
-dependency.
+Analytics, Recommendations and agent runs read live `/v1/demo/*` endpoints; Home
+and Settings remain deterministic mock fixtures.
 
 ## Public interface
 
@@ -17,12 +17,20 @@ dependency.
   `startExecution(workflowKey)` for approved workflow records.
 - `lib/executions.ts` — Workflow 1 + post-sales (7–9) timeline fixtures and pure
   `startExecution` for review-executable keys only.
-- `lib/reviews.ts` — Five-stage review content and input defaults for Workflow 1
-  and workflows 7–9 (`prevent_cancellation_8a`, `prevent_return_8b`,
-  `prevent_refund_8c`); FBT return intake key stays non-executable.
+- `lib/plan-reviews.ts` / `lib/plan-caveats.ts` — the [ADR-055](../../docs/adr/055-decision-plan-review.md)
+  sectioned agent-proposed plan review that replaced the five-stage review, composed
+  per workflow from `lib/workflows/`; `lib/reviews.ts` keeps the input defaults.
+- `lib/workflows/` — per-workflow plan review, caveats and seller copy, one directory
+  per demo workflow key. FBT return intake stays non-executable.
+- `lib/recommendations.ts` — Decisions read against `GET /v1/demo/recommendations`.
+- `lib/agent-event-stream.ts` — fetch-streaming SSE transport for
+  `GET /v1/demo/runs/{run_id}/events` (ADR-074 d.5).
+- `lib/repeat-consent.ts` — the post-completion repeat-consent ask (ADR-055 item 19).
+- `lib/review-seller-copy.ts` — seller-facing plan-review copy, banned-pattern guarded.
+- `lib/settings/` — Settings fixtures, validation and save.
 - `RecommendationsPanel` / `InProgressPanel` — Decisions tab panels composed by
   `RecommendationsView`.
-- `AnalyticsDataProvider` / `fetchDemoAnalytics` — Phase 2.10-A live Analytics read via `GET /v1/demo/analytics` (Home/Settings/Decisions remain mock).
+- `AnalyticsDataProvider` / `fetchDemoAnalytics` — Phase 2.10-A live Analytics read via `GET /v1/demo/analytics` (Home and Settings remain mock).
 
 ## Dependencies
 
@@ -35,9 +43,12 @@ dependency.
 
 - Home contains no KPI, recommendation action, execution queue, template, or threshold.
 - User-visible copy is Vietnamese with correct diacritics.
-- Analytics (`/analytics`) performs read-only `GET /v1/demo/analytics` (no force-recompute); Home, Settings, and Decisions remain mock fixtures.
-- Mock is the only enabled mode; Sign-in remains focusable for truthful
-  coming-soon feedback but never routes or requests data.
+- Analytics (`/analytics`) performs read-only `GET /v1/demo/analytics` (no force-recompute); Home and Settings remain mock fixtures.
+- Analytics, Recommendations and agent runs read live endpoints (`/v1/demo/analytics`,
+  `/v1/demo/recommendations`, `/v1/demo/refresh`, `/v1/demo/runs` SSE); Home and
+  Settings remain mock. Under [ADR-094](../../docs/adr/094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md)
+  the anonymous entry is a client replay that calls nothing, and signed-in users get
+  real runs.
 - Manual Refresh re-fetches Analytics envelopes, resets mutable mock-state, and returns to
   `/decisions`, whose default view is Recommendations.
 - Contextual Juli assistance explains the active destination and never

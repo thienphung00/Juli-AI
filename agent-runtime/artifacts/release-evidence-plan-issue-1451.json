@@ -1,0 +1,79 @@
+{
+  "planId": "rep-1451-reconcile-w6-wave-with-main",
+  "affectedPublicSurfaces": [
+    "none directly — this is a wave-branch merge plus one test change. No product code, no route, no migration authored here.",
+    "Indirectly the whole W6 surface, because the merge brings W7's RLS migrations and the juli_app role onto the W6 wave."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "none",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "the-w6-wave-carries-the-shared-database-contract",
+        "entryUrl": "pytest: CI's two-invocation order against a freshly created database",
+        "assertions": [
+          "tests/conftest.py on the wave contains _require_disposable_test_database and _shared_database_at_head, which it did not before",
+          "the alembic chain has exactly one head (047_prod_write_audit) after the merge",
+          "the integration stage passes on a database nothing migrated beforehand",
+          "verified in CI's real order, NOT a single `pytest tests` run in which integration sorts before unit"
+        ]
+      },
+      {
+        "name": "the-refusal-is-asserted-on-both-sides-of-the-seller-facing-split",
+        "entryUrl": "pytest: tests/unit/test_agent_adversarial_loop_behaviour.py -k allow_list",
+        "assertions": [
+          "ToolCompletedPayload.summary is an approved SellerFacingRefusalReason member and does not contain the refused tool name",
+          "the internal detail is still logged server-side with tool_name, so the copy fix did not become an observability hole",
+          "leaking the tool name into summary makes the test FAIL — verified by mutation, not by the test passing",
+          "deleting the server-side log makes the test FAIL — verified by mutation",
+          "with both controls restored the test passes; 18/18 in the module"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": ["not-applicable: wave reconciliation"],
+    "discoverFromHtml": false,
+    "assetTypes": ["not-applicable"],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration authored. The merge brings W7's already-deployed 043_juli_app_role through 047_production_write_audit onto the wave branch; production is already at 047, so the wave is catching up to deployed reality rather than moving it."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "nothing deployed changes — this merges into a wave branch, not main. Reverting restores the W6 wave to a state that lacks all seven shared-database fixes and would fail full-regression at wave->main.",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "DATABASE_URL=postgresql://postgres@localhost:5432/<freshly-created> JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=$PWD/backend/src:$PWD python -m pytest tests/unit -q -m 'not live and not demo_contract'",
+    "DATABASE_URL=postgresql://postgres@localhost:5432/<freshly-created> JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=$PWD/backend/src:$PWD python -m pytest tests/integration -q -m 'not live and not demo_contract'",
+    "python -c \"from alembic.config import Config; from alembic.script import ScriptDirectory; print(ScriptDirectory.from_config(Config('alembic.ini')).get_heads())\""
+  ],
+  "doNotInfer": [
+    "Do not treat a clean textual merge as a reconciled wave. This merge had zero conflicts and still carried a semantic break: an adversarial test asserting the exact internal-detail leak that #1272 removed. Run the suite.",
+    "Do not restore the old assertion on ToolCompletedPayload.summary. That field reaches the seller's browser; asserting English internal wording there re-admits the leak, and does it under cover of a passing adversarial test.",
+    "Do not assert only the seller-facing half. The two halves fail independently — checking only the copy would let the internal detail vanish entirely, which trades a leak for an observability hole.",
+    "Do not accept a passing mutation test at face value. Two mutation attempts here silently failed to apply — one targeted the wrong refusal branch, one used the wrong indentation — and each produced a green that proved nothing. A mutation that does not fail is a mutation that did not run.",
+    "Do not verify with a single `pytest tests` run: integration sorts before unit in one invocation, the inverse of CI, and the shared-database class is unreachable that way."
+  ]
+}

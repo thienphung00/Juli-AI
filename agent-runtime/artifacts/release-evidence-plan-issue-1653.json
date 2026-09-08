@@ -1,0 +1,96 @@
+{
+  "planId": "workflow-run-rollup-tokens-cost-latency-noop-2026-09-07",
+  "affectedPublicSurfaces": [
+    "The `workflow_runs` row itself gains six additive, nullable rollup columns written by `WorkflowRunner` as it runs: `input_tokens`, `output_tokens`, `cost_usd`, `duration_ms`, `tool_call_count`, `rows_affected`. This is the run's accounting record — one row per run already exists (`models/models.py::WorkflowRun`), so a second table would need its own lifecycle and could disagree with the run it describes.",
+    "The write path, not a new one: every terminal exit already funnels through `ConversationStore.persist(...)` (`services/agent/runner/conversation_store.py`, keyword-only `status`/`stop_reason`/`required_steps_completed`/`running_seconds_elapsed`). The rollup is a further independent value on that SAME call, never a second, competing writer — the pattern #1220 (`required_steps_completed`) and #1216 (`running_seconds_elapsed`) already established at these call sites in `runner/core.py` (the persist calls around lines 650, 677, 706, 772, 789, 867).",
+    "Token accounting is available and currently DISCARDED: `LLMService.complete()` returns an `AssistantTurn` carrying `usage: Usage` (`services/agent/llm/blocks.py`, `input_tokens`/`output_tokens`), and `runner/core.py` reads only `turn.blocks` (lines 1091, 1635) — never `turn.usage`. This slice sums that existing `Usage`; nothing re-tokenises or estimates.",
+    "Cost uses the EXISTING configured rate: `PRICE_TABLE_USD_PER_MILLION_TOKENS` and `estimate_cost_usd(model, usage)` in `services/agent/llm/config.py` (ADR-071 decision 5). No new rate table, no new pricing constant, no second copy of a price.",
+    "HTTP surface: the seller's polled run list (`GET /demo/runs`, `services/agent_runs/listing.py::RunListItem`) exposes id/status/stop_reason/product_name/created_at/completed_at/running_seconds_elapsed/latest_narration/decision_summary. It does NOT expose the rollup and this slice does not add it — cost and token counts are operator accounting, not seller-facing copy. The SSE stream (`GET /demo/runs/{run_id}/events`, `api/routes/agent_runs.py`) emits `workflow_run_events` payloads and likewise gains no rollup field. If the executor believes a route must expose these, that is a scope change to report, not to make.",
+    "Operator-visible effect: `status='completed'` with `tool_call_count = 0` AND `rows_affected = 0` becomes readable as a no-op rather than a success — the direct lesson of the 188 instant 'successes' observed on 2026-09-05."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run from the worktree root with PYTHONPATH pinned to the worktree's backend/src, against a real Postgres migrated to head — never SQLite, because the columns, their server defaults and the additive migration's round-trip are Postgres behaviour. Every run is driven through the REAL `WorkflowRunner` with the LLM adapter and every vendor call bound to a fake built on the real object's signature (never a **kwargs double), so the rollup is proven at the wiring, not at a hand-written row. Post-deploy: operator-only invocation on the candidate against the sandbox shop; no public traffic reaches a candidate task set and no production write occurs at any point.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because `WorkflowRunner` executes inside the Celery worker — a candidate with workers disabled cannot produce a run at all, so it cannot exercise the rollup. apiSideEffectsInScope is FALSE in the pairing-rule sense: the only state written is this shop's own `workflow_runs` row and its events; no vendor mutation, no production write, nothing seller-visible changes on any route. The standing owner decision of 2026-08-21 holds — nothing here approves or writes against a production shop.",
+    "journeys": [
+      {
+        "name": "rollup-written-by-the-runner-and-a-no-op-is-visible",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1653",
+        "assertions": [
+          "pre-merge: a completed run through the REAL runner has all six values populated on its `workflow_runs` row — asserted by re-reading the row after the run, never by writing the row directly (a hand-built row proves the DDL, not the wiring)",
+          "pre-merge: `input_tokens`/`output_tokens` equal the SUM of `AssistantTurn.usage.input_tokens`/`.output_tokens` across every `LLMService.complete()` turn the run made — asserted over a MULTI-turn run, so a single-turn assertion cannot pass by accident, and asserted against the fake adapter's recorded per-turn `Usage`, not against a re-tokenised estimate",
+          "pre-merge: a run that legitimately does nothing records `tool_call_count = 0` AND `rows_affected = 0` while still recording a NON-NULL `duration_ms` — the no-op is a positive fact on the row, not inferred from absence; the same test asserts the run's `status` is still its honest terminal status and was not synthesised into a failure",
+          "pre-merge: a run that fails mid-flight (a tool error and an LLM error, both terminal paths in `runner/core.py`) still records the rollup for the work done BEFORE the failure — the accounting is not lost by a crash; asserted for at least two distinct terminal `stop_reason` values",
+          "pre-merge: a run that pauses on a confirmation and then resumes accumulates tokens and tool calls ACROSS the pause — the rollup is not reset by the pause/resume boundary that `runner/core.py` already handles",
+          "pre-merge: `cost_usd` is computed from `estimate_cost_usd` over `PRICE_TABLE_USD_PER_MILLION_TOKENS` (`services/agent/llm/config.py`) and PERSISTED as a value; mutating the price table AFTER the run and re-reading the old row returns the original `cost_usd` unchanged — a later rate change does not retroactively rewrite history",
+          "pre-merge: the rollup is written on the SAME `ConversationStore.persist` call that already stamps `status`/`stop_reason`/`required_steps_completed`, asserted structurally — there is no second, independent write path to `workflow_runs` for these columns",
+          "pre-merge: `alembic upgrade head`, then `downgrade -1 && upgrade head`, round-trips the rollup migration cleanly on a real Postgres already carrying the current tip; the previous release's code reads and writes `workflow_runs` unchanged with the new columns present (they are nullable and it never names them)",
+          "pre-merge: the existing run suite passes untouched — `tests/unit/test_agent_runner_terminal_persistence.py`, `tests/unit/test_agent_runner_core.py`, `tests/unit/test_agent_runs_list.py` — proving `status`/`stop_reason`/`required_steps_completed`/`running_seconds_elapsed` semantics did not move",
+          "post-deploy: `alembic upgrade head` on the candidate applies the rollup migration and `GET /demo/runs` returns byte-identical shape to before the upgrade — the migration is a no-op for every existing reader",
+          "post-deploy: one sandbox run on the candidate produces a `workflow_runs` row with all six rollup values populated, read back by direct query; and one deliberately no-op run on the candidate shows `tool_call_count = 0`, `rows_affected = 0`, `duration_ms` non-null"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is backend Python (runner/core.py, conversation_store.py, models/models.py), one additive Alembic migration and tests. Nothing under apps/, packages/ or ios/ is touched; those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "alembic-history",
+      "postgres-row-dump"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "One ADDITIVE, expand-only migration adding six NULLABLE columns to `workflow_runs`: `input_tokens` (Integer), `output_tokens` (Integer), `cost_usd` (Numeric — reuse an existing money scale, do not invent a third), `duration_ms` (Integer), `tool_call_count` (Integer), `rows_affected` (Integer). No column is dropped, renamed or retyped; no NOT NULL; no backfill. The migration number and `down_revision` are RESERVED BY META and supplied with the issue — NEVER computed from `alembic heads` and never read from the tip of `backend/src/juli_backend/database/migrations/versions/`. W6 and W9-A (AGT-W9A-DP, #1701/#1712) both hold unlanded numbers in flight; computing from head would branch the Alembic head across in-flight waves, and this tree already carries two duplicate-number pairs (042/043) from exactly that mistake. Old and new code coexist trivially: the previous release neither reads nor writes these columns, and every pre-existing run row keeps NULL — an honest gap, since backfilling invented numbers is explicitly out of scope. NULL here means 'this run predates the rollup', which is why the columns must stay nullable and must never acquire a server_default of 0: a defaulted 0 would be indistinguishable from a real no-op, destroying the one signal this slice exists to create."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed system changes: runs continue to record `status`/`stop_reason`/`required_steps_completed`/`running_seconds_elapsed` exactly as today, `turn.usage` continues to be discarded, and a successful no-op stays indistinguishable from work — the pre-existing state. No new exposure, nothing partially applied, no data hazard.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart juli-api and juli-celery-worker; the previous code neither reads nor writes the six columns, so it runs correctly with them present and NO downgrade is required for a code rollback. If the schema must also be reverted, `alembic downgrade -1` drops the six columns and destroys only rollup values written since cutover — accounting data, never run state, and never anything the seller sees. Order matters: redeploy the previous code FIRST, then downgrade, so no live process is mid-write to a column being dropped. Because the columns are additive and nullable, rollback leaves no partially-applied schema state.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_workflow_run_rollup.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_runner_terminal_persistence.py tests/unit/test_agent_runner_core.py tests/unit/test_agent_runs_list.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/integration -k 'workflow_run_rollup or migration' -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT invent a token price. Cost comes from `estimate_cost_usd` over `PRICE_TABLE_USD_PER_MILLION_TOKENS` (`services/agent/llm/config.py`, ADR-071 decision 5) — the configured rate. Never a hard-coded rate at the call site, never a second price table, never a per-model literal in the runner.",
+    "`estimate_cost_usd` returns 0.0 for a model ABSENT from the price table. That default predates this wave and must not be silently persisted as a real `cost_usd` of zero — zero-as-a-number is a claim, and this epic forbids it by name. Record NULL (or an explicit unpriced marker) for an unpriced model, and REPORT the collision rather than changing `estimate_cost_usd`'s existing contract.",
+    "Do NOT re-tokenise, estimate, or count characters. Token counts come from the `Usage` the LLM service already returns on `AssistantTurn` — sum it; do not recompute it.",
+    "Do NOT derive any rollup value from logs. Logs are for humans and incidents, never for arithmetic (PRD #1652). If a value cannot be obtained at the write seam, report that — do not parse it back out of a log line.",
+    "Do NOT reuse or redefine `running_seconds_elapsed`. That column (#1216) is RUNNING time only — its clock pauses while `waiting_approval` (ADR-073 decision 2). `duration_ms` is wall clock, terminal minus started, and INCLUDES the approval wait. They are different quantities; do not make one the source of the other, and do not change `running_seconds_elapsed`'s semantics.",
+    "Do NOT add a second write path. The rollup rides the existing `ConversationStore.persist(...)` keyword surface alongside `status`/`stop_reason`/`required_steps_completed`/`running_seconds_elapsed` — the pattern #1220 and #1216 already set. A separate repository method, a post-run sweeper, or a Celery follow-up task would be a second writer that can disagree with the run it describes.",
+    "Do NOT create a separate rollup table. The PRD settled this: one row per run already exists.",
+    "Do NOT backfill existing runs. The rollup starts at the first run after this lands. Pre-existing rows stay NULL and NULL must not be defaulted to 0 — an honest gap beats invented numbers, and a defaulted 0 is indistinguishable from a real no-op.",
+    "Define `rows_affected` at the write seam the runner already owns (the `ToolExecutionLedger` / `ToolExecutor` dispatch boundary, `services/agent/runner/ledger.py`), and say plainly in the PR which rows it counts. Do NOT reinterpret a vendor-reported count as a row count, and do NOT let two different definitions ship in one column.",
+    "Do NOT expose the rollup on any HTTP surface in this slice. `RunListItem` (`services/agent_runs/listing.py`) and the SSE payloads stay as they are; a dashboard is explicitly deferred by the PRD.",
+    "Do NOT touch apps/**, packages/**, ios/** — this epic's doNotLoad list. Do not open the TikTok corpora catalogs (ADR-051).",
+    "The migration number is Meta-assigned. Never compute `down_revision` from head; W6 and W9-A hold unlanded numbers, and this tree already carries duplicate 042/043 pairs from that mistake.",
+    "Bind test collaborators to the REAL objects' signatures (`LLMService.complete`, `ConversationStore.persist`, the ledger). A `**kwargs` double proves routing, not that the real call would work.",
+    "The PRD's two motivating no-ops (`cdp_batch_staggered_reconcile`, `mock_analytics_hourly_reconcile`) are Celery BEAT tasks (`workers/tasks/cdp_batch_reconcile.py`) — they create no `workflow_runs` row, so a rollup on that table cannot make THOSE no-ops visible. Do not widen this slice to cover beat tasks; report the gap instead."
+  ]
+}

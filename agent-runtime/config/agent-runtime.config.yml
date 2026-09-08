@@ -316,13 +316,57 @@ workflow_prompt_cache:
     - standalone/guardrails
     - standalone/validate
   bootstrap:
-    pinBranch: HEAD
+    # Anchor spec, not a branch name (#1540). `HEAD` was symbolic: it re-resolved
+    # at check time to the checked-out branch's own tip, so the gate compared the
+    # branch against itself — red on the first commit, and blind to the harness it
+    # exists to watch. The fork point with the integration base is fixed for the
+    # life of a branch, so the branch's own commits cannot move it and unrelated
+    # traffic on the base cannot either. Drift is then measured as content change
+    # across sourcePaths between this anchor and the working tree.
+    # Changing this value is a change of semantics, not a re-pinned number.
+    # #1608: the base half is the BASE_REF token, resolved at check time
+    # against this run's real integration base (github.base_ref), not a
+    # hardcoded `main`. `classify-tier` sets CI tier `issue` exactly when the
+    # base is a `feature/*-wave` branch, and that wave can carry harness
+    # commits `main` does not yet have — a hardcoded `origin/main` reported
+    # those landed, reviewed wave commits as drift on every subsequent
+    # issue-tier PR (PR #1561's live failure; ADR-097). `test`/`full-regression`
+    # in pr.yml set BASE_REF from `github.base_ref` and fetch that same ref —
+    # the anchor spec and the fetched ref must always name the same value. At
+    # main tier `github.base_ref` is `main`, so this one dynamic form is
+    # correct at both tiers without a conditional.
+    pinBranch: merge-base:origin/BASE_REF
     sourcePaths:
       - .cursor/skills
       - agent-runtime/docs
   # Known epics — ensure_workflow_cache uses these when Parent/#slice missing from CLI.
   # parentScopeBlock uses \n escapes (simple YAML loader; no literal | blocks).
   epicRegistry:
+    # 1434 — Harness-E (P-EVAL); registered 2026-09-04. Every slice in this epic
+    # had been passing --slice-id CI-WAVE-1 by hand, which masked the absence of
+    # this entry: a bare `meta_prepare_executor.py --issue N` halted with
+    # "Cannot resolve sliceId", and a reviewer that hit it could not commit a
+    # test because no workflow cache existed for the guarded tests/ root.
+    1434:
+      defaultSliceId: CI-WAVE-1
+      # #1583: declared, not parsed out of parentScopeBlock. Inferring these
+      # from prose leaked on 24 of 38 epics -- #1325 authorised a file its own
+      # "Never edit:" line forbids -- so the scope document says only what an
+      # Architect wrote here.
+      inScopePaths:
+        - agent-runtime/
+        - .github/workflows/
+        - eval/
+        - tests/unit/
+      handoffPath: docs/handoffs/issue-1434.md
+      parentScopeBlock: "# Parent #1434 - Harness-E: the harness stops grading its own homework\n## Product boundary\n- Harness only: agent-runtime/, .github/workflows/, eval/, tests/unit/\n- NO product code: backend/src/, apps/, ios/, packages/ are out of scope for every slice\n- No migrations, no API routes, no UI\n## Architect locks\n- The verdict is computed where the agent cannot write\n- Fail closed: a check must never pass because it could not determine an answer\n- No backfill, no history rewrite\n- pr.yml has one writer at a time\n- Only factual gates ship blocking; a heuristic gate gets a promotion criterion AND an expiry\n- Never satisfy a gate by editing gate configuration (ADR-095 gives the mechanical test)\n- Emit is not commit: the five gitignored body directories are never git add -f'd\n"
+      doNotLoad:
+        - backend/src/
+        - apps/
+        - ios/
+        - packages/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
     # 175 — Operations-System Orchestration PRD; registered 2026-08-17 for #1138
     # (repository-layer production fix lane, OPS-REPO-FIX routing).
     175:
@@ -480,6 +524,78 @@ workflow_prompt_cache:
         - ios/
         - packages/
         - backend/src/juli_backend/ai/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
+    # 1652 - W8/P10: a run can be accounted for after the fact, and the four questions are answered
+    # separately. One backend lane; #1658 is the HITL gate (owner) and never passes the Meta gate.
+    1652:
+      defaultSliceId: AGT-W8-BE
+      handoffPath: docs/adr/077-incremental-impact-measurement.md
+      parentScopeBlock: "# Parent #1652 - W8: a run can be accounted for after the fact (P10) (constant)\n## Product boundary\n- Observability of agent runs only: per-run rollup columns, log redaction in the formatter, the five-link outcome-chain query, the three unconflated metrics, and business impact computed honestly from the chain\n- No UI, no dashboard, no alerting, no thresholds (all deferred by the PRD)\n## Architect locks\n- Landing order W8-A -> W8-B (independent) -> W8-C (needs A) -> W8-D (needs A, C) -> W8-E (needs C); gate #1658 last\n- The rollup is written by the runner as it runs, never inferred from logs; succeeded with tool_call_count=0 and rows_affected=0 must be readable as a no-op\n- Redaction lives in JsonFormatter, never at call sites; planted test secrets follow the .gitleaksignore fingerprint pattern\n- An empty chain link carries a reason: pending | unavailable | missing are distinct values, never null\n- The four metrics are never blended; each reports numerator and denominator; an empty denominator returns no-data, never 0\n- suppressed and confounded ImpactReadings are never counted as readings (#1226, #1338); W8-E reuses services/impact's confidence floor by reference\n- Migration numbers for the rollup columns are RESERVED by Meta, never read from head\n- Tests run through the real runner and real Postgres where the behaviour lives; bind to real objects, never **kwargs doubles\n## Epic deferrals\n- Backfilling existing runs; trends, alerting, dashboards; producing a real reading (#1339, owner)\n"
+      childSlices:
+        1653: AGT-W8-BE
+        1654: AGT-W8-BE
+        1655: AGT-W8-BE
+        1656: AGT-W8-BE
+        1657: AGT-W8-BE
+        1658: AGT-W8-BE
+      doNotLoad:
+        - apps/
+        - ios/
+        - packages/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
+    # 1620 - W9-A/P-SHARED: the runtime can host more than one workflow (v1 P0 ladder).
+    # Serial, lands before every workflow lane; first slices are Fable exemplars.
+    1620:
+      defaultSliceId: AGT-W9A-BE
+      handoffPath: docs/product/agent-workflow-execution/v1-workflow-spec.md
+      parentScopeBlock: "# Parent #1620 - W9-A/P-SHARED: the runtime can host more than one workflow (constant)\n## Which lane you are in\n- AGT-W9A-DP - migrations only (workflow_key, polymorphic subject, ADR-087 card columns, act records, checklist items); no readers\n- AGT-W9A-BE - registry, approval, dispatcher, prompts, waiting_external, stop reasons, seller inputs, locks, scheduled producers, act-record and checklist endpoints, intervention guard\n- AGT-W9A-INT - webhook-to-run dispatcher, OAuth scope persistence\n## Architect locks\n- Spec of record is v1-workflow-spec.md S1 and S8.1; ADRs 087, 090-093 are the design; one issue = one P0 item\n- Migration numbers are RESERVED by Meta, never read from head (W6 and W7-bis are open)\n- Zero behaviour change for optimize_product_2 in every slice: goldens and existing tool tests pass untouched\n- Status/stop-reason additions touch all five pinned places in ONE slice (enum, DB CHECK, TS union, totality tests, non-terminal set)\n- Every tenant read in a beat task runs under with_shop_scope (ADR-089); no fleet-wide read\n- The params hash of a report confirmation covers seller-supplied values, single-use; corrections are new rows\n- Never a cancel tool, never a base-price write, never a stock write below committed\n- Tests live flat in tests/unit/; bind to real objects, never **kwargs doubles (consumer-without-producer is the failure this wave exists to prevent)\n## Epic deferrals\n- Push/email/Zalo transports; the autonomy ladder; repeat consent; the deadline-clock escalation service; the event outcome store; any workflow behaviour (W9-B, W10-A/B/C)\n"
+      childSlices:
+        1701: AGT-W9A-DP
+        1712: AGT-W9A-DP
+        1702: AGT-W9A-BE
+        1703: AGT-W9A-BE
+        1704: AGT-W9A-BE
+        1705: AGT-W9A-BE
+        1706: AGT-W9A-BE
+        1707: AGT-W9A-BE
+        1709: AGT-W9A-BE
+        1710: AGT-W9A-BE
+        1711: AGT-W9A-BE
+        1713: AGT-W9A-BE
+        1715: AGT-W9A-BE
+        1708: AGT-W9A-INT
+        1714: AGT-W9A-INT
+      doNotLoad:
+        - apps/
+        - ios/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
+    # 1622 - W9-C/P-CAPTURE: contract captures, TikTok app scope, sandbox mirror (HITL-heavy).
+    # Day-one lane in parallel with W9-A; integrations executor; owner issues 1718/1724 are HITL
+    # and never pass through the Meta gate.
+    1622:
+      defaultSliceId: AGT-W9C-INT
+      handoffPath: docs/product/agent-workflow-execution/v1-workflow-spec.md
+      parentScopeBlock: "# Parent #1622 - W9-C/P-CAPTURE: contract captures, TikTok app scope, sandbox mirror (constant)\n## Product boundary\n- Captures, client methods, guard entries and the sandbox mirror only; no workflow behaviour, no prompts, no UI\n- Every capture is committed to docs/integrations/tiktok_api/contract-collection.md with request, response (PII redacted) and environment\n## Architect locks\n- Reads through ProductionReadResources, writes through SandboxWriteResources only; the guard must refuse any production write path\n- Never commit buyer PII; redact recipient fields\n- Leave no ongoing promotion activity on the sandbox after a capture\n- A capture that contradicts an ADR or the spec is filed as a documentation-conflict row in PLAN.md S14 with a safe bound, before the dependent workflow lane opens\n- If the sandbox cannot hold orders (issue 1718), P-CAPTURE-5/6 capture against production reads and mark rows documented-not-captured; do not invent sandbox orders\n## Epic deferrals\n- Programmatic order mirroring; production writes (#1339); Search Activities (does not exist at TikTok)\n"
+      childSlices:
+        1716: AGT-W9C-INT
+        1717: AGT-W9C-INT
+        1719: AGT-W9C-INT
+        1720: AGT-W9C-INT
+        1721: AGT-W9C-INT
+        1722: AGT-W9C-INT
+        1723: AGT-W9C-INT
+        1718: AGT-W9C-INT
+        1724: AGT-W9C-INT
+      doNotLoad:
+        - apps/
+        - ios/
+        - packages/
         - docs/product/design/
         - docs/integrations/tiktok_corpora/
         - Sibling issue context caches

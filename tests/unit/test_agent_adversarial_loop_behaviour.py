@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import uuid
 from dataclasses import replace
 from pathlib import Path
@@ -38,6 +39,9 @@ from juli_backend.services.agent.prompts.composer import (
 from juli_backend.services.agent.prompts.composer import prompt_version as compose_prompt_version
 from juli_backend.services.agent.runner.confirmation import compute_params_sha
 from juli_backend.services.agent.runner.core import WorkflowRunner
+from juli_backend.services.agent.runner.seller_facing_copy import (
+    SellerFacingRefusalReason,
+)
 from juli_backend.services.agent.runner.state import RunState
 from juli_backend.services.agent.status import StopReason, WorkflowRunStatus
 from juli_backend.services.agent.tools import ToolClassification, ToolRegistry, ToolSpec
@@ -644,7 +648,7 @@ async def test_blast_radius_termination_under_caps(path: Path) -> None:
     ],
     ids=lambda p: p.stem,
 )
-async def test_allow_list_escape_write_tool_rejected(path: Path) -> None:
+async def test_allow_list_escape_write_tool_rejected(path: Path, caplog) -> None:
     """Allow-list escape attacks: WRITE tools not in playbook rejected.
     Assert: tool not executed, specific VALIDATION error at tool boundary,
     normal terminal state (FINAL_RESPONSE from cleanup, not a crash)."""
@@ -704,11 +708,42 @@ async def test_allow_list_escape_write_tool_rejected(path: Path) -> None:
     assert error_event.payload.ok is False, (
         f"Expected tool.completed.ok=False for refusal, got {error_event.payload.ok}"
     )
-    # The summary should indicate the tool is not in the playbook or not registered
-    assert (
-        "not part of the active" in error_event.payload.summary.lower()
-        or "not a registered" in error_event.payload.summary.lower()
-    ), f"Expected playbook/registry refusal message, got: {error_event.payload.summary}"
+    # The refusal is asserted on BOTH sides of #1272's split, because the two
+    # halves fail independently and each alone is a false pass:
+    #
+    #   - `summary` reaches the seller's browser, so it must be an approved
+    #     seller-facing code and must NOT name the tool or the playbook. This
+    #     test used to assert the opposite — that `summary` contained the
+    #     English internal wording — which is precisely what W6's #1272 removed.
+    #     Left unchanged it would have re-admitted an internal-detail leak on
+    #     the strength of a passing adversarial test.
+    #   - The internal detail still has to exist somewhere, or #1272 traded a
+    #     leak for an observability hole. `runner/core.py` logs it server-side
+    #     (`tool_name`, and `playbook_key` for the not-in-playbook branch), and
+    #     that is what is asserted here.
+    summary = error_event.payload.summary
+    assert summary in {
+        SellerFacingRefusalReason.TOOL_NOT_FOUND.value,
+        SellerFacingRefusalReason.TOOL_NOT_ALLOWED.value,
+    }, f"Expected an approved seller-facing refusal code, got: {summary}"
+    assert unlisted not in summary, (
+        f"the refused tool name leaked into seller-facing copy: {summary!r}"
+    )
+
+    refusal_logs = [
+        record
+        for record in caplog.records
+        if record.levelno >= logging.WARNING and "Tool dispatch" in record.getMessage()
+    ]
+    assert refusal_logs, (
+        "the refusal was not logged server-side — #1272 moved the internal "
+        "detail out of the seller-facing summary, so losing the log turns a "
+        "copy fix into an observability regression"
+    )
+    assert any(getattr(record, "tool_name", None) == unlisted for record in refusal_logs), (
+        f"no server-side log names the refused tool {unlisted!r}; the internal "
+        "detail has to survive somewhere it is safe to keep"
+    )
     # Assert: normal terminal state. The refused tool is the only one scripted
     # before the final response, so no required step completes and the run ends
     # through the terminal tool rather than a bare final_response (ADR-088).

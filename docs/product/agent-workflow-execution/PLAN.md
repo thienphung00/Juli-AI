@@ -23,15 +23,15 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 6 | P1 — Agent execution loop (blocks + runner) | ✅ **implemented and live-verified** — [ADR-073](../../adr/073-agent-execution-loop-and-write-path-hardening.md); PRD #1115, slices #1117–#1124 merged via #1183. Read path, CONFIRM pause, resume, sandbox write, ledger and cancel all proven against the deployed host — see [Wave 3 live verification](#wave-3-live-verification-2026-08-19--2026-08-20) | ✅ 2026-08-20 |
 | 7 | P-CS — Conversation & state storage (NEW) | ⏸ deferred (user, 2026-08-11) until real users exist — stand-in: `workflow_runs.state` JSONB blob behind the `ConversationStore` protocol (ADR-073 d.5) | ⬜ |
 | 8 | P8 — Streaming (SSE + Celery relay) | ✅ **implemented and live-verified** — [ADR-074](../../adr/074-agent-event-streaming-and-relay.md); PRD #1116, slices #1125–#1133 merged via #1183. Live SSE, gapless duplicate-free `Last-Event-ID` reconnect, mid-run cancel, and the fail-closed `memory://` boot assertion all proven on the deployed host — see [Wave 3 live verification](#wave-3-live-verification-2026-08-19--2026-08-20) | ✅ 2026-08-20 |
-| 9 | P7 — Structured output contract | ⏸ deferred (user, 2026-08-11) — scheduled **W9-B** with P15 (see the wave roadmap) — loop runs on ADR-072 prose output; wires in via `FinalResponse` block + prompt v2 bump (ADR-073 d.5) | ⬜ |
-| 10 | P9+P14 — Approval, safety & security prerequisites | ✅ **implemented, W5 merged 2026-08-24** — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) + [ADR-082](../../adr/082-agent-run-product-binding.md); eleven slices deployed on release `4cce75a7`. The confirmation endpoint no longer returns 501; approve-is-run-creation is the only path to a run; `POST /v1/demo/runs` is removed | 🟨 **2026-08-25 — observation 1 at six of seven steps; observation 2 blocked by owner decision.** Ten defects were found and fixed by walking it (#1287, #1289–#1293, #1299–#1301, #1302, #1304, #1305). Auth (ES256/JWKS), fast refresh + sandbox catalog sync, card surfacing, approve→run creation, SSE with replay and heartbeats, all three read tools via shop-aware credential routing, copy-guard-clean completion, and crash/clean-failure card recovery are all proven live. The final step — confirm → sandbox write lands — waits on **realistic sandbox product data (owner action)**, not on code. Observation 2 is recorded BLOCKED: no production write authorized; unblock chain is functional RLS → manual red-team pass → explicit owner authorization for a single production mutation → T+7 → a real `impact_readings` row. See [W5 live verification](#w5-live-verification-2026-08-24) and #1226's 2026-08-25 comments |
-| 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 **W6 — planned and filed 2026-08-25.** Design grilled 2026-08-12 ([ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md)), amended by [ADR-084](../../adr/084-agent-demo-surface-tenancy-and-replay.md) after the W5 gate walk contradicted four of its premises. PRD [#1308](https://github.com/thienphung00/Juli-AI/issues/1308); fourteen slices + gate [#1322](https://github.com/thienphung00/Juli-AI/issues/1322) — see [Wave 6](#wave-6--sellers-can-watch-juli-work-and-choose-what-it-does-2026-08-25) | ⬜ |
+| 9 | P7 — Structured output contract | ⏸ deferred (user, 2026-08-11) — **unscheduled** — W9-B is now P-OP (#1621) — loop runs on ADR-072 prose output; wires in via `FinalResponse` block + prompt v2 bump (ADR-073 d.5) | ⬜ |
+| 10 | P9+P14 — Approval, safety & security prerequisites | ✅ **implemented, W5 merged 2026-08-24** — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) + [ADR-082](../../adr/082-agent-run-product-binding.md); eleven slices deployed on release `4cce75a7`. The confirmation endpoint no longer returns 501; approve-is-run-creation is the only path to a run; `POST /v1/demo/runs` is removed | ✅ **2026-08-27 — observation 1 CLOSED, 7 of 7** (run `fcbd287e`, release `2d37170c`, sandbox write confirmed in Seller Center; seven further defects #1356–#1367 fixed en route). **Observation 2 blocked by owner decision.** Ten defects were found and fixed by walking it (#1287, #1289–#1293, #1299–#1301, #1302, #1304, #1305). Auth (ES256/JWKS), fast refresh + sandbox catalog sync, card surfacing, approve→run creation, SSE with replay and heartbeats, all three read tools via shop-aware credential routing, copy-guard-clean completion, and crash/clean-failure card recovery are all proven live. The final step — confirm → sandbox write — landed 2026-08-27 (run `fcbd287e`, release `2d37170c`). Observation 2 is recorded BLOCKED: no production write authorized; unblock chain is functional RLS → manual red-team pass → explicit owner authorization for a single production mutation → T+7 → a real `impact_readings` row. See [W5 live verification](#w5-live-verification-2026-08-24) and #1226's 2026-08-25 comments |
+| 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 **W6 — a third landed, 2026-09-05.** Design grilled 2026-08-12 ([ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md)), amended by [ADR-084](../../adr/084-agent-demo-surface-tenancy-and-replay.md). PRD [#1308](https://github.com/thienphung00/Juli-AI/issues/1308). **On `main`:** #1272 seller-facing reason codes, #1314 visual identity + motion, #1318 the run ledger, #1423 golden-scenario capture/replay (which is #1311's deliverable — that issue is stale, not open work), #1309 the executability discriminator. The wave was reconciled with `main` (#1451 → #1640) and landed (#1645). **Still unbuilt (2026-09-07):** #1316, #1317, #1319, #1320, #1321; gate #1322 untouched. #1315 has since landed and #1313 is **closed as superseded** by [ADR-094](../../adr/094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md). Scoped in [the remaining-slices handoff](../../handoffs/2026-09-05-w6-remaining-slices.md) | 🟨 2026-09-05 — **four of ten slices; the seller-facing surface is the part still missing.** **Superseded 2026-09-07:** #1320 was recorded as blocked on #1313 because `/v1/demo/decisions` is authenticated and there was no session to call it with. [ADR-094](../../adr/094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md) resolves that by splitting the surface — the anonymous entry is a client replay that calls nothing, and the session comes from #1319's Google door. The live defect stands regardless: the panel calls `/v1/demo/recommendations`, which 404s, renders fixture content, and reports success today. Note #1308 is CLOSED while nine children are open |
 | 11b | P-IM — Incremental impact measurement (NEW) | ✅ implemented, gate reopened in **W4** — [ADR-077](../../adr/077-incremental-impact-measurement.md); re-run wave merged to `main` (#1113, 2026-08-14), #1040–#1045 + #1068 all with status records, after the [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B refusal of the first attempt | 🟨 2026-08-21 — **reachable, still un-run.** W4 fixed all three broken reads (#1215 payload, #1216 duration, #1219 measurable set). The reading itself needs a production-shop write, because the sandbox shop has no analytics series — that is W5's gate, not a code gap |
 | 11c | P-CRED — TikTok credential lifecycle / refresh-token rotation (NEW) | ✅ **W4 closed 2026-08-21** — deployed on release `14807670` and verified against the vendor: sandbox credential refreshed through the real `refresh_credential` path, `refresh_count` 0→1, expiry moved 2026-08-27→2026-08-28. Beat and lazy layers live; **reactive layer built but wired to nothing** (#1233), so a token that dies before its recorded expiry is not self-healed. `/root/refresh_credentials.py` retired. [ADR-081](../../adr/081-refresh-token-rotation.md) | ✅ 2026-08-21 — full matrix green + one real sandbox-token refresh |
-| 11d | P-PROD — Production-write unlock (NEW) | 🟨 **W7 — planned and filed 2026-08-25**, in parallel with W6. Design [ADR-085](../../adr/085-production-write-preconditions.md), amending ADR-061 d.1 (its RLS deferral's trigger has fired). PRD [#1325](https://github.com/thienphung00/Juli-AI/issues/1325); thirteen slices + gate [#1339](https://github.com/thienphung00/Juli-AI/issues/1339) — see [Wave 7](#wave-7--the-owner-can-authorize-one-real-change-and-prove-it-was-safe-2026-08-25). **Scope corrected:** RLS is absent-not-deferred (policies key off a GUC nothing sets, and the app connects as the table *owner*, which Postgres exempts); the table count is 37, not 13; ADR-050 C2 is removed from this wave. Gates P-IM's real reading and P10's business-impact metric | ⬜ |
-| 12 | P10 — Observability baseline | ⬜ **W8** | ⬜ |
-| 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ **W9-B** (with P7), over the path W9-A realigns | ⬜ |
-| 14 | P13 — Family charter, seller journeys + rollout of the remaining workflows | 🟨 **charter recorded 2026-09-03** — four families (Product, Inventory, Campaign & Promotion, Customer Service), Livestream removed, **Process Order (5) + Handle Split Package (6) promoted to design-order item 3** with sustained mega-sale volume as its non-functional requirement, and a new **Mega Sale Readiness** workflow at item 5 as its preparation companion (owner, 2026-09-03), six seller-journey reports and eight corrections, automation/monitoring NFR grades — see [P13](#14-p13--family-charter-seller-journeys-and-rollout-of-the-remaining-workflows-charter-grilled-2026-09-03-supersedes-rollout-to-remaining-10-workflows); grill in progress. Design-order items 0–1 (template hardening + the Optimize Product pricing realignment) land in **W9-A** — see [where it lands](#where-the-optimize-product-pricing-realignment-lands-2026-09-03); items 2–9 roll out in **W10** | ⬜ |
+| 11d | P-PROD — Production-write unlock (NEW) | ✅ **W7 slices landed; W7-bis (#1469) closed 2026-09-05.** Design [ADR-085](../../adr/085-production-write-preconditions.md). PRD [#1325](https://github.com/thienphung00/Juli-AI/issues/1325); gate [#1339](https://github.com/thienphung00/Juli-AI/issues/1339). All thirteen slices #1326–#1338 are on `main` via `c06857a34` (PR #1402), each with a committed status record carrying review PASS + validation PASS. The cutover to the non-owner RLS-bound role `juli_app` is **done and deployed** — and exposed six defects on the AFK paths, all fixed: #1548, #1575 (alembic ran as the runtime role), #1576/#1599 (`SET LOCAL` discarded by commit), #1613 (the public demo read emptied by RLS), #1627 and #1631 (bronze append and sync-state write unscoped; #1631 also found a missing UPDATE grant → migration 055). **Three more surfaced on 2026-09-07**, once the authenticated surface was finally exercised: #1691 (`users`) and #1697 (`shops`) merged, #1700 (`workflow_run_events` on the SSE stream's own session) open — see [the 2026-09-07 entry](#w7-exit-gate--observation-1-three-rls-defects-deep-2026-09-07) | 🟨 2026-09-07 — **Observation 1: three bullets pass, one outstanding. Not cleared.** Bullet 2 **passes**: `juli_app`, `rolbypassrls=false`, `rolsuper=false`, owns 0 tables. Bullet 3 **passes**: under a tenant context, own shop 8168 rows, other shops 0. Bullet 4 **passes** — all **six** beats on their own schedules (`analytics_backfill_topup` 02:17:00 received → 02:17:09 succeeded, 9.78s; `daily_impact_reader` 03:23:00 → 03:23:07, 7.71s; the other four zero failures over 12h), zero scoping errors, and all **31** in-window partition days `complete` in all four buckets with no error rows; it took [seven defects](#w7-exit-gate--observation-1-three-rls-defects-deep-2026-09-07) to get there, two of which were withdrawn as self-inflicted by diagnostics. Bullet 1 **passes on the code, not on the deployed sha**: read HTTP 200 with 5 runs, SSE HTTP 200 with 2402 bytes and 8 events, measured against the real database as `juli_app` with #1691 + #1697 + #1700 applied — but #1700 has no PR and #1697's release is still pending, so nothing is verified in production yet. Its **approve element is recorded not performable** by owner decision (no run is in a confirmation state; all five terminal, newest 2026-08-20) — **not performable is not passing**, and it can be revisited when #1319 and the W6 run view produce an eligible run. Bullet 4's wording was **amended 2026-09-05**: it named `system_scope()`, which writes no database GUC and has zero callers, making the condition unfalsifiable; the beats pass via `with_shop_scope`. Checks committed at `infra/scripts/obs1/`. **#1630 is now closed** — hypothesis refuted by measurement (an idle transaction under `NullPool` held the same backend PID and an intact GUC for 25 minutes, past the 23-minute failure it was written from), so it is no longer an open root cause and there is no per-statement scoping to remove. **Observations 2, 3 and 4 have not started**, each blocked on the one before it. Sign-off on Observation 1 is the owner's; no measurement here clears it |
+| 12 | P10 — Observability baseline | ⬜ **W8 — PRD #1652, slices #1653–#1658 filed** | ⬜ |
+| 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ **unscheduled** — W9-B is now P-OP (#1621) | ⬜ |
+| 14 | P13 — Family charter, seller journeys + rollout of the remaining workflows | 🟨 **charter recorded 2026-09-03** — four families (Product, Inventory, Campaign & Promotion, Customer Service), Livestream removed, **Process Order (5) + Handle Split Package (6) promoted to design-order item 3** with sustained mega-sale volume as its non-functional requirement, and a new **Mega Sale Readiness** workflow at item 5 as its preparation companion (owner, 2026-09-03), **seven** seller-journey reports and eight corrections, automation/monitoring NFR grades — see [P13](#14-p13--family-charter-seller-journeys-and-rollout-of-the-remaining-workflows-charter-grilled-2026-09-03-supersedes-rollout-to-remaining-10-workflows); grill in progress. Item 0 is **W9-A** (PRD #1620); item 1 is **W9-B** (PRD #1621); items 2–4 are **W10-A/B/C** (#1624/#1625/#1626); items 5–9 are not yet filed. | ⬜ |
 | 15 | P6 — Documentation retrieval tool (deferred, optional) | ⬜ | ⬜ |
 
 ## Wave 2 status — re-run inside the harness contract (2026-08-14)
@@ -401,6 +401,199 @@ reasons are recorded rather than worked around. That is the outcome #1226 explic
 the finding the HITL gate existed to produce — the fourth time in this wave a check passed for a reason
 unrelated to its claim, and the first to reach production.
 
+## W7 cutover and W6 landing — progress (2026-09-05)
+
+### The W7 cutover is done, and it found six defects by being done
+
+Moving the runtime off the table owner to `juli_app` was the whole point of W7's RLS
+work, and it behaved exactly as a real cutover does: everything that had been passing on
+**owner exemption rather than on permission** failed at once, one execution path at a time.
+
+| # | What broke | Why it was invisible before |
+|---|---|---|
+| #1548 | — | — |
+| #1575 | `alembic upgrade` ran as the runtime role | `env.py` read `DATABASE_URL`; every *other* step used `DATABASE_DIRECT_URL`, so backup and migration ran as two different roles |
+| #1576/#1599 | `SET LOCAL` discarded by a mid-stage commit | the scope was set once per job, not per stage |
+| #1613 | the public demo read returned zero rows | an unauthenticated route sets no tenant GUC; the owner had been exempt |
+| #1627 | the bronze append was refused | the handoff assumed "shop scope enforced by caller" |
+| #1631 | the sync-state write was refused, **and** `juli_app` lacked UPDATE | a cursor could advance exactly once, then fail |
+
+**The pattern, not the list, is the finding.** These were not six unrelated bugs. Fleet-wide
+work was authorised by table ownership rather than by any grant or policy, so it all lost its
+authority at the same instant and surfaced one path at a time. `system_scope()` — the
+mechanism the design named for this — sets a Python module global, writes **no database
+GUC**, and has **zero callers**.
+
+**#1630 is the root cause and is still open.** A tenant scope set before a multi-minute vendor
+fetch does not survive it; both database URLs resolve to the Supavisor pooler and the task
+held a transaction open for 23 minutes. Until it lands, every per-statement scope added by
+#1627 and #1631 is a workaround, and they should be reviewed for removal afterwards rather
+than left as sediment.
+
+### A measurement worth keeping
+
+CI runs the whole suite as `postgres` — superuser *and* table owner, which Postgres exempts
+from RLS. Only 4 of 49 integration modules exercise RLS as `juli_app`. Making application
+sessions run as `juli_app` was measured: it costs **one** additional failing test, not the
+large churn assumed. But it would not have caught these six, because the suite does not
+exercise the paths that broke. It is a **coverage** gap, not only an exemption gap.
+
+### W6 landed a third of itself
+
+The wave was reconciled with `main` (#1451 → #1640) and merged (#1645). Reconciling it
+surfaced three semantic conflicts — one of which produced **no conflict marker at all**:
+`credential_refresh_beat.py` auto-merged into main's `with_shop_scope` *plus* a `system_scope`
+wrapper main had deliberately deleted, caught only by `test_system_scope_call_sites_enumerated`.
+
+Also worth recording: squash-merging a **wave reconciliation** discards the ancestry that made
+the next merge clean, so the same files re-conflict. Squash is right for issue PRs and wrong
+for this.
+
+What landed is the infrastructure — the event protocol, the replay source, the design tokens.
+What is missing is the surface a seller uses: the stream hook (#1315, in review), the staged
+view (#1316), and the consent picker (#1317).
+
+## W7 exit gate — Observation 1, three RLS defects deep (2026-09-07)
+
+### The thirteen slices are done. The gate is not
+
+All thirteen implementation slices — #1326–#1338 — are closed and on `main` via `c06857a34`
+(PR [#1402](https://github.com/thienphung00/Juli-AI/pull/1402), `feature/w7-wave` → `main`,
+merged 2026-09-01). **Verified by artifact rather than by issue state**: every one of the
+thirteen has a committed `agent-runtime/artifacts/status/issue-<n>.json` carrying review
+`PASS` **and** validation `PASS`, timestamped 2026-08-25 → 2026-08-26. A closed issue is a
+claim; the status record is the evidence.
+
+The gate [#1339](https://github.com/thienphung00/Juli-AI/issues/1339) is **open**, and its four
+observations are strictly ordered. **Observations 2, 3 and 4 have not started** — the red-team
+pass, the authorized production mutation, and the T+7 impact reading each depend on the one
+before it, so the entire remainder of the wave sits behind Observation 1.
+
+### Observation 1 — three of four bullets pass, on measurement
+
+Evidence record posted on #1339 for deployed sha `91f783d6`, measured 2026-09-07.
+
+| Bullet | Result | Measurement |
+| --- | --- | --- |
+| 1 — an authenticated read, an approve, an SSE stream | **was failing** | see the three RLS fixes below |
+| 2 — the connected role is not an owner | **PASS** | role `juli_app`; **0** tables owned across `public`/`ops`/`bronze`/`silver`/`gold`; `rolbypassrls = false`, `rolsuper = false` |
+| 3 — another tenant's rows return nothing | **PASS** | under a tenant context on the deployed connection: own shop **8168** rows visible, other shops **0**, total **8168** |
+| 4 — the beats complete a cycle without a scoping error | **PASS** | all **six** beats succeeded on their own schedules; **zero** scoping errors; **zero** RLS denials since 2026-09-05 05:23, against **154** in the three days before; all **31** in-window partition days `complete` in all four buckets |
+
+**The record is deliberately unsigned.** #1339 states that observations 1–3 are owner acts. An
+agent can produce the measurement; it cannot produce the attestation, and the evidence record
+says so in its own first line. Nothing below closes an observation.
+
+### Bullet 4 cost seven defects, and two of them were self-inflicted
+
+| # | Disposition | What it was |
+| --- | --- | --- |
+| #1673 | fixed | failure records were rolled back, so nothing the backfill learned survived a run |
+| #1675 | fixed | `live` and `catalog` wrote a tz-aware `update_time` into a naive column; 41 of 97 partitions permanently unwritable |
+| #1683 | fixed | a failure hook escaping its task aborted `gather`, stranding siblings mid-session — `catalog` had not been attempted since 2026-08-18 |
+| #1659 | fixed | two beats scheduled to collide at 02:00 UTC, both failing; verified at runtime here |
+| #1669 | closed, resolved | the catalog `401`s were **stale records**, not a credential defect — held in place by the three bugs above, and cleared once they were |
+| #1676 | closed, not a defect | a single statement timeout on `product`, caused by my own manual diagnostics |
+| #1681 | closed, not a defect | five reconcile timeouts, same cause; 14 consecutive clean runs after the diagnostics stopped |
+
+Two of the seven were **filed as production bugs and had to be withdrawn**: manual diagnostic
+runs were contending with production beats on `analytics_performance_intervals`. The disproof
+posted first on #1681 was also wrong, in the opposite direction — it was built from the celery
+journal, which cannot see manual runs at all. Both errors are corrected on the issues rather
+than deleted, because **measuring a live system can create the failures you then attribute to
+it**, and a journal-derived "nothing was running" is only ever a claim about *scheduled* work.
+
+#1669 carries a second lesson worth keeping: a bucket that is **last** in an ordered loop
+(`revenue → live → product → catalog`) can stop running entirely and leave no signal other than
+rows quietly not changing. A `last_update` three weeks in the past was the only evidence, and
+nothing was watching it.
+
+### Bullet 1 needed three RLS fixes, each hidden behind the last
+
+`401` → `403` → `200 with zero bytes` → working. Each fix moved the failure exactly one layer up.
+
+| # | Surface | Symptom under `juli_app` | State |
+| --- | --- | --- | --- |
+| #1691 | `users`, read by `get_current_user` | `401 {"detail":"User not found"}` on a valid, correctly-signed JWT whose `sub` row demonstrably exists | merged (PR #1693, `e7c2bef9`) and deployed |
+| #1697 | `shops`, read by `get_active_shop` | `403 {"detail":"Shop not accessible"}` — `list(user.id)` ran with no GUC at all, so it saw 0 of the user's 2 shops | merged (PR #1698, `ea48b3dc`); its release run was still in flight when this was written |
+| #1700 | `workflow_run_events`, read by the SSE stream's **own** session | `200` with a **zero-byte body** for a run that has 8 events | open, no PR yet |
+
+**The generalisation is the finding, and it is two classes, not one.**
+
+- #1691 and #1697 are **pre-scope bootstrap reads**. They run before
+  `_apply_tenant_context_to_session`, and they are **bounded at two**: `get_current_user` reads
+  `users`, `get_active_shop` reads `shops`, and immediately after that
+  (`api/dependencies.py:61`) every downstream query is scoped. There is no third.
+- #1700 is a **different class — post-scope, wrong session**. `stream_run_events` depends on
+  `get_run_events_session_factory` deliberately, because a stream outlives the request session;
+  that reasoning is sound. What was missed is that `replay_events`
+  (`services/agent_runs/events.py:196`) then does `async with session_factory() as session:` and
+  selects with no tenant context. The scope exists; it just never reaches there. **A session
+  that opens its own connection inherits no scope and must take one.** `event_stream` has three
+  such uses to audit, not one: replay on the terminal path, replay on the live path, and the
+  live-tail loop.
+
+The "bounded at two" claim made on #1697 was accurate as stated and remains so. It nonetheless
+*read* as "the auth path is now complete", and it was not — a bound on one class is not a bound
+on the surface.
+
+**None of the three was reverted.** `DATABASE_URL` stays on `juli_app`: reverting would re-hide
+each defect behind the owner exemption that concealed it in the first place. The documented
+one-line revert remains available, and that call is the owner's.
+
+Stated without softening: **three RLS defects reached production**, and the third was found only
+because someone actually exercised the surface end to end. All three were invisible to CI, which
+runs the suite as `postgres` — superuser *and* table owner, and therefore exempt from every row
+policy. They were equally invisible in production, because **the authenticated surface has no
+users** (see *"Deferred: there is no way for a human to log in"* below), so its total failure
+produced no signal. A minted token is what found the first one.
+
+### The approve sub-step is recorded as not performable
+
+Bullet 1 asks for an authenticated read, an approve, **and** an SSE stream. The approve cannot be
+performed: **no run is in a confirmation state.** All five runs are terminal, the newest dated
+2026-08-20. Recorded as **not performable**, by the owner's decision, rather than manufactured by
+seeding a run to have something to approve — which would test the seeding, not the surface. The
+evidence record on #1339 was posted before that decision and still reads "no decision is recorded
+here"; **this entry is the record.**
+
+### #1630 is closed — its hypothesis was refuted by measurement
+
+The 2026-09-05 entry above records #1630 as "the root cause and still open". That is now
+superseded: it is **closed as not-planned**, and the reason is a measurement, not a
+re-prioritisation. A transaction held idle under `NullPool` with the tenant GUC set survived
+**25 minutes** with the **same backend PID** and the **GUC intact** — exceeding the 23-minute
+production failure the issue was written from. Supavisor does not replace the connection and
+`SET LOCAL` does not die with it. Two of the issue's four criteria therefore point at a mechanism
+that does not occur. The symptom is gone as well: 154 RLS denials in the three days before the
+cutover, zero since 2026-09-05 05:23.
+
+One correction it forces on the earlier entry: **there is no "per-statement scoping" to remove.**
+The only scope applications on the reconcile path are the four **per-stage** blocks in
+`shared_compute_orchestrator.py` (lines 283, 289, 299, 328). Each stage commits *inside* its own
+`with_shop_scope`, and a commit discards `SET LOCAL` — that is how `SET LOCAL` works, not a
+symptom. Re-entering the scope per stage is correct handling, not sediment.
+
+### Known open, not blocking the gate
+
+- **#1670** — `LIVE partition failed` discards the exception that caused it. 47 `live` partitions
+  carry that exact string as `last_error` with `attempt_count = 5`; each retry costs vendor calls
+  and produces the same uninformative row. All four buckets are now `complete`, so this is a
+  diagnosability defect rather than a data one — which is precisely why it will be cheap to keep
+  ignoring, and worth not ignoring.
+- **#1677** — running the unit suite rewrites a committed golden fixture in place,
+  restamping every `captured_at` in
+  `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` (23 insertions / 23
+  deletions) and leaving the tree dirty after a read-only test run. A golden fixture that
+  rewrites itself asserts nothing.
+
+### What Observation 1 still needs
+
+#1700 lands and deploys; bullet 1 is then re-verified end to end against the deployed sha — read,
+stream, and the approve sub-step recorded as not performable; and the owner signs. Only then does
+Observation 2 become available. Nothing here may be closed by disabling a control or waiving a
+precondition, and that constraint is unchanged.
+
 ## Wave 6 — sellers can watch Juli work and choose what it does (2026-08-25)
 
 Phase 11 / P-UI. **PRD [#1308](https://github.com/thienphung00/Juli-AI/issues/1308)**;
@@ -456,16 +649,79 @@ view slice invents its own tokens; the rest is a real dependency chain through t
 | W6-B/P-UI-3 nothing internal on the seller's stream *(adopted, filed 2026-08-21)* | #1272 | — |
 | W6-B/P-UI-4 scenario capture tool + server-side replay | #1311 | — |
 | W6-B/P-UI-5 the seeded demo tenant | #1312 | — |
-| W6-B/P-UI-6 anonymous session scoped to that tenant | #1313 | #1312 |
+| ~~W6-B/P-UI-6 anonymous session scoped to that tenant~~ **CLOSED — superseded by [ADR-094](../../adr/094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md)** | ~~#1313~~ | — |
 | W6-A/P-UI-1 scoped tokens + motion primitives | #1314 | — |
 | W6-A/P-UI-2 `useRunStream` + the pure reducer | #1315 | #1311 |
 | W6-A/P-UI-3 the staged run view | #1316 | #1314, #1315 |
 | W6-A/P-UI-4 the consent-grade option picker | #1317 | #1316, #1272 |
 | W6-A/P-UI-5 In-Progress becomes the run ledger | #1318 | #1310, #1314 |
-| W6-A/P-UI-6 dual entry + connect-shop screen | #1319 | #1313 |
+| W6-A/P-UI-6 dual entry + connect-shop screen | #1319 | ~~#1313~~ — unblocked, #1313 closed |
 | W6-A/P-UI-7 the mock layer is deleted | #1320 | #1309, #1318 |
 | W6-A/P-UI-8 replay journey in CI, dictionary, MODULE.md | #1321 | #1317, #1319, #1320 |
 | **W6 gate** **HITL** — a seller steers a run in a browser | #1322 | #1317, #1319, #1321 |
+
+### W6 progress — 2026-09-07 (updated end of day)
+
+**Ten of fourteen slices are merged.** W6-B is complete; W6-A is down to three items.
+
+| Merged | #1309 #1310 #1272 #1311 #1312 #1314 #1315 #1316 #1318 #1319 · #1320 *(part 1)* |
+|---|---|
+| **Open** | **#1317** (in flight), **#1320 part 2**, **#1321** |
+| **Closed, not built** | #1313 — superseded by [ADR-094](../../adr/094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md) |
+| **Gate** | #1322 — blocked on #1317 and #1321 (#1319 now merged) |
+
+**The rescope every session needs to know.** ADR-094 (**Accepted**) amends ADR-084 decisions 1 and 2:
+
+> **anonymous → client replay (no DB) · signed-in → real runs on their own shop · connect-shop → follow-up**
+
+The anonymous *Dùng thử Demo* entry mints no session, calls no authenticated route, writes no
+database row. #1353 is **dissolved**, not answered. The bodies of #1319, #1320 and #1322 were
+amended on 2026-09-07 — read the current body, never a cached copy.
+
+**Order (from [the 2026-09-05 handoff](../../handoffs/2026-09-05-w6-remaining-slices.md), still authoritative):**
+
+```
+#1315 ✓ ──► #1316 ✓ ──► #1317 ──► #1320 part 2 ──► #1321
+#1319 ✓ ────────────────────────────────────────► (independent)
+```
+
+`#1320` was split: **part 1 (merged, #1733)** repointed the recommendations read from the
+never-existent `/v1/demo/recommendations` to `/v1/demo/decisions` and removed the silent
+fixture fallback. **Part 2 (deleting `startExecution` and its localStorage state) waits for
+#1317**, because deleting before the replacement exists leaves the demo with no working path.
+
+### Four things carried forward that are nobody's slice yet
+
+1. **The anonymous replay has no client-side content source.** #1311 delivered capture and
+   replay **server-side** (`services/agent/golden_scenarios/`, served through the authenticated
+   `GET /v1/demo/runs/{id}/events`). ADR-094 assigns the replay to a path that calls no
+   authenticated route, so that mechanism is unreachable from it. Exactly one captured
+   scenario exists (`tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json`) and
+   nothing exports it to `apps/demo`. Until that export exists the replay renders
+   hand-authored content — the drift ADR-084 wanted deleted, and ADR-094 decision 5's
+   accepted-but-triggered debt.
+2. **A first-time Google user has no `public.users` row**, so `get_current_user` →
+   `UsersRepo.get_for_authentication` raises `NotFound` → **401 "User not found"**. #1319
+   surfaces it honestly; provisioning is `backend` domain and needs its own slice. The pattern
+   exists: `UsersRepo.get_or_create` with a derived placeholder phone, used in four
+   `services/tiktok/*` stores.
+3. **The wave has diverged from `main` and needs reconciling.** #1315 merged straight to
+   `origin/main` (`b019b85e7`), bypassing the wave, so #1316 shipped carrying a cherry-pick
+   that is **not byte-identical** — the reducer matches, but it omits
+   `docs/handoffs/2026-09-05-w6-remaining-slices.md` and `infra/scripts/obs1/*`. No correctness
+   risk, but the next slice hits the same wall. Precedent: #1451 / #1640.
+4. **#1316's happy-path coverage is partial by construction.** The only captured scenario pauses
+   at approval, so it holds zero `assistant.text` and zero `get_seo_keywords` events; the
+   Phân tích narration and SEO populated paths are proven only by their empty-state branches.
+   A second captured scenario (an approve variant) closes it. Fabricating events would violate
+   the wave's own no-hand-built-fixtures rule.
+
+**Owner prerequisites are settled.** The Supabase Google provider is configured and verified
+(GCP project `juli-auth-51452`, `external.google = true`, `/auth/v1/authorize?provider=google`
+→ 302). Anonymous sign-in stays **off by decision**. The remaining owner item is publishing the
+consent screen, which needs `/privacy` and `/terms` on `app-juli.com` (both 404 today) — a Demo
+Launch gate, not W6 work. See `docs/handoffs/owner-hitl-queue.md` §5.
+
 
 ### Public release
 
@@ -680,9 +936,11 @@ named for the phases they implement.
 | **W6 — P-UI** | 11 | 🟨 **PLANNED AND FILED 2026-08-25** · PRD #1308, ADR-084 · W6-B contract lane #1309 #1310 #1272 #1311 #1312 #1313 · W6-A interface lane #1314–#1321 · gate #1322 · rider #1077 (seller-copy TS half) — see [Wave 6](#wave-6--sellers-can-watch-juli-work-and-choose-what-it-does-2026-08-25) | **W7** |
 | **W7 — P-PROD** | 11d (NEW) | 🟨 **PLANNED AND FILED 2026-08-25** · PRD #1325, ADR-085 · W7-A isolation #1326–#1330 · W7-B red-team harness #1331–#1334 · W7-C write machinery #1335–#1337 · W7-D measurement #1338 · gate #1339 — see [Wave 7](#wave-7--the-owner-can-authorize-one-real-change-and-prove-it-was-safe-2026-08-25). **ADR-050 C2 removed from this wave** and deferred with its own trigger | **W6** |
 | **W8 — P10** | 12 | Logging baseline re-verification, per-run rollup, the five-link outcome chain, the four unconflated metrics · closes #1226's second half | — |
-| **W9-A — template hardening + Optimize Product pricing realignment** | 14 (design-order items 0–1) | The part of P13 step 0 the realignment needs (`workflow_key`, bound subject, tool dispatcher, shared prompt sections) · seller-journey finding 1's correction: reprice through a Product Discount instead of `prices/update`, diagnostics first, title-length and listing-bundle guards, prompt v4 · HITL sandbox re-proof — see [Where the Optimize Product pricing realignment lands](#where-the-optimize-product-pricing-realignment-lands-2026-09-03) | — |
-| **W9-B — P15 + P7** | 13, 9 | Hardening pass over the whole — now realigned — Optimize Product path; extract the per-workflow config template (prompt + allowlist + **output schema**) · P7 structured output contract | — |
-| **W10 — P13** | 14 (design-order items 2–9) | Edge-case matrix; register the 4 unregistered tool handlers; onboard the remaining workflows via the template **in the P13 design order** (Clear Excess → **Process Order + Split Package** → Replenish FBS → **Mega Sale Readiness** → Create Hero Product → Promotion family → 8a–8c → CS responses). Item 1, the Optimize Product pricing realignment, has moved to **W9-A** | — |
+| **W9-A — shared workflow ladder** | 14 (design-order item 0) | PRD [#1620](https://github.com/thienphung00/Juli-AI/issues/1620) — the full shared ladder: `workflow_key`, bound subject, tool dispatcher, shared prompt sections, step input contracts, the deadline clock, the `waiting_external` run state (#1706), seller inputs (#1709) and the webhook wake (#1708) | — |
+| **W9-B — Optimize Product pricing realignment (P-OP)** | 14 (design-order item 1), 13, 9 | PRD [#1621](https://github.com/thienphung00/Juli-AI/issues/1621) — reprice through a Product Discount instead of `prices/update`, diagnostics first, title-length and listing-bundle guards, prompt v4 · depends on W9-A's ladder and W9-C's captures | — |
+| **W9-C — vendor-contract captures** | 14 | PRD [#1622](https://github.com/thienphung00/Juli-AI/issues/1622) — the corpus captures the realignment and the W10 lanes depend on | — |
+| **W9-D — agent UI** | 11, 14 | PRD [#1623](https://github.com/thienphung00/Juli-AI/issues/1623) — the seller-facing surface over the shared ladder | — |
+| **W10 — P13** | 14 (design-order items 2–4) | Three workflow lanes — **W10-A** [#1624](https://github.com/thienphung00/Juli-AI/issues/1624), **W10-B** [#1625](https://github.com/thienphung00/Juli-AI/issues/1625), **W10-C** [#1626](https://github.com/thienphung00/Juli-AI/issues/1626) (design-order items 2–4). Items 5–9 are not yet filed | — |
 
 ### Filed work — W4 and W5
 
@@ -740,15 +998,16 @@ vocabulary" because `output_validation_failed` was already reserved. That is no 
 `failed` run carrying it will be ambiguous between a guard hit and a validation failure. P7
 must split the reason or carry a discriminator.
 
-### Where the Optimize Product pricing realignment lands (2026-09-03)
+### Where the Optimize Product pricing realignment lands (2026-09-03, superseded 2026-09-05)
 
-**Decision: W9-A** — a new first sub-wave of W9, ahead of P15 and P7. It carries P13 design-order
-item 1 and the part of item 0 that item 1 depends on.
+**Decision: W9-B** (PRD [#1621](https://github.com/thienphung00/Juli-AI/issues/1621)), behind
+W9-A's shared ladder ([#1620](https://github.com/thienphung00/Juli-AI/issues/1620)) and W9-C's
+captures ([#1622](https://github.com/thienphung00/Juli-AI/issues/1622)).
 
 **The realignment's design is [ADR-090](../../adr/090-optimize-product-realignment.md)** — seven
 decisions covering the discount-only price lever, diagnosis-first step order, one lever per run,
 the single-option decision request, no Repeat consent with a lapse revision, and the honest
-no-change end states. Read it before `to-prd` on any W9-A slice below.
+no-change end states. Read it before `to-prd` on any W9-B slice.
 
 Three of this plan's own constraints pick the wave:
 
@@ -768,32 +1027,10 @@ Three of this plan's own constraints pick the wave:
 **Alternative considered:** a new **W8.5** run in parallel with W6/W8 — rejected on the write-path
 overlap above; it would have needed three declared serialization points to buy one wave of clock.
 
-**Slices — W9-A.** Template hardening first, then the realignment, then the proof.
-
-| # | Slice | Domain |
-| --- | --- | --- |
-| W9-A/T-1 | `workflow_key` on `workflow_runs`, polymorphic bound subject (nullable `product_id`), active-run index on `(shop_id, workflow_key, subject_ref)` | data-platform |
-| W9-A/T-2 | domain-registered tool dispatcher replacing `ProductToolExecutor`'s literal handler dicts | backend |
-| W9-A/T-3 | shared prompt sections extracted per [ADR-072](../../adr/072-agent-prompt-architecture.md) d.1; the two gate tests de-pinned from `optimize_product_2` | backend |
-| W9-A/R-1 | diagnostics-first read tool — TikTok's own listing diagnostics fetched *before* `get_seo_keywords` | integrations |
-| W9-A/R-2 | `create_product_discount` write tool + its sanitizer adapter under the [ADR-070](../../adr/070-agent-safe-sanitization-contract.md) contract | integrations |
-| W9-A/R-3 | campaign / Flash-Deal precheck — refuse a discount that collides with an active activity or a fixed-price promo | integrations |
-| W9-A/R-4 | title-length gate — ≥ 25 characters, enforced on the next edit (finding 8) | backend |
-| W9-A/R-5 | listing-edit bundle guard — title, category, images and description never in one write (finding 8) | backend |
-| W9-A/R-6 | prompt v4 — diagnostics-first ordering, discount vocabulary, both guards | backend |
-| W9-A/R-7 | [`execution_layer.md`](../execution_layer.md) step 6 corrected from `prices/update` to the discount path | docs (fast-track lane) |
-| **W9-A gate** | **HITL** — one live sandbox run reprices a real listing through a Product Discount, watched from the browser, no `curl` and no SSH | owner |
-
 **The gate inherits #1226's blocker and adds one.** The sandbox listing still carries placeholder
 data, and it now must also be **Product-Discount-capable**: a SKU whose base price a discount can
 sit under, with no active campaign or flash sale on it. Owner action in the sandbox Seller Center,
 not code.
-
-**What stays out of W9-A.** The rest of design-order item 0 — step input contracts, the deadline
-clock, the `waiting_external` run state and the autonomy ladder — rides with the first W10 workflow
-that needs it (Inventory, then Customer Service). The realignment needs none of the four, and
-pulling them forward would make W9-A a wave. W9-B is otherwise unchanged: P15's hardening pass and
-P7, over the realigned path.
 
 ### Still deferred, with the trigger for picking each up
 
@@ -1484,9 +1721,9 @@ prepares the campaign event that Process Order then has to survive.
 
 #### Seller-journey evidence
 
-Five Opus scouts read ~120 bodies from the TikTok Academy VN corpus (ADR-051 protocol) and
-aligned each journey to `execution_layer.md` step by step. A sixth scout (mega-sale preparation,
-2026-09-03) swept the campaign/mega filter across both the academy and partner corpora. The reports
+**Seven** Opus scouts read ~120 bodies from the TikTok Academy VN corpus (ADR-051 protocol) and
+aligned each journey to `execution_layer.md` step by step, including a mega-sale-preparation
+sweep (2026-09-03) across both the academy and partner corpora. The reports
 are committed beside this plan and are the source of truth for the corrections below:
 
 | Journey | Report | Juli workflows aligned |
@@ -1565,7 +1802,7 @@ Composite is the product of the four columns — a ranking device only, not a un
 | # | Item | Family | Wave | Scope |
 |---|---|---|---|---|
 | 0 | Template hardening | shared | **W9-A** (T-1..T-3); the rest with the first W10 workflow that needs it | `workflow_key` on `workflow_runs`; polymorphic bound subject (nullable `product_id`, active-run index on `(shop_id, workflow_key, subject_ref)`); domain-registered tool dispatcher replacing `ProductToolExecutor`'s literal handler dicts; shared prompt sections extracted per ADR-072 d.1; the two gate tests de-pinned from `optimize_product_2`; step input contracts (deferred-design half 1). **Also the deadline clock, the `waiting_external` run state and the autonomy ladder** (see NFR reference) — Inventory and Customer Service cannot ship without them |
-| 1 | Optimize Product pricing realignment | Product | **W9-A** — see [where it lands](#where-the-optimize-product-pricing-realignment-lands-2026-09-03) | Read TikTok's diagnostics first (before `get_seo_keywords`); reprice via Product Discount with the campaign/Flash-Deal precheck; title-length gate; never bundle the four listing fields. Introduces the first Promotion write tool. **design: [ADR-090](../../adr/090-optimize-product-realignment.md)** |
+| 1 | Optimize Product pricing realignment | Product | **W9-B** — see [where it lands](#where-the-optimize-product-pricing-realignment-lands-2026-09-03-superseded-2026-09-05) | Read TikTok's diagnostics first (before `get_seo_keywords`); reprice via Product Discount with the campaign/Flash-Deal precheck; title-length gate; never bundle the four listing fields. Introduces the first Promotion write tool. **design: [ADR-090](../../adr/090-optimize-product-realignment.md)** |
 | 2 | Clear Excess Inventory (4) | Inventory | W10 | Drop the markdown; pre-submit validator (bands, duration, floor, stacking); end with the Thanh lý label. First workflow to need `waiting_external`. **design: [ADR-091](../../adr/091-clear-excess-inventory-design.md)** |
 | 3 | Process Order (5) + Handle Split Package (6) | Operations | W10 | An everyday operations workflow whose **non-functional requirement is sustained high-volume processing during a mega sale**: order volume multiplies while the 14:00 cutoff, the 2–3-working-day auto-cancel, the 48 h cancellation window and LDR/FDR do not move. The deadline clock is the run's spine; `waiting_external` and its intervention guard are reused from ADR-091; inventory webhooks (#27/#68) drive an **oversell guard** that pauses dispatch proposals for a SKU whose available stock has reached zero; packing and handover are presented as a timed human checklist. Combine/split is decided at Create Packages, not downstream; an Update Delivery Status step for Ship-by-Seller; a failed-delivery terminal branch; OHC capacity and Holiday Mode as capacity levers; multi-warehouse modelled — [`seller-journeys/order-shipping.md`](seller-journeys/order-shipping.md) and [`seller-journeys/mega-sale-prep.md`](seller-journeys/mega-sale-prep.md) §B/§E. **design: [ADR-092](../../adr/092-process-order-dispatch-design.md)** — v1 scoped minimal (FBS + platform shipping, two runs a day, one batch confirmation, notification-only exceptions, Batch Ship as the only write); the v2 column is the mega-sale NFR; the standing approval (option 2) is planned and deferred |
 | 4 | Replenish Inventory (3), FBS | Inventory | W10 | An **inventory-risk forecaster** (owner framing 2026-09-04): Stage A monitors three signals — stockout-by date under the event uplift, stranded committed stock (cancelled, not returned, auto-restock OFF), post-event excess (→ Clear Excess). Two labelled numbers (TikTok's baseline + Juli's event uplift) summed into one agent-proposed order; one run suspended twice on seller-attested reports ("ordered", "received") with the report form as the consent moment; in-event reconciliation of stranded stock in batches; the auto-restock toggle recommended before the event, never flipped unasked; three write guards (auto-restock state, Luôn sẵn hàng lock, multi-warehouse allocation); impact reading = **stock health**, no revenue. Stock locks at **order placement** (`committed_quantity`), not add-to-cart. **design: [ADR-093](../../adr/093-replenish-inventory-design.md)** |
@@ -1581,6 +1818,18 @@ limited functionality — minimal, viable and safe. The single v1 spec, function
 requirements per workflow plus the shared requirements, is
 [`v1-workflow-spec.md`](v1-workflow-spec.md); it is the input to `to-prd`. Where it trims an ADR
 decision for v1 the trim is marked in the spec, and the ADR remains the design of record.
+
+**Delivery rules for the v1 build (owner, 2026-09-05).** (1) Shared code (design-order item 0,
+restricted to the P0 ladder in [`v1-workflow-spec.md`](v1-workflow-spec.md) §8.1) lands first and
+serially; the four workflow lanes then run in parallel with disjoint write paths. (2) **The first
+~10 % of slices in landing order — the P0 shared code and the first Optimize Product slices — are
+executed by Fable**, overriding the Haiku executor row of the agent phase model for those slices,
+to establish the code standard (`docs/architecture/code-standard.md`) that every later Haiku
+executor is held to; the Haiku review agent reviews them unchanged. (3) v1 is done only when a
+workflow works end-to-end for a real connected seller, so the production-write unlock (#1339) and
+W7-bis (#1469) are on the v1 critical path. (4) One active run per subject across all workflows,
+with endpoint-family write locks (spec S-FR-11). (5) One deadline view is the single surface added
+to the identical-UX set, shared by every workflow.
 
 **Delivery rules for the v1 build (owner, 2026-09-05).** (1) Shared code (design-order item 0,
 restricted to the P0 ladder in [`v1-workflow-spec.md`](v1-workflow-spec.md) §8.1) lands first and
@@ -1702,7 +1951,7 @@ Per-family plan:
 | Response rate 24h (Store Rating, analytics tile) vs 12h (enforcement) | chat feature page vs communication policy | Model both; enforce on 12h |
 | 7c Update Activity `POST` vs `PUT` | `execution_layer.md:301-306` vs `contract-collection.md:1201` | `PUT` |
 | Flash-sale price-floor lookback 14 days vs 30 days | newer product flash-sale page vs older LIVE flash-sale page | **30 days** (conservative) |
-| `Search Activities` "does not exist" vs documented in the Partner API | `execution_layer.md:290-293` vs `partner-catalog.json` `POST /promotion/202309/activities/search` | Capture it on the sandbox before relying on it either way |
+| `Search Activities` "does not exist" vs documented in the Partner API | `execution_layer.md:290-293` vs `partner-catalog.json` `POST /promotion/202309/activities/search` | **Resolved 2026-09-05: it does not exist** (`contract-collection.md` A-25, `endpoints.md:509`, `scope-verification/optimize-product-clear-excess.md:69`); collision detection is Juli-side permanently |
 | §5A step 4 Create Packages vs Partner docs "region specific to the US and JP" | `execution_layer.md` §5A vs `create-packages-202512.md:17`; VN production orders already carry `packages[]` | Read `package_id`; no create in SEA |
 | §5A step 7 Confirm Package Shipment vs "only warehouse service providers certified by the platform" | `execution_layer.md` §5A vs `supply-chain/confirm-package-shipment-202309.md:17` | Delete the step |
 | Ship-by-Seller auto-cancel 15 calendar days vs day 13 from payment | `seller-journeys/order-shipping.md` vs the SOF feature page | **13 days** |
@@ -1995,3 +2244,51 @@ walk is currently the *only* end-to-end test of this path (see ADR-088 decision
 4 on the live smoke that has never run), so redesigning mid-walk would remove
 the one instrument that has found every one of these defects. Close the gate,
 then design this properly as an ADR.
+
+---
+
+## Deferred: there is no way for a human to log in — DESIGN AND IMPLEMENT NEEDED
+
+**Status: not started. Needs design before implementation. Do not build ad hoc.**
+
+Found on 2026-09-07 while attempting Observation 1 bullet 1 of the W7 gate
+(#1339), which requires an authenticated read, an approve and an SSE stream.
+None could be performed, because **the deployed system has no login surface at
+all**:
+
+- `apps/dashboard` holds the only login page (`src/app/login/page.tsx`) and is
+  **deliberately retired from production** — `release.yml:140`: *"apps/dashboard
+  is absent on purpose: it is npm-owned, is not a pnpm workspace member, and PRD
+  #820 retires it from production rather than deploying it."*
+- `app-juli.com` serves the **landing** app. `/login`, `/signin`, `/dashboard`
+  all return 404.
+- `demo.app-juli.com` runs in mock mode; it consumes a bearer token and never
+  mints one.
+
+So no seller — and no owner — can obtain a token against production today.
+
+### What needs designing
+
+1. **Adapt or reuse the dashboard's login for `app-juli.com` and
+   `demo.app-juli.com`.** The page exists and is Supabase-backed; the question
+   is where it should live now that its host app is retired, and whether the two
+   domains share one auth surface or each get their own.
+2. **An onboarding flow for the demo page (UI design).** A seller arriving at
+   `demo.app-juli.com` currently has no path from landing to an authenticated
+   session with a shop bound to it.
+
+Both are **owner-led design first** — to be taken through the Architect agent
+before any implementation. This note exists so that agents routing work in this
+area know the gap is known, is deliberate, and is **not** to be closed by
+improvising a login.
+
+### Why it stayed invisible
+
+The authenticated surface has no users, so its total failure produces no signal.
+That is exactly how **#1691** went unnoticed: under `juli_app` *every*
+authenticated request 401s, because the `users` RLS policy reads a GUC that
+authentication has not set yet, and the runtime was previously owner-exempt from
+that policy. A login surface would have surfaced it immediately.
+
+Fix #1691 first — a login that reaches a backend which cannot authenticate
+anyone is not a working login.

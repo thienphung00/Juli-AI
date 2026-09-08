@@ -6,6 +6,16 @@
     "*.css"
   ],
   "exports": {
-    "./tokens.css": "./tokens.css"
+    "./tokens.css": "./tokens.css",
+    "./run-surface-tokens.css": "./run-surface-tokens.css"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "type-check": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "^5.4.0",
+    "vitest": "4.1.10"
   }
 }

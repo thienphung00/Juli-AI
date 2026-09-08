@@ -13,7 +13,7 @@ from typing import Any, Callable
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent / "ci"))
 
-from build_runtime import ConfigError, load_simple_yaml, nested_get, validate_config
+from build_runtime import ConfigError, load_simple_yaml, validate_config
 from harness_config import allowed_auto_apply_fields, apply_change, preview_change
 from common import (
     IMPLEMENTATIONS_DIR,
@@ -301,7 +301,9 @@ def fix_artifact_incomplete(metrics: dict[str, Any]) -> ProposedFix:
         details=f"Missing or incomplete artifact evidence: {missing}.",
         config_target="artifacts",
         expected_impact="Improves optimization reliability by restoring deterministic evidence.",
-        metric_impacts=[{"metric": "validationFailureRate", "direction": "neutral", "magnitude": "low"}],
+        metric_impacts=[
+            {"metric": "validationFailureRate", "direction": "neutral", "magnitude": "low"}
+        ],
         harness_config_targets=["agent_runtime_config"],
         auto_apply_eligible=False,
     )
@@ -319,7 +321,9 @@ def fix_validation_failure(metrics: dict[str, Any]) -> ProposedFix:
         details="Validation failed after implementation; require Architect/Meta approval before changing agent structure.",
         config_target="agent_structure.mode",
         expected_impact="Expected to reduce validation failures on similar tasks.",
-        metric_impacts=[{"metric": "validationFailureRate", "direction": "decrease", "magnitude": "medium"}],
+        metric_impacts=[
+            {"metric": "validationFailureRate", "direction": "decrease", "magnitude": "medium"}
+        ],
         harness_config_targets=["agent_runtime_config"],
         auto_apply_eligible=False,
         value="planner_executor_reviewer",
@@ -339,7 +343,9 @@ def fix_review_gap(metrics: dict[str, Any]) -> ProposedFix:
         details="Review found blocking issues that earlier executor context did not prevent.",
         config_target=f"skills.{executor}",
         expected_impact="Expected to reduce review failures on similar tasks.",
-        metric_impacts=[{"metric": "reviewFailureRate", "direction": "decrease", "magnitude": "medium"}],
+        metric_impacts=[
+            {"metric": "reviewFailureRate", "direction": "decrease", "magnitude": "medium"}
+        ],
         harness_config_targets=["agent_runtime_config"],
         auto_apply_eligible=False,
     )
@@ -349,7 +355,9 @@ def detect_wrong_executor_domain(metrics: dict[str, Any]) -> bool:
     expected = metrics.get("expectedExecutor")
     assigned = metrics.get("executorAssigned")
     enabled = set(metrics["config"].get("executors", {}).get("enabled", []))
-    return bool((assigned and assigned not in {"none", *enabled}) or (expected and assigned != expected))
+    return bool(
+        (assigned and assigned not in {"none", *enabled}) or (expected and assigned != expected)
+    )
 
 
 def fix_wrong_executor_domain(metrics: dict[str, Any]) -> ProposedFix:
@@ -384,7 +392,10 @@ def fix_wrong_executor_domain(metrics: dict[str, Any]) -> ProposedFix:
 def detect_context_overloaded(metrics: dict[str, Any]) -> bool:
     max_files = _context_limit(metrics, "max_files", 25)
     budget_tokens = _context_limit(metrics, "budget_tokens", 50000)
-    return len(metrics["contextFilesLoaded"]) > max_files or metrics["tokenUsage"]["total"] > budget_tokens
+    return (
+        len(metrics["contextFilesLoaded"]) > max_files
+        or metrics["tokenUsage"]["total"] > budget_tokens
+    )
 
 
 def fix_context_overloaded(metrics: dict[str, Any]) -> ProposedFix:
@@ -446,7 +457,9 @@ def fix_tool_overuse(metrics: dict[str, Any]) -> ProposedFix:
         details=f"Observed {metrics['toolInvocationCount']} tool invocations above configured limit {limit}.",
         config_target="benchmark.thresholds.tool_invocation_regression_count",
         expected_impact="Expected to make tool overuse measurable before disabling tools.",
-        metric_impacts=[{"metric": "toolInvocationCount", "direction": "decrease", "magnitude": "low"}],
+        metric_impacts=[
+            {"metric": "toolInvocationCount", "direction": "decrease", "magnitude": "low"}
+        ],
         harness_config_targets=["benchmark_tasks"],
         auto_apply_eligible=False,
         value=new_value,
@@ -520,13 +533,17 @@ def detect_root_cause(metrics: dict[str, Any]) -> tuple[str, ProposedFix]:
     )
 
 
-def apply_fix(config_path: Path, fix: ProposedFix, *, confirm: bool = False) -> tuple[bool, dict[str, Any] | None]:
+def apply_fix(
+    config_path: Path, fix: ProposedFix, *, confirm: bool = False
+) -> tuple[bool, dict[str, Any] | None]:
     if not fix.auto_apply_eligible or fix.config_target not in ALLOWED_AUTO_APPLY_TARGETS:
         return False, None
     if fix.value is None:
         return False, None
     try:
-        result = apply_change(fix.config_target, fix.value, config_path=config_path, confirm=confirm)
+        result = apply_change(
+            fix.config_target, fix.value, config_path=config_path, confirm=confirm
+        )
     except Exception:
         return False, None
     return bool(result.get("applied")), result
@@ -586,9 +603,7 @@ def build_optimization_artifact(
         "humanApprovalRequired": auto_apply and not applied,
         "appliedStatus": applied_status,
         "sourceArtifacts": {
-            name: artifact_path(path)
-            for name, path in source_paths.items()
-            if path.exists()
+            name: artifact_path(path) for name, path in source_paths.items() if path.exists()
         },
         "notes": "Meta Agent optimization is limited to declarative harness configuration.",
     }
@@ -639,15 +654,17 @@ def evaluate_before_after(before: dict[str, Any], after: dict[str, Any]) -> dict
 def propose(args: argparse.Namespace) -> int:
     issue = resolve_issue_number(args.issue)
     if issue is None:
-        print("error: could not resolve issue number (use --issue or feat/issue-N branch)", file=sys.stderr)
+        print(
+            "error: could not resolve issue number (use --issue or feat/issue-N branch)",
+            file=sys.stderr,
+        )
         return 1
 
     config = load_simple_yaml(args.config)
     validate_config(config)
     source_paths = {
         "implementation": args.implementation
-        or IMPLEMENTATIONS_DIR
-        / f"implementation-issue-{issue}.json",
+        or IMPLEMENTATIONS_DIR / f"implementation-issue-{issue}.json",
         "review": args.review or REVIEWS_DIR / f"review-issue-{issue}.json",
         "validation": args.validation or VALIDATION_DIR / f"validation-issue-{issue}.json",
     }
@@ -709,7 +726,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command")
 
-    propose_parser = subparsers.add_parser("propose", help="generate a harness optimization artifact")
+    propose_parser = subparsers.add_parser(
+        "propose", help="generate a harness optimization artifact"
+    )
     propose_parser.add_argument("--issue", type=int, required=False)
     propose_parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     propose_parser.add_argument("--implementation", type=Path)
@@ -723,7 +742,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     propose_parser.set_defaults(func=propose)
 
-    evaluate_parser = subparsers.add_parser("evaluate", help="compare before/after optimization artifacts")
+    evaluate_parser = subparsers.add_parser(
+        "evaluate", help="compare before/after optimization artifacts"
+    )
     evaluate_parser.add_argument("--before", type=Path, required=True)
     evaluate_parser.add_argument("--after", type=Path, required=True)
     evaluate_parser.add_argument("--output", type=Path)

@@ -80,11 +80,12 @@ async def approve_demo_decision(
     oracle, never 403). 409 -- a non-`active` card (covers a sequential or
     concurrent double-approve: the loser always finds the card already
     flipped), a shop with zero `products` to bind the run to (ADR-082
-    decision 4), or a raced concurrent second active run for the derived
-    product (`uq_workflow_runs_active_shop_product`, translated the same
-    way `agent_runs.py::create_run` already did before this route replaced
-    it as the run-creation path). `202` with the created run's id, its
-    derived `product_id`, and the Celery task id on success.
+    decision 4), a card whose `workflow_key` has no registered playbook
+    (ADR-084 decision 3), or a raced concurrent second active run for the
+    derived product (`uq_workflow_runs_active_shop_product`, translated the
+    same way `agent_runs.py::create_run` already did before this route
+    replaced it as the run-creation path). `202` with the created run's id,
+    its derived `product_id`, and the Celery task id on success.
     """
     shop_id = shop.id
 
@@ -140,6 +141,12 @@ async def approve_demo_decision(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Shop has no products to bind this run to",
+        ) from exc
+    except approval_module.WorkflowNotExecutable as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This decision's workflow cannot be executed by Juli",
         ) from exc
     except IntegrityError:
         await session.rollback()

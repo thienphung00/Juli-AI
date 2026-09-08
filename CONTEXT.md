@@ -219,7 +219,7 @@ The value the agent commits to for **every** field of a Decision plan review bef
 _Avoid_: empty-string defaults as "the seller will fill it in", seller-reserved blank fields
 
 **Repeat consent**:
-The post-completion ask — whether Juli may run this workflow again without a fresh approval. Raised **after** the work finishes (acknowledgement → progress → repeat consent), never bundled into the initial approval. Gated three ways: only on lifecycle **`completed`** (never `needs_input`), **once per workflow kind** (not per execution), and only for workflows whose shipped copy carries **no no-auto-act promise** — still 5 of 11, but a different five once the two W9-A/W10 designs land ([ADR-090](docs/adr/090-optimize-product-realignment.md) d.6 takes `optimize_product_2` out, because its lever is now a priced expiring promotion; [ADR-091](docs/adr/091-clear-excess-inventory-design.md) d.8 puts `clear_excess_4` in, because the stock write its promise described is gone). What is granted is **pre-approval with notification**, never silent automation ([ADR-055](docs/adr/055-decision-plan-review.md)).
+The post-completion ask — whether Juli may run this workflow again without a fresh approval. Raised **after** the work finishes (acknowledgement → progress → repeat consent), never bundled into the initial approval. Gated three ways: only on lifecycle **`completed`** (never `needs_input`), **once per workflow kind** (not per execution), and only for workflows whose shipped copy carries **no no-auto-act promise** — still 5 of 11, but a different five once the two W9-B/W10-A designs land ([ADR-090](docs/adr/090-optimize-product-realignment.md) d.6 takes `optimize_product_2` out, because its lever is now a priced expiring promotion; [ADR-091](docs/adr/091-clear-excess-inventory-design.md) d.8 puts `clear_excess_4` in, because the stock write its promise described is gone). What is granted is **pre-approval with notification**, never silent automation ([ADR-055](docs/adr/055-decision-plan-review.md)).
 _Avoid_: an automation toggle inside the approve step, consent implied by a single approval, prompting after `needs_input`, silent automation, conflating "không tự suy diễn" (won't infer a number) with a no-auto-act promise
 
 **No-auto-act promise**:
@@ -306,16 +306,12 @@ copying the previous revision forward, re-offering an executed card on a timer a
 ## Inventory
 
 **Phase 2 FBS-only fulfillment**:
-Phase 2 executors assume **Fulfillment by Seller (FBS)** only. FBT paths deferred to Phase 5. Webhook catalog entries continue ingest/ACK/ETL; no FBT executor dispatch until Phase 5.
+Phase 2 executors assume **Fulfillment by Seller (FBS)** only. FBT is **monitor-only** in v1 ([ADR-092](docs/adr/092-process-order-dispatch-design.md)): no FBT executor dispatch, read-only status tracking. Webhook catalog entries continue ingest/ACK/ETL.
 _Avoid_: implementing FBT clearance or restock writes in Phase 2
 
-**Supplier-sourced replenishment**:
-Restocking via external supplier integration (`Replenish via Supplier` workflow). Terminal step syncs available quantity to TikTok via Product API.
-_Avoid_: Supplier Sourcing (informal), dropship (when meaning ERP/self-managed stock)
-
-**ERP-sourced replenishment**:
-Restocking via purchase request and inbound receipt in the seller's ERP (`Replenish via ERP` workflow). Juli does not operate a warehouse; ERP is the seller's stock ledger. Terminal step syncs to TikTok via Product API.
-_Avoid_: ERP-sourced replenishment (when meaning supplier path), Warehouse System (phantom executor)
+**Attested report**:
+A seller-supplied, human-relayed statement of an off-platform fact (a supplier order placed, goods received) whose form *is* the consent moment; its params hash covers the seller-supplied values and corrections are new reports ([ADR-093](docs/adr/093-replenish-inventory-design.md)). Juli operates no supplier or ERP integration — no such surface exists at TikTok.
+_Avoid_: Replenish via Supplier, Replenish via ERP (retired workflow names), supplier API, ERP sync (no such surface exists), treating the seller's report as a hint rather than the consent
 
 **Customer Service execution**:
 Approval-gated workflow actions for Resolve Recurring Customer Complaints (Phase 3 deferred) and live Post-sales workflows **Request Return (8b)**, **Request Cancellation (8a)**, **Request Refund (8c)**. Phase 2 CSAT is advisory-only with **no live workflow key**. Step catalogs: `execution_layer.md`.
@@ -402,8 +398,16 @@ The single product an agent run operates on, derived server-side inside the appr
 _Avoid_: caller-supplied product_id on the agent path, re-resolving the product per tool call, "the shop's product" as if shops had one, treating the derivation as consent
 
 **Decision request**:
-The generalized CONFIRM pause (ADR-075 pending, user directive): at a mutation point the agent presents 1..N reasoned HOW-level options (e.g. three price moves, each with rationale) instead of a single approve/decline diff — plan-mode style. Recorded as a single-use `run_confirmations` row storing each option's `proposed_change` verbatim + `params_sha`; the seller approves one option or declines all; on resume only the selected option's hash-matched params may execute. Decline is a conversation, not a kill: the model wraps up honestly → `completed`/`confirmation_declined`. Binary confirm is the N=1 case. Free-form mid-run seller Q&A is deferred with P-CS.
+The generalized CONFIRM pause (ADR-075 pending, user directive): at a mutation point the agent presents 1..N reasoned HOW-level options instead of a single approve/decline diff — plan-mode style. Recorded as a single-use `run_confirmations` row storing each option's `proposed_change` verbatim + `params_sha`; the seller approves one option or declines all; on resume only the selected option's hash-matched params may execute. Decline is a conversation, not a kill: the model wraps up honestly → `completed`/`confirmation_declined`. Binary confirm is the N=1 case. **v1 is N = 1 only** ([ADR-090](docs/adr/090-optimize-product-realignment.md) d.5): a single reasoned proposal; the multi-option shape is the schema, not the behaviour. Free-form mid-run seller Q&A is deferred with P-CS.
 _Avoid_: approve/decline-only confirmation framing, decline-kills-run, executing anything not shown to the seller, model-invocable request_approval tools
+
+**Onboarding layer**:
+The first-time experience of the demo app (ADR-098): a layer keyed on which of the five workflow stages the seller has met, rendered on the existing surfaces — five one-sentence explainers shown once, a setup card that marks "bắt đầu từ đây" on the first card of the list's own ordering and shows progress, a one-sheet "what Juli does", and the first impact-reading act record as the closing moment. Identical for the demo visitor (replay) and the connected seller (own shop); seen-state in browser storage in v1.
+_Avoid_: a tour before the first list, a workflow-specific onboarding, preference quizzes, an autonomy-mode question, any new surface
+
+**Bootstrap status**:
+A per-shop record written by the seven-day bootstrap (backfill and polls) as it progresses and read by the app to drive the connected seller's empty-list step list — kết nối shop, đọc sản phẩm và đơn hàng, chuẩn bị đề xuất đầu tiên — where a step is done only when its job finished (ADR-098 d.6). Replaces the "trong vòng 24 giờ" promise.
+_Avoid_: a fake progress percentage, a static waiting notice, marking a step done on a timer
 
 **Demo session**:
 An anonymous Supabase sign-in session created by "Dùng thử Demo" (ADR-076 pending): a real JWT (distinct user per visitor, meaningful audit rows) whose active shop is structurally pinned to the reference shop; rate buckets keyed per user-session. Demo runs are recorded replays of golden scenarios served through the identical SSE endpoint — live mode sits behind a config flag. Upgradeable to a Google identity via Supabase identity linking. Distinct from the real-merchant path: Google → Supabase Auth (identity) → TikTok OAuth (shop authorization) — two separate facts, never conflated.
@@ -430,7 +434,7 @@ The 8-state lifecycle of an agent workflow run (ADR-068 pending): `created → q
 _Avoid_: encoding narration phases (GATHERING_CONTEXT, ANALYZING) as stored states, extending `ExecutionStatus` with run semantics, reusing `DemoExecutionState` on the agent path
 
 **Tool execution policy**:
-The per-tool execution class on a `ToolSpec` in agent workflow execution (ADR-068 pending): **AUTO** (READ + internal tools — run without pausing), **CONFIRM** (every WRITE tool this phase — the run pauses with `workflow.approval_required`, showing the agent-composed mutation as a diff, because LLM-authored content did not exist at plan-approval time), **NEVER** (operations absent from every playbook — not registered as tools at all, structural rather than runtime). Repeat consent (ADR-055 item 19) is the only CONFIRM→AUTO downgrade path, valid solely for the five repeat-consent-eligible workflow kinds; class-D shipped promises must be changed deliberately before widening.
+The per-tool execution class on a `ToolSpec` in agent workflow execution (ADR-068 pending): **AUTO** (READ + internal tools — run without pausing), **CONFIRM** (every WRITE tool this phase — the run pauses with `workflow.approval_required`, showing the agent-composed mutation as a diff, because LLM-authored content did not exist at plan-approval time), **NEVER** (operations absent from every playbook — not registered as tools at all, structural rather than runtime). Repeat consent (ADR-055 item 19) is the only CONFIRM→AUTO downgrade path, valid solely for the five repeat-consent-eligible workflow kinds — and [ADR-090](docs/adr/090-optimize-product-realignment.md) d.6 removes `optimize_product_2` from that five while [ADR-091](docs/adr/091-clear-excess-inventory-design.md) d.8 adds `clear_excess_4`; class-D shipped promises must be changed deliberately before widening.
 _Avoid_: requires_confirmation boolean (two-state — misses NEVER), auto-execute allowlist (policy lives on the ToolSpec, not a separate list)
 
 **Action executor**:

@@ -36,6 +36,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from juli_backend.core.async_db import async_database_url
+from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 from juli_backend.services.agent.events.envelope import WorkflowCompletedEvent, WorkflowFailedEvent
 from juli_backend.services.agent.events.persisting_sink import run_events_channel
@@ -192,9 +193,32 @@ async def replay_events(
     session_factory: async_sessionmaker[AsyncSession],
     run_id: uuid.UUID,
     after_seq: int,
+    shop_id: uuid.UUID,
 ) -> AsyncIterator[WorkflowRunEventRow]:
-    """Every event ``> after_seq`` for ``run_id`` in order, from a fresh session."""
-    async with session_factory() as session:
+    """Every event ``> after_seq`` for ``run_id`` in order, from a fresh session.
+
+    THE FRESH SESSION NEEDS ITS OWN SCOPE (#1700). `workflow_run_events` carries
+    `workflow_run_events_select_public`, an `EXISTS (SELECT 1 FROM workflow_runs
+    ...)` policy that needs a tenant context. This session is deliberately NOT the
+    request's — `get_run_events_session_factory` exists because a stream outlives
+    the request session — and a scope applied to the request session is invisible
+    here. Under `juli_app` the read therefore returned nothing and every SSE
+    stream was an empty 200. Measured on production:
+
+        no GUC                    events visible: 0
+        app.current_shop_id set   events visible: 8
+
+    This is a different failure class from #1691 and #1697. Those were reads that
+    run BEFORE the request scope is established, and they are bounded at two. This
+    one runs after it, on a session that never inherited it. The general rule the
+    three of them share: **a session that opens its own connection inherits no
+    scope, and must take one.**
+
+    `shop_id` is required rather than optional, so a future caller cannot omit it
+    and silently get an empty stream back — the failure mode this fixes reads as
+    "this run has no events", which is indistinguishable from the truth.
+    """
+    async with session_factory() as session, with_shop_scope(session, shop_id):
         result = await session.execute(
             select(WorkflowRunEventRow)
             .where(
@@ -212,11 +236,12 @@ async def poll_events(
     run_id: uuid.UUID,
     since_seq: int,
     poll_interval_s: float,
+    shop_id: uuid.UUID,
 ) -> AsyncIterator[WorkflowRunEventRow]:
     """Redis-degraded live leg: re-read Postgres every ``poll_interval_s`` until terminal."""
     last_seq = since_seq
     while True:
-        async for row in replay_events(session_factory, run_id, last_seq):
+        async for row in replay_events(session_factory, run_id, last_seq, shop_id):
             yield row
             last_seq = row.sequence_number
             if row.event_type in TERMINAL_EVENT_TYPES:
@@ -230,6 +255,7 @@ async def poll_events(
 async def event_stream(
     *,
     run_id: uuid.UUID,
+    shop_id: uuid.UUID,
     after_seq: int,
     run_is_terminal: bool,
     session_factory: async_sessionmaker[AsyncSession],
@@ -239,7 +265,7 @@ async def event_stream(
 ) -> AsyncIterator[str]:
     """The SSE body. Testable without FastAPI; see the module docstring for the contract."""
     if run_is_terminal:
-        async for row in replay_events(session_factory, run_id, after_seq):
+        async for row in replay_events(session_factory, run_id, after_seq, shop_id):
             yield _sse_for_row(row)
         return
 
@@ -252,14 +278,16 @@ async def event_stream(
     subscription = await _try_subscribe(subscriber, run_id)
     last_sent = after_seq
     try:
-        async for row in replay_events(session_factory, run_id, after_seq):
+        async for row in replay_events(session_factory, run_id, after_seq, shop_id):
             yield _sse_for_row(row)
             last_sent = row.sequence_number
             if row.event_type in TERMINAL_EVENT_TYPES:
                 return
 
         if subscription is None:
-            async for row in poll_events(session_factory, run_id, last_sent, poll_interval_s):
+            async for row in poll_events(
+                session_factory, run_id, last_sent, poll_interval_s, shop_id
+            ):
                 yield _sse_for_row(row)
                 if row.event_type in TERMINAL_EVENT_TYPES:
                     return

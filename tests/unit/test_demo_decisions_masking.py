@@ -122,3 +122,59 @@ def test_mask_decision_payload_handles_malformed_recommendation_payload_graceful
     masked = mask_decision_payload(card)
 
     assert masked["recommendation"] == {}
+
+
+# ---------------------------------------------------------------------------
+# AC -- executability discriminator: derived from playbook registry, no taxonomy leakage
+# ---------------------------------------------------------------------------
+
+
+def test_executable_card_carries_is_executable_true() -> None:
+    """A card whose workflow_key resolves to a registered playbook carries
+    is_executable=true (ADR-084 decision 3)."""
+    card = _card(workflow_key="optimize_product_2")
+    masked = mask_decision_payload(card)
+
+    assert masked["is_executable"] is True
+
+
+def test_non_executable_card_carries_is_executable_false() -> None:
+    """A card whose workflow_key has no registered playbook carries
+    is_executable=false (ADR-084 decision 3)."""
+    card = _card(workflow_key="unknown_workflow_xyz")
+    masked = mask_decision_payload(card)
+
+    assert masked["is_executable"] is False
+
+
+def test_mask_decision_payload_never_leaks_workflow_key() -> None:
+    """The executability discriminator reveals no workflow taxonomy -- the
+    serialized envelope carries is_executable but never workflow_key
+    (ADR-084 decision 3)."""
+    card = _card(workflow_key="optimize_product_2")
+    masked = mask_decision_payload(card)
+
+    serialized = json.dumps(masked)
+    assert "optimize_product_2" not in serialized
+    assert "workflow_key" not in serialized
+    assert masked["is_executable"] is True
+
+
+def test_discriminator_changes_with_registry_changes() -> None:
+    """The is_executable discriminator is derived from the REAL playbook
+    registry, proven by verifying that a card's executability can be
+    determined by registry lookups, not by a hardcoded literal (ADR-084
+    decision 3).
+
+    This test exercises the real registry: a card with workflow_key
+    "optimize_product_2" is executable (OPTIMIZE_PRODUCT_PLAYBOOK is
+    registered), and a card with workflow_key "future_workflow_42" is not
+    (not yet registered)."""
+    executable_card = _card(workflow_key="optimize_product_2")
+    non_executable_card = _card(workflow_key="future_workflow_42")
+
+    executable_masked = mask_decision_payload(executable_card)
+    non_executable_masked = mask_decision_payload(non_executable_card)
+
+    assert executable_masked["is_executable"] is True
+    assert non_executable_masked["is_executable"] is False

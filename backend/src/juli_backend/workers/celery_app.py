@@ -56,7 +56,20 @@ celery_app.conf.update(
         # Idempotent via resumable checkpoints (AnalyticsBackfillPartitionsRepo).
         "analytics-backfill-topup": {
             "task": "juli_backend.analytics_backfill_topup",
-            "schedule": crontab(hour=2, minute=0),
+            # MINUTE 17, NOT 0, AND THE MINUTE IS THE FIX (#1659).
+            #
+            # Every hour at :00 already runs four beats — the hourly reconcile,
+            # the reaper (*/5), the credential refresh (*/30) and the
+            # every-minute staggered reconcile. The reconcile survives that load
+            # at all 24 hours. At 02:00 this beat made it FIVE, both tasks work
+            # `analytics_performance_intervals`, and the contention pushed a
+            # single-row UPDATE past the database's 2-minute statement_timeout:
+            #
+            #   QueryCanceledError: canceling statement due to statement timeout
+            #
+            # Observed 2026-09-06: the reconcile succeeded at 16 consecutive
+            # hours and failed only at 02:00. The hour is the evidence.
+            "schedule": crontab(hour=2, minute=17),
         },
         # ADR-077 decision 5 — Daily impact-reader beat task (#1044).
         # Scheduled strictly after analytics-backfill-topup (hour=2) so it reads
@@ -65,7 +78,13 @@ celery_app.conf.update(
         # T+7/T+14 has elapsed and writes impact_readings rows.
         "daily-impact-reader": {
             "task": "juli_backend.daily_impact_reader",
-            "schedule": crontab(hour=3, minute=0),
+            # Moved for the same reason, BEFORE it failed rather than after.
+            # 03:00 was the other five-beat minute in the day; this beat had
+            # simply not run yet when #1659 was filed. Fixing only the 02:00
+            # collision would have reproduced the identical failure an hour
+            # later, and "we fixed the one we saw" is how the last two waves
+            # went.
+            "schedule": crontab(hour=3, minute=23),
         },
         # #1130, ADR-074 decision 4 — the reaper. Every 5 minutes, closes the
         # two run-abandonment holes through the normal EventSink path: stale
