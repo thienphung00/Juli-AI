@@ -1355,12 +1355,17 @@ def reconcile_source(root: Path, source: str) -> tuple[str, dict[str, object]]:
          f"({then_rate:.2f}% then, {now_rate:.2f}% now)"),
     ]
     for old, new in edits:
+        # The anchor is checked even when the value is unchanged. Checking only
+        # the edits that move would mean that once the figures are current this
+        # stops verifying the file's shape at all -- a hand-mangled constant
+        # would pass silently, which is the state a command named "reconcile"
+        # must never leave behind.
+        if source.count(old) != 1:
+            raise MeasurementError(
+                f"cannot re-derive: expected exactly one occurrence of {old!r}, "
+                f"found {source.count(old)}. Refusing to guess -- resolve by hand."
+            )
         if old != new:
-            if source.count(old) != 1:
-                raise MeasurementError(
-                    f"cannot re-derive: expected exactly one occurrence of {old!r}, "
-                    f"found {source.count(old)}. Refusing to guess -- resolve by hand."
-                )
             source = source.replace(old, new)
     return source, figures
 
