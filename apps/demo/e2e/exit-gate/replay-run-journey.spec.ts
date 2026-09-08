@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import {
   CONFIRMATION_DECISION_URL_PATTERN,
@@ -80,6 +80,21 @@ import {
  * are resolved, this test should be re-run and, if it goes green end to
  * end, is the CI-visible half of ADR-076's phase gate.
   */
+/**
+ * Next's App Router mounts `#__next-route-announcer__` with `role="alert"` on
+ * every client-side navigation, so a bare `getByRole("alert")` matches 1 on any
+ * navigated page and `toHaveCount(0)` can never pass. Measured 2026-09-08: on
+ * `/decisions` after a client-side nav the sole match is
+ * `<div id="__next-route-announcer__">`, and zero `/v1/*` requests are issued.
+ *
+ * Excluding it keeps the assertion meaning "the product rendered no error",
+ * which is what these steps check. Matches explicit `role="alert"` only —
+ * every alert this surface renders sets the attribute explicitly.
+ */
+function realAlerts(page: Page) {
+  return page.locator('[role="alert"]:not(#__next-route-announcer__)');
+}
+
 test.describe("Replay journey — issue #1321 (ADR-076 decision 7)", () => {
   test.describe.configure({ retries: 0 });
 
@@ -228,7 +243,7 @@ test.describe("Replay journey — issue #1321 (ADR-076 decision 7)", () => {
       // the click — rather than deferred to a later step — so the failure
       // is attributed to this exact defect, not an incidental side effect
       // somewhere downstream.
-      await expect(page.getByRole("alert")).toHaveCount(0);
+      await expect(realAlerts(page)).toHaveCount(0);
     });
 
     await test.step("forced mid-run disconnect and reconnect — never renders as a run failure", async () => {
@@ -244,7 +259,7 @@ test.describe("Replay journey — issue #1321 (ADR-076 decision 7)", () => {
       // state rather than a mid-flight snapshot).
       await page.context().setOffline(true);
       await page.waitForTimeout(1000);
-      await expect(page.getByRole("alert")).toHaveCount(0);
+      await expect(realAlerts(page)).toHaveCount(0);
       const statusRegion = page.getByRole("status");
       if (await statusRegion.count()) {
         await expect(statusRegion.first()).not.toContainText(/lỗi|thất bại|gặp sự cố/i);
