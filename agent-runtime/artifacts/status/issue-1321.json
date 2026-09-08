@@ -2,27 +2,27 @@
   "gateVersion": 2,
   "issue": 1321,
   "metrics": {
-    "acceptanceMapped": 0,
-    "acceptanceTotal": 0,
+    "acceptanceMapped": 8,
+    "acceptanceTotal": 9,
     "criticalFindings": 0,
     "modulesTouched": []
   },
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1321.json",
     "ownerSignoffPresent": true,
-    "sha256": "fd6a5828986eac456605deff1861abcf309ce6b4cfd76a3286a17caf07d66ab7",
+    "sha256": "4158ffb36f054e8c2559963dc8fdcb5987d3612fab4a74e6bba18e5380ae9ed7",
     "signoffRequired": false,
-    "status": "PASS",
+    "status": "FAIL",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 1092,
-      "validationBytes": 26247
+      "reviewBytes": 7082,
+      "validationBytes": 29997
     },
     "claimVsExecuted": {
       "citedCommandCount": 3,
-      "invokedCommandCount": 13240,
+      "invokedCommandCount": 13245,
       "matchedCommandCount": 0,
       "reason": "3 of 3 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
@@ -186,7 +186,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1321-replay-journey",
-        "head": "84ae89b6e4ac0ae30f6cb8174d27db6e2597982e",
+        "head": "b3a799bdaa2f2dbf6e1c03956b9f1eba06ea1506",
         "shallow": true
       },
       "moduleResolution": {
@@ -335,11 +335,11 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-08T04:23:14Z",
+  "timestamp": "2026-09-08T04:30:19Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1321.json",
-    "sha256": "bfa6842241a04662fe76d075856f6363314e6c2173b55a7b66a83ea0bd858936",
-    "status": "PASS"
+    "sha256": "cfd8484fecd7289d04f36cea66cd7aa3800824918b699b6b3495c7ddec35a40c",
+    "status": "FAIL"
   },
   "wave": "wave-agent-w6"
 }
