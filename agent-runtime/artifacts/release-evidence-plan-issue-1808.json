@@ -1,0 +1,103 @@
+{
+  "planId": "ui-the-batch-confirmation-sheet-window-card-and-exception-list-2026-09-08",
+  "affectedPublicSurfaces": [
+    "THE DEMO BATCH CONFIRMATION SHEET at `demo.app-juli.com` — the one screen where a seller consents to a real write, and the only surface in this epic a human actually taps. It renders the `batch` variant STRAIGHT FROM #1801's MIRRORED CONTRACT: the count and the earliest deadline at the top, the orders grouped \"hôm nay\" and \"ngày mai\" in deadline order inside each group, and THE EXCLUDED ORDERS VISIBLE WITHOUT EXPANDING ANYTHING, each with its reason (PRD story 3) — then one tap. Today the demo fakes the whole batch as a scalar string: `order_priority: \"Hàng đợi T5 — 6 đơn (chỉ đọc theo thứ hạng)\"` at `apps/demo/src/lib/workflows/process-order/review.ts:28`, repeated as `prefillValue` at `:70` (the issue body cites `:29`, which is `shipping_type: \"Ship by TikTok\"` — off by one), over the scalar `prefillValue: string` on `ReviewInputFieldDescriptor` at `packages/contracts/src/review.ts:15-23` with kinds `option-list | upload | free-text` at `:13`.",
+    "THE DISPATCH-WINDOW CARD on the EXISTING card surface — count, earliest deadline and buckets, all RENDERED FROM #1799's PAYLOAD and never recomputed in the browser (S-FR-4). Changing the payload must change what is shown; if it does not, the number came from client-side arithmetic and the seller is looking at a different number from the one the run will act on.",
+    "THE COMPLETION MESSAGE AND ITS EXCEPTION LIST (#1791's surface) — shipped, dropped and excluded orders each with their reason and their Seller Center link, from #1805's completion act. Plus #1790's DEADLINE LIST, which gains Process Order's clocked exclusions.",
+    "SEVEN SURFACES AND NO EIGHTH (S-FR-1). This slice MOUNTS on surfaces that already exist after W9-D; it invents none. A Process Order screen that seems to need an eighth means the design is wrong — stop and report rather than adding one. No route is added.",
+    "SELLER COPY — Vietnamese through the seller-copy guard. No order id, no window id, no enum and no English string reaches the screen. The shared banned-pattern source is `packages/contracts/seller-copy-banned-patterns.json`, read by both the Python guard (`services/agent/sanitize/banned_patterns.py`, ADR-070) and `packages/contracts/src/seller-copy.ts`; `apps/demo/src/__tests__/recommendations-copy-guard.test.tsx` is the existing pattern to follow.",
+    "EVERY OTHER WORKFLOW'S RENDERING IS UNCHANGED. `@juli/contracts` is consumed by apps/demo AND apps/dashboard, and an existing single-proposal confirmation must render exactly as before — that regression, not the new sheet, is the release risk."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: `pnpm -w turbo run build` plus the demo VITEST suite (`apps/demo` runs `vitest run`; tests live flat in `apps/demo/src/__tests__/`), driven by REAL CONTRACT PAYLOADS — a `batch` proposal, a window card payload and a completion payload SERIALISED BY THE BACKEND against #1801's mirrored union, never hand-authored JSON literals typed into the test file and never hand-authored event JSON. A component that renders a fixture its own author wrote proves the author agrees with themselves; the whole point of the mirrored contract is that the sheet renders what the backend actually emits. Post-deploy: load the demo page on the candidate, confirm an EXISTING single-proposal confirmation still renders exactly as before, and confirm `/health` and one authenticated read are unchanged; zero public canary traffic.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is FALSE: this is a rendering slice — it reads payloads and writes nothing, makes no vendor call and creates no run. workersDisabledOnCandidate is FALSE because the backend that produces the payloads runs in the worker and the candidate demo must be able to read a real one. NO PACKAGE IS SHIPPED ON ANY SHOP BY DEPLOYING THIS SLICE: rendering a confirmation sheet is not consenting on it, and the tap that follows is a human's. The first live proof of the Process Order write is the #1806 dry run — the exact request, unsent — then the seeded sandbox batch of the #1810 walk, driven from these very surfaces. Never production, which stays gated on #1339 (S-NFR-3).",
+    "journeys": [
+      {
+        "name": "the-seller-sees-the-whole-batch-and-every-exclusion-before-the-one-tap",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1808",
+        "assertions": [
+          "pre-merge: given a `batch` proposal payload with TWO BUCKETS and TWO EXCLUSIONS, the confirmation sheet renders BOTH buckets IN DEADLINE ORDER and BOTH exclusions WITH THEIR REASONS VISIBLE WITH NO EXPAND INTERACTION PERFORMED — the test must assert the exclusions are present in the rendered output BEFORE any click, because an accordion that hides them is precisely the failure PRD story 3 exists to prevent (apps/demo/src/__tests__/process-order-batch-sheet.test.tsx, vitest)",
+          "pre-merge: given a window card payload, the COUNT and EARLIEST DEADLINE shown are THE PAYLOAD'S VALUES, and CHANGING THE PAYLOAD CHANGES WHAT IS SHOWN — so nothing is recomputed client-side; asserted by rendering twice with different payloads, which is the only assertion that can catch browser-side arithmetic (apps/demo/src/__tests__/process-order-window-card.test.tsx)",
+          "pre-merge: given a completion payload with SHIPPED, DROPPED and EXCLUDED orders, the completion message renders EACH GROUP with its REASON and its SELLER CENTER LINK (apps/demo/src/__tests__/process-order-completion-message.test.tsx)",
+          "pre-merge: over ALL THREE payloads, the copy guard finds NO order id, NO window id, NO enum and NO English string in the rendered text — asserted against the shared `SELLER_COPY_BANNED_PATTERNS` from `@juli/contracts` (the same JSON source the Python guard reads), following `apps/demo/src/__tests__/recommendations-copy-guard.test.tsx` (apps/demo/src/__tests__/process-order-copy-guard.test.tsx)",
+          "pre-merge: the payloads under test are REAL CONTRACT PAYLOADS serialised by the backend against #1801's mirrored union — not hand-authored JSON literals and not hand-authored event JSON. A payload the backend cannot produce is a sheet that renders nothing in production",
+          "pre-merge: NO EIGHTH SURFACE and NO NEW ROUTE. The sheet, the card, the completion message and the deadline list are the surfaces W9-D already ships; asserted by the diff touching no route file and adding no page",
+          "pre-merge: `pnpm -w turbo run build` passes and the demo type-checks against `@juli/contracts` — the union is consumed, not re-declared locally, so the mirror cannot drift",
+          "pre-merge: an EXISTING SINGLE-PROPOSAL confirmation renders EXACTLY AS BEFORE — the existing demo review and confirmation tests pass UNTOUCHED, and no other workflow's rendering changes. `@juli/contracts` is consumed by apps/dashboard too, so its build passes as well",
+          "pre-merge: the scalar fake at `apps/demo/src/lib/workflows/process-order/review.ts:28` and `:70` is REPLACED by rendering from the payload, not left beside it — a fixture string that survives is a screen that can still show a number the backend never computed",
+          "post-deploy: the demo page LOADS on the candidate and an existing single-proposal confirmation renders identically to stable — the compatibility fact that matters; and the built bundle is served, not a stale cached one",
+          "post-deploy: `/health` and ONE authenticated read UNCHANGED, and a shop with no Process Order window sees no new card, no new completion message and no new deadline entry",
+          "post-deploy: NO PACKAGE IS SHIPPED ON ANY SHOP BY DEPLOYING THIS SLICE — rendering a sheet is not tapping it, and this diff contains no write. The first live proof of the write is the #1806 dry run, then the seeded sandbox batch (#1810) driven from these surfaces; production is never the first proof and is gated on #1339"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions",
+      "/decisions/recommendations/[recommendationId] — resolved to a concrete id from the sandbox window run on the candidate; this is where the plan review and the batch confirmation sheet mount",
+      "/decisions/in-progress/[executionId] — resolved to a concrete id from the same run; this is where the completion message and its exception list mount"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js",
+      "vitest-report",
+      "turbo-build-log"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true,
+    "notes": "This is the epic's only rendered-surface slice: the batch sheet, the window card and the completion message must be present in the BUILT JS output served by the candidate, not merely in `apps/demo/src`. A component that exists in source but is tree-shaken or never mounted is exactly the failure a source-only check cannot see. The demo's real route set (read from `apps/demo/src/app`) is `/`, `/analytics`, `/analytics/[metricKey]`, `/decisions`, `/decisions/in-progress/[executionId]`, `/decisions/recommendations/[recommendationId]`, `/settings`, `/settings/workflows/[workflowKey]` — the two dynamic routes above are resolved to concrete ids from the candidate's sandbox window run rather than requested with the literal bracket segment. NO NEW ROUTE IS ADDED by this slice; if the check needs a route that does not appear in that list, the slice has grown an eighth surface and must stop and report."
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE IN THIS SLICE. It is a rendering change in `apps/demo` over payloads #1799, #1801 and #1805 already produce; no database column, table or persisted shape moves. Do not open a migration file and do not open `backend/src/juli_backend/database/migrations/versions/` — this is the ui-ux domain and backend files are not in scope at all. Migration numbers are RESERVED BY META and never read from head, but the correct action here is not to reserve one: it is to not need one. Stable and candidate run the same schema, so a code rollback needs no downgrade. The compatibility surface is the TYPE contract, not the schema: `@juli/contracts` is consumed by apps/demo AND apps/dashboard, so the union must be consumed rather than re-declared locally, and every existing single-proposal render must be unaffected."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. The demo keeps faking the dispatch batch as the scalar string at `apps/demo/src/lib/workflows/process-order/review.ts:28`, so the batch cannot be confirmed from Juli's own surfaces and the #1810 gate walk — which requires consent to be given ON THE CONFIRMATION SHEET, not clicked through in Seller Center (S-NFR-9, owner 2026-09-07) — cannot run. Nothing about the deployed demo changes. A sheet that hides exclusions behind an expand must NEVER be merged to unblock the walk: the seller would tap approval on a batch whose withheld orders they never saw, which is the one thing PRD story 3 exists to prevent.",
+    "postCutoverFailureBehavior": "Redeploy the previous demo build and confirm the served bundle is the previous one, not a cached candidate chunk — a partially-swapped bundle is how a demo deploy 500s on missing chunks. NO DOWNGRADE IS NEEDED — there is no migration and no persisted state. The backend keeps emitting `batch` payloads; the previous demo build simply never renders that variant, which is a narrowing, not a crash — but it means a window awaiting confirmation CANNOT BE CONFIRMED on the old build, so any such run must be allowed to EXPIRE on its 4 h window rather than be forced through another surface. Rolling this slice back never ships a package and never un-ships one: the diff contains no write, and a package #1803 already shipped cannot be un-shipped — Juli never cancels and no cancel tool exists.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test",
+    "pnpm --filter @juli/demo exec vitest run src/__tests__/process-order-batch-sheet.test.tsx src/__tests__/process-order-window-card.test.tsx src/__tests__/process-order-completion-message.test.tsx src/__tests__/process-order-copy-guard.test.tsx",
+    "pnpm --filter @juli/contracts test",
+    "pnpm -w turbo run build",
+    "pnpm -w turbo run lint && pnpm --filter @juli/demo exec tsc --noEmit"
+  ],
+  "doNotInfer": [
+    "Do NOT add an eighth seller surface and do NOT add a route. Mount only on the seven surfaces S-FR-1 names — card, plan review, confirmation sheet, run view, completion message with exception list, notification centre, deadline list. If a screen seems to need an eighth, STOP AND REPORT; a needed eighth surface means the design is wrong, not that the slice should grow one.",
+    "Do NOT recompute any number in the browser. The count, the earliest deadline, the bucket membership and the ordering are computed by the backend (S-FR-4) and RENDERED; client-side arithmetic shows the seller a different number from the one the run will act on.",
+    "Do NOT hide the exclusions behind an expand, an accordion, a tooltip or a 'show more'. They are VISIBLE WITH NO INTERACTION, each with its reason (PRD story 3) — that is the point of the sheet.",
+    "Do NOT hand-author the test payloads. Use REAL CONTRACT PAYLOADS the backend serialised against #1801's mirrored union; never hand-authored JSON literals and never hand-authored event JSON.",
+    "Do NOT re-declare the `batch` union locally in `apps/demo`. Consume it from `@juli/contracts` so the mirror cannot drift; `@juli/contracts` is also consumed by apps/dashboard and must keep building.",
+    "Do NOT change any other workflow's rendering, and do NOT change `ReviewInputFieldDescriptor`'s existing fields or kinds. An existing single-proposal confirmation must render exactly as before.",
+    "Do NOT leave the scalar fake beside the real rendering. `order_priority: \"Hàng đợi T5 — 6 đơn (chỉ đọc theo thứ hạng)\"` at `apps/demo/src/lib/workflows/process-order/review.ts:28` and `:70` is REPLACED — a surviving fixture string is a screen that can still show a number the backend never computed. Note the issue body cites `:29`, which is `shipping_type`.",
+    "Do NOT add a cancel control, a cancel affordance or any cancel copy to any of these screens. No cancel tool exists in this allowlist, ever; an excluded order is shown with its reason and a Seller Center link and nothing more.",
+    "Do NOT render a 'blocked by TikTok' or vendor-refusal explanation for a cancellation-pending order. TikTok does NOT refuse a ship write during a pending cancellation (ADR-092 amendment 2026-09-05) — Juli excluded it, and the copy must say so honestly.",
+    "Do NOT render a Create Packages or Confirm Package Shipment step, and do NOT render FBT or Seller Own Fleet orders as actionable. In SEA TikTok creates the package at order time, Confirm Package Shipment is certified-warehouse-provider-only, FBT is monitor-only by design and SOF is v2 — all of them appear, if at all, as listed exclusions.",
+    "Do NOT add an auto-ship, a 'ship anyway' or a bulk-override control. Juli never auto-ships and never widens the executed set; an unconfirmed window simply expires and the next run re-proposes.",
+    "Do NOT recompute or re-render a deadline from a cutoff rule. Show the deadline and, where the design calls for it, its rung, as the payload gives them.",
+    "Do NOT let an order id, a window id, an enum or an English string reach the screen. Use the shared `SELLER_COPY_BANNED_PATTERNS` from `@juli/contracts`, following `apps/demo/src/__tests__/recommendations-copy-guard.test.tsx`.",
+    "Do NOT touch backend files, migrations or `packages/contracts`' type definitions — the type mirror is #1801 and this is the ui-ux domain. One domain per issue.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051) or `docs/product/design/`, which are on this epic's doNotLoad list, and do NOT reach for a design-reference MCP: an executor believing it needs one is a signal the routing was wrong — stop and report."
+  ]
+}

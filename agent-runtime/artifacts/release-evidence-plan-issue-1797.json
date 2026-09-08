@@ -1,0 +1,95 @@
+{
+  "planId": "the-clean-predicate-and-the-deadline-ladder-one-verdict-one-reason-one-rung-2026-09-08",
+  "affectedPublicSurfaces": [
+    "THE PREDICATE FUNCTION ITSELF — a new pure function at `services/agent/workflows/process_order/predicate.py` taking one order's facts and returning one verdict: `clean`, or excluded with EXACTLY ONE named reason. There is NO HTTP surface in this slice: no route, no response model, no write, no I/O of any kind. That is what makes it releasable ahead of everything that consumes it, and it is also why the only honest post-deploy evidence is that NOTHING on any live surface moved.",
+    "THE EXCLUSION VOCABULARY, which becomes a contract the moment anything reads it. The full set the predicate must cover: not awaiting shipment; still inside the one-hour `ON_HOLD` remorse window; fulfilled by TikTok; own carrier; CANCELLATION PENDING; address updated since the order was read; no stock on the system bucket; ship error or abnormal package state. Every reason is reachable, and an excluded order carries exactly one — never two, never a generic 'not clean'. #1799's card, #1801's payload and #1805's digest all render these strings, so an enum invented loosely here is an enum three later slices are stuck with.",
+    "THE CANCELLATION EXCLUSION IS A HARD EXCLUSION IN JULI'S OWN CODE. ADR-092's 2026-09-05 amendment (research/dispatch-sla-batch-exceptions.md) records that TikTok does NOT refuse a ship write while a cancellation request is pending: the write goes through, the cancellation is approved anyway, and the seller pulls a parcel back off the courier pile. The on-disk ADR Context and `seller-journeys/process-order-actors.md` §E row 3 still describe the vendor refusal as a backstop — they are SUPERSEDED. No branch anywhere in this module may defer the decision to a vendor refusal, and that absence is asserted, not assumed.",
+    "THE DEADLINE LADDER AND THE RECORDED RUNG — `rts_sla_time`, else `tts_sla_time`, else `collection_due_time`, else the documented cutoff (14:00, two working days) as the LAST RESORT, with the rung it came from recorded beside the deadline. The rung is the honesty mechanism: a run built on a guessed cutoff must stay distinguishable from one built on observed vendor fields in every later reading, and #1805's measure reads that rung rather than a constant. Nothing like this exists today — `services/aggregates/thresholds.py:11` holds a GLOBAL `ORDER_DISPATCH_SLA_HOURS = 48` off `payment_time`, which `computed_kpis.py:136-153` measures against, and no `*_sla_time` field appears in any live capture (PO-NFR-1). This slice does not touch that constant or that KPI; it introduces the ladder beside them.",
+    "THE SORT KEY. Clean orders sort by their RESOLVED DEADLINE, not by `payment_time` and not by the 48-hour proxy. Moving one order's `rts_sla_time` past another's reverses the pair — that is the observable difference between the ladder and the constant.",
+    "NO schema change, NO route, NO write, NO vendor call, NO card. The facts arrive from the silver columns and order-scoped signals #1796 adds plus the order read itself; the function performs no I/O whatsoever."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the WORKTREE ROOT with PYTHONPATH pinned to the worktree's own `backend/src`, on a real Postgres 16 at head for anything that touches an ORM object. The order objects under test are built from the #1719 AWAITING-SHIPMENT CAPTURE and bound to the REAL order object and the REAL signal repository — never hand-built dicts and never `**kwargs` doubles, because a predicate that agrees with a dict the test author wrote proves only that the test author agrees with themselves. Post-deploy: candidate `/health` and ONE authenticated order read byte-identical to stable — this slice must be a NO-OP on every live surface, and any observable difference is a defect, not a feature.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is FALSE: a pure function with no I/O makes no vendor call and writes nothing. workersDisabledOnCandidate is FALSE only for consistency with the lane's other slices — nothing in this diff runs in a worker either way, so the flag is not load-bearing here. NO PACKAGE IS SHIPPED ON ANY SHOP BY DEPLOYING THIS SLICE: there is no write, no tool and no caller. The first live proof of the Process Order write is the #1806 dry run, then the seeded sandbox batch of the #1810 walk — never production, which stays gated on #1339 (S-NFR-3).",
+    "journeys": [
+      {
+        "name": "one-order-in-one-verdict-out-with-one-reason-and-one-recorded-rung",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1797",
+        "assertions": [
+          "pre-merge: an order awaiting shipment, past the one-hour hold, fulfilled by seller on platform shipping, with no cancellation pending, no address update since the read and stock above zero is CLEAN and carries NO reason — built from the #1719 capture as a real order object (tests/unit/test_process_order_predicate.py::test_a_clean_order_is_clean)",
+          "pre-merge: that same order with a CANCELLATION-PENDING fact and nothing else changed is EXCLUDED with the cancellation reason, AND NO BRANCH ANYWHERE IN THE MODULE DEFERS THAT DECISION TO A VENDOR REFUSAL — asserted as the absence of any vendor-refusal path, not merely as the presence of the exclusion, because ADR-092's amendment records that the refusal will not come (tests/unit/test_process_order_predicate.py::test_pending_cancellation_is_a_hard_exclusion_not_a_vendor_refusal)",
+          "pre-merge: an order carrying ALL THREE deadline fields resolves to `rts_sla_time` with the `rts` rung; removing that field yields `tts_sla_time` with the `tts` rung; removing that yields `collection_due_time` with the collection rung; removing all three yields the documented cutoff with the FALLBACK rung — each rung asserted by both its value and its recorded name, so a run built on a guess is never mistaken for one built on an observed field (tests/unit/test_process_order_deadline_ladder.py::test_each_rung_is_used_in_order_and_recorded)",
+          "pre-merge: two clean orders sort earlier-deadline-first, and moving one order's `rts_sla_time` past the other's REVERSES the pair — proving the sort follows the deadline field and not `payment_time` and not the global `ORDER_DISPATCH_SLA_HOURS = 48` proxy at `services/aggregates/thresholds.py:11` (tests/unit/test_process_order_deadline_ladder.py::test_sort_follows_the_deadline_field_not_payment_time)",
+          "pre-merge: one order per exclusion cause — not awaiting shipment, inside the one-hour hold, fulfilled by TikTok, own carrier, cancellation pending, address updated since read, no stock on the system bucket, ship error or abnormal package state — makes EVERY cause reachable, and each order carries EXACTLY ONE reason; a total-coverage assertion, so a cause added later without a reachable path fails the test rather than lurking (tests/unit/test_process_order_predicate.py::test_every_exclusion_cause_is_reachable_with_one_reason)",
+          "pre-merge: the function performs NO I/O — no session, no HTTP client, no repository call inside it. Facts are passed in; a predicate that reads the database is a predicate that cannot be re-run cheaply at re-verify (#1803), which is the whole reason it is pure",
+          "pre-merge: an order whose deadline fields are ALL ABSENT and whose documented-cutoff fallback is used records the fallback rung explicitly — the fallback is never silent, because §8.3 decision 2 made it an owner decision precisely so it stays visible",
+          "pre-merge: the predicate NEVER proposes, requests or implies a cancellation for any excluded order; an order excluded for a ship error advising cancellation is excluded with that reason and nothing more",
+          "pre-merge: the existing 48-hour dispatch-SLA constant and `computed_kpis.py:136-153` are UNTOUCHED and their tests pass unchanged — the ladder is introduced beside the proxy, not in place of it, and replacing the measure is #1805",
+          "post-deploy: candidate `/health` and ONE authenticated order read byte-identical to stable, and the candidate's action-card list, run list and SSE stream unchanged — a NO-OP on every live surface is the correct and complete post-deploy evidence for a slice with no caller",
+          "post-deploy: NO PACKAGE IS SHIPPED ON ANY SHOP BY DEPLOYING THIS SLICE — there is no write path in the diff. The first live proof of the write is the #1806 dry run, then the seeded sandbox batch (#1810), never production, which is gated on #1339"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is a new `services/agent/workflows/process_order/predicate.py` plus tests. Nothing under apps/, packages/ or ios/ is touched; those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "order-capture-fixture",
+      "exclusion-cause-coverage-table"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE IN THIS SLICE. Every fact the predicate reads — the raw TikTok order status on silver, the per-order cancellation-pending record, the order-scoped signal rows — is created by #1796 and is a HARD DEPENDENCY, not something to add here. Do not open a migration file and do not open `backend/src/juli_backend/database/migrations/versions/`. If a test cannot pass without a column, the dependency on #1796 is unmet and the answer is to REPORT IT, not to write a second migration; two migrations for one column is exactly how this tree ended up with two same-numbered `043_*` files. Stable and candidate run the same schema, so they are trivially compatible and a code rollback needs no downgrade. Recording the rung on a run row, or persisting a verdict, is #1799/#1805 work with its own reserved number."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. There is no predicate, so nothing selects orders for dispatch and nothing downstream can be built; #1799's producer stays blocked. The deployed system is unchanged — the 48-hour constant keeps driving `computed_kpis.py` exactly as it does today, and no seller sees anything different. A failing predicate must never be merged 'to unblock #1799': a wrong verdict here becomes a wrongly shipped or wrongly withheld parcel three slices later.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart juli-api and juli-celery-worker. NO DOWNGRADE IS NEEDED OR POSSIBLE — there is no migration, no persisted state and no row written by this slice. Because the function has no caller yet, removing it cannot strand a run, cannot orphan a card and cannot leave a half-shipped batch: the rollback is a code swap and nothing else. If a later slice is already deployed on top, roll that back FIRST, since #1799's producer and #1803's re-verify both import this module and would fail to import without it.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_process_order_predicate.py tests/unit/test_process_order_deadline_ladder.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'thresholds or computed_kpis or dispatch_sla'",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_tool_registry_contract.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT write a migration. This slice has NO schema change; every column it reads comes from #1796. Migration numbers are RESERVED BY META and never read from head — but the correct action here is not to reserve one, it is to not need one.",
+    "Do NOT build a vendor-refusal branch, and do NOT write a comment or a test that treats the vendor as a backstop. ADR-092's 2026-09-05 amendment: TikTok does NOT refuse a ship write during a pending cancellation — the write succeeds and the cancellation is approved anyway. The exclusion is HARD, in Juli's own code, at selection and again at re-verify. The on-disk ADR Context and `seller-journeys/process-order-actors.md` §E row 3 still say the opposite; they are superseded.",
+    "Do NOT propose, request or imply a cancellation for any order. The predicate EXCLUDES an order; it never cancels one, and no cancel tool exists in this allowlist, ever.",
+    "Do NOT recompute a cutoff when the order carries a deadline field. The ladder is `rts_sla_time` → `tts_sla_time` → `collection_due_time`, and the documented cutoff (14:00, two working days) is the LAST RESORT ONLY, taken when all three are absent and recorded as the fallback rung.",
+    "Do NOT reuse `ORDER_DISPATCH_SLA_HOURS = 48` (`services/aggregates/thresholds.py:11`) or `payment_time` as the deadline, and do NOT edit that constant or `computed_kpis.py:136-153`. Replacing the measure is #1805; this slice introduces the ladder beside the proxy.",
+    "Do NOT perform I/O in the predicate — no session, no HTTP client, no repository call. Facts in, verdict out. It is re-run at re-verify (#1803) and must be cheap and side-effect-free.",
+    "Do NOT emit a card, group a batch into buckets, build a window, or write anything. Those are #1799 and later.",
+    "Do NOT return more than one reason for an excluded order, and do NOT return a generic 'not clean'. Three downstream slices render these strings to sellers.",
+    "Do NOT add FBT or Seller Own Fleet handling beyond EXCLUDING them with their named reasons. FBT is monitor-only by design (`21008025` — the vendor refuses the write) and own-carrier is v2.",
+    "Do NOT add a Create Packages or a Confirm Package Shipment path: in SEA TikTok creates the package at order time, and Confirm Package Shipment is certified-warehouse-provider-only (ADR-092 Context defects 1 and 2).",
+    "Do NOT hand-build the order objects the tests use. Bind to the REAL order object built from the #1719 awaiting-shipment capture; a `**kwargs` double proves routing, never that the real object carries the field the predicate reads.",
+    "Do NOT touch ETL, migrations, the vendor client or any `/v1` route — one domain per issue.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/**, which are on this epic's doNotLoad list."
+  ]
+}

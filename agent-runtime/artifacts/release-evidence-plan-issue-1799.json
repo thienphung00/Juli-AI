@@ -1,0 +1,106 @@
+{
+  "planId": "the-dispatch-window-is-a-subject-entity-scheduled-producer-and-window-card-2026-09-08",
+  "affectedPublicSurfaces": [
+    "THE AUTHENTICATED ACTION-CARD LIST — the first surface a seller actually sees change in this epic. A shop with clean orders due before the next window gains a PROCESS ORDER CARD; a shop with nothing due sees NO change at all. The card route itself is untouched: same path, same response model, same auth. What changes is that a card can now appear WITHOUT A SELLER TAP, because until this slice the only card producer is the manual `POST /v1/action-cards/refresh` (`api/routes/action_cards.py:89-130` → `services/action_cards/refresh.py`), and `workers/celery_app.py:40-91` carries six beat tasks, NONE of which produces a card or a run.",
+    "A NEW CELERY BEAT ENTRY — an operational surface and a standing commitment on a shared worker fleet. Its cadence (twice a day per shop), its behaviour on a MISSED TICK (the next run covers the gap, S-NFR-6, and does NOT emit a backlog of duplicate cards) and its per-shop fan-out are the release risk, not the code. It rides on #1711's scheduled-producer machinery rather than adding a second scheduling mechanism.",
+    "THE DISPATCH WINDOW AS A SUBJECT — ADR-092 d.1 amending ADR-087 d.5. A Juli entity of shop plus the deadline bucket one run covers, keyed so TWO RUNS CAN NEVER COVER THE SAME BUCKET. Today this is structurally impossible: `workflow_runs.product_id` is NOT NULL with the active-run index on `(shop, product)` (`models/models.py:576,620-627`) and `ActionCard` is unique on `(shop_id, workflow_key)` (`:953-957`) — one card per SHOP, not per subject. The window rides on #1702's card-resolved subject and #1701's nullable subject columns; this slice must not re-shape the active-run index beyond keying it on the window.",
+    "THE WINDOW CARD PAYLOAD — the count of clean orders, the EARLIEST DEADLINE, the orders split \"due today\" / \"due tomorrow\" and ordered by deadline INSIDE each bucket, and every excluded order with its reason. EVERY NUMBER IS COMPUTED BY THE PRODUCER (S-FR-4); the model picks none of them. #1801's payload and #1808's sheet both render from this shape, so a field named loosely here is a field two slices are stuck with.",
+    "SELLER-FACING COPY. All strings are Vietnamese through the seller-copy sanitiser (`services/agent/sanitize`), and no order id, window id or exclusion enum may reach the seller (S-NFR-4). This is the first Process Order copy anyone reads.",
+    "TENANCY (ADR-089, S-NFR-8). Every tenant read in the beat task runs under `with_shop_scope`; the shop enumeration is the one sanctioned unscoped step. A fleet-wide read 'just to find the due orders' is the precise anti-pattern.",
+    "SUPPRESSION IS A FIRST-CLASS OUTCOME. A shop with nothing due emits NO card and records a NAMED SUPPRESSION REASON — 'nothing to do' is never a failure (S-FR-7), and an absent card with no reason is indistinguishable from a producer that crashed.",
+    "NO new HTTP route and NO change to any response model."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the WORKTREE ROOT with PYTHONPATH pinned to the worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite. The window key's uniqueness, the active-run index, RLS, the `juli_app` role's per-table grants and the GUC-backed tenant context are all Postgres behaviour with no SQLite equivalent, and a cross-tenant assertion run without RLS or run as the table owner proves nothing. The producer is exercised as the REAL beat task with the REAL `with_shop_scope` and the REAL predicate from #1797 — not a stub verdict — and cards are emitted through #1703's subject-scoped emission path rather than by inserting an `action_cards` row by hand. Post-deploy: run the producer ONCE on the candidate against the SANDBOX shop, read the card back through the AUTHENTICATED card route, and confirm `/health` and one authenticated read are unchanged for a shop with nothing due; no public traffic reaches the candidate and NO vendor write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the entire slice IS a beat task; a candidate with workers disabled can never produce a window card, which is the whole slice. apiSideEffectsInScope is FALSE: the only rows written are each shop's own `action_cards` and the window subject row, through #1703's emission path; the producer reads orders and makes NO vendor write. NO PACKAGE IS SHIPPED ON ANY SHOP BY DEPLOYING THIS SLICE — a card is a proposal a human has not yet approved, there is no ship tool registered yet (#1803), and an unconfirmed window simply expires. The first live proof of the write is the #1806 dry run, then the seeded sandbox batch (#1810), never production, which stays gated on #1339 (S-NFR-3).",
+    "journeys": [
+      {
+        "name": "one-window-one-card-computed-by-the-producer-under-each-shops-own-tenant-scope",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1799",
+        "assertions": [
+          "pre-merge: with a shop whose clean orders are due before the next scheduled run, the producer creates EXACTLY ONE card for that window BOUND TO THE WINDOW AS ITS SUBJECT, and a SECOND producer pass over the same window creates NO second card — asserted on the `action_cards` rows and the subject binding, not on a call count (tests/unit/test_dispatch_window_producer.py::test_one_card_per_window_and_no_duplicate)",
+          "pre-merge: a shop with no order due before the next run emits NO card and the SUPPRESSION CARRIES A NAMED REASON — a positive recorded fact, never the mere absence of a card, because 'nothing due' and 'the producer raised' must not look alike (tests/unit/test_dispatch_window_producer.py::test_nothing_due_suppresses_with_a_named_reason)",
+          "pre-merge: with clean orders across two buckets and two excluded orders, the card payload carries the COUNT, the EARLIEST DEADLINE, BOTH buckets ordered by deadline, and EACH exclusion with its reason; moving one order's deadline past midnight MOVES IT BETWEEN BUCKETS — the bucket boundary is derived from the deadline, not hard-coded (tests/unit/test_dispatch_window_card_payload.py::test_payload_carries_count_earliest_deadline_buckets_and_exclusions)",
+          "pre-merge: with two tenants each holding due orders, the beat task produces each shop's card UNDER ITS OWN TENANT SCOPE and NO query reads across tenants — asserted on the tenant context actually in force during each producer call and AS THE RUNTIME ROLE `juli_app` UNDER RLS, so a read that escaped `with_shop_scope` returns zero rows and raises the named application error (ADR-086) rather than quietly succeeding (tests/unit/test_dispatch_window_producer.py::test_producer_runs_under_per_tenant_scope)",
+          "pre-merge: no seller-facing string in the built payload contains an ORDER ID, a WINDOW ID or an EXCLUSION ENUM, and all of them are Vietnamese — asserted through the real outbound guard at `services/agent/sanitize`, not by a regex written in the test (tests/unit/test_dispatch_window_card_payload.py::test_seller_copy_carries_no_internal_identifier)",
+          "pre-merge: EVERY NUMBER — the count, the earliest deadline, the bucket membership and the ordering — is computed by the producer and appears on the payload; nothing is left for the model to choose (S-FR-4). Asserted by changing an input and seeing the payload change, so a hard-coded value fails",
+          "pre-merge: a MISSED cadence is tolerated — skipping a tick does not emit a backlog of duplicate cards, because #1703's `active_card_exists`/`basis_unchanged` suppression engages (S-NFR-6); asserted by counting rows after a skipped tick",
+          "pre-merge: the window key makes TWO RUNS COVERING THE SAME BUCKET impossible — asserted against the real index on a real Postgres 16, and asserted that the pre-existing active-run behaviour for product-subject workflows is UNCHANGED",
+          "pre-merge: the manual refresh route `POST /v1/action-cards/refresh` and its cooldown gate behave identically — the existing route suite passes UNTOUCHED, and the six pre-existing beat entries are asserted unchanged alongside the new seventh",
+          "pre-merge: an unconfirmed window EXPIRES; nothing auto-ships and no second card is chained for the same bucket — the next scheduled run re-proposes, which is ADR-092 d.3, and the standing approval is the DEFERRED option 2",
+          "pre-merge: `alembic upgrade head`, then `downgrade -1`, then `upgrade head` round-trips cleanly on a real Postgres 16 already at the current tip, and the previous release still writes `action_cards` and `workflow_runs` rows naming none of the new columns",
+          "post-deploy: `alembic upgrade head` on the candidate, then the new beat entry PRESENT in the candidate's schedule read FROM THE RUNNING APP's own `beat_schedule` (not from the source file); run the producer ONCE against the sandbox shop and read the window card back through the AUTHENTICATED card route — observed on the card row and the route response, never inferred from a log line",
+          "post-deploy: `/health` and ONE authenticated read UNCHANGED for a shop with nothing due, and that shop's card list identical to stable's",
+          "post-deploy: NO PACKAGE IS SHIPPED ON ANY SHOP BY DEPLOYING THIS SLICE — no ship tool is registered yet and a card is only a proposal. The first live proof of the write is the #1806 dry run, then the seeded sandbox batch (#1810), never production, which is gated on #1339"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is `workers/tasks/process_order_windows.py`, `workers/celery_app.py`, `services/agent/workflows/process_order/window.py`, `models/models.py`, one additive Alembic migration and tests. The demo surfaces that render this payload are #1808; nothing under apps/, packages/ or ios/ is touched here, and those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "alembic-history",
+      "celery-beat-schedule-dump",
+      "action-card-row-dump",
+      "celery-worker-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "ONE ADDITIVE, EXPAND-ONLY migration: the dispatch-window subject row and the NULLABLE window reference on the run and the card, laid over #1702/#1701's NULLABLE subject columns and their `subject_type`/`subject_ref` vocabulary rather than inventing a second one, plus the per-shop window/cadence rows the producer schedules from. No column is dropped, renamed or retyped; `product_id` stays as #1701 left it; there is no backfill and no NOT NULL, and an ABSENT cadence row means NOT ENROLLED — it must never default to a firing time, because a defaulted midnight would silently enrol every existing shop in a scheduled producer they never asked for. Store the local times WITH their IANA zone: `Asia/Ho_Chi_Minh` is UTC+7, and a naive column makes a shop configured for 06:00 local fire at 06:00 UTC. THE MIGRATION NUMBER AND `down_revision` ARE RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename — this tree already carries two same-numbered `043_*` files from exactly that mistake, and W6, W7-bis, W9 and W10-A all hold unlanded numbers off-tree. `workflow_runs` and `action_cards` are tenant-scoped and already carry RLS policies from `045_rls_policies.py`, so no new policy is created — but the new columns must be covered by the runtime role's existing per-table grants from `043_juli_app_role.py` (ADR-085), asserted as `juli_app` and never as the owner. Old and new code coexist: the previous release neither reads nor writes the window columns and has no beat entry to fire."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing schedules anything: approval stays the only `WorkflowRun(` site, card refresh stays manual, and the dispatch window has no substrate — which is the pre-existing state, so no seller sees anything different. A half-landed producer is worse than none: a beat entry that emits cards for a window nobody can confirm would put an unactionable Process Order card in front of every enrolled shop.",
+    "postCutoverFailureBehavior": "REMOVE THE BEAT ENTRY FIRST — with no producer there is no new card, and that alone stops the bleeding without touching the schema. Then redeploy the previous release and restart juli-api and juli-celery-worker: the previous code neither reads nor writes the window columns, so it runs correctly with them present and needs NO downgrade; window rows and window-subject cards are INERT to it, though a card written since cutover will remain in the seller's list until it is expired or suppressed — expire them explicitly rather than leaving a card whose workflow no longer exists. Only if the schema must also be reverted, `alembic downgrade -1` drops the window columns and rows; it MUST FAIL LOUDLY, never silently, when any run is still bound to a window subject, because dropping the subject out from under a live run strands it until its reaper timer fires. Order: beat entry off, previous code, downgrade last. Nothing in either direction may ship a package: there is no write path in this slice.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_dispatch_window_producer.py tests/unit/test_dispatch_window_card_payload.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_celery_beat_unit_contract.py tests/unit/test_scheduled_card_producers.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'action_card or tenant_scope or rls or subject'",
+    "PYTHONPATH=backend/src python -m pytest tests/integration/test_schema_parity.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. This slice DOES carry a migration, so the reservation is binding.",
+    "Do NOT auto-ship on expiry, and do NOT add a standing or repeat approval. An unconfirmed window simply expires and the next scheduled run re-proposes with urgency marked (ADR-092 d.3). The standing approval is the DEFERRED option 2 and needs the autonomy ladder.",
+    "Do NOT let the model choose the count, the earliest deadline, the bucket membership or the ordering. The producer computes every number (S-FR-4); the model picks subject, wording and whether to proceed.",
+    "Do NOT re-shape the active-run index beyond keying it on the window, and do NOT change the subject vocabulary #1701/#1702 established. A second `subject_type` spelling is a second answer to a solved question.",
+    "Do NOT build a second scheduling mechanism. The producer rides on #1711's scheduled-producer machinery and #1703's subject-scoped emission path; a bespoke beat loop or a hand-inserted `action_cards` row bypasses the suppression and revision semantics that make a missed tick safe.",
+    "Do NOT do a fleet-wide read. Shop enumeration is the one sanctioned unscoped step; every tenant read after it runs inside `with_shop_scope` (ADR-089, S-NFR-8), and tenancy is asserted as `juli_app` under RLS, never as the table owner.",
+    "Do NOT store a local firing time without its IANA zone, and do NOT default an absent cadence row to a firing time. Absent means NOT ENROLLED.",
+    "Do NOT define the confirmation payload, do NOT re-verify, do NOT execute, and do NOT register a ship tool. Those are #1801 and #1803.",
+    "Do NOT build a vendor-refusal branch anywhere in the producer or the predicate call. TikTok does NOT refuse a ship write during a pending cancellation (ADR-092 amendment 2026-09-05) — the exclusion is hard, in Juli's own code.",
+    "Do NOT recompute a cutoff when the order carries a deadline field. Use #1797's ladder — `rts_sla_time` → `tts_sla_time` → `collection_due_time` — with the rung recorded; the documented cutoff is the last resort only.",
+    "Do NOT propose, request or write a cancellation for any excluded order. No cancel tool exists in this allowlist, ever.",
+    "Do NOT add a Create Packages or a Confirm Package Shipment step: in SEA TikTok creates the package at order time, and Confirm Package Shipment is certified-warehouse-provider-only (ADR-092 Context defects 1 and 2).",
+    "Do NOT act on FBT or Seller Own Fleet orders. v1 is fulfilled-by-seller with platform shipping only; both are LISTED with their reasons and never acted on.",
+    "Do NOT let an order id, a window id or an exclusion enum reach a seller-facing string, and do NOT write English copy. Everything goes through the outbound guard at `services/agent/sanitize`.",
+    "Do NOT verify with a success-marker grep. A beat task that raises before it logs is invisible to one; assert on the card row, the suppression record and the running app's own beat schedule.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/**, which are on this epic's doNotLoad list."
+  ]
+}
