@@ -1,0 +1,97 @@
+{
+  "planId": "w9d-ui-3-confirmation-sheet-batch-shape-2026-09-08",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com `/decisions/in-progress/[executionId]` -- the run route's confirmation sheet, gaining the `batch` discriminator's renderer INSIDE the sheet #1779 built. Not a new surface and not a second sheet: one more branch of the one discriminator dispatch.",
+    "`packages/contracts/src/agent-events.ts` -- the `batch` member of the typed `proposed_change` union plus its runtime validator, beside #1779's `change`. Wire shape unchanged; the batch payload's PRODUCER is the Process Order lane, not this slice.",
+    "`packages/contracts/src/seller-copy.ts` -- the shared banned-pattern guard, applied to every bucket heading, every exclusion reason and the one confirm control's copy.",
+    "The confirm call to `api.app-juli.com` -- `POST /v1/demo/runs/{run_id}/confirmations/{tool_call_id}`, reusing #1779's transport. ONE confirm covers the whole batch (PO-FR-4's one tap); the subset actually shipped is decided SERVER-SIDE at re-verify (PO-FR-5: a subset, never a superset).",
+    "Owner decision this renders, recorded in `ux-surface.md` F.6: option (c) -- grouped by bucket with the exclusion list as a PEER SECTION, not option (a)'s details-behind-an-expansion and not option (b)'s flat scrollable order list. Building (a) or (b) is a scope breach even though both are in the doc."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: vitest (jsdom) component tests run from the worktree root through the workspace filter, so the suite resolves THIS worktree's `apps/demo` and `packages/contracts` and not a stale sibling checkout. Post-deploy: the candidate demo is reached only through the restricted test listener/hostname -- zero public traffic, `candidatePublicTrafficPercent` 0, stable serving 100% -- and the walk is done in a real browser so a missing JS chunk shows up as a broken surface rather than as a green status code.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": true,
+    "notes": "apiSideEffectsInScope is TRUE for the same narrow reason as #1779: confirming a replayed Process Order decision POSTs one confirmation and appends the captured continuation for the Synthetic shop. No order is dispatched, nothing is cancelled, no vendor call is made -- v1 forbids cancelling outright. workersDisabledOnCandidate stays TRUE.",
+    "journeys": [
+      {
+        "name": "batch-shape-buckets-exclusions-and-one-tap",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1781",
+        "assertions": [
+          "pre-merge: a captured `batch`-shaped `proposed_change` renders a header whose ORDER COUNT and EARLIEST DEADLINE are the payload's own values (never computed by the sheet), with the orders under due-today and due-tomorrow taken from the payload's own bucket field; mutating an order's bucket MOVES it between groups (src/__tests__/confirmation-sheet-batch-shape.test.tsx::renders_count_earliest_deadline_and_buckets_from_the_payload)",
+          "pre-merge: every excluded order and its reason is ALREADY VISIBLE in the INITIAL rendered tree -- asserted with ZERO interactions, so an expansion, an accordion or a \"xem them\" control fails the test -- and each reason reads as seller copy, never as a predicate or guard name (PO-FR-4, `ux-surface.md` F.6 option (c)) (src/__tests__/confirmation-sheet-batch-shape.test.tsx::exclusions_are_visible_without_expanding_and_read_as_seller_copy)",
+          "pre-merge: an order the payload excluded appears in the exclusion section and in NO bucket; flipping that order from included to excluded in the payload moves it -- the relationship, not a fixed list (src/__tests__/confirmation-sheet-batch-shape.test.tsx::an_excluded_order_never_appears_in_a_bucket)",
+          "pre-merge: ONE tap sends EXACTLY ONE request carrying the payload's `tool_call_id` and `params_sha` and NO client-assembled order list; and no per-order write, cancel or re-arrange control exists anywhere in the rendered tree (PO-FR-7: exceptions are notification-only in v1) (src/__tests__/confirmation-sheet-batch-shape.test.tsx::one_tap_posts_the_payloads_binding_and_no_per_order_control_exists)",
+          "pre-merge: EVERY seller-facing string this surface renders is collected from the RENDERED tree (not from a hand-listed constant array) and checked against `SELLER_COPY_BANNED_PATTERNS` imported from `packages/contracts/src/seller-copy.ts` -- the shared `packages/contracts/seller-copy-banned-patterns.json` source, never a local copy of the list -- and no order id is rendered (src/__tests__/confirmation-sheet-batch-shape.test.tsx::seller_strings_pass_the_banned_pattern_guard)",
+          "pre-merge: every test input is a CAPTURED contract payload -- the golden fixtures in `packages/contracts/src/` and the tool-captured golden scenarios (#1311) -- driven through the real TypeScript contract types. Hand-authored event or envelope JSON is NOT an acceptable input (ADR-084 d.2); a shape the capture tool cannot yet produce is a gap in the tool, not a licence to type one out",
+          "post-deploy: each route below returns HTTP 200 as a RENDERED document on the candidate listener with the replayed scenario loaded -- not a 200 shell whose JS chunk 404s: `/decisions/in-progress/<a concrete replayed Process Order run id>`; `/decisions` (the entry the run is reached from) -- probed with `discoverFromHtml` so every <script>/<link> the document names is fetched and asserted 200 (ADR-035's build-integrity clause: a green /health and a 200 HTML document have both been true while the app was unusable)",
+          "post-deploy: on the candidate, open a replayed Process Order confirmation and see the two buckets AND the exclusion section WITHOUT interacting, then confirm once and observe the continuation",
+          "post-deploy: the anonymous door (\"Dung thu Demo\") is opened on the candidate and the browser network log shows ZERO requests to any `/v1/*` path for the whole walk (ADR-094 d.1) -- the replay is client-side content with no session, no auth.users row and no Postgres write; a single `/v1/*` call from that door fails the release, because it would be the #1283 shape returning",
+          "post-deploy: the candidate `/health` and one authenticated runs read are unchanged"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions",
+      "/decisions/in-progress/<concrete replayed Process Order run id>"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "js",
+      "css",
+      "html"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true,
+    "notes": "The batch renderer must be in the BUILT bundle -- the issue's own release-evidence line. A batch payload arriving at a bundle without the renderer must hit #1779's fail-closed refusal, which is only true if the fail-closed branch is also in the built output. Route shapes verified against `apps/demo/src/app/` in this tree on 2026-09-08: the only page.tsx files under /decisions are `decisions/page.tsx`, `decisions/recommendations/[recommendationId]/page.tsx` and `decisions/in-progress/[executionId]/page.tsx`. There is NO `/decisions/in-progress` and NO `/decisions/recommendations` index route -- the In-Progress view is the SAME HTML document at /decisions under the `?tab=in-progress` query param (`recommendations-view.tsx` reads `searchParams.get(\"tab\")`). Earlier plans (#1314, #1318) named those two as routes; probing them as HTML routes would 404 and the probe must not be written that way."
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE. The `batch` member is a client-side narrowing of the existing `proposed_change` field; the confirmation route, its request body and every persisted row are untouched. This slice's whole diff is under `apps/demo/**` and `packages/contracts/src/**`; it opens no migration file, and the migration numbers for the backend slices it depends on are RESERVED BY META and never read from head. If a test cannot pass without a column or an endpoint, the dependency is unmet and the answer is to stop and report, not to write a migration or a second route. Stable and candidate are compatible because the previous bundle simply does not render the new surface, and the rows and routes it reads are unchanged by this slice."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge; discard the candidate and keep the retained previous bundle serving 100%. A batch decision request on the previous bundle hits #1779's fail-closed refusal, which is the honest pre-cutover state.",
+    "postCutoverFailureBehavior": "Redeploy the retained previous demo bundle. The shape is additive on the client; a batch payload without its renderer must degrade to #1779's FAIL-CLOSED REFUSAL, never a blank sheet and never a partially rendered batch with some orders missing -- verify by opening such a run on the rolled-back bundle.",
+    "retainedStableRequired": true,
+    "automatic": false,
+    "notes": "The PREVIOUS demo bundle is RETAINED and stays serving 100% of public traffic until the candidate passes; rollback is redeploying that retained bundle. Rollback is NOT automatic for this slice: the failure modes here are visual and structural (a surface that renders blank, a chunk that 404s), which a health probe does not catch, so a human reads the candidate journey and decides. No schema step is involved in either direction."
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test src/__tests__/confirmation-sheet-batch-shape.test.tsx",
+    "pnpm --filter @juli/demo test",
+    "pnpm --filter @juli/contracts test",
+    "pnpm --filter @juli/demo lint",
+    "pnpm --filter @juli/demo type-check",
+    "pnpm -w turbo run build"
+  ],
+  "doNotInfer": [
+    "Do NOT add a surface. v1's seller surfaces are the seven S-FR-1 names -- card, plan review, confirmation sheet, run view, completion message + exception list, notification centre, deadline list -- plus the single deadline view added by the owner waiver of 2026-09-05 (#1790, and ONLY #1790). A slice that believes it needs an eighth surface, a new tab, a new modal shell or a new route is a signal the routing or the design is wrong: STOP AND REPORT, do not build it.",
+    "Do NOT hand-author event or envelope JSON, anywhere, for any reason. ADR-084 d.2 forbids it: a second hand-maintained source drifts from the first while both suites stay green -- the defect class behind six W3 post-merge fixes. Test inputs are the captured contract payloads and the tool-captured golden scenarios (#1311). ADR-094 d.5 relaxes this ONLY for the existing client replay in `mock-data.ts`, which this slice neither extends nor imitates.",
+    "Do NOT write English seller-facing copy. Vietnamese only, second person (\"ban\"), per S-NFR-4 and S-NFR-12; there is no EN toggle in v1 (`ux-surface.md` F.12 option (a)). An English label, an English empty state, an English error, or an English tooltip is a defect even when it never ships to a Vietnamese seller in the demo walk.",
+    "Do NOT let an internal identifier reach seller-facing text. No `workflow_key`, tool name, playbook key, predicate or guard name, stop-reason identifier, `subject_ref`, run id, order id, SKU id or warehouse id in any rendered string (ADR-084 d.5, S-NFR-4). The banned-pattern guard is the floor, not the ceiling: an identifier the regex list happens not to match is still a defect.",
+    "Do NOT read the workflow's identity from anything but the seller-facing envelope. Grouping, gating and labelling derive from `recommendation.workflow_name` and the `is_executable` discriminator that `packages/contracts/src/decisions.ts` already carries; `workflow_key` is absent from that envelope by ADR-084 d.3 and must NOT be reintroduced, inferred, reverse-engineered from a title, or smuggled in through a URL segment. If a v1 workflow cannot be distinguished without leaking the taxonomy, STOP AND REPORT (#1793).",
+    "Do NOT render a value outside a numeric field's validated range, and do NOT invent the range. Bounds come from the contract descriptor (`packages/contracts/src/review.ts`), never from a component literal; CE-FR-4's stock goal is `0 <= goal < sellable` and RI-NFR-3 forbids a write below the committed quantity. A control that can express an out-of-range value -- an unclamped slider, a free-text number, a spinner without bounds -- is the defect, whether or not a validator catches it afterwards (#1783).",
+    "Do NOT change a backend route, response model, payload producer or database row from this slice. Domain is ui-ux, one domain per issue; the producers are named in the issue's Blocked-by list. Do NOT open `apps/dashboard/`, `ios/`, `backend/src/juli_backend/ai/`, `backend/src/juli_backend/workers/` or the TikTok corpora catalogs (ADR-051) -- this epic's doNotLoad list.",
+    "Do NOT prove a contract with a `**kwargs` double or a hand-rolled stub of a contract type. Bind every test collaborator to the REAL exported type and the REAL module; a double proves routing, never that the real payload would render. Consumer-without-producer is the failure this wave exists to prevent.",
+    "Do NOT bucket orders, compute the earliest deadline, or assemble an order list to post. The sheet composes NOTHING: it renders the payload's bucket field and posts the payload's own binding. A client-assembled subset is how a run ships a superset (PO-FR-5).",
+    "Do NOT build per-order exception cards with a re-arrange write, chunking, own-carrier handling, or ANY cancel affordance. All v2; cancelling an order is forbidden in v1 outright.",
+    "Do NOT hide the exclusions behind an expansion, a tab or a \"see more\". `ux-surface.md` F.6 option (c) is what the owner chose: a peer section visible in the initial tree.",
+    "Do NOT add a second confirmation transport or a second discriminator dispatch. #1779 built them; this slice adds a branch."
+  ]
+}
