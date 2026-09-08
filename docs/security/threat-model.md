@@ -34,7 +34,7 @@ This model assumes a threat actor with network access to the public API, ability
 |---------|------|--------|-------|
 | Webhook request handling | `juli_backend/services/webhook/deployed.py` | `handle_tiktok_webhook_delivery()` | Signature validation and fail-closed JSON parsing before mutation |
 | Demo analytics masking | `juli_backend/services/analytics_kpi_masking/mask.py` | `mask_public_analytics_envelope()` | Removes absolute metrics, returns only rate-of-change; reference shop ID server-bound |
-| OAuth callback handling | `juli_backend/api/routes/auth_tiktok.py` | `tiktok_oauth_callback()` | State validation, code exchange server-side only; code never exposed to client |
+| OAuth callback handling | `juli_backend/api/routes/auth_tiktok.py` | `tiktok_oauth_callback()` | State validation **in production only** — a callback with no `state` is refused there (#1748); outside production the stateless app-review path remains reachable, see the residual risk below. Code exchange server-side only; code never exposed to client |
 
 **Residual risks:**
 
@@ -42,6 +42,7 @@ This model assumes a threat actor with network access to the public API, ability
 |------|------------|--------|-------------------|-------|-------------------------|
 | Webhook signature key compromise | Low | Critical — attacker injects fabricated shop events | Key is long-lived and not rotated in-band; rotation would require manual TikTok Partner Center re-registration | Backend | Signature verification fails on >10% of known-good webhook IPs in 1 hour |
 | State parameter interception at CDN | Very low | High — attacker completes OAuth as victim | Assumes Cloudflare compromise; OTP tokens mitigate session hijacking | Backend | Evidence of Cloudflare security incident |
+| Stateless OAuth callback outside production | Low | High — a caller holding a valid authorization code can bind a shop's credentials to the app-review user without CSRF verification | TikTok's app-review callback carries no `state`, so refusing it everywhere would break app review. Scoped to non-production by `is_production()` (#1748); in production a missing `state` is refused exactly like a forged one. The fallback identity `_app_review_user_id()` defaults to a REAL existing user rather than a throwaway, which is what makes the non-production path worth stating rather than assuming benign | Backend | The stateless path is reached in production, or `is_production()` stops gating it, or app review no longer needs it — at which point the branch should be deleted rather than re-scoped |
 | Demo analytics inference attack | Medium | Medium — attacker re-constructs deleted shop state from rate changes | Masking hides absolute values but not trends; a time-series with public dates reveals structure | Analytics | No acceptance criteria; residual risk logged and deferred to ADR-086 |
 
 ---
@@ -159,7 +160,7 @@ This model assumes a threat actor with network access to the public API, ability
 |---------|------|--------|-------|
 | Credential resolution | `juli_backend/core/security/credential_resolver.py` | `resolve_production_read_credential()` | Credential lookup enforces scope matching; missing scope → NotFound |
 | Structured logging policy | `juli_backend/core/config/runtime.py` | `require_env()` | Audit logging captures auth decisions; tokens never logged |
-| OAuth callback verification | `juli_backend/api/routes/auth_tiktok.py` | `tiktok_oauth_callback()` | State parameter validated, code exchanged server-side, bearer tokens issued |
+| OAuth callback verification | `juli_backend/api/routes/auth_tiktok.py` | `tiktok_oauth_callback()` | State parameter validated **in production only** (#1748) — see boundary 1's residual risk for the app-review exception. Code exchanged server-side, bearer tokens issued |
 
 **Residual risks:**
 
@@ -217,6 +218,8 @@ A manual red-team pass is a gate in the release process (#1339). Use this sectio
 6. **Boundary 6: Data boundary** — Lower risk. Covers repository isolation, transactional races. Requires database audit and concurrent-mutation testing.
 
 ### Previous passes and findings
+
+**2026-09-07, deployed sha `25491b06` (attested on #1339).** All six boundaries probed. One finding: #1748 — the OAuth `state` check was guarded by a bare `if state:`, so omitting the parameter skipped it entirely, and the unverified path created a user, provisioned a shop and persisted credentials. Fixed in #1751 and verified on the deployed sha (`502` → `401`). This entry is the other half of that finding: the model recorded "State parameter validated" without qualification, which is how the pass came to treat the control as unconditional in the first place. An accepted risk that is not written down is indistinguishable from an unnoticed one.
 
 This is the first documented pass. See ADR-085 decision 5 for why it was deferred until W7.
 
