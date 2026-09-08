@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -255,10 +255,16 @@ async def seed_demo_cohort_for_impact(session: AsyncSession) -> None:
     # - Degenerate: very flat or zero pre-period
 
     # Base patterns (from Fujiwa distribution observations)
+    # Volumes are calibrated against the `cao` GATE, not against the floor.
+    # `assign_confidence` requires volume >= floor * FLOOR_MULTIPLIER_CAO (x3);
+    # a series that merely clears the floor can never tier above `trung_binh`,
+    # so a cohort seeded "well above the floor of 1" cannot demonstrate the
+    # confident case ADR-099 d.3 asks for. `int()` truncation costs a further
+    # ~20% of the mean, so each baseline sits clear of 3x rather than at it.
     base_gmv = Decimal("100")  # Daily GMV baseline
-    base_impressions = Decimal("500")  # Baseline impressions/day
-    base_visitors = Decimal("50")  # Baseline visitors/day
-    base_orders = Decimal("2")  # 2 orders/day baseline (well above floor of 1)
+    base_impressions = Decimal("500")  # >= 50 floor x 3 = 150
+    base_visitors = Decimal("90")  # >= 20 floor x 3 = 60
+    base_orders = Decimal("6")  # >= 1 floor x 3 = 3, with room for truncation
     base_ctr = Decimal("0.05")  # 5% CTR
     base_conversion = Decimal("0.04")  # 4% conversion
 
@@ -266,7 +272,8 @@ async def seed_demo_cohort_for_impact(session: AsyncSession) -> None:
 
     # Generate a shared trend component for correlation
     # This ensures all products move together (high correlation)
-    daily_trend = {}
+    daily_trend: dict[date, Decimal] = {}
+    target_effect: dict[date, Decimal] = {}
     # Use a deterministic "pseudo-random" pattern based on day offset
     # This creates realistic daily variation while being reproducible
     for day_offset in range((end_date - start_date).days + 1):
@@ -277,11 +284,21 @@ async def seed_demo_cohort_for_impact(session: AsyncSession) -> None:
         day_sine_wave = Decimal(1) + (Decimal(day_offset % 7) - Decimal(3)) * Decimal("0.03")
         # Pre-period: flat baseline with daily noise
         # Post-period: increase (effect of the mutation)
+        # THE MARKET MOVEMENT, shared by every product in the shop. This is what
+        # makes the siblings correlate with the target, which is what qualifies
+        # them for the control pool.
+        daily_trend[current_date] = day_sine_wave
+
+        # THE TARGET'S OWN EFFECT, applied to the target and to nothing else.
+        # Keeping these separate is the whole point. When the controls carry the
+        # same post-period growth as the target, ratio-form DiD computes
+        # `expected = pre x control_growth = post`, so `incremental` is zero by
+        # construction and the demo's honest answer is "Juli did nothing" — a
+        # real computation over a fixture that guaranteed the null result.
         if days_from_t < 0:
-            daily_trend[current_date] = day_sine_wave  # Pre-period with daily variation
+            target_effect[current_date] = Decimal(1)
         else:
-            growth_factor = Decimal(1) + (Decimal(days_from_t + 1) * Decimal("0.08"))
-            daily_trend[current_date] = day_sine_wave * growth_factor  # Growing post-period
+            target_effect[current_date] = Decimal(1) + (Decimal(days_from_t + 1) * Decimal("0.08"))
 
     for day_offset in range((end_date - start_date).days + 1):
         current_date = start_date + timedelta(days=day_offset)
@@ -290,12 +307,20 @@ async def seed_demo_cohort_for_impact(session: AsyncSession) -> None:
         # === Target product: showing growth post-mutation ===
         trend = daily_trend[current_date]
 
-        target_gmv = base_gmv * trend
-        target_impressions = base_impressions * trend
-        target_visitors = base_visitors * trend
-        target_orders = base_orders * trend
-        target_ctr = base_ctr
-        target_conversion = base_conversion
+        effect = target_effect[current_date]
+
+        target_gmv = base_gmv * trend * effect
+        target_impressions = base_impressions * trend * effect
+        target_visitors = base_visitors * trend * effect
+        target_orders = base_orders * trend * effect
+        # Rate metrics must VARY. Written flat, their variance is zero, every
+        # correlation with them is 0.0 by definition, and the control pool
+        # rejects the whole candidate set — so MutationKind.IMAGE and
+        # MutationKind.DESCRIPTION would never run K-nearest selection at all
+        # and would report exactly 0 incremental forever. That is the ADR-079 /
+        # #1062 blind spot reproduced from the other side.
+        target_ctr = base_ctr * trend * effect
+        target_conversion = base_conversion * trend * effect
 
         interval = AnalyticsPerformanceInterval(
             id=uuid.uuid4(),
@@ -328,10 +353,15 @@ async def seed_demo_cohort_for_impact(session: AsyncSession) -> None:
             # Each sibling has a fixed scale factor but follows the same trend
             # This ensures high correlation: they all move together
             sibling_scale = Decimal("0.8") + (Decimal(sibling_idx) * Decimal("0.03"))
+            # `trend` only — deliberately NOT `effect`. A control product is the
+            # counterfactual: what the target would have done had Juli not acted.
+            # It shares the market movement and none of the mutation.
             sibling_gmv = base_gmv * sibling_scale * trend
             sibling_impressions = base_impressions * sibling_scale * trend
             sibling_visitors = base_visitors * sibling_scale * trend
             sibling_orders = base_orders * sibling_scale * trend
+            sibling_ctr = base_ctr * trend
+            sibling_conversion = base_conversion * trend
 
             interval = AnalyticsPerformanceInterval(
                 id=uuid.uuid4(),
@@ -343,13 +373,13 @@ async def seed_demo_cohort_for_impact(session: AsyncSession) -> None:
                 tiktok_product_id=sibling_id,  # Add product ID
                 gmv=float(sibling_gmv),
                 gmv_currency="USD",
-                click_through_rate=float(target_ctr),
-                click_order_rate=float(target_conversion),
+                click_through_rate=float(sibling_ctr),
+                click_order_rate=float(sibling_conversion),
                 visitors=int(sibling_visitors),
                 impressions=int(sibling_impressions),
                 sku_orders=int(sibling_orders),
                 items_sold=int(sibling_orders * 2),
-                conversion_rate=float(target_conversion),
+                conversion_rate=float(sibling_conversion),
                 active_products=1,
                 update_time=now,
                 created_at=now,
