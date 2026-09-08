@@ -1,0 +1,107 @@
+{
+  "planId": "clear-excess-playbook-prompt-and-two-tool-allowlist-2026-09-08",
+  "affectedPublicSurfaces": [
+    "THE CONFIRMATION PAYLOAD — the surface this slice actually changes, and the one a seller reads before consenting. Approving a Clear Excess card now runs the CLEAR EXCESS playbook instead of Optimize Product's, and the confirmation sheet renders a DISCOUNT PROPOSAL rather than a listing or price edit. The payload carries the single proposal, its computed parameters, its three disclosure lines and the restated stock goal, and it is PARAMS-HASH BOUND (ADR-075) so 'exactly the computed parameters' is checkable rather than asserted. A client rendering a confirmation for `clear_excess_4` will see a proposal shape it has never seen.",
+    "THE PLAYBOOK REGISTRY GOES FROM ONE ENTRY TO TWO. Verified 2026-09-08: `services/agent/playbooks/` holds `__init__.py`, `base.py` and `optimize_product.py` and NOTHING ELSE; `playbooks/__init__.py:50-63` `get_registered_playbooks()` returns exactly one entry and the module docstring (`:4-5`) says so — 'the only playbook registered in this repo today'. `services/agent/prompts/` holds `__init__.py`, `composer.py` and `optimize_product/{v1,v2,v3}.md`; only one workflow has prompts. This is the first time the registry resolves a SECOND workflow, so every place that implicitly assumed one is now load-bearing.",
+    "THE TOOL ALLOWLIST IS WHERE ADR-091 d.4's DELETION IS ENFORCED. NO base-price write and NO stock write appear in this workflow's allowlist — that is not a coding preference, it is the mechanism by which `execution_layer.md` §4 step 6a is actually deleted rather than merely documented as deleted. The set is exactly two: `create_product_discount` (reused from #1778, UNCHANGED) and `deactivate_activity` (a WRITE tool over the captured sandbox endpoint from #1717). Nothing else.",
+    "THE THREE HANDLER DICTS — with a correction the issue body gets wrong. The issue says the three literal handler dicts live 'in `runner/tool_executor.py`'. Verified 2026-09-08 they are DECLARED ELSEWHERE and only imported and dispatched there: `services/agent/tools/terminal.py:99` `TERMINAL_TOOL_HANDLERS`, `tools/product.py:512` `PRODUCT_READ_TOOL_HANDLERS`, `tools/product_write.py:423` `PRODUCT_WRITE_TOOL_HANDLERS`; `runner/tool_executor.py` imports them at `:119,:123,:127` and dispatches at `:273-276` and `:305-309`. Registration therefore goes through #1704's domain-registered dispatcher, and the executor must edit the declaring modules, not the dispatcher.",
+    "A TRACKED, SELLER-EDITABLE THANH LÝ CHECKLIST ITEM ON THE RUN (#1713, S-FR-12) — a seller-visible item with editable text and a tick time in the ledger, which GATES NO STAGE in v1. Its copy must say PLAINLY that Juli can neither apply nor verify the clearance label: TikTok has no Partner API surface for it, it cannot be applied at 0 stock, and adding stock silently strips it. Copy that implies Juli will do it is a false promise on a surface the seller acts on.",
+    "NO NEW HTTP ROUTE. The registry gains an entry, the prompt gains a binding, the allowlist gains two tools and the run gains a checklist item; no endpoint is added and no existing response model changes shape."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run by the REAL runner from the worktree root with `PYTHONPATH` pinned to this worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite. The playbook is resolved through the REAL registry and the tools through the REAL tool specs, BOUND TO THE REAL SIGNATURES so an argument rename FAILS the test rather than passing through a `**kwargs` double; the CONFIRM pause and the params-hash binding are exercised through the real `runner/confirmation.py`, not simulated. Post-deploy: candidate `/health`, then APPROVE ONE OPTIMIZE PRODUCT CARD and confirm its behaviour is unchanged — this slice must be a no-op for every other workflow key, and the registry going from one entry to two is exactly the kind of change that breaks the incumbent. NO ACTIVITY IS CREATED ON ANY SHOP BY DEPLOYING: the candidate approval is driven to the CONFIRM pause and stopped there, so no discount is created anywhere.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is TRUE, matching ADR-035's default: the registry resolution, the prompt composition and the CONFIRM pause are all exercised in-process and need no beat or scheduler on the candidate; the suspended run that DOES need a worker is #1816. apiSideEffectsInScope is FALSE: the run is driven to the CONFIRM pause and stopped, so no vendor write occurs on the candidate at all. syntheticShopRequired is TRUE because a real card, a real approval and a real run are needed to resolve the playbook.",
+    "journeys": [
+      {
+        "name": "one-playbook-two-tools-one-confirm-and-a-checklist-item-juli-cannot-perform",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1815",
+        "assertions": [
+          "pre-merge: approving a Clear Excess card RESOLVES THE CLEAR EXCESS PLAYBOOK THROUGH THE REGISTRY — asserted through the real `get_registered_playbooks()`, which returns exactly one entry today, so the assertion must show TWO entries and the right one selected for `clear_excess_4` (tests/unit/test_clear_excess_playbook.py::test_playbook_resolves_with_a_two_tool_allowlist)",
+          "pre-merge: the allowlist CONTAINS `create_product_discount` AND `deactivate_activity` AND NO base-price or stock write tool — asserted as an exact set equality, not as two membership checks, because a membership check cannot see a third tool someone added",
+          "pre-merge: `update_product_price` (the existing base-price write at `tools/product_write.py:407`) is ABSENT from this workflow's allowlist, asserted by name — that absence IS ADR-091 d.4's deletion of `execution_layer.md` §4 step 6a, and the allowlist is the only place it is enforceable",
+          "pre-merge: `create_product_discount` is REUSED UNCHANGED from #1778 — asserted by identity against the shared spec object, so a Clear-Excess-local fork fails the test; a second discount tool is the defect this slice must not introduce",
+          "pre-merge: the Clear Excess prompt is COMPOSED FROM THE SHARED SECTIONS (#1705) PLUS ITS OWN BINDING, and NO SHARED RULE IS RESTATED in the Clear Excess file — asserted over the composed output AND over the binding file's own source, because a restated rule composes correctly and then drifts (tests/unit/test_clear_excess_prompt.py::test_prompt_composes_from_shared_sections_only)",
+          "pre-merge: a run reaching dispatch has EXACTLY ONE CONFIRM PAUSE WITH ONE PROPOSAL (S-FR-3, N = 1) — asserted on the count of pauses over a full run, not on the presence of one (tests/unit/test_clear_excess_playbook.py::test_single_confirm_bound_to_the_computed_parameters)",
+          "pre-merge: arguments that DIFFER from the rule's computed parameters FAIL THE PARAMS-HASH BINDING — asserted by perturbing one computed parameter and showing the confirmation is refused, which is what makes 'exactly the computed parameters' checkable rather than asserted (ADR-075)",
+          "pre-merge: units to clear of 99 makes the vendor call carry a TOTAL PURCHASE LIMIT OF 99, and at 100 it carries THE UNLIMITED VALUE — asserted on the arguments bound to the REAL tool spec's signature, at exactly 99 and exactly 100 (tests/unit/test_clear_excess_playbook.py::test_purchase_limit_self_limits_at_or_below_99)",
+          "pre-merge: an approved Clear Excess run carries a TRACKED, SELLER-EDITABLE Thanh lý checklist item; its TEXT SAYS JULI CAN NEITHER APPLY NOR VERIFY THE LABEL; and TICKING IT CHANGES NO RUN STAGE — asserted by ticking it and comparing the run's stage before and after for equality (tests/unit/test_clear_excess_checklist.py::test_thanh_ly_is_a_tracked_item_that_gates_nothing)",
+          "pre-merge: the tick time is recorded in the ledger and the item's text is editable by the seller (S-FR-12), asserted on persisted rows",
+          "pre-merge: every new seller-facing string is Vietnamese through the seller-copy sanitiser, second person, with NO internal identifier — no `activity_id`, no workflow key, no FBS/FBT token reaching seller-facing text (S-NFR-4)",
+          "pre-merge: ZERO BEHAVIOUR CHANGE FOR `optimize_product_2` — its playbook, its `required_steps`, its prompt goldens and its recorded run golden pass UNTOUCHED, proving the registry going from one entry to two did not disturb the incumbent",
+          "pre-merge: NO suspended state and NO resume appear in the diff — `waiting_external` is #1816's, and a playbook that already knows how to wait has absorbed the next slice; asserted over the diff",
+          "pre-merge: NO SECOND LEVER. Flash Sale stays deferred behind ADR-091 d.2's three conditions, asserted by the allowlist's exact set equality",
+          "post-deploy: candidate `/health` returns healthy, then APPROVING ONE OPTIMIZE PRODUCT CARD on the candidate produces behaviour identical to stable — the no-op claim for every other workflow key, checked on the surface most likely to break. The Clear Excess approval on the candidate is driven to the CONFIRM pause and STOPPED there: NO ACTIVITY IS CREATED ON ANY SHOP BY DEPLOYING"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is a new playbook under `services/agent/playbooks/`, a prompt binding under `services/agent/prompts/`, the tool spec and handler entry for `deactivate_activity` in the declaring module under `services/agent/tools/`, the registry wiring through #1704's dispatcher, the checklist item on the run, and tests. Nothing under apps/, packages/ or ios/ is touched — this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "agent-prompt-golden",
+      "golden-scenario-capture"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE. The playbook, the prompt binding, the tool specs and the allowlist are all code; the tracked checklist item rides #1713's already-landed checklist shape and this slice adds no column of its own. Old and new code coexist trivially: the previous release resolves only the Optimize Product playbook and never names the Clear Excess key. TWO CONDITIONAL RESERVATIONS, stated so they are not decided quietly. (1) If the discount create must PERSIST THE ACTIVITY ID Juli created in a new column — the durable record rule 5's collision check and #1817's creation snapshot both depend on, and the only collision input there will ever be, since `Search Activities` does not exist at TikTok — that column's number is RESERVED BY META and supplied with the issue. (2) If #1713's checklist shape turns out not to be landed, STOP AND REPORT rather than inventing a checklist table here. In either case: NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update`, but W6, W8, W9 and the sibling W10 lanes hold unlanded numbers off-tree and this tree already carries two duplicate-numbered pairs (`003_*`, `043_*`) from exactly this mistake."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. The registry keeps its single Optimize Product entry, `services/agent/prompts/` keeps its one binding, no `deactivate_activity` tool exists, and approving a Clear Excess card keeps doing whatever it does today. #1816, #1817 and #1818 stay blocked on a playbook that does not exist, which is where they are now. Nothing is exposed, nothing is partially applied, no vendor write ever occurred, and no data hazard exists.",
+    "postCutoverFailureBehavior": "REVERT THE REGISTRY ENTRY, then redeploy the previous release and restart juli-api and juli-celery-worker. Runs ALREADY CREATED keep their workflow key and their RECORDED allowlist, so a run's history stays readable and auditable after the revert; what they lose is a resolvable playbook, so any run still in flight must be drained or terminated deliberately rather than left to fail on resolution. NO SCHEMA CHANGE means no downgrade — unless the conditional activity-id column was migrated, in which case the previous release simply never names it and needs no downgrade either. THE CONSEQUENCE TO STATE IN THE PR: any Product Discount ALREADY CREATED on a vendor by a Clear Excess run SURVIVES THE REVERT — reverting Juli's code does not deactivate a live TikTok activity, and with the `deactivate_activity` tool gone Juli can no longer end it; those activities must be ended by hand or by re-deploying forward. If #1816 has ALREADY landed when this is rolled back, DRAIN OR REAP EVERY RUN IN `waiting_external` BEFORE reverting: a rollback that removes the resume path strands a suspended run with nothing that recognises its state, and the previous reaper will not reap it.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_clear_excess_playbook.py tests/unit/test_clear_excess_prompt.py tests/unit/test_clear_excess_checklist.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'playbook or prompt or tool_executor or registry'",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'confirmation or params_hash or golden_scenario'",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_clear_excess_validator.py tests/unit/test_clear_excess_disclosure.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT fork `create_product_discount`. It is REUSED UNCHANGED from #1778, asserted by identity against the shared spec object; a Clear-Excess-local copy of the discount tool is the defect this slice must not introduce.",
+    "Do NOT add a stock write or a base-price write to the allowlist. That is ADR-091 d.4's deletion of `execution_layer.md` §4 step 6a, and THE ALLOWLIST IS WHERE IT IS ENFORCED. `update_product_price` (`tools/product_write.py:407`) must be absent by name.",
+    "Do NOT add a third tool. The set is EXACTLY two — `create_product_discount` and `deactivate_activity` — asserted as set equality. Flash Sale stays deferred behind ADR-091 d.2's three unmet conditions, and `search_activities` cannot be added because it DOES NOT EXIST at TikTok (resolved 2026-09-05 — `contract-collection.md` A-25, `endpoints.md:509`, `scope-verification/optimize-product-clear-excess.md:69`).",
+    "Do NOT edit the three handler dicts in `runner/tool_executor.py` — THE ISSUE BODY IS WRONG about where they live. Verified 2026-09-08 they are declared in `services/agent/tools/terminal.py:99`, `tools/product.py:512` and `tools/product_write.py:423`; `tool_executor.py` only imports (`:119,:123,:127`) and dispatches (`:273-276`, `:305-309`). Register through #1704's domain-registered dispatcher and edit the declaring module.",
+    "Do NOT restate a shared rule in the Clear Excess prompt file. It composes from #1705's shared sections plus ITS OWN BINDING — one rule in one file, per that slice's contract. A restated rule composes correctly today and drifts silently tomorrow.",
+    "Do NOT let a model choose a number. The model chooses WHICH SKUs to include and HOW to word the proposal; EVERY number comes from #1814's rule and is params-hash bound so 'exactly the computed parameters' is checkable (S-FR-4, ADR-075).",
+    "Do NOT create more than one CONFIRM pause or more than one proposal. S-FR-3 is exactly one pause with one option (N = 1), asserted on the count over a full run.",
+    "Do NOT implement the suspended state or the resume. `waiting_external`, the reaper policy and the webhook-driven resume are #1816. Shipping a consumer whose producer is unreviewed is the failure this wave exists to prevent.",
+    "Do NOT let ticking the Thanh lý item gate a run stage. It is a TRACKED item (S-FR-12) with editable text and a ledger tick time, and it gates NOTHING in v1 — asserted by comparing the run's stage before and after the tick.",
+    "Do NOT imply Juli will apply or verify the Thanh lý label. TikTok has no Partner API surface for it, it cannot be applied at 0 stock, and adding stock silently strips it. Juli SAYS SO PLAINLY and neither sets nor verifies it.",
+    "Do NOT infer a flash sale or a markdown. One lever, a Product Discount; ADR-091 d.4 deletes the markdown and d.2 defers Flash Sale.",
+    "Do NOT enforce the goal on a timer. At or below 99 units to clear, TikTok enforces it through the purchase limit; above 99 it is enforced by a persisted event in #1816 — never by a clock this slice starts.",
+    "Do NOT add a second reaper policy object. `workers/tasks/reaper.py:119` resolves every run against one `_DEFAULT_TERMINATION_POLICY`; per-run resolution is #1706's seam.",
+    "Do NOT ask for a fresh CONFIRM on the stock goal. It is set at approval (#1813) and RESTATED at CONFIRM; the one act ADR-091 d.4 exempts from a fresh CONFIRM is the goal-triggered deactivation in #1816.",
+    "Do NOT change the card's KPI tie. `KPI_WORKFLOW_KEYS` maps `clear_excess_4` to `inventory_turnover` and `dsi` (`services/scoring/kpi_catalog.py:46-47`) while ADR-055 d.15 says AOV; CE-NFR-3 leaves both alone and the tie stays whatever the surface renders today.",
+    "Do NOT read revenue. v1 records facts only; the revenue reading on cleared SKUs is deferred to v2.",
+    "Do NOT change `optimize_product_2`. Its playbook, its `required_steps`, its prompt goldens and its recorded run golden must pass untouched — the registry going from one entry to two is exactly the change that breaks an incumbent silently.",
+    "Do NOT write a migration without Meta's reserved number. If the discount create must persist its activity id in a new column, that number is RESERVED BY META; never run `alembic heads` and never derive a number from the newest filename.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL registry, the REAL tool specs and the REAL runner signatures, so an argument rename FAILS the test. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

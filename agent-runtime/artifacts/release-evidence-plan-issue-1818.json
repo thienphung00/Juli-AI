@@ -1,0 +1,107 @@
+{
+  "planId": "goal-progress-and-days-of-supply-run-facts-with-eight-distinct-causes-2026-09-08",
+  "affectedPublicSurfaces": [
+    "STOP REASONS — the wire vocabulary a client counts end states on. All EIGHT causes must be DISTINCT, non-failing and separately countable: `goal_met`, `expired_stock_remaining`, `expired_goal_met`, `seller_modified`, `already_in_promotion`, `nothing_sellable`, `no_safe_discount`, `declined`. Verified 2026-09-08: `StopReason` (`services/agent/status.py:100-158`) holds SIXTEEN members — `final_response`, `confirmation_declined`, `paused_for_confirmation`, `cancelled_by_seller`, `confirmation_expired`, `confirmation_diverged`, `prompt_version_unrecoverable`, `iteration_cap_exceeded`, `wall_clock_timeout`, `tool_error_unrecoverable`, `llm_error`, `concurrency_conflict`, `output_validation_failed`, `worker_lost`, `concluded_without_changes`, `required_steps_unfulfilled` — and NONE of the eight is among them; the nearest is `CONFIRMATION_DECLINED` (:104), which already maps to `COMPLETED` (:163). All eight fit the `String(32)` column budget. This vocabulary is mirrored into `packages/contracts/src/agent-events.ts` and served on `GET /demo/runs` and the SSE stream, so a client with an exhaustive switch sees values it has never seen.",
+    "THE COMPLETION COPY — the facts this slice PRODUCES and #1819 RENDERS. A completed Clear Excess run exposes GOAL PROGRESS (`units cleared ÷ units to clear`, unhedged) and DAYS OF SUPPLY BEFORE AND AFTER, plus its named cause. The separation is the requirement: did-the-job facts are UNHEDGED and kept SEPARATE from hedged impact readings (S-NFR-7), and mixing them is how a fact becomes an estimate nobody trusts.",
+    "A NEW RUN-FACT SHAPE ALONGSIDE `impact_readings` — NEVER A CHANGE TO ITS KEY. Verified 2026-09-08: `impact_readings` is uniquely keyed `(tool_execution_id, metric, kind)` (`models.py:868-873`, `uq_impact_readings_execution_metric_kind`) with `kind` CHECK-constrained to `('preliminary','final')` (:874-877) — a difference-in-differences table, and nothing else. Bending it to hold a per-run fact would either force a fake `tool_execution_id` or widen a key every existing reader depends on.",
+    "`classify_mutation_kinds` SKIPS A DISCOUNT WRITE ENTIRELY, AND THAT STAYS TRUE. Verified 2026-09-08: `workers/impact_reader/classify.py:44-66` keys off exactly four payload probes in fixed order — `payload[\"price_update\"]` (:58), `payload[\"image_uri\"]` or `image_content_base64` (:60), `title` (:62), `description` (:64) — and returns `[]` for anything else. A discount write classifies as nothing and is skipped. CE-NFR-3 calls for a new fact-row shape rather than a new mutation kind, so the classifier is NOT touched here.",
+    "NO ROUTE SHAPE CHANGES AND NO EXISTING READING CHANGES. No endpoint is added; `impact_readings` keeps its key, its CHECK and every one of its readers; the only additions are the run facts and the completed end-state vocabulary.",
+    "THE CARD'S KPI TIE IS EXPLICITLY UNTOUCHED, named as a surface because it is the one a reviewer will reach for. `KPI_WORKFLOW_KEYS` maps `clear_excess_4` to `inventory_turnover` (`services/scoring/kpi_catalog.py:46`) and `dsi` (`:47`) while ADR-055 d.15's table says AOV. The two layers already disagree, ADR-091 d.6 records the disagreement WITHOUT resolving it, and CE-NFR-3 leaves both exactly as they are. THE TIE STAYS WHATEVER THE SURFACE RENDERS TODAY."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run by the REAL runner from the worktree root with `PYTHONPATH` pinned to this worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite, because the `ck_workflow_runs_stop_reason` CHECK and `uq_impact_readings_execution_metric_kind` are among the assertions and SQLite enforces neither, which would let a forbidden value insert silently. REAL `workflow_runs` ROWS ARE WRITTEN AND THE FACTS ARE READ BACK THROUGH THE REAL ACCESSOR, not asserted on an in-memory object the test constructed. The days-of-supply pair is computed from #1812's REAL helper, so the zero-velocity undefined value travels the whole way rather than being restated in a fixture. Post-deploy: candidate `/health`, then ONE AUTHENTICATED READ OF AN EXISTING OPTIMIZE PRODUCT IMPACT READING returning a byte-identical shape — the proof that the DiD table was not bent. NO ACTIVITY IS CREATED ON ANY SHOP BY DEPLOYING: this slice reaches no vendor at all.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is TRUE, matching ADR-035's default: the facts are recorded at the run's start and at its close through the real run object, and the end-state vocabulary is a status-mapping property — none of it needs a beat, a scheduler or the impact reader running on the candidate, and the post-deploy check is a READ of an existing reading rather than a fresh one. apiSideEffectsInScope is FALSE: no vendor call and no external write; a run that wrote nothing is one of the states this slice must count. syntheticShopRequired is TRUE because real run rows under a shop are needed to read the facts back through the real accessor.",
+    "journeys": [
+      {
+        "name": "an-unhedged-goal-progress-fact-a-days-of-supply-pair-and-eight-causes-that-stay-countable",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1818",
+        "assertions": [
+          "pre-merge: a run that CLEARED SOME of its units records a GOAL-PROGRESS FACT of units cleared over units to clear on the run, UNHEDGED, and CLEARING ONE MORE UNIT RAISES IT — the second clause pins the direction so an inverted or constant implementation cannot pass on one lucky number (tests/unit/test_clear_excess_run_facts.py::test_goal_progress_is_recorded_as_an_unhedged_fact)",
+          "pre-merge: the goal-progress fact carries NO hedging vocabulary and is stored SEPARATELY from `impact_readings` — asserted on the fact's own shape, because S-NFR-7's separation is the requirement and a fact filed as an estimate is an estimate",
+          "pre-merge: DAYS OF SUPPLY BEFORE AND AFTER are BOTH recorded, at the run's creation and at its close, FROM #1812's HELPER — asserted by identity against that helper so a locally re-implemented formula fails the test; a second copy of the arithmetic is the defect #1812 exists to prevent and this is where it would reappear (tests/unit/test_clear_excess_run_facts.py::test_days_of_supply_before_and_after_are_recorded)",
+          "pre-merge: a SKU AT ZERO VELOCITY records THE NAMED UNDEFINED VALUE rather than a number — asserted by comparing against a deliberately huge finite days-of-supply and showing the two are not equal and not ordered as if they were; storing infinity here would make every zero-velocity SKU look like the best outcome the workflow ever had",
+          "pre-merge: runs ending in EACH OF THE EIGHT CAUSES read back as EIGHT DISTINCT VALUES, NONE of them the failure terminal, EACH countable on its own — asserted as a set of size eight against the real `StopReason` enum and the real DB CHECK, and asserted that each maps to a non-failing status, because `CONFIRMATION_DECLINED` already maps to `COMPLETED` (`status.py:104,163`) and a ninth alias for `declined` would make two causes indistinguishable (tests/unit/test_clear_excess_end_states.py::test_all_eight_causes_are_distinct_and_non_failing)",
+          "pre-merge: every one of the eight fits `String(32)` and is present in BOTH the Python enum and the `ck_workflow_runs_stop_reason` CHECK — asserted against the LIVE POSTGRES CATALOG, not against a migration's source text",
+          "pre-merge: the status-mapping totality test passes IN BOTH DIRECTIONS with the eight causes present, and `NON_TERMINAL_STATUSES` (`status.py:172-174`) is UNCHANGED — none of these eight is a pre-stop status",
+          "pre-merge: a run that WROTE NOTHING produces NO IMPACT READING, and is COUNTED SEPARATELY FROM A FAILED RUN — asserted on the absence of an `impact_readings` row AND on the two counts being distinct, because S-FR-7 makes 'nothing to do' a success and a shared counter erases the difference (tests/unit/test_clear_excess_end_states.py::test_a_run_that_wrote_nothing_produces_no_reading)",
+          "pre-merge: `impact_readings` is UNBENT — its unique key stays `(tool_execution_id, metric, kind)` (`models.py:868-873`) and its `kind` CHECK stays `('preliminary','final')` (:874-877), asserted against the live catalog; the run facts live in a shape ALONGSIDE it",
+          "pre-merge: `classify_mutation_kinds` (`workers/impact_reader/classify.py:44-66`) is UNCHANGED — its four payload probes and their fixed order are asserted byte-identical, and a discount write still classifies as `[]` and is skipped; CE-NFR-3 asks for a fact-row shape, not a new mutation kind",
+          "pre-merge: a completed Clear Excess run's CARD KPI TIE IS WHATEVER THE SURFACE RENDERED BEFORE THIS SLICE — `KPI_WORKFLOW_KEYS` still maps `clear_excess_4` to `inventory_turnover` (`kpi_catalog.py:46`) and `dsi` (`:47`), asserted over the catalog itself so a well-meaning 'fix' fails the build — AND NO REVENUE METRIC IS READ for the cleared SKUs, asserted on the metrics actually queried (tests/unit/test_clear_excess_run_facts.py::test_kpi_tie_unchanged_and_no_revenue_read)",
+          "pre-merge: the facts are readable back THROUGH THE REAL ACCESSOR off a REAL persisted `workflow_runs` row — not asserted on the in-memory object the test just constructed, which would prove the setter and nothing else",
+          "pre-merge: NO COMPLETION COPY IS RENDERED here. This slice PRODUCES the facts; #1819 renders them, in the ui-ux lane — asserted over the diff",
+          "pre-merge: ZERO behaviour change for `optimize_product_2` — its impact readings, its DiD path and its recorded run golden pass untouched",
+          "post-deploy: candidate `/health` returns healthy and ONE AUTHENTICATED READ OF AN EXISTING OPTIMIZE PRODUCT IMPACT READING returns a byte-identical shape to stable, proving the DiD table was not bent; NO ACTIVITY IS CREATED ON ANY SHOP BY DEPLOYING"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is the run-fact shape and its accessor under `services/agent/`, the end-state vocabulary in `services/agent/status.py`, one additive Alembic migration and tests. The completion copy that RENDERS these facts is #1819's, in the AGT-W10A-UI lane; nothing under apps/, packages/ or ios/ is touched here — this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "alembic-history",
+      "postgres-catalog-dump",
+      "golden-scenario-capture"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "ADDITIVE ONLY — a RUN-FACT SHAPE ALONGSIDE `impact_readings`, NEVER A CHANGE TO ITS KEY. `impact_readings` keeps `uq_impact_readings_execution_metric_kind` on `(tool_execution_id, metric, kind)` (`models.py:868-873`) and its `kind IN ('preliminary','final')` CHECK (:874-877) exactly as they are; nothing about the DiD table moves. The run facts — goal progress, and days of supply before and after — land either as an additive nullable structure on `workflow_runs` or as a small additive fact table, and THE MIGRATION NUMBER AND `down_revision` ARE RESERVED BY META and supplied with the issue. The days-of-supply pair must be able to hold THE NAMED UNDEFINED VALUE for a zero-velocity SKU, so the column cannot be a bare NOT NULL numeric: NULL must not be overloaded to mean both 'not recorded' and 'undefined', or the two become indistinguishable on read. Nothing is dropped, renamed or retyped; no NOT NULL and no backfill; the previous release never names the new shape and keeps reading `workflow_runs` and `impact_readings` unchanged. If the eight stop reasons need the `ck_workflow_runs_stop_reason` CHECK widened and #1707 did NOT already do it, STOP AND REPORT rather than widening it here — the enum and the constraint must move in ONE commit or the parity test finds the drift after the fact. Any new table is tenant-scoped and must be covered by the runtime role's grants from `043_juli_app_role.py` (ADR-085) and by an RLS policy — assert that coverage as `juli_app`, never as the owner. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update`, but W6, W8, W9 and the sibling W10 lanes hold unlanded numbers off-tree and this tree already carries two duplicate-numbered pairs (`003_*`, `043_*`) from exactly this mistake."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. A Clear Excess run records no goal progress and no days-of-supply pair, the eight causes are not distinguishable (none of them exists in `StopReason`'s sixteen members today), and #1819 has no facts to render. `impact_readings` and `classify_mutation_kinds` stay exactly as they are, which they would anyway. Nothing is exposed, nothing is partially applied, no data hazard: this slice writes only its own additive rows and never reaches a vendor.",
+    "postCutoverFailureBehavior": "Redeploy the previous release FIRST and restart juli-api and juli-celery-worker: the previous code neither writes nor reads the run-fact shape and never emits the eight causes, so it runs correctly against the widened schema and needs NO downgrade. RECORDED FACTS REMAIN READABLE and NO READER OF `impact_readings` IS AFFECTED — the DiD table was never touched, which is the specific property the post-deploy check verifies. Only if the schema must ALSO be reverted, `alembic downgrade -1` drops the additive fact shape, destroying goal-progress and days-of-supply history and nothing else; that downgrade MUST FAIL LOUDLY with a named error, never silently delete or coerce, when any run still carries a fact a shipped surface reads, and it must NEVER narrow `ck_workflow_runs_stop_reason` under live rows holding one of the eight causes. Order: previous code first, downgrade second, so no live process is mid-write against a constraint being narrowed. DRAIN OR REAP EVERY RUN IN `waiting_external` BEFORE any rollback that removes the resume path (#1816/#1817): the previous reaper judges only `(QUEUED, RUNNING)` and `(WAITING_APPROVAL,)` (`reaper.py:400,441`), so a suspended run left behind is inert — it will never resume and never be reaped while its live discount keeps running.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_clear_excess_run_facts.py tests/unit/test_clear_excess_end_states.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_workflow_run_status_mapping.py tests/unit/test_agent_events_contract.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'impact_reading or classify or impact_reader or kpi_catalog'",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_days_of_supply_and_sell_through.py tests/integration/test_schema_parity.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. This slice DOES carry a migration, so the reservation is binding.",
+    "Do NOT bend `impact_readings` to hold a run fact. Its unique key is `(tool_execution_id, metric, kind)` (`models.py:868-873`) with `kind IN ('preliminary','final')` (:874-877) — a DiD table. Holding a per-run fact there would force a fake `tool_execution_id` or widen a key every existing reader depends on. CE-NFR-3 calls for a NEW FACT-ROW SHAPE ALONGSIDE IT.",
+    "Do NOT add a `MutationKind.DISCOUNT` or edit `classify_mutation_kinds`. `workers/impact_reader/classify.py:44-66` keys off four payload probes and returns `[]` for a discount write, which is skipped — and that stays true. A classifier branch here would silently start generating DiD readings for a workflow that must produce facts, not estimates.",
+    "Do NOT amend `KPI_WORKFLOW_KEYS` or ADR-055 d.15's table. `clear_excess_4` maps to `inventory_turnover` and `dsi` (`services/scoring/kpi_catalog.py:46-47`) while the ADR table says AOV. The two layers already disagree, ADR-091 d.6 records the disagreement WITHOUT resolving it, CE-NFR-3 leaves both alone, and THE TIE STAYS WHATEVER THE SURFACE RENDERS TODAY. 'Fixing' it here is out of scope and is a card-KPI change in disguise.",
+    "Do NOT read revenue. v1 records the facts ONLY; the revenue reading on the cleared SKUs is DEFERRED TO V2 (spec §3 Deferred, PRD Out of Scope). Assert on the metrics actually queried, not on the absence of a call site.",
+    "Do NOT hedge the goal-progress fact or file it as an impact reading. Did-the-job facts are UNHEDGED and SEPARATE from hedged readings (S-NFR-7); a fact filed as an estimate is an estimate.",
+    "Do NOT collapse the eight causes into one generic 'nothing to do'. That would make eight different facts indistinguishable, which is the option ADR-091 d.7 explicitly rejected — and per S-FR-7 NONE of them is a failure.",
+    "Do NOT alias `declined` onto the existing `confirmation_declined`. That member already exists (`status.py:104`) and already maps to `COMPLETED` (:163); reusing it would make two of the eight indistinguishable. Name the eight distinctly and assert a set of size eight.",
+    "Do NOT count a run that wrote nothing as a failure, and do NOT give it an impact reading. It is a success with a named cause, counted separately.",
+    "Do NOT re-implement `days_of_supply`. Use #1812's helper, asserted by identity — ADR-093's Replenish lane imports the same one, and a second copy of the arithmetic is exactly the defect that slice exists to prevent.",
+    "Do NOT store infinity for a zero-velocity SKU, and do NOT overload NULL to mean both 'not recorded' and 'undefined'. The undefined value is NAMED and must survive the round trip through the column.",
+    "Do NOT render completion copy. This slice PRODUCES the facts; #1819 renders them, in the ui-ux lane.",
+    "Do NOT widen the stop-reason CHECK in isolation. If #1707 did not land the eight causes in BOTH the enum and a migration, stop and report — a four-place version of a five-place change passes tests and breaks the wire.",
+    "Do NOT infer a flash sale, a markdown, a base-price write or a stock write. This slice writes only its own additive rows and reaches no vendor.",
+    "Do NOT let a model choose a fact. Goal progress and days of supply are computed by a deterministic rule from run state and #1812's helper (S-FR-4).",
+    "Do NOT enforce a goal on a timer, do NOT add a second reaper policy, and do NOT ask for a fresh CONFIRM. Nothing in this slice waits, resumes or consents.",
+    "Do NOT reach for `Search Activities`. It DOES NOT EXIST at TikTok (resolved 2026-09-05 — `contract-collection.md` A-25, `endpoints.md:509`).",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL run object and the REAL accessor, reading a REAL persisted row back. A `**kwargs` double proves routing, and asserting on an in-memory object the test constructed proves the setter and nothing else."
+  ]
+}

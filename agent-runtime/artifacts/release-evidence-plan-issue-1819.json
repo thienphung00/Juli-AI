@@ -1,0 +1,107 @@
+{
+  "planId": "stock-goal-chips-thanh-ly-checklist-and-completion-copy-2026-09-08",
+  "affectedPublicSurfaces": [
+    "THE DEMO PLAN-REVIEW CARD — `apps/demo/src/components/plan-review-card.tsx`, verified present 2026-09-08 (a client component importing from `@juli/ui`). It gains the stock-goal control: CHIPS FOR 30 / 60 / 90 DAYS with 60 PRE-SELECTED as the agent-proposed value (ADR-055 d.19 — the agent pre-commits a value for every field, including the ones the seller decides), beside a UNITS FIELD for a seller who would rather name the quantity. The chips and the field are two views of ONE value; the LAST EDIT WINS, and nothing may leave them silently disagreeing.",
+    "THE ZERO-VELOCITY BRANCH OF THAT SAME CONTROL, which is a rendering rule and not a styling choice. Where a SKU has ZERO VELOCITY the days figure is UNDEFINED, not infinite (#1812's named result), so ONLY THE UNITS FIELD IS OFFERED — the day chips are ABSENT. A '90 days of supply' chip on a SKU that sells nothing is a meaningless goal, and rendering it disabled rather than absent still tells the seller the number means something.",
+    "THE COMPLETION COPY — the honest end state for EACH OF THE EIGHT CAUSES (`goal_met`, `expired_stock_remaining`, `expired_goal_met`, `seller_modified`, `already_in_promotion`, `nothing_sellable`, `no_safe_discount`, `declined`), plus GOAL PROGRESS as units cleared over units to clear and DAYS OF SUPPLY BEFORE AND AFTER — the facts #1818 records. This slice RENDERS them and computes NONE of them.",
+    "THE CONFIRMATION SHEET (#1779) RESTATES THE GOAL beside the single discount proposal and its THREE consequence lines — the thirty-day window, the ≥ 1-day hold before the traffic benefit lands, and that this discount LOWERS THE FLOOR A FUTURE FLASH SALE MUST BEAT. The goal field is #1783's numeric field kind, range-validated `0 ≤ goal < sellable-after-exclusions`, and AN EDIT RE-ARMS THE HASH so the value the seller last touched is the value bound at CONFIRM. A stale hash here means the seller consents to a number they did not choose.",
+    "THE THANH LÝ CHECKLIST ITEM on the plan review and the run view, through #1786's tracked-checklist surface: seller-editable text, seller-ticked, its tick time in the ledger, GATING NO STAGE. Its copy must say plainly that Juli can NEITHER APPLY NOR VERIFY the clearance label — TikTok has no Partner API surface for it, it cannot be applied at 0 stock, and adding stock silently strips it.",
+    "SEVEN SURFACES, NO EIGHTH. This mounts on the existing card, plan review, confirmation sheet, run view, completion message with exception list, notification centre and deadline list ONLY (S-FR-1). A slice that needs an eighth surface is a signal the design is wrong — say so and stop. NO BACKEND CHANGE: `packages/contracts` and `backend/` are untouched, and every string is Vietnamese through the seller-copy sanitiser (`apps/demo/src/lib/review-seller-copy.ts`, which re-exports `SELLER_COPY_BANNED_PATTERNS` from `@juli/contracts` at `:1,25` and exposes `sanitizeSellerReviewText()` at `:27`), second person, with no internal identifier and no projected impact magnitude."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: VITEST run by the REAL runner in the workspace (`apps/demo` runs vitest 4.1.10 with `environment: \"jsdom\"` and `setupFiles: [\"./vitest.setup.ts\"]`; `\"test\": \"vitest run\"` at `apps/demo/package.json:12`). The tests exercise THE REAL COMPONENTS WITH REAL CONTRACT PAYLOADS — not snapshots and not hand-authored event JSON — because a snapshot records what the component rendered, never that the chip default is 60 or that an edit re-armed the hash. The seller-copy guard runs over EVERY new string. Post-deploy: LOAD THE CLEAR EXCESS PLAN REVIEW ON THE CANDIDATE and confirm the chips render with 60 SELECTED; then load ONE UNRELATED WORKFLOW'S PLAN REVIEW and confirm it is UNCHANGED, since this slice must be a no-op outside Clear Excess. NO ACTIVITY IS CREATED ON ANY SHOP BY DEPLOYING — this is a rendering slice, it issues no write, and the candidate is loaded read-only without approving anything.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "syntheticShopRequired is FALSE: the component tests run against real contract payloads in the workspace and reach no shop, and the post-deploy check LOADS a plan review without approving or confirming anything. workersDisabledOnCandidate is TRUE, matching ADR-035's default — nothing here runs in a beat or a worker. apiSideEffectsInScope is FALSE: the surface renders values #1813 and #1818 produce and computes none of them, so no vendor call and no write of any kind occurs.",
+    "journeys": [
+      {
+        "name": "the-seller-sets-a-goal-in-the-unit-they-think-in-and-reads-an-honest-end-state",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1819",
+        "assertions": [
+          "pre-merge: a Clear Excess plan review renders CHIPS FOR 30, 60 AND 90 DAYS WITH 60 SELECTED, and a UNITS FIELD is present; SELECTING A CHIP AND TYPING IN THE FIELD ARE MUTUALLY CONSISTENT, THE LAST EDIT WINNING — asserted in BOTH directions (chip then field, field then chip), because a one-directional binding passes half the criterion and leaves the two views silently disagreeing (apps/demo/src/__tests__/clear-excess-stock-goal.test.tsx::test_chips_default_to_sixty_with_a_units_field)",
+          "pre-merge: 60 is the AGENT-PROPOSED value present on the payload, not a hardcoded UI default — asserted by rendering a payload whose proposed goal is NOT 60 and showing the surface follows the payload; ADR-055 d.19's rule is that the agent pre-commits the value, so a UI that always shows 60 would hide a wrong proposal",
+          "pre-merge: a SKU WITH ZERO VELOCITY renders NO DAY CHIPS AND ONLY THE UNITS FIELD — asserted on the chips being ABSENT from the tree, not merely disabled, because a disabled '90 days' chip still asserts that the number means something (apps/demo/src/__tests__/clear-excess-stock-goal.test.tsx::test_zero_velocity_offers_units_only)",
+          "pre-merge: a goal AT OR ABOVE sellable-after-exclusions, or BELOW ZERO, is REFUSED IN THE SURFACE with a VIETNAMESE message and APPROVE IS NOT SENT — asserted on the absence of the network call, not merely on the presence of the message, and at the exact boundary (`sellable` refused, `sellable - 1` accepted) (apps/demo/src/__tests__/clear-excess-stock-goal.test.tsx::test_out_of_range_is_refused_and_an_edit_rearms_the_hash)",
+          "pre-merge: a VALID EDIT RE-ARMS THE HASH so the confirmation RESTATES THE EDITED VALUE — asserted by editing, confirming, and reading the restated number; a surface that sends the edit but keeps the old hash makes the seller consent to a number they did not choose",
+          "pre-merge: the confirmation sheet restates the goal beside the SINGLE discount proposal and its THREE consequence lines — the thirty-day window, the one-day hold and the flash-sale floor effect — asserted as all three present, once each",
+          "pre-merge: an approved Clear Excess run renders the THANH LÝ CHECKLIST ITEM on BOTH the plan review and the run view; it is EDITABLE and TICKABLE; its copy says JULI CAN NEITHER APPLY NOR VERIFY the label; and TICKING IT ADVANCES NO STAGE — asserted by comparing the rendered stage before and after the tick (apps/demo/src/__tests__/clear-excess-checklist.test.tsx::test_thanh_ly_item_is_editable_tickable_and_non_gating)",
+          "pre-merge: completed runs in EACH OF THE EIGHT CAUSES each render THEIR OWN end state, GOAL PROGRESS as cleared over to-clear, and DAYS OF SUPPLY BEFORE AND AFTER — asserted eight times, once per cause, so a default branch cannot cover several of them (apps/demo/src/__tests__/clear-excess-completion-copy.test.tsx::test_completion_states_progress_and_days_of_supply)",
+          "pre-merge: a run whose days of supply is UNDEFINED (zero velocity) renders the named undefined state rather than a number or an infinity glyph",
+          "pre-merge: EVERY new string PASSES THE SELLER-COPY GUARD with NO internal identifier — run through `apps/demo/src/lib/review-seller-copy.ts`'s `REVIEW_UI_BANNED_PATTERNS` / `sanitizeSellerReviewText()` (`:25,:27`), which strip FBS/FBT/webhook/`activity_id`/backticks; Vietnamese, second person, no projected impact magnitude (S-NFR-4)",
+          "pre-merge: NO EIGHTH SURFACE is introduced — asserted over the diff against the seven S-FR-1 surfaces (card, plan review, confirmation sheet, run view, completion message with exception list, notification centre, deadline list)",
+          "pre-merge: NOTHING IS COMPUTED IN THE UI. The goal proposal, the sellable-after-exclusions bound, the goal progress and the days-of-supply pair all arrive on the payload from #1813 and #1818 — asserted by rendering payloads with deliberately unusual values and showing the surface reports them verbatim rather than recomputing",
+          "pre-merge: ONE UNRELATED WORKFLOW'S plan review is UNCHANGED — its existing tests pass untouched, proving the slice is a no-op outside Clear Excess",
+          "pre-merge: `packages/contracts` and `backend/` are UNTOUCHED, asserted over the diff",
+          "post-deploy: LOAD THE CLEAR EXCESS PLAN REVIEW ON THE CANDIDATE and confirm the chips render with 60 SELECTED; load ONE UNRELATED WORKFLOW'S PLAN REVIEW and confirm it is unchanged. The candidate is loaded READ-ONLY — nothing is approved and nothing is confirmed — so NO ACTIVITY IS CREATED ON ANY SHOP BY DEPLOYING"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "The `apps/demo` Clear Excess plan review, confirmation sheet, run view and completion message — the four rendered surfaces this slice changes, all inside the seven S-FR-1 surfaces and adding no eighth. They are served as part of the demo app's existing bundle; no new page or route is added, and no new static asset is introduced.",
+      "Every other workflow's plan review and completion message, checked as UNCHANGED — the no-op half of the claim, and the more likely place for a regression than the surface being edited."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "vitest-report",
+      "next-build-manifest",
+      "eslint-report"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE, NO MIGRATION AND NO DATABASE ACCESS ANYWHERE IN THIS SLICE. The diff is `apps/demo` components and their tests. The backend field this surface renders — the `stock_goal` on the card and in run state — is #1813's and already exists when this lands; the run facts are #1818's. If the field is NOT present when implementation starts, that is a blocked dependency to report, NOT a column to add from the ui-ux lane. `packages/contracts` is not touched: the only contracts coupling is the generic `SELLER_COPY_BANNED_PATTERNS` already re-exported through `apps/demo/src/lib/review-seller-copy.ts:1,25`."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. The seller has no control over the stock goal on the surface, the Thanh lý checklist item is not shown, and a completed run's eight causes, goal progress and days-of-supply pair are not rendered. The backend field and the run facts still exist and are simply unrendered — which is exactly the state the previous slices leave behind. Nothing is exposed, nothing is partially applied, no data hazard: this slice writes nothing anywhere.",
+    "postCutoverFailureBehavior": "Revert and redeploy the previous demo build. THE BACKEND FIELD REMAINS AND SIMPLY HAS NO CONTROL RENDERED OVER IT — the agent-proposed goal is still pre-committed on every card (ADR-055 d.19), so an approval that goes through without the control still carries a valid goal rather than a blank. Runs already approved with a seller-edited goal keep that goal in their run state and their params hash; the revert does not touch persisted consent. No migration and no database access means no downgrade of any kind. THE CONSEQUENCE TO STATE IN THE PR: with the completion copy gone, a completed run's named cause and facts are recorded but unreadable to the seller, and the Thanh lý reminder disappears from the plan review — the seller loses the prompt to apply a label Juli was never able to apply for them. DRAIN OR REAP EVERY RUN IN `waiting_external` BEFORE any rollback that also removes the resume path (#1816/#1817); a UI-only revert does NOT remove it and strands nothing, but a combined rollback would leave a suspended run inert with its discount still live.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test src/__tests__/clear-excess-stock-goal.test.tsx src/__tests__/clear-excess-checklist.test.tsx src/__tests__/clear-excess-completion-copy.test.tsx",
+    "pnpm --filter @juli/demo test",
+    "pnpm --filter @juli/demo lint",
+    "pnpm check:demo"
+  ],
+  "doNotInfer": [
+    "Do NOT compute the goal, the sellable bound, the goal progress or the days-of-supply pair in the UI. Render what #1813 and #1818 produce — asserted by rendering deliberately unusual payload values and showing the surface reports them verbatim. A UI that recomputes will disagree with the backend the first time a rule changes.",
+    "Do NOT hardcode 60. It is the AGENT-PROPOSED value carried on the payload (ADR-055 d.19); a surface that always shows 60 hides a wrong proposal. Assert by rendering a payload proposing something else.",
+    "Do NOT render a disabled day chip at zero velocity. The chips are ABSENT — a disabled '90 days of supply' chip still asserts that the number means something, and #1812's zero-velocity result is UNDEFINED, not infinite.",
+    "Do NOT send approve when the goal is out of range. Refuse IN THE SURFACE with a Vietnamese message and assert on the ABSENCE of the network call, at the exact boundary.",
+    "Do NOT let an edit leave a stale hash. An edit RE-ARMS the hash (#1783's numeric field kind) so the confirmation restates the edited value; a surface that sends the edit but keeps the old hash makes the seller consent to a number they did not choose.",
+    "Do NOT add an eighth surface. This mounts on the seven S-FR-1 surfaces only — card, plan review, confirmation sheet, run view, completion message with exception list, notification centre, deadline list. A slice that needs an eighth is a signal the design is wrong: SAY SO AND STOP.",
+    "Do NOT let the Thanh lý tick gate a stage. It is a tracked item (S-FR-12) with editable text and a ledger tick time, and it gates NOTHING in v1 — asserted by comparing the rendered stage before and after the tick.",
+    "Do NOT imply Juli will apply or verify the Thanh lý label. TikTok has no Partner API surface for it, it cannot be applied at 0 stock, and adding stock silently strips it. The copy says so plainly.",
+    "Do NOT test with snapshots or hand-authored event JSON. Use REAL CONTRACT PAYLOADS against the REAL components — a snapshot records what rendered, never that the default is 60 or that an edit re-armed the hash.",
+    "Do NOT touch `packages/contracts` or anything under `backend/`. This is the ui-ux lane; if the `stock_goal` field or the run facts are missing, that is a blocked dependency to report, not a field to add.",
+    "Do NOT let an internal identifier or a projected impact magnitude reach a seller-facing string. Every string is Vietnamese, second person, through the seller-copy sanitiser (`apps/demo/src/lib/review-seller-copy.ts:25,27`), which strips FBS/FBT/webhook/`activity_id`/backticks (S-NFR-4).",
+    "Do NOT collapse the eight causes into a default branch. Each renders its own honest end state, asserted eight times.",
+    "Do NOT infer a flash sale, a markdown or a stock write anywhere in the copy. The only lever is a thirty-day Product Discount; ADR-091 d.4 deletes the stock write and d.2 defers Flash Sale, and copy describing either would be false safety copy — the exact defect #1820 removes.",
+    "Do NOT let a model choose a rendered number. Every number on these surfaces is computed by a deterministic rule upstream (S-FR-4).",
+    "Do NOT enforce the goal on a timer in the UI, and do NOT add a second reaper policy — the surface starts no clock and owns no timeout.",
+    "Do NOT prompt for a fresh CONFIRM on the goal. It is set at approval and RESTATED at CONFIRM, never re-consented; the one act exempt from a fresh CONFIRM is the goal-triggered deactivation (#1816), and this surface reports it rather than asking about it.",
+    "Do NOT change the card's KPI tie or render a different one. `KPI_WORKFLOW_KEYS` maps `clear_excess_4` to `inventory_turnover` and `dsi` while ADR-055 d.15 says AOV; CE-NFR-3 leaves both alone and THE TIE STAYS WHATEVER THE SURFACE RENDERS TODAY.",
+    "Do NOT render a revenue reading. v1 records the facts only; the revenue reading on cleared SKUs is deferred to v2.",
+    "Do NOT reach for `Search Activities` in any copy or state. It DOES NOT EXIST at TikTok (resolved 2026-09-05 — `contract-collection.md` A-25, `endpoints.md:509`).",
+    "Do NOT touch `apps/dashboard/`, `ios/`, `backend/src/juli_backend/ai/` or `backend/src/juli_backend/workers/` — the AGT-W10A-UI lane's doNotLoad list."
+  ]
+}
