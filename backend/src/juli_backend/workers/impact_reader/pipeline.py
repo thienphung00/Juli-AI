@@ -217,6 +217,11 @@ async def _process_kind(
             confidence=db_confidence,
             control_set_json=json.dumps(control_result.as_control_set_json()),
             computed_at=computed_at,
+            # This pipeline reads `analytics_performance_intervals` — the series
+            # a shop's own traffic produced. Every row it writes is measured.
+            # The demo's writer declares "synthetic" at its own call site; no
+            # code path may infer provenance from context (ADR-099 d.2).
+            series_source="measured",
         )
         session.add(row)
         written += 1
