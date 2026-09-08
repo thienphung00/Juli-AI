@@ -15,6 +15,11 @@
  * artifact by construction, checked by `scripts/verify-replay-scenario-in-
  * build.mjs` (run as part of `next build`). A network call here would also
  * trip `src/__tests__/replay-module-graph.test.ts`'s "no network call site
+ * reachable from the replay entry" assertion, and would need a round trip
+ * the replay path must never make. (Spelled out without the literal call
+ * syntax on purpose -- that exact text once matched the very regex this
+ * paragraph describes, the first time this file entered that test's
+ * reachable graph, issue #1772.)
  * reachable from the replay entry" assertion, and would need a network
  * round trip the replay path must never make.
  *
