@@ -53,8 +53,7 @@ class TestSeriesSourceModel:
 
         # Find the check constraint in table args
         check_constraints = [
-            arg for arg in ImpactReading.__table_args__
-            if isinstance(arg, CheckConstraint)
+            arg for arg in ImpactReading.__table_args__ if isinstance(arg, CheckConstraint)
         ]
         # Should have at least 3: kind, confidence, and series_source
         assert len(check_constraints) >= 3

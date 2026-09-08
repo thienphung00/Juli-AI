@@ -15,8 +15,8 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import ImpactReading, Shop, ToolExecution, User
 
@@ -109,9 +109,7 @@ class TestSeriesSourceColumn:
             await session.flush()
 
     @pytest.mark.asyncio
-    async def test_existing_rows_read_as_measured(
-        self, session: AsyncSession
-    ) -> None:
+    async def test_existing_rows_read_as_measured(self, session: AsyncSession) -> None:
         """The two existing rows backfill as 'measured'."""
         # Query the existing rows to verify they have series_source = 'measured'
         result = await session.execute(
