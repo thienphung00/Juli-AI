@@ -12,11 +12,18 @@
  * own captured continuation (`getReplayContinuationEvents`), and never
  * calls `fetch` at all.
  *
- * Depends only on `confirmation-decision.ts` (the neutral type contract)
- * and `replay-scenario.ts` (the local continuation data) -- never on
- * `confirmation-client.ts`, so this module's own presence in the replay
- * door's reachable module graph never pulls in that file's network call
- * site or its literal backend route path (`replay-module-graph.test.ts`).
+ * Depends only on `confirmation-decision.ts` (the neutral type contract),
+ * `replay-scenario.ts` (the local continuation data), and
+ * `replay-decision.ts` (a plain `sessionStorage` write, no network of any
+ * kind) -- never on `confirmation-client.ts`, so this module's own
+ * presence in the replay door's reachable module graph never pulls in
+ * that file's network call site or its literal backend route path
+ * (`replay-module-graph.test.ts`).
+ *
+ * ISSUE #1836: this is the one place a replay decision actually resolves,
+ * so it is also the one place that decision gets recorded --
+ * `writeReplayDecision` before `resolveDecision` reveals the outcome, so a
+ * visitor who returns to Decisions mid-reveal already has the record.
  */
 
 import type {
@@ -24,6 +31,7 @@ import type {
   ConfirmDecisionFn,
 } from "./confirmation-decision";
 import type { ReplayDecisionKind } from "./replay-scenario";
+import { writeReplayDecision } from "../replay-decision";
 
 /**
  * Builds a `ConfirmDecisionFn` scoped to one replay run id.
@@ -47,6 +55,7 @@ export function buildReplayConfirm(
       );
     }
 
+    writeReplayDecision(runId, decision);
     resolveDecision(decision);
 
     const result: ConfirmationDecisionResult = {
