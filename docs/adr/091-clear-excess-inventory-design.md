@@ -237,6 +237,23 @@ E2 revenue on the cleared SKUs vs the pre-discount baseline through the ADR-077 
 an estimate; E3 the card's KPI tie stays **AOV** (ADR-055 d.15), while **days of supply before and
 after** is recorded on the run and stated in the completion copy as the run's internal measure.
 
+## Rationale
+
+*Extracted during the W6→main reconcile to satisfy `check_adr`, which requires a
+`## Rationale` heading (#1853). Nothing below is new reasoning — it summarises what
+this ADR already argues in the section named, which remains the fuller account.*
+
+The reasoning is recorded in full under **Context**. In brief: the decisions
+follow from the baseline markdown in `execution_layer.md:191` being both harmful
+and mis-ordered, which the promotion seller-journey grades WRONG-ORDER/harmful on
+four counts — a percentage promo recomputes off the lowered list price so the two
+**compound**; a fixed-price discount **freezes** the list price so the update is
+blocked while it runs; and marking down today **raises** the 14-day floor that
+later pricing has to clear.
+
+The design therefore chooses the promotion lever over a base-price change, and
+orders the steps so the lever is selected before any price is touched.
+
 ## Consequences
 
 - **Tool set.** Reuse `create_product_discount` (ADR-090 d.1); add `deactivate_activity` (WRITE,

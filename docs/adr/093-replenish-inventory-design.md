@@ -239,6 +239,22 @@ run-rate and an event.
 **Stage E — measure.** Facts (units added ÷ proposed; on time), the risk outcome into the event
 outcome store, and the stock-health series as the impact reading. No revenue.
 
+## Rationale
+
+*Extracted during the W6→main reconcile to satisfy `check_adr`, which requires a
+`## Rationale` heading (#1853). Nothing below is new reasoning — it summarises what
+this ADR already argues in the section named, which remains the fuller account.*
+
+The reasoning is recorded in full under **Context**. In brief: **TikTok already
+computes the run-rate number.** Quản lý hàng tồn kho publishes a 30-day forecast,
+a suggested replenishment quantity and days of supply, with alerts and an
+exportable list.
+
+Inventory Search returns quantities only — `available_quantity` and
+`committed_quantity` — so Juli computes days of supply with TikTok's own formula
+(ADR-091 d.1) rather than inventing a second one. The design's value is therefore
+placed in what TikTok does *not* compute, not in restating what it does.
+
 ## Consequences
 
 - **Tool set.** `search_inventory` (READ), `get_stock_operation_settings` / `update_stock_operation_settings`
