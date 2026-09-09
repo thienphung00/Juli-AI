@@ -78,6 +78,37 @@ def executor_domain_mismatch(child: dict[str, Any], plan: dict[str, Any]) -> boo
     return plan.get("executorDomain") != profile_domain
 
 
+def base_staleness() -> dict[str, Any]:
+    """How far this checkout is behind its integration base, for the dispatcher.
+
+    #1731 AC1: an executor dispatched onto a stale branch does not know it is
+    stale. It produces work against a base that has moved, and the first signal
+    is a red check minutes later. The Meta gate is the dispatch point, so it is
+    where the distance belongs -- the write-time preflight hook only fires once
+    an executor is already running.
+
+    Reuses checkout_preflight's own check rather than re-deriving it, so the two
+    cannot disagree about what "behind" means. Reports rather than blocks: the
+    preflight already owns the blocking decision, and duplicating it here would
+    give one condition two places to be overridden.
+    """
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent / "git"))
+        import checkout_preflight as pf
+
+        repo = Path.cwd()
+        finding = pf.check_stale_base(repo, pf.git_ok(repo, "rev-parse", "--abbrev-ref", "HEAD"))
+    except Exception as exc:  # never block dispatch on a reporting failure
+        return {"available": False, "reason": f"{type(exc).__name__}: {exc}"}
+
+    return {
+        "base": pf.base_ref_name(),
+        "severity": finding.severity,
+        "summary": finding.headline,
+        **{k: v for k, v in (finding.data or {}).items() if k in ("behind", "baseAgeDays")},
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--issue", type=int)
@@ -127,9 +158,7 @@ def main() -> int:
             return 1
 
     passed, gate_results = run_all_gates(issue, repo_root=args.repo_root, config=config)
-    child, parent, _, _, load_error = load_parent_child_caches(
-        issue, args.repo_root, config=config
-    )
+    child, parent, _, _, load_error = load_parent_child_caches(issue, args.repo_root, config=config)
 
     cache_status = (child or {}).get("cacheStatus")
     ready = bool(
@@ -147,6 +176,7 @@ def main() -> int:
         "ensure": ensure_summary,
         "gates": gate_results,
         "requireValidCacheBeforeExecutor": require_valid,
+        "baseStaleness": base_staleness(),
     }
     if load_error:
         payload["loadError"] = load_error
@@ -165,9 +195,7 @@ def main() -> int:
             )
         else:
             payload["injectionPlan"] = injection
-            payload["executorDomain"] = (child.get("issueLoadProfile") or {}).get(
-                "executorDomain"
-            )
+            payload["executorDomain"] = (child.get("issueLoadProfile") or {}).get("executorDomain")
     elif not passed:
         failed = next(item for item in gate_results if not item["passed"])
         payload["halt"] = True
@@ -180,9 +208,7 @@ def main() -> int:
             payload["halt"] = True
     elif require_valid and cache_status != "valid":
         payload["resolution"] = "set_cache_status_valid"
-        payload["error"] = (
-            f"Child cacheStatus is {cache_status!r}; Executor requires 'valid'."
-        )
+        payload["error"] = f"Child cacheStatus is {cache_status!r}; Executor requires 'valid'."
 
     print(json.dumps(payload, indent=2))
     return 0 if ready else 1
