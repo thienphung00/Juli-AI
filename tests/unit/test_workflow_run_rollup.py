@@ -557,3 +557,56 @@ class TestRowsAffectedIncrementOnWrite:
         assert row.rows_affected == 1, (
             f"Expected 1 rows_affected for one WRITE tool execution, got {row.rows_affected}"
         )
+
+
+class TestUnpricedModelHandling:
+    async def test_unpriced_model_returns_none_for_cost_usd(
+        self, session: AsyncSession, monkeypatch
+    ):
+        """Issue #1653-Meta3: When using an unpriced model, cost_usd should be
+        None instead of 0.0."""
+
+        # Patch estimate_cost_usd to return None (simulating an unpriced model)
+        def mock_estimate_cost_usd(model: str, usage):
+            return None
+
+        monkeypatch.setattr(
+            "juli_backend.services.agent.runner.core.estimate_cost_usd",
+            mock_estimate_cost_usd,
+        )
+
+        run_id = await _seed_workflow_run(session)
+        store = JsonbConversationStore(session)
+        playbook = _minimal_playbook((_step("get_product_information"),))
+
+        runner = WorkflowRunner(
+            llm_service=FakeLLMService(
+                script=[
+                    _turn(
+                        ToolCallBlock(
+                            call_id="c1",
+                            tool_name="get_product_information",
+                            arguments={},
+                        ),
+                        input_tokens=100,
+                        output_tokens=50,
+                    ),
+                    _turn(FinalResponse(content="Done."), input_tokens=100, output_tokens=50),
+                ]
+            ),
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            registry=_full_registry(),
+            playbook=playbook,
+            clock=_SteppingClock(step=0.1),
+        )
+
+        result = await runner.run(run_id, product_ref="prod-1")
+        assert result.stop_reason == StopReason.FINAL_RESPONSE
+
+        row = await _reload_row(session, run_id)
+        # Should have None for cost_usd when using an unpriced model
+        assert row.cost_usd is None, (
+            f"Expected None for cost_usd with unpriced model, got {row.cost_usd}"
+        )

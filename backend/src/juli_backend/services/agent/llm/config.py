@@ -124,15 +124,17 @@ PRICE_TABLE_USD_PER_MILLION_TOKENS: dict[str, ModelPrice] = {
 }
 
 
-def estimate_cost_usd(model: str, usage: Usage) -> float:
+def estimate_cost_usd(model: str, usage: Usage) -> float | None:
     """Derive a USD cost estimate for one call from the static price table.
 
-    Returns ``0.0`` for a model absent from the table rather than raising --
-    an unpriced model must never block usage rollup (ADR-071 decision 5).
+    Returns ``None`` for a model absent from the table rather than raising --
+    an unpriced model must never block usage rollup (ADR-071 decision 5). The
+    caller (WorkflowRunner's _compute_rollup_values) passes None through to the
+    database column, which records the absence rather than a false zero.
     """
     price = PRICE_TABLE_USD_PER_MILLION_TOKENS.get(model)
     if price is None:
-        return 0.0
+        return None
     input_cost = (usage.input_tokens / 1_000_000) * price.input_usd_per_million_tokens
     output_cost = (usage.output_tokens / 1_000_000) * price.output_usd_per_million_tokens
     return input_cost + output_cost
