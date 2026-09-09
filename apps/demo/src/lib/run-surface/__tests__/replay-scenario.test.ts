@@ -188,9 +188,18 @@ describe("getReplayContinuationEvents", () => {
   });
 
   it("exposes the scenario's own run id as the well-known replay run id", () => {
-    // Matches the UUID already pinned in run-detail-route.test.tsx and
-    // in-progress-detail-route-dispatch.test.tsx -- this is not a
-    // coincidence, it is the same captured run.
-    expect(REPLAY_SCENARIO_RUN_ID).toBe("6fed3803-a77e-4d55-9ea3-ac72d25e77e2");
+    // Read from the client copy independently rather than restated. This used
+    // to pin the literal "6fed3803-...", which #1862's deterministic re-capture
+    // changed — the assertion then failed for a fixture change rather than a
+    // behaviour change, and the same literal was pinned in two route tests that
+    // failed with it. The property that matters is that the exported id IS the
+    // captured run's id, whatever that capture happens to contain.
+    const raw = JSON.parse(readFileSync(CLIENT_COPY_PATH, "utf8")) as {
+      events: readonly { workflow_run_id: string }[];
+    };
+    expect(REPLAY_SCENARIO_RUN_ID).toBe(raw.events[0]!.workflow_run_id);
+    expect(REPLAY_SCENARIO_RUN_ID).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
   });
 });

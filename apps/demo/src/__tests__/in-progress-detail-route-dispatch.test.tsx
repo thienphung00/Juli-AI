@@ -12,6 +12,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { DemoStateProvider } from "../components/demo-state";
 import { InProgressDetailView } from "../app/decisions/in-progress/[executionId]/page";
+import { REPLAY_SCENARIO_RUN_ID } from "../lib/run-surface/replay-scenario";
 
 vi.mock("next/navigation", () => ({
   useSearchParams: vi.fn(() => new URLSearchParams()),
@@ -26,7 +27,9 @@ vi.mock("next/navigation", () => ({
   })),
 }));
 
-const RUN_ID = "6fed3803-a77e-4d55-9ea3-ac72d25e77e2";
+// The captured run's own id, not a copy of it — #1862 re-captured the
+// scenario deterministically and every restated literal went stale.
+const RUN_ID = REPLAY_SCENARIO_RUN_ID;
 
 function mockFetch(data: unknown) {
   return vi.spyOn(global, "fetch").mockResolvedValue({
