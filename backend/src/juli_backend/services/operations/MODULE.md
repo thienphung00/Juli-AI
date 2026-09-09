@@ -70,3 +70,79 @@ post-hoc chain over that instrumentation.
 
 - domain: backend
 - code: backend/src/juli_backend/services/operations/
+
+---
+
+## Quality metrics (#1656)
+
+W8-D / P10-4 adds `quality_metrics.py`: three of P10's four questions, each
+read-only, each from its OWN source and over its OWN denominator. Kept in a
+delimited section because W8-D and W8-E (#1657, business impact) land in
+parallel.
+
+### Public interface
+
+- `recommendation_quality(session, shop_id, *, since=None, until=None) -> RecommendationQuality`
+  — "was Juli right", over **recommendations with an observed outcome**
+- `approval_rate(session, shop_id, *, since=None, until=None) -> ApprovalRate`
+  — "did sellers agree", over **cards surfaced**
+- `execution_quality(session, shop_id, *, since=None, until=None) -> ExecutionQuality`
+  — "did Juli do the job", over **runs started**
+- `NoData` — the explicit empty-denominator value returned by every result's
+  `ratio`; a type of its own, so it never compares equal to `0`/`0.0`
+- `StopReasonCount` — one entry of execution quality's `stop_reason`
+  distribution; a `None` stop reason stays `None`
+- `APPROVED_STATUSES` / `DISMISSED_STATUSES` / `PENDING_STATUSES` /
+  `EXPIRY_STOP_REASON` — the seller-decision mapping, declared once
+- `RECOMMENDATIONS_WITH_AN_OBSERVED_OUTCOME` / `CARDS_SURFACED` /
+  `RUNS_STARTED` — the three denominators, named
+
+### The seller-decision mapping (stated, not invented)
+
+`action_cards.status` has exactly four values in the tree — `active`,
+`approved`, `dismissed`, `executing` (`services/action_cards/persist.py::
+IN_FLIGHT_STATUSES` plus the `active` candidate status it upserts):
+
+| Bucket | Read from |
+|---|---|
+| `approved` (the numerator) | `status in {approved, executing}` |
+| `dismissed` (explicit negative) | `status == dismissed` |
+| `expired` | run-level `StopReason.CONFIRMATION_EXPIRED` on a run created from the card |
+| `pending` | `status == active`, the residual |
+
+**Known vocabulary gap.** There is no `rejected` and no `expired`
+`action_cards.status`, and card-level expiry does not exist at all: the only
+expiry signal in the tree is `StopReason.CONFIRMATION_EXPIRED` at RUN level.
+So approval rate reads exactly ONE fact from `workflow_runs` — whether a run
+created from this card carries that stop reason — and nothing else about the
+run. Adding a card status is a five-place change owned by another lane, not a
+metric's business.
+
+### Invariants
+
+- **No blended figure.** No function, field or return value combines two of
+  the three; no two share a denominator. Enforced structurally over `__all__`
+  by `tests/unit/test_agent_quality_metrics.py::TestNoBlendedFigure`, not by
+  review alone.
+- Every result carries its **numerator and denominator**; `ratio` is a
+  convenience over them, never a replacement.
+- An **empty denominator returns `NoData`**, never `0` or `0%`. Counts are
+  summed in Python from row groups so a Postgres NULL-over-zero-rows can never
+  be coerced into a `0`.
+- **Expiry is never collapsed into a dismissal** — a seller who ran out of
+  time did not disagree — and takes precedence over the card's own status,
+  which still reads `approved` from the approval that created the run.
+- `required_steps_completed` is read as **its own fact** (#1220), never
+  derived from or folded into `stop_reason`; `NULL` is "not yet determined",
+  counted as neither success nor failure and named as `undetermined`.
+- Recommendation quality consumes **`load_outcome_chain`** — one call per
+  candidate run, never a second client-side join across the four tables — and
+  reuses the chain's own `excluded_readings` so `suppressed`/`confounded`
+  readings are never observed outcomes (#1226, #1338), with no second copy of
+  the rule.
+
+### Out of scope
+
+- Business impact — that is #1657 (W8-E), and blending it in is the exact
+  hiding PRD #1652 refuses
+- Trends, thresholds, alerting, SLOs, judgement, rendering, any HTTP route
