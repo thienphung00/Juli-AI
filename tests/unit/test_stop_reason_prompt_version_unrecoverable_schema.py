@@ -271,13 +271,28 @@ def test_stop_reason_constraint_matches_enum_plus_prompt_version_unrecoverable(
 def test_migration_042_upgrade_and_downgrade_round_trip_cleanly():
     """Migration 042's `downgrade()` actually works: at XXX,
     `prompt_version_unrecoverable` is accepted; after downgrading to 041, it
-    is rejected again."""
-    from sqlalchemy.orm import Session
+    is rejected again.
 
-    from juli_backend.models import models as m
+    Seeds `workflow_runs` with a raw SQL `INSERT` naming only the columns
+    that existed at revisions 041/042 -- not the ORM model, which is always
+    mapped to head and would otherwise also try to write the six rollup
+    columns #1653 / W8-A / P10-1 added at revision 057, columns that do not
+    exist yet at either revision this test resets to. Same reasoning as
+    `test_cancel_requested_backfills_false_for_row_seeded_before_036` in
+    `test_workflow_runs_schema.py`.
+    """
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
 
     cfg = _alembic_config()
     engine = _sync_engine()
+    insert_sql = text(
+        "INSERT INTO workflow_runs "
+        "(id, shop_id, product_id, state, status, stop_reason, prompt_version, prompt_sha256) "
+        "VALUES (:id, :shop_id, :product_id, '{}', :status, :stop_reason, "
+        ":prompt_version, :prompt_sha256)"
+    )
+    delete_sql = text("DELETE FROM workflow_runs WHERE id = :id")
     try:
         # Upgrade to the migration before 042 exists
         _reset_to_revision(cfg, "041_stop_reason_diverged")
@@ -290,60 +305,65 @@ def test_migration_042_upgrade_and_downgrade_round_trip_cleanly():
         # Now upgrade to 042 and verify the value works
         command.upgrade(cfg, MIGRATION_042_PATH.stem)
 
-        with Session(engine) as session:
-            run = m.WorkflowRun(
-                shop_id=shop_id,
-                product_id=product_id,
-                state={},
-                status="failed",
-                stop_reason="prompt_version_unrecoverable",
-                prompt_version="optimize_product.v1",
-                prompt_sha256="1" * 64,
+        run_id_1 = uuid.uuid4()
+        with engine.begin() as conn:
+            conn.execute(
+                insert_sql,
+                {
+                    "id": run_id_1,
+                    "shop_id": shop_id,
+                    "product_id": product_id,
+                    "status": "failed",
+                    "stop_reason": "prompt_version_unrecoverable",
+                    "prompt_version": "optimize_product.v1",
+                    "prompt_sha256": "1" * 64,
+                },
             )
-            session.add(run)
-            session.commit()
 
-            # Clean up before downgrade
-            session.delete(run)
-            session.commit()
+        # Clean up before downgrade
+        with engine.begin() as conn:
+            conn.execute(delete_sql, {"id": run_id_1})
 
         # Downgrade back to 041
         command.downgrade(cfg, "041_stop_reason_diverged")
 
-        with Session(engine) as session:
-            run = m.WorkflowRun(
-                shop_id=shop_id,
-                product_id=product_id,
-                state={},
-                status="failed",
-                stop_reason="prompt_version_unrecoverable",
-                prompt_version="optimize_product.v1",
-                prompt_sha256="2" * 64,
-            )
-            session.add(run)
-            with pytest.raises(IntegrityError):
-                session.commit()
-            session.rollback()
+        run_id_2 = uuid.uuid4()
+        with pytest.raises(IntegrityError):
+            with engine.begin() as conn:
+                conn.execute(
+                    insert_sql,
+                    {
+                        "id": run_id_2,
+                        "shop_id": shop_id,
+                        "product_id": product_id,
+                        "status": "failed",
+                        "stop_reason": "prompt_version_unrecoverable",
+                        "prompt_version": "optimize_product.v1",
+                        "prompt_sha256": "2" * 64,
+                    },
+                )
 
         # Upgrade back to XXX
         command.upgrade(cfg, MIGRATION_042_PATH.stem)
 
-        with Session(engine) as session:
-            run = m.WorkflowRun(
-                shop_id=shop_id,
-                product_id=product_id,
-                state={},
-                status="failed",
-                stop_reason="prompt_version_unrecoverable",
-                prompt_version="optimize_product.v1",
-                prompt_sha256="3" * 64,
+        run_id_3 = uuid.uuid4()
+        with engine.begin() as conn:
+            conn.execute(
+                insert_sql,
+                {
+                    "id": run_id_3,
+                    "shop_id": shop_id,
+                    "product_id": product_id,
+                    "status": "failed",
+                    "stop_reason": "prompt_version_unrecoverable",
+                    "prompt_version": "optimize_product.v1",
+                    "prompt_sha256": "3" * 64,
+                },
             )
-            session.add(run)
-            session.commit()
 
-            # Clean up
-            session.delete(run)
-            session.commit()
+        # Clean up
+        with engine.begin() as conn:
+            conn.execute(delete_sql, {"id": run_id_3})
     finally:
         engine.dispose()
 
