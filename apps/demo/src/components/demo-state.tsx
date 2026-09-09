@@ -14,6 +14,7 @@ import {
 } from "react";
 
 import { startExecution as createExecutionRecord } from "../lib/executions";
+import { clearReplayDecision } from "../lib/replay-decision";
 import type { RepeatConsentGrants } from "../lib/repeat-consent";
 import { buildReviewInputDefaultsForWorkflow } from "../lib/reviews";
 import { buildReplenishInventoryExecutionPayload } from "../lib/workflows/replenish-inventory/execution-payload";
@@ -171,6 +172,11 @@ export function DemoStateProvider({ children }: { children: ReactNode }) {
     setRecommendationContext(null);
     localStorage.setItem(DEMO_MODE_STORAGE_KEY, "mock");
     localStorage.removeItem(DEMO_MUTABLE_STATE_STORAGE_KEY);
+    // Issue #1836: "Làm mới Demo"'s whole job is putting the demo back --
+    // a decided replay run left in sessionStorage after this would mean
+    // the recommendation stays missing from Đề xuất even after a reset,
+    // exactly the failure this action exists to undo.
+    clearReplayDecision();
     setFeedback(
       "Demo đã trở về trạng thái ban đầu tại Quyết định — Đề xuất.",
     );

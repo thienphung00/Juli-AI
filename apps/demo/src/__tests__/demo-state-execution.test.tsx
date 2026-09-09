@@ -8,6 +8,7 @@ import {
   useDemoState,
 } from "../components/demo-state";
 import { resetExecutionCountersForTests } from "../lib/executions";
+import { readReplayDecision, writeReplayDecision } from "../lib/replay-decision";
 import { CREATE_HERO_PRODUCT_WORKFLOW_KEY } from "../lib/reviews";
 import { REPLENISH_INVENTORY_WORKFLOW_KEY } from "../lib/workflows/replenish-inventory";
 
@@ -143,6 +144,22 @@ describe("DemoState startExecution", () => {
     expect(screen.getByTestId("mutable-state")).toHaveTextContent(
       JSON.stringify(DEFAULT_MUTABLE_MOCK_STATE),
     );
+  });
+
+  it("Manual Refresh (resetMockState) clears the recorded replay decision (issue #1836) -- otherwise the demo's own reset leaves a decided card missing", async () => {
+    const user = userEvent.setup();
+    writeReplayDecision("run-abc-123", "approve");
+    expect(readReplayDecision()).not.toBeNull();
+
+    render(
+      <DemoStateProvider>
+        <ExecutionStateProbe />
+      </DemoStateProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Làm mới Demo" }));
+
+    expect(readReplayDecision()).toBeNull();
   });
 
   it("maps reorder_quantity to quantity in execution record for replenish_inventory_3", async () => {

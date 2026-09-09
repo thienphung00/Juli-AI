@@ -9,7 +9,9 @@ import {
   buildRecommendationDetailHref,
   recommendationFixtures,
 } from "../lib/recommendations";
-import { APPROVABLE_WORKFLOW_KEYS } from "../lib/reviews";
+import { readReplayDecision } from "../lib/replay-decision";
+import { APPROVABLE_WORKFLOW_KEYS, OPTIMIZE_PRODUCT_WORKFLOW_KEY } from "../lib/reviews";
+import { REPLAY_SCENARIO_RUN_ID } from "../lib/run-surface/replay-scenario";
 import { useDemoState } from "./demo-state";
 
 const APPROVE_DISABLED_REASON =
@@ -37,6 +39,34 @@ export function RecommendationsPanel({
   const [loadState, setLoadState] = useState(initialLoadState);
   const [statusMessage, setStatusMessage] = useState("");
 
+  // Issue #1836 / ADR-084 decision 6: a decided replay run consumes its
+  // card the same way an approved or rejected one does, just via a
+  // different store (`sessionStorage`, since the replay path persists
+  // nothing -- ADR-094 decision 1). `null` on first render (server and
+  // client agree -- `window` is unavailable during SSR) and resolved in an
+  // effect, deferred via `setTimeout(0)` rather than calling the setter
+  // synchronously in the effect body -- the same pattern `demo-landing.tsx`
+  // and `impact-block.tsx` already use for their own browser-storage reads
+  // (`react-hooks/set-state-in-effect`). Depends on `mutableState` so
+  // "Làm mới Demo" (which replaces that reference via `resetMockState`)
+  // re-reads sessionStorage and picks up the now-cleared record.
+  const [replayDecidedWorkflowKey, setReplayDecidedWorkflowKey] = useState<
+    string | null
+  >(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const decision = readReplayDecision();
+      setReplayDecidedWorkflowKey(
+        decision?.runId === REPLAY_SCENARIO_RUN_ID
+          ? OPTIMIZE_PRODUCT_WORKFLOW_KEY
+          : null,
+      );
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [mutableState]);
+
   const visibleFixtures = useMemo(
     () =>
       recommendationFixtures.filter(
@@ -46,11 +76,13 @@ export function RecommendationsPanel({
           ) &&
           !mutableState.approvedRecommendationIds.includes(
             fixture.workflowKey,
-          ),
+          ) &&
+          fixture.workflowKey !== replayDecidedWorkflowKey,
       ),
     [
       mutableState.approvedRecommendationIds,
       mutableState.rejectedRecommendationIds,
+      replayDecidedWorkflowKey,
     ],
   );
 

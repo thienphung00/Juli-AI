@@ -2,12 +2,15 @@
 
 import { useId } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 
 import { useDemoState } from "./demo-state";
 import { InProgressPanel } from "./in-progress-panel";
 import { RecommendationsPanel } from "./recommendations-panel";
 import { recommendationFixtures } from "../lib/recommendations";
+import { readReplayDecision } from "../lib/replay-decision";
+import { OPTIMIZE_PRODUCT_WORKFLOW_KEY } from "../lib/reviews";
+import { REPLAY_SCENARIO_RUN_ID } from "../lib/run-surface/replay-scenario";
 
 interface RecommendationsViewProps {
   initialLoadState?: "ready" | "error";
@@ -35,6 +38,28 @@ export function RecommendationsView({
     }
   }, [activeView, mutableState.decisionsView, updateMutableState]);
 
+  // Issue #1836: same replay-decided-card exclusion `recommendations-panel.tsx`
+  // applies to the list itself -- the stat row must never claim a count
+  // that includes a card the list right below it no longer shows. See that
+  // file's own docstring for why this is state+effect rather than a direct
+  // render-time read (SSR/hydration parity, react-hooks/set-state-in-effect).
+  const [replayDecidedWorkflowKey, setReplayDecidedWorkflowKey] = useState<
+    string | null
+  >(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const decision = readReplayDecision();
+      setReplayDecidedWorkflowKey(
+        decision?.runId === REPLAY_SCENARIO_RUN_ID
+          ? OPTIMIZE_PRODUCT_WORKFLOW_KEY
+          : null,
+      );
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [mutableState]);
+
   // Calculate open recommendations count
   const openRecommendationsCount = useMemo(
     () =>
@@ -43,11 +68,13 @@ export function RecommendationsView({
           !mutableState.rejectedRecommendationIds.includes(
             fixture.workflowKey,
           ) &&
-          !mutableState.approvedRecommendationIds.includes(fixture.workflowKey),
+          !mutableState.approvedRecommendationIds.includes(fixture.workflowKey) &&
+          fixture.workflowKey !== replayDecidedWorkflowKey,
       ).length,
     [
       mutableState.rejectedRecommendationIds,
       mutableState.approvedRecommendationIds,
+      replayDecidedWorkflowKey,
     ],
   );
 

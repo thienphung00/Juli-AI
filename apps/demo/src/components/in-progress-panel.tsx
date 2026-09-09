@@ -18,6 +18,7 @@ import {
   type RepeatConsentSurface,
   selectRepeatConsentSurfaces,
 } from "../lib/repeat-consent";
+import { readReplayDecision } from "../lib/replay-decision";
 import { fetchDemoRuns } from "../lib/run-ledger/api-client";
 import {
   RUN_LEDGER_BACK_TO_DECISIONS,
@@ -37,6 +38,7 @@ import { RUN_LEDGER_POLL_INTERVAL_MS } from "../lib/run-ledger/panel-config";
 import { groupRunsIntoLedgerSections } from "../lib/run-ledger/sections";
 import { resolveRunTerminalState } from "../lib/run-ledger/terminal-state";
 import { prefersReducedMotion, resolveRunSurfaceMotion } from "../lib/run-surface/motion";
+import { deriveReplayRunListItem } from "../lib/run-surface/replay-ledger-item";
 import {
   RUN_SURFACE_DATA_ATTRIBUTE,
   RUN_SURFACE_DATA_VALUE,
@@ -51,14 +53,26 @@ import { RepeatConsentBlock } from "./repeat-consent-block";
  *
  * This panel now composes TWO sources, deliberately kept apart:
  *
- * 1. **The run ledger** (this issue's scope) — a POLLED consumer of
- *    `GET /v1/demo/runs` (#1310). Every card here is a real
- *    `workflow_run` row for the Optimize Product workflow, sorted into
- *    three priority sections. A queued run (zero events) is visible
- *    because this reads the persisted list, never the per-run SSE event
- *    stream. No terminal state is computed here: `resolveRunTerminalState`
- *    is a pure lookup keyed on the server's own `stop_reason` value. No
- *    retry-in-place control exists on this surface.
+ * 1. **The run ledger** — the seller's `WorkflowRunListItem` rows, sorted
+ *    into three priority sections by `groupRunsIntoLedgerSections()`. Two
+ *    ways in, gated on `token` presence (issue #1836, matching the same
+ *    signal `RunDetailRoute`/`useRunStream` already gate on -- "one source
+ *    of truth for is this connected to anything real"):
+ *      - SIGNED-IN (`token` present, #1310/#1318): a POLLED consumer of
+ *        `GET /v1/demo/runs`. Every card is a real `workflow_run` row. No
+ *        terminal state is computed here -- `resolveRunTerminalState` is a
+ *        pure lookup keyed on the server's own `stop_reason`.
+ *      - REPLAY (no `token`, issue #1836, ADR-094 decision 1): no
+ *        session, no fetch, ever. Seeded instead from `replay-decision.ts`'s
+ *        `sessionStorage` record (if the visitor decided the one replayed
+ *        run) via `deriveReplayRunListItem` -- the same shape issue #1752
+ *        seeded the staged run view from, fed through the SAME
+ *        `groupRunsIntoLedgerSections()` the signed-in path uses, never a
+ *        second, replay-only grouping. Before this issue, this branch
+ *        called `fetchDemoRuns()` unconditionally regardless of token,
+ *        which is exactly why the ledger was empty on the replay path
+ *        (ADR-084 decision 6: card consumption must be rendered, not
+ *        hidden -- there was nothing here to render it with).
  *
  * 2. **The legacy mock execution list** — the OTHER 10 workflows' existing
  *    In-Progress flow (needs_input / executing / completed
@@ -72,9 +86,8 @@ import { RepeatConsentBlock } from "./repeat-consent-block";
  * Clicking a run-ledger card navigates to `/decisions/in-progress/{run.id}`
  * -- the per-run route ADR-076 decision 3 specifies reopens a finished run
  * frozen via replay. That staged/frozen renderer is issue #1316's
- * deliverable (not yet merged on this branch, and not a blocker of this
- * issue) -- this slice owns the correct navigation contract into it, not a
- * duplicate renderer.
+ * deliverable -- this slice owns the correct navigation contract into it,
+ * not a duplicate renderer.
  */
 
 interface InProgressPanelProps {
@@ -91,6 +104,17 @@ interface InProgressPanelProps {
    * shows this panel).
    */
   active?: boolean;
+  /**
+   * Injectable bearer token (issue #1836), matching `RunDetailRoute`'s own
+   * prop of the same name and meaning: present means the signed-in door
+   * (poll `GET /v1/demo/runs`, unchanged); absent means the replay door
+   * (ADR-094 decision 1) -- seed from the captured scenario, never fetch.
+   * No live caller supplies one today (ADR-094 decision 3: the signed-in
+   * path has no real session wiring yet), same as `RunDetailRoute`'s own
+   * `token` prop -- this is the one place that distinction is threaded
+   * through so it is ready the moment that wiring lands.
+   */
+  token?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -236,7 +260,19 @@ function FinishedRunCard({ run }: RunCardProps) {
   );
 }
 
-function useRunLedger(active: boolean): {
+function useRunLedger(
+  active: boolean,
+  token: string | undefined,
+  /**
+   * Any value that changes reference when the replay decision might have
+   * changed -- `InProgressPanel` passes its own `mutableState`, which
+   * `resetMockState()` (and every `updateMutableState()` call) already
+   * replaces with a fresh object, so "Làm mới Demo" clearing the
+   * sessionStorage record is picked up without a second, purpose-built
+   * signal.
+   */
+  replayRefreshKey: unknown,
+): {
   sections: ReturnType<typeof groupRunsIntoLedgerSections>;
   status: LedgerLoadStatus;
   hasAnyRuns: boolean;
@@ -252,9 +288,27 @@ function useRunLedger(active: boolean): {
   const inFlightRef = useRef(false);
 
   useEffect(() => {
-    // Only the visible sub-tab polls — see `InProgressPanelProps.active`.
+    // Only the visible sub-tab polls/reads — see `InProgressPanelProps.active`.
     if (!active) {
       return;
+    }
+
+    if (!token) {
+      // REPLAY (issue #1836, ADR-094 decision 1): no session, no fetch,
+      // ever. Seed straight from `replay-decision.ts`'s sessionStorage
+      // record + the captured scenario (`deriveReplayRunListItem`) --
+      // never `GET /v1/demo/runs`. Deferred via `setTimeout(0)` rather
+      // than calling the setter synchronously in the effect body -- the
+      // same pattern `demo-landing.tsx` already uses for its own
+      // browser-storage read (`react-hooks/set-state-in-effect`).
+      const timer = window.setTimeout(() => {
+        const decision = readReplayDecision();
+        setRuns(decision ? [deriveReplayRunListItem(decision)] : []);
+        setStatus("ready");
+        setNowMs(Date.now());
+      }, 0);
+
+      return () => window.clearTimeout(timer);
     }
 
     let cancelled = false;
@@ -291,7 +345,7 @@ function useRunLedger(active: boolean): {
       cancelled = true;
       clearInterval(intervalId);
     };
-  }, [active]);
+  }, [active, token, replayRefreshKey]);
 
   return {
     sections: groupRunsIntoLedgerSections(runs),
@@ -603,15 +657,15 @@ function ExecutionProgressCard({
 // Composed panel
 // ---------------------------------------------------------------------------
 
-export function InProgressPanel({ panelId, active = true }: InProgressPanelProps) {
-  const ledger = useRunLedger(active);
+export function InProgressPanel({ panelId, active = true, token }: InProgressPanelProps) {
+  const { mutableState, updateMutableState } = useDemoState();
+
+  const ledger = useRunLedger(active, token, mutableState);
   // While this sub-tab is not the visible one, treat the ledger as
   // trivially "ready with nothing yet fetched" rather than perpetually
   // "loading" — `useRunLedger` deliberately never issues a request while
   // inactive, so "loading" would otherwise never resolve.
   const ledgerStatus: LedgerLoadStatus = active ? ledger.status : "ready";
-
-  const { mutableState, updateMutableState } = useDemoState();
 
   // Sort records: executing first, then needs_input, then completed
   const executionRecords = Object.values(mutableState.executionRecords)
