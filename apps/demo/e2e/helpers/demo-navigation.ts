@@ -7,6 +7,25 @@ const PRIMARY_DESTINATIONS = [
   "Cài đặt",
 ] as const;
 
+/**
+ * Enter the demo through the replay door and land on Home.
+ *
+ * `/` stopped being the demo Home in #1319 — it is now the two-door landing
+ * gate (Dùng thử Demo / Đăng nhập với Google), and the destination launchers
+ * live behind the replay door. Specs written before that change asserted Home
+ * content directly at `/` and broke; they call this first instead.
+ *
+ * Deliberately the same path #1321's exit-gate journey walks, so these specs
+ * and the gate journey cannot disagree about how a visitor gets in.
+ */
+export async function enterReplayDemo(page: Page) {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Dùng thử Demo" }).click();
+  await expect(
+    page.getByRole("region", { name: "Điểm đến chính" }),
+  ).toBeVisible();
+}
+
 export async function expectFourDestinationShell(page: Page) {
   const navigation = page.getByRole("navigation", {
     name: "Điều hướng chính",

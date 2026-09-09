@@ -675,6 +675,16 @@ jobs:
         run: pnpm install --frozen-lockfile --filter @juli/demo...
       - name: Check Demo independently
         run: pnpm check:demo
+      # Issue #1321: packages/theme's own test suite — including the
+      # run-surface WCAG AA contrast check (packages/theme/__tests__/
+      # run-surface-tokens.test.ts, PUI-DESIGN.md §6) — was never wired into
+      # any CI workflow before this step. `packages/theme/**` only ever
+      # appeared as a path-filter trigger for this job (verified by grep
+      # across .github/workflows/*.yml), never as an actual test invocation,
+      # so "AA contrast on new token pairings, running in CI" was previously
+      # true only on a contributor's own machine.
+      - name: Check packages/theme (run-surface tokens, WCAG AA contrast)
+        run: pnpm --filter @juli/theme test
 
   landing-frontend:
     runs-on: ubuntu-latest
