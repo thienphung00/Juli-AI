@@ -103,11 +103,49 @@ class GateResult:
     output: str
 
 
+def _criteria_count_override_seam() -> Any:
+    """Import ``check_acceptance_mapping``'s provider-registration helper.
+
+    Deferred, not module-level: a third module-level import after the
+    ``sys.path`` inserts above would add a second ``# noqa: E402`` unit to
+    this file, and the repo's debt ratchet counts suppression *occurrences*,
+    not just distinct identities (``tests/unit/test_ratchets.py``). Mirrors
+    ``_ref_scheme_seam()`` in ``generate_status_records.py``.
+    """
+    sys.path.insert(
+        0, str(Path(__file__).resolve().parents[1] / "agent-runtime" / "scripts" / "validate")
+    )
+    from check_acceptance_mapping import criteria_count_override_env
+
+    return criteria_count_override_env
+
+
+def _acceptance_criteria_count(issue: int) -> int:
+    """The clean fixture's own acceptance-criteria total for ``issue``.
+
+    Derived from ``clean_records`` rather than hardcoded: every operator that
+    mutates the review artifact type touches fields other than
+    ``testCoverage.acceptance.total`` (asserted by
+    ``test_every_mutant_is_schema_valid_with_one_planted_defect``'s exact-path
+    diff), so this stays correct for every arm without being recomputed per
+    mutant.
+    """
+    return clean_records(issue)["review"]["testCoverage"]["acceptance"]["total"]
+
+
 def run_gate(gate: str, issue: int, *, timeout: int = GATE_TIMEOUT_SECONDS) -> GateResult:
     env = dict(os.environ)
     # Gates fall back to branch parsing when --issue is absent; pin it both ways
     # so the arm under test is the only thing that varies.
     env["ISSUE_NUMBER"] = str(issue)
+    # #1761: `check_acceptance_mapping`'s only source of the acceptance-criteria
+    # count is `gh issue view`, which can never resolve this sweep's synthetic
+    # issue number. Register the harness's provider — scoped to this exact
+    # issue — so that gate reaches its record comparison instead of failing
+    # closed on every arm. Harmless to every other gate: none of them read
+    # this variable.
+    criteria_count_override_env = _criteria_count_override_seam()
+    env.update(criteria_count_override_env(issue, _acceptance_criteria_count(issue)))
     try:
         proc = subprocess.run(
             [sys.executable, str(GATE_DIR / f"{gate}.py"), "--issue", str(issue)],

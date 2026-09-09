@@ -43,9 +43,9 @@
         "dangling_artifact_ref": false,
         "missing_artifact_as_skipped": false,
         "environment_mismatch": false,
-        "unbacked_claim": false
+        "unbacked_claim": true
       },
-      "catchCount": 0,
+      "catchCount": 1,
       "artifactSensitive": true,
       "arms": {
         "absent": {
@@ -54,44 +54,44 @@
           "detail": "acceptance_criteria_mapped: FAIL"
         },
         "clean": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "acceptance_criteria_mapped: FAIL \u2014 cannot read the acceptance-criteria count for issue 990157 from its body (gh unavailable, unauthenticated, timed out, or no 'Acceptance criteria' section found), so "
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "acceptance_criteria_mapped: PASS"
         },
         "self_reported_pass": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "acceptance_criteria_mapped: FAIL \u2014 cannot read the acceptance-criteria count for issue 990157 from its body (gh unavailable, unauthenticated, timed out, or no 'Acceptance criteria' section found), so "
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "acceptance_criteria_mapped: PASS"
         },
         "vacuous_test_evidence": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "acceptance_criteria_mapped: FAIL \u2014 cannot read the acceptance-criteria count for issue 990157 from its body (gh unavailable, unauthenticated, timed out, or no 'Acceptance criteria' section found), so "
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "acceptance_criteria_mapped: PASS"
         },
         "narrowed_command_scope": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "acceptance_criteria_mapped: FAIL \u2014 cannot read the acceptance-criteria count for issue 990157 from its body (gh unavailable, unauthenticated, timed out, or no 'Acceptance criteria' section found), so "
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "acceptance_criteria_mapped: PASS"
         },
         "dangling_artifact_ref": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "acceptance_criteria_mapped: FAIL \u2014 cannot read the acceptance-criteria count for issue 990157 from its body (gh unavailable, unauthenticated, timed out, or no 'Acceptance criteria' section found), so "
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "acceptance_criteria_mapped: PASS"
         },
         "missing_artifact_as_skipped": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "acceptance_criteria_mapped: FAIL \u2014 cannot read the acceptance-criteria count for issue 990157 from its body (gh unavailable, unauthenticated, timed out, or no 'Acceptance criteria' section found), so "
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "acceptance_criteria_mapped: PASS"
         },
         "environment_mismatch": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "acceptance_criteria_mapped: FAIL \u2014 cannot read the acceptance-criteria count for issue 990157 from its body (gh unavailable, unauthenticated, timed out, or no 'Acceptance criteria' section found), so "
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "acceptance_criteria_mapped: PASS"
         },
         "unbacked_claim": {
           "verdict": "FAIL",
           "exitCode": 1,
-          "detail": "acceptance_criteria_mapped: FAIL \u2014 cannot read the acceptance-criteria count for issue 990157 from its body (gh unavailable, unauthenticated, timed out, or no 'Acceptance criteria' section found), so "
+          "detail": "acceptance_criteria_mapped: FAIL \u2014 test not found: tests/unit/test_mutants.py::test_gate_sensitivity_is_generalisable"
         }
       }
     },
@@ -237,44 +237,44 @@
           "detail": "differential_tdd: FAIL \u2014 Implementation artifact missing"
         },
         "clean": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "differential_tdd: FAIL \u2014 probe fails against head source (exit 1) \u2014 the change does not make it pass"
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "differential_tdd: PASS"
         },
         "self_reported_pass": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "differential_tdd: FAIL \u2014 probe fails against head source (exit 1) \u2014 the change does not make it pass"
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "differential_tdd: PASS"
         },
         "vacuous_test_evidence": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "differential_tdd: FAIL \u2014 probe fails against head source (exit 1) \u2014 the change does not make it pass"
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "differential_tdd: PASS"
         },
         "narrowed_command_scope": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "differential_tdd: FAIL \u2014 probe fails against head source (exit 1) \u2014 the change does not make it pass"
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "differential_tdd: PASS"
         },
         "dangling_artifact_ref": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "differential_tdd: FAIL \u2014 probe fails against head source (exit 1) \u2014 the change does not make it pass"
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "differential_tdd: PASS"
         },
         "missing_artifact_as_skipped": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "differential_tdd: FAIL \u2014 probe fails against head source (exit 1) \u2014 the change does not make it pass"
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "differential_tdd: PASS"
         },
         "environment_mismatch": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "differential_tdd: FAIL \u2014 probe fails against head source (exit 1) \u2014 the change does not make it pass"
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "differential_tdd: PASS"
         },
         "unbacked_claim": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "differential_tdd: FAIL \u2014 probe fails against head source (exit 1) \u2014 the change does not make it pass"
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "differential_tdd: PASS"
         }
       }
     },
@@ -1379,7 +1379,7 @@
     {
       "gate": "check_review_artifact",
       "caught": {
-        "self_reported_pass": false,
+        "self_reported_pass": true,
         "vacuous_test_evidence": false,
         "narrowed_command_scope": false,
         "dangling_artifact_ref": false,
@@ -1387,7 +1387,7 @@
         "environment_mismatch": false,
         "unbacked_claim": false
       },
-      "catchCount": 0,
+      "catchCount": 1,
       "artifactSensitive": true,
       "arms": {
         "absent": {
@@ -1396,9 +1396,9 @@
           "detail": "review_artifact_present: FAIL \u2014 Review artifact missing"
         },
         "clean": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "review_artifact_present: FAIL \u2014 status PASS but dynamicTestsExecuted is None; a PASS claim requires evidence of test execution"
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "review_artifact_present: PASS"
         },
         "self_reported_pass": {
           "verdict": "FAIL",
@@ -1406,34 +1406,34 @@
           "detail": "review_artifact_present: FAIL \u2014 status 'PASS' does not match derived 'FAIL' (warnings=0, critical=1)"
         },
         "vacuous_test_evidence": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "review_artifact_present: FAIL \u2014 status PASS but dynamicTestsExecuted is None; a PASS claim requires evidence of test execution"
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "review_artifact_present: PASS"
         },
         "narrowed_command_scope": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "review_artifact_present: FAIL \u2014 status PASS but dynamicTestsExecuted is None; a PASS claim requires evidence of test execution"
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "review_artifact_present: PASS"
         },
         "dangling_artifact_ref": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "review_artifact_present: FAIL \u2014 status PASS but dynamicTestsExecuted is None; a PASS claim requires evidence of test execution"
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "review_artifact_present: PASS"
         },
         "missing_artifact_as_skipped": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "review_artifact_present: FAIL \u2014 status PASS but dynamicTestsExecuted is None; a PASS claim requires evidence of test execution"
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "review_artifact_present: PASS"
         },
         "environment_mismatch": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "review_artifact_present: FAIL \u2014 status PASS but dynamicTestsExecuted is None; a PASS claim requires evidence of test execution"
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "review_artifact_present: PASS"
         },
         "unbacked_claim": {
-          "verdict": "FAIL",
-          "exitCode": 1,
-          "detail": "review_artifact_present: FAIL \u2014 status PASS but dynamicTestsExecuted is None; a PASS claim requires evidence of test execution"
+          "verdict": "PASS",
+          "exitCode": 0,
+          "detail": "review_artifact_present: PASS"
         }
       }
     },
@@ -1576,47 +1576,47 @@
         "absent": {
           "verdict": "FAIL",
           "exitCode": 1,
-          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1176.73h, worktree=None)"
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1206.86h, worktree=None)"
         },
         "clean": {
           "verdict": "FAIL",
           "exitCode": 1,
-          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1176.74h, worktree=None)"
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1206.88h, worktree=None)"
         },
         "self_reported_pass": {
           "verdict": "FAIL",
           "exitCode": 1,
-          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1176.76h, worktree=None)"
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1206.9h, worktree=None)"
         },
         "vacuous_test_evidence": {
           "verdict": "FAIL",
           "exitCode": 1,
-          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1176.78h, worktree=None)"
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1206.91h, worktree=None)"
         },
         "narrowed_command_scope": {
           "verdict": "FAIL",
           "exitCode": 1,
-          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1176.8h, worktree=None)"
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1206.93h, worktree=None)"
         },
         "dangling_artifact_ref": {
           "verdict": "FAIL",
           "exitCode": 1,
-          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1176.81h, worktree=None)"
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1206.94h, worktree=None)"
         },
         "missing_artifact_as_skipped": {
           "verdict": "FAIL",
           "exitCode": 1,
-          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1176.83h, worktree=None)"
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1206.96h, worktree=None)"
         },
         "environment_mismatch": {
           "verdict": "FAIL",
           "exitCode": 1,
-          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1176.85h, worktree=None)"
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1206.97h, worktree=None)"
         },
         "unbacked_claim": {
           "verdict": "FAIL",
           "exitCode": 1,
-          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1176.87h, worktree=None)"
+          "detail": "STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1206.98h, worktree=None)"
         }
       }
     },
@@ -1805,7 +1805,6 @@
     }
   ],
   "zeroCatchGates": [
-    "check_acceptance_mapping",
     "check_adr",
     "check_differential_tdd",
     "check_done_md",
@@ -1825,7 +1824,6 @@
     "check_public_release_evidence_plan",
     "check_release_evidence_plan_continuity",
     "check_release_metadata_honesty",
-    "check_review_artifact",
     "check_reviewer_signoff",
     "check_scope_precedence",
     "check_unpushed_issue_work",
@@ -1833,14 +1831,17 @@
     "check_workflow_cache_staleness",
     "run_ensure_workflow_cache"
   ],
-  "zeroCatchCount": 27,
+  "zeroCatchCount": 25,
   "caughtGates": [
+    "check_acceptance_mapping",
     "check_critical_findings_resolved",
-    "check_implementation_tdd_evidence"
+    "check_implementation_tdd_evidence",
+    "check_review_artifact"
   ],
-  "caughtCount": 2,
+  "caughtCount": 4,
   "silentGates": [
     "check_adr",
+    "check_differential_tdd",
     "check_done_md",
     "check_executor_domain_matches_cache",
     "check_findings_acknowledged",
@@ -1859,22 +1860,20 @@
     "check_reviewer_signoff",
     "check_scope_precedence"
   ],
-  "silentCount": 18,
+  "silentCount": 19,
   "failClosedGates": [
-    "check_acceptance_mapping",
-    "check_differential_tdd",
     "check_issue_load_profile",
     "check_public_release_classification",
-    "check_review_artifact",
     "check_unpushed_issue_work",
     "check_workflow_cache",
     "check_workflow_cache_staleness",
     "run_ensure_workflow_cache"
   ],
-  "failClosedCount": 9,
+  "failClosedCount": 6,
   "failClosedMeaning": "Failed on a precondition the synthetic fixture cannot supply (no real GitHub issue behind the synthetic number; real stale branches in the working tree). Correct fail-closed behaviour. NOT scored as sensitivity and NOT a deletion candidate.",
   "deletionCandidates": [
     "check_adr",
+    "check_differential_tdd",
     "check_done_md",
     "check_executor_domain_matches_cache",
     "check_findings_acknowledged",
@@ -1893,33 +1892,26 @@
     "check_reviewer_signoff",
     "check_scope_precedence"
   ],
-  "deletionCandidateCount": 18,
+  "deletionCandidateCount": 19,
   "unscoreableGates": [
-    "check_acceptance_mapping",
-    "check_differential_tdd",
     "check_issue_load_profile",
     "check_public_release_classification",
-    "check_review_artifact",
     "check_unpushed_issue_work",
     "check_workflow_cache",
     "check_workflow_cache_staleness",
     "run_ensure_workflow_cache"
   ],
-  "unscoreableCount": 9,
+  "unscoreableCount": 6,
   "uncaughtOperators": [
     "narrowed_command_scope",
     "dangling_artifact_ref",
     "missing_artifact_as_skipped",
-    "environment_mismatch",
-    "unbacked_claim"
+    "environment_mismatch"
   ],
   "erroredGates": [],
   "cleanArmFailures": [
-    "check_acceptance_mapping",
-    "check_differential_tdd",
     "check_issue_load_profile",
     "check_public_release_classification",
-    "check_review_artifact",
     "check_unpushed_issue_work",
     "check_workflow_cache",
     "check_workflow_cache_staleness",
