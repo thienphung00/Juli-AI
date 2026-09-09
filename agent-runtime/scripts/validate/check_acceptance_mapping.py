@@ -35,6 +35,18 @@ from common import (  # noqa: E402
 #: issue does not match.
 CRITERIA_COUNT_OVERRIDE_ENV = "JULI_HARNESS_CRITERIA_COUNT_OVERRIDE"
 
+#: Lowest issue number the override will answer for. The mutation harness uses
+#: synthetic issues far above any real one (``990157`` in
+#: ``eval/run_gate_scoring.py``, ``9_900_000 + os.getpid()`` in
+#: ``tests/unit/test_mutants.py``); this repo's real issues are four digits.
+#:
+#: Scoping by issue number makes the seam unreachable for a real PR *by
+#: construction* rather than by the policy that nothing sets the variable. A
+#: caller who can set the environment could otherwise supply a count derived
+#: from the artifact's own claim, which is precisely the self-referential
+#: comparison #1732 closed. Found by the review of #1761.
+SYNTHETIC_ISSUE_FLOOR = 900_000
+
 
 def criteria_count_override_env(issue: int, count: int) -> dict[str, str]:
     """Build the env-var injection a harness registers as its provider.
@@ -59,6 +71,9 @@ def _criteria_count_from_override(issue: int) -> int | None:
     except (TypeError, ValueError, KeyError, json.JSONDecodeError):
         return None
     if override_issue != issue:
+        return None
+    if issue < SYNTHETIC_ISSUE_FLOOR:
+        # A real issue number can never be answered from the environment.
         return None
     return override_count
 

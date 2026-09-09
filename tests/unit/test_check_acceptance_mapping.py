@@ -206,3 +206,40 @@ def test_harness_override_ignored_for_a_different_issue(monkeypatch: pytest.Monk
 
     assert calls, "a mismatched override must fall through to the real gh lookup"
     assert result == 1
+
+
+def test_the_override_refuses_a_real_issue_number(monkeypatch):
+    """The seam must be unreachable for a real PR by construction, not by policy.
+
+    Found by the review of #1761: the override answered for any issue number,
+    so a caller able to set the environment could supply a count derived from
+    the artifact's own claim — reopening the self-referential comparison #1732
+    closed. Real issues are four digits; the harness uses synthetic numbers far
+    above SYNTHETIC_ISSUE_FLOOR.
+    """
+    import json as _json
+
+    cam = _cam()
+    monkeypatch.setenv(
+        cam.CRITERIA_COUNT_OVERRIDE_ENV,
+        _json.dumps({"issue": 1761, "count": 999}),
+    )
+    assert cam._criteria_count_from_override(1761) is None
+
+    # ...while the harness's own synthetic issue is still answerable, or the
+    # mutation sweep could not reach the record at all.
+    synthetic = cam.SYNTHETIC_ISSUE_FLOOR + 157
+    monkeypatch.setenv(
+        cam.CRITERIA_COUNT_OVERRIDE_ENV,
+        _json.dumps({"issue": synthetic, "count": 4}),
+    )
+    assert cam._criteria_count_from_override(synthetic) == 4
+
+
+def test_every_real_issue_in_this_repo_is_below_the_floor():
+    """A discriminating bound, not a restatement of the constant.
+
+    If the floor were ever lowered into the range real issues occupy, the
+    structural guarantee above would silently become policy again.
+    """
+    assert _cam().SYNTHETIC_ISSUE_FLOOR > 100_000
