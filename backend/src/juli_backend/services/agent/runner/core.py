@@ -293,7 +293,13 @@ from juli_backend.services.agent.sanitize import (
     to_error_envelope,
 )
 from juli_backend.services.agent.status import StopReason, WorkflowRunStatus, status_for
-from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry, ToolSpec, UnknownToolError
+from juli_backend.services.agent.tools import (
+    ToolClassification,
+    ToolPolicy,
+    ToolRegistry,
+    ToolSpec,
+    UnknownToolError,
+)
 from juli_backend.services.execution.types import ExecutionErrorCategory
 
 logger = logging.getLogger(__name__)
@@ -971,9 +977,14 @@ class WorkflowRunner:
             ToolStartedPayload(tool_call_id=call_id, tool_name=tool_name),
         )
         try:
+            # Issue #1653: increment tool_call_count before dispatch
+            self._rollup_tool_call_count += 1
             raw_result = self._tool_executor.execute(
                 tool_name=tool_name, params=params, tool_call_id=call_id
             )
+            # Issue #1653: increment rows_affected for successful WRITE tool executions
+            if spec.classification is ToolClassification.WRITE:
+                self._rollup_rows_affected += 1
             # #1382: the guard just updated its in-memory basis (on a read, or
             # via the post-write refresh). Mirror it into state now, while we
             # are still on this leg — after the pause it is unrecoverable.
@@ -1509,6 +1520,9 @@ class WorkflowRunner:
             raw_result = self._tool_executor.execute(
                 tool_name=block.tool_name, params=params, tool_call_id=block.call_id
             )
+            # Issue #1653: increment rows_affected for successful WRITE tool executions
+            if spec.classification is ToolClassification.WRITE:
+                self._rollup_rows_affected += 1
             self._sync_basis(state)  # #1382 — see the sibling dispatch site
             self._sync_product_detail(state)  # #1389 — product persists across pause
         except ConcurrencyExhaustedError:

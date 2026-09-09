@@ -461,3 +461,99 @@ class TestRollupAcrossPauseResume:
         assert final_row.output_tokens == 125, (
             f"Expected 125 output tokens after resume, got {final_row.output_tokens}"
         )
+
+
+class TestRowsAffectedIncrementOnWrite:
+    async def test_read_tool_does_not_increment_rows_affected(self, session: AsyncSession):
+        """Issue #1653-Meta1: READ tool execution should not increment rows_affected."""
+        run_id = await _seed_workflow_run(session)
+        store = JsonbConversationStore(session)
+        playbook = _minimal_playbook((_step("get_product_information"),))
+
+        runner = WorkflowRunner(
+            llm_service=FakeLLMService(
+                script=[
+                    _turn(
+                        ToolCallBlock(
+                            call_id="c1",
+                            tool_name="get_product_information",
+                            arguments={},
+                        ),
+                        input_tokens=100,
+                        output_tokens=50,
+                    ),
+                    _turn(FinalResponse(content="Done."), input_tokens=100, output_tokens=50),
+                ]
+            ),
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            registry=_full_registry(),
+            playbook=playbook,
+            clock=_SteppingClock(step=0.1),
+        )
+
+        result = await runner.run(run_id, product_ref="prod-1")
+        assert result.stop_reason == StopReason.FINAL_RESPONSE
+
+        row = await _reload_row(session, run_id)
+        # Should have 0 rows_affected since we only called a READ tool
+        assert row.rows_affected == 0, (
+            f"Expected 0 rows_affected for READ-only execution, got {row.rows_affected}"
+        )
+
+    async def test_write_tool_increments_rows_affected(self, session: AsyncSession):
+        """Issue #1653-Meta1: WRITE tool execution should increment rows_affected."""
+        run_id = await _seed_workflow_run(session)
+        store = JsonbConversationStore(session)
+        # Playbook with a WRITE tool (update_product_listing has CONFIRM policy)
+        playbook = _minimal_playbook((_step("update_product_listing", policy=ToolPolicy.CONFIRM),))
+
+        # First run: pause on the WRITE tool
+        pause_runner = WorkflowRunner(
+            llm_service=FakeLLMService(
+                script=[
+                    _turn(
+                        ToolCallBlock(
+                            call_id="c1",
+                            tool_name="update_product_listing",
+                            arguments={"title": "Updated Title"},
+                        ),
+                        input_tokens=100,
+                        output_tokens=50,
+                    ),
+                ]
+            ),
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            registry=_full_registry(),
+            playbook=playbook,
+            clock=_SteppingClock(step=0.1, start=0.0),
+        )
+
+        pause_result = await pause_runner.run(run_id, product_ref="prod-1")
+        assert pause_result.stop_reason == StopReason.PAUSED_FOR_CONFIRMATION
+
+        # Resume and approve the tool
+        resume_store = JsonbConversationStore(session)
+        resume_runner = WorkflowRunner(
+            llm_service=FakeLLMService(
+                script=[_turn(FinalResponse(content="Done."), input_tokens=50, output_tokens=25)]
+            ),
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=resume_store,
+            registry=_full_registry(),
+            playbook=playbook,
+            clock=_SteppingClock(step=0.1, start=0.0),
+        )
+
+        resume_result = await resume_runner.resume(run_id, approved=True)
+        assert resume_result.stop_reason == StopReason.FINAL_RESPONSE
+
+        row = await _reload_row(session, run_id)
+        # Should have 1 rows_affected since we executed one WRITE tool (update_product_listing)
+        assert row.rows_affected == 1, (
+            f"Expected 1 rows_affected for one WRITE tool execution, got {row.rows_affected}"
+        )
