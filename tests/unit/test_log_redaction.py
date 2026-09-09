@@ -417,7 +417,100 @@ class TestConfigureLoggingIdempotency:
 
 
 class TestWordBoundaryRedaction:
-    """Redaction uses word boundaries, not substring matching."""
+    """Redaction uses word boundaries, matches words anywhere in key."""
+
+    def test_credential_word_anywhere_in_key_is_redacted(self):
+        """seller_password, db_secret, customer_phone all redacted."""
+        record = logging.LogRecord(
+            name="test_logger",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="test_event",
+            args=(),
+            exc_info=None,
+        )
+        record.seller_password = PLANTED_PASSWORD
+        record.db_secret = PLANTED_API_KEY
+        record.customer_phone = "+1234567890123"
+        record.contact_email = "user@example.com"
+
+        output = JsonFormatter().format(record)
+        payload = json.loads(output)
+        assert payload["seller_password"] == REDACTION_MARKER
+        assert payload["db_secret"] == REDACTION_MARKER
+        assert payload["customer_phone"] == REDACTION_MARKER
+        assert payload["contact_email"] == REDACTION_MARKER
+
+    def test_camel_case_credentials_are_redacted(self):
+        """sessionCookie and apiKey (camelCase) are redacted."""
+        record = logging.LogRecord(
+            name="test_logger",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="test_event",
+            args=(),
+            exc_info=None,
+        )
+        record.sessionCookie = PLANTED_PASSWORD
+        record.apiKey = PLANTED_API_KEY
+
+        output = JsonFormatter().format(record)
+        payload = json.loads(output)
+        assert payload["sessionCookie"] == REDACTION_MARKER
+        assert payload["apiKey"] == REDACTION_MARKER
+
+    def test_csrf_token_string_is_redacted(self):
+        """csrf_token with string value is redacted."""
+        record = logging.LogRecord(
+            name="test_logger",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="test_event",
+            args=(),
+            exc_info=None,
+        )
+        record.csrf_token = "abc123def456" + "xyz789"
+
+        output = JsonFormatter().format(record)
+        payload = json.loads(output)
+        assert payload["csrf_token"] == REDACTION_MARKER
+
+    def test_tokenizer_string_survives(self):
+        """tokenizer (string value) survives - it's not 'token' word."""
+        record = logging.LogRecord(
+            name="test_logger",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="test_event",
+            args=(),
+            exc_info=None,
+        )
+        record.tokenizer = "gpt2"
+
+        output = JsonFormatter().format(record)
+        payload = json.loads(output)
+        assert payload["tokenizer"] == "gpt2"
+
+    def test_authored_by_string_survives(self):
+        """authored_by (string value) survives - no redactable words in key."""
+        record = logging.LogRecord(
+            name="test_logger",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="test_event",
+            args=(),
+            exc_info=None,
+        )
+        record.authored_by = "alice_smith"
+
+        output = JsonFormatter().format(record)
+        payload = json.loads(output)
+        assert payload["authored_by"] == "alice_smith"
 
     def test_token_count_fields_survive_intact(self):
         """Fields like input_tokens, output_tokens, max_tokens survive (not redacted)."""

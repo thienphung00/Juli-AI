@@ -185,7 +185,7 @@ class JsonFormatter(logging.Formatter):
             # Never redact these fields
             if key in ("timestamp", "level", "logger", "event", "correlation_id", "client_address"):
                 redacted[key] = value
-            elif _is_redactable_key(key):
+            elif _is_redactable_key(key, value):
                 # Key itself indicates redactable content
                 redacted[key] = REDACTION_MARKER
             elif isinstance(value, dict):
@@ -208,20 +208,20 @@ def _json_safe(value: Any) -> bool:
     return isinstance(value, str | int | float | bool | type(None) | list | dict)
 
 
-def _is_redactable_key(key: str) -> bool:
+def _is_redactable_key(key: str, value: Any = None) -> bool:
     """Check if a key name indicates a value that should be redacted.
 
     Redactable keywords: password, passwd, pwd, secret, authorization, auth,
-    cookie, credential, credentials, phone, email (exact or leading word match).
-    Multi-word patterns (must match entire sequence): api_key, apikey, access_token,
-    refresh_token, private_key, client_secret.
-    Note: token/tokens alone are NOT redactable to avoid matching input_tokens,
-    output_tokens, max_tokens, token_count, etc.
+    cookie, credential, credentials, phone, email, apikey, token (token only
+    when value is string, not for numeric token_count).
+    Multi-word patterns: (api,key), (access,token), (refresh,token),
+    (private,key), (client,secret).
     """
-    lower_key = key.lower()
+    # Split key into words by _, -, . and camelCase boundaries
+    words = _split_key_into_words(key)
 
-    # Exact single-word redactable patterns
-    single_word_patterns = {
+    # Single-word redactable keywords
+    single_word_keywords = {
         "password",
         "passwd",
         "pwd",
@@ -233,45 +233,49 @@ def _is_redactable_key(key: str) -> bool:
         "credentials",
         "phone",
         "email",
-    }
-
-    # Multi-word patterns that must be matched as sequences
-    multi_word_patterns = {
-        "api_key",
         "apikey",
-        "access_token",
-        "accesstoken",
-        "refresh_token",
-        "refreshtoken",
-        "private_key",
-        "privatekey",
-        "client_secret",
-        "clientsecret",
     }
 
-    # Normalize the key for pattern matching: remove - and .
-    normalized = lower_key.replace("-", "_").replace(".", "_")
-
-    # Check multi-word patterns first (longer matches take precedence)
-    for pattern in multi_word_patterns:
-        if pattern in normalized or normalized == pattern:
+    # Check if any single word matches (except "token" which needs value check)
+    for word in words:
+        if word in single_word_keywords:
             return True
 
-    # Check single-word patterns: match as a whole word or at the start of compound
-    for pattern in single_word_patterns:
-        # Exact match
-        if normalized == pattern:
+    # Special case: "token" only redacts if value is a string
+    # (numeric token_count should not be redacted)
+    if "token" in words and isinstance(value, str):
+        return True
+
+    # Check multi-word sequences: look for adjacent pairs
+    for i in range(len(words) - 1):
+        word_pair = (words[i], words[i + 1])
+        if word_pair in {
+            ("api", "key"),
+            ("access", "token"),
+            ("refresh", "token"),
+            ("private", "key"),
+            ("client", "secret"),
+        }:
             return True
-        # Match as a leading word (e.g., "password_hash" starts with "password")
-        if normalized.startswith(pattern + "_"):
-            return True
-        # Match with camelCase (e.g., "passwordHash" starts with pattern)
-        if lower_key.startswith(pattern):
-            # Ensure it's a word boundary (next char is uppercase or end)
-            if len(lower_key) == len(pattern) or lower_key[len(pattern)].isupper():
-                return True
 
     return False
+
+
+def _split_key_into_words(key: str) -> list[str]:
+    """Split a key into words on _, -, . boundaries and camelCase transitions.
+
+    Returns list of lowercase words.
+    """
+    # First insert _ before uppercase letters for camelCase splitting
+    with_camel_sep = re.sub(r"([a-z])([A-Z])", r"\1_\2", key)
+
+    # Normalize: lowercase and replace -, . with _
+    normalized = with_camel_sep.lower().replace("-", "_").replace(".", "_")
+
+    # Split on underscores and filter empty strings
+    words = [w for w in normalized.split("_") if w]
+
+    return words
 
 
 def _is_redactable_value(value: Any) -> bool:
@@ -352,7 +356,7 @@ def _redact_dict(data: dict[str, Any]) -> dict[str, Any]:
     """
     redacted = {}
     for key, value in data.items():
-        if _is_redactable_key(key):
+        if _is_redactable_key(key, value):
             redacted[key] = REDACTION_MARKER
         elif isinstance(value, dict):
             redacted[key] = _redact_dict(value)
