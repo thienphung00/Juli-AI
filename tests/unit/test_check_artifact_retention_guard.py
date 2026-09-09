@@ -111,11 +111,14 @@ def test_passes_once_a_pass_record_is_committed(tmp_path: Path) -> None:
     assert "PASS" in detail
 
 
-def test_fails_and_names_the_gate_when_review_not_pass(tmp_path: Path) -> None:
+def test_passes_when_review_is_fail_because_guard_records_evidence_not_verdict(
+    tmp_path: Path,
+) -> None:
+    """#1569: The guard accepts FAIL records as evidence. The merge gate
+    that blocks on FAIL is tested separately, not here."""
     _write_record(tmp_path, 1064, review_status="FAIL", validation_status="PASS")
     passed, detail = evaluate(1064, status_dir=tmp_path)
-    assert passed is False
-    assert "review" in detail.lower()
+    assert passed is True
     assert "FAIL" in detail
 
 
@@ -212,20 +215,21 @@ def test_pass_with_warnings_requires_literal_true_not_merely_truthy(tmp_path: Pa
     assert passed is False
 
 
-def test_a_genuinely_failing_review_is_still_rejected_outright(tmp_path: Path) -> None:
-    """The #1141 widening admits exactly one new status, not any status that
-    happens to carry the booleans."""
+def test_pass_with_warnings_does_not_require_signoffs_for_fail_status(tmp_path: Path) -> None:
+    """FAIL status does not trigger PASS_WITH_WARNINGS signoff requirements (#1569).
+    Signoff checks apply only to PASS_WITH_WARNINGS status, not to FAIL."""
     _write_record(
         tmp_path,
         1064,
         review_status="FAIL",
         validation_status="PASS",
-        warnings_acknowledged=True,
-        owner_signoff_present=True,
+        warnings_acknowledged=False,
+        owner_signoff_present=False,
     )
     passed, detail = evaluate(1064, status_dir=tmp_path)
-    assert passed is False
-    assert "review" in detail.lower()
+    # The record passes the guard (it's evidence). Merge block is elsewhere.
+    assert passed is True
+    assert "FAIL" in detail
 
 
 # --- Fail-closed: never pass because it could not determine an answer ---
@@ -303,7 +307,6 @@ def test_fails_when_record_is_unreadable(tmp_path: Path, monkeypatch) -> None:
         "malformed_json",
         "not_an_object",
         "missing_gate_version",
-        "review_not_pass",
         "validation_not_pass",
         "issue_mismatch",
     ],
@@ -312,8 +315,11 @@ def test_fail_closed_never_passes_when_it_cannot_determine_an_answer(
     tmp_path: Path, setup: str
 ) -> None:
     """The one property this whole guard exists to guarantee: no code path
-    returns passed=True without having read a genuine PASS/PASS record for
-    the right issue. Every ambiguous or broken input must FAIL, not pass."""
+    returns passed=True without having read a genuine, well-formed record for
+    the right issue. Every ambiguous or broken input must FAIL, not pass.
+
+    #1569: review_not_pass is removed from this list because FAIL is now an
+    acceptable review status that the guard records as evidence."""
     issue = 1064
     if setup == "missing":
         pass  # no file written at all
@@ -335,8 +341,6 @@ def test_fail_closed_never_passes_when_it_cannot_determine_an_answer(
                 },
             },
         )
-    elif setup == "review_not_pass":
-        _write_record(tmp_path, issue, review_status="FAIL")
     elif setup == "validation_not_pass":
         _write_record(tmp_path, issue, validation_status="FAIL")
     elif setup == "issue_mismatch":
@@ -1086,3 +1090,73 @@ def test_shallow_checkout_stays_indeterminate_for_a_committable_path(tmp_path: P
     passed, detail = evaluate(issue, status_dir=status_dir, repo_root=shallow)
     assert passed is True, detail
     assert "shallow" in detail.lower(), detail
+
+
+# --- #1569: FAIL records are committable, distinguished from absence --------
+# The retention guard separates "is there evidence" (require a well-formed record)
+# from "did it pass" (read review.status for merge decision). This allows the
+# corpus to record both successes and failures, making the gap distinguishable.
+
+
+def test_a_failed_review_is_committable_guard_passes(tmp_path: Path) -> None:
+    """GIVEN a review that legitimately returns FAIL WHEN its record is committed
+    THEN the record lands and the retention guard passes.
+
+    This test proves the guard accepts FAIL as evidence. The merge block is
+    enforced by check_merge_status.py, tested separately in
+    test_check_merge_status.py::test_fails_when_review_status_is_fail."""
+    issue = 1569
+    repo, digests = _make_repo_with_committed_artifacts(tmp_path, issue)
+    status_dir = tmp_path / "status"
+    _write_record(
+        status_dir,
+        issue,
+        payload=_v2_payload(
+            issue,
+            f"git-history:agent-runtime/artifacts/reviews/review-issue-{issue}.json",
+            digests["review"],
+            f"git-history:agent-runtime/artifacts/validation/validation-issue-{issue}.json",
+            digests["validation"],
+        ),
+    )
+    # Plant the failure in the committed record.
+    record = json.loads((status_dir / f"issue-{issue}.json").read_text(encoding="utf-8"))
+    record["review"]["status"] = "FAIL"
+    (status_dir / f"issue-{issue}.json").write_text(json.dumps(record), encoding="utf-8")
+
+    # The retention guard must PASS -- it is evidence of what happened, not
+    # a judgment about whether to merge.
+    passed, detail = evaluate(issue, status_dir=status_dir, repo_root=repo)
+    assert passed is True, detail
+    assert "FAIL" in detail
+
+
+def test_absence_is_distinguishable_from_recorded_failure(tmp_path: Path) -> None:
+    """GIVEN an issue with no assessment at all WHEN the guard runs THEN that
+    is distinguishable from a recorded FAIL.
+
+    A missing record and a FAIL record both block merge, but for different
+    reasons: one is "no evidence", the other is "the evidence says no"."""
+    issue = 1569
+    absence_dir = tmp_path / "absence"
+    failure_dir = tmp_path / "failure"
+
+    # Case 1: No record at all.
+    absence_passed, absence_detail = evaluate(issue, status_dir=absence_dir)
+    assert absence_passed is False
+    assert "missing" in absence_detail.lower()
+    assert GENERATE_COMMAND in absence_detail
+
+    # Case 2: Record exists with FAIL status (gateVersion 1 for simplicity).
+    _write_record(
+        failure_dir,
+        issue,
+        review_status="FAIL",
+        validation_status="PASS",
+    )
+    failure_passed, failure_detail = evaluate(issue, status_dir=failure_dir)
+    assert failure_passed is True, failure_detail
+    assert "FAIL" in failure_detail
+    # The key distinction: absence says "missing", failure says "FAIL".
+    assert "missing" in absence_detail.lower()
+    assert "missing" not in failure_detail.lower()

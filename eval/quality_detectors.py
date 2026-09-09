@@ -1241,16 +1241,16 @@ def build_report(
 #: rather than reconciled away. Regenerate with
 #: ``python -m eval.quality_detectors scan`` and update both numbers together.
 MEASURED_ZERO_ASSERTION_TESTS = 50
-MEASURED_TEST_FUNCTIONS = 4878
+MEASURED_TEST_FUNCTIONS = 5002
 #: Test modules the corpus figure is spread over. Like the corpus it is a
 #: denominator, not a claim, so it is held to a tolerance rather than pinned.
-MEASURED_TEST_MODULES = 494
+MEASURED_TEST_MODULES = 506
 
 #: The measured decomposition that reconciles the two figures. Each layer
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
 #: the third layer, this module's headline on the fifth.
 RECONCILIATION_LAYERS: dict[str, int] = {
-    "no_assert_statement": 408,
+    "no_assert_statement": 409,
     "and_no_pytest_raises": 124,
     "and_no_mock_assert_called": 107,
     "and_no_unittest_self_assert": 107,
@@ -1271,8 +1271,8 @@ RECONCILIATION: dict[str, Any] = {
     "note": (
         "Neither figure is wrong; they count different things, and the layer "
         "decomposition above shows exactly where they part. Measured here: 50 "
-        "zero-assertion tests in a corpus of 4,878 test functions over tests/ "
-        "backend/ scripts/ agent-runtime/ eval/ (494 test modules). The prior "
+        "zero-assertion tests in a corpus of 5,002 test functions over tests/ "
+        "backend/ scripts/ agent-runtime/ eval/ (506 test modules). The prior "
         "~97-of-4,048 reading corresponds to the `and_no_mock_assert_called` "
         "layer — a detector that credits `pytest.raises` and `mock.assert_called*` "
         "as assertions but not delegation to a same-file asserting helper. That "
@@ -1283,7 +1283,7 @@ RECONCILIATION: dict[str, Any] = {
         "at 4,798 and at 4,878 — so scaling either side by corpus growth diverges "
         "mechanically as the repository grows and says nothing about the code "
         "(#1682). The rates are recorded beside it as readings, not as the claim "
-        "(2.40% then, 2.19% now). "
+        "(2.40% then, 2.14% now). "
         "So the prior measurement "
         "reproduces, and the gap between 107 and 50 is 53 tests whose only "
         "assertion is inside a "
@@ -1305,6 +1305,71 @@ RECONCILIATION: dict[str, Any] = {
 # --------------------------------------------------------------------------
 
 
+def reconcile_source(root: Path, source: str) -> tuple[str, dict[str, object]]:
+    """This module's own source with every recorded figure re-derived (#1731).
+
+    The corpus constants and the prose note beside them must move together --
+    `test_reconciliation_note_states_no_stale_corpus_layer_or_ratio_figure`
+    checks the prose against the constants -- so a merge resolution here is
+    eight coordinated edits, done by hand four times in one working day. Getting
+    the *file* wrong is worse than getting a number wrong: both sides of the
+    merge edit the same paragraph, and a textual splice of two such edits is how
+    PR #1616 acquired an F401, where git merged an import from one side with a
+    function body from the other and reported no conflict at all.
+
+    Returns the rewritten source and the figures used, so a caller can report
+    what moved rather than diffing to find out.
+    """
+    live = scan_corpus(root, roots=TEST_ROOTS)
+    layers = reconciliation_layers(root, roots=TEST_ROOTS)
+    prior_layer = layers[RECONCILIATION["priorFigureLayer"]]
+    counts = counts_by_rule(live.findings)
+    headline = counts[RULE_ZERO_ASSERTION]
+
+    then_rate = 100 * REPORTED_ZERO_ASSERTION_TESTS / REPORTED_TEST_FUNCTIONS
+    now_rate = 100 * prior_layer / live.test_functions
+    figures = {
+        "testFunctions": live.test_functions,
+        "testModules": live.files,
+        "noAssertStatement": layers["no_assert_statement"],
+        "zeroAssertion": headline,
+        "priorFigureLayer": prior_layer,
+        "thenRate": round(then_rate, 2),
+        "nowRate": round(now_rate, 2),
+    }
+
+    edits = [
+        (f"MEASURED_TEST_FUNCTIONS = {MEASURED_TEST_FUNCTIONS}",
+         f"MEASURED_TEST_FUNCTIONS = {live.test_functions}"),
+        (f"MEASURED_TEST_MODULES = {MEASURED_TEST_MODULES}",
+         f"MEASURED_TEST_MODULES = {live.files}"),
+        (f'"no_assert_statement": {RECONCILIATION_LAYERS["no_assert_statement"]},',
+         f'"no_assert_statement": {layers["no_assert_statement"]},'),
+        (f"corpus of {MEASURED_TEST_FUNCTIONS:,} test functions",
+         f"corpus of {live.test_functions:,} test functions"),
+        (f"({MEASURED_TEST_MODULES} test modules)", f"({live.files} test modules)"),
+        (f"layer reads {RECONCILIATION_LAYERS[RECONCILIATION['priorFigureLayer']]} today",
+         f"layer reads {prior_layer} today"),
+        (f"({100 * REPORTED_ZERO_ASSERTION_TESTS / REPORTED_TEST_FUNCTIONS:.2f}% then, "
+         f"{100 * RECONCILIATION_LAYERS[RECONCILIATION['priorFigureLayer']] / MEASURED_TEST_FUNCTIONS:.2f}% now)",
+         f"({then_rate:.2f}% then, {now_rate:.2f}% now)"),
+    ]
+    for old, new in edits:
+        # The anchor is checked even when the value is unchanged. Checking only
+        # the edits that move would mean that once the figures are current this
+        # stops verifying the file's shape at all -- a hand-mangled constant
+        # would pass silently, which is the state a command named "reconcile"
+        # must never leave behind.
+        if source.count(old) != 1:
+            raise MeasurementError(
+                f"cannot re-derive: expected exactly one occurrence of {old!r}, "
+                f"found {source.count(old)}. Refusing to guess -- resolve by hand."
+            )
+        if old != new:
+            source = source.replace(old, new)
+    return source, figures
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m eval.quality_detectors")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1314,6 +1379,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     report_cmd = sub.add_parser("report", help="full JSON report, no composite")
     report_cmd.add_argument("--root", default=str(REPO_ROOT))
+
+    rec = sub.add_parser(
+        "reconcile", help="re-derive every recorded corpus figure, constants and prose together"
+    )
+    rec.add_argument("--root", default=str(REPO_ROOT))
+    rec.add_argument("--write", action="store_true", help="apply the edits in place")
 
     mutate = sub.add_parser("mutate", help="diff-scoped mutation testing")
     mutate.add_argument("--root", default=str(REPO_ROOT))
@@ -1333,6 +1404,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"test functions scanned: {scan_result.test_functions}")
             for rule in RULE_CODES:
                 print(f"  {rule:<24} {counts[rule]:>5}  [{enforcement(rule)}]")
+            return 0
+
+        if args.command == "reconcile":
+            path = Path(__file__).resolve()
+            rewritten, figures = reconcile_source(root, path.read_text(encoding="utf-8"))
+            for name, value in figures.items():
+                print(f"  {name}: {value}")
+            if args.write:
+                path.write_text(rewritten, encoding="utf-8")
+                print("written" if rewritten else "unchanged")
+            else:
+                print("dry run; pass --write to apply")
             return 0
 
         if args.command == "report":

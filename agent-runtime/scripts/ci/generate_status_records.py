@@ -134,7 +134,22 @@ def _sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _issue_numbers() -> list[int]:
+def _issue_numbers(scope: int | None = None) -> list[int]:
+    """Issues to generate for.
+
+    #1734/#1686: discovery globs *gitignored* artifact bodies, which accumulate
+    from earlier sessions and are invisible to every gate. Unscoped, that made
+    the blast radius "whatever is lying on disk" -- and one stale body caused a
+    committed record for an unrelated, long-landed issue to be rewritten. When a
+    scope is given, only that issue is considered, and only if it actually has a
+    body to generate from.
+    """
+    if scope is not None:
+        has_body = (REVIEWS_DIR / f"review-issue-{scope}.json").exists() or (
+            VALIDATION_DIR / f"validation-issue-{scope}.json"
+        ).exists()
+        return [scope] if has_body else []
+
     numbers: set[int] = set()
     for path in REVIEWS_DIR.glob("review-issue-*.json"):
         suffix = path.stem.rsplit("-", 1)[-1]
@@ -261,10 +276,10 @@ def build_status_record(issue: int) -> dict[str, Any] | None:
     }
 
 
-def migrate(*, dry_run: bool = False) -> list[int]:
+def migrate(*, scope: int | None = None, dry_run: bool = False) -> list[int]:
     STATUS_DIR.mkdir(parents=True, exist_ok=True)
     generated: list[int] = []
-    for issue in _issue_numbers():
+    for issue in _issue_numbers(scope):
         record = build_status_record(issue)
         if record is None:
             continue
@@ -276,7 +291,7 @@ def migrate(*, dry_run: bool = False) -> list[int]:
     return generated
 
 
-def relabel_policy_local_refs(*, dry_run: bool = False) -> list[int]:
+def relabel_policy_local_refs(*, scope: int | None = None, dry_run: bool = False) -> list[int]:
     """One-off correction for records committed before #1497.
 
     #1438's generator stamped ``git-history:`` onto body paths ``.gitignore``
@@ -303,7 +318,16 @@ def relabel_policy_local_refs(*, dry_run: bool = False) -> list[int]:
     changed: list[int] = []
     if not STATUS_DIR.is_dir():
         return changed
-    for path in sorted(STATUS_DIR.glob("issue-*.json")):
+    # #1734: the relabel pass reaches every tracked status record too. Scoping
+    # migrate() alone would have left the same unscoped blast radius one flag away.
+    paths = (
+        [STATUS_DIR / f"issue-{scope}.json"]
+        if scope is not None
+        else sorted(STATUS_DIR.glob("issue-*.json"))
+    )
+    for path in paths:
+        if not path.is_file():
+            continue
         try:
             record = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
@@ -349,15 +373,37 @@ def main() -> int:
             "sha256 values are never touched."
         ),
     )
+    parser.add_argument(
+        "--issue",
+        type=int,
+        help="Generate the record for this issue only (#1734).",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help=(
+            "Generate for every issue with an artifact body on disk. Deliberate and "
+            "wide: those directories are gitignored and accumulate stale bodies, so "
+            "this reaches every tracked status record (#1686)."
+        ),
+    )
     args = parser.parse_args()
 
+    if args.issue is None and not args.all:
+        parser.error(
+            "refusing to run unscoped: pass --issue <N>, or --all to mean it. "
+            "Unscoped, discovery globs gitignored artifact bodies left by earlier "
+            "sessions and rewrites across every tracked status record; that is how a "
+            "committed record for an unrelated issue was rewritten (#1686)."
+        )
+
     if args.relabel_policy_local_refs:
-        changed = relabel_policy_local_refs(dry_run=args.dry_run)
+        changed = relabel_policy_local_refs(scope=args.issue, dry_run=args.dry_run)
         verb = "would relabel" if args.dry_run else "relabelled"
         print(f"status records: {verb} {len(changed)} for issues {changed}")
         return 0
 
-    generated = migrate(dry_run=args.dry_run)
+    generated = migrate(scope=args.issue, dry_run=args.dry_run)
     verb = "would generate" if args.dry_run else "generated"
     print(f"status records: {verb} {len(generated)} for issues {generated}")
     return 0
