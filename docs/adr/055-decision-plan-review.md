@@ -261,6 +261,19 @@ Alternatives considered:
       *identify* them.
     - Source: [OWASP File Upload Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html).
 
+## Rationale
+
+*Extracted during the W6→main reconcile to satisfy `check_adr`, which requires a
+`## Rationale` heading (#1853). Nothing below is new reasoning — it summarises what
+this ADR already argues in the section named, which remains the fuller account.*
+
+From **Context**: the five-stage review presents every workflow's inputs as one
+flat form. Measured across the ten `apps/demo` workflows that means showing
+**6–11 fields** to collect a median of **~3.5** genuine seller answers, and once
+conditionals collapse the true ask is frequently **one**. The remainder is
+context the agent already holds, so the form asks the seller to restate what the
+system knows.
+
 ## Consequences
 
 - The `analytics` stage is removed as a stage; the link to Analytics survives inside the

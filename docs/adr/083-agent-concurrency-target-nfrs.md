@@ -73,6 +73,20 @@ It deliberately changes nothing now.
 - **Multiplexed per-shop stream now** — rebuilds reconnect/cursor semantics that already
   work, for an overview whose consumer today is one seller's browser; deferred with trigger.
 
+## Rationale
+
+*Extracted during the W6→main reconcile to satisfy `check_adr`, which requires a
+`## Rationale` heading (#1853). Nothing below is new reasoning — it summarises what
+this ADR already argues in the section named, which remains the fuller account.*
+
+From **Context** and **Options considered and rejected**: the agent execution
+subsystem (W1–W4) was designed and validated around a *single running workflow*,
+while the product's user-facing scale requirements were never written down as
+NFRs — one seller automating many workflows at once, bursts of ~100 run requests
+for a shop, Campaign/Sales-day surges, and progress visibility across many
+concurrent runs. Stating them as targets is what makes them testable rather than
+assumed.
+
 ## Consequences
 
 - **Entity implications (deferred with T-slices, not scheduled here):** subject-scoped

@@ -83,6 +83,20 @@ A seller who sees Juli decline to claim an effect learns something true about th
 
 `readiness.py` (#1338) already answers *"is this measurable before the write"*. The demo runs it, and honours it. A demo that promises a reading it cannot produce is a demo that lies about the feature — the same failure as fabricating the number, arriving one step earlier.
 
+## Rationale
+
+*Extracted during the W6→main reconcile to satisfy `check_adr`, which requires a
+`## Rationale` heading (#1853). Nothing below is new reasoning — it summarises what
+this ADR already argues in the section named, which remains the fuller account.*
+
+From **Context**: impact reading is a core feature — the layer answering *"did
+the change Juli made actually do anything"* — and it cannot be measured today for
+a **structural** rather than technical reason. A genuine reading needs one shop
+that has both real analytics history *and* a write credential we may use, and no
+single shop has both halves. Computing real readings over a synthetic series is
+what lets the algorithm ship and be exercised before such a shop exists, with
+`series_source` keeping the two provenances distinguishable forever after.
+
 ## Consequences
 
 **The measurement layer gets exercised before it matters.** Every demo session runs the real control-pool selection, the real floors, the real tiers. Defects of the kind that already bit this package once — a rate metric compared against a count-calibrated floor, which silently disqualified every candidate for two mutation families — surface against synthetic data instead of against the first real seller.
