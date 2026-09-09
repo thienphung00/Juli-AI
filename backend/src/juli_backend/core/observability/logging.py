@@ -27,11 +27,13 @@ import contextvars
 import json
 import logging
 import os
+import re
 import sys
 import uuid
 from typing import Any
 
 CORRELATION_ID_HEADER = "X-Request-ID"
+REDACTION_MARKER = "[REDACTED]"
 
 # contextvars, not threading.local: the request lifecycle is async, and a ContextVar is
 # the only thing that survives an await without leaking between concurrent requests.
@@ -129,6 +131,8 @@ class JsonFormatter(logging.Formatter):
 
     Anything passed via ``extra=`` is merged in at the top level, which is what makes
     the existing call sites start producing useful output with no edits to them.
+
+    Redaction is applied to the entire payload to remove credentials and PII.
     """
 
     def format(self, record: logging.LogRecord) -> str:
@@ -161,11 +165,218 @@ class JsonFormatter(logging.Formatter):
         if record.stack_info:
             payload["stack"] = self.formatStack(record.stack_info)
 
+        # Apply redaction to the entire payload
+        payload = self._redact_payload(payload)
+
         return json.dumps(payload, default=str, ensure_ascii=False)
+
+    def _redact_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Redact sensitive values in the payload.
+
+        Applies redaction to:
+        - Top-level extra fields
+        - Nested dicts and lists
+        - Exception and stack traces (string redaction)
+
+        Preserves non-sensitive fields like correlation_id, client_address, timestamp, etc.
+        """
+        redacted = {}
+        for key, value in payload.items():
+            # Never redact these fields
+            if key in ("timestamp", "level", "logger", "event", "correlation_id", "client_address"):
+                redacted[key] = value
+            elif _is_redactable_key(key):
+                # Key itself indicates redactable content
+                redacted[key] = REDACTION_MARKER
+            elif isinstance(value, dict):
+                redacted[key] = _redact_dict(value)
+            elif isinstance(value, list):
+                redacted[key] = _redact_list(value)
+            elif isinstance(value, str):
+                # For exception and stack traces, use string-level redaction
+                if key in ("exception", "stack"):
+                    redacted[key] = _redact_string(value)
+                else:
+                    redacted[key] = _redact_value(value)
+            else:
+                redacted[key] = value
+
+        return redacted
 
 
 def _json_safe(value: Any) -> bool:
     return isinstance(value, str | int | float | bool | type(None) | list | dict)
+
+
+def _is_redactable_key(key: str) -> bool:
+    """Check if a key name indicates a value that should be redacted.
+
+    Redactable keys: password, secret, token, authorization, api_key, access_token,
+    refresh_token, cookie, set-cookie, phone, email (case-insensitive).
+    """
+    lower_key = key.lower()
+    redactable_keywords = {
+        "password",
+        "secret",
+        "token",
+        "authorization",
+        "api_key",
+        "access_token",
+        "refresh_token",
+        "cookie",
+        "set-cookie",
+        "phone",
+        "email",
+        "gh_token",
+        "aws_key",
+    }
+    return any(keyword in lower_key for keyword in redactable_keywords)
+
+
+def _is_redactable_value(value: Any) -> bool:
+    """Check if a value matches credential or PII patterns.
+
+    Patterns:
+    - API keys: sk_*, bearer *, AKIA*
+    - Email: contains @ with domain-like structure
+    - Phone: starts with + followed by digits and dashes, min 10 digits
+    """
+    if not isinstance(value, str):
+        return False
+
+    # Skip UUIDs and ISO-8601 timestamps
+    if _is_uuid(value) or _is_iso_8601(value):
+        return False
+
+    stripped = value.strip()
+
+    # API key patterns
+    if stripped.startswith("sk-") or stripped.startswith("sk_"):
+        return True
+    if stripped.startswith("ghp_") or stripped.startswith("ghp-"):
+        return True
+    if stripped.startswith("AKIA"):
+        return True
+    if stripped.lower().startswith("bearer "):
+        return True
+
+    # Email pattern: contains @ with dots
+    if "@" in stripped and "." in stripped:
+        if re.match(r"[^@]+@[^@]+\.[a-zA-Z]{2,}", stripped):
+            return True
+
+    # Phone pattern: starts with +, contains digits and dashes/spaces
+    if stripped.startswith("+"):
+        # Extract digits only to count them
+        digits_only = re.sub(r"[^\d]", "", stripped)
+        if len(digits_only) >= 10:
+            # Check if it has the right structure: +digits or +digits-digits
+            if re.match(r"\+\d+[- ]?\d+", stripped):
+                return True
+
+    return False
+
+
+def _is_uuid(value: str) -> bool:
+    """Check if value is a UUID."""
+    try:
+        uuid.UUID(value)
+        return True
+    except (ValueError, AttributeError):
+        return False
+
+
+def _is_iso_8601(value: str) -> bool:
+    """Check if value is an ISO-8601 timestamp."""
+    # Simplified check for common ISO-8601 formats
+    iso_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}"
+    return bool(re.match(iso_pattern, value))
+
+
+def _redact_value(value: Any) -> Any:
+    """Redact a single value if it matches redaction criteria."""
+    if _is_redactable_value(value):
+        return REDACTION_MARKER
+    return value
+
+
+def _redact_dict(data: dict[str, Any]) -> dict[str, Any]:
+    """Recursively redact sensitive values in a dictionary.
+
+    Redacts based on:
+    - Key names (password, secret, token, etc.)
+    - Value patterns (API keys, emails, phone numbers)
+
+    Preserves structure and keys for operator visibility.
+    """
+    redacted = {}
+    for key, value in data.items():
+        if _is_redactable_key(key):
+            redacted[key] = REDACTION_MARKER
+        elif isinstance(value, dict):
+            redacted[key] = _redact_dict(value)
+        elif isinstance(value, list):
+            redacted[key] = _redact_list(value)
+        elif isinstance(value, str):
+            redacted[key] = _redact_value(value)
+        else:
+            redacted[key] = value
+    return redacted
+
+
+def _redact_list(data: list[Any]) -> list[Any]:
+    """Recursively redact sensitive values in a list."""
+    redacted = []
+    for item in data:
+        if isinstance(item, dict):
+            redacted.append(_redact_dict(item))
+        elif isinstance(item, list):
+            redacted.append(_redact_list(item))
+        elif isinstance(item, str):
+            redacted.append(_redact_value(item))
+        else:
+            redacted.append(item)
+    return redacted
+
+
+def _redact_string(text: str) -> str:
+    """Redact sensitive values in a string (for exception/stack traces)."""
+    # This is tricky because we're redacting inside free text. We use value patterns.
+    result = text
+
+    # API key patterns
+    result = re.sub(r"sk[-_][a-zA-Z0-9-_]+", REDACTION_MARKER, result)
+    result = re.sub(r"ghp[-_][a-zA-Z0-9-_]+", REDACTION_MARKER, result)
+    result = re.sub(r"AKIA[0-9A-Z]{16}", REDACTION_MARKER, result)
+    result = re.sub(
+        r"bearer\s+[a-zA-Z0-9\-._~+/]+=*",
+        REDACTION_MARKER,
+        result,
+        flags=re.IGNORECASE,
+    )
+
+    # Email pattern
+    result = re.sub(
+        r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
+        REDACTION_MARKER,
+        result,
+    )
+
+    # Phone pattern: +digits with optional dashes/spaces
+    result = re.sub(r"\+\d{1,3}[- ]?\d{1,14}(?:[- ]?\d{1,4})*", REDACTION_MARKER, result)
+
+    # Password pattern: word after "password:" or "password =" with various separators
+    result = re.sub(
+        (
+            r"(?:password|passwd|pwd)\s*[:=\s]\s*"
+            r"[\w\-._~+/!@#$%^&*()+=\[\]{}|;:',<>?/\\`]+"
+        ),
+        REDACTION_MARKER,
+        result,
+        flags=re.IGNORECASE,
+    )
+
+    return result
 
 
 class _CorrelationFilter(logging.Filter):
