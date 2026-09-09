@@ -6,13 +6,18 @@ identify a real merchant), and return a versioned scenario.
 
 Every event validates against the shared event union. Re-running capture
 on the same run is deterministic: byte-identical output apart from the
-recorded captured_at timestamp.
+recorded captured_at timestamp — unless a fixed `clock` is supplied, in
+which case captured_at is byte-identical too (issue #1677). Callers that
+compare a fresh capture against a committed fixture (rather than a live
+production capture) should always pass a fixed clock; otherwise the
+comparison is non-deterministic by construction and asserts nothing.
 """
 
 from __future__ import annotations
 
 import hashlib
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -24,12 +29,21 @@ from juli_backend.services.agent.events.envelope import WorkflowRunEventAdapter
 from juli_backend.services.agent.golden_scenarios.scenarios import GoldenScenario
 
 
-async def capture_run_as_scenario(session: AsyncSession, run_id: uuid.UUID) -> GoldenScenario:
+async def capture_run_as_scenario(
+    session: AsyncSession,
+    run_id: uuid.UUID,
+    *,
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+) -> GoldenScenario:
     """Capture a real run's events as a golden scenario.
 
     Args:
         session: async database session
         run_id: workflow_runs.id to capture
+        clock: produces the `captured_at` timestamp; defaults to wall-clock
+            `now()` for real production captures. Tests that assert a fresh
+            capture against a committed fixture should inject a fixed clock
+            so the comparison — including `captured_at` — is deterministic.
 
     Returns:
         GoldenScenario with sanitized events
@@ -105,7 +119,7 @@ async def capture_run_as_scenario(session: AsyncSession, run_id: uuid.UUID) -> G
         scenario_id=scenario_id,
         workflow_key=workflow_key,
         prompt_sha256=prompt_sha256,
-        captured_at=datetime.now(UTC).isoformat(),
+        captured_at=clock().isoformat(),
         events=sanitized_events,
         continuations={},
     )

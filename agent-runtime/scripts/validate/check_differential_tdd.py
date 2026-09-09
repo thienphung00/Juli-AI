@@ -30,6 +30,7 @@ from differential_tdd import (  # noqa: E402
     VERDICT_INCONCLUSIVE,
     VERDICT_NOTHING_TO_PROBE,
     VERDICT_RED_GREEN,
+    base_ref_name,
     classify_probe,
     declared_test_entries,
     materialize_base_tree,
@@ -95,10 +96,12 @@ def run_check(issue: int, repo_root: Path | None = None) -> tuple[bool, str, dic
         details["reason"] = "only non-python probes; JS differential runner not implemented"
         return True, "No python probes — differential TDD not evaluated", details
 
+    base_ref = base_ref_name()
     base_sha = resolve_base_sha(root)
     details["baseSha"] = base_sha
+    details["baseRef"] = base_ref
     if base_sha is None:
-        return False, "Could not resolve merge-base against origin/main", details
+        return False, f"Could not resolve merge-base against origin/{base_ref}", details
 
     with tempfile.TemporaryDirectory(prefix=f"difftdd-{issue}-") as tmp:
         base_tree = Path(tmp) / "base"

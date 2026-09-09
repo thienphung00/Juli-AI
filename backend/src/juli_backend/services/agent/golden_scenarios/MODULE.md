@@ -99,8 +99,23 @@ renaming a workflow silently retires the check for every scenario under it.
 
 ## Re-capturing
 
-`tests/unit/test_golden_scenario_capture_from_real_runner.py` regenerates
-`tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` on every
-run and compares it to the committed copy. To accept a change: run that test,
-inspect the diff, commit it. Hand-authored event JSON is not acceptable input —
-if the tool cannot produce a scenario, fix the tool.
+`tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` is a
+**recorded output**, not an input: `tests/unit/test_golden_scenario_capture_from_real_runner.py`
+builds a fresh scenario from the real runner on every run and only *compares*
+it against the committed copy — a plain `pytest tests/unit` never writes the
+fixture (issue #1677). `capture_run_as_scenario`'s `captured_at` and the whole
+build's wall clock are frozen for that comparison (`freeze_time` + fixed
+per-branch run ids in the test), so a fresh capture is byte-identical to the
+committed copy unless the runner's actual behavior changed — that drift is
+what the comparison exists to catch.
+
+To accept an intentional change in what the runner produces, regenerate
+explicitly, inspect the diff, and commit it:
+
+```bash
+JULI_REGENERATE_GOLDEN_SCENARIOS=1 python -m pytest \
+    tests/unit/test_golden_scenario_capture_from_real_runner.py::test_the_committed_scenario_is_what_the_tool_produces
+```
+
+Hand-authored event JSON is not acceptable input — if the tool cannot produce
+a scenario, fix the tool.

@@ -83,6 +83,42 @@ because the wave manifest and `pr.yml` are legitimately synthesised as unions an
 match neither side. A guard that blocks a merge is doing its job; the answer is
 to stop asking it the wrong question, not to make it ask less.
 
+## Amendment — 2026-09-09, hours after acceptance
+
+Decision 1 as written ("a reconcile PR is merged with a merge commit") **failed
+on the first PR that carried it**. #1856's title read `MERGE COMMIT REQUIRED, do
+not squash`, the body explained the consequence, and it was squash-merged
+anyway. That is the fourth occurrence, and it establishes that the decision
+cannot be carried by instruction: the green button defaults to squash, and a
+default applied dozens of times a week beats a warning read once.
+
+Two escape routes were then tried and one is closed:
+
+- **A direct push to the wave is rejected.** The `Protect wave branches` ruleset
+  (id 22003497, active) requires the `status-check` status check, which a push
+  cannot supply because no PR means no checks ran:
+  `GH013: Required status check "status-check" is expected`. Classic branch
+  protection reports 404 for this branch, so `branches/*/protection` is the wrong
+  place to look — the rule lives in a **repository ruleset**.
+- **Disabling squash-merge works, and is the enforcement decision 1 lacked.**
+  `allow_squash_merge=false` removes the option from the button entirely, so the
+  correct merge is the only merge available.
+
+**Amended decision 1:** before merging a reconcile PR into a wave, squash-merge
+is disabled at the repository level; it is restored afterwards.
+
+```
+gh api -X PATCH repos/<owner>/<repo> -F allow_squash_merge=false
+# merge the reconcile PR — only "Create a merge commit" is offered
+gh api -X PATCH repos/<owner>/<repo> -F allow_squash_merge=true
+```
+
+The durable form is a branch-protection or ruleset setting that pins the merge
+method for wave bases, which GitHub supports per-repository rather than
+per-branch today. Recording the manual sequence here because the manual sequence
+is what is available now, and four repetitions is enough evidence that relying
+on anyone remembering is not.
+
 ## Consequences
 
 - #1844 becomes mergeable once a reconcile lands with its parentage intact.

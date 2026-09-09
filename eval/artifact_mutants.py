@@ -257,6 +257,7 @@ def _clean_review(issue: int) -> dict[str, Any]:
         "timestamp": _TIMESTAMP,
         "reviewedBy": "review skill",
         "status": "PASS",
+        "dynamicTestsExecuted": True,
         "summary": "Clean baseline record with no planted defect.",
         "criticalFindings": [],
         "modulesTouched": [],
