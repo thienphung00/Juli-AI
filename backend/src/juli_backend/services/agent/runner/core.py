@@ -440,14 +440,15 @@ class WorkflowRunner:
         self._run_start_time: float | None = None
         self._original_started_at: datetime | None = None  # For duration across pause/resume
 
-    def _compute_rollup_values(self) -> dict[str, int | float]:
+    def _compute_rollup_values(self) -> dict[str, int | float | None]:
         """Compute the rollup values for the current run (issue #1653, W8-A / P10-1).
 
         Returns a dict with keys: input_tokens, output_tokens, cost_usd, duration_ms,
         tool_call_count, rows_affected. The values are computed from the accumulated
         state during this run.
 
-        cost_usd is computed using estimate_cost_usd over the accumulated token counts.
+        cost_usd is None if the model is unpriced (issue #1653-Meta3); otherwise computed
+        using estimate_cost_usd over the accumulated token counts.
         duration_ms is wall-clock time from the original _original_started_at to now,
         including any pause/resume gaps. All others are accumulated counters.
         """
@@ -458,13 +459,19 @@ class WorkflowRunner:
         else:
             duration_ms = 0
 
-        # Compute cost from accumulated tokens
+        # Compute cost from accumulated tokens. Set to None if model is unpriced
+        # rather than relying on estimate_cost_usd's 0.0 return (issue #1653-Meta3).
         from juli_backend.services.agent.llm.blocks import Usage
+        from juli_backend.services.agent.llm.config import PRICE_TABLE_USD_PER_MILLION_TOKENS
 
-        usage = Usage(
-            input_tokens=self._rollup_input_tokens, output_tokens=self._rollup_output_tokens
-        )
-        cost_usd = estimate_cost_usd(self._llm_config.model, usage)
+        if self._llm_config.model not in PRICE_TABLE_USD_PER_MILLION_TOKENS:
+            cost_usd = None
+        else:
+            usage = Usage(
+                input_tokens=self._rollup_input_tokens,
+                output_tokens=self._rollup_output_tokens,
+            )
+            cost_usd = estimate_cost_usd(self._llm_config.model, usage)
 
         return {
             "input_tokens": self._rollup_input_tokens,

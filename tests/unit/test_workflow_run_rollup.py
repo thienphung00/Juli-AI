@@ -560,24 +560,17 @@ class TestRowsAffectedIncrementOnWrite:
 
 
 class TestUnpricedModelHandling:
-    async def test_unpriced_model_returns_none_for_cost_usd(
-        self, session: AsyncSession, monkeypatch
-    ):
+    async def test_unpriced_model_returns_none_for_cost_usd(self, session: AsyncSession):
         """Issue #1653-Meta3: When using an unpriced model, cost_usd should be
         None instead of 0.0."""
-
-        # Patch estimate_cost_usd to return None (simulating an unpriced model)
-        def mock_estimate_cost_usd(model: str, usage):
-            return None
-
-        monkeypatch.setattr(
-            "juli_backend.services.agent.runner.core.estimate_cost_usd",
-            mock_estimate_cost_usd,
-        )
+        from juli_backend.services.agent.llm.config import LLMConfig
 
         run_id = await _seed_workflow_run(session)
         store = JsonbConversationStore(session)
         playbook = _minimal_playbook((_step("get_product_information"),))
+
+        # Use a real unpriced model name (one not in PRICE_TABLE_USD_PER_MILLION_TOKENS)
+        unpriced_config = LLMConfig(model="some-future-unpriced-model")
 
         runner = WorkflowRunner(
             llm_service=FakeLLMService(
@@ -599,6 +592,7 @@ class TestUnpricedModelHandling:
             conversation_store=store,
             registry=_full_registry(),
             playbook=playbook,
+            llm_config=unpriced_config,
             clock=_SteppingClock(step=0.1),
         )
 
@@ -610,3 +604,88 @@ class TestUnpricedModelHandling:
         assert row.cost_usd is None, (
             f"Expected None for cost_usd with unpriced model, got {row.cost_usd}"
         )
+
+
+class TestTerminalFailureRollup:
+    async def test_llm_error_run_records_partial_rollup(self, session: AsyncSession):
+        """Issue #1653-Meta7: LLM error (terminal) should still record partial rollup."""
+        from juli_backend.services.agent.llm.openai_adapter import LLMProviderError
+
+        run_id = await _seed_workflow_run(session)
+        store = JsonbConversationStore(session)
+        playbook = _minimal_playbook((_step("get_product_information"),))
+
+        runner = WorkflowRunner(
+            llm_service=_RaisingLLMService(LLMProviderError("API Error")),
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            registry=_full_registry(),
+            playbook=playbook,
+            clock=_SteppingClock(step=0.1),
+        )
+
+        result = await runner.run(run_id, product_ref="prod-1")
+        # LLM error is terminal
+        assert result.stop_reason == StopReason.LLM_ERROR
+
+        row = await _reload_row(session, run_id)
+        # No tool calls were made (failed before dispatch)
+        assert row.tool_call_count == 0
+        # But duration should still be recorded
+        assert row.duration_ms is not None and row.duration_ms > 0
+
+
+class TestPauseDurationAccumulation:
+    async def test_pause_records_duration(self, session: AsyncSession):
+        """Issue #1653-Meta7D: Duration is recorded across pause/resume boundary."""
+        run_id = await _seed_workflow_run(session)
+        store = JsonbConversationStore(session)
+        playbook = _minimal_playbook((_step("update_product_listing", policy=ToolPolicy.CONFIRM),))
+
+        # First run: pause on the WRITE tool
+        pause_runner = WorkflowRunner(
+            llm_service=FakeLLMService(
+                script=[
+                    _turn(
+                        ToolCallBlock(
+                            call_id="c1",
+                            tool_name="update_product_listing",
+                            arguments={"title": "Updated"},
+                        ),
+                        input_tokens=100,
+                        output_tokens=50,
+                    ),
+                ]
+            ),
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=store,
+            registry=_full_registry(),
+            playbook=playbook,
+            clock=_SteppingClock(step=0.1, start=0.0),
+        )
+
+        await pause_runner.run(run_id, product_ref="prod-1")
+        assert pause_runner._original_started_at is not None
+
+        # Resume and approve the tool
+        resume_store = JsonbConversationStore(session)
+        resume_runner = WorkflowRunner(
+            llm_service=FakeLLMService(
+                script=[_turn(FinalResponse(content="Done."), input_tokens=50, output_tokens=25)]
+            ),
+            tool_executor=_SpyToolExecutor(),
+            event_sink=InMemoryEventSink(),
+            conversation_store=resume_store,
+            registry=_full_registry(),
+            playbook=playbook,
+            clock=_SteppingClock(step=0.1, start=0.0),
+        )
+
+        await resume_runner.resume(run_id, approved=True)
+
+        row = await _reload_row(session, run_id)
+        # Duration should be recorded across the pause/resume
+        assert row.duration_ms is not None, "duration_ms must be recorded"
+        assert row.duration_ms >= 0, "duration_ms must be non-negative (wall-clock from started_at)"
