@@ -25,13 +25,13 @@
   "run": {
     "artifactBytes": {
       "reviewBytes": 2577,
-      "validationBytes": 29858
+      "validationBytes": 30884
     },
     "claimVsExecuted": {
-      "citedCommandCount": 5,
-      "invokedCommandCount": 13805,
+      "citedCommandCount": 12,
+      "invokedCommandCount": 13886,
       "matchedCommandCount": 0,
-      "reason": "5 of 5 cited commands have no matching invocation in the session transcripts",
+      "reason": "12 of 12 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
       "status": "FAIL",
       "transcriptSources": [
@@ -40,8 +40,8 @@
         "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-codebase-audit-refactor-b9b867",
         "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-open-terminal-in-code-08e55d"
       ],
-      "transcriptsScanned": 45,
-      "unmatchedCommandCount": 5,
+      "transcriptsScanned": 47,
+      "unmatchedCommandCount": 12,
       "unmatchedCommands": [
         {
           "command": "PYTHONPATH=/Users/macos/Juli-AI-v2/.worktrees/issue-1654/backend/src python -m pytest tests/unit/test_log_redaction.py -q",
@@ -66,6 +66,41 @@
         {
           "command": "PYTHONPATH=/Users/macos/Juli-AI-v2/.worktrees/issue-1654/backend/src python -m pytest tests/unit -k 'logging or redaction or correlation' -q",
           "cycle": 3,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=/Users/macos/Juli-AI-v2/.worktrees/issue-1654/backend/src mypy backend/src/juli_backend --ignore-missing-imports --disable-error-code=valid-type",
+          "cycle": 4,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=backend/src:. python -c \"from pathlib import Path; from eval import quality_detectors as qd; s=qd.scan_corpus(Path('.')); print(s.files, s.test_functions, sum(1 for f in s.findings if f.rule_code=='zero_assertion'))\"",
+          "cycle": 4,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=backend/src:. pytest tests/unit/test_test_quality.py -q -p no:cacheprovider",
+          "cycle": 4,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=backend/src:. pytest tests/unit/test_log_redaction.py tests/unit/test_test_quality.py -q -p no:cacheprovider",
+          "cycle": 4,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=backend/src:. pytest tests/unit -k 'logging or redaction or correlation' -q -p no:cacheprovider",
+          "cycle": 4,
+          "exitCode": 0
+        },
+        {
+          "command": "ruff check backend tests scripts eval",
+          "cycle": 4,
+          "exitCode": 0
+        },
+        {
+          "command": "ruff format --check backend/src/juli_backend/core/observability/logging.py eval/quality_detectors.py tests/unit/test_test_quality.py",
+          "cycle": 4,
           "exitCode": 0
         }
       ],
@@ -204,7 +239,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1654-log-redaction",
-        "head": "a6b62baf5265092d495b4bb0b3f8eaa2d50f98cd",
+        "head": "3b2ecd248b29ec431b211231894d966ebcf114f7",
         "shallow": true
       },
       "moduleResolution": {
@@ -270,28 +305,81 @@
           "workspaces": [
             "issue-1654"
           ]
+        },
+        {
+          "agentId": "a968fbac4d3308154",
+          "attributedBy": "worktreePath",
+          "branches": [
+            "feature/issue-1653-run-rollup"
+          ],
+          "durationMs": 413852,
+          "messageCount": 33,
+          "recordCount": 110,
+          "role": "executor",
+          "roleSignal": "Executor",
+          "sessionIds": [
+            "fc399cce-6b71-4e94-86c9-afaa5ae7b20f"
+          ],
+          "settled": true,
+          "sidechainRecordCount": 110,
+          "spawnDirective": "You are the Executor Agent (backend domain) on",
+          "tokenUsage": {
+            "cacheCreation": 69407,
+            "cacheRead": 1739321,
+            "input": 66,
+            "output": 2724,
+            "total": 1811518
+          },
+          "toolInvocationCount": 40,
+          "toolsUsed": [
+            {
+              "count": 24,
+              "toolName": "Bash"
+            },
+            {
+              "count": 8,
+              "toolName": "Read"
+            },
+            {
+              "count": 6,
+              "toolName": "Edit"
+            },
+            {
+              "count": 1,
+              "toolName": "Skill"
+            },
+            {
+              "count": 1,
+              "toolName": "Write"
+            }
+          ],
+          "transcriptRef": "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks/a968fbac4d3308154.output",
+          "workspaces": [
+            "issue-1654"
+          ]
         }
       ],
       "disagreements": [
         {
-          "claimed": 44,
+          "claimed": 62,
           "field": "toolInvocationCount",
-          "observed": 107,
-          "observedFrom": "task-transcript",
-          "resolution": "observed"
+          "observed": null,
+          "observedFrom": "unavailable",
+          "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "resolution": "unobservable"
         },
         {
           "claimed": 6700000,
           "field": "executionDurationMs",
-          "observed": 1321729,
-          "observedFrom": "task-transcript",
-          "resolution": "observed"
+          "observed": null,
+          "observedFrom": "unavailable",
+          "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "resolution": "unobservable"
         }
       ],
       "executionDurationMs": {
-        "available": true,
-        "observedFrom": "task-transcript",
-        "value": 1321729
+        "available": false,
+        "reason": "ambiguous attribution: 2 agents were tied to this issue and named as its executor, and nothing on disk establishes they were one run, so no headline is reported \u2014 summing them would invent a total no process ever spent. Per-agent readings are listed under agents[]"
       },
       "executorDomain": "backend",
       "executorDomainSource": "implementation-artifact",
@@ -302,21 +390,30 @@
           ],
           "detail": "attributed agents whose transcript is still being written; a running agent has not yet spent what it will spend, so its reading is a lower bound and is not reported as a measurement",
           "reason": "in-flight-transcript"
+        },
+        {
+          "candidates": [
+            "a8154c17f9f92fe6f",
+            "a968fbac4d3308154"
+          ],
+          "detail": "ambiguous attribution: 2 agents were tied to this issue and named as its executor, and nothing on disk establishes they were one run, so no headline is reported \u2014 summing them would invent a total no process ever spent. Per-agent readings are listed under agents[]",
+          "reason": "ambiguous-attribution"
         }
       ],
       "schemaVersion": 1,
       "source": {
-        "agentsAttributed": 1,
-        "agentsScanned": 400,
+        "agentsAttributed": 2,
+        "agentsScanned": 404,
         "attributedBy": ".worktrees path naming issue-1654",
-        "executorsIdentified": 1,
+        "executorsIdentified": 2,
         "kind": "task-transcript",
-        "roleSelectedAgentId": "a8154c17f9f92fe6f",
+        "roleSelectedAgentId": null,
         "roleSelectedBy": "spawn-directive",
         "taskDirs": [
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
-          "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/b2d72967-c0ca-4106-9500-7fc4a9313e3d/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/cb047053-ee20-4e00-925f-7ebf36c0417b/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
@@ -325,45 +422,16 @@
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/03369828-07b8-46b9-8587-8b7e97d289c1/tasks"
         ]
       },
-      "status": "measured",
+      "status": "ambiguous",
       "tokenUsage": {
-        "available": true,
-        "observedFrom": "task-transcript",
-        "value": {
-          "cacheCreation": 323054,
-          "cacheRead": 8622068,
-          "input": 863,
-          "output": 227,
-          "total": 8946212
-        }
+        "available": false,
+        "reason": "ambiguous attribution: 2 agents were tied to this issue and named as its executor, and nothing on disk establishes they were one run, so no headline is reported \u2014 summing them would invent a total no process ever spent. Per-agent readings are listed under agents[]"
       },
       "toolInvocationCount": {
-        "available": true,
-        "observedFrom": "task-transcript",
-        "value": 107
+        "available": false,
+        "reason": "ambiguous attribution: 2 agents were tied to this issue and named as its executor, and nothing on disk establishes they were one run, so no headline is reported \u2014 summing them would invent a total no process ever spent. Per-agent readings are listed under agents[]"
       },
-      "toolsUsed": [
-        {
-          "count": 63,
-          "toolName": "Bash"
-        },
-        {
-          "count": 24,
-          "toolName": "Edit"
-        },
-        {
-          "count": 18,
-          "toolName": "Read"
-        },
-        {
-          "count": 1,
-          "toolName": "Skill"
-        },
-        {
-          "count": 1,
-          "toolName": "Write"
-        }
-      ]
+      "toolsUsed": []
     },
     "transcripts": {
       "commands": {
@@ -391,10 +459,10 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-09T00:36:41Z",
+  "timestamp": "2026-09-09T01:12:06Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1654.json",
-    "sha256": "ce3ab586e9737cd1c9ce164f4555fa8f1eaba58d2da8520e0cc3a89ec8826360",
+    "sha256": "4c842cf7221ae983698685a4c1c9cbdb8365ba62125ba3e55676e5f5e046c8c6",
     "status": "PASS"
   },
   "wave": "wave-agent-w8"
