@@ -1,0 +1,68 @@
+{
+  "release_sha": "25491b06",
+  "date": "2026-09-07",
+  "performed_by": "Claude (Opus 5), acting as an agent in this repository's harness, probing the deployed host directly",
+  "outcome": "pass",
+
+  "_comment": [
+    "The four fields above are what production_write_resolver.py reads for",
+    "precondition 4 of #1336. Everything below is the record behind them, so this",
+    "artifact carries the same qualifications as the attestation it is derived from",
+    "rather than flattening them into the word 'pass'.",
+    "",
+    "This file records a pass against sha 25491b06 ONLY. Precondition 4 matches the",
+    "attestation to the DEPLOYED sha, so this does not permit a write on any later",
+    "deployment. main is already well past this sha; a production write on today's",
+    "deployment requires a fresh pass for the sha actually deployed."
+  ],
+
+  "source_of_record": "https://github.com/thienphung00/Juli-AI/issues/1339#issuecomment-3268742891",
+  "gate": "#1339 Observation 2",
+  "threat_model": "docs/security/threat-model.md",
+  "scope": "All six trust boundaries, in the priority order the threat model states.",
+  "method": "Read-only probing throughout. No mutation, no run started, no vendor write, no control disabled.",
+
+  "boundaries": [
+    {"id": 2, "name": "Authenticated /v1/* API", "outcome": "held", "evidence": "17/17 probes refused or permitted correctly, including two deliberate 200 controls"},
+    {"id": 3, "name": "Agent inbound content", "outcome": "held within its documented scope", "evidence": "banned patterns blocked incl. mixed case, nested, zero-width obfuscation; hidden-text stripping verified"},
+    {"id": 5, "name": "Credential boundary", "outcome": "held", "evidence": "tokens encrypted at rest; four categories of credential material searched across 4,204,072 bytes of production logs from four services, zero occurrences"},
+    {"id": 4, "name": "Tool boundary", "outcome": "held", "evidence": "7 executions in the ledger, all WRITE tools, 0 without an approval reference"},
+    {"id": 1, "name": "Unauthenticated edge", "outcome": "one finding, since fixed", "evidence": "#1748 — see findings"},
+    {"id": 6, "name": "Data boundary", "outcome": "held", "evidence": "27/27 shop_id-bearing tables in public carry RLS and at least one policy, enumerated from the catalog"}
+  ],
+
+  "findings": [
+    {
+      "id": 1748,
+      "boundary": 1,
+      "summary": "OAuth state verification was bypassable by omitting the parameter — a bare `if state:` guard, so no forgery was required. The unverified path created a user, provisioned a shop, persisted credentials and committed.",
+      "code_fix": "#1751, verified on this sha (502 -> 401)",
+      "documentation_fix": "#1755, merged 2026-09-08",
+      "state": "closed, both halves"
+    }
+  ],
+
+  "qualifications": {
+    "outcome_at_time_of_attestation": "performed with one partially-open finding — the documentation half of #1748 was still open when this pass was attested on 2026-09-07. It closed in #1755 on 2026-09-08, which is why the outcome above reads 'pass'.",
+    "method_gaps": [
+      "Boundary 4: the threat model prescribes running an actual LLM with adversarial prompts. What was done was an audit of the execution ledger (7 writes, 0 unapproved). Stronger in a different direction, but not as specified.",
+      "Boundary 6: the model prescribes concurrent-mutation testing. What was done was a catalog enumeration (27/27 tables with RLS and a policy). Stronger in a different direction, but not as specified."
+    ],
+    "accepted_residual_risks": [
+      "Prompt injection passes through unaltered by design — the model's own accepted residual risk ('regex is narrowed to jargon only'), owned by Backend + ML.",
+      "shop_cipher is stored in plaintext. It is an identifier rather than an authenticator, but its ROW_… shape reads like a token prefix to a secret-scanner (#1759).",
+      "tool_executions.approval_id is a varchar with no foreign key, so the audit trail depends on the writer being correct rather than on referential integrity."
+    ],
+    "limitations_the_owner_weighed": [
+      "The only real defect was in the boundary the model ranks lowest of six; the highest-ranked boundary held under seventeen probes. The ranking predicts where risk ought to concentrate, not where it is.",
+      "The performer was wrong four times before being right once; each wrong call shape made a working control look broken. Had the pass stopped at any of them it would have filed a false critical finding."
+    ]
+  },
+
+  "acceptance": {
+    "note": "#1339 reserves the judgement 'precondition 4 is met' for the owner; the performer explicitly declined to attest it. The owner made that judgement separately.",
+    "accepted_by": "owner (thienphung00)",
+    "accepted_on": "2026-09-08",
+    "record": "https://github.com/thienphung00/Juli-AI/issues/1339 — Owner decision record, Decision 1: ACCEPTED, with the method gaps recorded as scope"
+  }
+}
