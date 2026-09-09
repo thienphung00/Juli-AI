@@ -146,3 +146,46 @@ metric's business.
 - Business impact — that is #1657 (W8-E), and blending it in is the exact
   hiding PRD #1652 refuses
 - Trends, thresholds, alerting, SLOs, judgement, rendering, any HTTP route
+
+---
+
+## Business impact (#1657)
+
+W8-E adds the FOURTH unconflated metric: how much of the observed change Juli
+actually caused. Documented here by W8-D (#1656) because both slices land in
+parallel and only one of them can own this file at a time — **the module file
+itself lands with #1657**, so these lines describe a surface this branch does
+not yet contain. It is never blended with the three metrics above: a fourth
+question gets a fourth answer, not a fourth term in an average.
+
+### Public interface
+
+- `business_impact(session, workflow_run_id, *, now=None) -> BusinessImpact | NoReadings`
+  — the fourth unconflated metric (#1657), computed from the chain in ONE call
+- `BusinessImpact` / `MetricImpact` / `UnmeasuredReading` / `NoReadings` and
+  `KIND_PRECEDENCE` — the measured answer per metric, and the distinct type
+  that says nothing was measured
+
+### Dependencies
+
+- `services.impact.windows.POST_WINDOW_DAYS` — the ONLY declaration of
+  ADR-077 d.2's window lengths; `business_impact` derives
+  `final`-supersedes-`preliminary` from it
+
+### Invariants
+
+- `NoReadings` is a distinct TYPE, never a zero, a `None` or a sentence —
+  "we measured nothing" and "we measured no change" cannot share a
+  representation (#1226)
+- A delta is never reported without its `n`, and never summed across metrics
+  (`incremental` is on each metric's own scale)
+- `preliminary` vs `final` is chosen explicitly per metric so
+  `uq_impact_readings_execution_metric_kind` cannot double-count one execution
+- A countable reading with a NULL `incremental` is its own outcome, never a
+  zero delta
+- `business_impact` declares no threshold — floors and minimums stay in
+  `services/impact`
+
+### Out of scope
+
+- Producing, scheduling or backfilling an impact reading (#1339, an owner act)
