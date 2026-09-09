@@ -26,6 +26,7 @@ from differential_tdd import (  # noqa: E402
     classify_probe,
     materialize_base_tree,
     overlay_probes,
+    resolve_base_sha,
     run_python_probes,
     select_probe_tests,
 )
@@ -503,3 +504,115 @@ def test_overlay_refuses_to_write_outside_the_base_tree(tmp_path: Path) -> None:
     (head / "tests" / "test_ok.py").write_text("def test_ok():\n    assert True\n")
     assert overlay_probes(head, base, ["tests/test_ok.py"]) == ["tests/test_ok.py"]
     assert (base / "tests" / "test_ok.py").is_file()
+
+
+# --- resolve_base_sha follows BASE_REF, not a hardcoded origin/main (#1842) -
+#
+# The identical shape #1608 fixed for the bootstrap anchor and #1731 fixed for
+# check_stale_base: resolve_base_sha defaulted to upstream="origin/main", so on
+# an issue-tier PR whose real base is a wave branch, differential_tdd measures
+# red/green against the wrong tree -- the one gate whose entire job is proving
+# "this turned something red into green" does it against the wrong red.
+
+
+def _commit_on(
+    repo: Path, branch: str, filename: str, content: str, *, create: bool = False
+) -> str:
+    current = subprocess.run(
+        ["git", "-C", str(repo), "branch", "--show-current"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    if current != branch:
+        _git(repo, "switch", "-c", branch) if create else _git(repo, "switch", branch)
+    (repo / filename).write_text(content)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", f"{branch}: {filename}")
+    return subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
+def _wave_behind_main_repo(tmp_path: Path) -> tuple[Path, str, str]:
+    """main advances past a wave; an issue branch is cut from the wave.
+
+    Returns ``(repo, wave_tip, main_tip)`` with HEAD left on the issue branch --
+    a strict descendant of ``wave_tip`` but not of ``main_tip``, so a base
+    resolved against ``origin/wave`` and one resolved against ``origin/main``
+    are genuinely, structurally different commits, not merely different in
+    name.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_on(repo, "main", "ROOT.md", "root\n")
+
+    wave_tip = _commit_on(repo, "wave", "WAVE.md", "wave work\n", create=True)
+    _git(repo, "update-ref", "refs/remotes/origin/wave", wave_tip)
+
+    # the issue branch is cut from the wave, current with it
+    _commit_on(repo, "issue-branch", "ISSUE.md", "issue work\n", create=True)
+
+    # main moves on without ever picking up the wave's commit
+    main_tip = _commit_on(repo, "main", "MAIN.md", "main moved on without the wave\n")
+    _git(repo, "update-ref", "refs/remotes/origin/main", main_tip)
+
+    _git(repo, "switch", "issue-branch")
+    return repo, wave_tip, main_tip
+
+
+@pytest.mark.timeout(60)
+def test_base_resolves_to_the_wave_not_main_when_base_ref_is_the_wave(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """ADR-092 exhibit: a real repository, not an assertion about a mock.
+
+    On a branch cut from a wave that is itself behind main, the resolved base
+    sha must be the wave's own tip -- not main's, and not what a hardcoded
+    ``origin/main`` upstream would have measured against instead.
+    """
+    repo, wave_tip, main_tip = _wave_behind_main_repo(tmp_path)
+
+    monkeypatch.setenv("BASE_REF", "wave")
+    resolved = resolve_base_sha(repo)
+
+    assert resolved == wave_tip
+    assert resolved != main_tip
+
+    # what the old hardcoded upstream would have resolved against: a real,
+    # different commit -- not merely "some other value".
+    against_main = resolve_base_sha(repo, upstream="origin/main")
+    assert against_main != resolved
+
+
+@pytest.mark.timeout(60)
+def test_resolved_base_follows_base_ref_not_a_hardcoded_upstream(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Discriminating test: change BASE_REF and the resolved base must change.
+
+    A test pinning today's sha would keep passing even if the upstream were
+    hardcoded back to ``origin/main`` and ``BASE_REF`` were never read at all.
+    Only a test that varies ``BASE_REF`` and checks the *result* varies can
+    catch that regression -- this is the shape AC3 asks for.
+    """
+    repo, wave_tip, _main_tip = _wave_behind_main_repo(tmp_path)
+    root_sha = subprocess.run(
+        ["git", "-C", str(repo), "rev-list", "--max-parents=0", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    monkeypatch.setenv("BASE_REF", "wave")
+    resolved_wave = resolve_base_sha(repo)
+
+    monkeypatch.setenv("BASE_REF", "main")
+    resolved_main = resolve_base_sha(repo)
+
+    assert resolved_wave == wave_tip
+    assert resolved_main == root_sha
+    assert resolved_wave != resolved_main

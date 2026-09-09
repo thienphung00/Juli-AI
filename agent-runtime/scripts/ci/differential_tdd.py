@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import tarfile
 import tempfile
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -208,8 +209,38 @@ def classify_probe(base_exit: int | None, head_exit: int | None) -> tuple[str, s
 # --- base-tree materialisation -----------------------------------------
 
 
-def resolve_base_sha(repo_root: Path, upstream: str = "origin/main") -> str | None:
-    """Return the merge-base of HEAD and ``upstream``, or None if unavailable."""
+def base_ref_name() -> str:
+    """This run's integration base, as a short ref name (``BASE_REF``, default ``main``).
+
+    Re-exports ``checkout_preflight.base_ref_name`` rather than re-deriving it --
+    #1608 fixed this for the bootstrap anchor and #1731 for ``check_stale_base``;
+    this is the third gate with the identical hardcoded-``origin/main`` defect
+    (#1842), so it reuses the one helper instead of writing a fourth copy.
+    Imported lazily so this module never pays a module-level ``sys.path``
+    mutation, and every caller (including this one) resolves fresh per call.
+    """
+    git_scripts_dir = Path(__file__).resolve().parents[1] / "git"
+    if str(git_scripts_dir) not in sys.path:
+        sys.path.insert(0, str(git_scripts_dir))
+    from checkout_preflight import base_ref_name as _base_ref_name
+
+    return _base_ref_name()
+
+
+def resolve_base_sha(repo_root: Path, upstream: str | None = None) -> str | None:
+    """Return the merge-base of HEAD and ``upstream``, or None if unavailable.
+
+    ``upstream`` defaults to ``origin/{base_ref_name()}`` -- this run's actual
+    integration base, read from ``BASE_REF`` (``main`` when unset) -- rather
+    than a hardcoded ``origin/main``. At issue tier the real base is a wave
+    branch; resolving against a hardcoded ``main`` measures red/green against
+    a tree that is not this PR's starting point (#1842, following #1608 and
+    #1731's identical fix in the bootstrap anchor and ``check_stale_base``).
+    Computed per call, not cached at import, so a caller that changes
+    ``BASE_REF`` mid-process (as tests do) is honoured.
+    """
+    if upstream is None:
+        upstream = f"origin/{base_ref_name()}"
     result = subprocess.run(
         ["git", "-C", str(repo_root), "merge-base", "HEAD", upstream],
         capture_output=True,
