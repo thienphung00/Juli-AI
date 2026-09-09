@@ -1845,7 +1845,7 @@ serially; the four workflow lanes then run in parallel with disjoint write paths
 ~10 % of slices in landing order — the P0 shared code and the first Optimize Product slices — are
 executed by Fable**, overriding the Haiku executor row of the agent phase model for those slices,
 to establish the code standard (`docs/architecture/code-standard.md`) that every later Haiku
-executor is held to; the Haiku review agent reviews them unchanged. (3) v1 is done only when a
+executor is held to; the Haiku review agent reviews them unchanged *(amended 2026-09-09: Haiku is retired from both roles after W8; Sonnet is the floor for executor and review, Opus for complex slices — see the agent phase model in `CLAUDE.md`)*. (3) v1 is done only when a
 workflow works end-to-end for a real connected seller, so the production-write unlock (#1339) and
 W7-bis (#1469) are on the v1 critical path. (4) One active run per subject across all workflows,
 with endpoint-family write locks (spec S-FR-11). (5) One deadline view is the single surface added
@@ -1857,7 +1857,7 @@ serially; the four workflow lanes then run in parallel with disjoint write paths
 ~10 % of slices in landing order — the P0 shared code and the first Optimize Product slices — are
 executed by Fable**, overriding the Haiku executor row of the agent phase model for those slices,
 to establish the code standard (`docs/architecture/code-standard.md`) that every later Haiku
-executor is held to; the Haiku review agent reviews them unchanged. (3) v1 is done only when a
+executor is held to; the Haiku review agent reviews them unchanged *(amended 2026-09-09: Haiku is retired from both roles after W8; Sonnet is the floor for executor and review, Opus for complex slices — see the agent phase model in `CLAUDE.md`)*. (3) v1 is done only when a
 workflow works end-to-end for a real connected seller, so the production-write unlock (#1339) and
 W7-bis (#1469) are on the v1 critical path. (4) One active run per subject across all workflows,
 with endpoint-family write locks (spec S-FR-11). (5) One deadline view is the single surface added
