@@ -25,11 +25,11 @@
   "run": {
     "artifactBytes": {
       "reviewBytes": 2577,
-      "validationBytes": 30884
+      "validationBytes": 30083
     },
     "claimVsExecuted": {
       "citedCommandCount": 12,
-      "invokedCommandCount": 13886,
+      "invokedCommandCount": 13891,
       "matchedCommandCount": 0,
       "reason": "12 of 12 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
@@ -239,7 +239,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1654-log-redaction",
-        "head": "3b2ecd248b29ec431b211231894d966ebcf114f7",
+        "head": "f450c9678bcea5ea3aae39ef8f777846e428cf47",
         "shallow": true
       },
       "moduleResolution": {
@@ -459,10 +459,10 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-09T01:12:06Z",
+  "timestamp": "2026-09-09T01:13:53Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1654.json",
-    "sha256": "4c842cf7221ae983698685a4c1c9cbdb8365ba62125ba3e55676e5f5e046c8c6",
+    "sha256": "ee1e14ca81a48d4d52d4e6e573af8b5866c03f0c00b18fb6a76506391fb44367",
     "status": "PASS"
   },
   "wave": "wave-agent-w8"
