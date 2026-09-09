@@ -1264,7 +1264,7 @@ RECONCILIATION: dict[str, Any] = {
     "measured": MEASURED_ZERO_ASSERTION_TESTS,
     "measuredCorpus": MEASURED_TEST_FUNCTIONS,
     "delta": MEASURED_ZERO_ASSERTION_TESTS - REPORTED_ZERO_ASSERTION_TESTS,
-    "measuredAt": "2026-09-03",
+    "measuredAt": "2026-09-09",
     "roots": list(TEST_ROOTS),
     "layers": dict(RECONCILIATION_LAYERS),
     "priorFigureLayer": "and_no_mock_assert_called",
@@ -1279,8 +1279,8 @@ RECONCILIATION: dict[str, Any] = {
         "layer reads 107 today, a difference of 10 tests from the prior reading. "
         "That difference is the claim, and it is stated in tests rather than "
         "scaled by corpus size: this layer is an absolute count over a set that "
-        "does not grow with the corpus — it read 107 at 4,545, at 4,638, at 4,675, at 4,798 "
-        "and at 4,798 — so scaling either side by corpus growth diverges "
+        "does not grow with the corpus — it read 107 at 4,545, at 4,638, at 4,675, at 4,798, "
+        "at 4,798 and at 4,878 — so scaling either side by corpus growth diverges "
         "mechanically as the repository grows and says nothing about the code "
         "(#1682). The rates are recorded beside it as readings, not as the claim "
         "(2.40% then, 2.19% now). "
