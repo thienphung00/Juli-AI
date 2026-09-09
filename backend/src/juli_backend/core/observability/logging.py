@@ -211,26 +211,67 @@ def _json_safe(value: Any) -> bool:
 def _is_redactable_key(key: str) -> bool:
     """Check if a key name indicates a value that should be redacted.
 
-    Redactable keys: password, secret, token, authorization, api_key, access_token,
-    refresh_token, cookie, set-cookie, phone, email (case-insensitive).
+    Redactable keywords: password, passwd, pwd, secret, authorization, auth,
+    cookie, credential, credentials, phone, email (exact or leading word match).
+    Multi-word patterns (must match entire sequence): api_key, apikey, access_token,
+    refresh_token, private_key, client_secret.
+    Note: token/tokens alone are NOT redactable to avoid matching input_tokens,
+    output_tokens, max_tokens, token_count, etc.
     """
     lower_key = key.lower()
-    redactable_keywords = {
+
+    # Exact single-word redactable patterns
+    single_word_patterns = {
         "password",
+        "passwd",
+        "pwd",
         "secret",
-        "token",
         "authorization",
-        "api_key",
-        "access_token",
-        "refresh_token",
+        "auth",
         "cookie",
-        "set-cookie",
+        "credential",
+        "credentials",
         "phone",
         "email",
-        "gh_token",
-        "aws_key",
     }
-    return any(keyword in lower_key for keyword in redactable_keywords)
+
+    # Multi-word patterns that must be matched as sequences
+    multi_word_patterns = {
+        "api_key",
+        "apikey",
+        "access_token",
+        "accesstoken",
+        "refresh_token",
+        "refreshtoken",
+        "private_key",
+        "privatekey",
+        "client_secret",
+        "clientsecret",
+    }
+
+    # Normalize the key for pattern matching: remove - and .
+    normalized = lower_key.replace("-", "_").replace(".", "_")
+
+    # Check multi-word patterns first (longer matches take precedence)
+    for pattern in multi_word_patterns:
+        if pattern in normalized or normalized == pattern:
+            return True
+
+    # Check single-word patterns: match as a whole word or at the start of compound
+    for pattern in single_word_patterns:
+        # Exact match
+        if normalized == pattern:
+            return True
+        # Match as a leading word (e.g., "password_hash" starts with "password")
+        if normalized.startswith(pattern + "_"):
+            return True
+        # Match with camelCase (e.g., "passwordHash" starts with pattern)
+        if lower_key.startswith(pattern):
+            # Ensure it's a word boundary (next char is uppercase or end)
+            if len(lower_key) == len(pattern) or lower_key[len(pattern)].isupper():
+                return True
+
+    return False
 
 
 def _is_redactable_value(value: Any) -> bool:
@@ -344,15 +385,30 @@ def _redact_string(text: str) -> str:
     # This is tricky because we're redacting inside free text. We use value patterns.
     result = text
 
-    # API key patterns
-    result = re.sub(r"sk[-_][a-zA-Z0-9-_]+", REDACTION_MARKER, result)
-    result = re.sub(r"ghp[-_][a-zA-Z0-9-_]+", REDACTION_MARKER, result)
-    result = re.sub(r"AKIA[0-9A-Z]{16}", REDACTION_MARKER, result)
+    # API key patterns with word boundaries and minimum lengths
+    # sk_* or sk-* followed by at least 8 chars
     result = re.sub(
-        r"bearer\s+[a-zA-Z0-9\-._~+/]+=*",
+        r"(?<![A-Za-z0-9])sk[-_][A-Za-z0-9_-]{8,}(?![A-Za-z0-9_-])",
         REDACTION_MARKER,
         result,
-        flags=re.IGNORECASE,
+    )
+    # ghp_* or ghp-* followed by at least 20 chars (GitHub token length)
+    result = re.sub(
+        r"(?<![A-Za-z0-9])ghp[-_][A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])",
+        REDACTION_MARKER,
+        result,
+    )
+    # AKIA followed by exactly 16 uppercase hex digits (AWS key)
+    result = re.sub(
+        r"(?<![A-Z0-9])AKIA[0-9A-Z]{16}(?![A-Z0-9])",
+        REDACTION_MARKER,
+        result,
+    )
+    # bearer token
+    result = re.sub(
+        r"(?i)(?<![A-Za-z0-9])bearer\s+[A-Za-z0-9\-._~+/]+=*(?![A-Za-z0-9])",
+        REDACTION_MARKER,
+        result,
     )
 
     # Email pattern
@@ -362,18 +418,29 @@ def _redact_string(text: str) -> str:
         result,
     )
 
-    # Phone pattern: +digits with optional dashes/spaces
-    result = re.sub(r"\+\d{1,3}[- ]?\d{1,14}(?:[- ]?\d{1,4})*", REDACTION_MARKER, result)
+    # Phone pattern: +digits with optional dashes/spaces, min 8 digits total
+    # Use a callback to count digits and ensure at least 8
+    def redact_phone(match: re.Match[str]) -> str:
+        matched_text = match.group(0)
+        digits_only = re.sub(r"[^\d]", "", matched_text)
+        if len(digits_only) >= 8:
+            return REDACTION_MARKER
+        return matched_text
 
-    # Password pattern: word after "password:" or "password =" with various separators
+    result = re.sub(
+        r"(?<![\w:])(\+\d[\d\- ]+\d)(?!\d)",
+        redact_phone,
+        result,
+    )
+
+    # Password pattern: word after "password:" or "password =" with : or = separators only
     result = re.sub(
         (
-            r"(?:password|passwd|pwd)\s*[:=\s]\s*"
+            r"(?i)(?:password|passwd|pwd)\s*[:=]\s*"
             r"[\w\-._~+/!@#$%^&*()+=\[\]{}|;:',<>?/\\`]+"
         ),
         REDACTION_MARKER,
         result,
-        flags=re.IGNORECASE,
     )
 
     return result

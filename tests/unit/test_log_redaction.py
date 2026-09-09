@@ -12,7 +12,11 @@ import uuid
 
 import pytest
 
-from juli_backend.core.observability import JsonFormatter, configure_logging
+from juli_backend.core.observability import (
+    REDACTION_MARKER,
+    JsonFormatter,
+    configure_logging,
+)
 
 # Planted credentials, built from fragments so no complete secret stays in the tree.
 PLANTED_API_KEY = (
@@ -410,6 +414,171 @@ class TestConfigureLoggingIdempotency:
             assert len(juli_handlers) == 1
         finally:
             root.removeHandler(foreign)
+
+
+class TestWordBoundaryRedaction:
+    """Redaction uses word boundaries, not substring matching."""
+
+    def test_token_count_fields_survive_intact(self):
+        """Fields like input_tokens, output_tokens, max_tokens survive (not redacted)."""
+        record = logging.LogRecord(
+            name="test_logger",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="test_event",
+            args=(),
+            exc_info=None,
+        )
+        record.data = {
+            "input_tokens": 120,
+            "output_tokens": 30,
+            "max_tokens": 4096,
+            "token_count": 5,
+            "tokens": ["a", "b"],
+        }
+
+        output = JsonFormatter().format(record)
+        payload = json.loads(output)
+        assert payload["data"]["input_tokens"] == 120
+        assert payload["data"]["output_tokens"] == 30
+        assert payload["data"]["max_tokens"] == 4096
+        assert payload["data"]["token_count"] == 5
+        assert payload["data"]["tokens"] == ["a", "b"]
+
+    def test_access_token_is_redacted(self):
+        """access_token field is redacted (multi-word pattern)."""
+        record = logging.LogRecord(
+            name="test_logger",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="test_event",
+            args=(),
+            exc_info=None,
+        )
+        record.access_token = PLANTED_GH_TOKEN
+
+        output = JsonFormatter().format(record)
+        payload = json.loads(output)
+        assert payload["access_token"] == REDACTION_MARKER
+
+    def test_refresh_token_camel_case_is_redacted(self):
+        """refreshToken (camelCase) is redacted."""
+        record = logging.LogRecord(
+            name="test_logger",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="test_event",
+            args=(),
+            exc_info=None,
+        )
+        record.refreshToken = PLANTED_GH_TOKEN
+
+        output = JsonFormatter().format(record)
+        payload = json.loads(output)
+        assert payload["refreshToken"] == REDACTION_MARKER
+
+    def test_api_key_with_dash_is_redacted(self):
+        """api-key (dashed) is redacted."""
+        record = logging.LogRecord(
+            name="test_logger",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="test_event",
+            args=(),
+            exc_info=None,
+        )
+        record.__dict__["api-key"] = PLANTED_API_KEY
+
+        output = JsonFormatter().format(record)
+        payload = json.loads(output)
+        assert payload["api-key"] == REDACTION_MARKER
+
+
+class TestStringRedactionBoundaries:
+    """String redaction uses word boundaries and minimum lengths."""
+
+    def test_iso_8601_timestamp_with_offset_and_uuid_survive(self):
+        """ISO-8601 timestamp with +07:00 offset and UUID survive in exception."""
+        record = logging.LogRecord(
+            name="test_logger",
+            level=logging.ERROR,
+            pathname=__file__,
+            lineno=1,
+            msg="test_event",
+            args=(),
+            exc_info=None,
+        )
+        exception_msg = f"Error at 2026-09-09T10:00:00+07:00, request {TEST_UUID}"
+        record.stack_info = exception_msg
+
+        output = JsonFormatter().format(record)
+        payload = json.loads(output)
+        # The timestamp and UUID must survive
+        assert "2026-09-09T10:00:00+07:00" in payload["stack"]
+        assert TEST_UUID in payload["stack"]
+
+    def test_password_validation_failed_survives(self):
+        """The phrase 'password validation failed' survives (no : or = separator)."""
+        record = logging.LogRecord(
+            name="test_logger",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="test_event",
+            args=(),
+            exc_info=None,
+        )
+        record.stack_info = "password validation failed for user john_doe"
+
+        output = JsonFormatter().format(record)
+        payload = json.loads(output)
+        # The phrase must survive unchanged
+        assert "password validation failed" in payload["stack"]
+        assert "john_doe" in payload["stack"]
+
+    def test_password_colon_value_is_redacted(self):
+        """password: followed by value is redacted."""
+        record = logging.LogRecord(
+            name="test_logger",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="test_event",
+            args=(),
+            exc_info=None,
+        )
+        record.stack_info = "Error: password: hunter2 for user"
+
+        output = JsonFormatter().format(record)
+        payload = json.loads(output)
+        # The password part should be redacted
+        assert PLANTED_PASSWORD not in payload["stack"]
+        assert REDACTION_MARKER in payload["stack"]
+        # But "for user" should survive
+        assert "for user" in payload["stack"]
+
+    def test_disk_usage_and_task_id_survive(self):
+        """disk_usage and task_id_123 in exception don't get partially redacted."""
+        record = logging.LogRecord(
+            name="test_logger",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="test_event",
+            args=(),
+            exc_info=None,
+        )
+        record.stack_info = "Disk usage exceeded: 95%, task_id_123 failed"
+
+        output = JsonFormatter().format(record)
+        payload = json.loads(output)
+        # Both should survive unchanged
+        assert "task_id_123" in payload["stack"]
+        assert "95%" in payload["stack"]
 
 
 class TestExistingTests:
