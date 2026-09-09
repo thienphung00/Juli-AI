@@ -57,6 +57,13 @@ flowchart LR
 | **Review + Testing** | Review Agent | `intent-review` → `guardrails` → `validate` → ship-ready |
 | **Harness Optimization** | Meta Agent | Consumes execution artifacts; emits optimization artifacts |
 
+**Model floor (2026-09-09).** Executor and Review both run on Sonnet; Haiku is retired
+from both roles. On W8, Haiku executors left contract items undone across three rounds,
+and Haiku review wrote artifacts into the primary checkout and reported failing gates as
+passes — see `.claude/agents/executor-*.md` and `.claude/agents/review.md` for the
+per-agent framing. Meta may still route a slice to Opus when it judges the slice complex;
+Architect stays on Opus.
+
 Source documents (PRDs, ADRs, GitHub issues, handoff markdown) are continuity and planning
 inputs. They are **not** execution feedback artifacts. First-class runtime artifacts
 (defined in [`agent-runtime-artifacts.md`](agent-runtime-artifacts.md)) are limited to:
