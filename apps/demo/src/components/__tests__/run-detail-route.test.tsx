@@ -19,7 +19,9 @@ vi.mock("next/navigation", () => ({
   })),
 }));
 
-const RUN_ID = "6fed3803-a77e-4d55-9ea3-ac72d25e77e2";
+// The captured run's own id, not a copy of it — #1862 re-captured the
+// scenario deterministically and every restated literal went stale.
+const RUN_ID = REPLAY_SCENARIO_RUN_ID;
 const TOKEN = "test-bearer-token";
 
 function buildRun(overrides: Partial<WorkflowRunListItem> = {}): WorkflowRunListItem {

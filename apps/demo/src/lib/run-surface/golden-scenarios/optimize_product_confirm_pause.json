@@ -2,13 +2,13 @@
   "scenario_id": "optimize-product-confirm-pause",
   "workflow_key": "optimize_product_2",
   "prompt_sha256": "e79e9f4b586a2031b7f0771aa5297c2b138b173e394104a31277074c6f58d53d",
-  "captured_at": "2026-08-28T08:32:13.313141+00:00",
+  "captured_at": "2026-01-01T00:00:00+00:00",
   "events": [
     {
-      "workflow_run_id": "6fed3803-a77e-4d55-9ea3-ac72d25e77e2",
+      "workflow_run_id": "00000000-0000-0000-0000-00000000b453",
       "sequence_number": 1,
       "event_type": "workflow.started",
-      "timestamp": "2026-08-28T08:32:13.304159",
+      "timestamp": "2026-01-01T00:00:00",
       "payload": {
         "workflow_key": "optimize_product_2",
         "product_ref": "product-ref-ba227180",
@@ -17,10 +17,10 @@
       "v": 1
     },
     {
-      "workflow_run_id": "6fed3803-a77e-4d55-9ea3-ac72d25e77e2",
+      "workflow_run_id": "00000000-0000-0000-0000-00000000b453",
       "sequence_number": 2,
       "event_type": "tool.started",
-      "timestamp": "2026-08-28T08:32:13.305485",
+      "timestamp": "2026-01-01T00:00:00",
       "payload": {
         "tool_call_id": "c1",
         "tool_name": "get_product_information"
@@ -28,30 +28,30 @@
       "v": 1
     },
     {
-      "workflow_run_id": "6fed3803-a77e-4d55-9ea3-ac72d25e77e2",
+      "workflow_run_id": "00000000-0000-0000-0000-00000000b453",
       "sequence_number": 3,
       "event_type": "tool.completed",
-      "timestamp": "2026-08-28T08:32:13.306420",
+      "timestamp": "2026-01-01T00:00:00",
       "payload": {
         "tool_call_id": "c1",
         "tool_name": "get_product_information",
         "ok": true,
-        "summary": "completed"
+        "summary": "Hoàn tất"
       },
       "v": 1
     },
     {
-      "workflow_run_id": "6fed3803-a77e-4d55-9ea3-ac72d25e77e2",
+      "workflow_run_id": "00000000-0000-0000-0000-00000000b453",
       "sequence_number": 4,
       "event_type": "workflow.approval_required",
-      "timestamp": "2026-08-28T08:32:13.308195",
+      "timestamp": "2026-01-01T00:00:00",
       "payload": {
         "tool_call_id": "c2",
         "tool_name": "update_product_listing",
         "proposed_change": {
           "title": "Tiêu đề đã tối ưu"
         },
-        "expires_at": "2026-08-28T12:32:13.308159Z",
+        "expires_at": "2026-01-01T04:00:00Z",
         "options": [
           {
             "option_id": "1",
@@ -69,10 +69,10 @@
   "continuations": {
     "approve": [
       {
-        "workflow_run_id": "9b0eae35-ada3-41f6-b160-7c40d5f67960",
+        "workflow_run_id": "00000000-0000-0000-0000-00000000a99e",
         "sequence_number": 5,
         "event_type": "tool.started",
-        "timestamp": "2026-08-28T08:32:13.325269",
+        "timestamp": "2026-01-01T00:00:00",
         "payload": {
           "tool_call_id": "c2",
           "tool_name": "update_product_listing"
@@ -80,23 +80,23 @@
         "v": 1
       },
       {
-        "workflow_run_id": "9b0eae35-ada3-41f6-b160-7c40d5f67960",
+        "workflow_run_id": "00000000-0000-0000-0000-00000000a99e",
         "sequence_number": 6,
         "event_type": "tool.completed",
-        "timestamp": "2026-08-28T08:32:13.326163",
+        "timestamp": "2026-01-01T00:00:00",
         "payload": {
           "tool_call_id": "c2",
           "tool_name": "update_product_listing",
           "ok": true,
-          "summary": "completed"
+          "summary": "Hoàn tất"
         },
         "v": 1
       },
       {
-        "workflow_run_id": "9b0eae35-ada3-41f6-b160-7c40d5f67960",
+        "workflow_run_id": "00000000-0000-0000-0000-00000000a99e",
         "sequence_number": 7,
         "event_type": "workflow.completed",
-        "timestamp": "2026-08-28T08:32:13.327858",
+        "timestamp": "2026-01-01T00:00:00",
         "payload": {
           "stop_reason": "final_response"
         },
@@ -105,23 +105,23 @@
     ],
     "decline": [
       {
-        "workflow_run_id": "169702b7-b74b-407b-ad07-466a3e5989e8",
+        "workflow_run_id": "00000000-0000-0000-0000-00000000dec1",
         "sequence_number": 5,
         "event_type": "tool.completed",
-        "timestamp": "2026-08-28T08:32:13.342828",
+        "timestamp": "2026-01-01T00:00:00",
         "payload": {
           "tool_call_id": "c2",
           "tool_name": "update_product_listing",
           "ok": false,
-          "summary": "declined by the seller"
+          "summary": "Bạn đã từ chối thay đổi."
         },
         "v": 1
       },
       {
-        "workflow_run_id": "169702b7-b74b-407b-ad07-466a3e5989e8",
+        "workflow_run_id": "00000000-0000-0000-0000-00000000dec1",
         "sequence_number": 6,
         "event_type": "workflow.completed",
-        "timestamp": "2026-08-28T08:32:13.343708",
+        "timestamp": "2026-01-01T00:00:00",
         "payload": {
           "stop_reason": "confirmation_declined"
         },

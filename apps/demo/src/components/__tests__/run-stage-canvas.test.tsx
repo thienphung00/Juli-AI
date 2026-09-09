@@ -32,6 +32,18 @@ const approved: AgentEvent[] = [...scenario.events, ...scenario.continuations.ap
 
 const PRODUCT_NAME = "Áo thun cotton nam";
 
+// Derived from the captured approval, never restated. This was a hardcoded
+// "2026-08-28T09:32:13Z", which #1862's deterministic re-capture (2026-01-01)
+// turned into an instant AFTER the expiry it was meant to precede.
+const NOW_BEFORE_EXPIRY = (() => {
+  const approval = scenario.events.find((e) => e.event_type === "workflow.approval_required");
+  const expiresAt = (approval?.payload as { expires_at?: string } | undefined)?.expires_at;
+  if (!expiresAt) {
+    throw new Error("fixture has no workflow.approval_required expires_at");
+  }
+  return new Date(expiresAt).getTime() - 60 * 60 * 1000;
+})();
+
 describe("RunStageCanvas -- product snapshot stage", () => {
   it("shows the bound product name -- the seller sees which listing before any confirmation", () => {
     const view = reduceRunView(scenario.events);
@@ -97,7 +109,7 @@ describe("RunStageCanvas -- Đề xuất stage (the paused decision request)", (
       <RunStageCanvas
         events={scenario.events}
         isTerminal={false}
-        nowMs={new Date("2026-08-28T09:32:13.308159Z").getTime()} // 1h before expires_at
+        nowMs={NOW_BEFORE_EXPIRY} // derived from the fixture, 1h before expires_at
         productName={PRODUCT_NAME}
         runId="run-1"
         stageId="de-xuat"

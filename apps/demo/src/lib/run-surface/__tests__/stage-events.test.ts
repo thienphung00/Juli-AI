@@ -34,6 +34,31 @@ function loadScenario(): Scenario {
 const scenario = loadScenario();
 const approved: AgentEvent[] = [...scenario.events, ...scenario.continuations.approve];
 
+/**
+ * The summary a tool.completed frame actually carries, read from the scenario
+ * rather than restated here.
+ *
+ * These assertions used to hardcode `summary: "completed"`. The golden scenario
+ * was re-captured with the seller-facing Vietnamese copy the product ships
+ * ("Hoàn tất"), and every test that restated the old English string broke —
+ * for a copy change, not a behaviour change. What these tests are about is that
+ * the summary is CARRIED THROUGH to the stage activity, so they now read the
+ * expected value from the fixture and assert the plumbing.
+ */
+const summaryFor = (events: readonly AgentEvent[], toolCallId: string): string => {
+  const frame = events.find(
+    (e) =>
+      e.event_type === "tool.completed" &&
+      (e.payload as { tool_call_id?: string } | undefined)?.tool_call_id === toolCallId,
+  );
+  const summary = (frame?.payload as { summary?: string } | undefined)?.summary;
+  // A fixture with no summary would make every assertion below vacuously true.
+  if (!summary) {
+    throw new Error(`fixture has no tool.completed summary for ${toolCallId}`);
+  }
+  return summary;
+};
+
 describe("toolActivityForStage", () => {
   it("returns the completed get_product_information call's verbatim summary for the product-snapshot stage", () => {
     const view = reduceRunView(scenario.events);
@@ -46,7 +71,7 @@ describe("toolActivityForStage", () => {
         toolCallId: "c1",
         toolName: "get_product_information",
         status: "completed",
-        summary: "completed",
+        summary: summaryFor(scenario.events, "c1"),
       },
     ]);
   });
@@ -69,7 +94,7 @@ describe("toolActivityForStage", () => {
         toolCallId: "c2",
         toolName: "update_product_listing",
         status: "completed",
-        summary: "completed",
+        summary: summaryFor(approved, "c2"),
       },
     ]);
   });

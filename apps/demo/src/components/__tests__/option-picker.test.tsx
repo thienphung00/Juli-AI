@@ -58,8 +58,17 @@ const CAPTURED_EXPIRES_AT = approvalEvent.payload.expires_at;
 const CAPTURED_TOOL_CALL_ID = approvalEvent.payload.tool_call_id;
 
 const PRODUCT_NAME = "Áo thun cotton nam";
-const NOW_BEFORE_EXPIRY = new Date("2026-08-28T09:32:13.308159Z").getTime();
-const NOW_AFTER_EXPIRY = new Date("2026-08-28T13:32:13.308159Z").getTime();
+// Both clocks are derived from the captured `expires_at`, never restated.
+// They used to be hardcoded to the original capture's wall-clock date. #1862
+// re-captured the scenario with deterministic timestamps (2026-01-01) to stop
+// it rewriting itself on every run, which put the hardcoded "before expiry"
+// instant four months AFTER the new expiry — so the picker treated every option
+// as expired, the confirm button did nothing, and nine tests failed on a
+// clock, not on the behaviour they describe.
+const CAPTURED_EXPIRES_MS = new Date(CAPTURED_EXPIRES_AT).getTime();
+const ONE_HOUR_MS = 60 * 60 * 1000;
+const NOW_BEFORE_EXPIRY = CAPTURED_EXPIRES_MS - ONE_HOUR_MS;
+const NOW_AFTER_EXPIRY = CAPTURED_EXPIRES_MS + ONE_HOUR_MS;
 
 function jsonResponse(body: unknown, ok = true, status = 200): Response {
   return { ok, status, statusText: "", json: async () => body } as Response;
