@@ -113,6 +113,12 @@ class RunState:
     running_seconds_elapsed: float = 0.0
     prompt_version: str | None = None
     prompt_sha256: str | None = None
+    # Issue #1653: rollup tracking fields (optional, backward-compat with old state JSON)
+    input_tokens: int = 0
+    output_tokens: int = 0
+    tool_call_count: int = 0
+    rows_affected: int = 0
+    started_at: str | None = None  # ISO8601 string, set once in run(), not reset on resume()
 
     # Fields present on a deserialized blob that this version of RunState
     # does not recognize (ADR-073 decision 5, the P-CS forward-compat
@@ -171,6 +177,17 @@ class RunState:
             blob["prompt_sha256"] = self.prompt_sha256
         if self.product_detail is not None:
             blob["product_detail"] = dict(self.product_detail)
+        # Issue #1653: rollup tracking fields (optional, backward-compat)
+        if self.input_tokens != 0:
+            blob["input_tokens"] = self.input_tokens
+        if self.output_tokens != 0:
+            blob["output_tokens"] = self.output_tokens
+        if self.tool_call_count != 0:
+            blob["tool_call_count"] = self.tool_call_count
+        if self.rows_affected != 0:
+            blob["rows_affected"] = self.rows_affected
+        if self.started_at is not None:
+            blob["started_at"] = self.started_at
         blob.update(self.unknown_fields)
         return blob
 
@@ -200,6 +217,11 @@ class RunState:
             "prompt_version",  # issue #1359
             "prompt_sha256",  # issue #1359
             "product_detail",  # issue #1389
+            "input_tokens",  # issue #1653
+            "output_tokens",  # issue #1653
+            "tool_call_count",  # issue #1653
+            "rows_affected",  # issue #1653
+            "started_at",  # issue #1653
         }
         unknown = {
             key: value
@@ -217,5 +239,10 @@ class RunState:
             prompt_version=blob.get("prompt_version"),
             prompt_sha256=blob.get("prompt_sha256"),
             product_detail=blob.get("product_detail"),
+            input_tokens=blob.get("input_tokens", 0),
+            output_tokens=blob.get("output_tokens", 0),
+            tool_call_count=blob.get("tool_call_count", 0),
+            rows_affected=blob.get("rows_affected", 0),
+            started_at=blob.get("started_at"),
             unknown_fields=unknown,
         )

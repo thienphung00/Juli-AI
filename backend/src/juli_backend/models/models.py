@@ -619,19 +619,19 @@ class WorkflowRun(Base):
     output_tokens: Mapped[int | None] = mapped_column(Integer)
     #: Per-run cost in USD, computed from the rate in force for that run
     #: (`PRICE_TABLE_USD_PER_MILLION_TOKENS` in `services/agent/llm/config.py`),
-    #: stamped at run time, never retroactively updated. Uses the same scale
-    #: as money_allocated/money_spent in shops table. Nullable, no backfill.
-    cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(precision=14, scale=2))
+    #: stamped at run time, never retroactively updated. Uses Numeric(10,6) scale
+    #: for sub-cent precision on small LLM calls. Nullable, no backfill.
+    cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(precision=10, scale=6))
     #: Wall-clock duration in milliseconds from run start to terminal event
-    #: (or pause). Pauses contribute nothing to duration. Across pause/resume,
-    #: durations accumulate. Nullable, no backfill.
+    #: (or pause). Includes approval-wait time. Across pause/resume, durations
+    #: accumulate from the original started_at. Nullable, no backfill.
     duration_ms: Mapped[int | None] = mapped_column(Integer)
     #: Count of tool calls dispatched to `ToolExecutor.execute` during this run.
     #: A no-op run records 0. Nullable, no backfill.
     tool_call_count: Mapped[int | None] = mapped_column(Integer)
-    #: Count of rows written by the run (defined at the `ToolExecutor` seam,
-    #: never a vendor-reported count reinterpreted as a row count). A no-op run
-    #: records 0. Nullable, no backfill.
+    #: rows_affected = number of ledger-recorded successful WRITE tool executions
+    #: in this run (one `tool_executions` row each). A no-op run records 0.
+    #: Nullable, no backfill.
     rows_affected: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())

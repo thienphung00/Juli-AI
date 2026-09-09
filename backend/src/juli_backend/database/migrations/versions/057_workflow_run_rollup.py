@@ -24,10 +24,10 @@ dispatched to `ToolExecutor.execute`. rows_affected is the count of rows actuall
 written by the run's writes (defined at the `ToolExecutor` seam, `ToolExecutionLedger`
 dispatch boundary, never a vendor-reported count reinterpreted as a row count).
 
-**Duration.** duration_ms is wall-clock time from `started_at` (or loaded state's
-start time) to the terminal (or paused) event, in milliseconds. A pause contributes
-nothing to duration (the clock pauses while `waiting_approval`). Across pause/resume,
-both durations accumulate into the final row.
+**Duration.** duration_ms is wall-clock time from `started_at` to the terminal (or
+paused) event, in milliseconds. This includes any approval wait time (the running_seconds
+clock pauses, but duration_ms does not). Across pause/resume, duration_ms accumulates
+from the original start_at through the final event.
 
 **Types.**
 - input_tokens: Integer, nullable
@@ -60,11 +60,11 @@ def upgrade() -> None:
         "workflow_runs",
         sa.Column("output_tokens", sa.Integer, nullable=True),
     )
-    # cost_usd uses the same precision as money_allocated and money_spent
-    # (Numeric(14, 2) in shops table and elsewhere for monetary values)
+    # cost_usd uses Numeric(10, 6) for sub-cent precision on small LLM calls
+    # (standard across the codebase for USD values; avoids false-zero rounding)
     op.add_column(
         "workflow_runs",
-        sa.Column("cost_usd", sa.Numeric(precision=14, scale=2), nullable=True),
+        sa.Column("cost_usd", sa.Numeric(precision=10, scale=6), nullable=True),
     )
     op.add_column(
         "workflow_runs",
