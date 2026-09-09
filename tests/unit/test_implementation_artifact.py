@@ -27,7 +27,13 @@ def test_build_implementation_artifact_includes_required_runtime_fields() -> Non
     # #1505: the default is the honest unavailable shape, never a measured zero.
     assert set(artifact["tokenUsage"]) == {"available", "reason"}
     assert artifact["tokenUsage"]["available"] is False
-    assert artifact["toolInvocationCount"] == 0
+    # #1732: the same reasoning reaches these two. A fresh template has measured
+    # nothing, and a zero here was indistinguishable from a real reading -- the
+    # more convincing of the two possible lies.
+    assert set(artifact["toolInvocationCount"]) == {"available", "reason"}
+    assert artifact["toolInvocationCount"]["available"] is False
+    assert set(artifact["executionDurationMs"]) == {"available", "reason"}
+    assert artifact["executionDurationMs"]["available"] is False
     assert artifact["contextFilesLoaded"] == []
     assert artifact["skillsLoaded"] == []
     assert artifact["rulesLoaded"] == []

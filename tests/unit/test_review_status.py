@@ -190,8 +190,11 @@ def test_run_check_respects_review_status(
         "status": "PASS_WITH_WARNINGS" if severity == "WARNING" else "FAIL",
         "criticalFindings": [{"severity": severity, "description": "issue"}],
         "modulesTouched": ["web"],
+        # #1732 AC4: a PASS/PASS_WITH_WARNINGS claim requires a recorded test run.
+        "dynamicTestsExecuted": True,
         "testCoverage": {
             "acceptance": {"total": 1, "mapped": 1, "mappings": []},
+            "unit": {"passed": 1, "failed": 0},
         },
     }
     _write_review_artifact(tmp_path, review)
@@ -240,8 +243,11 @@ def test_run_check_passes_when_artifact_aligned(
         "status": "PASS",
         "criticalFindings": [],
         "modulesTouched": ["web"],
+        # #1732 AC4: a PASS claim requires a recorded test run.
+        "dynamicTestsExecuted": True,
         "testCoverage": {
             "acceptance": {"total": 0, "mapped": 0, "mappings": []},
+            "unit": {"passed": 1, "failed": 0},
         },
     }
     _write_review_artifact(tmp_path, review)
@@ -250,6 +256,109 @@ def test_run_check_passes_when_artifact_aligned(
     assert passed is True
     assert "status PASS" in message
     assert details == {"status": "PASS", "derivedStatus": "PASS", "warningCount": 0}
+
+
+# --------------------------------------------------------------------------
+# #1732 AC4 — a PASS cannot carry an unrecorded test run. All four shapes
+# from the issue's evidence table (five reviews observed in one working day,
+# four distinct lie shapes) must fail the gate.
+# --------------------------------------------------------------------------
+
+
+def test_ac4_dynamic_tests_false_beside_pass_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """issue-1618 shape: dynamicTestsExecuted: false, PASS anyway."""
+    review = {
+        "id": "review-issue-1618",
+        "issue": 1618,
+        "status": "PASS",
+        "criticalFindings": [],
+        "modulesTouched": ["web"],
+        "dynamicTestsExecuted": False,
+        "testCoverage": {
+            "acceptance": {"total": 1, "mapped": 1, "mappings": []},
+            "unit": {"passed": 3, "failed": 0},
+        },
+    }
+    _write_review_artifact(tmp_path, review)
+    _patch_reviews_dir(tmp_path, monkeypatch)
+    passed, message, details = run_review_check(1618)
+    assert passed is False
+    assert "dynamicTestsExecuted" in message
+    assert details["dynamicTestsExecuted"] is False
+
+
+def test_ac4_dynamic_tests_false_with_zero_unit_counts_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """issue-1663/1636 shape: false, unit {0, 0}."""
+    review = {
+        "id": "review-issue-1663",
+        "issue": 1663,
+        "status": "PASS",
+        "criticalFindings": [],
+        "modulesTouched": ["web"],
+        "dynamicTestsExecuted": False,
+        "testCoverage": {
+            "acceptance": {"total": 1, "mapped": 1, "mappings": []},
+            "unit": {"passed": 0, "failed": 0},
+        },
+    }
+    _write_review_artifact(tmp_path, review)
+    _patch_reviews_dir(tmp_path, monkeypatch)
+    passed, message, details = run_review_check(1663)
+    assert passed is False
+    assert details["dynamicTestsExecuted"] is False
+
+
+def test_ac4_dynamic_tests_field_absent_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """issue-1684 shape: the field is absent entirely."""
+    review = {
+        "id": "review-issue-1684",
+        "issue": 1684,
+        "status": "PASS",
+        "criticalFindings": [],
+        "modulesTouched": ["web"],
+        "testCoverage": {
+            "acceptance": {"total": 1, "mapped": 1, "mappings": []},
+            "unit": {"passed": 9, "failed": 0},
+        },
+    }
+    assert "dynamicTestsExecuted" not in review
+    _write_review_artifact(tmp_path, review)
+    _patch_reviews_dir(tmp_path, monkeypatch)
+    passed, message, details = run_review_check(1684)
+    assert passed is False
+    assert details["dynamicTestsExecuted"] is None
+
+
+def test_ac4_dynamic_tests_true_with_zero_zero_unit_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """issue-1603 shape: true beside unit {passed: 0, failed: 0} — no test
+    actually ran despite the claim."""
+    review = {
+        "id": "review-issue-1603",
+        "issue": 1603,
+        "status": "PASS",
+        "criticalFindings": [],
+        "modulesTouched": ["web"],
+        "dynamicTestsExecuted": True,
+        "testCoverage": {
+            "acceptance": {"total": 1, "mapped": 1, "mappings": []},
+            "unit": {"passed": 0, "failed": 0},
+        },
+    }
+    _write_review_artifact(tmp_path, review)
+    _patch_reviews_dir(tmp_path, monkeypatch)
+    passed, message, details = run_review_check(1603)
+    assert passed is False
+    assert details["dynamicTestsExecuted"] is True
+    assert details["unitPassed"] == 0
+    assert details["unitFailed"] == 0
 
 
 def test_run_check_rejects_legacy_warnings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
