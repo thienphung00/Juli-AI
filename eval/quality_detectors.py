@@ -1241,10 +1241,10 @@ def build_report(
 #: rather than reconciled away. Regenerate with
 #: ``python -m eval.quality_detectors scan`` and update both numbers together.
 MEASURED_ZERO_ASSERTION_TESTS = 50
-MEASURED_TEST_FUNCTIONS = 4803
+MEASURED_TEST_FUNCTIONS = 4878
 #: Test modules the corpus figure is spread over. Like the corpus it is a
 #: denominator, not a claim, so it is held to a tolerance rather than pinned.
-MEASURED_TEST_MODULES = 484
+MEASURED_TEST_MODULES = 494
 
 #: The measured decomposition that reconciles the two figures. Each layer
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
@@ -1264,26 +1264,26 @@ RECONCILIATION: dict[str, Any] = {
     "measured": MEASURED_ZERO_ASSERTION_TESTS,
     "measuredCorpus": MEASURED_TEST_FUNCTIONS,
     "delta": MEASURED_ZERO_ASSERTION_TESTS - REPORTED_ZERO_ASSERTION_TESTS,
-    "measuredAt": "2026-09-03",
+    "measuredAt": "2026-09-09",
     "roots": list(TEST_ROOTS),
     "layers": dict(RECONCILIATION_LAYERS),
     "priorFigureLayer": "and_no_mock_assert_called",
     "note": (
         "Neither figure is wrong; they count different things, and the layer "
         "decomposition above shows exactly where they part. Measured here: 50 "
-        "zero-assertion tests in a corpus of 4,803 test functions over tests/ "
-        "backend/ scripts/ agent-runtime/ eval/ (484 test modules). The prior "
+        "zero-assertion tests in a corpus of 4,878 test functions over tests/ "
+        "backend/ scripts/ agent-runtime/ eval/ (494 test modules). The prior "
         "~97-of-4,048 reading corresponds to the `and_no_mock_assert_called` "
         "layer — a detector that credits `pytest.raises` and `mock.assert_called*` "
         "as assertions but not delegation to a same-file asserting helper. That "
         "layer reads 107 today, a difference of 10 tests from the prior reading. "
         "That difference is the claim, and it is stated in tests rather than "
         "scaled by corpus size: this layer is an absolute count over a set that "
-        "does not grow with the corpus — it read 107 at 4,545, at 4,638, at 4,675, at 4,798 "
-        "and at 4,798 — so scaling either side by corpus growth diverges "
+        "does not grow with the corpus — it read 107 at 4,545, at 4,638, at 4,675, at 4,798, "
+        "at 4,798 and at 4,878 — so scaling either side by corpus growth diverges "
         "mechanically as the repository grows and says nothing about the code "
         "(#1682). The rates are recorded beside it as readings, not as the claim "
-        "(2.40% then, 2.23% now). "
+        "(2.40% then, 2.19% now). "
         "So the prior measurement "
         "reproduces, and the gap between 107 and 50 is 53 tests whose only "
         "assertion is inside a "
