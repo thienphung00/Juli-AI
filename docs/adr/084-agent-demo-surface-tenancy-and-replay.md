@@ -5,6 +5,8 @@
 **Deciders:** grill-with-docs (Architect) with owner
 
 **Amends:** [ADR-076](076-agent-demo-execution-experience.md) decisions 1, 2 and 4.
+**Amended by:** [ADR-094](094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md)
+decisions 1 and 2.
 **Builds on:** [ADR-074](074-agent-event-streaming-and-relay.md) (event union, replay
 authority), [ADR-075](075-agent-approval-gate-and-security-prerequisites.md) (JWT on every
 agent route), [ADR-082](082-agent-run-product-binding.md) (server-derived product binding),

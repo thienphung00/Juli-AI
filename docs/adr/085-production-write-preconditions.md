@@ -1,6 +1,6 @@
 # ADR-085: Production-write preconditions — tenant isolation that denies, adversarial proof, and one authorized mutation
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-25
 **Deciders:** grill-with-docs (Architect) with owner
 

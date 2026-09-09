@@ -838,6 +838,11 @@ class ImpactReading(Base):
     ``impact_pct`` is always a ratio (``incremental / expected``) regardless of
     which underlying metric produced it, so it uses the same rate scale as
     ``ctr``/``conversion_rate`` (``Numeric(10, 6)``).
+
+    ``series_source`` (ADR-099 d.2, #1766) tracks whether the underlying series
+    data is 'measured' (real data) or 'synthetic' (simulated data). A writer
+    that omits provenance must FAIL, not silently default — hence no default
+    is used, even transiently during the expand-contract migration.
     """
 
     __tablename__ = "impact_readings"
@@ -861,6 +866,9 @@ class ImpactReading(Base):
     # binh readings.
     control_set_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # ADR-099 d.2: provenance of underlying series data — 'measured' (real) or
+    # 'synthetic' (simulated). No default: a writer that omits provenance must FAIL.
+    series_source: Mapped[str] = mapped_column(String(20), nullable=False)
 
     __table_args__ = (
         Index("ix_impact_readings_run_id", "run_id"),
@@ -878,6 +886,10 @@ class ImpactReading(Base):
         CheckConstraint(
             "confidence IN ('cao', 'trung_binh', 'thap', 'suppressed', 'confounded')",
             name="ck_impact_readings_confidence",
+        ),
+        CheckConstraint(
+            "series_source IN ('measured', 'synthetic')",
+            name="ck_impact_readings_series_source",
         ),
     )
 

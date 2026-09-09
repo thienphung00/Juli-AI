@@ -1,0 +1,96 @@
+{
+  "planId": "one-active-run-per-subject-one-write-per-endpoint-family-2026-09-07",
+  "affectedPublicSurfaces": [
+    "THE APPROVE ENDPOINT GAINS A REFUSAL. `POST /v1/demo/decisions/{action_card_id}/approve` (`api/routes/demo_execution.py::approve_demo_decision` → `services/agent/approval.py::approve_action_card`) today refuses with `ActionCardNotFound`, `ActionCardNotActive` and `WorkflowNotExecutable` (`NoProductsForShop` having left with #1702). It gains `subject_locked`: a card whose SUBJECT already has an active run under ANY workflow is refused, and — this is the part a client will notice — THE CARD STAYS APPROVABLE. It is not consumed, not expired, not flipped to any terminal status; the seller can approve it once the first run ends. A refusal that burns the card would be a data loss wearing an error code.",
+    "A REAL BEHAVIOUR CHANGE FOR SELLERS, deliberately narrowing an ADR. S-FR-11 (owner directive 2026-09-05) NARROWS ADR-083/ADR-087 d.2, which permitted two agents on one product under different categories. After this slice, approving a Clear Excess card for a product with a live Optimize Product run is refused where it would previously have started. ADR-087's Consequences records the amendment IN THIS PR — the decision and the code land together or the ADR misdescribes the system.",
+    "THE LAYERING IS DELIBERATE AND MUST NOT BE 'FIXED'. #1701 RE-KEYED the active-run partial unique to `(shop_id, workflow_key, subject_type, subject_ref)` precisely so two workflows on one product do NOT collide at the index — and #1710 refuses them at the APPROVE TRANSACTION instead. An executor who narrows the index to enforce the lock would make this slice's named refusal untestable, would turn a clean `subject_locked` into an `IntegrityError` surfacing as `concurrency_conflict`, and would silently change approve's failure mode. The index allows; approve refuses. Say it in the PR.",
+    "`ToolSpec` GAINS AN ENDPOINT FAMILY. The frozen dataclass in `services/agent/tools/registry.py` (`name`, `description`, `input_model`, `output_model`, `classification`, `policy`, `timeout_seconds`, plus #1704's `domain`) gains an endpoint-family declaration, and a WRITE tool registered without one is REFUSED AT IMPORT TIME — the same fail-at-import discipline #1704 established for `domain`. READ tools need no family.",
+    "DISPATCH-TIME WRITE REFUSAL. `services/agent/runner/tool_executor.py` checks a write-lock registry keyed on `(subject, endpoint family)` before every WRITE tool and refuses when another run holds that family on that subject — no vendor call is made, and the run ends HONESTLY with a named cause from #1707's vocabulary (`already_in_promotion` for the promotion family). The families v1 needs are the ones the spec names: promotion activities (Optimize Product and Clear Excess both create them) and inventory/stock (Clear Excess and Replenish both touch it).",
+    "NO SCHEMA CHANGE AND NO LOCK TABLE. Both locks are DERIVED from live run state — the active-run rows #1701 already keys and the in-flight dispatch state — which is why the rollback is a pure revert with nothing to clean up."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the worktree root with PYTHONPATH pinned to the worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite. A lock is a CONCURRENCY claim: it must be asserted under real simultaneous transactions with real row locking and the real partial unique present, and SQLite's single-writer model would make a broken lock look correct. Approve is driven through the REAL `approve_action_card` and the write refusal through the REAL `ToolExecutor` and the REAL registry, with the vendor client bound to a recording fake built on the real client's signature so 'no vendor call was made' is a fact about the transport, not an assumption. Post-deploy: approve TWO cards on one product on the candidate against the sandbox shop and observe the second refused; no public traffic reaches a candidate task set and no production write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the write-lock half is checked at tool dispatch inside the Celery worker; with workers disabled the candidate can demonstrate the approve refusal but never the dispatch refusal, which is half the slice. apiSideEffectsInScope is FALSE: the refusal path makes NO vendor call by design, and no production write occurs — the 2026-08-21 owner decision holds.",
+    "journeys": [
+      {
+        "name": "a-subject-with-a-live-run-cannot-take-another-and-an-endpoint-family-is-written-once",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1710",
+        "assertions": [
+          "pre-merge: with an ACTIVE Optimize Product run on product P, approving a Clear Excess card for P is refused with `subject_locked` and NO run row exists; after the first run reaches a TERMINAL status the same card approves successfully — asserted by re-approving the SAME card, so 'the card stays approvable' is proven rather than claimed (tests/unit/test_subject_and_write_locks.py::test_second_workflow_on_active_subject_is_refused_until_the_first_ends)",
+          "pre-merge: the refusal does NOT consume the card — after `subject_locked` the card's status is still active, its `approved_at` is still NULL, and no approval audit row was written; a refusal that burns the card is data loss with an error code on it",
+          "pre-merge: the refusal is checked BEFORE any row is written or flipped, in the same fail-closed position `WorkflowNotExecutable` already occupies (ADR-084 decision 3), and holds under CONCURRENCY — two simultaneous approvals for one subject yield exactly ONE run, asserted with real simultaneous transactions rather than sequential calls",
+          "pre-merge: the active-run partial unique is UNCHANGED — two runs for one product under different `workflow_key`s still insert successfully at the index level (#1701's deliberate widening), so the lock lives in the approve transaction and is a named `subject_locked`, never an `IntegrityError` surfacing as `concurrency_conflict`",
+          "pre-merge: a WRITE tool in the PROMOTION family dispatched for SKU S while another run holds the promotion lock on S is REFUSED, the run ends with `already_in_promotion` (#1707's vocabulary) and NO VENDOR CALL IS MADE — asserted on the recording transport fake, so 'no call' is observed at the wire, not inferred from a branch (tests/unit/test_subject_and_write_locks.py::test_write_lock_refuses_overlapping_endpoint_family)",
+          "pre-merge: a WRITE tool with NO declared endpoint family is REFUSED AT IMPORT TIME, the same fail-at-import discipline #1704 gave `domain`; a READ tool needs no family and registers normally (tests/unit/test_subject_and_write_locks.py::test_write_tool_must_declare_endpoint_family)",
+          "pre-merge: two WRITE tools in DIFFERENT families on the same subject both proceed — the lock is per family, not a blanket per-subject write mutex; without this the assertion above could pass by locking everything",
+          "pre-merge: the lock RELEASES when the holding run reaches a terminal status, including a FAILED and a TIMED_OUT one — a crashed run must not hold a subject's promotion family forever, and the reaper's terminal transition is the release point",
+          "pre-merge: `optimize_product_2` alone on a subject is COMPLETELY UNAFFECTED — the recorded run golden `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` passes untouched and the existing approve suite `tests/unit/test_agent_approval_transaction.py` passes unchanged",
+          "pre-merge: ADR-087's Consequences records the S-FR-11 amendment in this PR's diff — the narrowing of ADR-083/ADR-087 d.2 is a documented decision, asserted by reading the file in the diff",
+          "post-deploy: `/health` on the candidate is unchanged; approving TWO cards for ONE sandbox product on the candidate succeeds once and returns `subject_locked` the second time, and the refused card is still listed as approvable in an authenticated decisions read"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is `services/agent/approval.py`, `services/agent/runner/tool_executor.py`, `services/agent/tools/registry.py`, `docs/adr/087-*.md` and tests. Nothing under apps/, packages/ or ios/ is touched; those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "postgres-row-dump",
+      "vendor-transport-recording"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE IN THIS SLICE, and no lock table. Both locks are DERIVED from state that already exists: the subject lock from the non-terminal `workflow_runs` rows #1701's re-keyed partial unique already indexes, and the write lock from in-flight dispatch state on those same runs. Do not open a migration file, do not add a `locks` table, and do not add a column to hold a lock — a stored lock outlives the process that took it and needs a reaper of its own, which is a second failure mode for a problem the run rows already answer. Old and new code coexist because the deployed schema is identical before and after; the only difference is which approvals a candidate process refuses."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Two workflows can both hold one product (#1701's index deliberately permits it), a promotion write and a stock write can collide on one SKU in one window, and S-FR-11 stays unimplemented. Nothing about the deployed system changes, nothing is partially applied, and no seller sees a difference — the collision it prevents has not yet become possible, because no second workflow ships until W9-B.",
+    "postCutoverFailureBehavior": "Code-only rollback: redeploy the previous release and restart juli-api and juli-celery-worker. There is NO schema to revert and NO downgrade to run — this slice owns no migration and stores no lock. LOCKS ARE DERIVED, so a rollback releases every one of them instantly and leaves nothing to clean up: no orphan lock row, no stuck subject, no reaper backlog. The honest caveat to state in the PR: after the rollback a subject can once again take a second concurrent run, so if a seller had a card refused with `subject_locked` and re-approves after the rollback, two runs may write to one product — which is precisely the pre-existing behaviour, not new damage. If #1701's, #1706's or #1709's schema must also be reverted, those downgrades are theirs and must FAIL LOUDLY on any non-product `subject_type` row, any NULL `product_id`, any `waiting_external` row, or any non-default confirmation `kind`. Order: previous code first, any schema revert second.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_subject_and_write_locks.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_approval_transaction.py tests/unit/test_agent_runner_tool_executor.py tests/unit/test_agent_tool_registry_contract.py tests/unit/test_agent_tool_definition_contract.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_golden_scenario_capture_from_real_runner.py tests/unit/test_workflow_run_status_mapping.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT read a migration number from head — do NOT write a migration at all. This slice has no schema change. The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake.",
+    "Do NOT narrow the active-run partial unique to enforce the subject lock. #1701 re-keyed it to `(shop_id, workflow_key, subject_type, subject_ref)` DELIBERATELY so two workflows on one product do not collide at the index; the lock is a named `subject_locked` refusal inside the approve transaction. Narrowing the index would make this slice untestable and would turn a clean refusal into an `IntegrityError` reported as `concurrency_conflict`.",
+    "Do NOT store the locks. No lock table, no lock column, no advisory-lock row that outlives its process. Both locks are derived from live run state; a stored lock needs a reaper of its own and becomes a second way for a subject to get stuck.",
+    "Do NOT consume the card on refusal. `subject_locked` leaves the card active, `approved_at` NULL and no approval audit row written — the seller approves it later. A refusal that burns the card is data loss.",
+    "Do NOT make the write lock a blanket per-subject write mutex. It is keyed on `(subject, endpoint family)`; two WRITE tools in different families on one subject both proceed. A blanket mutex would pass the refusal test and silently serialise everything.",
+    "Do NOT invent a new stop reason for the refusal. `already_in_promotion` comes from #1707's vocabulary; a cause coined at the call site would be a fifth mirror nobody maintains and would fail the CHECK constraint anyway.",
+    "Do NOT make a vendor call before the refusal. The whole point is that the write never reaches TikTok — assert it on a recording transport, not on a code branch.",
+    "Do NOT leave a lock held by a crashed run. Release on EVERY terminal status, including `failed` and `timed_out`, at the reaper's transition point.",
+    "Do NOT add a second reaper policy object; per-run resolution landed in #1702 and #1706's `external_wait_timeout_h` is one field on the existing `TerminationPolicy`.",
+    "ZERO behaviour change for `optimize_product_2` running alone on a subject — the recorded run golden `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` and the prompt golden `tests/fixtures/agent_prompt_gates/optimize_product_v3_composed.golden.md` pass untouched.",
+    "Do NOT derive the subject from revenue, do NOT emit a per-order card, and do NOT reuse the emission-budget suppression vocabulary (`active_cap`/`cooldown`/`weekly_novelty_cap`) for a lock refusal — a suppression reason and a refusal are different vocabularies for different objects.",
+    "Do NOT add a push, email or Zalo transport to tell the seller about a refusal, and do NOT gate a stage on a checklist tick. The in-app act record is #1712/#1713 and ticks never gate in v1 (S-FR-12).",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature — the real `approve_action_card`, the real `ToolExecutor` and `ToolRegistry`, the real vendor client's signature for the recording fake. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

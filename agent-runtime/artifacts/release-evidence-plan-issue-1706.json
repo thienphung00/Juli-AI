@@ -1,0 +1,98 @@
+{
+  "planId": "waiting-external-run-state-with-its-own-timeout-2026-09-07",
+  "affectedPublicSurfaces": [
+    "THE RUN STATUS VOCABULARY, which is a wire contract in three languages at once. `services/agent/status.py::WorkflowRunStatus` has exactly seven members (`queued`, `running`, `waiting_approval`, `completed`, `cancelled`, `timed_out`, `failed`); `packages/contracts/src/agent-events.ts` mirrors them as the const array `WORKFLOW_RUN_STATUSES` backing `export type WorkflowRunStatus`; and `services/agent_runs/listing.py::RunListItem` exposes `status` (and `stop_reason`) on `GET /demo/runs`, while the SSE stream at `GET /demo/runs/{run_id}/events` carries the same vocabulary on its payloads. Adding `waiting_external` widens what a seller's client can receive on BOTH surfaces — a client with an exhaustive switch over the union will see a state it has never seen.",
+    "TWO Postgres CHECK constraints, not one. `models.py::WorkflowRun.__table_args__` declares `ck_workflow_runs_status` (`status IN ('queued','running','waiting_approval','completed','cancelled','timed_out','failed')`) AND `ck_workflow_runs_stop_reason` (a sixteen-value IN list). Adding the state touches the first; adding `external_wait_expired` touches the second. Both live in the model AND in a migration, and both must move together or the model/migration parity test catches the drift after the fact instead of before.",
+    "THE ACTIVE-RUN PARTIAL INDEX — a consequence the issue does not name and the executor must decide deliberately. `uq_workflow_runs_active_shop_product` (re-keyed by #1701) filters on `postgresql_where=\"status IN ('queued','running','waiting_approval')\"`. A run parked in `waiting_external` is NOT in that set today, so it would silently stop holding its subject's active-run slot — which would let a second run start on a subject a suspended run still owns, and would quietly undermine #1710's cross-workflow subject lock before it is even written. Decide it in this slice, state the decision in the PR, and prove it.",
+    "`NON_TERMINAL_STATUSES` and the reverse-totality test. `status.py` names `frozenset({QUEUED, RUNNING})` as EXACTLY the statuses no `stop_reason` can target, and `tests/unit/test_workflow_run_status_mapping.py` asserts that shape in both directions. `waiting_approval` is targeted by `paused_for_confirmation`; `waiting_external` therefore needs its OWN suspending stop reason. THE ISSUE NAMES NONE — its only new reason, `external_wait_expired`, is the reaper's TERMINAL cause and lands in a terminal status. Meta must name the suspending reason (an analogue of `paused_for_confirmation`, within `String(32)`) or the reverse-totality assertion in acceptance criterion 1 cannot pass; adding `waiting_external` to `NON_TERMINAL_STATUSES` instead would be a different and wrong decision, because that set means 'pre-stop', not 'suspended'.",
+    "`TerminationPolicy` (`services/agent/playbooks/base.py`) gains `external_wait_timeout_h`, defaulting to None = this workflow may NOT wait externally. `OPTIMIZE_PRODUCT_TERMINATION_POLICY` (`max_iterations=6`, `max_extensions=1`, `extension_iterations=2`, `wall_clock_timeout_s=300`, `approval_timeout_h=4`, `required_steps=(\"update_product_listing\",\"update_product_price\")`, `terminal_tools=(\"conclude_without_changes\",)`) keeps `external_wait_timeout_h = None`, so `optimize_product_2` cannot enter the state and its behaviour is unchanged by construction. The reaper (`workers/tasks/reaper.py`, beat entry `reap-abandoned-workflow-runs`, `*/5`) judges an externally-waiting run ONLY by that field, never by `approval_timeout_h`.",
+    "NOTHING RESUMES THE STATE IN THIS SLICE. `resume_agent_workflow` still has exactly one caller — `api/routes/agent_runs.py::_enqueue_resume_agent_workflow`, invoked from `submit_confirmation_decision`. The webhook consumer is #1708. A run that enters `waiting_external` here can only be reaped, and that is the honest, intended shape."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the worktree root with PYTHONPATH pinned to the worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite. A CHECK constraint IS the assertion here: SQLite does not enforce these and would let a forbidden status insert silently, proving the exact opposite of what the test claims. The dual-language half additionally needs the node toolchain and `packages/contracts`' dependency graph installed, because `tests/unit/test_agent_events_contract.py` shells out to `node -e` and `require(\"typescript\")` — without it, it fails with a bare CalledProcessError rather than skipping, which reads as a product defect. The reaper is exercised as the REAL `reap_workflow_runs` with no `policy=` injected. Post-deploy: `alembic upgrade head` on the candidate, then `/health` and one authenticated run-list read; no public traffic reaches a candidate task set and no production write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the reaper half runs only in the Celery beat/worker pair; with workers disabled the candidate cannot demonstrate that an externally-waiting run survives the approval timer, which is the point of the slice. apiSideEffectsInScope is FALSE: no vendor call, no production write, and the only rows written are this shop's own `workflow_runs`.",
+    "journeys": [
+      {
+        "name": "a-run-can-wait-on-the-world-and-only-its-own-timer-reaps-it",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1706",
+        "assertions": [
+          "pre-merge: the enum, the `ck_workflow_runs_status` CHECK, the TypeScript `WORKFLOW_RUN_STATUSES` union, the status-mapping totality test and `NON_TERMINAL_STATUSES` ALL agree on the eight statuses, and the totality test passes IN BOTH DIRECTIONS with a named suspending stop reason targeting `waiting_external` — asserted against the live Postgres catalog for the CHECK and through the dual-language node introspection for the TS union, never against the migration's own source text (tests/unit/test_workflow_run_status_mapping.py, extended)",
+          "pre-merge: THE EQUALITY THE ISSUE ASSUMES DOES NOT EXIST YET AND MUST BE ADDED. `tests/unit/test_agent_events_contract.py` today asserts only `test_workflow_failed_stop_reason_to_status_mapping_matches_python_for_all_twelve_members` — the twelve-member FAILURE subset — and NOTHING anywhere asserts that `WORKFLOW_RUN_STATUSES` equals `WorkflowRunStatus`. Add that dual-language equality assertion in this slice and prove it fails when either side is edited alone",
+          "pre-merge: the STALE vitest assertion is fixed or removed with a stated reason. `packages/contracts/src/__tests__/agent-events.test.ts` asserts `expect(STOP_REASONS).toHaveLength(13)` while the array in `agent-events.ts` already holds SIXTEEN members — that test is red today and nothing in `.github/workflows/pr.yml` runs vitest for `packages/contracts`, which is why nobody noticed. Do not add a ninth status on top of a length assertion that is already wrong",
+          "pre-merge: a run in `waiting_external` under a policy with a 72 h `external_wait_timeout_h` is UNTOUCHED by the reaper at 5 h and ends `external_wait_expired` at 73 h — asserted through the REAL `reap_workflow_runs` with NO `policy=` argument passed, so per-run resolution is exercised as the default path (tests/unit/test_reaper_external_wait.py::test_external_wait_is_reaped_by_its_own_timeout_not_the_approval_timeout)",
+          "pre-merge: the same run is NOT reaped by `approval_timeout_h` — set the workflow's approval timeout to 4 h, advance past it, and assert the externally-waiting run survives; this is the assertion that distinguishes a real per-state timer from a renamed one",
+          "pre-merge: a policy with `external_wait_timeout_h = None` REFUSES `enter_external_wait` with a named error, so `optimize_product_2` cannot enter the state at all (tests/unit/test_reaper_external_wait.py::test_workflow_without_external_wait_cannot_enter_it)",
+          "pre-merge: the wall-clock budget is PAUSED while waiting — a run that waits 72 h and then resumes still has its 300 s working budget, asserted on the elapsed value the runner computes, never on wall-clock arithmetic in the test",
+          "pre-merge: the active-run partial unique's decision is proven, not implied — with a run parked in `waiting_external` for a subject, inserting a second non-terminal run for the SAME `(shop_id, workflow_key, subject_type, subject_ref)` either collides (the WHERE clause was widened) or does not (it was not), and the PR states which was chosen and why; a silent loss of the subject's active-run slot is the failure this assertion exists to catch",
+          "pre-merge: ZERO behaviour change for `optimize_product_2` — the recorded run golden `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` passes untouched, and `tests/unit/test_agent_events_contract.py`'s existing eight-event-type and payload-field-set assertions are unchanged",
+          "pre-merge: `alembic upgrade head`, then `downgrade -1`, then `upgrade head` round-trips cleanly on a real Postgres 16 already at the current tip, and the previous release's code reads and writes `workflow_runs` unchanged with the widened CHECK present",
+          "post-deploy: `alembic upgrade head` on the candidate applies the CHECK alteration, then `/health` and one authenticated `GET /demo/runs` read return byte-identical shape to before the upgrade — the widened CHECK is a no-op for the running process, which never writes the new value"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page or bundle changes. `packages/contracts/src/agent-events.ts` IS touched — for the status union only, per the issue — but it is a TypeScript source module consumed by the dual-language contract test, not a served static asset; nothing under apps/ or ios/ is touched. Verify the contracts package still type-checks (`tsc --noEmit`) rather than treating it as an asset."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "alembic-history",
+      "postgres-catalog-dump",
+      "typescript-contract-report"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "ONE ADDITIVE, EXPAND-ONLY migration that WIDENS two CHECK constraints and drops nothing. `ck_workflow_runs_status` gains `'waiting_external'`; `ck_workflow_runs_stop_reason` gains `'external_wait_expired'` (21 chars, inside `String(32)`) and the suspending reason Meta names. A widened IN-list accepts every value it accepted before, so the PREVIOUS release keeps writing and reading `workflow_runs` unchanged — it simply never emits the new values. No column is added, dropped, renamed or retyped; there is no backfill and no NOT NULL. The same two constraint texts also live in `models.py::WorkflowRun.__table_args__` and must move in the SAME commit, or the schema-parity test finds the drift after the fact. If the active-run partial index's WHERE clause is widened to include `waiting_external`, that index change rides this same migration and is called out separately in the PR — it changes which rows collide, which is a behaviour change wearing a schema change's clothes. The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. `WorkflowRunStatus` keeps its seven members, the reaper keeps one timer, `TerminationPolicy` has no external-wait field, and no run can wait on anything but a person for four hours. Clear Excess and Replenish stay blocked, which is the pre-existing state the ladder names. Nothing is exposed, nothing is partially applied, no data hazard.",
+    "postCutoverFailureBehavior": "Redeploy the previous release FIRST and restart juli-api and juli-celery-worker: the previous code neither writes nor recognises `waiting_external`, so it runs correctly against the widened CHECK and needs no downgrade. Only if the schema must ALSO be reverted, `alembic downgrade -1` narrows the two CHECK constraints back — and that downgrade MUST FAIL LOUDLY with an explicit named error, never silently delete or coerce a row, when ANY `workflow_runs` row has `status = 'waiting_external'` or `stop_reason = 'external_wait_expired'` (and, if #1701's schema is being reverted in the same operation, when any row carries a non-product `subject_type` or a NULL `product_id`). Narrowing a CHECK under live rows would otherwise either fail opaquely at constraint validation or tempt an operator into deleting suspended runs. Both refusals are asserted PRE-MERGE, not discovered in production. Order: previous code first, downgrade second, so no live process is mid-write against a constraint being narrowed. A run left in `waiting_external` across a code-only rollback is inert: the previous reaper does not recognise the state and will not reap it, so drain or reap those runs deliberately before narrowing.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_workflow_run_status_mapping.py tests/unit/test_reaper_external_wait.py -q",
+    "pnpm install --frozen-lockfile --filter \"./packages/contracts...\"   # required or the dual-language contract test fails with CalledProcessError, not a skip",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_events_contract.py -q",
+    "pnpm --filter @juli/contracts type-check && pnpm --filter @juli/contracts test",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_runs_list.py tests/unit/test_golden_scenario_capture_from_real_runner.py tests/integration/test_schema_parity.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake. This slice DOES carry a migration, so the reservation is binding, not advisory.",
+    "Do NOT add `waiting_external` to `NON_TERMINAL_STATUSES`. That frozenset means 'no stop_reason can structurally target this state' and holds exactly `QUEUED`/`RUNNING`. `waiting_external` is SUSPENDED, like `waiting_approval`, and needs its own suspending stop reason — Meta names it; do not invent one silently and do not dodge the reverse-totality assertion by widening the exception set.",
+    "Do NOT split the five pinned places across slices. Enum, DB CHECK (model AND migration), TypeScript union, status-mapping totality test and `NON_TERMINAL_STATUSES` move in ONE commit. The 2026-09-05 verification lists this as a five-place change precisely because a four-place version passes tests and breaks the wire.",
+    "Do NOT assume the TypeScript union already equals the backend enum. It is asserted by NOTHING today: `tests/unit/test_agent_events_contract.py` compares only the twelve-member failure subset, and `packages/contracts/src/__tests__/agent-events.test.ts` carries a stale `toHaveLength(13)` against a sixteen-member array that vitest is never run against in `pr.yml`. Add the equality assertion; do not cite the existing test as though it already covered this.",
+    "Do NOT add a second reaper policy object. `external_wait_timeout_h` is one additive field on the existing `TerminationPolicy` (`services/agent/playbooks/base.py`), resolved per run through #1702's registry via the existing `policy=` seam on `reap_workflow_runs`. A parallel policy type, a second `_DEFAULT_*` constant or a reaper-local config dict would give the fleet two answers to one question.",
+    "Do NOT reap an externally-waiting run by `approval_timeout_h`. That is S-NFR-6's named defect and the reason this slice exists; a shared timer with a renamed field is not a fix.",
+    "Do NOT build a resume path here. `resume_agent_workflow` keeps its single caller (`api/routes/agent_runs.py::_enqueue_resume_agent_workflow` from `submit_confirmation_decision`); the webhook-to-run dispatcher is #1708. Shipping a consumer whose producer is unreviewed is the exact failure this wave exists to prevent.",
+    "Do NOT let `optimize_product_2` enter the state. Its `TerminationPolicy` keeps `external_wait_timeout_h = None`, and zero behaviour change is proven by the recorded run golden `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` and the prompt golden `tests/fixtures/agent_prompt_gates/optimize_product_v3_composed.golden.md` passing untouched.",
+    "Do NOT widen the active-run partial index by accident. Decide deliberately whether `waiting_external` holds the subject's active-run slot, state it in the PR, and assert it — a silent loss of the slot would let a second run start on a subject a suspended run still owns and would undermine #1710 before it is written.",
+    "Do NOT derive the subject from revenue, do NOT emit a per-order card, and do NOT reuse the emission-budget suppression vocabulary (`active_cap`/`cooldown`/`weekly_novelty_cap`) — none of that belongs in a status slice.",
+    "Do NOT add a push, email or Zalo transport. A run entering or leaving `waiting_external` notifies nobody in this slice; `services/alerts/` has no callers and `FcmAdapter._deliver` is a `fcm_send_stub`. In-app act records are #1712/#1713.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); beyond `packages/contracts/src/agent-events.ts` (the status union only), do NOT touch apps/**, packages/** or ios/**.",
+    "Bind every test collaborator to the REAL object's signature — the real `TerminationPolicy`, the real `reap_workflow_runs`, the real runner transition. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

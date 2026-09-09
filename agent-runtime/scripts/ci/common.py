@@ -88,15 +88,97 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
         fh.write("\n")
 
 
+class SchemaValidationError(Exception):
+    """Raised when artifact payload fails schema validation."""
+
+    def __init__(self, artifact_type: str, errors: list[str]) -> None:
+        self.artifact_type = artifact_type
+        self.errors = errors
+        msg = f"schema validation failed for {artifact_type} artifact:\n"
+        msg += "\n".join(f"  {error}" for error in errors)
+        super().__init__(msg)
+
+
+def load_artifact_schema(artifact_type: str) -> dict[str, Any]:
+    """Load the JSON schema for a given artifact type."""
+    schema_name_map = {
+        "implementation": "implementation-artifact.schema.json",
+        "review": "review-artifact.schema.json",
+        "intent_review": "intent-review-artifact.schema.json",
+        "validation": "validation-artifact.schema.json",
+    }
+    schema_name = schema_name_map.get(artifact_type)
+    if not schema_name:
+        raise ValueError(f"unknown artifact type: {artifact_type}")
+    schema_path = AGENT_RUNTIME_ROOT / "docs" / "schemas" / schema_name
+    if not schema_path.exists():
+        raise FileNotFoundError(f"schema not found: {schema_path}")
+    return load_json(schema_path)
+
+
+def check_token_usage_semantic(token_usage: Any) -> list[str]:
+    """Semantic validation of tokenUsage to mirror check_implementation_artifact.
+
+    The schema can only check structure. This checks the semantic constraint:
+    - If measured (no 'available' key), total must be > 0 (not 0, not negative)
+    - If unmeasured (available: false), total must not be present
+
+    Returns list of error messages (empty when valid).
+    """
+    errors: list[str] = []
+    if not isinstance(token_usage, dict):
+        return errors  # Schema handles this
+
+    if "available" in token_usage:
+        if token_usage.get("available") is False:
+            if "value" in token_usage:
+                errors.append(
+                    "tokenUsage: carries 'value' alongside available:false — "
+                    "the unavailable shape omits the key so a consumer that skips "
+                    "the check raises rather than reading a plausible number"
+                )
+            # Schema handles other validation of unavailable branch
+        return errors
+
+    # Measured branch: total must be > 0
+    total = token_usage.get("total")
+    if isinstance(total, int) and not isinstance(total, bool):
+        if total <= 0:
+            errors.append(
+                "tokenUsage.total is 0, which reads as a measurement and is not one — "
+                "record {available: false, reason: '...'} (no 'value' key) when the run "
+                "was not measured, or {input, output, total} when it was"
+            )
+    return errors
+
+
+def write_json_with_schema_validation(
+    path: Path, payload: dict[str, Any], artifact_type: str
+) -> None:
+    """Write JSON with schema validation. Raises SchemaValidationError if invalid."""
+    from json_schema_validate import validate_json_schema
+
+    schema = load_artifact_schema(artifact_type)
+    errors = validate_json_schema(payload, schema)
+
+    # Add semantic validation for implementation artifacts
+    if not errors and artifact_type == "implementation":
+        token_usage = payload.get("tokenUsage")
+        if token_usage is not None:
+            semantic_errors = check_token_usage_semantic(token_usage)
+            if semantic_errors:
+                errors.extend([f"tokenUsage: {err}" for err in semantic_errors])
+
+    if errors:
+        raise SchemaValidationError(artifact_type, errors)
+    write_json(path, payload)
+
+
 def deep_merge_under(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
     """Recursively merge overlay into base; overlay values win at every level."""
     result = dict(base)
     for key, value in overlay.items():
-        if (
-            key in result
-            and isinstance(result[key], dict)
-            and isinstance(value, dict)
-        ):
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
             result[key] = deep_merge_under(result[key], value)
         else:
             result[key] = value
@@ -193,27 +275,110 @@ def git_current_branch() -> str | None:
         return None
 
 
-def git_changed_files(base_ref: str | None = None) -> list[str]:
-    """Return paths changed on this branch vs merge base (or working tree)."""
+class ChangedFilesUnresolved(RuntimeError):
+    """The changed-file set could not be determined (#1571).
+
+    Distinct from an empty diff *by construction*: ``[]`` means "nothing
+    changed", this means "the question could not be answered". The old code
+    returned ``[]`` for both, and every diff-driven gate read that as
+    "no relevant change -> nothing to check -> PASS".
+
+    Callers must degrade to a recorded failure carrying ``reason`` -- never to a
+    silent pass, and never to a guessed diff. This mirrors how the neighbouring
+    bootstrap-pin gate degrades (``harness_bootstrap_pin.py``, #1540): two gates
+    answering the same question degrade the same way.
+    """
+
+    def __init__(self, spec: str, reason: str) -> None:
+        super().__init__(f"changed-file set unresolved for {spec}: {reason}")
+        self.spec = spec
+        self.reason = reason
+
+
+def _git_capture(args: list[str], repo_root: Path) -> tuple[bool, str, str]:
+    """Run a git subcommand, returning ``(ok, stdout, stderr)`` without raising."""
     try:
-        if base_ref:
-            cmd = ["git", "diff", "--name-only", f"{base_ref}...HEAD"]
-        else:
-            base = os.environ.get("GITHUB_BASE_REF")
-            if base:
-                subprocess.run(
-                    ["git", "fetch", "origin", base, "--depth=1"],
-                    cwd=REPO_ROOT,
-                    check=False,
-                    capture_output=True,
-                )
-                cmd = ["git", "diff", "--name-only", f"origin/{base}...HEAD"]
-            else:
-                cmd = ["git", "diff", "--name-only", "HEAD"]
-        out = subprocess.check_output(cmd, cwd=REPO_ROOT, stderr=subprocess.DEVNULL, text=True, encoding="utf-8")
-        return [line.strip() for line in out.splitlines() if line.strip()]
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return []
+        proc = subprocess.run(
+            ["git", *args],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+    except OSError as exc:  # includes FileNotFoundError when git is absent
+        return False, "", f"git CLI unavailable: {exc}"
+    if proc.returncode != 0:
+        return False, proc.stdout or "", (proc.stderr or "").strip()
+    return True, proc.stdout or "", ""
+
+
+def _git_diff_names(spec: str, repo_root: Path) -> list[str]:
+    ok, out, err = _git_capture(["diff", "--name-only", spec], repo_root)
+    if not ok:
+        raise ChangedFilesUnresolved(spec, err or "git diff failed")
+    return [line.strip() for line in out.splitlines() if line.strip()]
+
+
+def _merge_base_exists(left: str, right: str, repo_root: Path) -> bool:
+    ok, _, _ = _git_capture(["merge-base", left, right], repo_root)
+    return ok
+
+
+def _repo_is_shallow(repo_root: Path) -> bool:
+    ok, out, _ = _git_capture(["rev-parse", "--is-shallow-repository"], repo_root)
+    return ok and out.strip() == "true"
+
+
+def _deepen_base(base: str, repo_root: Path) -> tuple[bool, str]:
+    """Fetch ``base`` with its history intact.
+
+    Never ``--depth=1``: truncating the base ref is the #1571 defect itself. A
+    depth-1 graft leaves ``origin/<base>`` resolvable *by name* while destroying
+    the history behind it, so the three-dot diff that follows aborts with "no
+    merge base". Deepen on demand instead, and report unresolvability honestly
+    when even that fails.
+    """
+    refspec = f"+refs/heads/{base}:refs/remotes/origin/{base}"
+    if _repo_is_shallow(repo_root):
+        ok, _, err = _git_capture(
+            ["fetch", "--unshallow", "--no-tags", "origin", refspec], repo_root
+        )
+        if ok:
+            return True, ""
+    else:
+        err = ""
+    ok, _, plain_err = _git_capture(["fetch", "--no-tags", "origin", refspec], repo_root)
+    return ok, plain_err or err
+
+
+def _changed_vs_base(spec: str, repo_root: Path, fetch_ref: str | None) -> list[str]:
+    if not _merge_base_exists(spec, "HEAD", repo_root):
+        # Only touch the network when the question cannot already be answered.
+        # A base that already resolves is queried without mutating the
+        # repository at all -- a read-only query stays read-only.
+        if fetch_ref is None:
+            raise ChangedFilesUnresolved(spec, "shares no merge base with HEAD")
+        ok, err = _deepen_base(fetch_ref, repo_root)
+        if not _merge_base_exists(spec, "HEAD", repo_root):
+            if not ok:
+                raise ChangedFilesUnresolved(spec, err or "git fetch failed")
+            raise ChangedFilesUnresolved(spec, "fetched, but shares no merge base with HEAD")
+    return _git_diff_names(f"{spec}...HEAD", repo_root)
+
+
+def git_changed_files(base_ref: str | None = None, repo_root: Path | None = None) -> list[str]:
+    """Return paths changed on this branch vs merge base (or working tree).
+
+    Raises :class:`ChangedFilesUnresolved` when the answer cannot be determined.
+    An empty list is reserved for the genuine answer "nothing changed".
+    """
+    root = repo_root or REPO_ROOT
+    if base_ref:
+        return _changed_vs_base(base_ref, root, fetch_ref=None)
+    base = os.environ.get("GITHUB_BASE_REF")
+    if base:
+        return _changed_vs_base(f"origin/{base}", root, fetch_ref=base)
+    return _git_diff_names("HEAD", root)
 
 
 def parse_architecture_map(path: Path | None = None) -> dict[str, ModuleInfo]:
@@ -630,22 +795,94 @@ def legacy_warning_to_finding(warning: dict[str, Any]) -> dict[str, Any]:
     return finding
 
 
-def normalize_review_findings(artifact: dict[str, Any]) -> list[dict[str, Any]]:
-    """Merge ``criticalFindings`` with legacy ``warnings[]`` into one canonical list."""
-    findings: list[dict[str, Any]] = list(artifact.get("criticalFindings") or [])
-    legacy = artifact.get("warnings") or []
-    if not legacy:
-        return findings
+# #1601: the review-artifact schema defines five finding arrays --
+# ``criticalFindings``, ``findings``, ``securityFindings``, ``architectureFindings``,
+# and ``maintainabilityFindings``. ``enrich_review_artifact`` derives the latter
+# four from ``criticalFindings`` as identity-preserving subsets, so in the
+# generated-via-the-pipeline case reading only ``criticalFindings`` changes
+# nothing. But nothing enforces that derivation on every writer: a reviewer (or
+# a hand-authored artifact) can write straight into ``findings`` -- the name
+# that most invites it -- without ever touching ``criticalFindings``, and every
+# finding-related gate reads only ``normalize_review_findings``'s output.
+# Ordered so ``criticalFindings`` wins identity ties (it is the canonical
+# store); the rest is deliberately every other schema-declared *Findings array,
+# not a hand-picked subset -- `test_schema_finding_arrays_all_have_a_reader`
+# fails if the schema grows a sixth one this tuple doesn't name.
+FINDING_ARRAY_KEYS: tuple[str, ...] = (
+    "criticalFindings",
+    "findings",
+    "securityFindings",
+    "architectureFindings",
+    "maintainabilityFindings",
+)
 
-    seen = {f.get("description") for f in findings if f.get("description")}
+
+def _finding_identity(finding: dict[str, Any]) -> Any:
+    """Identity key for de-duplicating findings across arrays.
+
+    ``id`` wins when present. Otherwise the key is the tuple
+    ``(severity, type, description, module)`` -- not ``description`` alone.
+
+    Two findings that merely share description text are not necessarily the
+    same finding: different severity, type, or module means a reviewer found
+    two distinct things that happen to describe the same symptom (e.g. a
+    WARNING maintainability note in one module and a CRITICAL security finding
+    in another, both worded "input validation gap"). Matching on description
+    alone silently drops whichever one loses the set-membership race --
+    including, in the reported case, the CRITICAL.
+
+    The benign case -- ``enrich_review_artifact`` deriving ``findings``/
+    ``securityFindings``/``architectureFindings``/``maintainabilityFindings``
+    from ``criticalFindings`` as literal copies -- still dedups correctly
+    under this key, because a derived copy shares every field (severity,
+    type, description, module) with its source by construction, not just its
+    description.
+    """
+    identity = finding.get("id")
+    if identity:
+        return ("id", identity)
+    return (
+        "fields",
+        finding.get("severity"),
+        finding.get("type"),
+        finding.get("description"),
+        finding.get("module"),
+    )
+
+
+def normalize_review_findings(artifact: dict[str, Any]) -> list[dict[str, Any]]:
+    """Merge every schema-defined finding array with legacy ``warnings[]`` into
+    one canonical, de-duplicated list.
+
+    De-duplication matters because the four non-``criticalFindings`` arrays are
+    normally derived *copies* of ``criticalFindings`` entries (same ``id`` and
+    fields) -- merging them naively would double-count every finding and
+    inflate ``warningCount``/``criticalCount`` in gate output. A finding is
+    kept once, at its first occurrence, in ``FINDING_ARRAY_KEYS`` order, keyed
+    by ``_finding_identity`` -- which is deliberately *not* description alone,
+    so two findings that only share description text (different severity,
+    type, or module) are never collapsed into one.
+    """
+    findings: list[dict[str, Any]] = []
+    seen: set[Any] = set()
+    for key in FINDING_ARRAY_KEYS:
+        for finding in artifact.get(key) or []:
+            if not isinstance(finding, dict):
+                continue
+            identity = _finding_identity(finding)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            findings.append(finding)
+
+    legacy = artifact.get("warnings") or []
     for warning in legacy:
         converted = legacy_warning_to_finding(warning)
-        description = converted.get("description")
-        if description and description in seen:
+        identity = _finding_identity(converted)
+        if identity in seen:
             continue
         findings.append(converted)
-        if description:
-            seen.add(description)
+        seen.add(identity)
     return findings
 
 
@@ -749,13 +986,11 @@ def mandatory_fail_reasons(artifact: dict[str, Any]) -> list[str]:
     for finding in findings:
         if finding.get("type") == "security" and finding.get("severity") == "CRITICAL":
             reasons.append(
-                "CRITICAL security finding (no override): "
-                f"{finding.get('description', '')[:120]}"
+                f"CRITICAL security finding (no override): {finding.get('description', '')[:120]}"
             )
         if finding.get("type") in ("production_data_exposure", "data_exposure"):
             reasons.append(
-                "production data exposure (no override): "
-                f"{finding.get('description', '')[:120]}"
+                f"production data exposure (no override): {finding.get('description', '')[:120]}"
             )
 
     unit = artifact.get("testCoverage", {}).get("unit", {})
@@ -923,20 +1158,14 @@ def enrich_review_artifact(
     artifact["reviewFailures"] = review_failures
     artifact["findings"] = findings
     artifact["severity"] = aggregate_severity
-    artifact["securityFindings"] = [
-        f for f in findings if f.get("type") == "security"
-    ]
+    artifact["securityFindings"] = [f for f in findings if f.get("type") == "security"]
     artifact["architectureFindings"] = [
-        f
-        for f in findings
-        if f.get("type") in ("boundary_violation", "interface_change", "drift")
+        f for f in findings if f.get("type") in ("boundary_violation", "interface_change", "drift")
     ]
     artifact["maintainabilityFindings"] = [
         f for f in findings if f.get("type") in ("test_gap", "other", "drift")
     ]
-    artifact["suggestedRemediation"] = [
-        s for f in findings if (s := f.get("suggestion"))
-    ]
+    artifact["suggestedRemediation"] = [s for f in findings if (s := f.get("suggestion"))]
     artifact.setdefault("staticAnalysisExecuted", True)
     unit = artifact.get("testCoverage", {}).get("unit", {})
     artifact.setdefault("dynamicTestsExecuted", bool(unit.get("passed") or unit.get("failed")))

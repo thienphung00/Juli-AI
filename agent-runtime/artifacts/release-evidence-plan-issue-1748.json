@@ -1,0 +1,81 @@
+{
+  "planId": "rep-1748-oauth-state-required",
+  "affectedPublicSurfaces": [
+    "GET /v1/auth/tiktok/callback \u2014 the unauthenticated OAuth edge"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "/v1/auth/tiktok/callback on the candidate",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "missing-state-is-refused-in-production",
+        "entryUrl": "GET /v1/auth/tiktok/callback?code=x",
+        "assertions": [
+          "401, not 502 \u2014 the exchange is never attempted",
+          "no user row is created, no shop provisioned, no credential persisted",
+          "the refusal names the missing state parameter"
+        ]
+      },
+      {
+        "name": "a-forged-state-is-still-refused",
+        "entryUrl": "GET /v1/auth/tiktok/callback?code=x&state=forged",
+        "assertions": [
+          "401, unchanged from before the fix"
+        ]
+      },
+      {
+        "name": "app-review-flow-is-not-broken-outside-production",
+        "entryUrl": "the same callback with no state, ENVIRONMENT != production",
+        "assertions": [
+          "the no-state path is still reachable, so TikTok app review keeps working"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: API-only change, no HTML route"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. A guard on an existing route; the only behaviour change is that a production callback with no state is refused instead of provisioning."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "revert to the prior sha; the callback returns to accepting a stateless production callback, which is the defect this fixes",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest -q tests/unit/test_oauth_state_required.py",
+    "python agent-runtime/scripts/ci/check_artifact_retention_guard.py --issue 1748"
+  ],
+  "doNotInfer": [
+    "Do not make the guard unconditional \u2014 TikTok's app-review callback carries no state, and refusing it everywhere breaks app review",
+    "Do not read this as closing the whole finding: the threat model still states 'State parameter validated' without recording the app-review exception",
+    "Do not re-use the Observation 2 attestation for the new sha \u2014 #1339 binds an attestation to the deployed sha, so boundary 1 must be re-probed after this deploys"
+  ]
+}

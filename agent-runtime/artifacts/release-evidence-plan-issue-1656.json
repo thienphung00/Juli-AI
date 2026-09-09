@@ -1,0 +1,94 @@
+{
+  "planId": "three-metrics-three-sources-three-denominators-2026-09-07",
+  "affectedPublicSurfaces": [
+    "Three NEW metric functions, each with its own source and its own denominator, and no function anywhere that returns a combined figure: (1) Recommendation quality — scoring signals against subsequent observed outcomes, denominator 'recommendations WITH an observed outcome', reached through #1655's outcome chain; (2) Approval rate — `action_cards` seller-decision counts, denominator 'cards surfaced' (the `surfaced_at` / `suppressed_reason` emission-budget columns migration 027 added, `services/action_cards/emission_budget.py`); (3) Execution quality — `workflow_runs.stop_reason` distribution plus `workflow_runs.required_steps_completed` (the outcome fact #1220 added expressly as 'the did-the-job signal feeding the execution-quality metric'), denominator 'runs started'.",
+    "The refusal IS the surface: there must exist NO function, field, endpoint or return value that blends the three into one score. A single number is the one artefact that lets a good approval rate hide a bad business impact, and it is the first thing a stakeholder will ask for. Each metric carries its own denominator so it cannot be silently combined.",
+    "Each metric's return shape is public contract: numerator AND denominator, not a bare ratio — a bare ratio hides an n of 3. And an EMPTY denominator returns an explicit no-data state, never `0` and never `0%`; zero-as-a-number is a claim about the world and an absent measurement is not (the dishonesty #1226 forbids by name).",
+    "The seller-decision vocabulary this metric must read is `action_cards.status`, whose values in the tree today are `active`, `approved`, `dismissed` and `executing` (`services/action_cards/persist.py::IN_FLIGHT_STATUSES`), with `approved_at` / `dismissed_at` / `executed_at` / `surfaced_at` timestamps. There is NO `rejected` and NO `expired` card status. Card-level expiry does not exist; the only expiry in the tree is RUN-level (`StopReason.CONFIRMATION_EXPIRED`, the 4h reaper on `RunConfirmation`). Criterion 5's 'expire counted distinctly from reject' must therefore be satisfied against what exists, and the mapping stated plainly, not by inventing a status value.",
+    "No HTTP route changes and no new endpoint. Trends, alerting, thresholds and rendering are explicitly not in W8; these functions compute, they do not judge and they do not render."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run from the worktree root with PYTHONPATH pinned to the worktree's backend/src, against a real Postgres migrated to head — never SQLite, because the metrics are aggregate queries over `action_cards`, `workflow_runs` and the chain, and the empty-denominator behaviour depends on what an aggregate over zero rows actually returns in Postgres (a `SUM` over no rows is NULL, not 0, and that difference is this slice's central honesty rule). Post-deploy: operator-only invocation on the candidate against the sandbox shop; read-only aggregates, no write, no vendor call, no public traffic to a candidate task set.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "The metrics are read-only aggregates over rows other slices wrote; nothing here mutates state, calls a vendor, or touches a production shop (the standing owner decision of 2026-08-21 holds). syntheticShopRequired is FALSE because the assertions are driven by SEEDED populations designed to disagree with each other — a live run cannot be arranged to produce a high approval rate and a low execution quality on demand, which is exactly what criterion 2 requires. workersDisabledOnCandidate is FALSE only because the single-VPS candidate has no separate task set to disable; no worker behaviour is exercised or depended on by this slice.",
+    "journeys": [
+      {
+        "name": "three-sources-that-disagree-and-a-denominator-that-can-be-empty",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1656",
+        "assertions": [
+          "pre-merge: each metric is computed from its OWN source — a test mutates exactly one source (add `action_cards` rows, or change `workflow_runs.stop_reason`/`required_steps_completed`, or change the observed outcomes behind recommendation quality) and asserts the OTHER TWO values are byte-identical to before; run for all three sources, so no metric secretly reads another's rows",
+          "pre-merge: a seeded dataset where approval rate is HIGH and execution quality is LOW produces exactly that — two separate values, asserted separately, with the high one still high and the low one still low; no averaging, no smoothing, no shared scale",
+          "pre-merge: no code path returns a combined figure — asserted structurally over the module's public surface (no aggregate/overall/score/composite return value, no function taking all three), so the refusal is enforced by a test and not only by review",
+          "pre-merge: each metric reports its NUMERATOR and its DENOMINATOR alongside any ratio — asserted by reading the numerator and denominator off the result, so an n of 3 is visible; a return value that is only a float fails",
+          "pre-merge: the three denominators are DIFFERENT populations and are asserted to be so on one shared dataset — 'recommendations with an observed outcome', 'cards surfaced' and 'runs started' produce three different counts; a test that they are not silently the same value guards the shared-denominator mistake the issue names",
+          "pre-merge: a metric with an EMPTY denominator returns an explicit no-data state, asserted to be NOT EQUAL to the state returned for a genuine numerator of zero over a non-empty denominator — 'we measured nothing' and 'we measured no successes' are different facts, and the test asserts the inequality, not just the presence of a marker",
+          "pre-merge: approval rate counts an EXPIRED decision distinctly from a seller's explicit negative decision — asserted with a seeded expiry and a seeded negative, producing two separately readable counts, because a seller who ran out of time did not disagree with Juli and collapsing them overstates disagreement",
+          "pre-merge: the seller-decision mapping is asserted against the ACTUAL `action_cards.status` vocabulary in the tree (`active`/`approved`/`dismissed`/`executing`) and the actual expiry signal available (`StopReason.CONFIRMATION_EXPIRED` at run level) — no invented status value, no assumption that a `rejected` or `expired` card status exists",
+          "pre-merge: execution quality reads `workflow_runs.required_steps_completed` as the independent outcome fact #1220 made it, and does NOT derive it from or fold it into `stop_reason` — a run with `stop_reason=final_response` and `required_steps_completed=False` is counted as a run that did not do the job, which is precisely the case #1220 preserved",
+          "pre-merge: a run with `required_steps_completed IS NULL` ('not yet determined') is not counted as either a success or a failure — it is excluded from the numerator AND named in the result, never silently folded into the denominator's failures",
+          "post-deploy: on the candidate, all three metrics compute against the sandbox shop and return their own numerator/denominator pairs; where a denominator is genuinely empty the result is the explicit no-data state and never `0`"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is backend Python (three metric functions and their queries) plus tests. Rendering, trends and alerting are explicitly out of W8; the output is a Python/JSON structure, not a page or a chart."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "api-json-response"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO schema change. Every column these three metrics need already exists: `action_cards.status`/`approved_at`/`dismissed_at`/`executed_at`/`surfaced_at`/`suppressed_reason` (migrations 027 and earlier), `workflow_runs.stop_reason` (String(20)/String(32) check-constrained, `services/agent/status.py` is the Python source of truth) and `workflow_runs.required_steps_completed` (migration 037, #1220), plus #1653's rollup columns and #1655's chain, both of which land BEFORE this slice per the epic's landing order (A -> B -> C -> D). This slice is READ-ONLY aggregation and adds no Alembic revision. Stable and candidate are compatible because nothing persisted changes. Do NOT add a status or stop_reason value to satisfy a metric: that is a five-place change (Python enum, DB CHECK, the TS union, the totality tests, the non-terminal set) owned by another lane. If an index proves necessary for an acceptable plan, raise it — it would be additive and expand-only, with the migration number RESERVED by Meta and never computed from head (W6 and W9-A hold unlanded numbers)."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing computes these three metrics from any source today, so holding the merge leaves the pre-existing state: the four questions cannot be answered separately, and the temptation to answer them with one blended number is unaddressed. Nothing is partially applied, no schema moved, no data is at risk.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart juli-api and juli-celery-worker. Read-only and code-only: reverting removes the three metric functions and restores the previous absence of them; there is no schema state, no data effect, no vendor effect and no migration to reverse. Two caveats for the PR: (1) this slice depends on #1653's rollup and #1655's chain having landed first (epic landing order A -> C -> D), so a revert of either upstream must revert this slice with it rather than leave it reading a function or column that no longer exists; (2) if any operator runbook or report has begun quoting these numbers, the revert removes the source and the numbers must not be carried forward from memory — a stale quoted metric is exactly the un-auditable claim this wave exists to eliminate.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_quality_metrics.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -k 'quality_metrics or approval_rate or execution_quality' -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_decision_emission_budget.py tests/unit/test_agent_runner_terminal_persistence.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT produce a blended metric. No combined score, no composite, no overall, no weighted average, no 'health' number — not as a return value, not as a convenience helper, not as a docstring example. The refusal is the requirement, and a structural test enforces it.",
+    "Do NOT share a denominator across metrics. 'Recommendations with an observed outcome', 'cards surfaced' and 'runs started' are three different populations; dividing two of them by one shared count makes both wrong.",
+    "Do NOT return a bare ratio. Every metric returns its numerator and its denominator. A float alone hides an n of 3, which is criterion 3's entire point.",
+    "Do NOT return `0` or `0%` for an empty denominator, and do not let Postgres's NULL-over-zero-rows be coerced to 0 on the way out. The no-data state must be a distinct value, asserted NOT EQUAL to a genuine zero numerator.",
+    "Do NOT invent an `ActionCard` status. The tree has `active`/`approved`/`dismissed`/`executing` — there is no `rejected` and no `expired` card status, and card-level expiry does not exist (run-level `StopReason.CONFIRMATION_EXPIRED` is the only expiry signal). Map criterion 5 onto what exists, state the mapping in the PR, and REPORT the gap. Adding a status value is a five-place change owned by another lane, not a metric's business.",
+    "Do NOT collapse an expiry into a rejection. A seller who ran out of time did not disagree with Juli; collapsing them overstates disagreement and is the specific error criterion 5 names.",
+    "Do NOT derive `required_steps_completed` from `stop_reason`, or fold one into the other. #1220 made it a THIRD independent outcome fact precisely so a `final_response`/`completed` run with unfulfilled required steps stays honest data rather than a synthetic failure.",
+    "Do NOT treat `required_steps_completed IS NULL` as False. NULL means 'not yet determined' and is a different fact from 'determined: not all steps completed'; count it as neither, and say so in the result.",
+    "Do NOT re-derive the outcome chain. Recommendation quality reads #1655's chain query — one call, never a second client-side join across `action_cards`, `tool_executions`, `workflow_outcome_records` and `impact_readings`.",
+    "Do NOT count a `suppressed` or `confounded` `ImpactReading` as an observed outcome anywhere in recommendation quality. #1226 forbids it by name and #1338 made it structural; reuse the existing exclusion, never a second copy.",
+    "Do NOT compute business impact here. That is #1657 (W8-E), and blending it in is the exact hiding the PRD refuses.",
+    "Do NOT add trends over time, thresholds, alerting, SLOs, judgement, or a rendering surface. This slice computes; judging is not in W8.",
+    "Do NOT touch apps/**, packages/**, ios/** — this epic's doNotLoad list — and do not open the TikTok corpora catalogs (ADR-051).",
+    "Do NOT run these tests on SQLite, and bind test collaborators to real objects' signatures rather than `**kwargs` doubles."
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "planId": "per-shop-maximum-discount-is-a-required-confirmed-setting-2026-09-08",
+  "affectedPublicSurfaces": [
+    "A SHOP-SCOPED SETTINGS ENDPOINT — the one genuinely new HTTP surface in this slice. A read and a write for the per-shop maximum discount land on `backend/src/juli_backend/api/routes/shops.py` (the router already exists) under the EXISTING tenant scoping: the shop comes from `Depends(get_active_shop)`, never from a path or body parameter the caller supplies, and a cross-tenant shop id is a 404 with no existence oracle — the same shape `demo_execution.py::approve` already uses. AuthZ is asserted at the service layer, not only at the router.",
+    "THE BAND IS ENFORCED SERVER-SIDE at that boundary: an integer strictly inside 1–90 inclusive is stored; 0, 91, a non-integer, a float, a string and null are each refused with a validation error and the stored value is UNCHANGED. The UI's client-side check (#1787) is feedback only — the server is the authority, and a test that only exercises the UI validator does not discharge this criterion.",
+    "THE APPROVE BODY gains ONE DECLARED SELLER INPUT. Today `POST /v1/demo/decisions/{action_card_id}/approve` takes NO request body at all (`api/routes/demo_execution.py`, `approve_demo_decision(action_card_id, shop, user, session)`) — #1709 is what introduces the typed body and the `seller_inputs` blob. This slice DECLARES one optional field in that typed body; an approve with an empty body must keep succeeding byte-identically, because every existing caller sends none.",
+    "THE APPROVAL AUDIT SNAPSHOT. The seller-confirmed maximum is recorded in the approval snapshot (`services/agent/approval.py`, whose `_card_snapshot` copies card columns today) and is present in the run state, so the number the run uses is provably the number the seller saw. This is a consent surface, not a convenience field: a value that enters the run without appearing in the snapshot cannot be audited afterwards.",
+    "THE OPTIMIZE PRODUCT CARD carries an AGENT-PROPOSED DEFAULT for the field. 'Proposed' is not 'applied': the proposal is a suggestion the seller must confirm, and until confirmation is persisted the shop has NO maximum. The card payload gains the proposed value; the run reads only the CONFIRMED shop value.",
+    "THE NEGATIVE, which is the hard half and the real public surface: WHILE THE MAXIMUM IS UNSET, NO RUN PROPOSES A DISCOUNT. The price lever is simply unavailable at lever selection — the run continues with a content lever if one has evidence, otherwise it concludes honestly. It never falls back to a default depth, never asks the model to pick one, and never writes a base price instead. At this point in the lane the discount tool does not exist yet (#1778), so the observable consequence today is: no promotion call is attempted and no discount proposal is produced, ever, from an unset shop.",
+    "A PERSISTED PER-SHOP VALUE — additive migration. One nullable per-shop configuration value with the band constraint enforced server-side. NULL means UNSET and unset is a real, first-class state, never coerced to a default at read time. Its MIGRATION NUMBER AND `down_revision` ARE RESERVED BY META and supplied with the issue; they are never read from head.",
+    "Mixed-version hazard, and the reason the migration must be additive: a stable process that predates the column runs beside a candidate that writes it. Stable never reads the column and never proposes a discount (it has no lever); candidate reads NULL for every shop until a seller confirms one. Both are correct on the same database in either order.",
+    "NOT IN SCOPE and not to be built here: the discount tool and the depth computation (#1778), and the settings SCREEN (#1787, ui-ux). Nothing under `apps/`, `packages/` or `ios/` is touched — this epic's doNotLoad list."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the worktree root with `PYTHONPATH` pinned to that worktree's own `backend/src`, against a REAL Postgres 16 — never SQLite — WITH THE MIGRATION APPLIED FORWARD ON A COPY OF THE CURRENT SCHEMA, not on a schema built from `metadata.create_all`, so the band constraint, the nullability and the tenant scoping are proven against the object the database will actually hold. Tenant isolation is asserted under real per-shop context, and the approve route is exercised through the REAL FastAPI route object and the REAL shop row, never a hand-built request dict. Post-deploy: the candidate's `/health`, ONE authenticated `GET` of the shop settings returning the UNSET state, and ONE existing approve with an EMPTY body succeeding unchanged. No public traffic reaches a candidate task set and no vendor write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is FALSE: this slice makes no vendor call of any kind — it persists and reads a Juli-side setting and refuses a lever. workersDisabledOnCandidate is FALSE because the lever-selection assertion runs inside `WorkflowRunner`, which executes in the Celery worker; disabling workers on the candidate would make the load-bearing negative assertion unobservable.",
+    "journeys": [
+      {
+        "name": "the-shop-maximum-is-required-tenant-scoped-and-its-absence-removes-the-price-lever",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1775",
+        "assertions": [
+          "pre-merge (GIVEN no maximum set / THEN no discount proposal, content lever still proceeds): `tests/unit/test_shop_maximum_discount.py::test_no_discount_proposal_while_the_maximum_is_unset` drives a real run on a shop whose value is NULL and asserts (a) no discount proposal is produced, (b) ZERO promotion calls are attempted — asserted on the transport fake's recorded requests, so a call that is made and then discarded still fails, (c) a content lever WITH evidence still proceeds to CONFIRM, and (d) no default depth appears anywhere in the run state",
+          "pre-merge (GIVEN the endpoint / THEN band enforced and value round-trips): `::test_band_is_enforced_at_the_boundary_and_value_round_trips` submits 0, 91, a non-integer, a float and a string through the REAL route and asserts each is refused with a validation error AND that a re-read shows the STORED VALUE UNCHANGED — the unchanged-after-refusal half is the one a status-code-only assertion misses; then a value inside 1–90 is stored and read back per shop",
+          "pre-merge (the band is server-side, not only in a model): the same refusals hold when the value is written through the service layer directly, so the constraint cannot be bypassed by any caller that skips the router",
+          "pre-merge (GIVEN a card default approved / THEN persisted, in state, audited): `::test_seller_confirmed_maximum_is_persisted_and_audited` approves through the REAL approve route carrying the field in #1709's typed body and asserts the confirmed value is persisted on the shop, present in `workflow_runs.state`, AND present in the approval audit snapshot — all three, since a value that reaches the run without reaching the snapshot is unauditable",
+          "pre-merge (BACKWARD COMPATIBILITY of the approve body, the assertion most likely to be skipped): an approve with an EMPTY body still returns 202 with the same response shape as today, proving the new field is genuinely optional and no existing caller breaks",
+          "pre-merge (GIVEN two shops / THEN each reads only its own): `::test_maximum_is_tenant_scoped` asserts under real per-shop context that neither shop can read or write the other's value, and that a cross-tenant read is a 404 rather than a 403 — no existence oracle",
+          "pre-merge (GIVEN the maximum later changes / THEN current value, decided confirmations immune): `::test_runs_read_the_current_maximum_and_decided_confirmations_are_immune` asserts a NEW run reads the changed value while a run already past its confirmation is unaffected — the relationship, not a pinned number; move the maximum and the new run's read follows it",
+          "pre-merge (MIGRATION, forward on a real schema copy): the reserved revision applies forward on a copy of the CURRENT production-shaped schema, the column is NULLABLE with no server default, existing rows read NULL, and the band constraint rejects an out-of-band value at the DATABASE level as well as at the boundary",
+          "pre-merge (MIGRATION, reverse): the downgrade drops only what the upgrade added and leaves every pre-existing object untouched; it is exercised, not merely written",
+          "pre-merge (NULL is not coerced): a shop with NULL reads back as UNSET through the endpoint and through the service — not as 0, not as a default, not as an omitted key that a caller could misread as zero",
+          "post-deploy: the candidate's `/health` is unchanged; ONE authenticated `GET` of the shop settings on the candidate returns the UNSET state for a shop that has never confirmed one",
+          "post-deploy: ONE existing approve with an EMPTY body on the candidate returns 202 and creates a run exactly as on stable — observed on the response and the created run row, not inferred from a log line",
+          "post-deploy: deploying this slice sets NO shop's maximum. Asserted by counting non-NULL values before and after the deploy: the count must be unchanged (and zero on first deploy)"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes in THIS slice. The settings screen is #1787 (ui-ux) and `apps/`, `ios/`, `packages/` and `docs/product/design/` are on this epic's doNotLoad list. The diff is backend Python under `api/routes/shops.py`, `services/`, one Alembic revision, and tests."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "migration-forward-and-reverse-log",
+      "approve-response-snapshot",
+      "tenant-isolation-report"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "ADDITIVE ONLY — expand, never contract. One NULLABLE per-shop maximum-discount value with a band constraint; no column is dropped, renamed, retyped or backfilled, and no NOT NULL or server default is added. NULL means UNSET and is a first-class state, which is precisely what makes the migration safe: a stable process that predates the column never reads it and never proposes a discount, and a candidate reads NULL for every shop until a seller confirms one, so both run correctly on one database in either deploy order. THE MIGRATION NUMBER AND `down_revision` ARE RESERVED BY META and supplied with the issue — NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The tree already carries two same-numbered `043_*` files from exactly that mistake, and W6/W8 hold unlanded numbers off-tree. Apply forward on a COPY OF THE CURRENT SCHEMA in test, never on a schema built by `metadata.create_all`, and exercise the downgrade."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed system changes: there is no per-shop maximum, no settings endpoint, no field in the approve body, and no discount lever anywhere in the product (the discount tool is #1778 and does not exist yet). No column is added, nothing is partially applied, no seller sees a difference, and no data hazard exists.",
+    "postCutoverFailureBehavior": "Revert the code first, then decide about the column — in that order. The code revert removes the endpoint and the approve-body field; every existing caller already sends an empty body, so nothing breaks. THE COLUMN IS INERT AFTER A CODE REVERT: nothing reads it, and 'unset' behaves exactly as it does today because no discount lever exists at this point in the lane. Leaving the column in place is therefore the DEFAULT and the safe choice — a confirmed maximum is a seller's own decision and dropping it destroys consent evidence. If the schema must also be reverted, the downgrade drops only what the upgrade added and must FAIL LOUDLY rather than silently discard data if any shop holds a non-NULL confirmed value; export those rows first. Redeploy the previous release and restart `juli-api` and `juli-celery-worker` together. Runs already created under the candidate keep their `seller_inputs` and their approval snapshots, which stay readable JSON after the revert.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_shop_maximum_discount.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_demo_execution_approve.py tests/unit/test_agent_approval.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_migrations.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT write a BASE PRICE, and do NOT let 'the maximum is unset' become a reason to reach for one. `resources.products.update_prices` has no caller on this path; #1773 removed the base-price tool and ADR-090 d.1 rejected a fallback by name. An unset maximum removes the price lever — it does not substitute a different one.",
+    "Do NOT let the MODEL choose the maximum, a depth, or any number. The maximum is SELLER-CONFIRMED; the agent may PROPOSE a default on the card, and the seller's confirmation is what makes it real. A model-picked number that reaches the run is a pricing decision made by a prompt (S-FR-4).",
+    "Do NOT ship a DEFAULT SHOP MAXIMUM that goes untouched. There is no fallback depth, no config default, no 'sensible 20 %', and NULL is never coerced at read time. A default that ships untouched is a number no seller ever saw, and the whole point of this slice is that the number is confirmed once, explicitly.",
+    "Do NOT claim a TIKTOK TIER OR CODE the API did not return. No diagnosis code exists on this path; the Price Diagnostics tier and the 14 card recommendations are never claimed (OP-NFR-2), and no copy this slice adds may say 'TikTok flags…'.",
+    "Do NOT reach for SEARCH ACTIVITIES. `POST /promotion/202309/activities/search` does not exist as a usable read (contract-collection A-25; `endpoints.md:509`); nothing here needs it and no test may stub it into existence.",
+    "Do NOT enable or lean on REPEAT CONSENT. Optimize Product is barred from it in v1 (ADR-090 d.6, narrowing ADR-055 d.19). A confirmed shop maximum is a SETTING, not a standing approval: every run still needs a fresh approval and a fresh confirmation, and the maximum must never be implemented or described as pre-consent to a future discount.",
+    "Do NOT READ A MIGRATION NUMBER FROM HEAD. The revision id and `down_revision` are RESERVED BY META and supplied with the issue. Never run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename, never renumber an existing head.",
+    "Do NOT make the migration anything but ADDITIVE. No NOT NULL, no server default, no backfill, no drop, no rename, no retype. Expand only.",
+    "Do NOT enforce the band ONLY in the request model, and do NOT treat the UI check as the authority. The server validates at the boundary AND the service layer; #1787's client-side check is feedback for the seller.",
+    "Do NOT take the shop id from a request body or path parameter. Tenant scoping comes from the existing dependency; a shop id the caller supplies is a cross-tenant write waiting to happen. Cross-tenant is 404, never 403.",
+    "Do NOT build the discount tool, the depth computation, or the settings SCREEN. Those are #1778 and #1787. One domain per issue.",
+    "Do NOT make the approve body REQUIRED. #1709's typed body is optional and backward compatible; an approve with an empty body must keep working byte-identically.",
+    "Do NOT put an internal identifier in seller-facing text, and keep every seller string Vietnamese through the outbound sanitiser — no projected impact magnitude, no causal claim (S-NFR-4).",
+    "Do NOT touch `apps/**`, `ios/**`, `packages/**`, `docs/product/design/**` or the TikTok corpora catalogs (ADR-051) — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature — the real approve route, the real shop row, the real session. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

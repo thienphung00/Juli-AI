@@ -1,0 +1,109 @@
+{
+  "planId": "the-replenish-seller-surfaces-two-numbers-event-date-and-the-two-report-forms-2026-09-08",
+  "affectedPublicSurfaces": [
+    "THE DEMO'S REPLENISH CARD AND PLAN REVIEW AT `demo.app-juli.com`, RENDERED FROM `apps/demo/src/lib/workflows/replenish-inventory/plan.ts`. Today the supplier is HARDCODED IN PROSE inside the decision proposal string (`plan.ts:62`: \"…qua nhà cung cấp Hóa Mỹ Phẩm…\") and the plan's `impact` is bound to the workflow's existing `analyticsMetricKey` (GMV) with no magnitude projected. This slice replaces the single prose quantity with TWO SEPARATELY LABELLED LINES summed into one editable total — the other three workflows' plan reviews are UNCHANGED.",
+    "THE TWO-LABELLED-NUMBERS DISPLAY. The **baseline** carries the Vietnamese label *\"tính theo công thức của TikTok\"*; **Juli's uplift** is a separate labelled line; the editable total is their SUM. The seller must be able to see which part is the formula's arithmetic and which is Juli's judgment — and the display must NEVER present the baseline as a number TikTok RETURNED. That is not a stylistic preference: no Partner endpoint returns a replenishment recommendation (the scope verification found only packaging and title/description/category recommenders in `partner-catalog.json`), so the claim would be false as well as a S-NFR-4 breach.",
+    "THE EVENT-DATE FIELD — AN OPTIONAL SELLER INPUT ON THE CARD. With NO date entered the uplift line is ABSENT and the total is the baseline alone; entering a date makes the uplift line appear and the total update. There is no campaign calendar to fall back on anywhere in the product (spec §8.3 decision 5 resolved the uplift source to a seller-entered date), so \"no date\" is the ordinary case, not an edge case.",
+    "THE TWO REPORT FORMS ON THE EXISTING CONFIRMATION SHEET, USING #1783's KINDS. The shared contract carries `ReviewInputFieldDescriptor { key, label, prefillValue: string, required, editable, kind?, options? }` with `ReviewInputFieldKind = \"option-list\" | \"upload\" | \"free-text\"` (`packages/contracts/src/review.ts:13-23`) — SCALAR-ONLY, which is the surface half of the scope verification's gap 8. #1783 lands the report shape and the range-validated NUMERIC kind; this slice RENDERS them and must not redefine the types.",
+    "THE **ORDERED** FORM: order reference, quantity ordered, expected date — AND NO STOCK FIGURE. It is a statement that an order was placed, not a receipt.",
+    "THE **RECEIVED** FORM: **accepted** and **short** as two numbers, with PER-WAREHOUSE ROWS ONLY WHEN THE SKU IS MULTI-WAREHOUSE. A single-warehouse shop never sees a table of one row (seller story 8). Today the demo hardcodes the warehouse as the literal `\"WH-HCM-01\"` in the review input defaults (`review.ts:55`), and `received_quantity` was DELIBERATELY REMOVED from the approval flow as post-execution (`review.ts:38-45`, issue #766) — the removal is correct and stays: the number belongs on the confirmation sheet at RECEIPT time, not at approve time.",
+    "THE FORM STATES THE EXACT WRITE, BECAUSE THE FORM **IS** THE CONSENT MOMENT — *\"add N to available at warehouse W\"* in Vietnamese, with the accepted number the seller typed. EDITING ANY FIELD RE-ARMS THE HASH (#1783's behaviour, EXERCISED here, not re-implemented). A form that displays a number different from the one that will be written breaks ADR-075's consent binding at the only place the seller can see it.",
+    "THE SUPPLIER LEGS STAY MODELLED AS THEY ARE. `apps/demo/src/lib/workflows/replenish-inventory/execution.ts:31-60` already models the supplier steps as `Unresolved`, which the scope verification confirmed as CORRECT (RI-NFR-4: no supplier integration exists). This slice does not turn them into resolved API steps.",
+    "MOUNT ONLY ON THE SEVEN SURFACES OF S-FR-1. This slice touches the card, the plan review and the confirmation sheet. Checklist items render through #1786; the completion message and exception list through #1791. A Replenish need that appears to require an eighth surface is a DESIGN ERROR — stop and report it rather than adding one.",
+    "IT RENDERS AND VALIDATES ONLY. It computes no number (the baseline, the uplift and the needed-by date are #1798's), calls no vendor, writes nothing, and persists no state."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: vitest run on the REAL runner from the workspace root (`apps/demo`'s `test` script is `vitest run`), driven by REAL CONTRACT PAYLOADS from `@juli/contracts` and the committed recommendation fixtures — never hand-authored JSON shaped to fit the component, which would prove the test and not the contract. `pnpm -w turbo run build` must pass, and `tsc --noEmit` must pass against #1783's shared types WITHOUT this slice redefining them locally; a locally re-declared descriptor type would let the demo compile against a shape the backend does not send. Post-deploy: the candidate's demo is reached through a restricted test hostname only and renders ANOTHER workflow's plan review, expected byte-for-byte unchanged; no public user traffic reaches the candidate, no backend write path exists in this diff, and NO STOCK IS WRITTEN ON ANY SHOP BY DEPLOYING — this slice contains no vendor call and no persistence of any kind.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is TRUE because nothing in this slice executes in a Celery worker or on the backend at all: the diff is `apps/demo/src/lib/workflows/replenish-inventory/*`, the components those modules feed, and tests under `apps/demo/src/__tests__/`. apiSideEffectsInScope is FALSE — no vendor call, no production write, no persisted state; the slice renders and validates. Static-asset checks ARE required here (unlike every other W10-C slice) because the claim is that the built bundle carries the new forms and the two-line display, and a source-only assertion cannot see a build that dropped them.",
+    "journeys": [
+      {
+        "name": "two-labelled-lines-an-optional-event-date-and-forms-that-state-the-exact-write",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1807",
+        "assertions": [
+          "pre-merge: given a card payload carrying a baseline and an uplift, the card AND the plan review render BOTH numbers as SEPARATELY LABELLED lines with the Vietnamese formula label *\"tính theo công thức của TikTok\"* on the baseline, and the editable total EQUALS their sum — asserted on rendered output from a REAL contract payload, not on a formatting helper (apps/demo/src/__tests__/replenish-two-labelled-numbers.test.tsx::test_baseline_and_uplift_render_as_two_labelled_lines)",
+          "pre-merge: the rendered baseline is NEVER attributed to TikTok as a number it returned — asserted as a negative on the rendered copy (no string claiming TikTok supplied, recommended or returned the figure), because the positive label alone cannot catch a false attribution added elsewhere on the card",
+          "pre-merge: with NO event date the uplift line is ABSENT and the total IS the baseline; when the seller enters an event date the uplift line APPEARS and the total UPDATES — both directions asserted, so a component that always renders the uplift line cannot pass (apps/demo/src/__tests__/replenish-event-date-field.test.tsx::test_uplift_line_follows_the_event_date)",
+          "pre-merge: for a SINGLE-warehouse SKU the received form renders NO per-warehouse rows; for a TWO-warehouse SKU it renders ONE ROW PER WAREHOUSE and each row's accepted quantity is bound to ITS OWN warehouse — asserted by reading back the submitted values per warehouse, not merely by counting rendered rows (apps/demo/src/__tests__/replenish-received-form.test.tsx::test_per_warehouse_rows_only_when_multi_warehouse)",
+          "pre-merge: with accepted and short entered, the sheet renders THE EXACT WRITE in Vietnamese carrying THE ACCEPTED NUMBER THE SELLER TYPED, and editing the field RE-ARMS the confirmation — asserted by editing and observing the re-arm, exercising #1783's behaviour rather than re-implementing it (apps/demo/src/__tests__/replenish-received-form.test.tsx::test_form_shows_the_exact_write_and_edit_re_arms)",
+          "pre-merge: the ORDERED form carries reference, quantity and expected date, and collects NO stock figure — the absence asserted on the rendered field set, so a stray received-quantity input cannot slip back in against issue #766's deliberate removal (apps/demo/src/__tests__/replenish-ordered-form.test.tsx::test_ordered_form_collects_reference_quantity_and_expected_date_only)",
+          "pre-merge: every seller-facing string is VIETNAMESE and passes the outbound copy guard — no internal identifier (no SKU-internal id, no workflow key, no stop-reason token), no projected impact magnitude, no causal claim (S-NFR-4) — asserted through the demo's existing seller-copy guard, not by eyeballing a fixture",
+          "pre-merge: the shared contract types come from #1783 via `@juli/contracts` and are NOT redefined locally — asserted by `tsc --noEmit` passing with the import and failing if a local descriptor shape is substituted; the demo must not compile against a shape the backend does not send",
+          "pre-merge: the supplier legs remain `Unresolved` steps in `execution.ts` — no supplier API step appears, matching RI-NFR-4 and the scope verification's confirmation that the demo already models this correctly",
+          "pre-merge: NO EIGHTH SURFACE is mounted — the diff touches the card, the plan review and the confirmation sheet only; checklist items (#1786) and the completion message and exception list (#1791) are not re-implemented here",
+          "pre-merge: the other three workflows' card, plan review and confirmation sheet render UNCHANGED — the existing demo suite passes untouched, including the plan-review spine, plan-impact and copy-guard tests",
+          "post-deploy: the built bundle served by the candidate CARRIES the new forms and the two-line display — asserted against the BUILT artifact reachable from the demo's `/decisions` route, not against `apps/demo` source — and the candidate's demo renders ANOTHER workflow's plan review byte-for-byte unchanged (this slice is a no-op there); NO STOCK IS WRITTEN ON ANY SHOP BY DEPLOYING, because this slice calls no vendor endpoint and persists nothing"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions",
+      "/decisions/recommendations/[recommendationId]",
+      "/decisions/in-progress/[executionId]"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true,
+    "notes": "The card, the plan review and the confirmation sheet all render under `/decisions` and its two dynamic detail routes — the only `page.tsx` files under `apps/demo/src/app/decisions` are `decisions/page.tsx`, `decisions/recommendations/[recommendationId]/page.tsx` and `decisions/in-progress/[executionId]/page.tsx`, so the dynamic segments must be probed with a real fixture id rather than as literal bracket paths. The two-labelled-numbers display and both report forms must be discoverable in the BUILT JS and CSS output, not only in `apps/demo` source — a build that tree-shook the new form away would pass every source-level test."
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE, NO DATABASE ACCESS, NO PERSISTED SHAPE. This slice is `apps/demo` rendering plus the shared TypeScript types it CONSUMES from `@juli/contracts` — types that #1783 defines and this slice must not redefine. No Alembic revision, no column, and `backend/src/juli_backend/database/migrations/versions/` is not opened. Stable and candidate run the same schema and the same backend, so a rollback needs no downgrade. The one compatibility fact worth stating in the PR is a CONTRACT one rather than a schema one: the report shape and the range-validated numeric field kind arrive from #1783, so this slice is only landable after it; rendering against a locally re-declared descriptor type would compile and then fail at runtime against the payload the backend actually sends. If a contract change seems needed, REPORT it to #1783 rather than widening `packages/contracts/src/review.ts` here."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. The demo keeps hardcoding the supplier in prose (`plan.ts:62`) and the warehouse as the literal `\"WH-HCM-01\"` (`review.ts:55`), shows one undifferentiated reorder quantity with no way for the seller to tell the formula's arithmetic from Juli's judgment, offers no event-date field, and offers neither report form — so a seller can approve a replenishment but can never report it ordered or received. That is the pre-existing state. Nothing is exposed, nothing is partially applied, no persisted state is written, and no stock is touched on any shop.",
+    "postCutoverFailureBehavior": "Revert and redeploy the previous demo build; the stable listener continues serving it throughout, so no seller sees a partially rendered sheet. NO DOWNGRADE IS INVOLVED — this slice writes no persisted state, touches no schema and calls no vendor, so there is nothing to unwind on either side. Two consequences to state in the PR rather than leave to discovery: (a) a run that the backend has already suspended on a report has NO FORM to render under the reverted demo, so that run waits on its own reaper policy rather than showing the seller a broken sheet — assert that the reverted demo degrades to the existing run view rather than rendering a half-wired form; (b) reverting must NOT strand the previous plan review against types #1783 introduced — assert the prior Replenish plan review renders intact after the revert, the same failure mode #1318's rollback assertion names for the In-Progress panel.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo exec vitest run src/__tests__/replenish-two-labelled-numbers.test.tsx src/__tests__/replenish-event-date-field.test.tsx src/__tests__/replenish-received-form.test.tsx src/__tests__/replenish-ordered-form.test.tsx",
+    "pnpm --filter @juli/demo test",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "pnpm --filter @juli/demo lint",
+    "pnpm -w turbo run build"
+  ],
+  "doNotInfer": [
+    "Do NOT infer a TikTok replenishment-recommendation endpoint — NONE EXISTS. The scope verification searched `docs/integrations/tiktok_corpora/partner-catalog.json` and found only `Get Recommended Product Package` (packaging) and title/description/category recommenders. No copy, label, tooltip or alt text may say or imply that TikTok returned the number.",
+    "Do NOT label a Juli number as TikTok's. The baseline is labelled *\"tính theo công thức của TikTok\"* — computed WITH TikTok's formula — and presenting it as a number TikTok returned breaches S-NFR-4's no-false-attribution rule. This is the single most likely defect in this slice.",
+    "Do NOT display or collect an absolute stock set. The received form collects ACCEPTED and SHORT, and the exact write it states is *\"add N to available at warehouse W\"* — a delta on a level Juli re-reads at dispatch (#1802), never a target level the seller types.",
+    "Do NOT render an uplift line without a seller-entered event date. With no date the uplift is absent and the total IS the baseline. There is no campaign calendar to fall back on — spec §8.3 decision 5 resolved the source to a seller-entered date.",
+    "Do NOT render or accept an order beyond 90 days of supply. Such a proposal is SUPPRESSED before a card exists (#1798's guard); a card carrying one should never reach this surface, and the UI must not invent a warning that implies it could.",
+    "Do NOT add a supplier API step, a portal link, an EDI adapter or a Zalo channel — and do NOT turn `execution.ts`'s `Unresolved` supplier legs into resolved API steps. No per-supplier API is in scope at any version, and Zalo Notification Service is customer-only by Zalo's own template rules; it is not a supplier channel.",
+    "Do NOT present a supplier's message, delivery note or invoice line as a confirmed fact in the UI. Supplier text is untrusted data; what the seller confirms on the form is the fact.",
+    "Do NOT hash, or display as hashed, any value the model supplied. The confirmation binds the values the seller CONFIRMED, and this surface's job is to show exactly those; editing a field RE-ARMS the hash — exercise #1783's behaviour, do not re-implement it.",
+    "Do NOT display or offer a write that would take available stock below the committed quantity. The refusal is #1802's and is a named failure, not a silently clamped number the form should pretend it can accept.",
+    "Do NOT compute any number here. The baseline, the uplift multiplier, the needed-by date and days of supply are #1798's; this slice renders and validates.",
+    "Do NOT redefine `packages/contracts/src/review.ts`. The report shape and the range-validated numeric kind arrive from #1783 and are imported; a locally re-declared descriptor type compiles and then fails against the payload the backend actually sends.",
+    "Do NOT render per-warehouse rows for a single-warehouse SKU. A shop with one warehouse never sees a table of one row (seller story 8).",
+    "Do NOT reinstate `received_quantity` on the APPROVAL flow. Issue #766 removed it deliberately as post-execution — not hidden, not disabled, not optional; the number lives on the confirmation sheet at receipt time.",
+    "Do NOT hardcode a supplier name or a warehouse id. `plan.ts:62`'s prose supplier and `review.ts:55`'s `\"WH-HCM-01\"` are exactly what this slice replaces with payload-supplied values.",
+    "Do NOT add an eighth surface. Mount only on the card, the plan review and the confirmation sheet; checklist items are #1786's and the completion message and exception list #1791's. A need for another surface is a design error — stop and report it.",
+    "Do NOT change any backend file. One domain per issue: the numbers are #1798's, the events #1800's, the write #1802's, the end states and measure #1804's.",
+    "Do NOT put an internal identifier, a projected impact magnitude or a causal claim in seller-facing text; copy is Vietnamese only, second person, through the seller-copy sanitiser (S-NFR-4, S-NFR-12).",
+    "Do NOT touch apps/dashboard/**, ios/**, or `backend/src/juli_backend/ai/` and `backend/src/juli_backend/workers/` — this slice's doNotLoad list — and do NOT open the TikTok corpora catalogs (ADR-051).",
+    "Bind tests to REAL contract payloads from `@juli/contracts` and the committed recommendation fixtures. Hand-authored JSON shaped to fit the component proves the test, never the contract."
+  ]
+}

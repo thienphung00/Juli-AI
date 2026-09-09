@@ -52,6 +52,25 @@ def utc_now_naive() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
 
 
+def utc_from_timestamp_naive(timestamp: int | float) -> datetime:
+    """A Unix timestamp as UTC with the tzinfo stripped, ready for a naive column.
+
+    The companion to `utc_now_naive` for the case where the instant comes from a
+    vendor timestamp rather than the clock. It exists because writing the aware
+    form into one of these columns fails in two different ways depending on the
+    path taken, and neither names the cause (#1675):
+
+      INSERT -> asyncpg DataError, "invalid input for query argument"
+      UPDATE -> TypeError from `_incoming_is_stale` below, "can't compare
+                offset-naive and offset-aware datetimes"
+
+    Both reached production. Reach for this rather than
+    `datetime.fromtimestamp(ts, tz=UTC)` whenever the destination is one of the
+    naive columns.
+    """
+    return datetime.fromtimestamp(timestamp, tz=UTC).replace(tzinfo=None)
+
+
 class SessionRepo:
     """Base for every repository: holds the session and the query helpers.
 
@@ -216,4 +235,10 @@ def _incoming_is_stale(existing: Any, values: Mapping[str, Any]) -> bool:
     return incoming is not None and stored is not None and incoming <= stored
 
 
-__all__ = ["EntityT", "SessionRepo", "ShopScopedRepo", "utc_now_naive"]
+__all__ = [
+    "EntityT",
+    "SessionRepo",
+    "ShopScopedRepo",
+    "utc_from_timestamp_naive",
+    "utc_now_naive",
+]

@@ -1,0 +1,98 @@
+{
+  "planId": "w9d-ui-1-one-decision-list-per-workflow-2026-09-08",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com `/decisions` -- the Decisions tab (`apps/demo/src/app/decisions/page.tsx` -> `components/decisions-page-client.tsx` -> `components/recommendations-view.tsx` -> `components/recommendations-panel.tsx`). Today one flat ranked list; after this slice, one list per `recommendation.workflow_name`, each ordered by deadline ascending where the workflow has one, else by basis recency descending, with each row rendering its own subject (product, dispatch window, or SKU set).",
+    "demo.app-juli.com `/decisions/recommendations/[recommendationId]` -- the plan-review detail a row navigates into (`components/recommendation-review.tsx` -> `plan-review-card.tsx`). Not restyled here, but its entry href is produced by the regrouped list, so a broken href is this slice's regression.",
+    "`packages/contracts/src/decisions.ts` -- the `DemoDecisionItem` / `DemoDecisionRecommendation` envelope this surface types against. #1703 puts the subject and deadline fields on it; this slice is their first consumer and adds no field of its own. `workflow_key` stays ABSENT (ADR-084 d.3).",
+    "`packages/contracts/src/seller-copy.ts` -- `SELLER_COPY_BANNED_PATTERNS`, the shared guard every rendered string on the regrouped lists is checked against.",
+    "CONTRADICTION WITH THE ISSUE BODY, verified in this tree on 2026-09-08 -- the executor must not go looking for wiring that does not exist. The issue says the panel \"renders one flat ranked list from `lib/recommendations.ts::fetchRecommendations()`\". It does NOT: `recommendations-panel.tsx` imports `recommendationFixtures` (a hardcoded fixture array) and `buildRecommendationDetailHref`, and grep shows `fetchRecommendations` has exactly ONE caller in the whole app -- `src/__tests__/recommendations-routing.test.ts`. Worse, `fetchRecommendations` targets `DEMO_RECOMMENDATIONS_API_PATH = \"/v1/demo/recommendations\"`, a route that does not exist in the backend (`ux-surface.md` A), NOT `/v1/demo/decisions`. The repointing this issue assumes has already happened is #1320's, and #1320 is not landed in this tree. So this slice's honest starting point is a fixture-fed panel, and the dependency on #1703 + #1320 is REAL: if the panel still has no envelope to group, report the unmet dependency instead of grouping the fixtures and calling it done.",
+    "SECOND CONTRADICTION, and a live taxonomy leak: the plan-review detail route's dynamic segment IS the workflow key today -- `decisions/recommendations/[recommendationId]/page.tsx` passes `recommendationId` straight into `<RecommendationReview workflowKey={recommendationId} />`. The regrouped list must build its hrefs from the envelope's own item `id`, not from a workflow key; do NOT widen that leak, and if the detail route cannot be reached without one, STOP AND REPORT (it is #1793's and #1703's boundary, not this slice's to redesign)."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: vitest (jsdom) component tests run from the worktree root through the workspace filter, so the suite resolves THIS worktree's `apps/demo` and `packages/contracts` and not a stale sibling checkout. Post-deploy: the candidate demo is reached only through the restricted test listener/hostname -- zero public traffic, `candidatePublicTrafficPercent` 0, stable serving 100% -- and the walk is done in a real browser so a missing JS chunk shows up as a broken surface rather than as a green status code.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is FALSE: this slice only READS `GET /v1/demo/decisions` on the signed-in path and writes nothing. workersDisabledOnCandidate is TRUE per ADR-035 -- no background worker is needed to render a list. syntheticShopRequired is TRUE: the signed-in candidate walk reads decisions for the dedicated Synthetic shop, never a live merchant's.",
+    "journeys": [
+      {
+        "name": "per-workflow-decision-lists-ordered-and-subject-shaped",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1777",
+        "assertions": [
+          "pre-merge: a captured decisions envelope carrying items under THREE different `workflow_name` values renders THREE lists, each headed by its workflow's seller-facing name, no item in two lists, and NO merged all-decisions list anywhere in the rendered tree -- asserted by scanning the tree, so a hidden or collapsed merged list still fails (src/__tests__/decisions-per-workflow-lists.test.tsx::renders_one_list_per_workflow_and_no_merged_list)",
+          "pre-merge: ordering is a RELATIONSHIP, not a fixed sequence -- permute the payload's array order and assert the rendered order is unchanged: deadline ascending in a list whose items carry deadlines, basis recency descending in one that carries none, and ONE comparator applied per list rather than a per-workflow special case (src/__tests__/decisions-per-workflow-lists.test.tsx::orders_by_deadline_then_by_basis_recency)",
+          "pre-merge: a product subject, a dispatch-window subject and an SKU-set subject each render in their OWN shape from the envelope's subject fields, and a non-product subject never renders a product label or a product placeholder (src/__tests__/decisions-per-workflow-lists.test.tsx::renders_each_subject_type_in_its_own_shape)",
+          "pre-merge: every rendered value traces to a field -- mutate its source field in the captured envelope and the rendering changes; no count, deadline or subject label is computed client-side; and no rendered string contains a workflow key, tool name or `subject_ref` (src/__tests__/decisions-per-workflow-lists.test.tsx::every_rendered_value_traces_to_the_envelope_and_leaks_no_identifier)",
+          "pre-merge: EVERY seller-facing string this surface renders is collected from the RENDERED tree (not from a hand-listed constant array) and checked against `SELLER_COPY_BANNED_PATTERNS` imported from `packages/contracts/src/seller-copy.ts` -- the shared `packages/contracts/seller-copy-banned-patterns.json` source, never a local copy of the list (src/__tests__/decisions-per-workflow-lists.test.tsx::seller_strings_pass_the_banned_pattern_guard)",
+          "pre-merge: every test input is a CAPTURED contract payload -- the golden fixtures in `packages/contracts/src/` and the tool-captured golden scenarios (#1311) -- driven through the real TypeScript contract types. Hand-authored event or envelope JSON is NOT an acceptable input (ADR-084 d.2); a shape the capture tool cannot yet produce is a gap in the tool, not a licence to type one out",
+          "post-deploy: each route below returns HTTP 200 as a RENDERED document on the candidate listener with the replayed scenario loaded -- not a 200 shell whose JS chunk 404s: `/` (the shell that links into Decisions); `/decisions` (the per-workflow lists); `/decisions?tab=in-progress` (the same document, query-param view -- proves the regroup did not break the sibling view); `/decisions/recommendations/<a concrete id from the replayed scenario>` (the detail a row navigates into; the segment is dynamic, so probe a real id, never the literal bracket form) -- probed with `discoverFromHtml` so every <script>/<link> the document names is fetched and asserted 200 (ADR-035's build-integrity clause: a green /health and a 200 HTML document have both been true while the app was unusable)",
+          "post-deploy: signed in on the candidate against the Synthetic shop, the Decisions tab shows one list per workflow ordered as specified, and each row's subject reads as what it is about -- a dispatch window reads as a dispatch window, not as a product",
+          "post-deploy: the anonymous door (\"Dung thu Demo\") is opened on the candidate and the browser network log shows ZERO requests to any `/v1/*` path for the whole walk (ADR-094 d.1) -- the replay is client-side content with no session, no auth.users row and no Postgres write; a single `/v1/*` call from that door fails the release, because it would be the #1283 shape returning",
+          "post-deploy: the candidate `/health` and one authenticated decisions read return what they returned before the deploy -- this slice adds no field to any response model"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/decisions",
+      "/decisions?tab=in-progress",
+      "/decisions/recommendations/<concrete recommendation id from the replayed scenario>"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "js",
+      "css",
+      "html"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true,
+    "notes": "The per-workflow list components must be present in the BUILT output, not only in `apps/demo/src`. The named failure mode in the issue's own release-evidence section is a route that 500s on a missing chunk, which a localhost health check and an HTTP status probe both miss. Route shapes verified against `apps/demo/src/app/` in this tree on 2026-09-08: the only page.tsx files under /decisions are `decisions/page.tsx`, `decisions/recommendations/[recommendationId]/page.tsx` and `decisions/in-progress/[executionId]/page.tsx`. There is NO `/decisions/in-progress` and NO `/decisions/recommendations` index route -- the In-Progress view is the SAME HTML document at /decisions under the `?tab=in-progress` query param (`recommendations-view.tsx` reads `searchParams.get(\"tab\")`). Earlier plans (#1314, #1318) named those two as routes; probing them as HTML routes would 404 and the probe must not be written that way."
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE. The subject and deadline fields this list reads are #1703's, on an existing response model; the decisions route is unchanged. This slice's whole diff is under `apps/demo/**` and `packages/contracts/src/**`; it opens no migration file, and the migration numbers for the backend slices it depends on are RESERVED BY META and never read from head. If a test cannot pass without a column or an endpoint, the dependency is unmet and the answer is to stop and report, not to write a migration or a second route. Stable and candidate are compatible because the previous bundle simply does not render the new surface, and the rows and routes it reads are unchanged by this slice."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge, discard the candidate bundle, keep the retained previous bundle serving 100%. Nothing is partially applied: the flat list keeps rendering exactly as it does today, because the grouping is entirely client-side.",
+    "postCutoverFailureBehavior": "Redeploy the retained previous demo bundle. The grouping is additive on the client, so reverting restores the flat ranked list -- and that MUST be a visible regression (one list where there were three), never a silent one: assert the rollback by looking at the rendered Decisions tab, not at a 200 status code.",
+    "retainedStableRequired": true,
+    "automatic": false,
+    "notes": "The PREVIOUS demo bundle is RETAINED and stays serving 100% of public traffic until the candidate passes; rollback is redeploying that retained bundle. Rollback is NOT automatic for this slice: the failure modes here are visual and structural (a surface that renders blank, a chunk that 404s), which a health probe does not catch, so a human reads the candidate journey and decides. No schema step is involved in either direction."
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test src/__tests__/decisions-per-workflow-lists.test.tsx",
+    "pnpm --filter @juli/demo test",
+    "pnpm --filter @juli/demo lint",
+    "pnpm --filter @juli/demo type-check",
+    "pnpm -w turbo run build"
+  ],
+  "doNotInfer": [
+    "Do NOT add a surface. v1's seller surfaces are the seven S-FR-1 names -- card, plan review, confirmation sheet, run view, completion message + exception list, notification centre, deadline list -- plus the single deadline view added by the owner waiver of 2026-09-05 (#1790, and ONLY #1790). A slice that believes it needs an eighth surface, a new tab, a new modal shell or a new route is a signal the routing or the design is wrong: STOP AND REPORT, do not build it.",
+    "Do NOT hand-author event or envelope JSON, anywhere, for any reason. ADR-084 d.2 forbids it: a second hand-maintained source drifts from the first while both suites stay green -- the defect class behind six W3 post-merge fixes. Test inputs are the captured contract payloads and the tool-captured golden scenarios (#1311). ADR-094 d.5 relaxes this ONLY for the existing client replay in `mock-data.ts`, which this slice neither extends nor imitates.",
+    "Do NOT write English seller-facing copy. Vietnamese only, second person (\"ban\"), per S-NFR-4 and S-NFR-12; there is no EN toggle in v1 (`ux-surface.md` F.12 option (a)). An English label, an English empty state, an English error, or an English tooltip is a defect even when it never ships to a Vietnamese seller in the demo walk.",
+    "Do NOT let an internal identifier reach seller-facing text. No `workflow_key`, tool name, playbook key, predicate or guard name, stop-reason identifier, `subject_ref`, run id, order id, SKU id or warehouse id in any rendered string (ADR-084 d.5, S-NFR-4). The banned-pattern guard is the floor, not the ceiling: an identifier the regex list happens not to match is still a defect.",
+    "Do NOT read the workflow's identity from anything but the seller-facing envelope. Grouping, gating and labelling derive from `recommendation.workflow_name` and the `is_executable` discriminator that `packages/contracts/src/decisions.ts` already carries; `workflow_key` is absent from that envelope by ADR-084 d.3 and must NOT be reintroduced, inferred, reverse-engineered from a title, or smuggled in through a URL segment. If a v1 workflow cannot be distinguished without leaking the taxonomy, STOP AND REPORT (#1793).",
+    "Do NOT render a value outside a numeric field's validated range, and do NOT invent the range. Bounds come from the contract descriptor (`packages/contracts/src/review.ts`), never from a component literal; CE-FR-4's stock goal is `0 <= goal < sellable` and RI-NFR-3 forbids a write below the committed quantity. A control that can express an out-of-range value -- an unclamped slider, a free-text number, a spinner without bounds -- is the defect, whether or not a validator catches it afterwards (#1783).",
+    "Do NOT change a backend route, response model, payload producer or database row from this slice. Domain is ui-ux, one domain per issue; the producers are named in the issue's Blocked-by list. Do NOT open `apps/dashboard/`, `ios/`, `backend/src/juli_backend/ai/`, `backend/src/juli_backend/workers/` or the TikTok corpora catalogs (ADR-051) -- this epic's doNotLoad list.",
+    "Do NOT prove a contract with a `**kwargs` double or a hand-rolled stub of a contract type. Bind every test collaborator to the REAL exported type and the REAL module; a double proves routing, never that the real payload would render. Consumer-without-producer is the failure this wave exists to prevent.",
+    "Do NOT build the confirmation sheet (#1779), the deadline list (#1790) or any new fetch path. This slice reads the SAME `/v1/demo/decisions` route on the signed-in path only.",
+    "Do NOT compute a count, a deadline or a subject label client-side. Everything rendered traces to a field on the envelope; a derived label is how the demo starts disagreeing with the product.",
+    "Do NOT group the fixture array and call it done if #1703/#1320 have not landed. A fixture-fed panel regrouped by a fixture's own `workflowKey` proves nothing about the envelope and reintroduces the taxonomy leak."
+  ]
+}

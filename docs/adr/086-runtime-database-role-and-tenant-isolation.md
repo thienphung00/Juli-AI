@@ -1,6 +1,6 @@
 # ADR-086: The runtime database role, and why tenant isolation is a connection property
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-26
 **Supersedes/amends:** none. Constrains W7-A (#1326, #1327, #1328, #1329, #1330).
 

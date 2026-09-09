@@ -1,0 +1,104 @@
+{
+  "planId": "deterministic-depth-eight-rule-validator-disclosure-and-cooldown-2026-09-08",
+  "affectedPublicSurfaces": [
+    "NO HTTP SURFACE CHANGES, PLAINLY. No route is added, removed or altered; no response model changes shape. The validator sits AT DISPATCH, behind the CONFIRM pause, and the only thing a seller ever sees of it is a proposal that was refused or clamped. There is no new endpoint, no new field on an existing response, and no client-visible payload change in this slice at all — which is why the pre-merge assertions carry the entire release weight and the post-deploy check is a no-op proof.",
+    "THE DISPATCH GATE ITSELF, which is a behavioural surface even though it is not a wire surface. Today `services/execution/promotion_leakage.py` is a near-pure passthrough: verified 2026-09-08, its only checks are two presence guards — `raise ValueError(\"create_activity requires activity body\")` (:18) and `raise ValueError(\"create_activity response missing activity_id\")` (:22) — plus a `KeyError`-by-indexing on `payload[\"activity_id\"]` (:43, :65). THE ISSUE BODY'S 'no validation in it at all' IS SLIGHTLY WRONG: two presence checks exist. What does NOT exist is every DOMAIN rule: no band, no floor, no window, no collision, no stock buckets, no purchase limits and no batch cap. After this slice a proposal that would previously have reached the vendor can be refused before it leaves — that is the point, and it is a behaviour change for anything already routing through `services/execution/leakage_handlers.py:17`.",
+    "THE ONE FORCED RE-PROPOSAL, which is a consumed iteration on a bounded budget. `OPTIMIZE_PRODUCT_TERMINATION_POLICY` caps iterations at 6 and wall clock at 300 s, and the reaper scores every run against that single `_DEFAULT_TERMINATION_POLICY` (`workers/tasks/reaper.py:119`). A re-proposal spends one of those iterations. Exactly ONE is issued, naming the bound that was hit; a SECOND violation, or any non-clampable one, ends the run `completed` with its cause and NO vendor call is made.",
+    "THE SHOP MAXIMUM DISCOUNT AS THE FLOOR (#1775), which is spec §8.3 decision 1's owner-approved substitute for a margin floor. This is not a shortcut: NO per-SKU cost column exists on `Product` or `InventoryItem`, and the T9 fee-adjusted floor is STRUCTURALLY ZERO in production because `platform_commission` and `shipping_fee` are always 0 (ADR-065 unimplemented) — it is green in CI only because its tests hand-build fee fixtures (`tests/unit/test_recommendations.py:744-756, 766`). Rule 2's 'at or above the floor' therefore means 'at or above the shop maximum', and a validator that quietly reaches for the fee floor instead is green in CI and inert in production, which is the exact failure this substitution exists to avoid.",
+    "COLLISION DETECTION IS JULI-SIDE PERMANENTLY. `Search Activities` DOES NOT EXIST at TikTok — resolved 2026-09-05 (`contract-collection.md` A-25, `endpoints.md:509`, `scope-verification/optimize-product-clear-excess.md:69`), and ADR-091's Consequences record it. Rule 5 reads THE ACTIVITY IDS JULI PERSISTED AT CREATE TIME and nothing else; the vendor rejection is the only other lock signal, and it arrives after the write, not before.",
+    "A PERSISTED PER-SKU COOLDOWN RECORD, if one is needed to make the 30-day cooldown survive a process restart. A cooldown held in memory is not a cooldown; it is a coincidence."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run by the REAL runner from the worktree root with `PYTHONPATH` pinned to this worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite. Every test BINDS TO THE REAL TOOL SPEC'S SIGNATURE so a parameter rename BREAKS the test rather than passing through a `**kwargs` double, and the 30-day cooldown is asserted against real persisted rows and a real clock boundary, not an in-memory set. The forced-re-proposal path runs through the REAL runner so the iteration it consumes is a real iteration on the real budget. Post-deploy: candidate `/health` and one authenticated read unchanged; NO EXISTING RUN PATH MAY CHANGE BEHAVIOUR, since the only consumer of this validator arrives in #1815. NO ACTIVITY IS CREATED ON ANY SHOP BY DEPLOYING.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is TRUE, matching ADR-035's default: the rule and the gate are exercised in-process through the real runner and need no beat or scheduler on the candidate. apiSideEffectsInScope is FALSE and is the slice's central claim — a fail-closed validator that refuses reaches NO vendor, and the acceptance criteria assert 'no vendor call is made' directly. syntheticShopRequired is TRUE because the shop maximum, the stock buckets and the per-SKU cooldown are all shop-scoped facts.",
+    "journeys": [
+      {
+        "name": "a-deterministic-depth-under-the-shop-cap-and-a-fail-closed-gate-that-refuses-before-the-vendor-sees-anything",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1814",
+        "assertions": [
+          "pre-merge: a proposed depth ABOVE the shop maximum and another BELOW the 1 % band floor are EACH REFUSED BY THE RULE THAT OWNS IT — the two refusals name different rules, so a single catch-all rejection cannot pass both — and RAISING THE SHOP MAXIMUM IS WHAT MAKES THE FIRST ONE PASS, which is the assertion that proves the cap is the live input rather than a constant (tests/unit/test_clear_excess_validator.py::test_depth_is_bounded_by_the_band_and_the_shop_maximum)",
+          "pre-merge: the floor in rule 2 IS the shop maximum (#1775, spec §8.3 decision 1) and NOT the T9 fee-adjusted floor — asserted by showing the validator's decision does not move when the fee inputs move, because `platform_commission` and `shipping_fee` are structurally 0 in production (ADR-065 unimplemented) and the fee floor is green in CI only on hand-built fixtures (`tests/unit/test_recommendations.py:744-756, 766`)",
+          "pre-merge: a SKU CARRYING A PRIOR MARKDOWN yields the SAME activity price for the same depth as the same SKU without one — depth is computed OFF LIST PRICE, never off a prior markdown, asserted by running both and comparing the two prices for equality (tests/unit/test_clear_excess_validator.py::test_depth_is_computed_off_list_never_off_a_prior_markdown)",
+          "pre-merge: ONE clampable violation issues EXACTLY ONE forced re-proposal NAMING THE BOUND THAT WAS HIT; a SECOND violation ends the run `completed` with the named cause and NO VENDOR CALL IS MADE — asserted on the run's terminal state, on the named cause, and on the promotion resource having received zero calls (tests/unit/test_clear_excess_validator.py::test_one_forced_reproposal_then_a_named_end_state)",
+          "pre-merge: a NON-CLAMPABLE violation ends the run immediately with its cause and issues NO re-proposal — a clamp loop that retries a non-clampable rule would burn the whole iteration budget on an unsatisfiable proposal",
+          "pre-merge: a proposed change MISSING ANY of the 30-day window, the ≥ 1-day hold before the traffic benefit lands, or the statement that this discount LOWERS THE FLOOR A FUTURE FLASH SALE MUST BEAT is REFUSED, and ADDING THE MISSING STATEMENT IS WHAT LETS IT THROUGH — asserted three times, once per omitted statement, so a check that only looks for one of them cannot pass (tests/unit/test_clear_excess_disclosure.py::test_dispatch_requires_all_three_disclosures)",
+          "pre-merge: `units_to_clear` of 99 sets the purchase limit to 99 and `units_to_clear` of 100 sets THE UNLIMITED VALUE, and IN BOTH CASES the excluded buckets from CE-3 are ABSENT from `available` — the boundary is asserted at exactly 99 and exactly 100, and the exclusion clause is asserted in both branches (tests/unit/test_clear_excess_validator.py::test_purchase_limit_equals_units_to_clear_at_or_below_99)",
+          "pre-merge: purchase limits are `-1` or `1..99` with variation level `-1` (rule 7), and a batch of 301 items is refused while 300 passes (rule 8) — both boundaries asserted, not the interiors",
+          "pre-merge: a SKU discounted by a Juli run 29 DAYS AGO is REFUSED and one discounted 31 DAYS AGO is ALLOWED — asserted against real persisted rows and a real clock boundary, because an in-memory cooldown does not survive a worker restart and would silently permit a same-day re-discount in production (tests/unit/test_clear_excess_cooldown.py::test_thirty_day_per_sku_cooldown)",
+          "pre-merge: rule 5's collision check reads ONLY the activity ids Juli persisted at create time — asserted by showing no call to any vendor list or search endpoint, because `Search Activities` does not exist at TikTok and a test that mocks one would be testing a fiction",
+          "pre-merge: EVERY RULE FAILS CLOSED (S-NFR-1). An unevaluable check — a missing shop maximum, an unreadable list price, an absent stock bucket — is a REFUSAL, never a pass; asserted rule by rule with the input removed, because the unevaluable branch is the branch production will actually take",
+          "pre-merge: activity price is STRICTLY BELOW list, computed off list (rule 4), and the window is inside 10 minutes to 30 days (rule 3) — both boundaries asserted at the edge",
+          "pre-merge: NO PLAYBOOK, NO PROMPT AND NO TOOL REGISTRATION appears in the diff, and no run enters `waiting_external` — those are #1815 and #1816; asserted over the diff",
+          "post-deploy: candidate `/health` returns healthy and one authenticated read returns a byte-identical shape to stable; NO EXISTING RUN PATH CHANGES BEHAVIOUR, since the only consumer of this validator arrives in #1815; NO ACTIVITY IS CREATED ON ANY SHOP BY DEPLOYING"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is the depth rule and the validator under `backend/src/juli_backend/services/execution/`, the re-proposal branch under `services/agent/runner/`, the cooldown record, at most one additive Alembic migration and tests. Nothing under apps/, packages/ or ios/ is touched — this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "alembic-history",
+      "postgres-catalog-dump"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "ADDITIVE, EXPAND-ONLY, AND POSSIBLY EMPTY. The 30-day per-SKU cooldown MUST survive a process restart to be a cooldown at all, so it needs a persisted per-SKU record — a small additive table or a nullable column recording (shop, sku, last Juli discount at). The same reasoning covers the ACTIVITY-ID LEDGER rule 5 reads: the ids Juli persisted at create time must be durable, because `Search Activities` does not exist at TikTok and Juli's own record is the ONLY collision input there will ever be. If implementation finds both are already durable on the existing tool-execution ledger, this slice carries NO SCHEMA CHANGE and that must be stated explicitly in the PR rather than left ambiguous. Where a migration IS written: nothing is dropped, renamed or retyped; no NOT NULL and no backfill; the previous release never names the new record and runs correctly beside it. THE MIGRATION NUMBER AND `down_revision` ARE RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update`, but W6, W8, W9 and the sibling W10 lanes hold unlanded numbers off-tree, and this tree already carries two duplicate-numbered pairs (`003_*` and `043_*`) from exactly this mistake. Any new table is tenant-scoped and must be covered by the runtime role's grants from `043_juli_app_role.py` (ADR-085) and by an RLS policy — assert that coverage as `juli_app`, never as the owner, or a cooldown becomes readable across tenants."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. `services/execution/promotion_leakage.py` keeps its two presence checks and no domain validation; there is no band, no floor, no window check, no collision check, no stock-bucket check, no purchase-limit check, no batch cap, no disclosure check and no cooldown. #1815 stays blocked on the rule it is supposed to bind its parameters to. That is the pre-existing state — nothing is exposed, nothing is partially applied, and because a fail-closed validator that never shipped cannot have written anything, there is no data hazard of any kind.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart juli-api and juli-celery-worker. A FAIL-CLOSED VALIDATOR THAT IS ABSENT CANNOT HAVE WRITTEN ANYTHING — everything it did was refuse or permit, and the permitted path had no consumer in production because #1815 registers the only one. If a cooldown or activity-id record was migrated, the previous release neither reads nor writes it and needs NO downgrade; only if the schema must also be reverted does `alembic downgrade -1` drop it, destroying cooldown history and nothing else, and that downgrade must fail loudly with a named error rather than proceed silently. THE CONSEQUENCE TO STATE IN THE PR: reverting removes the cooldown, so a SKU discounted days ago becomes immediately re-discountable, and it removes the fail-closed gate, so the fleet returns to a near-passthrough dispatch. If #1815 and #1816 have ALREADY landed when this is rolled back, DRAIN OR REAP EVERY RUN IN `waiting_external` FIRST: a rollback that removes the resume path strands a suspended run with nothing that recognises its state, and the previous reaper will not reap it.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_clear_excess_validator.py tests/unit/test_clear_excess_disclosure.py tests/unit/test_clear_excess_cooldown.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'promotion_leakage or leakage_handlers or execution'",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'runner or confirmation or termination_policy'",
+    "PYTHONPATH=backend/src python -m pytest tests/integration/test_schema_parity.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "The migration number and `down_revision` are RESERVED BY META and supplied with the issue — this applies to the cooldown record and to any activity-id ledger. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename.",
+    "Do NOT use the T9 fee-adjusted margin floor as rule 2's floor. No per-SKU cost column exists and the fee proxy is structurally 0 in production (ADR-065 unimplemented); its tests pass only on hand-built fixtures (`tests/unit/test_recommendations.py:744-756, 766`). The floor here is THE SHOP MAXIMUM DISCOUNT (#1775, spec §8.3 decision 1). A validator that reaches for the fee floor is green in CI and inert in production.",
+    "Do NOT reach for `Search Activities`. It DOES NOT EXIST at TikTok (resolved 2026-09-05 — `contract-collection.md` A-25, `endpoints.md:509`, `scope-verification/optimize-product-clear-excess.md:69`). Rule 5 reads Juli's own persisted activity ids and NOTHING ELSE; the vendor rejection is the only other lock signal, and it arrives after the write. Mocking a search endpoint would be testing a fiction.",
+    "Do NOT compute depth off a prior markdown. It is computed OFF LIST PRICE always — the whole reason ADR-091 deletes the baseline markdown is that a markdown compounds with a percentage promo and raises the floor a future flash sale must beat.",
+    "Do NOT infer a flash sale or a markdown as a lever. ADR-091 d.2 defers Flash Sale behind three unmet conditions; d.4 deletes the markdown. There is ONE lever and it is a Product Discount.",
+    "Do NOT write stock, and do NOT write a base price. S-FR-6 forbids both in this workflow; the allowlist that ENFORCES it is #1815's, but nothing here may reach for either.",
+    "Do NOT let a model choose the depth, the window, the purchase limit or any other price- or quantity-bearing parameter. A deterministic rule computes every one of them from configuration and vendor data (S-FR-4); the model chooses which SKUs and how to word the proposal, and calls the tool with exactly those parameters.",
+    "Do NOT retry more than once, and do NOT retry a non-clampable violation at all. Exactly ONE forced re-proposal, naming the bound; a second violation ends the run `completed` with its cause. A clamp loop burns the 6-iteration budget on an unsatisfiable proposal.",
+    "Do NOT hold the cooldown in memory. A cooldown that does not survive a worker restart is not a cooldown, and the 29-day/31-day assertion must run against real persisted rows.",
+    "Do NOT add a SECOND reaper policy object. `workers/tasks/reaper.py:119` resolves every run against one `_DEFAULT_TERMINATION_POLICY` today, and per-run resolution is #1706's seam; a validator-local timeout or a parallel policy type would give the fleet two answers to one question.",
+    "Do NOT enter `waiting_external`, and do NOT enforce the goal on a timer. The suspended run is #1816; the goal is enforced by TikTok through the purchase limit at or below 99, and by a persisted webhook signal above it.",
+    "Do NOT ask for a fresh CONFIRM inside the validator. It runs BEFORE the single CONFIRM pause; the one act ADR-091 d.4 exempts from a fresh CONFIRM is the goal-triggered deactivation in #1816, and it is not this slice's.",
+    "Do NOT change the card's KPI tie. `KPI_WORKFLOW_KEYS` maps `clear_excess_4` to `inventory_turnover` and `dsi` (`services/scoring/kpi_catalog.py:46-47`) while ADR-055 d.15 says AOV; CE-NFR-3 leaves both alone and the tie stays whatever the surface renders today.",
+    "Do NOT read revenue. v1 records facts only; the revenue reading on cleared SKUs is deferred to v2.",
+    "Do NOT register a playbook, a prompt or a tool here. #1815 owns all three; a validator that also registers its consumer makes both unreviewable.",
+    "Do NOT pass a rule on an unevaluable input. Fail closed on EVERY rule (S-NFR-1): a missing shop maximum, an unreadable list price or an absent stock bucket is a refusal, and that is the branch production will actually take.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL tool spec's signature and the REAL runner. A `**kwargs` double proves routing, never that the real call would work, and here a parameter rename MUST break the test."
+  ]
+}

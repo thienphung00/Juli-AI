@@ -1,0 +1,100 @@
+{
+  "planId": "seller-intervention-closes-a-suspended-run-2026-09-07",
+  "affectedPublicSurfaces": [
+    "NO NEW PUBLIC SURFACE — no route, no request or response model, no schema change. What DOES change is what a seller sees happen: a suspended run that the seller has touched by hand now ENDS instead of proceeding, with `seller_modified` (#1707's cause) on the run row and therefore on `GET /demo/runs` and the SSE stream. S-FR-8's promise — 'Juli never overrides my hand' — becomes enforceable code rather than a stated intention.",
+    "THE RESUME PATH IN `services/agent/runner/core.py`. A run that is suspended snapshots WHAT IT CREATED at the moment of the write (activity fields; stock level per warehouse), and on ANY resume signal re-reads the real thing and compares. The re-read is a fresh vendor READ, which makes this the same shape as S-FR-5's re-verify-before-the-write — and the two must not be conflated: re-verify guards a write that is about to happen, the intervention guard decides whether the run continues at all.",
+    "THE DIVERGENCE VERDICT IS ASYMMETRIC AND MUST BE. Divergence NOT ORIGINATED BY JULI ends the run; a difference Juli itself wrote does not. That distinction is what makes the guard usable, and it is the one place a naive equality check gets it wrong — a run that just wrote a discount would find the activity 'changed' and end itself immediately. Compare against the snapshot Juli took AFTER its own write, and say in the PR how a Juli-originated change is told apart from a seller's.",
+    "IT WRITES NOTHING WHEN IT ENDS. No deactivate call, no stock write, no vendor mutation of any kind on the divergence path — asserted on a recording transport, because 'Juli reverts nothing' (S-FR-8) is the whole point and a compensating write would be the exact opposite of the promise.",
+    "IT RECORDS A COMPLETION ACT — which means it depends on #1713's WRITER, not just on #1712's table. The issue lists only #1707 and #1708 as blockers; the act-record writer lands in #1713 (itself blocked by #1712 and #1707). Sequence #1715 after #1713 or its first acceptance criterion cannot be satisfied.",
+    "IT MARKS THE SUBJECT SO NO CARD RE-ISSUES, and it does so through #1703's EXISTING vocabulary: the card is suppressed with `basis_unchanged` until the subject's basis snapshot changes. That is a reuse of the revision-suppression concept, deliberately NOT the emission budget's `active_cap`/`cooldown`/`weekly_novelty_cap`.",
+    "SHARED BY CLEAR EXCESS AND REPLENISH. This lands ONCE, in the shared runner, and never as a private copy inside a workflow lane — forking it is how two workflows end up disagreeing about what counts as intervention."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the worktree root with PYTHONPATH pinned to the worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite; the snapshot lives in the run's `state` JSON, the terminal transition is guarded by the CHECK constraints #1706 and #1707 widened, and the resume is a transaction. The whole path is driven through the REAL `WorkflowRunner` resume with the vendor bound to a RECORDING FAKE built on the real client's signature, so 'no deactivate call was made' is observed at the wire; the signal arrives through #1708's REAL webhook consumer, never by calling the guard directly. Post-deploy: a test run on the candidate against the sandbox shop whose activity is HAND-EDITED in Seller Center, then woken by the next signal; the Seller Center edit is used to seed the divergence and to read vendor state back, never as the proof itself (S-NFR-9). No public traffic reaches a candidate task set and no production write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the resume executes inside the Celery worker via `resume_agent_workflow`; with workers disabled the candidate can hold a suspended run but can never wake it, which is the entire slice. apiSideEffectsInScope is FALSE: the divergence path makes NO vendor mutation by design, and no production write occurs — the 2026-08-21 owner decision holds.",
+    "journeys": [
+      {
+        "name": "a-seller-touching-the-thing-juli-made-ends-the-run-without-a-write",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1715",
+        "assertions": [
+          "pre-merge: a run waiting on activity A with a creation snapshot, woken by a #63 signal after the re-read activity's PRICE differs, ends with `seller_modified`; NO deactivate call is made (asserted on the recording transport as zero requests, not on a branch); and ONE `completion` act record says the seller changed it — written through #1713's writer, so this slice depends on #1713 as well as on #1707 and #1708 (tests/unit/test_intervention_guard.py::test_diverged_activity_ends_run_without_a_write)",
+          "pre-merge: the SAME run, when the re-read activity EQUALS the snapshot, proceeds to the awaited-condition check — the guard must not be a blanket stop; without this assertion an implementation that always ends the run would pass the divergence test (tests/unit/test_intervention_guard.py::test_unchanged_activity_proceeds)",
+          "pre-merge: a run waiting on SKU S whose inventory signal shows AVAILABLE INCREASED above the snapshot ends `seller_modified` — an upward move is a restock the seller made, and it ends the run just as a price edit does (tests/unit/test_intervention_guard.py::test_upward_stock_move_ends_run)",
+          "pre-merge: a subject closed by intervention does NOT get a new card — scoring emits for it and is suppressed with `basis_unchanged` (#1703's vocabulary) UNTIL the basis snapshot changes, at which point a card IS emitted again; assert BOTH halves, since a permanent block would silently retire the subject (tests/unit/test_intervention_guard.py::test_no_card_reissues_for_intervened_subject)",
+          "pre-merge: a change JULI ITSELF wrote is NOT divergence. A run that has just made its own write and is then woken by the webhook its own write generated proceeds normally — the snapshot is taken AFTER Juli's write, and the PR states how a Juli-originated change is distinguished from a seller's. Without this the guard would end every run immediately after its own write",
+          "pre-merge: the stock comparison is per WAREHOUSE, not on a summed total — a rebalance between warehouses that leaves the total unchanged must still be seen; asserted on a two-warehouse fixture so a total-only implementation fails",
+          "pre-merge: divergence ends the run and writes nothing, INCLUDING no compensating or reverting write — asserted structurally as well as on the transport, because 'Juli reverts nothing' (S-FR-8) is the promise, not merely the current behaviour",
+          "pre-merge: a re-read that FAILS at the vendor does not silently proceed. The run does not treat an unreadable state as 'unchanged'; it fails closed with an existing named error and an honest terminal status — an unreadable world is not a permission to act",
+          "pre-merge: the guard lives ONCE in the shared runner (`services/agent/runner/core.py`'s resume path) and there is NO private copy in any workflow module — asserted structurally, since Clear Excess and Replenish both consume it and a fork would let them disagree about what intervention means",
+          "pre-merge: ZERO behaviour change for `optimize_product_2`, which never suspends externally (its `TerminationPolicy` keeps `external_wait_timeout_h = None` from #1706) — the recorded run golden `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` passes untouched, and the existing confirm-pause resume path is unmoved",
+          "post-deploy: on the candidate, a test run suspended on a sandbox activity that is then HAND-EDITED ends `seller_modified` on the next signal, observed on the SSE stream at `GET /demo/runs/{run_id}/events` and read back off the run row — not inferred from a log line, since a guard that raises before it logs is invisible to a success-marker grep"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is `services/agent/runner/core.py`'s resume path, the snapshot taken at the write, the subject marking on the emission side, and tests. Nothing under apps/, packages/ or ios/ is touched; those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "vendor-transport-recording",
+      "sse-event-log",
+      "postgres-row-dump"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE IN THIS SLICE. The creation snapshot lives in the run's existing `state` JSON on `workflow_runs`; the terminal cause `seller_modified` is already in the enum and in the widened `ck_workflow_runs_stop_reason` CHECK from #1707; the suspended state and its timer are #1706's; the completion act record is written into #1712's table through #1713's writer; and the card suppression reuses #1703's `basis_unchanged`. Do not open a migration file — if any of those is missing, a dependency is unmet and the answer is to report it, not to add a column. Old and new code coexist because the deployed schema is identical before and after; only the resume path's decision changes."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. A suspended run has no intervention guard, so a seller who edits the activity or the stock line Juli created would find Juli proceeding over the top of them once a resume path exists. Nothing about the deployed system changes today — `optimize_product_2` never suspends externally and no second workflow ships until W9-B — so this is a promise not yet made rather than a promise broken. Nothing is exposed, nothing is partially applied.",
+    "postCutoverFailureBehavior": "Code-only rollback: redeploy the previous release and restart juli-api and juli-celery-worker. There is NO schema to revert and NO downgrade to run — this slice owns no migration. Runs already ended `seller_modified` stay ended and their completion act records stay readable; the previous code does not enumerate the cause but `RunListItem.stop_reason` is a plain `str | None` on the way out, so nothing breaks on read. THE HAZARD TO STATE IN THE PR: a run still SUSPENDED across the rollback loses its guard, so the next signal will resume it WITHOUT comparing against the creation snapshot — meaning Juli could write over a seller's hand, the precise thing S-FR-8 forbids. Drain, reap or let expire the externally-waiting runs BEFORE rolling back, or accept that risk explicitly; do not let it be discovered. If #1701's, #1706's, #1707's, #1709's or #1712's schema is being reverted in the same operation, those downgrades are theirs and must FAIL LOUDLY on any non-product `subject_type` row, NULL `product_id`, `waiting_external` row, new stop-reason cause, non-default confirmation `kind`, or any act-record row. Order: previous code first, any schema revert second.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_intervention_guard.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_webhook_resume_dispatcher.py tests/unit/test_reaper_external_wait.py tests/unit/test_terminal_tool_causes.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_act_records_and_checklists.py tests/unit/test_action_card_revisions.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_golden_scenario_capture_from_real_runner.py tests/unit/test_agent_runner_core.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT read a migration number from head — do NOT write a migration at all. Every column, state, cause and table this slice uses belongs to #1701, #1703, #1706, #1707 and #1712. The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake.",
+    "Do NOT write anything on the divergence path. No deactivate, no stock write, no compensating or reverting write — S-FR-8 says Juli reverts nothing. Assert zero requests on a recording transport, not a branch not taken.",
+    "Do NOT treat Juli's OWN write as intervention. The snapshot is taken AFTER Juli's write; a naive equality check against the pre-write state would end every run the instant its own webhook came back. State in the PR how a Juli-originated change is distinguished.",
+    "Do NOT compare a summed stock total. Compare per warehouse — a rebalance that leaves the total unchanged is still a seller's hand on the stock line.",
+    "Do NOT treat an unreadable vendor state as 'unchanged'. A failed re-read fails closed with an existing named error and an honest terminal status; a world you cannot see is not permission to act.",
+    "Do NOT invent a new stop reason. `seller_modified` is #1707's and the vocabulary is closed; a cause coined here would fail the CHECK constraint anyway.",
+    "Do NOT reuse the emission-budget suppression vocabulary. Marking an intervened subject uses #1703's `basis_unchanged`, not `active_cap`, `cooldown` or `weekly_novelty_cap` (`services/action_cards/emission_budget.py`) — those are the budget's reasons for not surfacing a card and mean something else entirely.",
+    "Do NOT block the subject forever. Suppression lasts UNTIL the basis snapshot changes; a permanent block would silently retire a subject the seller never asked Juli to stop managing.",
+    "Do NOT fork a private copy of this guard into a workflow lane. It lands ONCE in the shared runner; Clear Excess and Replenish both consume it, and two copies would let them disagree about what intervention means.",
+    "Do NOT add a push, email or Zalo transport to tell the seller the run ended. The completion act record (#1712's table via #1713's writer) is the entire notification in v1; `services/alerts/` has no callers and `FcmAdapter._deliver` is a `fcm_send_stub`.",
+    "Do NOT gate a stage on a checklist tick, do NOT derive the subject from revenue, do NOT emit a per-order card, and do NOT add a second reaper policy object — a signal that never arrives already degrades to #1706's `external_wait_timeout_h`.",
+    "ZERO behaviour change for `optimize_product_2`, which never suspends externally: the recorded run golden `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` and the prompt golden `tests/fixtures/agent_prompt_gates/optimize_product_v3_composed.golden.md` pass untouched.",
+    "Do NOT verify with a success-marker grep, and do NOT accept a Seller Center click-through as proof. The Seller Center seeds the divergence and reads vendor state back; the proof is the run row and the SSE stream (S-NFR-9).",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature — the real `WorkflowRunner` resume, the real webhook consumer from #1708, a recording transport built on the real vendor client. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

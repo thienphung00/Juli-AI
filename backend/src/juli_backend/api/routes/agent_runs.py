@@ -167,6 +167,9 @@ async def stream_run_events(
 
     generator = event_stream(
         run_id=run_id,
+        # The stream's own session is not the request session, so it inherits no
+        # scope and must be given one (#1700).
+        shop_id=shop.id,
         after_seq=agent_runs.resolve_after_seq(request.headers.get("last-event-id"), after),
         run_is_terminal=run.status in TERMINAL_RUN_STATUSES,
         session_factory=session_factory,

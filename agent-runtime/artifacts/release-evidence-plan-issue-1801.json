@@ -1,0 +1,99 @@
+{
+  "planId": "the-batch-proposal-has-a-shape-typed-discriminator-on-proposed-change-mirrored-in-contracts-2026-09-08",
+  "affectedPublicSurfaces": [
+    "THE CONFIRMATION PAYLOAD'S DISCRIMINATOR — the surface of this slice. `proposed_change` is the verbatim tool arguments (`proposed_change=dict(block.arguments)` inside `WorkflowApprovalRequiredPayload(...)` — at `services/agent/runner/core.py:1538` in this tree, NOT the `:1510` the issue body cites) stored in uncapped JSONB (`models/models.py:689-739`) and bound by `params_sha` (`services/agent/runner/confirmation.py:130-158`), so a list of orders needs NO schema change. What it lacks is a SHAPE: nothing on the payload says whether a `proposed_change` is one listing field, one discount or a batch, so every reader guesses. This slice adds the typed discriminator and its `batch` variant. Note where the discriminator belongs: `services/agent/events/payloads.py` carries NO discriminant literal at all today — its own docstring says so — while the event-envelope discriminators live in the sibling `envelope.py` (`event_type: Literal[...]` at `envelope.py:55-90`, combined via `Field(discriminator=\"event_type\")` at `:107`). Follow that established pattern rather than inventing a second discriminator style in a module that has none. EXISTING SINGLE-PROPOSAL PAYLOADS KEEP THEIR CURRENT SHAPE under their own discriminator and must render byte-identically — that compatibility is the release risk, not the new variant.",
+    "THE `batch` VARIANT ITSELF: confirmed orders GROUPED BY BUCKET in deadline order, each carrying its DEADLINE and the RUNG that deadline came from (#1797's `rts` / `tts` / collection / fallback ladder), plus every excluded order with its reason. #1803's re-verify and #1808's sheet both read this shape, so a field named loosely here is a field two slices are stuck with.",
+    "`packages/contracts/src/review.ts` — the TypeScript mirror, and a real cross-stack contract. Today the confirmation field is a SCALAR: `ReviewInputFieldDescriptor` carries `prefillValue: string` (`review.ts:15-23`) over the kinds `option-list | upload | free-text` (`review.ts:13`), which is exactly why the demo fakes the dispatch batch as the literal string `\"Hàng đợi T5 — 6 đơn (chỉ đọc theo thứ hạng)\"` (`apps/demo/src/lib/workflows/process-order/review.ts:28`, and again as `prefillValue` at `:70`). The mirrored discriminated union is the TYPE ONLY — the sheet that renders it is #1808. `@juli/contracts` is consumed by both demo and dashboard, so a breaking edit to `ReviewInputFieldDescriptor` breaks every existing review screen.",
+    "THE PARAMS HASH BINDING. `params_sha` must cover the CONFIRMED ORDER LIST, so the set the seller saw is exactly the set the run is bound to. Adding or removing one order changes the hash and the confirmation no longer matches — that is the mechanism by which #1803's executed set cannot silently widen, and it is a consent-integrity property (S-NFR-2), not a convenience.",
+    "STILL ONE CONFIRMATION, N = 1 (S-FR-3). No new confirmation surface, no second pause, no additional option. The whole batch is the single proposal.",
+    "NO schema change — `proposed_change` is existing uncapped JSONB. NO new HTTP route. NO rendering, NO re-verify, NO execution."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: backend payload and hash tests from the WORKTREE ROOT with PYTHONPATH pinned to the worktree's own `backend/src`, against a real Postgres 16 at head for anything that round-trips through the JSONB column; plus the `@juli/contracts` VITEST suite and `pnpm -w turbo run build` so the TypeScript mirror is compiled, not merely written. The TS test parses a payload the BACKEND actually emitted — a REAL CONTRACT PAYLOAD serialised by the real Python serialiser, never a hand-authored JSON literal typed into the test file, because a hand-authored fixture proves the two authors agree and nothing else. Post-deploy: candidate `/health`, ONE authenticated read unchanged, and ONE EXISTING SINGLE-PROPOSAL CONFIRMATION read back and compared BYTE-IDENTICAL to its payload on stable; no public traffic reaches the candidate and no vendor write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is FALSE: this slice serialises a payload and hashes it; it makes no vendor call and writes no vendor state. workersDisabledOnCandidate is FALSE because the runner that builds and hashes the proposal executes inside the Celery worker. NO PACKAGE IS SHIPPED ON ANY SHOP BY DEPLOYING THIS SLICE — there is no write path and no ship tool is registered until #1803. The first live proof of the write is the #1806 dry run, then the seeded sandbox batch of the #1810 walk — never production, which stays gated on #1339 (S-NFR-3).",
+    "journeys": [
+      {
+        "name": "a-batch-proposal-round-trips-under-its-own-discriminator-without-moving-the-single-proposal-shape",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1801",
+        "assertions": [
+          "pre-merge: a batch proposal built from a dispatch window SERIALISES with the `batch` discriminator, the grouped orders each carrying its DEADLINE and its RUNG, and every exclusion with its reason; and A SINGLE-FIELD PROPOSAL SERIALISES UNDER ITS OWN DISCRIMINATOR WITH ITS SHAPE UNCHANGED FROM TODAY — the backward-compatibility half asserted against a payload captured before the change, not against the new code's own idea of the old shape (tests/unit/test_batch_proposed_change_shape.py::test_batch_variant_round_trips_and_the_single_variant_is_unchanged)",
+          "pre-merge: adding ONE order to or removing ONE order from a confirmed batch CHANGES the params hash and the confirmation NO LONGER MATCHES — asserted through the real `params_sha` path at `services/agent/runner/confirmation.py:130-158`, so the confirmed set is genuinely bound and #1803's subset rule has something to bind to (tests/unit/test_batch_proposed_change_shape.py::test_params_hash_binds_the_confirmed_order_set)",
+          "pre-merge: a batch payload EMITTED BY THE BACKEND parses against the mirrored TypeScript union and TYPE-CHECKS, and a payload MISSING ITS EXCLUSIONS FAILS TO PARSE — the negative case matters more than the positive one, because a union that accepts anything mirrors nothing (packages/contracts/src/__tests__/review.test.ts)",
+          "pre-merge: no ORDER ID, WINDOW ID or INTERNAL ENUM appears in any seller-facing string on the batch payload, and the copy is Vietnamese — asserted through the real outbound guard and the shared banned-pattern source at `packages/contracts/seller-copy-banned-patterns.json`, which both the Python guard and `packages/contracts/src/seller-copy.ts` read (tests/unit/test_batch_proposed_change_shape.py::test_no_internal_identifier_in_seller_strings)",
+          "pre-merge: STILL EXACTLY ONE CONFIRM PAUSE WITH N = 1 (S-FR-3). No second pause, no second option, no new confirmation kind on the wire beyond the discriminator — asserted on the run's event stream, so a batch does not quietly become a batch of confirmations",
+          "pre-merge: the rung travels WITH each order's deadline. A payload carrying a deadline but no rung fails validation, because #1805's measure reads the rung and a deadline whose provenance is unknown is indistinguishable from a guessed cutoff",
+          "pre-merge: `ReviewInputFieldDescriptor`'s existing fields (`key`, `label`, `prefillValue`, `required`, `editable`, `kind`, `options`) are UNCHANGED and every existing consumer in `apps/demo` and `apps/dashboard` still type-checks — `pnpm -w turbo run build` is the assertion, since `@juli/contracts` is consumed by both",
+          "pre-merge: `proposed_change` remains the verbatim tool arguments in the same uncapped JSONB column; no column is added, widened or capped, and a previously written row still deserialises",
+          "post-deploy: candidate `/health` and one authenticated read unchanged; ONE EXISTING SINGLE-PROPOSAL CONFIRMATION read back on the candidate and its payload compared BYTE-IDENTICAL to the same row read on stable — the single compatibility fact that matters for a shape change",
+          "post-deploy: NO PACKAGE IS SHIPPED ON ANY SHOP BY DEPLOYING THIS SLICE — no ship tool is registered until #1803 and this diff contains no write. The first live proof of the write is the #1806 dry run, then the seeded sandbox batch (#1810), never production, which is gated on #1339"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page or rendered-bundle change in this slice. `packages/contracts/src/review.ts` is a TYPE MIRROR only and ships no component; the sheet that renders the `batch` variant is #1808. The diff is `services/agent/events/payloads.py`, `services/agent/runner/confirmation.py`, `packages/contracts/src/review.ts` and its `__tests__`, plus backend tests. apps/ and ios/ are on this epic's doNotLoad list and are not opened; the only cross-check on them is that `pnpm -w turbo run build` still passes."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "vitest-report",
+      "turbo-build-log",
+      "contract-payload-capture",
+      "params-hash-diff"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE IN THIS SLICE. `proposed_change` is already uncapped JSONB (`models/models.py:689-739`) holding the verbatim tool arguments, so a list of orders fits without touching Postgres. Do not open a migration file and do not open `backend/src/juli_backend/database/migrations/versions/`; migration numbers are RESERVED BY META and never read from head, but the correct action here is not to reserve one — it is to not need one. Stable and candidate run the same schema, so a code rollback needs no downgrade. The compatibility risk is entirely at the PAYLOAD level and it is real: rows written before this slice carry no discriminator and must keep deserialising, and rows written after it must stay valid JSON for the previous release, which simply ignores the extra key. Persisting a window, a rung column or a dispatch ledger is #1799/#1805 work with its own reserved number."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. `proposed_change` stays shapeless, every reader keeps guessing, and the demo keeps faking the dispatch batch as the string at `apps/demo/src/lib/workflows/process-order/review.ts:28`. #1803 and #1808 stay blocked. Nothing about the deployed system changes and no seller sees anything different. A discriminator that breaks the single-proposal shape must never be merged to unblock the batch variant: every live confirmation in the product renders through that shape.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart juli-api and juli-celery-worker. NO DOWNGRADE IS NEEDED — there is no migration. Rows already written stay VALID JSON: the previous release reads `proposed_change` as an opaque dict and ignores an unrecognised discriminator key, so a batch payload written since cutover is inert rather than fatal to it. What the previous release CANNOT do is execute such a batch, so any run left paused on a batch confirmation must be allowed to EXPIRE on its 4 h window rather than resumed — it has no handler on the old code. The TypeScript mirror rolls back with the same deploy; a candidate demo build carrying the union against a backend that no longer emits it simply never sees the `batch` variant, which is a narrowing and not a crash. Nothing in either direction ships a package: this slice contains no write path.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_batch_proposed_change_shape.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'confirmation or proposed_change or params_sha or payloads'",
+    "pnpm --filter @juli/contracts test",
+    "pnpm -w turbo run build",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT write a migration. `proposed_change` is already uncapped JSONB; nothing here needs a column. Migration numbers are RESERVED BY META and never read from head.",
+    "Do NOT break the existing single-proposal payload shape. The discriminator is ADDITIVE; every confirmation live in the product today renders through that shape, and a row written before this slice must still deserialise.",
+    "Do NOT change `ReviewInputFieldDescriptor`'s existing fields or the `option-list | upload | free-text` kinds in a breaking way. `@juli/contracts` is consumed by apps/demo AND apps/dashboard.",
+    "Do NOT build UI. The `packages/contracts` change is the TYPE MIRROR ONLY; the sheet that renders the `batch` variant is #1808. One domain per issue.",
+    "Do NOT add a second confirmation, a second pause, or an option beyond N = 1 (S-FR-3). The whole batch is the single proposal.",
+    "Do NOT hand-author the TypeScript test's payload. Parse a payload the BACKEND actually serialised; a hand-written JSON literal proves only that the test author agrees with themselves. Bind the Python tests to the real serialiser and the real `params_sha` path, never to a `**kwargs` double.",
+    "Do NOT re-verify, execute, ship or register any tool here. That is #1803.",
+    "Do NOT recompute a deadline or a cutoff in the payload builder. Each order's deadline and its RUNG come from #1797's ladder; the documented cutoff is the last resort only, and a deadline without its rung is invalid.",
+    "Do NOT build a vendor-refusal branch or a field implying one. TikTok does NOT refuse a ship write during a pending cancellation (ADR-092 amendment 2026-09-05); a cancellation-pending order is HARD-EXCLUDED by Juli's own code and appears on the payload as an exclusion with its reason.",
+    "Do NOT add a cancel field, a cancel action or a cancel tool to the payload or the union. No cancel tool exists in this allowlist, ever. Do NOT add a Create Packages or Confirm Package Shipment variant: in SEA TikTok creates the package at order time, and Confirm Package Shipment is certified-warehouse-provider-only.",
+    "Do NOT model a superset. The payload's confirmed list is the CEILING for execution; #1803 may narrow it and may never widen it, and the params hash is what makes that enforceable.",
+    "Do NOT model FBT or Seller Own Fleet execution. Those orders appear only as EXCLUSIONS with their reasons; FBT is monitor-only by design and SOF is v2.",
+    "Do NOT let an order id, a window id or an internal enum reach a seller-facing string, and do NOT write English seller copy. Use the shared banned-pattern source both guards already read.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); apps/** and ios/** are on this epic's doNotLoad list — the only permitted cross-check on them is that `pnpm -w turbo run build` still passes.",
+    "Do NOT invent a second discriminator style. `services/agent/events/payloads.py` carries no discriminant literal today; the repo's existing pattern is a `Literal` field plus `Field(discriminator=...)` in `services/agent/events/envelope.py:55-107`. Match it."
+  ]
+}

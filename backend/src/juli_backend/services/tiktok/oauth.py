@@ -17,7 +17,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.core.config.runtime import require_env
+from juli_backend.core.config.runtime import is_production, require_env
 from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
 from juli_backend.integrations.tiktok import (
@@ -109,6 +109,33 @@ async def complete_tiktok_oauth_callback(
 ) -> TikTokOAuthCallbackResult:
     """Exchange the authorization code and persist tokens via the OAuth facade."""
     service = oauth_service or build_tiktok_oauth_service()
+
+    # STATE IS MANDATORY IN PRODUCTION (#1748). Guarding the CSRF check with a
+    # bare `if state:` made it bypassable by OMITTING the parameter — no forgery
+    # needed, just leave it out. Measured on the deployed host:
+    #
+    #     ?code=x&state=forged   401   (verified, rejected)
+    #     ?code=x                502   (never verified; exchange attempted)
+    #
+    # And the unverified path is not a read-only degradation. It falls through to
+    # `handle_callback`, then `get_or_create`s a user, provisions a shop,
+    # persists credentials and commits — bound to `_app_review_user_id()`, whose
+    # default is `00000000-0000-4000-8000-000000000001`, a REAL existing user
+    # rather than a throwaway. An unauthenticated caller holding a valid
+    # authorization code could bind a shop's credentials to it.
+    #
+    # The no-state path exists for TikTok's app-review flow, whose callback
+    # carries no state, so it is kept — but only outside production, where a
+    # reviewer exercises it. In production a missing state is now refused
+    # exactly like a forged one, which is what the threat model already claims
+    # ("State parameter validated") and what this makes true.
+    if not state and is_production():
+        logger.warning(
+            "tiktok_oauth_callback_missing_state_refused",
+            extra={"environment": "production"},
+        )
+        raise Unauthorized("OAuth callback is missing the required state parameter")
+
     if state:
         user_id = service.verify_state(state)
         try:

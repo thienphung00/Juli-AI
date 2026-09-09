@@ -49,7 +49,7 @@ Source: https://seller-vn.tiktok.com/university/essay?knowledge_id=10015235&lang
 
 | Metric | Violation | VP |
 |--------|-----------|-----|
-| 24-hour response rate | Low rate | 1 VP |
+| **12-hour** response rate (12HRR, *Tỷ lệ phản hồi 12 giờ*) — threshold **≥ 85 %**; 75–84 % warning, 51–74 % −10 AHR, ≤ 50 % −20 AHR (`seller-journeys/customers.md:29,78`) | Low rate | 1 VP |
 | Customer communications | Inappropriate / prohibited content | 1–12 VP |
 
 Good customer service enables:
@@ -99,6 +99,7 @@ may apply joint enforcement against the seller's shop.
 | Topic | Status |
 |-------|--------|
 | Full Seller Policy Center navigation | UNKNOWN — JS-rendered index not accessible |
+| Returns / refunds / cancellation policy | UNKNOWN — no Policy Center article captured; working source is `docs/product/agent-workflow-execution/seller-journeys/returns-refunds.md` |
 | Prohibited product categories list | UNKNOWN |
 | IP rights policy detail | UNKNOWN |
 | Finance / settlement policy | UNKNOWN (7–14 day hold documented in `data-sources.md` but not sourced to policy article) |

@@ -1,0 +1,107 @@
+{
+  "planId": "intervention-guard-on-the-creation-snapshot-and-stock-increases-2026-09-08",
+  "affectedPublicSurfaces": [
+    "NO HTTP SURFACE CHANGES, PLAINLY. No route is added, removed or altered, and NO ROUTE SHAPE CHANGES. What changes is that a suspended Clear Excess run can now END `seller_modified` with its own message — a new terminal value on an existing field, not a new field and not a new endpoint. This is a comparison, a terminal cause and a suppression; nothing else on the wire moves.",
+    "A NEW TERMINAL CAUSE ON AN EXISTING WIRE FIELD. Verified 2026-09-08: `StopReason` (`services/agent/status.py:100-158`) holds sixteen members and `seller_modified` is NOT among them (zero hits in `backend/src` or `packages/`); it fits the `String(32)` budget. It must be DISTINCT from `goal_met` and from both expiry causes — a client counting end states will see a value it has never seen, and the whole point of naming it is that the eight causes stay countable separately (S-NFR-7).",
+    "SUPPRESSION OF FUTURE CARDS FOR ONE ACTIVITY — a seller-visible ABSENCE, and the part of this slice with the longest tail. After a run ends `seller_modified`, NO FUTURE CARD IS EMITTED FOR THAT ACTIVITY: a new card needs a new basis. A suppression rule that is too broad silently mutes a shop's Clear Excess feed forever; too narrow and Juli re-proposes managing a thing the seller has taken back. State the exact key the suppression is recorded against in the PR.",
+    "SELLER-FACING COPY THAT MUST STATE ITS OWN LATENCY. The message says the seller changed the promotion, that Juli stopped managing it, and that IT STAYS AS THEY SET IT. It must ALSO state plainly that a LIST-PRICE edit is caught only on the next reconcile — implying an instant catch is a promise the mechanism cannot keep. Vietnamese, second person, through the seller-copy sanitiser, no internal identifier (S-NFR-4).",
+    "WEBHOOK #63 IS CONSUMED HERE BUT ADDED ELSEWHERE. Verified 2026-09-08: `services/tiktok/webhook_catalog.py` carries nineteen ids — 1, 2, 3, 4, 5, 6, 7, 11, 12, 21, 24, 27, 37, 39, 58, 64, 65, 67, 68 — and #63 IS ABSENT, with no occurrence of the string anywhere in the file. #1708's dispatcher work adds it; THIS slice consumes it. If #63 is still absent when implementation starts, that is a blocked dependency, not a catalog entry to add here.",
+    "THE CREATION SNAPSHOT IS THE COMPARISON BASIS, AND IT IS NOT A RE-DERIVATION. At create time the run snapshots the activity EXACTLY AS JULI MADE IT — depth or price, the product set, and the window. Divergence is measured against THAT, never against what the rule would compute today; a re-derived basis would drift with configuration and turn a benign config change into a fleet-wide false intervention."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run by the REAL runner from the worktree root with `PYTHONPATH` pinned to this worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite, because the stop-reason CHECK constraint is one of the assertions and SQLite would let a forbidden value insert silently. THE GUARD IS DRIVEN FROM REAL PERSISTED `workflow_webhook_signals` ROWS AND A REAL RE-READ OF THE ACTIVITY — NEVER FROM A HAND-BUILT DIVERGENCE FLAG. A test that sets `diverged = True` and asserts the run ended is testing its own fixture; the comparison against the creation snapshot IS the slice, so the re-read and the comparison must both actually run. Post-deploy: candidate `/health` and one authenticated read unchanged; NO NON-SUSPENDED WORKFLOW MAY CHANGE BEHAVIOUR. NO ACTIVITY IS CREATED ON ANY SHOP BY DEPLOYING — and, because the guard's whole promise is that Juli changes nothing when it fires, nothing is written to any vendor either.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE, deliberately departing from ADR-035's default, because the guard fires from the webhook→resume dispatcher that runs in a worker: with schedulers and workers disabled the candidate cannot demonstrate that a signal reaches the guard at all, and the guard's competition with #1816's goal path (a decrease resumes, an increase ends) is only observable when both run in the same dispatcher. apiSideEffectsInScope is FALSE and is the slice's central claim — WHEN THE GUARD FIRES, JULI CHANGES NOTHING: no revert, no re-issue, no compensating write. syntheticShopRequired is TRUE because two shops' activities and signal rows are needed to prove a divergence moves only its own run.",
+    "journeys": [
+      {
+        "name": "the-sellers-hand-always-wins-and-juli-changes-nothing-when-it-stops",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1817",
+        "assertions": [
+          "pre-merge: given an activity Juli created and a #63 signal whose RE-READ shows a changed DEPTH, PRODUCT SET or WINDOW, the run ends `completed` with cause `seller_modified` and NO VENDOR WRITE IS ISSUED — asserted three times, once per diverging attribute, so a comparison that only checks depth cannot pass; and asserted on the vendor client having received ZERO write calls (tests/unit/test_clear_excess_intervention.py::test_divergence_from_the_creation_snapshot_ends_the_run)",
+          "pre-merge: the comparison is against the CREATION SNAPSHOT, not a re-derivation — asserted by changing the pricing configuration between create and re-read and showing the guard does NOT fire, because a re-derived basis would turn a benign config change into a fleet-wide false intervention",
+          "pre-merge: an activity that is UNCHANGED produces NO intervention — the negative case, asserted explicitly, because a guard that fires on everything passes every positive test",
+          "pre-merge: a #39 signal reporting the activity DEACTIVATED BY SOMEONE OTHER THAN JULI ends the run `seller_modified`, DISTINCT from `goal_met` and from both expiry causes — asserted by comparing the four values for inequality, not by asserting one of them (tests/unit/test_clear_excess_intervention.py::test_seller_deactivation_is_seller_modified_not_goal_met)",
+          "pre-merge: a deactivation JULI ITSELF performed on the goal path does NOT trip the guard — the run must distinguish its own act from the seller's, or #1816's goal path ends `seller_modified` every time it succeeds",
+          "pre-merge: an inventory signal showing available ABOVE the snapshot value ends the run `seller_modified`, and THE SAME SIGNAL SHOWING AVAILABLE BELOW THE GOAL RESUMES THE GOAL PATH INSTEAD — the two branches are asserted TOGETHER on one signal shape, because catching a downward move here would make #1816's goal path unreachable and no test of the upward case alone would notice (tests/unit/test_clear_excess_intervention.py::test_stock_increase_ends_the_run_and_a_decrease_does_not)",
+          "pre-merge: WHEN THE GUARD FIRES, JULI CHANGES NOTHING — no revert, no re-issue, no compensating write — asserted on the vendor client having received zero calls and on the activity's vendor-side state being unchanged after the run ends",
+          "pre-merge: after a run ends `seller_modified`, the card producer running over that activity EMITS NO CARD — asserted by running the real producer and counting `action_cards` rows for that subject, and asserted NOT to suppress cards for a DIFFERENT activity in the same shop, because an over-broad suppression silently mutes the feed forever (tests/unit/test_clear_excess_intervention.py::test_no_future_card_for_a_seller_modified_activity)",
+          "pre-merge: the seller-facing copy states the change was THEIRS and the promotion STAYS AS THEY SET IT, and states the RECONCILE LATENCY for list-price edits rather than implying an instant catch — asserted against the seller-copy guard, Vietnamese, second person, no internal identifier (S-NFR-4)",
+          "pre-merge: the guard is the SHARED guard from #1715, not a Clear-Excess-local copy — asserted by identity against the shared object; a private copy is exactly what ADR-091 d.5 forbids",
+          "pre-merge: #63 IS PRESENT IN `services/tiktok/webhook_catalog.py` when the guard runs. It is ABSENT today (nineteen ids, none of them 63) and #1708 adds it; if it is still absent, the slice is BLOCKED and must stop and report rather than adding the catalog entry here",
+          "pre-merge: a signal for SHOP A does not end SHOP B's run — asserted AS THE RUNTIME ROLE `juli_app` UNDER RLS with two shops' rows present",
+          "pre-merge: NO NEW RUN STATE AND NO NEW TOOL appear in the diff — asserted over the diff and over `WorkflowRunStatus`, which must still hold exactly the members #1706 gave it",
+          "post-deploy: candidate `/health` returns healthy and one authenticated read returns a byte-identical shape; NO NON-SUSPENDED WORKFLOW CHANGES BEHAVIOUR on the candidate. NO ACTIVITY IS CREATED ON ANY SHOP BY DEPLOYING, and no vendor write of any kind occurs"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff binds the shared intervention guard (#1715) to this workflow's two signals under `services/agent/runner/`, adds the terminal cause and its copy, adds the card suppression under `services/action_cards/`, and adds tests. Nothing under apps/, packages/ or ios/ is touched — this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "celery-worker-log",
+      "postgres-catalog-dump"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE. This slice adds NO new run state and NO new tool: it is a comparison, a terminal cause and a suppression. The `seller_modified` stop reason must already be inside the widened `ck_workflow_runs_stop_reason` CHECK — verified 2026-09-08 that `StopReason` (`services/agent/status.py:100-158`) holds sixteen members and does NOT contain it, so it arrives with #1707's stop-reason work; it is 15 characters, inside the `String(32)` budget. CHECK BEFORE WRITING CODE that #1707 landed it in BOTH the model's `__table_args__` and a migration; if it did not, STOP AND REPORT rather than widening the CHECK here, because widening it in this slice would put the enum and the constraint in two different commits and the parity test would find the drift after the fact. The CREATION SNAPSHOT and the ACTIVITY ID the guard compares against are persisted upstream (#1815/#1816); if implementation finds neither is durable, that is a blocked dependency to report, not a column to add — and IF ANY ADDITIVE COLUMN IS NEEDED for the snapshot or for the per-activity card suppression, ITS NUMBER IS RESERVED BY META and supplied with the issue, nullable, with no backfill and no NOT NULL. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update`, but W6, W8, W9 and the sibling W10 lanes hold unlanded numbers off-tree and this tree already carries two duplicate-numbered pairs (`003_*`, `043_*`) from exactly this mistake."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. A suspended Clear Excess run keeps managing an activity the seller has already edited or deactivated, and a restock does not end the run — which is the failure mode a thirty-day wait invents, left open. #1818 stays blocked on the end-state vocabulary this slice completes a member of. Nothing is exposed, nothing is partially applied, no data hazard: the guard writes nothing even when it works, so its absence writes nothing either.",
+    "postCutoverFailureBehavior": "DRAIN OR REAP EVERY RUN IN `waiting_external` FIRST. A rollback that removes the resume path strands a suspended run: the previous code does not recognise the state, its reaper judges only `(QUEUED, RUNNING)` and `(WAITING_APPROVAL,)` (`reaper.py:400,441`), so the run will neither resume nor be reaped while the live TikTok discount behind it keeps running. Enumerate them, close them deliberately, and deactivate their activities by hand where the seller has already taken the promotion back. Then redeploy the previous release and restart juli-api, juli-celery-worker and juli-celery-beat. NO DOWNGRADE IS NEEDED: there is no migration in this slice, and runs already ended `seller_modified` STAY ENDED — nothing was written on their behalf, so there is no vendor state to undo and no compensating action to take. THE CONSEQUENCE TO STATE IN THE PR: the revert removes the guard, so the fleet returns to a suspended run that keeps managing an activity the seller has taken back; and the per-activity card suppression goes with it, so a `seller_modified` activity becomes re-cardable — decide before rolling back whether that is acceptable for the shops affected.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_clear_excess_intervention.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_clear_excess_goal_resume.py tests/unit/test_clear_excess_expiry.py tests/unit/test_clear_excess_waiting_external.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'intervention_guard or webhook_catalog or webhook_signal'",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_workflow_run_status_mapping.py tests/unit -q -k 'action_card or suppress'",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT write a Clear-Excess-local copy of the guard. Use THE SHARED guard from #1715, asserted by identity — a private copy is exactly what ADR-091 d.5 forbids, and no test in this lane would catch it.",
+    "Do NOT catch a DOWNWARD stock move here. A decrease at or below the goal is #1816's goal path; catching it in the guard makes that path unreachable, and only a test that asserts BOTH branches on one signal shape can see the mistake.",
+    "Do NOT revert, re-issue or write anything when the guard fires. JULI CHANGES NOTHING — no revert, no re-issue, no compensating write. Reconciling Juli's intent onto the seller's edit is the option ADR-091 d.5 explicitly rejected: it overwrites a deliberate human act with a stale plan. The seller's edit always wins.",
+    "Do NOT compare against a re-derivation. The basis is the CREATION SNAPSHOT — depth or price, product set, window, exactly as Juli made it. A basis recomputed from current configuration drifts, and a benign config change becomes a fleet-wide false intervention.",
+    "Do NOT let Juli's own deactivation trip the guard. The run must distinguish its own act from the seller's, or #1816's goal path ends `seller_modified` every time it succeeds.",
+    "Do NOT add webhook #63 to the catalog here. Verified 2026-09-08 it is ABSENT (`services/tiktok/webhook_catalog.py` carries 1, 2, 3, 4, 5, 6, 7, 11, 12, 21, 24, 27, 37, 39, 58, 64, 65, 67, 68 and no 63); #1708 adds it and THIS SLICE CONSUMES IT. If it is still absent, the slice is blocked — stop and report.",
+    "Do NOT drive the guard from a hand-built divergence flag. It runs from REAL persisted `workflow_webhook_signals` rows and a REAL re-read of the activity; a test that sets `diverged = True` is testing its own fixture.",
+    "Do NOT imply an instant catch for a list-price edit. It is caught only on the NEXT RECONCILE, and the copy must state that latency plainly rather than promising something the mechanism cannot do.",
+    "Do NOT suppress cards too broadly. The suppression is per ACTIVITY — a new card needs a new basis — and must not mute a different activity in the same shop; state the exact key it is recorded against in the PR.",
+    "Do NOT add a new run state or a new tool. This slice is a comparison, a terminal cause and a suppression; `WorkflowRunStatus` must still hold exactly the members #1706 gave it.",
+    "Do NOT widen the stop-reason CHECK here. `seller_modified` arrives with #1707; verified 2026-09-08 it does not exist in `StopReason` (`services/agent/status.py:100-158`). If #1707 did not land it in BOTH the model and a migration, stop and report — widening it here splits the enum and the constraint across commits.",
+    "Do NOT add a second reaper policy object. The reaper resolves per run through #1702's registry via the existing `policy=` seam; this slice touches no timer.",
+    "Do NOT ask for a fresh CONFIRM. The guard ends a run; it never proposes anything, and the one act exempt from a fresh CONFIRM (the goal-triggered deactivation) is #1816's, not this slice's.",
+    "Do NOT infer a flash sale, a markdown, a base-price write or a stock write. When the guard fires, no write of any kind is issued; S-FR-6 forbids the rest outright.",
+    "Do NOT let a model decide whether the seller intervened. It is a deterministic comparison against a snapshot (S-FR-4).",
+    "Do NOT change the card's KPI tie. `KPI_WORKFLOW_KEYS` maps `clear_excess_4` to `inventory_turnover` and `dsi` (`services/scoring/kpi_catalog.py:46-47`) while ADR-055 d.15 says AOV; CE-NFR-3 leaves both alone and the tie stays whatever the surface renders today.",
+    "Do NOT read revenue. v1 records facts only; the revenue reading on cleared SKUs is deferred to v2.",
+    "Do NOT reach for `Search Activities`. It DOES NOT EXIST at TikTok (resolved 2026-09-05 — `contract-collection.md` A-25, `endpoints.md:509`); the re-read is Get Activity on the id Juli persisted, and nothing else.",
+    "Do NOT assert tenant isolation as the table owner. The runtime role is `juli_app` (`043_juli_app_role.py`, ADR-085) and RLS only binds for it.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object — the real signal row, the real activity re-read, the real shared guard, the real card producer. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

@@ -367,3 +367,74 @@ def test_scalar_and_identity_classes_are_both_present_in_the_committed_baseline(
         "broken_doc_refs",
         "tier1_always_on_tokens",
     } <= set(kinds)
+
+
+# --------------------------------------------------------------------------
+# AC6 — tier1_always_on_tokens scalar is asserted and rises are caught
+# --------------------------------------------------------------------------
+
+
+def test_tier1_always_on_tokens_scalar_asserts_against_tree() -> None:
+    """The Tier-1 scalar (CLAUDE.md + always-apply rules) is asserted by test.
+
+    Changes to always-on context must be deliberate and recorded in the baseline.
+    Adding a paragraph to CLAUDE.md must make this test fail and the ratchet refuse
+    `tighten --write` until the baseline is regenerated with the new total.
+    """
+    baseline = load_baseline(BASELINE_PATH)
+    live = measure(REPO_ROOT, classes=["tier1_always_on_tokens"])
+
+    assert not live.errors, f"tier1 measurement must not fail closed: {live.errors}"
+
+    measured = live.classes["tier1_always_on_tokens"]
+    recorded = baseline["classes"]["tier1_always_on_tokens"]
+
+    assert recorded["kind"] == SCALAR_CLASS
+    assert recorded["direction"] == "must_not_rise"
+    # The live tree's scalar matches or is lower than the baseline (has not regressed).
+    assert measured.scalar <= recorded["scalar"], (
+        "Tier-1 always-on context has risen; regenerate the baseline with "
+        "`python -m eval.ratchets tighten --write` (never `measure --write`) "
+        "and document what grew and why it is accepted in the commit message"
+    )
+    # The files list is stable (no files added/removed from alwaysApply rules).
+    assert set(measured.stats["always_on_files"]) == set(recorded["stats"]["always_on_files"]), (
+        "Tier-1 files list must not change; edit git-baseline.mdc to change alwaysApply rules"
+    )
+
+
+def test_tier1_rise_is_caught_by_ratchet(tmp_path: Path) -> None:
+    """Adding content to Tier-1 files fails the check against the baseline.
+
+    This test reproduces the exact scenario: a paragraph added to CLAUDE.md
+    or content added to an alwaysApply rule causes the scalar to rise, which
+    the ratchet catches with must_not_rise.
+    """
+    root = _mini_repo(tmp_path)
+
+    # Create a minimal Tier-1 setup in the temp repo.
+    _write(root, "CLAUDE.md", "# Tier 1 Doc\n\nInitial content.\n")
+    _write(root, ".cursor/rules/core-safety.mdc", "---\nalwaysApply: true\n---\n\nSafety rules.\n")
+
+    before = measure(root, classes=["tier1_always_on_tokens"])
+    baseline = baseline_from(before)
+    baseline_scalar = before.classes["tier1_always_on_tokens"].scalar
+
+    # Add content to CLAUDE.md.
+    claude_path = root / "CLAUDE.md"
+    claude_path.write_text(
+        claude_path.read_text() + "\n\n" + "Additional section that was not here before.\n" * 3,
+        encoding="utf-8",
+    )
+
+    after = measure(root, classes=["tier1_always_on_tokens"])
+    after_scalar = after.classes["tier1_always_on_tokens"].scalar
+
+    # The scalar has risen (more bytes).
+    assert after_scalar > baseline_scalar, "adding content should increase the scalar"
+
+    # The ratchet fails on the regression.
+    result = check(baseline, after)
+    assert result.ok is False
+    assert [v.kind for v in result.violations] == ["scalar_regression"]
+    assert "tier1_always_on_tokens" in result.violations[0].debt_class

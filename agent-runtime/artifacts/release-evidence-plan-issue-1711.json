@@ -1,0 +1,99 @@
+{
+  "planId": "scheduled-card-producers-under-per-tenant-scope-2026-09-07",
+  "affectedPublicSurfaces": [
+    "THE CELERY BEAT SCHEDULE — the operational surface this slice actually changes. `workers/celery_app.py::beat_schedule` holds exactly SIX entries today: `mock-analytics-hourly-reconcile`, `cdp-batch-staggered-reconcile`, `analytics-backfill-topup`, `daily-impact-reader`, `reap-abandoned-workflow-runs` (`*/5`) and `credential-refresh-beat` (`*/30`). A seventh entry appears here, and it is the FIRST scheduled producer of anything a seller sees. A beat entry is a standing commitment on a shared worker fleet: its cadence, its lock behaviour on a missed tick and its per-shop fan-out are the release risk, not the code.",
+    "CARDS APPEAR WITHOUT A SELLER TAP. Today the only card producer is the manual refresh: `POST /v1/action-cards/refresh` (`api/routes/action_cards.py`) → a cooldown gate → `enqueue_action_card_refresh` → the Celery task `juli_backend.refresh_action_cards` (`workers/tasks/action_card_refresh.py`). After this slice a shop's decisions list can change while nobody is looking. The route itself is UNCHANGED — same path, same cooldown gate, same response.",
+    "AN ADR-089 DEFECT IS FIXED IN THE SAME SLICE, and it is the riskiest edit here. Of the beat-adjacent tasks, the reaper, `credential_refresh_beat`, `analytics_backfill_topup`, `mock_analytics_reconcile` and the impact reader all already run their tenant reads inside `with_shop_scope` (`database/tenant_context.py`); `action_card_refresh` has ZERO occurrences of it — the one existing card producer is the one task with no tenant scope. Bringing it under scope changes which rows a LIVE, ALREADY-DEPLOYED task can see. If any of its reads implicitly relied on being unscoped, they will start returning nothing — that is the fix working, and it must be proven under RLS as the runtime role rather than discovered in production.",
+    "A PER-SHOP CADENCE CONFIGURATION — a small additive column set (times of day plus a timezone). The timezone is load-bearing: `Asia/Ho_Chi_Minh` is UTC+7, so a shop configured for 06:00 local must NOT fire at 06:00 UTC. Storing a local time without its zone, or comparing a naive datetime, is the defect the second acceptance criterion exists to catch.",
+    "A PRODUCER REGISTRY SEAM, not producers. This slice registers producers per workflow key and runs them; the dispatch-window and risk-signal producers themselves land with their workflows in W9-B and W10. A real producer registered here would ship a card-emitting capability with no reviewed workflow behind it.",
+    "NO new HTTP route and no change to any response model. Every card written goes through #1703's subject-scoped emission path, so the revision and suppression semantics are inherited, not re-implemented."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the worktree root with PYTHONPATH pinned to the worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite. Tenant scope is enforced by RLS policies and GUC-backed session settings that exist only in Postgres; a cross-tenant assertion run without RLS, or run as the table owner instead of the runtime role `juli_app`, proves nothing at all. The beat task is exercised as the REAL task function with the REAL `with_shop_scope`, and the test-only producer is registered through the real registry. Post-deploy: read the candidate's beat schedule and run a DRY producer that logs one line per shop; no public traffic reaches a candidate task set and no production write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the entire slice IS a beat task; a candidate with workers disabled cannot demonstrate a scheduled producer at all. apiSideEffectsInScope is FALSE: the only rows written are each shop's own `action_cards`, through #1703's emission path; there is no vendor call and no production write.",
+    "journeys": [
+      {
+        "name": "a-producer-runs-once-per-shop-on-that-shops-clock-and-never-across-tenants",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1711",
+        "assertions": [
+          "pre-merge: with TWO enrolled shops and a test-only producer registered for a workflow key, firing the beat task runs the producer ONCE PER SHOP, each inside that shop's tenant context, and each card is emitted through #1703's subject-scoped path — asserted on the tenant context actually in force during each call and on the resulting `action_cards` rows, never on a call count alone (tests/unit/test_scheduled_card_producers.py::test_producer_runs_per_shop_under_tenant_scope)",
+          "pre-merge: NO FLEET-WIDE READ occurs anywhere in the task. The shop enumeration is the one sanctioned unscoped step and every tenant read after it is inside `with_shop_scope`; asserted AS THE RUNTIME ROLE `juli_app` UNDER RLS, so a read that escaped scope returns zero rows and raises the named application error (ADR-086) rather than quietly succeeding",
+          "pre-merge: a shop configured for 06:00 and 14:30 `Asia/Ho_Chi_Minh` produces NOTHING when the task fires at 06:00 UTC, and DOES produce at 06:00 local — asserted with the zone attached to the stored configuration, so a naive-datetime comparison fails; UTC+7 means the two instants are seven hours apart and a passing test must show that gap (tests/unit/test_scheduled_card_producers.py::test_cadence_respects_shop_timezone)",
+          "pre-merge: the manual card refresh runs EVERY tenant read under `with_shop_scope` — asserted as the runtime role under RLS against `workers/tasks/action_card_refresh.py`, which has zero occurrences of it today; and the refresh still produces the same cards for a correctly scoped shop, so the fix is proven not to have broken the one producer that already works (tests/unit/test_scheduled_card_producers.py::test_manual_refresh_is_tenant_scoped)",
+          "pre-merge: a MISSED cadence is tolerated — the next run covers the gap and does not emit a backlog of duplicate cards (S-NFR-6); asserted by skipping a tick and counting rows, because #1703's `active_card_exists`/`basis_unchanged` suppression is what makes this safe and it must be shown to actually engage",
+          "pre-merge: a producer that RAISES for one shop does not abort the remaining shops, and the failure is recorded as a positive fact rather than left to a success-marker grep — a task that raises before it logs is invisible to one",
+          "pre-merge: the beat entry's cadence, queue and task name are asserted against the live `beat_schedule` mapping through the existing `tests/unit/test_celery_beat_unit_contract.py`, extended rather than replaced, and the six pre-existing entries are asserted UNCHANGED",
+          "pre-merge: the manual refresh route `POST /v1/action-cards/refresh` and its cooldown gate are byte-identical in behaviour — the existing route suite passes untouched",
+          "pre-merge: `alembic upgrade head`, then `downgrade -1`, then `upgrade head` round-trips cleanly on a real Postgres 16 already at the current tip, and a shop with NO cadence configuration is simply not scheduled — an absent row means 'not enrolled', never 'fire at midnight UTC'",
+          "post-deploy: `alembic upgrade head` on the candidate, then `/health` unchanged and the new beat entry PRESENT in the candidate's schedule (read from the running app's own `beat_schedule`, not from the source file), and a DRY producer logs exactly one line per enrolled shop with no cross-tenant read"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is `workers/tasks/scheduled_producers.py`, `workers/celery_app.py`, `workers/tasks/action_card_refresh.py`, one additive Alembic migration for the cadence columns, and tests. Nothing under apps/, packages/ or ios/ is touched; those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "alembic-history",
+      "celery-beat-schedule-dump",
+      "celery-worker-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "ONE ADDITIVE, EXPAND-ONLY migration adding a SMALL NULLABLE cadence column set (times of day plus an IANA timezone) to the per-shop configuration. No column is dropped, renamed or retyped; no NOT NULL and no backfill. An absent or NULL cadence means NOT ENROLLED — it must never default to a firing time, because a defaulted midnight would silently enrol every existing shop in a scheduled producer they never asked for. Store the zone WITH the times; a local time without its zone is unusable and a naive UTC column is the defect the timezone test exists to catch. The table is tenant-scoped, so the new columns must be covered by the runtime role's existing per-table grants from `043_juli_app_role.py` (ADR-085) and by the existing RLS policies — assert that coverage as `juli_app`, never as the owner. Old and new code coexist: the previous release neither reads nor writes the cadence columns and has no beat entry to fire. The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. `beat_schedule` keeps its six entries, no card is produced without a seller tap, `action_card_refresh` keeps running with no tenant scope, and Process Order's two-runs-a-day and Replenish's risk signal stay blocked. That is the pre-existing state — including the ADR-089 gap, which stays open rather than half-closed.",
+    "postCutoverFailureBehavior": "REMOVE THE BEAT ENTRY FIRST, then redeploy the previous release and restart juli-api, juli-celery-worker and juli-celery-beat. Order matters more than usual here: a beat process still holding the old schedule will keep enqueueing a task the redeployed workers no longer define, producing a queue of permanently failing messages. With the entry gone, nothing is scheduled and the previous code runs correctly with the cadence columns present, needing NO downgrade — it simply never names them, and every card already produced is a valid subject-scoped card that the manual refresh path would have produced anyway. Only if the schema must also be reverted, `alembic downgrade -1` drops the cadence columns and destroys only enrolment configuration, never a card and never a run; that downgrade MUST FAIL LOUDLY rather than proceed silently when any shop is actively enrolled, so an operator is told which shops lose their schedule. Note the one behaviour that does NOT roll back: the tenant-scope fix to `action_card_refresh` reverts with the code, so the fleet returns to an unscoped read on that task — state that in the PR as a known consequence rather than letting it be rediscovered.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_scheduled_card_producers.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_celery_beat_unit_contract.py tests/unit/test_action_cards_persist.py tests/unit/test_action_card_revisions.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'tenant_scope or rls or action_card_refresh'",
+    "PYTHONPATH=backend/src python -m pytest tests/integration/test_schema_parity.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake. This slice DOES carry a migration (the cadence columns), so the reservation is binding, not advisory.",
+    "Do NOT do a fleet-wide read in the beat task. Enumerating enrolled shops is the ONE sanctioned unscoped step; every tenant read after it runs inside `with_shop_scope` (`database/tenant_context.py`), the pattern `workers/tasks/reaper.py` and `credential_refresh_beat` already use (ADR-089, S-NFR-8). A single unscoped query 'for efficiency' is the whole defect this slice closes.",
+    "Do NOT assert tenant isolation as the table owner. The runtime role is `juli_app` (`043_juli_app_role.py`, ADR-085) and RLS only binds for it; a scoping test run as the owner passes regardless and proves nothing. This is the exact narrow-verification trap — run the real role.",
+    "Do NOT compare naive datetimes. A shop's cadence is a local time IN A ZONE; `Asia/Ho_Chi_Minh` is UTC+7, so 06:00 local is 23:00 UTC the previous day. Store the zone, convert explicitly, and assert the seven-hour gap.",
+    "Do NOT let an absent cadence default to a firing time. NULL means NOT ENROLLED. A defaulted midnight would silently enrol the whole fleet.",
+    "Do NOT register a REAL producer here. The dispatch-window and risk-signal producers land with their workflows in W9-B and W10; the one in the acceptance criteria is TEST-ONLY. Registering a real one now ships a card-emitting capability with no reviewed workflow behind it.",
+    "Do NOT re-implement card emission. Every card goes through #1703's subject-scoped persist path and inherits its revisions and its `basis_unchanged`/`active_card_exists` suppression. A producer that writes `action_cards` directly would bypass the one path S-FR-10 requires.",
+    "Do NOT reuse the emission-budget suppression vocabulary (`active_cap`, `cooldown`, `weekly_novelty_cap`, `services/action_cards/emission_budget.py`) for a cadence skip. 'It is not this shop's hour yet' is not a suppression reason and must not be recorded as one.",
+    "Do NOT emit a per-order card. A dispatch window and a SKU set are subjects; an order is not, and a producer that fans out per order would multiply the decisions list by order volume.",
+    "Do NOT derive the subject from revenue anywhere in a producer — that derivation left the codebase with #1702 and must not return one layer up.",
+    "Do NOT add a push, email or Zalo transport. A scheduled card notifies nobody in this slice: `services/alerts/` has no callers, `FcmAdapter._deliver` is a `fcm_send_stub`, and there is no device-token store. The in-app act record is #1712/#1713.",
+    "Do NOT gate production on a checklist tick, and do NOT add a second reaper policy object.",
+    "Do NOT verify with a success-marker grep. A producer that raises before it logs is invisible to one; assert on the emitted rows and on the task's own recorded outcome.",
+    "Do NOT change `POST /v1/action-cards/refresh`, its cooldown gate or its response, and do NOT alter the six existing beat entries.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature — the real beat task, the real `with_shop_scope`, the real emission path. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

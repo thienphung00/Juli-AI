@@ -1,0 +1,98 @@
+{
+  "planId": "act-records-written-and-listed-checklists-ticked-and-edited-2026-09-07",
+  "affectedPublicSurfaces": [
+    "TWO NEW TENANT-SCOPED /v1 ROUTE GROUPS — the first seller-readable surface this whole epic produces. `api/routes/act_records.py::list_act_records` (a read plus a read-state update) and `api/routes/checklists.py` (create by the run, tick, untick, edit text). Both follow the `agent_runs` router exemplar: `APIRouter(prefix=..., tags=[...])`, shop resolved from the authenticated session, never from a path or query parameter. A CROSS-TENANT PROBE RETURNS 404, NOT 403 — a 403 confirms the row exists and is an enumeration oracle; the `agent_runs` routes already answer this way and the new ones must match exactly.",
+    "THE WRITE SIDE OF `run_act_records`. #1712 created the table with no writer; this slice adds one at every point a workflow notifies — reminder scheduled, digest produced, automated act performed, completion, exception listed — each record carrying WHAT, WHEN, WHY, WHAT WOULD OTHERWISE HAVE HAPPENED, HOW TO UNDO, and a `state` of `pending`. `channel` is `in_app` and only `in_app`: there is no transport, and there must not be one.",
+    "THE COMPLETION RECORD BINDS TO #1707's VOCABULARY. A run ending with a named cause writes exactly ONE `completion` record whose 'why' is that cause rendered as seller copy. Every string on both routes goes through the existing outbound banned-pattern guard (`packages/contracts/seller-copy-banned-patterns.json`, `tests/unit/test_agent_banned_patterns_contract.py`): Vietnamese, second person, no internal identifiers, no projected impact magnitudes, no causal claims (S-NFR-4). A raw `stop_reason` identifier reaching a seller's screen is a defect, not a fallback.",
+    "AMBIGUITY THE ISSUE LEAVES OPEN AND META MUST CLOSE: 'two ledger rows exist naming the seller as actor'. There is no ledger today that records a SELLER as actor. `tool_executions` (`models.py`) is the ADR-073 decision 3 tool-execution ledger — its states are `in_flight`/`succeeded`/`failed` and its rows are the runner's tool calls; `decision_emission_novelty_ledger` records card emissions. Neither has a seller-actor concept. Name the ledger the tick and the edit write to, or the executor will invent a third one; if the answer is that `run_checklist_items` carries its own audit, say that instead of calling it a ledger.",
+    "A DEPENDENCY THE ISSUE UNDERSTATES: #1715 (intervention guard) asserts that a diverged run 'records a completion act', which requires THIS slice's writer. #1715 lists only #1707 and #1708 as blockers. Sequence it accordingly, or #1715 ships an assertion it cannot satisfy.",
+    "TICKS NEVER GATE A STAGE (S-FR-12). An un-ticked checklist item must not hold a run anywhere; that is an explicit acceptance criterion and a permanent v1 constraint, not a temporary simplification."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the worktree root with PYTHONPATH pinned to the worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite. Tenant isolation on these routes is RLS plus the `juli_app` role's grants, and idempotent read-marking is a transaction property; SQLite reproduces neither. Every isolation assertion is made AS THE RUNTIME ROLE `juli_app` UNDER RLS, never as the table owner, and the routes are exercised through the REAL FastAPI app with real auth dependencies rather than by calling the handler function. Post-deploy: one authenticated list read on the candidate for the sandbox shop plus one cross-tenant probe; no public traffic reaches a candidate task set and no production write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the completion record is written by a run terminating inside the Celery worker; with workers disabled the candidate can serve the list route but can never produce the record it lists, which is the half that matters. apiSideEffectsInScope is FALSE: every row written belongs to the acting shop, there is no vendor call, and no production write occurs.",
+    "journeys": [
+      {
+        "name": "the-seller-can-read-what-juli-did-and-tick-what-they-must-do",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1713",
+        "assertions": [
+          "pre-merge: a run ending with a named cause writes EXACTLY ONE `completion` act record carrying what, when, why and `state = 'pending'`, and the list endpoint returns it FOR THAT SHOP ONLY — the record is asserted after a REAL run terminates through the real runner, not by inserting a row; and a second shop's authenticated read does not see it (tests/unit/test_act_records_and_checklists.py::test_completion_writes_one_record_readable_by_its_shop_only)",
+          "pre-merge: a cross-tenant read of a KNOWN act-record id returns 404, not 403 — asserted as the runtime role under RLS, so the row is invisible rather than forbidden; a 403 would confirm the id exists and turn the route into an enumeration oracle",
+          "pre-merge: ticking a checklist item and editing its text stores `done`, `done_at` and the edited text, sets `edited_by_seller`, and writes TWO audit rows naming the SELLER as actor — asserted on whichever ledger Meta names, and asserted to be two distinct rows (one tick, one edit) rather than one row updated twice (tests/unit/test_act_records_and_checklists.py::test_tick_and_edit_round_trip_with_ledger_rows)",
+          "pre-merge: an UN-TICKED checklist item does NOT hold the run — the stage advances anyway, asserted by advancing a real run with an outstanding item (S-FR-12: ticks never gate a stage in v1) (tests/unit/test_act_records_and_checklists.py::test_checklist_does_not_gate_stages)",
+          "pre-merge: marking an act record read sets `state = 'read'` and a SECOND mark is IDEMPOTENT — no duplicate row, no error, and the record's other fields unchanged; asserted under CONCURRENCY, since idempotence is a transaction property and a read-then-write check would pass sequentially and fail in production (tests/unit/test_act_records_and_checklists.py::test_read_state_is_idempotent)",
+          "pre-merge: every act record kind the issue names — reminder, digest, automated_act, completion, exception — has a writer at a real notification point, and each record carries a non-empty 'otherwise' and 'undo hint'; a record with an empty why or otherwise is refused, since an unexplained act is exactly what the PRD says a seller must never see",
+          "pre-merge: EVERY seller-facing string on both routes passes the outbound banned-pattern guard — Vietnamese, second person, no internal identifiers, no projected impact magnitudes, no causal claims (S-NFR-4); a raw `stop_reason` identifier surfacing as copy fails the suite",
+          "pre-merge: `channel` is `in_app` for every record and NO transport is invoked — asserted structurally: zero references to `services/alerts/`, `deliver_alert`, `FcmAdapter` or `ZaloOaAdapter` anywhere in this diff",
+          "pre-merge: writing an act record NEVER fails a run. A record-write error is recorded and the run's own terminal status is unaffected — the ledger of what Juli did must not become a new way for Juli's work to fail",
+          "pre-merge: the existing agent-runs route suite passes untouched, proving the router exemplar was copied rather than modified, and `tests/unit/test_rls_policies_migration.py` still covers both tables from #1712",
+          "post-deploy: on the candidate, an authenticated list read for the sandbox shop returns its records with `/health` unchanged, and a cross-tenant probe with another shop's session returns 404 — both observed against the deployed host, not asserted in prose"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is two new API route modules, the act-record writers at the run's notification points, seller copy, and tests. The seller-facing UI for all of this is W9-D; nothing under apps/, packages/ or ios/ is touched."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "openapi-schema-diff",
+      "seller-copy-report",
+      "postgres-row-dump"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE IN THIS SLICE. `run_act_records` and `run_checklist_items` are created by #1712, together with their RLS policies (routed through the GUC helper from `050_rls_guc_helpers.py`) and their explicit per-table grants to `juli_app` from `043_juli_app_role.py` (ADR-085). Do not open a migration file: if a column, a policy or a grant is missing, the dependency on #1712 is unmet and the answer is to report it, not to write a second migration. Old and new code coexist because the deployed schema is identical before and after; only the routes and the writers are new. Note that #1712's empty-tables guarantee EXPIRES with this slice — from here on the tables hold the seller's evidence of what Juli did, which is what makes the downgrade refusal below non-negotiable."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. The act-record and checklist tables stay empty and unread, no reminder or result reaches the seller in any form, and the PRD's 'every act leaves one record the seller can read in the app' stays unfulfilled. Nothing about the deployed system changes; the two tables are inert, exactly as #1712 left them.",
+    "postCutoverFailureBehavior": "Code-only rollback: redeploy the previous release and restart juli-api and juli-celery-worker. The two routes disappear — a client calling them gets a 404, which is the correct answer for a route that does not exist — and the TABLES STAY, with every row already written intact. There is NO downgrade to run here: this slice owns no migration. CRITICAL, and the reason the ordering matters: #1712's downgrade drops both tables, and its safety argument rested on them being EMPTY, which stops being true the moment this slice lands. From now on that downgrade MUST FAIL LOUDLY with a named error if either table holds a row — an act record is the seller's only evidence of what Juli did and there is no second copy. Never chain #1712's downgrade after this slice on the assumption it is still safe. The honest caveat to state in the PR: after a rollback, acts performed by the still-running workflows are no longer recorded, so the seller's log has a hole for the rollback window — say so rather than backfilling invented entries.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_act_records_and_checklists.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_banned_patterns_contract.py tests/unit/test_rls_policies_migration.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'agent_runs or route or tenant_scope'",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_workflow_run_status_mapping.py tests/unit/test_terminal_tool_causes.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT read a migration number from head — do NOT write a migration at all. Both tables, their policies and their grants are #1712's. The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake.",
+    "Do NOT gate a stage on a checklist tick. S-FR-12 is explicit: ticks do NOT gate a run stage in v1. No branch, no wait, no `waiting_external` entry, no constraint that could make a stage depend on `done`.",
+    "Do NOT add a push, email or Zalo transport, and do NOT call anything in `services/alerts/`. `channel` is `in_app` and only `in_app`. That package has zero callers outside itself, `FcmAdapter._deliver` is a stub logging `fcm_send_stub`, there is no device-token store, and iOS never uploads its token — a 'reminder' here is a ROW, not a notification.",
+    "Do NOT return 403 for a cross-tenant read. Return 404, matching the `agent_runs` routes; a 403 confirms the row exists and turns the endpoint into an enumeration oracle.",
+    "Do NOT trust a shop id from the path, the query or the body. Resolve it from the authenticated session as the `agent_runs` exemplar does, and let RLS be the second line — authorisation at the service layer, not only the router.",
+    "Do NOT invent a third ledger. Meta must name which existing ledger the tick and the edit write to; `tool_executions` is the ADR-073 d.3 tool-execution ledger (`in_flight`/`succeeded`/`failed`, rows written by the runner) and `decision_emission_novelty_ledger` records card emissions — neither has a seller-actor concept today. If the answer is that `run_checklist_items` carries its own audit fields, say that; do not create a fourth audit table by default.",
+    "Do NOT let an act-record write fail a run. Record the failure and let the run keep its honest terminal status; the log of what Juli did must not become a new way for Juli's work to fail.",
+    "Do NOT surface a raw identifier as seller copy. Every string goes through the outbound banned-pattern guard, in Vietnamese, second person, with no internal identifiers, no projected impact magnitudes and no causal claims (S-NFR-4). A bare `stop_reason` on screen is a defect.",
+    "Do NOT write an act record with an empty 'why' or 'otherwise'. An unexplained act is precisely what the PRD says a seller must never see.",
+    "Do NOT model an act record as a per-order card, and do NOT reuse the emission-budget suppression vocabulary (`active_cap`/`cooldown`/`weekly_novelty_cap`) or the card `status` values for `state`. The act record's states are `pending`/`delivered`/`read`/`failed`.",
+    "Do NOT derive the subject from revenue, do NOT add a second reaper policy object, and do NOT add a stop reason — the vocabulary is #1707's and is closed.",
+    "Do NOT build the seller-facing UI. W9-D renders these; this slice exposes the data.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature — the real FastAPI app with real auth dependencies, the real runner terminating a real run, the real `juli_app` role under RLS. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

@@ -1,0 +1,107 @@
+{
+  "planId": "prompt-v4-and-the-one-lever-playbook-2026-09-08",
+  "affectedPublicSurfaces": [
+    "THE PRODUCTION PROMPT VERSION PIN for `optimize_product_2`. `backend/src/juli_backend/services/agent/prompts/optimize_product/` holds `v1.md`, `v2.md` and `v3.md`; this slice adds `v4.md` as a NEW FILE and moves the pin. ADR-072 d.4 makes a released version IMMUTABLE — v3's bytes must be unchanged after this diff, and runs recorded under v3 must still resolve their prompt version. Editing v3 in place would break resume for every in-flight run bound to it (`prompt_version_unrecoverable` is fail-closed by design: an unresolvable version stops the run rather than executing an unknown prompt).",
+    "THE PROPOSED-CHANGE TEXT SELLERS READ — the seller-facing half. Every completed proposal must state FOUR consequence lines: the lever (the field or the depth), the 30-day window, the ≥ 1-day price hold, and that a discount lowers the floor a future flash sale must beat. All four pass the ADR-070 outbound banned-pattern guard, in Vietnamese, second person, with no internal identifier, no projected impact magnitude and no causal claim (S-NFR-4, OP-FR-7).",
+    "THE CONFIRMATION SHAPE: exactly ONE option. `runner/confirmation.py` already mints `_SINGLE_OPTION_ID = \"1\"` (line 76, used at line 155) and that stays the only option id this workflow mints — N = 1, no option picker, no per-lever cap (ADR-090 d.5, S-FR-3). The prompt must not be able to produce a second option, and the assertion is on the built confirmation, not on the prompt's wording.",
+    "THE DIAGNOSIS-EVIDENCE RULE, which is the substance of v4: a field with NO returned diagnosis code is NEVER proposed. This is the rule that stops Juli asserting a verdict TikTok did not give, and it is asserted as a RELATIONSHIP — move the code from description to title and the proposed field follows.",
+    "THE ONE-LEVER RULE, restated in the prompt to match the machinery #1773 and #1778 already changed: one listing field OR one Product Discount, then the run ends. The playbook's step order and its `required_steps` are RE-STATED so the prompt and the playbook agree — the consistency gate (`tests/unit/test_agent_prompt_playbook_consistency_gate.py`) is what makes that agreement checkable rather than asserted.",
+    "THE CONFIRM-FIRST STATEMENT: this workflow is BARRED from repeat consent in v1 (ADR-090 d.6, narrowing ADR-055 d.19's `optimize_product_2` eligibility), and the shipped copy says so explicitly.",
+    "TWO BANNED CLAIMS, outright (OP-NFR-2): the Price Diagnostics TIER and the 14 card-diagnostic recommendations — no API exposes either — and 'TikTok flags…' may appear ONLY where a code was actually returned. These are enforced by the copy guard, not merely discouraged in prompt text, because a prompt instruction is exactly the thing an adversarial completion routes around.",
+    "`prompt_sha256` MOVES, so the golden scenarios re-capture ONCE. `tests/fixtures/agent_prompt_gates/` already holds `optimize_product_v1_composed.golden.md`, `_v2_`, `_v3_`; a `_v4_` golden is added and `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` is regenerated. Both diffs are REVIEWED — a hand-edited snapshot is a green that proves nothing.",
+    "COMPOSITION, not duplication: v4 is composed through #1705's shared sections so workflow-invariant rules stay in one place and only this workflow's block changes. A rule copied into the workflow block that already lives in a shared section is a fork waiting to drift.",
+    "NO HTTP surface changes and NO schema change: nothing under `api/routes/` moves, no request or response model changes, no column is touched. Nothing under `apps/`, `packages/` or `ios/` is opened — this epic's doNotLoad list; the confirmation sheet's RENDERING of the four lines is #1787.",
+    "Mixed-version hazard, and it is the sharpest one in this lane: a run created under v3 that is SUSPENDED at CONFIRM must still resolve v3 after v4 ships. Because v4 is a new file beside an immutable v3, both versions resolve simultaneously and the pin is only what NEW runs read — that is exactly why the immutability rule exists."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest driven by the REAL `WorkflowRunner` against the FAKE LLM adapter (built on `LLMService.complete`'s real signature — never a `**kwargs` double) from the worktree root with `PYTHONPATH` pinned to that worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite, because the `run_confirmations` rows and the recorded `prompt_version` the assertions read are Postgres behaviour. GOLDENS ARE REGENERATED UNDER A CLEAN `.venv-ci` built from `constraints.txt`, so a local dependency drift cannot fake the green — this repo has been bitten by exactly that. Post-deploy: the candidate's `/health` plus ONE candidate run that records `prompt_version` v4 and reaches CONFIRM with the four consequence lines present. No public traffic reaches a candidate task set and no vendor write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is FALSE: the candidate run stops AT the CONFIRM pause, no write tool executes against the vendor, and no production write occurs. workersDisabledOnCandidate is FALSE because the prompt is composed and the run executed inside the Celery worker; a candidate with workers disabled could not record a `prompt_version` or reach CONFIRM at all, so the journey would prove nothing.",
+    "journeys": [
+      {
+        "name": "v4-lands-beside-an-immutable-v3-and-the-proposal-is-evidence-bound-single-and-fully-disclosed",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1782",
+        "assertions": [
+          "pre-merge (GIVEN a code for description only, adversarially driven toward a title edit / THEN no title proposal): `tests/unit/test_optimize_product_prompt_v4.py::test_the_proposed_field_follows_the_returned_diagnosis_code` asserts NO proposal naming the title survives; then the SAME test moves the code to the title and asserts the proposed field FOLLOWS — the relationship, never a pinned value. The fake LLM is driven adversarially, so a prompt that merely 'discourages' the uncoded edit fails",
+          "pre-merge (GIVEN any completed proposal / THEN one option and four consequence lines): `::test_single_option_carries_the_four_consequence_lines` asserts on the BUILT confirmation — not on the prompt text — that exactly ONE option exists with `_SINGLE_OPTION_ID`, and that the proposed change states the lever, the 30-day window, the ≥ 1-day hold and the flash-sale floor, all four passing the outbound banned-pattern guard",
+          "pre-merge (the four lines are asserted for BOTH lever kinds): a discount proposal carries all four; a listing-field proposal carries the lines that apply to it and does not fabricate a window or a depth it does not have",
+          "pre-merge (GIVEN no returned code, model pushed to claim a flag / THEN nothing survives the guard): `::test_no_tier_or_code_claim_without_a_returned_code` asserts no Price Diagnostics TIER claim, no card-recommendation claim and no 'TikTok flags' phrasing survives the copy guard — enforced by the GUARD, so the assertion holds even against a completion that ignores the prompt",
+          "pre-merge (GIVEN #1705's parametrised gates for this workflow key / THEN snapshot, budget and consistency): `tests/unit/test_agent_prompt_playbook_consistency_gate.py` (parametrised) asserts the snapshot matches the regenerated v4 golden, the composed prompt is UNDER this workflow's budget ceiling, and the playbook-consistency gate matches the DIAGNOSIS-FIRST step order and the ONE-LEVER `required_steps`",
+          "pre-merge (GIVEN v3 on disk / THEN immutable and resolvable): `::test_v3_is_immutable_and_still_resolvable` asserts v3's BYTES are unchanged — compared against the committed file, so any edit at all fails — and that a run row recorded under v3 still resolves its prompt version rather than stopping on `prompt_version_unrecoverable`",
+          "pre-merge (RESUME across the version boundary): a run SUSPENDED at CONFIRM under v3 resumes correctly after v4 ships, because consent is bound by `params_sha` over the tool call's arguments and the run's own recorded version resolves independently of the pin — asserted, not assumed",
+          "pre-merge (the confirm-first statement is present and is not repeat consent): the shipped copy carries the confirm-first statement, AND repeat-consent eligibility is not enabled anywhere by this diff",
+          "pre-merge (COMPOSITION, not duplication): the workflow-invariant rules come from #1705's shared sections and are NOT copied into the v4 workflow block — asserted on the composed output's provenance, so a forked rule is visible",
+          "pre-merge (the goldens move ONCE, under a clean environment): the v4 composed golden and `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` are regenerated under a clean `.venv-ci` built from `constraints.txt`, their diffs are attached to the review artifact and reviewed line by line, and neither is hand-edited",
+          "post-deploy: the candidate's `/health` is unchanged; ONE candidate run records `prompt_version` v4 on its run row and reaches CONFIRM with all four consequence lines present in the confirmation payload — observed on the SSE stream and the persisted confirmation, not inferred from a log line",
+          "post-deploy: an EXISTING run recorded under v3 still resolves its prompt version on the candidate — read back on an authenticated request, so the immutability guarantee is verified in production and not only in test"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is backend Python and Markdown under `backend/src/juli_backend/services/agent/prompts/` and `playbooks/`, plus tests and two regenerated fixtures. `apps/`, `ios/`, `packages/` and `docs/product/design/` are on this epic's doNotLoad list; rendering the four consequence lines on the confirmation sheet is #1787's."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "prompt-golden-diff",
+      "golden-scenario-diff",
+      "prompt-budget-report",
+      "confirmation-payload-snapshot",
+      "sse-event-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE. No column, index, constraint, table or grant is touched and NO Alembic revision file is created — the executor must not open `backend/src/juli_backend/database/migrations/versions/`. `prompt_version` and `prompt_sha256` are EXISTING columns whose VALUES move; a new version string is data, never a schema object or an enum member. Stable and candidate run the identical schema and coexist on one database: v3 and v4 resolve simultaneously because v4 is a new file beside an immutable v3, so a stable process reading a v4 run row resolves v4 only if it has the file — which is why both processes must move onto the same release together, and why a v4 run must never be resumed by a stable process that lacks `v4.md`. Assert that failure mode is FAIL-CLOSED (`prompt_version_unrecoverable`), never a silent execution of a different prompt."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed system changes: the pin stays on v3, the prompt keeps describing the OLD workflow — price vocabulary, two independent CONFIRM writes, no diagnosis — while the machinery underneath has already moved. That mismatch is a real product risk (the prompt describes a lever that no longer exists), but it is not a rollback hazard: nothing is exposed, nothing is partially applied, no vendor call is made, no data changes.",
+    "postCutoverFailureBehavior": "REVERT THE PIN — a pointer move, not a delete. v4's file STAYS ON DISK, immutable, beside v3, so every run recorded under v4 still resolves its prompt version after the rollback; deleting `v4.md` would strand those runs on `prompt_version_unrecoverable` and is the one thing the revert must not do. New runs compose v3 again. Redeploy the previous release and restart `juli-api` and `juli-celery-worker` together — a stable process that lacks `v4.md` cannot resume a v4 run, and that failure is fail-closed by design (`prompt_version_unrecoverable`) rather than a silent execution of a different prompt; assert this pre-merge rather than assuming it. There is no schema to revert and no downgrade to run. The regenerated goldens revert with the code as ordinary files. A run SUSPENDED at CONFIRM across the rollback resumes correctly if and only if its own recorded version's file is present, which is precisely the guarantee immutability provides.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_optimize_product_prompt_v4.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_prompt_playbook_consistency_gate.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_golden_scenario_capture_from_real_runner.py tests/unit/test_agent_golden_scenarios.py tests/unit/test_agent_golden_scenarios_integration.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_prompt_composer.py tests/unit/test_agent_tool_registry_contract.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT reintroduce BASE-PRICE VOCABULARY or a base-price write. v4 replaces price vocabulary with discount vocabulary; `update_product_price` left this workflow in #1773 and `resources.products.update_prices` has no caller on this path. A prompt that describes repricing the base price describes a tool that does not exist — and ADR-090 d.1 rejected a fallback by name.",
+    "The MODEL NEVER PICKS THE DEPTH (S-FR-4). v4 must not invite, imply or permit a model-chosen number; #1778's deterministic rule computes it and the dispatch validator refuses anything else. A prompt that asks the model to 'choose an appropriate discount' is a pricing decision made by a prompt.",
+    "Do NOT name a DEFAULT SHOP MAXIMUM or any default depth in prompt text, an example, or a golden. #1775's setting is required and seller-confirmed; a number that ships in a prompt is a number no seller ever saw.",
+    "Do NOT CLAIM A TIKTOK TIER OR A CODE THE API DID NOT RETURN (OP-NFR-2). The Price Diagnostics tier and the 14 card-diagnostic recommendations are BANNED OUTRIGHT — no API exposes them, and listing-quality tier is US-only. 'TikTok flags…' appears only where a code was actually returned. Enforce this in the copy guard, not only in prompt text: a prompt instruction is exactly what an adversarial completion routes around.",
+    "Do NOT reference SEARCH ACTIVITIES or imply a pre-proposal lock check. `POST /promotion/202309/activities/search` does not exist as a usable read (contract-collection A-25; `endpoints.md:509`); the prompt must not promise a collision check Juli cannot perform, and platform campaigns remain invisible.",
+    "Do NOT enable, imply or soften REPEAT CONSENT. Optimize Product is BARRED from it in v1 (ADR-090 d.6, narrowing ADR-055 d.19). v4 carries an explicit CONFIRM-FIRST statement; wording that suggests a future run is pre-approved contradicts the shipped eligibility rule.",
+    "Do NOT READ A MIGRATION NUMBER FROM HEAD — do not write a migration at all. This slice has no schema change. Never run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive a number from the newest filename. Migration numbers are RESERVED BY META.",
+    "NEVER EDIT A RELEASED PROMPT VERSION IN PLACE. v3's bytes are immutable (ADR-072 d.4). Add `v4.md`; do not 'fix a typo' in v1, v2 or v3, and do not delete an old version file — runs are bound to them.",
+    "Do NOT HAND-EDIT A GOLDEN OR A SNAPSHOT to make a gate green. Regenerate ONCE with the real runner under a clean `.venv-ci` built from `constraints.txt`, and review the diff. A local dependency drift producing a green is a known failure mode in this repo.",
+    "Do NOT put a GUARD in the prompt. The cooldown, the title-length rule and the four-field bundle refusal live in the input models and the dispatch validator (#1780); restating them in v4 as prose is fine, relying on them as prose is not.",
+    "Do NOT mint a second CONFIRMATION OPTION or introduce an option picker. `_SINGLE_OPTION_ID = \"1\"` stays the only option id this workflow mints (ADR-090 d.5); N > 1 needs an honest per-option comparison line that does not exist for VN and a picker that is not built.",
+    "Do NOT DUPLICATE a shared section into the workflow block. Compose through #1705's shared sections so a workflow-invariant rule has one home.",
+    "Do NOT put an internal identifier in seller-facing text. `price_lever_locked`, `scope_unavailable` and friends are stop-reason names, not seller words; copy is Vietnamese, second person, through the outbound sanitiser (S-NFR-4).",
+    "Do NOT touch `apps/**`, `ios/**`, `packages/**`, `docs/product/design/**` or the TikTok corpora catalogs (ADR-051) — this epic's doNotLoad list. Rendering the four lines is #1787's.",
+    "Bind every test collaborator to the REAL object's signature — the real prompt composer, the real playbook, the real `WorkflowRunner`, the existing fake LLM adapter over `LLMService.complete`. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}
