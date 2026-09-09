@@ -20,7 +20,7 @@ current, is the branch you think it is, and is not one of N abandoned siblings.
 
 Design notes
 ------------
-* **No network by default.** ``origin/main`` is read from the local ref so this stays fast
+* **No network by default.** the base ref (``origin/$BASE_REF``, default ``main``) is read
   enough to sit in a PreToolUse hook. Pass ``--fetch`` for an authoritative answer; the
   ``ORIGIN_STALE`` check tells you when the local ref has gone off.
 * **Severity, not a boolean.** ``FAIL`` means "this checkout will mislead you"; ``WARN``
@@ -150,44 +150,61 @@ def list_worktrees(repo: Path) -> list[Worktree]:
 # --------------------------------------------------------------------------------------
 
 
+def base_ref_name() -> str:
+    """The integration base for this run, as a short ref name.
+
+    #1731/#1608: at issue tier the base is a wave branch, not ``main``. Measuring
+    staleness against a hardcoded ``origin/main`` reported the wave's own
+    distance from main as the branch's, and STALE_BASE is blocking — so the
+    false positive stopped the file-editing tools, and the workaround
+    (routing every edit through shell heredocs) is how writes escape into the
+    primary tree (#1606). ``BASE_REF`` is already set by `pr.yml` for exactly
+    this purpose; main tier sets it to ``main``, so one dynamic form is correct
+    at both tiers.
+    """
+    return (os.environ.get("BASE_REF") or "main").strip() or "main"
+
+
 def check_stale_base(repo: Path, branch: str) -> Finding:
-    """How much of ``origin/main`` is this checkout missing, in commits and in days?
+    """How much of the run's base is this checkout missing, in commits and in days?
 
     Commit count alone is a poor proxy — a quiet week and a busy afternoon can produce the
     same number. The age of the merge-base is what actually predicts "you are reading code
     that has since been rewritten", so both are measured and the worse one wins.
     """
-    origin = git_ok(repo, "rev-parse", "--verify", "origin/main")
+    base_name = base_ref_name()
+    base_remote = f"origin/{base_name}"
+    origin = git_ok(repo, "rev-parse", "--verify", base_remote)
     if not origin:
         return Finding(
             "STALE_BASE",
             WARN,
-            "origin/main is not available locally",
-            "Cannot measure staleness without an origin/main ref.",
-            "git fetch origin",
+            f"{base_remote} is not available locally",
+            f"Cannot measure staleness without a {base_remote} ref.",
+            f"git fetch origin {base_name}",
         )
 
-    base = git_ok(repo, "merge-base", "HEAD", "origin/main")
+    base = git_ok(repo, "merge-base", "HEAD", base_remote)
     if not base:
-        return Finding("STALE_BASE", WARN, "no merge-base with origin/main")
+        return Finding("STALE_BASE", WARN, f"no merge-base with {base_remote}")
 
-    behind = int(git_ok(repo, "rev-list", "--count", f"{base}..origin/main") or 0)
+    behind = int(git_ok(repo, "rev-list", "--count", f"{base}..{base_remote}") or 0)
     base_ts = int(git_ok(repo, "log", "-1", "--format=%ct", base) or 0)
-    tip_ts = int(git_ok(repo, "log", "-1", "--format=%ct", "origin/main") or 0)
+    tip_ts = int(git_ok(repo, "log", "-1", "--format=%ct", base_remote) or 0)
     age_days = round(max(0, tip_ts - base_ts) / 86400.0, 1)
 
     data = {"behind": behind, "baseAgeDays": age_days, "branch": branch}
     remedy = (
-        "git fetch origin && git rebase origin/main"
+        f"git fetch origin && git rebase {base_remote}"
         if branch not in PROTECTED_BRANCHES
-        else "git fetch origin && git merge --ff-only origin/main"
+        else f"git fetch origin && git merge --ff-only {base_remote}"
     )
 
     if behind >= BEHIND_FAIL or age_days >= BASE_AGE_DAYS_FAIL:
         return Finding(
             "STALE_BASE",
             FAIL,
-            f"this checkout is {behind} commits / {age_days}d behind origin/main",
+            f"this checkout is {behind} commits / {age_days}d behind {base_remote}",
             "Anything you read here — source, migrations, config — may already have been "
             "changed on main. Fixes rediscovered against a stale tree are the single most "
             "expensive failure mode this gate exists to prevent.",
@@ -198,7 +215,7 @@ def check_stale_base(repo: Path, branch: str) -> Finding:
         return Finding(
             "STALE_BASE",
             WARN,
-            f"{behind} commits / {age_days}d behind origin/main",
+            f"{behind} commits / {age_days}d behind {base_remote}",
             "Still workable, but rebase before you trust a wide grep.",
             remedy,
             data,

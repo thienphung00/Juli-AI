@@ -37,6 +37,19 @@ def load_module(path: Path, name: str):
     return module
 
 
+@pytest.fixture(autouse=True)
+def _no_ambient_base_ref(monkeypatch):
+    """Every test states its own base; none inherits the operator's shell.
+
+    #1731: `check_stale_base` now reads BASE_REF, and this repo's own setup
+    instructions tell an operator to export it. Without this fixture the suite
+    passes with it unset and fails with it set -- a test that depends on an
+    ambient env var is measuring the shell, not the code. The two tests that
+    care about BASE_REF set it explicitly.
+    """
+    monkeypatch.delenv("BASE_REF", raising=False)
+
+
 @pytest.fixture(scope="module")
 def engine():
     return load_module(ENGINE_PATH, "checkout_preflight_under_test")
@@ -332,3 +345,61 @@ def test_a_clean_primary_tree_passes(engine, origin_and_clone):
     _, clone = origin_and_clone
     findings = engine.run_checks(clone)
     assert find(findings, "PRIMARY_TRACKED_MODS").severity == engine.OK
+
+
+# ------------------------------------------------------------- STALE_BASE / BASE_REF (#1731)
+
+
+def test_staleness_is_measured_against_the_runs_actual_base(engine, origin_and_clone, monkeypatch):
+    """#1731/#1608: at issue tier the base is a wave branch, not main.
+
+    `check_stale_base` measured against a hardcoded `origin/main`, so every
+    branch cut from a wave reported the wave's own distance from main as its own
+    staleness. STALE_BASE is a *blocking* check, so that false positive stopped
+    the file-editing tools outright.
+
+    The cost is not just noise. An executor that cannot use Edit/Write routes
+    every change through `Bash` heredocs instead — which is exactly how a write
+    escapes into the primary working directory when the shell's cwd is not the
+    worktree (#1606). One false positive here manufactures the isolation failure
+    that #1734 exists to catch.
+    """
+    origin, clone = origin_and_clone
+
+    # a wave branch that is itself well behind main
+    run_git(clone, "checkout", "-q", "-b", "feature/demo-wave")
+    run_git(clone, "push", "-q", "origin", "feature/demo-wave")
+    run_git(clone, "checkout", "-q", "main")
+    for i in range(60):
+        commit(clone, f"main-{i}.md", f"{i}\n")
+    run_git(clone, "push", "-q", "origin", "main")
+
+    # an issue branch cut from the wave, current with it
+    run_git(clone, "checkout", "-q", "-b", "feature/issue-1-x", "origin/feature/demo-wave")
+    run_git(clone, "fetch", "-q", "origin")
+
+    monkeypatch.setenv("BASE_REF", "feature/demo-wave")
+    finding = find(engine.run_checks(clone), "STALE_BASE")
+    assert finding.severity == engine.OK, (
+        f"measured against the wrong base: {finding.headline} / {finding.detail}"
+    )
+
+
+def test_staleness_still_fails_when_the_real_base_has_moved(engine, origin_and_clone, monkeypatch):
+    """The green half. Without it the fix above is just a check that never fires."""
+    origin, clone = origin_and_clone
+
+    run_git(clone, "checkout", "-q", "-b", "feature/demo-wave")
+    run_git(clone, "push", "-q", "origin", "feature/demo-wave")
+    run_git(clone, "checkout", "-q", "-b", "feature/issue-2-y")
+    # the wave itself moves far ahead of this branch
+    run_git(clone, "checkout", "-q", "feature/demo-wave")
+    for i in range(60):
+        commit(clone, f"wave-{i}.md", f"{i}\n")
+    run_git(clone, "push", "-q", "origin", "feature/demo-wave")
+    run_git(clone, "checkout", "-q", "feature/issue-2-y")
+    run_git(clone, "fetch", "-q", "origin")
+
+    monkeypatch.setenv("BASE_REF", "feature/demo-wave")
+    finding = find(engine.run_checks(clone), "STALE_BASE")
+    assert finding.severity == engine.FAIL, finding

@@ -1,0 +1,7 @@
+# #1731: wave manifests conflict on every concurrent slice, and the resolution is
+# always the sorted union of the issues list. The driver resolves exactly that and
+# leaves anything else conflicted for a human.
+#
+# The driver is registered per-clone, not by this file alone. Run:
+#   python agent-runtime/scripts/git/merge_wave_manifest.py --install
+agent-runtime/artifacts/waves/*.json merge=wave-manifest
