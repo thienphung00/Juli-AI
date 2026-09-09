@@ -29,7 +29,9 @@ def _valid_artifact(**overrides: Any) -> dict[str, Any]:
             "skillsLoaded": [".cursor/skills/domain/backend/SKILL.md"],
             "rulesLoaded": [".cursor/rules/code-quality.mdc"],
             "mcpsUsed": [],
-            "filesModified": ["agent-runtime/scripts/validate/check_implementation_schema_valid.py"],
+            "filesModified": [
+                "agent-runtime/scripts/validate/check_implementation_schema_valid.py"
+            ],
             "testsAdded": ["tests/unit/test_implementation_schema_valid.py"],
             "testsUpdated": [],
             "redGreenRefactorEvidence": [
@@ -129,3 +131,65 @@ def test_schema_valid_fails_on_missing_required_field(tmp_path: Path, monkeypatc
 
     assert passed is False
     assert any("phaseRunId" in err for err in details.get("errors", []))
+
+
+# ---------------------------------------------------------------------------
+# #1732: executionDurationMs and toolInvocationCount accept unavailable shape
+# ---------------------------------------------------------------------------
+
+
+def test_execution_duration_unavailable_shape_validates(tmp_path: Path, monkeypatch) -> None:
+    """#1732 AC1: executionDurationMs can carry {available: false, reason} and validate."""
+    import common
+
+    impl_dir = tmp_path / "agent-runtime" / "artifacts" / "implementations"
+    monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", impl_dir)
+    monkeypatch.setattr(common, "REPO_ROOT", tmp_path)
+
+    artifact = _valid_artifact(
+        executionDurationMs={"available": False, "reason": "no wall-clock instrumentation"}
+    )
+    _write_impl(tmp_path, artifact)
+
+    passed, _description, details = run_check(515)
+
+    assert passed is True, f"errors: {details.get('errors')}"
+    assert details.get("valid") is True
+
+
+def test_tool_invocation_count_unavailable_shape_validates(tmp_path: Path, monkeypatch) -> None:
+    """#1732 AC1: toolInvocationCount can carry {available: false, reason} and validate."""
+    import common
+
+    impl_dir = tmp_path / "agent-runtime" / "artifacts" / "implementations"
+    monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", impl_dir)
+    monkeypatch.setattr(common, "REPO_ROOT", tmp_path)
+
+    artifact = _valid_artifact(
+        toolInvocationCount={"available": False, "reason": "tool instrumentation unavailable"}
+    )
+    _write_impl(tmp_path, artifact)
+
+    passed, _description, details = run_check(515)
+
+    assert passed is True, f"errors: {details.get('errors')}"
+    assert details.get("valid") is True
+
+
+def test_execution_duration_zero_fails_validation(tmp_path: Path, monkeypatch) -> None:
+    """#1732 AC1: bare 0 for executionDurationMs must still fail (not accept zeros)."""
+    import common
+
+    impl_dir = tmp_path / "agent-runtime" / "artifacts" / "implementations"
+    monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", impl_dir)
+    monkeypatch.setattr(common, "REPO_ROOT", tmp_path)
+
+    artifact = _valid_artifact(executionDurationMs=0)
+    _write_impl(tmp_path, artifact)
+
+    passed, _description, details = run_check(515)
+
+    # A bare 0 is not a valid measurement; it should either be a positive number or unavailable
+    assert passed is False
+    assert details.get("valid") is False
+    assert any("executionDurationMs" in err or "0" in err for err in details.get("errors", []))
