@@ -20,7 +20,7 @@ current, is the branch you think it is, and is not one of N abandoned siblings.
 
 Design notes
 ------------
-* **No network by default.** ``origin/main`` is read from the local ref so this stays fast
+* **No network by default.** the base ref (``origin/$BASE_REF``, default ``main``) is read
   enough to sit in a PreToolUse hook. Pass ``--fetch`` for an authoritative answer; the
   ``ORIGIN_STALE`` check tells you when the local ref has gone off.
 * **Severity, not a boolean.** ``FAIL`` means "this checkout will mislead you"; ``WARN``
@@ -197,14 +197,14 @@ def check_stale_base(repo: Path, branch: str) -> Finding:
     remedy = (
         f"git fetch origin && git rebase {base_remote}"
         if branch not in PROTECTED_BRANCHES
-        else "git fetch origin && git merge --ff-only origin/main"
+        else f"git fetch origin && git merge --ff-only {base_remote}"
     )
 
     if behind >= BEHIND_FAIL or age_days >= BASE_AGE_DAYS_FAIL:
         return Finding(
             "STALE_BASE",
             FAIL,
-            f"this checkout is {behind} commits / {age_days}d behind origin/main",
+            f"this checkout is {behind} commits / {age_days}d behind {base_remote}",
             "Anything you read here — source, migrations, config — may already have been "
             "changed on main. Fixes rediscovered against a stale tree are the single most "
             "expensive failure mode this gate exists to prevent.",
@@ -215,7 +215,7 @@ def check_stale_base(repo: Path, branch: str) -> Finding:
         return Finding(
             "STALE_BASE",
             WARN,
-            f"{behind} commits / {age_days}d behind origin/main",
+            f"{behind} commits / {age_days}d behind {base_remote}",
             "Still workable, but rebase before you trust a wide grep.",
             remedy,
             data,

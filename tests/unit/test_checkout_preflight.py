@@ -37,6 +37,19 @@ def load_module(path: Path, name: str):
     return module
 
 
+@pytest.fixture(autouse=True)
+def _no_ambient_base_ref(monkeypatch):
+    """Every test states its own base; none inherits the operator's shell.
+
+    #1731: `check_stale_base` now reads BASE_REF, and this repo's own setup
+    instructions tell an operator to export it. Without this fixture the suite
+    passes with it unset and fails with it set -- a test that depends on an
+    ambient env var is measuring the shell, not the code. The two tests that
+    care about BASE_REF set it explicitly.
+    """
+    monkeypatch.delenv("BASE_REF", raising=False)
+
+
 @pytest.fixture(scope="module")
 def engine():
     return load_module(ENGINE_PATH, "checkout_preflight_under_test")
