@@ -78,6 +78,12 @@ class _InMemoryConversationStore:
         running_seconds_elapsed=None,
         pending_confirmation=None,
         durable=False,
+        input_tokens=None,
+        output_tokens=None,
+        cost_usd=None,
+        duration_ms=None,
+        tool_call_count=None,
+        rows_affected=None,
     ):
         self._store[workflow_run_id] = state
         if running_seconds_elapsed is not None:

@@ -22,7 +22,11 @@ from common import (  # noqa: E402
 def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:
     review = load_review_artifact(issue)
     if review is None:
-        return False, "Review artifact missing", {"path": f"agent-runtime/artifacts/reviews/review-issue-{issue}.json"}
+        return (
+            False,
+            "Review artifact missing",
+            {"path": f"agent-runtime/artifacts/reviews/review-issue-{issue}.json"},
+        )
 
     required = ("id", "issue", "status", "criticalFindings", "modulesTouched", "testCoverage")
     missing = [field for field in required if field not in review]
@@ -42,17 +46,59 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:
         if field not in acceptance:
             return False, f"testCoverage.acceptance missing {field}", {}
 
+    # AC4: A review claiming PASS must have recorded a test run (#1732)
+    if status in {"PASS", "PASS_WITH_WARNINGS"}:
+        dynamic_tests_executed = review.get("dynamicTestsExecuted")
+
+        # If field is absent or false, PASS is invalid
+        if dynamic_tests_executed is not True:
+            return (
+                False,
+                (
+                    f"status {status} but dynamicTestsExecuted is {dynamic_tests_executed}; "
+                    "a PASS claim requires evidence of test execution"
+                ),
+                {
+                    "status": status,
+                    "dynamicTestsExecuted": dynamic_tests_executed,
+                },
+            )
+
+        # If tests executed, unit counts must show at least one test ran
+        unit = review.get("testCoverage", {}).get("unit", {})
+        passed = unit.get("passed", 0)
+        failed = unit.get("failed", 0)
+
+        if passed == 0 and failed == 0:
+            return (
+                False,
+                (
+                    f"status {status} and dynamicTestsExecuted: true, but unit tests "
+                    "{passed: 0, failed: 0} — no tests actually ran"
+                ),
+                {
+                    "status": status,
+                    "dynamicTestsExecuted": dynamic_tests_executed,
+                    "unitPassed": passed,
+                    "unitFailed": failed,
+                },
+            )
+
     findings = normalize_review_findings(review)
     derived = derive_review_status(findings, review)
     warning_count = sum(1 for f in findings if f.get("severity") == "WARNING")
     detail = f"Review artifact present; status {status}"
     if warning_count:
         detail += f" ({warning_count} gating warning(s))"
-    return True, detail, {
-        "status": status,
-        "derivedStatus": derived,
-        "warningCount": warning_count,
-    }
+    return (
+        True,
+        detail,
+        {
+            "status": status,
+            "derivedStatus": derived,
+            "warningCount": warning_count,
+        },
+    )
 
 
 def main() -> int:

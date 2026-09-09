@@ -357,81 +357,103 @@ def test_migration_041_upgrade_and_downgrade_round_trip_cleanly():
     """Migration 041's `downgrade()` actually works: at 041,
     `confirmation_diverged` is accepted; after downgrading to 040, it is
     rejected again (the original 12-value constraint is restored, not just
-    "a" constraint); upgrading back to 041 accepts it again."""
-    from sqlalchemy.orm import Session
+    "a" constraint); upgrading back to 041 accepts it again.
 
-    from juli_backend.models import models as m
+    Seeds `workflow_runs` with a raw SQL `INSERT` naming only the columns
+    that existed at revisions 040/041 -- not the ORM model, which is always
+    mapped to head and would otherwise also try to write the six rollup
+    columns #1653 / W8-A / P10-1 added at revision 057, columns that do not
+    exist yet at either revision this test resets to. Same reasoning as
+    `test_cancel_requested_backfills_false_for_row_seeded_before_036` in
+    `test_workflow_runs_schema.py`.
+    """
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
 
     cfg = _alembic_config()
     engine = _sync_engine()
+    insert_sql = text(
+        "INSERT INTO workflow_runs "
+        "(id, shop_id, product_id, state, status, stop_reason, prompt_version, prompt_sha256) "
+        "VALUES (:id, :shop_id, :product_id, '{}', :status, :stop_reason, "
+        ":prompt_version, :prompt_sha256)"
+    )
+    delete_sql = text("DELETE FROM workflow_runs WHERE id = :id")
     try:
         _reset_to_revision(cfg, "041_stop_reason_diverged")
 
         with Session(engine) as session:
             shop, product = _seed_shop_and_product(session)
             shop_id, product_id = shop.id, product.id
-            run = m.WorkflowRun(
-                shop_id=shop_id,
-                product_id=product_id,
-                state={},
-                status="completed",
-                stop_reason="confirmation_diverged",
-                prompt_version="optimize_product.v1",
-                prompt_sha256="1" * 64,
-            )
-            session.add(run)
             session.commit()
 
-            # `downgrade()` re-adds the narrower 12-value constraint, and
-            # Postgres validates every existing row against a newly-added
-            # CHECK constraint -- so the row just proven above must be
-            # cleared first, or the downgrade legitimately fails on data
-            # that no longer fits, which is not what this test is proving.
-            session.delete(run)
-            session.commit()
+        run_id_1 = uuid.uuid4()
+        with engine.begin() as conn:
+            conn.execute(
+                insert_sql,
+                {
+                    "id": run_id_1,
+                    "shop_id": shop_id,
+                    "product_id": product_id,
+                    "status": "completed",
+                    "stop_reason": "confirmation_diverged",
+                    "prompt_version": "optimize_product.v1",
+                    "prompt_sha256": "1" * 64,
+                },
+            )
+
+        # `downgrade()` re-adds the narrower 12-value constraint, and
+        # Postgres validates every existing row against a newly-added
+        # CHECK constraint -- so the row just proven above must be
+        # cleared first, or the downgrade legitimately fails on data
+        # that no longer fits, which is not what this test is proving.
+        with engine.begin() as conn:
+            conn.execute(delete_sql, {"id": run_id_1})
 
         command.downgrade(cfg, "040_workflow_run_action_card")
 
-        with Session(engine) as session:
-            product = session.get(m.Product, product_id)
-            run = m.WorkflowRun(
-                shop_id=shop_id,
-                product_id=product_id,
-                state={},
-                status="completed",
-                stop_reason="confirmation_diverged",
-                prompt_version="optimize_product.v1",
-                prompt_sha256="2" * 64,
-            )
-            session.add(run)
-            with pytest.raises(IntegrityError):
-                session.commit()
-            session.rollback()
+        run_id_2 = uuid.uuid4()
+        with pytest.raises(IntegrityError):
+            with engine.begin() as conn:
+                conn.execute(
+                    insert_sql,
+                    {
+                        "id": run_id_2,
+                        "shop_id": shop_id,
+                        "product_id": product_id,
+                        "status": "completed",
+                        "stop_reason": "confirmation_diverged",
+                        "prompt_version": "optimize_product.v1",
+                        "prompt_sha256": "2" * 64,
+                    },
+                )
 
         command.upgrade(cfg, "041_stop_reason_diverged")
 
-        with Session(engine) as session:
-            run = m.WorkflowRun(
-                shop_id=shop_id,
-                product_id=product_id,
-                state={},
-                status="completed",
-                stop_reason="confirmation_diverged",
-                prompt_version="optimize_product.v1",
-                prompt_sha256="3" * 64,
+        run_id_3 = uuid.uuid4()
+        with engine.begin() as conn:
+            conn.execute(
+                insert_sql,
+                {
+                    "id": run_id_3,
+                    "shop_id": shop_id,
+                    "product_id": product_id,
+                    "status": "completed",
+                    "stop_reason": "confirmation_diverged",
+                    "prompt_version": "optimize_product.v1",
+                    "prompt_sha256": "3" * 64,
+                },
             )
-            session.add(run)
-            session.commit()
 
-            # Clean up: `juli_exec_1274_r1` is a shared disposable database
-            # across this whole test module, not a per-test transaction --
-            # a leftover `confirmation_diverged` row here would make a
-            # LATER, unrelated test's downgrade-to-base fail on stale data
-            # instead of proving what it means to prove (same reasoning as
-            # the cleanup in `test_confirmation_diverged_insert_succeeds_at_head`
-            # above).
-            session.delete(run)
-            session.commit()
+        # Clean up: `juli_exec_1274_r1` is a shared disposable database
+        # across this whole test module, not a per-test transaction --
+        # a leftover `confirmation_diverged` row here would make a
+        # LATER, unrelated test's downgrade-to-base fail on stale data
+        # instead of proving what it means to prove (same reasoning as
+        # the cleanup in `test_confirmation_diverged_insert_succeeds_at_head`
+        # above).
+        with engine.begin() as conn:
+            conn.execute(delete_sql, {"id": run_id_3})
     finally:
         engine.dispose()
 
