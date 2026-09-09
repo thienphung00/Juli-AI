@@ -354,7 +354,7 @@ def _redact_dict(data: dict[str, Any]) -> dict[str, Any]:
 
     Preserves structure and keys for operator visibility.
     """
-    redacted = {}
+    redacted: dict[str, Any] = {}
     for key, value in data.items():
         if _is_redactable_key(key, value):
             redacted[key] = REDACTION_MARKER
@@ -371,7 +371,7 @@ def _redact_dict(data: dict[str, Any]) -> dict[str, Any]:
 
 def _redact_list(data: list[Any]) -> list[Any]:
     """Recursively redact sensitive values in a list."""
-    redacted = []
+    redacted: list[Any] = []
     for item in data:
         if isinstance(item, dict):
             redacted.append(_redact_dict(item))
