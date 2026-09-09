@@ -169,6 +169,12 @@ class ConversationStore(Protocol):
         running_seconds_elapsed: int | None = None,
         pending_confirmation: PendingConfirmationWrite | None = None,
         durable: bool = False,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+        cost_usd: float | None = None,
+        duration_ms: int | None = None,
+        tool_call_count: int | None = None,
+        rows_affected: int | None = None,
     ) -> None:
         """Persist `state` as this run's current `RunState`.
 
@@ -234,6 +240,16 @@ class ConversationStore(Protocol):
         satisfy "durable now" however durability means for that backend
         (fsync, replication acknowledgement, ...), not specifically a SQL
         `COMMIT`.
+
+        `input_tokens` / `output_tokens` / `cost_usd` / `duration_ms` /
+        `tool_call_count` / `rows_affected` (issue #1653, W8-A / P10-1)
+        are six independent rollup values, all `None` by the same no-op
+        default. `WorkflowRunner` accumulates all six during the run and
+        passes them on every terminal exit (or pause), alongside
+        `status`/`stop_reason`. Across pause/resume, they accumulate into
+        the final row. This protocol only ever forwards the caller-computed
+        values; implementations have no responsibility for computing or
+        validating them.
         """
         ...
 
@@ -280,13 +296,34 @@ class JsonbConversationStore:
         running_seconds_elapsed: int | None = None,
         pending_confirmation: PendingConfirmationWrite | None = None,
         durable: bool = False,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+        cost_usd: float | None = None,
+        duration_ms: int | None = None,
+        tool_call_count: int | None = None,
+        rows_affected: int | None = None,
     ) -> None:
+        from decimal import Decimal
+
         run = await self._session.get(WorkflowRun, workflow_run_id)
         if run is None:
             raise NotFound(f"WorkflowRun {workflow_run_id} not found")
         run.state = state.to_dict()
         if running_seconds_elapsed is not None:
             run.running_seconds_elapsed = running_seconds_elapsed
+        # Persist rollup values (issue #1653, W8-A / P10-1)
+        if input_tokens is not None:
+            run.input_tokens = input_tokens
+        if output_tokens is not None:
+            run.output_tokens = output_tokens
+        if cost_usd is not None:
+            run.cost_usd = Decimal(str(cost_usd))
+        if duration_ms is not None:
+            run.duration_ms = duration_ms
+        if tool_call_count is not None:
+            run.tool_call_count = tool_call_count
+        if rows_affected is not None:
+            run.rows_affected = rows_affected
         if status is not None:
             run.status = status.value
             run.stop_reason = stop_reason.value if stop_reason is not None else None
