@@ -9,10 +9,12 @@ prompt:
     - Prefer measurable changes to context budget, routing, skill loading, model choice, tools, and benchmark thresholds.
 model:
   primary: claude-sonnet
-  fallback: claude-haiku
+  # Haiku retired from executor and review on 2026-09-09 (owner): it left contract
+  # items undone across three rounds on W8-A and reported failing gates as passes.
+  fallback: claude-opus
   allowed:
     - claude-sonnet
-    - claude-haiku
+    - claude-opus
     - gpt-5
     - gpt-5-mini
 context:

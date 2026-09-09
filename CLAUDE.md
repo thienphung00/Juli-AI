@@ -85,8 +85,8 @@ stops existing, so the pointers cannot rot silently.
 |-------|-------|-------|----------|
 | Planning | `architect` | Opus | `focus` → `grill-with-docs` → `to-prd` → `to-issues` |
 | Implementation routing | `meta` | Sonnet | `focus` → `meta_prepare_executor.py` → assign one executor domain |
-| Implementation | `executor-<domain>` | Haiku (`ui-ux`: Sonnet) | domain skill + built-in TDD (red → green → refactor) |
-| Review + testing | `review` | Haiku | `intent-review` → `guardrails` → `validate` → ship-ready |
+| Implementation | `executor-<domain>` | Sonnet (Opus, complex) | domain skill + built-in TDD (red → green → refactor) |
+| Review + testing | `review` | Sonnet | `intent-review` → `guardrails` → `validate` → ship-ready |
 | Harness optimization | `meta` | Sonnet | consumes implementation/review/validation artifacts |
 
 Executor domains: `backend`, `ui-ux`, `data-platform`, `machine-learning`, `integrations`.
