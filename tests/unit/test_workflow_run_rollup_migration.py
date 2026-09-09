@@ -35,7 +35,7 @@ from sqlalchemy import create_engine, inspect
 from sqlalchemy.engine import Engine
 
 from juli_backend.core.config.runtime import sync_database_url
-from tests.integration.test_migrations import postgres_at_head, requires_postgres  # noqa: F401
+from tests.integration.test_migrations import postgres_at_head, requires_postgres
 
 __all__ = ["postgres_at_head", "requires_postgres"]
 
