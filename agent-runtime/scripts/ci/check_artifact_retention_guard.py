@@ -115,23 +115,24 @@ def evaluate(
     status_dir: Path = STATUS_DIR,
     repo_root: Path = REPO_ROOT,
 ) -> tuple[bool, str]:
-    """Existence + PASS + artifactRef-integrity check for one issue's status record.
+    """Existence + well-formedness + artifactRef-integrity check for one issue's status record.
 
+    Separates "is there evidence" (this check) from "did it pass" (merge gate reads review.status).
     Returns ``(passed, detail)``. Every branch below either returns ``(False, <reason>)``
     or falls through to the single ``(True, ...)`` at the end, reached only after the
     record parsed as a JSON object, validated against the status-record schema, matched
-    the requested issue number, both ``review.status`` and ``validation.status`` read
-    ``"PASS"``, and -- from ``gateVersion`` 2 on -- every ``artifactRef`` either
+    the requested issue number, ``validation.status`` reads ``"PASS"``, and -- from ``gateVersion`` 2 on -- every ``artifactRef`` either
     resolved to content matching its recorded ``sha256`` (``git-history:``) or
     honestly declared itself unretrievable by policy (``local-only:``, #1497).
     Either way the refs are named in the returned detail, never swallowed.
+    The record's ``review.status`` is recorded in the detail but not gated by this check (#1569).
     """
     record_path = status_record_path(issue, status_dir)
 
     if not record_path.is_file():
         return False, (
             f"missing {record_path} for issue {issue} — an issue-tier PR must commit a "
-            f"PASS status record before this check can pass (produce it with: "
+            f"status record before this check can pass (produce it with: "
             f"{GENERATE_COMMAND})"
         )
 
@@ -173,19 +174,15 @@ def evaluate(
         )
 
     review_status = review.get("status")
-    if review_status not in {"PASS", "PASS_WITH_WARNINGS"}:
-        return (
-            False,
-            f"{record_path}: review gate is {review_status!r}, "
-            "required PASS or a fully signed-off PASS_WITH_WARNINGS",
-        )
+    # #1569: The retention guard now records ALL review statuses, including FAIL.
+    # The merge decision that blocks on non-PASS status is handled by a separate
+    # merge gate that reads review.status (option 1: separate evidence from verdict).
+    # The schema guarantees review.status is one of {"PASS", "PASS_WITH_WARNINGS", "FAIL"},
+    # so no validation is needed here; the record is evidence of what happened.
 
     # #1141: PASS_WITH_WARNINGS is what `validate` emits for a slice whose
     # warnings were reviewed, acknowledged per finding, and signed off by the
-    # owner -- ADR-003 treats that as shippable. Requiring literal "PASS" here
-    # made it unlandable, so the two states a reviewer can legitimately reach
-    # were "clean" and "permanently blocked", with no way to ship an accepted
-    # warning. This does not soften the gate: PASS_WITH_WARNINGS is admitted
+    # owner -- ADR-003 treats that as shippable. PASS_WITH_WARNINGS is admitted
     # ONLY with both signoff booleans true. They are written by
     # generate_status_records.py straight from the same `common` helpers
     # check_findings_acknowledged.py and check_owner_signoff.py use, so a record

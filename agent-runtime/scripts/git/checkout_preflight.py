@@ -20,7 +20,7 @@ current, is the branch you think it is, and is not one of N abandoned siblings.
 
 Design notes
 ------------
-* **No network by default.** ``origin/main`` is read from the local ref so this stays fast
+* **No network by default.** the base ref (``origin/$BASE_REF``, default ``main``) is read
   enough to sit in a PreToolUse hook. Pass ``--fetch`` for an authoritative answer; the
   ``ORIGIN_STALE`` check tells you when the local ref has gone off.
 * **Severity, not a boolean.** ``FAIL`` means "this checkout will mislead you"; ``WARN``
@@ -150,44 +150,61 @@ def list_worktrees(repo: Path) -> list[Worktree]:
 # --------------------------------------------------------------------------------------
 
 
+def base_ref_name() -> str:
+    """The integration base for this run, as a short ref name.
+
+    #1731/#1608: at issue tier the base is a wave branch, not ``main``. Measuring
+    staleness against a hardcoded ``origin/main`` reported the wave's own
+    distance from main as the branch's, and STALE_BASE is blocking — so the
+    false positive stopped the file-editing tools, and the workaround
+    (routing every edit through shell heredocs) is how writes escape into the
+    primary tree (#1606). ``BASE_REF`` is already set by `pr.yml` for exactly
+    this purpose; main tier sets it to ``main``, so one dynamic form is correct
+    at both tiers.
+    """
+    return (os.environ.get("BASE_REF") or "main").strip() or "main"
+
+
 def check_stale_base(repo: Path, branch: str) -> Finding:
-    """How much of ``origin/main`` is this checkout missing, in commits and in days?
+    """How much of the run's base is this checkout missing, in commits and in days?
 
     Commit count alone is a poor proxy — a quiet week and a busy afternoon can produce the
     same number. The age of the merge-base is what actually predicts "you are reading code
     that has since been rewritten", so both are measured and the worse one wins.
     """
-    origin = git_ok(repo, "rev-parse", "--verify", "origin/main")
+    base_name = base_ref_name()
+    base_remote = f"origin/{base_name}"
+    origin = git_ok(repo, "rev-parse", "--verify", base_remote)
     if not origin:
         return Finding(
             "STALE_BASE",
             WARN,
-            "origin/main is not available locally",
-            "Cannot measure staleness without an origin/main ref.",
-            "git fetch origin",
+            f"{base_remote} is not available locally",
+            f"Cannot measure staleness without a {base_remote} ref.",
+            f"git fetch origin {base_name}",
         )
 
-    base = git_ok(repo, "merge-base", "HEAD", "origin/main")
+    base = git_ok(repo, "merge-base", "HEAD", base_remote)
     if not base:
-        return Finding("STALE_BASE", WARN, "no merge-base with origin/main")
+        return Finding("STALE_BASE", WARN, f"no merge-base with {base_remote}")
 
-    behind = int(git_ok(repo, "rev-list", "--count", f"{base}..origin/main") or 0)
+    behind = int(git_ok(repo, "rev-list", "--count", f"{base}..{base_remote}") or 0)
     base_ts = int(git_ok(repo, "log", "-1", "--format=%ct", base) or 0)
-    tip_ts = int(git_ok(repo, "log", "-1", "--format=%ct", "origin/main") or 0)
+    tip_ts = int(git_ok(repo, "log", "-1", "--format=%ct", base_remote) or 0)
     age_days = round(max(0, tip_ts - base_ts) / 86400.0, 1)
 
     data = {"behind": behind, "baseAgeDays": age_days, "branch": branch}
     remedy = (
-        "git fetch origin && git rebase origin/main"
+        f"git fetch origin && git rebase {base_remote}"
         if branch not in PROTECTED_BRANCHES
-        else "git fetch origin && git merge --ff-only origin/main"
+        else f"git fetch origin && git merge --ff-only {base_remote}"
     )
 
     if behind >= BEHIND_FAIL or age_days >= BASE_AGE_DAYS_FAIL:
         return Finding(
             "STALE_BASE",
             FAIL,
-            f"this checkout is {behind} commits / {age_days}d behind origin/main",
+            f"this checkout is {behind} commits / {age_days}d behind {base_remote}",
             "Anything you read here — source, migrations, config — may already have been "
             "changed on main. Fixes rediscovered against a stale tree are the single most "
             "expensive failure mode this gate exists to prevent.",
@@ -198,7 +215,7 @@ def check_stale_base(repo: Path, branch: str) -> Finding:
         return Finding(
             "STALE_BASE",
             WARN,
-            f"{behind} commits / {age_days}d behind origin/main",
+            f"{behind} commits / {age_days}d behind {base_remote}",
             "Still workable, but rebase before you trust a wide grep.",
             remedy,
             data,
@@ -265,6 +282,52 @@ def check_primary_tree(repo: Path, trees: list[Worktree]) -> Finding:
             {"branch": primary.branch, "behind": behind},
         )
     return Finding("PRIMARY_TREE", OK, "primary working directory is on main")
+
+
+def check_primary_tracked_modifications(repo: Path, trees: list[Worktree]) -> Finding:
+    """Tracked files modified in the primary tree, which no task should be editing.
+
+    #1734/#1606: file-editing tools can resolve against the primary directory
+    while ``Bash`` runs in the worktree, so an agent obeying "work only in
+    .worktrees/<name>" still writes here. From inside the agent it looks like an
+    edit that succeeded and then vanished; it is undetectable without checking
+    this tree, and three agents did it in one session.
+
+    It matters more than a stray file. The primary tree is the base every other
+    worktree branches from, so an unnoticed write there is a write into
+    everyone's next branch point -- and the strays become *inputs*: a generator
+    that globs artifact bodies rewrote a committed record for an unrelated issue
+    because a stale body was lying here (#1686).
+
+    Only *tracked* modifications count. Untracked scratch accumulates
+    legitimately, and a check that fires on it becomes a red everyone learns to
+    ignore, which is how a real signal is lost.
+    """
+    primary = next((t for t in trees if t.primary), None)
+    if primary is None:
+        return Finding("PRIMARY_TRACKED_MODS", WARN, "could not identify the primary worktree")
+
+    out = git_ok(primary.path, "status", "--porcelain")
+    tracked = [ln for ln in out.splitlines() if ln.strip() and not ln.startswith("??")]
+    if not tracked:
+        return Finding("PRIMARY_TRACKED_MODS", OK, "no tracked modifications in the primary tree")
+
+    # porcelain is XY<space>PATH, but the leading status field is not always
+    # padded to the same width -- slicing a fixed offset ate the first character
+    # of every path.
+    paths = [ln[2:].strip() for ln in tracked]
+    shown = ", ".join(paths[:5])
+    overflow = "" if len(paths) <= 5 else f" (+{len(paths) - 5} more)"
+    return Finding(
+        "PRIMARY_TRACKED_MODS",
+        FAIL,
+        f"{len(paths)} tracked file(s) modified in the primary working directory",
+        f"{shown}{overflow}. Task work belongs in a worktree; a tracked edit here is either "
+        "an agent's write that escaped its worktree (#1606) or an abandoned session. Either "
+        "way the next branch cut from this tree inherits it.",
+        "git -C <primary> status  # then restore, commit deliberately, or stash",
+        {"count": len(paths), "paths": paths[:20]},
+    )
 
 
 def check_dirty(repo: Path) -> Finding:
@@ -415,7 +478,14 @@ def check_origin_freshness(repo: Path) -> Finding:
 # means "what you are about to read or write is not what you think it is". Drift-style
 # findings (dirty tree, worktree count) inform but never block.
 BLOCKING_CHECKS = frozenset(
-    {"STALE_BASE", "MAIN_LOCATION", "NESTED_CLONE", "PRIMARY_TREE", "WORKTREE_LOCATION"}
+    {
+        "STALE_BASE",
+        "MAIN_LOCATION",
+        "NESTED_CLONE",
+        "PRIMARY_TREE",
+        "PRIMARY_TRACKED_MODS",
+        "WORKTREE_LOCATION",
+    }
 )
 
 
@@ -430,6 +500,7 @@ def run_checks(repo: Path, *, fetch: bool = False, quick: bool = False) -> list[
         check_stale_base(repo, branch),
         check_main_location(repo, trees),
         check_primary_tree(repo, trees),
+        check_primary_tracked_modifications(repo, trees),
     ]
     if not quick:
         findings += [

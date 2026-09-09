@@ -17,6 +17,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import ImpactReading
 
+#: The ONLY confidence values that count as an incremental-impact reading —
+#: the real tiers from ``services/impact/confidence.py``'s ``TierOutcome``.
+#: Named here, once, so every surface answering "what was the impact" reuses
+#: this rule instead of re-declaring the tier list at its own call site: a
+#: second copy is a second thing to drift (#1062's defect class), and the
+#: whole point of #1338 was to make #1226's dishonesty structurally
+#: unreachable rather than a convention each new reader re-observes.
+#: :data:`EXCLUDED_CONFIDENCES` is its complement over the
+#: ``ck_impact_readings_confidence`` check constraint.
+COUNTABLE_CONFIDENCES: tuple[str, ...] = ("cao", "trung_binh", "thap")
+
+#: ``suppressed`` (insufficient signal) and ``confounded`` (a competing
+#: change) are NOT readings — but they are not each other either, and
+#: neither is "zero impact". A surface that shows them at all must show
+#: each under its own name; this tuple exists so such a surface can
+#: recognise them without inventing its own literal list.
+EXCLUDED_CONFIDENCES: tuple[str, ...] = ("suppressed", "confounded")
+
 
 async def list_impact_readings_honest(
     session: AsyncSession,
@@ -33,7 +51,7 @@ async def list_impact_readings_honest(
     """
     stmt = select(ImpactReading).where(
         ImpactReading.tool_execution_id == tool_execution_id,
-        ImpactReading.confidence.in_(["cao", "trung_binh", "thap"]),
+        ImpactReading.confidence.in_(COUNTABLE_CONFIDENCES),
     )
     result = await session.execute(stmt)
     return list(result.scalars().all())

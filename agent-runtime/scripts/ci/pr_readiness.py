@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any  # Used in wave manifest type annotations
 
 from check_artifact_retention_guard import evaluate as evaluate_status_record
+from check_merge_status import evaluate as evaluate_merge_verdict
 from common import AGENT_RUNTIME_ROOT, REPO_ROOT, STATUS_DIR
 from wave_manifest import check_issue_membership
 
@@ -76,10 +77,19 @@ def evaluate_issue_ready(
     if not membership["valid"]:
         reasons.extend(membership["errors"])
 
-    # Check status record using the real gate logic (including artifactRef checks)
+    # Check status record using the real gate logic (including artifactRef checks).
     passed, detail = evaluate_status_record(issue, status_dir=status_dir, repo_root=REPO_ROOT)
     if not passed:
         reasons.append(detail)
+
+    # #1569 split the record's two questions apart: the retention guard now answers
+    # "is there evidence" and accepts a recorded FAIL as evidence, while the merge
+    # verdict lives in check_merge_status. Asking only the first would report a
+    # failed review as ready to open a PR that CI will then block -- which is the
+    # opposite of what this script exists to tell you.
+    merge_ok, merge_detail = evaluate_merge_verdict(issue, status_dir=status_dir)
+    if not merge_ok:
+        reasons.append(merge_detail)
 
     return len(reasons) == 0, reasons
 

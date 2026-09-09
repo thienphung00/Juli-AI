@@ -460,6 +460,63 @@ class TestRunningSecondsColumnMirror:
             )
 
 
+class TestRollupCallSiteStructure:
+    """Issue #1653 (W8-A / P10-1): the rollup rides the SAME
+    `ConversationStore.persist(...)` call that already stamps
+    `status`/`stop_reason` -- never a second, independent write path
+    (release-evidence-plan assertion "there is no second, independent write
+    path to workflow_runs for these columns"). Asserted structurally,
+    mirroring `test_the_ordinary_per_iteration_persist_call_site_carries_the_
+    kwarg` above: every `persist(...)` call site in `core.py` that stamps
+    `stop_reason=` -- i.e. every terminal exit -- must also carry all six
+    rollup kwargs. A terminal exit missing them would silently leave that
+    row's rollup at its pre-exit value (or NULL), which is exactly the "second
+    writer that can disagree with the run it describes" this epic forbids.
+    """
+
+    _ROLLUP_KWARGS = frozenset(
+        {
+            "input_tokens",
+            "output_tokens",
+            "cost_usd",
+            "duration_ms",
+            "tool_call_count",
+            "rows_affected",
+        }
+    )
+
+    def test_every_terminal_persist_call_site_carries_all_six_rollup_kwargs(self):
+        tree = ast.parse(CORE_MODULE_PATH.read_text(encoding="utf-8"))
+        persist_calls = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "persist"
+        ]
+        terminal_calls = [
+            call for call in persist_calls if any(kw.arg == "stop_reason" for kw in call.keywords)
+        ]
+        # Every `stop_reason=`-stamping call site core.py has today -- a
+        # regression that silently dropped one below this floor would be
+        # exactly the "one exit forgot the rollup" bug this test exists to
+        # catch, not a false positive to chase away.
+        assert len(terminal_calls) >= 11, (
+            f"expected at least 11 terminal persist(...) call sites in core.py, "
+            f"found {len(terminal_calls)} -- if this dropped, a terminal exit lost "
+            "its status/stop_reason stamp entirely, not just its rollup."
+        )
+        for call in terminal_calls:
+            keyword_names = {kw.arg for kw in call.keywords}
+            missing = self._ROLLUP_KWARGS - keyword_names
+            assert not missing, (
+                f"a terminal persist(...) call at line {call.lineno} in core.py "
+                f"stamps stop_reason= but is missing rollup kwarg(s) {sorted(missing)} "
+                "-- issue #1653 requires the rollup to ride the SAME persist call as "
+                "status/stop_reason, never a second write path."
+            )
+
+
 class TestActionCardRevertOnTerminalFailure:
     """Issue #1305: when a run reaches terminal FAILED status (cleanly through
     the runner, not just in the crash handler), any consumed action card must
