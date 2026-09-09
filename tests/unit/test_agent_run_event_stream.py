@@ -47,13 +47,25 @@ async def session_factory(engine):
 
 
 @pytest.fixture
-async def run_id(session_factory):
-    """A committed ``running`` run; the stream reads it from its own sessions."""
+async def run_and_shop_ids(session_factory):
+    """A committed ``running`` run and its shop; replay_events requires shop scope (#1700)."""
     async with session_factory() as session:
         _, shop = await make_tenant(session)
         run = await make_workflow_run(session, shop)
         await session.commit()
-        return run.id
+        return run.id, shop.id
+
+
+@pytest.fixture
+async def run_id(run_and_shop_ids):
+    """Extract just the run_id from the tuple."""
+    return run_and_shop_ids[0]
+
+
+@pytest.fixture
+async def shop_id(run_and_shop_ids):
+    """Extract just the shop_id from the tuple."""
+    return run_and_shop_ids[1]
 
 
 async def insert_event(session_factory, run_id, seq: int, **event) -> None:
@@ -62,21 +74,28 @@ async def insert_event(session_factory, run_id, seq: int, **event) -> None:
         await session.commit()
 
 
-def stream(run_id, session_factory, **overrides):
+def stream(run_id, shop_id, session_factory, **overrides):
     options = dict(after_seq=0, run_is_terminal=False, subscriber=None)
     options.update(overrides)
-    return event_stream(run_id=run_id, session_factory=session_factory, **options)
+    return event_stream(run_id=run_id, shop_id=shop_id, session_factory=session_factory, **options)
 
 
 class TestReplay:
-    async def test_replays_strictly_after_the_cursor_in_order(self, run_id, session_factory):
+    async def test_replays_strictly_after_the_cursor_in_order(
+        self, run_id, shop_id, session_factory
+    ):
         for seq in range(1, 6):
             await insert_event(session_factory, run_id, seq)
         subscriber = CountingSubscriber()
 
         chunks = await drain(
             stream(
-                run_id, session_factory, after_seq=2, run_is_terminal=True, subscriber=subscriber
+                run_id,
+                shop_id,
+                session_factory,
+                after_seq=2,
+                run_is_terminal=True,
+                subscriber=subscriber,
             )
         )
 
@@ -84,23 +103,25 @@ class TestReplay:
         assert subscriber.calls == 0
 
     async def test_terminal_run_at_connect_replays_and_never_subscribes(
-        self, run_id, session_factory
+        self, run_id, shop_id, session_factory
     ):
         await insert_event(session_factory, run_id, 1)
         await insert_event(session_factory, run_id, 2, **COMPLETED)
         subscriber = CountingSubscriber()
 
         chunks = await drain(
-            stream(run_id, session_factory, run_is_terminal=True, subscriber=subscriber)
+            stream(run_id, shop_id, session_factory, run_is_terminal=True, subscriber=subscriber)
         )
 
         assert sse_ids(chunks) == [1, 2]
         assert subscriber.calls == 0
 
-    async def test_terminal_event_closes_the_stream(self, run_id, session_factory):
+    async def test_terminal_event_closes_the_stream(self, run_id, shop_id, session_factory):
         await insert_event(session_factory, run_id, 1)
         await insert_event(session_factory, run_id, 2, **COMPLETED)
-        generator = stream(run_id, session_factory, subscriber=RecordingSubscriber(FakePubSub()))
+        generator = stream(
+            run_id, shop_id, session_factory, subscriber=RecordingSubscriber(FakePubSub())
+        )
 
         chunks = await drain(generator)
 
@@ -111,7 +132,7 @@ class TestReplay:
 
 class TestLiveLeg:
     async def test_subscribe_happens_before_replay_so_the_gap_event_is_kept(
-        self, run_id, session_factory, monkeypatch
+        self, run_id, shop_id, session_factory, monkeypatch
     ):
         await insert_event(session_factory, run_id, 1)
         await insert_event(session_factory, run_id, 2)
@@ -120,9 +141,9 @@ class TestLiveLeg:
         channel = run_events_channel(run_id)
         original_replay = stream_events.replay_events
 
-        async def replay_then_publish_into_the_gap(factory, run, after_seq):
+        async def replay_then_publish_into_the_gap(factory, run, after_seq, shop):
             assert subscriber.calls == [channel], "replay ran before subscribe: the gap is open"
-            async for row in original_replay(factory, run, after_seq):
+            async for row in original_replay(factory, run, after_seq, shop):
                 yield row
             await insert_event(factory, run, 3)
             pubsub.publish(channel, envelope_json(run, 3, "workflow.status"))
@@ -133,7 +154,7 @@ class TestLiveLeg:
 
         monkeypatch.setattr(stream_events, "replay_events", replay_then_publish_into_the_gap)
 
-        chunks = await drain(stream(run_id, session_factory, subscriber=subscriber))
+        chunks = await drain(stream(run_id, shop_id, session_factory, subscriber=subscriber))
 
         assert sse_ids(chunks) == [1, 2, 3, 4]
 
@@ -146,7 +167,7 @@ class TestLiveLeg:
         assert await subscription.get_message(timeout=0.01) is None
 
     async def test_live_redelivery_of_a_replayed_event_is_dropped_server_side(
-        self, run_id, session_factory
+        self, run_id, shop_id, session_factory
     ):
         await insert_event(session_factory, run_id, 1)
         await insert_event(session_factory, run_id, 2)
@@ -157,15 +178,19 @@ class TestLiveLeg:
             ]
         )
 
-        chunks = await drain(stream(run_id, session_factory, subscriber=subscriber))
+        chunks = await drain(stream(run_id, shop_id, session_factory, subscriber=subscriber))
 
         assert sse_ids(chunks) == [1, 2, 3]
 
     async def test_idle_stream_emits_heartbeats_at_the_injected_interval(
-        self, run_id, session_factory
+        self, run_id, shop_id, session_factory
     ):
         generator = stream(
-            run_id, session_factory, subscriber=PreloadedSubscriber([]), heartbeat_interval_s=0.02
+            run_id,
+            shop_id,
+            session_factory,
+            subscriber=PreloadedSubscriber([]),
+            heartbeat_interval_s=0.02,
         )
 
         frames = [await asyncio.wait_for(generator.__anext__(), timeout=1.0) for _ in range(3)]
@@ -173,9 +198,11 @@ class TestLiveLeg:
 
         assert frames == [": connected\n\n", ": heartbeat\n\n", ": heartbeat\n\n"]
 
-    async def test_first_byte_is_sent_before_subscribe_can_block(self, run_id, session_factory):
+    async def test_first_byte_is_sent_before_subscribe_can_block(
+        self, run_id, shop_id, session_factory
+    ):
         """#1292: a hung Redis must not delay the first byte, or the edge buffers until timeout."""
-        generator = stream(run_id, session_factory, subscriber=HangingSubscriber())
+        generator = stream(run_id, shop_id, session_factory, subscriber=HangingSubscriber())
 
         first = await asyncio.wait_for(generator.__anext__(), timeout=0.5)
         await generator.aclose()
@@ -184,7 +211,9 @@ class TestLiveLeg:
 
 
 class TestPollingFallback:
-    async def test_subscribe_failure_degrades_to_postgres_polling(self, run_id, session_factory):
+    async def test_subscribe_failure_degrades_to_postgres_polling(
+        self, run_id, shop_id, session_factory
+    ):
         async def insert_terminal_after_a_beat():
             await asyncio.sleep(0.02)
             await insert_event(session_factory, run_id, 1, **COMPLETED)
@@ -195,6 +224,7 @@ class TestPollingFallback:
                 drain(
                     stream(
                         run_id,
+                        shop_id,
                         session_factory,
                         subscriber=FailingSubscriber(),
                         poll_interval_s=0.01,
@@ -209,9 +239,11 @@ class TestPollingFallback:
         assert sse_ids(chunks) == [1]
         assert "workflow.completed" in chunks[1]
 
-    async def test_no_subscriber_at_all_polls_too(self, run_id, session_factory):
+    async def test_no_subscriber_at_all_polls_too(self, run_id, shop_id, session_factory):
         await insert_event(session_factory, run_id, 1, **COMPLETED)
 
-        chunks = await drain(stream(run_id, session_factory, subscriber=None, poll_interval_s=0.01))
+        chunks = await drain(
+            stream(run_id, shop_id, session_factory, subscriber=None, poll_interval_s=0.01)
+        )
 
         assert sse_ids(chunks) == [1]

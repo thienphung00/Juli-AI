@@ -1,0 +1,104 @@
+{
+  "planId": "diagnosis-first-read-tools-and-scope-degrade-2026-09-08",
+  "affectedPublicSurfaces": [
+    "The AGENT TOOL REGISTRY for `optimize_product_2` gains TWO READ/AUTO specs in the product domain (#1704's domain registry): `get_product_diagnosis` over Product Information Issue Diagnosis (`GET /product/202405/products/diagnoses`) and `check_listing_rewrite` over Diagnose-and-Optimize (`POST /product/202411/products/diagnose_optimize`, used as a PRE-SUBMIT check on a rewrite the agent is about to propose). READ/AUTO is load-bearing: neither tool may carry `ToolPolicy.CONFIRM`, because a run that pauses to read is a run whose consent model has changed.",
+    "The PLAYBOOK `services/agent/playbooks/optimize_product.py` gains steps 0a and 0b AHEAD of the existing SEO step, so the order becomes diagnosis read → SEO words → suggestions → one lever (ADR-090 d.3). Today's committed order is step 1 listing read (`get_product_information`), step 2+3 SEO (`get_seo_keywords`), step 4/4.5 image inspect, step 5 listing write, step 6.5 status check — the existing step ids and intents must survive the insertion unchanged; only the ordering and the two new steps move.",
+    "The RUN'S TOOL LEDGER, which is what a seller and an operator actually observe: two new READ rows appear per run, and the FIRST tool call recorded becomes the diagnosis read. `services/agent/runner/ledger.py` writes `ToolExecution.tool_name` as the registered name, so the two names become countable in the ledger the moment they register. No route contract changes and no response model moves.",
+    "The RUN STATE: diagnosis codes and the codes a candidate rewrite clears are carried on `workflow_runs.state` for later steps and for the proposal. This is a JSON blob write on an existing column — no new column, no new table.",
+    "The ADR-070 INBOUND CHOKEPOINT gains a SANITISER ADAPTER for this surface. Diagnosis codes and suggestion text arrive as `vendor`-source free text: capped, truncation-signalled, and passed to the model as DATA in a tool-result role, never as an instruction role. This is the prompt-injection surface of the whole slice — a vendor string that reaches the model as an instruction is the failure this adapter exists to prevent.",
+    "The DEGRADED PATH is a seller-visible surface. When the shop does not hold `seller.product.optimize`, `ProductsResource` refuses BEFORE transport with `ScopeMissing` (from #1714's persisted scopes and `has_scope`) — no HTTP call is attempted at all — the run does NOT fail, and the seller-facing text carries the `scope_unavailable` wording through the ADR-070 outbound banned-pattern guard. `scope_unavailable` is a STOP-REASON NAME, not the seller's words: the Vietnamese copy says the diagnosis could not be read and that Juli used its own scoring, and it must never leak the identifier itself (S-NFR-4).",
+    "NO HTTP surface changes: nothing under `backend/src/juli_backend/api/routes/` is opened, no `/v1/**` or `/demo/**` request or response model moves. Nothing under `apps/`, `packages/` or `ios/` is touched — this epic's doNotLoad list.",
+    "CONSUMED, NOT BUILT: the two resource methods, their guard allowlist entries and their sandbox captures belong to #1716 (integrations); the persisted OAuth scopes, `has_scope` and `ScopeMissing` belong to #1714. If this slice finds itself editing `integrations/tiktok/capabilities.py`, `constants.py` or `resources/products.py`, the routing was wrong — stop and report rather than re-adding them.",
+    "Mixed-version hazard: `juli-api` and `juli-celery-worker` must move onto the same release together. A stable worker without the two READ specs cannot execute a run whose playbook demands them, so the retained-stable rollback below assumes both processes move as one."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest driven by the REAL `WorkflowRunner` from the worktree root with `PYTHONPATH` pinned to that worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite; the ledger ordering the first assertion reads and the `workflow_runs.state` JSON round-trip are Postgres behaviour. The two diagnosis parsers are bound to #1716's COMMITTED capture fixtures, not to hand-written example bodies, and every vendor collaborator is built on the REAL `ProductsResource` method signatures — never a `**kwargs` double. The LLM is the existing fake adapter over `LLMService.complete`'s real signature. Post-deploy: the candidate's `/health`, ONE authenticated read of an existing run that must be unchanged, and ONE candidate run against the SANDBOX_VN shop (`7494751643546977923`, authorization `7658096633384781588`) whose first ledger row is observed to be the diagnosis read. No public traffic reaches a candidate task set and no production write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is FALSE and the reason is stated rather than assumed: both new tools are READS. `diagnose_optimize` is an HTTP POST but returns suggestions and mutates no listing — that is exactly why #1716 placed it on the production-read POST allowlist — and the PR must show it is a read by pointing at the captured response, not by asserting it. workersDisabledOnCandidate is FALSE because `WorkflowRunner` and therefore every tool dispatch execute inside the Celery worker; a candidate with workers disabled could not run the journey at all.",
+    "journeys": [
+      {
+        "name": "diagnosis-is-read-first-and-a-missing-scope-degrades-without-borrowing-authority",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1774",
+        "assertions": [
+          "pre-merge (GIVEN a scoped shop and returned codes / THEN diagnosis is first): `tests/unit/test_optimize_product_diagnosis_first.py::test_diagnosis_read_precedes_the_seo_step` drives a FULL run through the real runner and asserts on the ORDERED `tool_executions` rows in Postgres that `get_product_diagnosis` is the first row and precedes `get_seo_keywords` — asserted on the persisted ledger, never on a call-order spy — and that the returned codes are present on `workflow_runs.state` for later steps",
+          "pre-merge (GIVEN a candidate rewrite / THEN AUTO and cleared codes): `::test_rewrite_check_is_auto_and_reports_cleared_codes` asserts `check_listing_rewrite`'s `ToolSpec.classification` is READ and its `policy` is AUTO, that a run calling it does NOT enter `waiting_approval` and records no `run_confirmations` row, and that the suggestions plus the codes the rewrite clears land on the run state and are reachable by the proposal",
+          "pre-merge (GIVEN no `seller.product.optimize` / THEN no call, no failure, named copy): `::test_missing_scope_degrades_to_juli_scoring_with_named_copy` asserts (a) ZERO HTTP attempts — the transport fake records no request at all, so the refusal is proven to happen BEFORE transport via #1714's `ScopeMissing`, not by a 403 round trip; (b) the run continues and completes on Juli's own scoring; (c) the seller-facing text carries the `scope_unavailable` wording through the outbound guard; and (d) the literal identifier `scope_unavailable` does NOT appear in the Vietnamese seller string",
+          "pre-merge (GIVEN long, instruction-shaped vendor text / THEN capped and signalled): `::test_diagnosis_text_is_vendor_data_capped_and_truncation_signalled` feeds the real sanitiser a diagnosis body carrying an over-length suggestion and an embedded instruction-shaped string, and asserts the text is capped, truncation is explicitly signalled, and the resulting message reaches the model in a TOOL-RESULT role — asserted on the composed message list, so a string that arrives as a system or user instruction fails",
+          "pre-merge (GIVEN a vendor error surviving retry / THEN real failure): `::test_diagnosis_vendor_error_after_retry_is_a_real_failure` asserts the run ends on the EXISTING failure terminal with `tool_error_unrecoverable` — status `failed`, not `completed`, and NOT a degrade. A vendor error must never be laundered into the `scope_unavailable` path; that conflation is the specific mistake this assertion exists to catch",
+          "pre-merge (the parser is bound to observed bytes): both parsers are asserted against #1716's COMMITTED capture fixtures for A-diag-1 and A-diag-2, so a parser change that stops matching the shape TikTok actually returned goes red; a hand-written example body is not admissible evidence here (S-NFR-10)",
+          "pre-merge (the boundary is not re-crossed): the diff contains NO edit to `integrations/tiktok/capabilities.py`, `constants.py` or `resources/products.py`, and the existing guard suites pass UNMODIFIED — `tests/unit/test_tiktok_capability_factories.py`, `tests/unit/test_layer2_sandbox_write_contract.py`, `tests/unit/test_products_resource.py` — proving ADR-068's read-only production binding did not move",
+          "pre-merge (the playbook is still coherent): `tests/unit/test_agent_prompt_playbook_consistency_gate.py` passes with the registry and the one real playbook agreeing on the new tool count, and the existing steps' ids and intents are byte-identical apart from ordering — asserted over the whole step tuple",
+          "pre-merge (the golden moves once): `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` is regenerated ONCE by the real runner because the step order changed, and its diff is reviewed line by line and attached to the review artifact — never hand-edited",
+          "post-deploy: the candidate's `/health` is unchanged, and ONE authenticated read of an existing completed run returns the same stop reason, ledger and readings as stable",
+          "post-deploy: ONE candidate run against SANDBOX_VN shop `7494751643546977923` has the diagnosis read as its FIRST ledger row, observed on the SSE stream and on the persisted ledger; the vendor `request_id` of that diagnosis call is recorded on issue #1774 — the request id, not a narrated 'it worked'",
+          "post-deploy: if the sandbox shop turns out NOT to hold `seller.product.optimize`, the vendor code and message are recorded verbatim on the issue, the owner is asked to re-authorise, and the DEGRADED path is the thing observed instead — the slice does not land with a hand-written response standing in for the capture, and does not silently pass a scope error off as a degrade"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is backend Python under `backend/src/juli_backend/services/agent/` plus tests plus one regenerated golden fixture. `apps/`, `ios/`, `packages/` and `docs/product/design/` are on this epic's doNotLoad list and are not opened."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "tool-ledger-ordering",
+      "golden-scenario-diff",
+      "sse-event-log",
+      "vendor-response-capture"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE. No column, index, constraint, table or grant is touched and NO Alembic revision file is created — the executor must not open `backend/src/juli_backend/database/migrations/versions/`. The diagnosis codes and the cleared-code list live on the EXISTING `workflow_runs.state` JSON blob, and the two new tool names are values in the existing `tool_executions.tool_name` column, never enum members or CHECK-constraint entries. Stable and candidate therefore run the identical schema and coexist on one database: a stable process reading a run whose state carries the new keys simply ignores them, and a candidate reading a stable-written run finds them absent and takes the no-codes path."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed system changes: the workflow keeps its SEO-first step order, no diagnosis is read, no scope is consulted, and the two tools do not exist to be called. That is today's state — nothing exposed, nothing partially applied, no vendor call made, no data hazard.",
+    "postCutoverFailureBehavior": "Code-only rollback: redeploy the previous release and restart `juli-api` AND `juli-celery-worker` together. There is no schema to revert and no downgrade to run — this slice owns no migration. The two tools disappear from the registry and the playbook returns to the SEO-first order. Runs COMPLETED under the candidate stay valid and readable: their `tool_executions` rows keep the two diagnosis names (unknown to the reverted registry but harmless — they are strings in a ledger, never a foreign key), and their `workflow_runs.state` keeps the code keys, which the reverted code simply does not read. A run SUSPENDED at CONFIRM across the rollback resumes correctly because consent is bound by `params_sha` over the tool call's arguments and neither the arguments nor the hash function move here — assert this pre-merge rather than assuming it. No vendor state was written at any point, so there is no vendor-side effect a revert fails to undo.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_optimize_product_diagnosis_first.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_prompt_playbook_consistency_gate.py tests/unit/test_agent_tool_registry_contract.py tests/unit/test_agent_tool_definition_contract.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_tiktok_capability_factories.py tests/unit/test_layer2_sandbox_write_contract.py tests/unit/test_products_resource.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_golden_scenario_capture_from_real_runner.py tests/unit/test_agent_golden_scenarios.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT add, restore or call a BASE-PRICE WRITE. `update_product_price` left this workflow in #1773 and `resources.products.update_prices` must have no caller on this path — not as a fallback, not behind CONFIRM, not in a fixture. This slice adds no write tool at all.",
+    "Do NOT let the MODEL choose a depth, a price or any number. This slice registers two READ tools; there is no numeric parameter for a model to pick, and reaching for one means drifting into #1778.",
+    "Do NOT introduce a DEFAULT SHOP MAXIMUM or any default discount depth as a placeholder. The shop maximum is #1775's required seller-confirmed setting; a default shipped untouched is a number no seller ever saw.",
+    "Do NOT claim a TIKTOK TIER OR CODE the API did not return (OP-NFR-2). The Price Diagnostics tier and the 14 card-diagnostic recommendations are NEVER claimed — no API exposes them, and listing-quality tier is US-only. 'TikTok flags…' may appear only where a code was actually returned; the degraded path must say Juli used its own scoring, never borrow TikTok's authority (ADR-090 d.3).",
+    "Do NOT reach for SEARCH ACTIVITIES. `POST /promotion/202309/activities/search` does not exist as a usable read (contract-collection A-25; `endpoints.md:509`), nothing here needs it, and no test may stub it into existence.",
+    "Do NOT enable or lean on REPEAT CONSENT. Optimize Product is barred from it in v1 (ADR-090 d.6, narrowing ADR-055 d.19). Two AUTO reads must not be described or tested as reducing the need for a fresh approval.",
+    "Do NOT read a MIGRATION NUMBER from head — do not write a migration at all. This slice has no schema change. Never run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive a number from the newest filename. Migration numbers are RESERVED BY META.",
+    "Do NOT re-add #1716's or #1714's work. The path constants, the `capabilities.py` allowlist entries, the `ProductsResource` methods and the captures are #1716's; the persisted OAuth scopes, `has_scope` and `ScopeMissing` are #1714's. Consume them. A diff that widens the guard allowlist here has crossed a domain boundary — stop and report.",
+    "Do NOT let a MISSING SCOPE and a VENDOR ERROR share a path. `ScopeMissing` degrades; a vendor error surviving retry is a real failure on the existing terminal. Mapping the second onto the first would hide a broken integration behind an honest-looking degrade.",
+    "Do NOT attempt the diagnosis HTTP call when the scope is absent. The refusal happens BEFORE transport; a 403 round trip is not the same guarantee and leaks a call the seller did not authorise.",
+    "Do NOT pass VENDOR TEXT to the model as an instruction. Codes and suggestion text are `vendor`-source DATA through the ADR-070 inbound chokepoint — capped, truncation-signalled, tool-result role. Never interpolated into a system prompt, a playbook intent or copy.",
+    "Do NOT put an internal identifier in seller-facing text. `scope_unavailable` is a stop-reason name; the seller reads Vietnamese, second person, through the outbound banned-pattern guard, with no projected impact magnitude and no causal claim (S-NFR-4).",
+    "Do NOT hand-edit the golden or the prompt snapshot to make a gate green. Regenerate once with the real runner and review the diff.",
+    "Do NOT touch `apps/**`, `ios/**`, `packages/**`, `docs/product/design/**` or the TikTok corpora catalogs (ADR-051) — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature — the real `ProductsResource` methods from #1716, the real `ToolRegistry`, the real `WorkflowRunner`, the existing fake LLM adapter over `LLMService.complete`. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

@@ -421,6 +421,92 @@ async def with_shop_scope(
             _shop_scope_active.reset(token)
 
 
+async def reapply_shop_scope(session: AsyncSession, shop_id: uuid.UUID) -> None:
+    """Re-establish the shop GUC after a COMMIT discarded it.
+
+    `with_shop_scope` sets `app.current_shop_id` with SET LOCAL, which is
+    transaction-scoped: a commit throws it away. Any caller that commits in the
+    middle of a scope — because it wants progress to be durable rather than all
+    -or-nothing — must put the GUC back, or every write after the first commit
+    is refused by RLS. That is #1627 and #1631 in a different costume.
+
+    `with_shop_scope` cannot serve here: it sets on entry and RESTORES on exit,
+    so entering and leaving it immediately puts back the pre-commit value, which
+    after a commit is nothing at all.
+
+    The user GUC is deliberately left empty, exactly as `with_shop_scope` leaves
+    it (#1478): shop-scoped work has no user, and a withheld GUC makes every
+    user-keyed policy deny structurally rather than by convention.
+    """
+    _require_shop_for_shop_scope(shop_id)
+    await _write_tenant_gucs(session, str(shop_id), "")
+
+
+@asynccontextmanager
+async def with_user_scope(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+) -> AsyncIterator[None]:
+    """Set user context only, for the authentication lookup itself (#1691).
+
+    THE CIRCULARITY THIS BREAKS. `users` carries
+    `users_select_public USING (id = app_current_user_id())`. Authentication has
+    to read `users` to learn who the caller is — but the policy demands the
+    answer before it will hand it over. Under the old owner-exempt runtime the
+    policy simply did not apply and the read worked; once `DATABASE_URL` moved to
+    `juli_app`, EVERY authenticated request began returning
+    `401 {"detail":"User not found"}` for a row that plainly exists. Measured on
+    production 2026-09-07: `users row visible: 0` as `juli_app` with no GUC,
+    `1` on the owner connection.
+
+    WHY THIS IS NOT A BYPASS. The id does not come from the database, and it does
+    not come from the caller's say-so — it comes from `sub` in a JWT this process
+    has already verified against `SUPABASE_JWT_SECRET`. The application asserts an
+    identity it has cryptographic grounds to assert, and the policy still does the
+    narrowing: a wrong or forged `sub` selects nothing, because the row it names
+    does not exist or does not match. Measured with the GUC set from `sub`:
+
+        own row visible: 1      another user's row: 0      total rows visible: 1
+
+    The read stays exactly one row. Contrast a SECURITY DEFINER lookup function,
+    which would hand the auth path a standing exemption to get the same result —
+    more machinery, and an exemption where none is needed (ADR-089 decision 5).
+
+    THE SHOP GUC IS WITHHELD, deliberately and explicitly rather than by
+    omission, for the reason `with_shop_scope` withholds the user GUC: under an
+    enclosing scope or a second pass it would otherwise be inherited, and this
+    scope would quietly confer shop access it never intended to. Authentication
+    knows a user and no shop; `get_active_shop` establishes the shop afterwards,
+    from the `X-Shop-Id` header, against the user's own shops.
+
+    Args:
+        session: AsyncSession to set the GUC on
+        user_id: the subject of the verified JWT
+
+    Raises:
+        TenantContextRequiredError: if user_id is None, before any SQL is
+            emitted.
+    """
+    if user_id is None:
+        msg = "with_user_scope requires a user_id"
+        raise TenantContextRequiredError(msg)
+
+    body_failed = False
+    prior_shop, prior_user = "", ""
+    applied = False
+    try:
+        prior_shop, prior_user = await _read_tenant_gucs(session)
+        await _write_tenant_gucs(session, "", str(user_id))
+        applied = True
+        yield
+    except BaseException:
+        body_failed = True
+        raise
+    finally:
+        if applied:
+            await _restore_tenant_gucs(session, prior_shop, prior_user, body_failed=body_failed)
+
+
 @asynccontextmanager
 async def system_scope(
     session: AsyncSession,

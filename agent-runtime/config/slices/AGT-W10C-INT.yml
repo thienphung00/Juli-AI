@@ -1,0 +1,22 @@
+# AGT-W10C-INT — v1 build lane; see agent-runtime.config.yml epicRegistry and the epic's ADR.
+AGT-W10C-INT:
+  executorDomain: integrations
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/093-replenish-inventory-design.md
+    - docs/product/agent-workflow-execution/scope-verification/process-order-replenish.md
+  requiredModules:
+    - backend/src/juli_backend/integrations/tiktok/mapping.py
+    - backend/src/juli_backend/integrations/tiktok/resources/inventory.py
+    - backend/src/juli_backend/services/etl/transform.py
+    - backend/src/juli_backend/workers/services/polling/sync.py
+  loadWhenNeeded:
+    - docs/integrations/tiktok_api/contract-collection.md
+    - backend/src/juli_backend/repositories/commerce.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

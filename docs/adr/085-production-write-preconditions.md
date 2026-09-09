@@ -1,6 +1,6 @@
 # ADR-085: Production-write preconditions — tenant isolation that denies, adversarial proof, and one authorized mutation
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-25
 **Deciders:** grill-with-docs (Architect) with owner
 
@@ -281,6 +281,19 @@ entirely. The trigger text is unchanged; only its scope widens.
 grill assumed it was circular — that no second merchant could connect without the scoping work
 it gates. `resolve_merchant_context` falls through to `SELLER_CONNECT` rather than raising, so a
 second merchant genuinely can connect today. The trigger fires on a real, observable event.
+
+## Rationale
+
+*Extracted during the W6→main reconcile to satisfy `check_adr`, which requires a
+`## Rationale` heading (#1853). Nothing below is new reasoning — it summarises what
+this ADR already argues in the section named, which remains the fuller account.*
+
+From **Context** and **Options considered**: the preconditions are not invented
+here — they restate the unlock chain in the owner's own words on gate #1226's
+observation-2 record of 2026-08-25: functional RLS → a manual red-team pass → an
+explicit owner authorization for a single production mutation on a listing of the
+owner's choosing → T+7 elapsed → a real reading. Giving each link its own name and
+its own refusal is what makes the chain checkable instead of a single boolean.
 
 ## Consequences
 

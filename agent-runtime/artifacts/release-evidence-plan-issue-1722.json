@@ -1,0 +1,101 @@
+{
+  "planId": "w9c-capture-9-sandbox-mirrors-the-merchant-idempotent-admin-command-2026-09-07",
+  "affectedPublicSurfaces": [
+    "The public surface is an ADMIN COMMAND, not an HTTP route. Nothing under `api/routes/` moves, no `/v1/**` or `/demo/**` route is added or changed, no response shape changes, no prompt, no playbook, no ToolSpec, no seller-visible copy. The seller-facing effect is indirect and entirely downstream: a gate walk exercises real listings instead of placeholders. If the executor finds itself adding a route or a scheduled task, the routing was wrong — stop and report. Prior art for the shape: `services/operations/production_write_authorizations_cli.py` is an operations CLI in this tree; follow that pattern rather than inventing a new entrypoint style.",
+    "THE ISSUE BODY UNDERSTATES THE WORK, and the executor must plan against the tree rather than the prose. Verified: the \"existing sandbox catalog sync proved in W5\" is `workers/services/polling/sync.py::sync_sandbox_write_products` → `sync_products_with_local_upsert`, and what it actually does is read the SANDBOX seller's OWN products through `SandboxWriteClientFactory().create_resources(...).products.search_all()` and upsert them into Juli's LOCAL `products` table via `ProductsRepo`, so the approval path can bind a product. It is a vendor→Postgres sync of the sandbox's own catalog. It does NOT read the connected merchant's shop, and it writes NOTHING to the sandbox shop at the vendor. So this slice is not an extension of a copier — it BUILDS the copier: production reads on one side, sandbox writes on the other. Say so in the PR; do not describe it as a small extension.",
+    "New module `backend/src/juli_backend/services/sandbox_mirror/` holding the copy logic plus its admin entrypoint. Read side: `ProductionReadResources.products.search_all()` and `ProductionReadResources.inventory.search(sku_ids=...)` — `ProductionReadClientFactory` raises unless `merchant_auth_id == PRODUCTION_AUTH_ID` and its `ReadOnlyTransportGuard` structurally cannot write. Write side: `SandboxWriteResources.products.create` / `.edit` / `.update_prices` and `.inventory.update` — `SandboxWriteClientFactory` raises unless `merchant_auth_id == SANDBOX_AUTH_ID`. The two credentials are resolved separately and are never interchangeable; the mirror is the first component in the tree that holds BOTH at once, which is exactly why the guard assertions below are the load-bearing part of this slice.",
+    "NO allowlist change is expected, and that is a checkable claim. Verified against `capabilities.py`: every write the mirror needs is ALREADY in `SANDBOX_ALLOWED_REQUESTS` — `POST /product/\\d+/products` (create), `PUT /product/\\d+/products/\\d+` (edit), `POST /product/\\d+/products/\\d+/prices/update`, `POST /product/\\d+/products/\\d+/inventory/update`, plus the supporting reads `GET categories`, `GET categories/{id}/attributes`, `GET prerequisites`, `GET brands`, `GET products/{id}`, `POST products/search`, `POST inventory/search`. Every read the mirror needs is already in `PRODUCTION_READ_POST_PATHS` / `PRODUCTION_READ_GET_*`. If the executor believes an allowlist entry is required, that is a signal to STOP and name the call in the PR — not to add the entry.",
+    "The run SUMMARY is a first-class output, not a log line: counts created, updated and unchanged, per product and per SKU, plus the source merchant and the target sandbox shop. It is what the owner reads to decide whether the listings look real (PRD #1622 HITL step 3), and it is the second run's `unchanged == total, created == 0, updated == 0` that proves idempotence. Derive it at the write seam the mirror owns; never parse it back out of logs.",
+    "Identity is the safety surface. `sync.py::check_sandbox_write_catalog_identity_mismatch` already exists because a mislabelled credential has been a real hazard here — it warns when a shop's `sandbox_write` and `production_read` credentials resolve to different merchant authorizations. The mirror needs the OPPOSITE invariant, and must assert it explicitly: the read credential MUST be the production merchant and the write credential MUST be `SANDBOX_AUTH_ID`, confirmed before a single write is issued. Reversing them would copy the sandbox's placeholder catalog over a real seller's shop.",
+    "Environment: source is the connected merchant's production shop through `production_read`; target is SANDBOX_VN, shop id `7494751643546977923`, authorization id `7658096633384781588`, Core Function development shop `juliai-test`. State written at the vendor: real products, prices and per-warehouse stock created and updated on the SANDBOX seller's own shop. Nothing is written to the merchant's production shop at any point — that is the whole point of the read/write credential split.",
+    "ORDERS ARE NOT MIRRORED. #1718 decides how orders exist on the sandbox; this slice copies products, prices and stock only. Do not add an order path, an order copier, or a 'seed one order while we are here' convenience.",
+    "Mixed-version hazard: none. The mirror is an operator-invoked admin command, not a beat task and not a request path, so no `juli-api` or `juli-celery-worker` behaviour changes when it lands and no process needs restarting for a mirror run."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run from the worktree root with PYTHONPATH pinned to that worktree's `backend/src`, with BOTH vendor sides bound to fakes built on the REAL objects' signatures — `ProductsResource.search_all`/`.create`/`.edit`/`.update_prices`, `InventoryResource.search`/`.update`, and the two factories' `create_resources` — never a `**kwargs` double, because a `**kwargs` double would prove the mirror routes somewhere without proving the real call would work. Post-deploy: operator-only invocation of the admin command on the candidate, reading the reference merchant shop through `ProductionReadClientFactory` (read-only by construction) and writing SANDBOX_VN shop `7494751643546977923` under authorization `7658096633384781588` through `SandboxWriteClientFactory` (which raises on any other `merchant_auth_id`). No public traffic reaches a candidate task set; no production WRITE credential is resolved at any point.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is FALSE in the pairing-rule sense — no PUBLIC surface and no PRODUCTION side effect — but the real side effects are stated plainly rather than hidden behind the boolean: this journey CREATES and UPDATES products, prices and stock on the TikTok SANDBOX seller's own shop, and it reads (never writes) the connected merchant's production catalog. That asymmetry is the design. ADR-068's two hard-bound merchant ids are the mechanism, and this change must not widen either. workersDisabledOnCandidate is FALSE only because the Celery worker is not on this path at all: the mirror is an operator-invoked admin command, deliberately NOT a beat task, so worker state is irrelevant either way and disabling them would prove nothing.",
+    "journeys": [
+      {
+        "name": "merchant-catalog-copied-to-the-sandbox-once-and-then-not-again",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1722",
+        "assertions": [
+          "pre-merge: the sandbox_write token's IDENTITY is confirmed BEFORE any write is issued — `GET /authorization/202309/shops` through the sandbox client (already allowlisted, added by #1200) resolves to shop id `7494751643546977923` under authorization `7658096633384781588` on the Core Function development shop `juliai-test`. A mirror run against an unverified write token is the one failure mode that could damage a real seller's catalog.",
+          "pre-merge: `test_mirror_copies_titles_prices_and_stock` drives the mirror through the REAL module entrypoint with fakes bound to the real resource signatures, and asserts that for every active source product a matching sandbox product exists with the SAME title, the SAME price and the SAME stock per SKU — asserted by re-reading the target side after the run, never by inspecting what the mirror intended to send",
+          "pre-merge: `test_second_run_is_a_no_op` asserts ZERO WRITE CALLS on the second run — asserted by counting calls on the sandbox-write fake, not by asserting the summary says unchanged. A summary that says 'unchanged' while the code issued writes is exactly the lie this assertion exists to catch.",
+          "pre-merge: `test_multi_warehouse_stock_is_preserved` asserts a source SKU with TWO warehouses lands on the sandbox with BOTH warehouse quantities — a single-warehouse assertion cannot pass by accident, and this is the same drop that `scope-verification/optimize-product-clear-excess.md` finding 8 records at every other layer",
+          "pre-merge: THE MIRROR REFUSES ANY PRODUCTION WRITE PATH — asserted structurally, in both directions: given a config whose write side carries `PRODUCTION_AUTH_ID`, the mirror raises BEFORE any call is issued; and no write in the whole run is ever routed through the production-read client, proved by asserting the production-read fake received ZERO calls to any `path_contains_write_marker` path. `ReadOnlyTransportGuard` refusing the call is the backstop, not the proof — the mirror must never reach it.",
+          "pre-merge: the reverse-direction test — a config whose READ side carries `SANDBOX_AUTH_ID` and whose WRITE side carries the merchant — is REFUSED. Copying the sandbox's placeholder catalog over a real seller's shop is the catastrophic misuse of this component and it must be unreachable, not merely unlikely.",
+          "pre-merge: the run summary's counts are asserted against the fakes' recorded calls — created equals the number of create calls, updated equals the number of edit/price/inventory calls, unchanged equals sources with no call at all. The summary is derived at the write seam, never parsed back out of a log line.",
+          "pre-merge: a partial failure is honest — a source product whose sandbox write fails is reported in the summary as FAILED, and the run does not report it as created or unchanged; the mirror completes the remaining products rather than aborting silently",
+          "pre-merge: `SANDBOX_ALLOWED_REQUESTS` and the production-read allowlists are UNCHANGED by this slice — asserted by `tests/unit/test_layer2_sandbox_write_contract.py` and `tests/unit/test_analytics_production_read_allowlist.py` passing unmodified. Every path the mirror needs is already allowlisted; a diff that adds one is a signal the mirror is calling something unplanned.",
+          "pre-merge: the existing suites pass UNMODIFIED — `tests/unit/test_sandbox_write_product_sync.py`, `tests/unit/test_sandbox_write_task_wiring.py`, `tests/unit/test_tiktok_capability_factories.py`, `tests/unit/test_tiktok_capabilities_merchant_source.py` — proving the W5 local-upsert sync and ADR-068's hard-bound merchant ids did not move. If `sync_products_with_local_upsert` must change, the PR says which caller needed it and why the existing signature did not serve.",
+          "post-deploy: ONE mirror run on the candidate against the reference shop, and its SUMMARY — counts created, updated, unchanged, plus source merchant and target shop — is recorded on issue #1722. The summary, not a narrated 'it worked'.",
+          "post-deploy: a SECOND mirror run on the candidate immediately after issues ZERO writes and its summary reports every product unchanged — idempotence proved on the live sandbox, not only against fakes",
+          "post-deploy: NO WRITE REACHES THE MERCHANT'S PRODUCTION SHOP in the window — asserted by ABSENCE of any `production_read`-capability call to a write-marker path in the `tiktok_outbound_request` log lines for that window (`guards.py::log_outbound_request` emits capability + merchant_auth_id), never by grepping for the sandbox success",
+          "post-deploy: the owner can look at the sandbox shop and see real listings rather than placeholders (PRD #1622 HITL step 3) — the human confirmation this whole slice exists to enable, recorded on the issue"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is backend Python — a new `backend/src/juli_backend/services/sandbox_mirror/` module and its admin entrypoint — plus tests. `apps/`, `ios/`, `packages/` and `docs/product/design/` are on this epic's doNotLoad list and are not opened."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "mirror-run-summary",
+      "outbound-request-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO schema change. The mirror copies vendor state to vendor state: it reads the merchant's catalog from TikTok and writes it to the TikTok sandbox shop. It adds no table and no column. No Alembic revision is created, no `down_revision` is needed, and the executor must not open `backend/src/juli_backend/database/migrations/versions/`. Stable and candidate run the same schema, so a code rollback needs no downgrade. The one nuance to state rather than assume: the W5 sync it sits beside DOES write Juli's local `products` table through `ProductsRepo`, and if the mirror reuses that path it writes EXISTING columns only — `sync_products_with_local_upsert`'s own docstring records that it is idempotent and preserves pre-existing rows from other credentials, and that property must survive. If implementation concludes a new column or a mirror-run table is needed, REPORT it — do not write a migration under this issue."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed system changes: the sandbox shop keeps whatever catalog it has, no new admin command exists, and gate walks keep running against placeholder listings — the pre-existing state, and the thing that blocked the last gate walk for a week. No new exposure, nothing partially applied, no data hazard, and no credential pairing exists that could be misused. The one thing that must still be true if a run is abandoned midway: the summary of what was already written to the sandbox is recorded, because those writes stand.",
+    "postCutoverFailureBehavior": "Revert the commit. The `services/sandbox_mirror/` module and its admin command disappear with it; the mirror is operator-invoked with ZERO callers in the request path and ZERO entries in `beat_schedule`, so nothing in the running system notices its absence. The honest limit of rollback: products, prices and stock WRITTEN to the TikTok sandbox seller's shop during a run are a VENDOR-SIDE effect that a code revert does NOT undo, and there is no un-mirror command — the sandbox shop keeps the copied catalog. That is acceptable because the target is the sandbox seller's own shop, whose entire purpose is to hold mirrored data (S-NFR-13), and because nothing was written to the merchant's production shop at any point. Do not claim the revert reverses it. Redeploy of the previous release plus a restart of `juli-api` and `juli-celery-worker` is sufficient; NO downgrade is required, because there is no schema change.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_sandbox_mirror.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_sandbox_write_product_sync.py tests/unit/test_sandbox_write_task_wiring.py tests/unit/test_tiktok_capability_factories.py tests/unit/test_tiktok_capabilities_merchant_source.py tests/unit/test_layer2_sandbox_write_contract.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "THE MIRROR MUST REFUSE ANY PRODUCTION WRITE PATH. Reads go through `ProductionReadResources` (whose `ReadOnlyTransportGuard` cannot write), writes go through `SandboxWriteResources` only, and `SandboxWriteClientFactory` must keep raising on any `merchant_auth_id` other than `SANDBOX_AUTH_ID` (ADR-068). Never relax either guard, never widen either hard-bound merchant id, and never construct a single client that holds both capabilities. Production writes remain behind #1339 and are not unlocked here by any means.",
+    "Do NOT describe this as a small extension of the W5 sync. `sync_sandbox_write_products` reads the SANDBOX seller's own products and upserts them into Juli's local `products` table; it never reads the merchant and never writes the sandbox shop at the vendor. The copier is new. Plan against the tree, not against the issue prose.",
+    "Do NOT mirror orders. #1718 decides how orders exist on the sandbox; this slice copies products, prices and stock only. No order path, no order copier, no 'seed one order while we are here'.",
+    "Do NOT hand-author sandbox data. S-NFR-13 is explicit: sandbox data is READ from the merchant shop and copied over, never invented. A product that cannot be mirrored is reported in the summary as failed, never approximated with a placeholder.",
+    "Do NOT make idempotence a claim in the summary. It is a count of WRITE CALLS on the second run, and that count is zero. A summary that reports 'unchanged' while writes were issued is the exact failure this assertion exists to catch.",
+    "Do NOT derive the summary from logs. Logs are for humans and incidents, never for arithmetic. The counts come from the write seam the mirror owns; if a count cannot be obtained there, report that rather than parsing it back out of a log line.",
+    "Do NOT drop the per-warehouse breakdown. A source SKU with two warehouses lands with BOTH quantities. `scope-verification/optimize-product-clear-excess.md` finding 8 records that `committed_quantity` and the per-warehouse rows are dropped at every existing layer — do not add a ninth place where multi-warehouse stock collapses to one number.",
+    "Do NOT schedule the mirror. It is an operator-invoked admin command; adding it to `beat_schedule` would make an unattended process write a vendor shop on a timer. If a schedule seems needed, report it.",
+    "Do NOT add an HTTP route, a ToolSpec, a playbook entry, a prompt, or a registry registration. The mirror is not agent-reachable and must not become so under this issue.",
+    "Do NOT commit a live token, `sign`, `app_key`, `shop_cipher` or ciphertext anywhere — not in a fixture, not in a summary, not in a log line. The mirror holds two credentials at once, which makes it the single most dangerous place in the tree to log a config object; log identifiers, never secrets.",
+    "Do NOT commit buyer PII. No buyer data should reach a catalog mirror at all — if any appears, that is a finding to report, not a field to redact and move past.",
+    "Do NOT change `sync_products_with_local_upsert`'s idempotence or its preservation of pre-existing rows from other credentials. Its docstring states both properties and `tests/unit/test_sandbox_write_product_sync.py` guards them; a perf-minded rewrite that inlines it would silently lose the invariants inside it.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051), `apps/`, `ios/`, `packages/`, `docs/product/design/`, or a sibling issue's context cache — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature (`ProductsResource.search_all`/`.create`/`.edit`/`.update_prices`, `InventoryResource.search`/`.update`, `ProductionReadClientFactory.create_resources`, `SandboxWriteClientFactory.create_resources`). A `**kwargs` double proves routing, not that the real call would work — and here the real call writes a shop."
+  ]
+}

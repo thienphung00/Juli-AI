@@ -1,0 +1,106 @@
+{
+  "planId": "excess-signal-product-subject-card-and-declared-stock-goal-2026-09-08",
+  "affectedPublicSurfaces": [
+    "THE CARD FEED AND THE DECISIONS LIST — the seller's first sight of this workflow, and the surface this slice actually changes. A Clear Excess card gains SKU-LEVEL EVIDENCE (which SKUs, how many units) where the shop today can only assert at shop grain, and it gains a `stock_goal` field. Both widen the card payload a client already renders, so a client with an exhaustive read over the payload sees fields it has never seen. The card's SUBJECT becomes the PRODUCT (ADR-087's taxonomy) through the subject-scoped emission path of #1703 — which matters because today approval derives the bound subject as THE SHOP'S HIGHEST-REVENUE PRODUCT (`services/agent/approval.py:13-16, 226-238`); a card that names 'this SKU' without #1703 landed is naming a subject the run cannot carry.",
+    "THE APPROVE REQUEST BODY, through #1709's seller-inputs path — and there is NO OTHER ROUTE. Verified 2026-09-08: `api/routes/demo_execution.py:71-76` `approve_demo_decision` takes `action_card_id`, `shop`, `user` and `session` and NO request-body parameter and no Pydantic request model; `services/agent/approval.py:136-154` `_card_snapshot` returns exactly TEN ActionCard columns (`id, shop_id, workflow_key, priority, severity, title, description, recommendation_payload, status, computed_at`) — card columns only, no seller inputs and no form values. A seller-supplied number has nowhere to enter the run today. Approve gaining a body is a WIRE CHANGE on a route every client calls: an older client that posts no body must still approve successfully.",
+    "THE SUPPRESSION PATH, which is a seller-visible absence. When nothing qualifies after exclusions the producer emits NO CARD and records a NAMED reason (`nothing_sellable`), rather than an empty card. An unnamed suppression and a crash look identical from the outside, and that is the whole point of naming it.",
+    "NO CHANGE TO THE CARD'S KPI TIE, stated as a surface because it is the one a reviewer will reach for. `KPI_WORKFLOW_KEYS` maps `clear_excess_4` to `inventory_turnover` (`services/scoring/kpi_catalog.py:46`) and `dsi` (`:47`) while ADR-055 d.15's `analyticsMetricKey` table says AOV. The two layers already disagree, ADR-091 d.6 records the disagreement without resolving it, and CE-NFR-3 leaves BOTH exactly as they are. THE TIE STAYS WHATEVER THE SURFACE RENDERS TODAY.",
+    "THE FOUR EXCLUSIONS ARE A DATA CONTRACT WITH NO DATA BEHIND MOST OF THEM. Campaign-locked, creator-reserved and Thanh lý have NO field anywhere in the schema today; the Luôn sẵn hàng committed quantity only exists because #1811 persists it. The fifth exclusion — SKUs in a live promotion Juli created — is Juli-side by necessity (CE-NFR-2) and lands with the discount tool, NOT here. State plainly in the PR where each of the four exclusions gets its input, and fail closed where it has none: an unevaluable exclusion must exclude, never include (S-NFR-1).",
+    "NO NEW HTTP ROUTE. The card payload widens and approve gains a body through #1709; nothing else on the wire moves, and no new endpoint is added."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run by the REAL runner from the worktree root with `PYTHONPATH` pinned to this worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite. The card is a REAL `action_cards` row written through #1703's real subject-scoped emission path, and the approval is a REAL approval transaction through `services/agent/approval.py`, not a constructed dict: the revision-versus-duplicate behaviour is enforced by a database uniqueness invariant and a hand-built object cannot exercise it. The out-of-range goal refusal is asserted on the ABSENCE of a `workflow_runs` row, which is a database fact. Post-deploy: `alembic upgrade head` on the candidate, then candidate `/health` and ONE AUTHENTICATED READ OF AN EXISTING NON-CLEAR-EXCESS CARD returning a byte-identical shape, proving the emission path is a no-op elsewhere. NO ACTIVITY IS CREATED ON ANY SHOP BY DEPLOYING — this slice reaches no vendor at all.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is TRUE, matching ADR-035's default: the signal and the card are exercised through the emission path and the approval transaction, neither of which needs a beat or a worker on the candidate. apiSideEffectsInScope is FALSE: no vendor call and no external write — the discount create is #1815 and does not exist yet. syntheticShopRequired is TRUE because the exclusions, the suppression and the goal validation all need a shop's own inventory and order rows.",
+    "journeys": [
+      {
+        "name": "two-conditions-four-exclusions-a-product-subject-card-and-a-goal-the-seller-owns",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1813",
+        "assertions": [
+          "pre-merge: with SKUs straddling the days-of-supply threshold, MOVING THE THRESHOLD MOVES THE FLAGGED SET, and a SKU above the days-of-supply threshold whose 30-day sell-through is ABOVE its own threshold is NEVER flagged — both conditions must hold, asserted as a conjunction and not as two separate one-sided tests, because an implementation that ORs them passes every single-condition assertion (tests/unit/test_clear_excess_signal.py::test_both_conditions_must_hold_and_the_threshold_moves_the_set)",
+          "pre-merge: a SKU whose quantity is campaign-locked, creator-reserved, Luôn sẵn hàng committed, or labelled Thanh lý counts as NEITHER SELLABLE NOR EXCESS, and REMOVING THE EXCLUSION IS WHAT MAKES THE SKU APPEAR — the second clause is the assertion that proves the exclusion is load-bearing rather than incidentally satisfied (tests/unit/test_clear_excess_signal.py::test_the_four_exclusions_never_count_as_sellable)",
+          "pre-merge: an exclusion whose input is UNAVAILABLE excludes rather than includes — fail closed (S-NFR-1); campaign-locked, creator-reserved and Thanh lý have no field in the schema today, so the unevaluable branch is the branch that will actually run in production and must be asserted, not assumed",
+          "pre-merge: a product with excess SKUs emits a card whose SUBJECT IS THAT PRODUCT, whose EVIDENCE LISTS EACH EXCESS SKU WITH ITS QUANTITY, and a SECOND EMISSION FOR THE SAME SUBJECT REVISES RATHER THAN DUPLICATES — asserted on real `action_cards` rows through #1703's emission path against real Postgres, where the uniqueness invariant lives (tests/unit/test_clear_excess_card.py::test_card_is_product_subject_with_sku_evidence)",
+          "pre-merge: a shop where EVERY excess SKU is excluded produces NO CARD and a suppression carrying the NAMED reason — asserted on the absence of the row AND on the recorded reason, because an unnamed suppression and a crash are indistinguishable from outside (tests/unit/test_clear_excess_card.py::test_nothing_sellable_suppresses_with_a_named_reason)",
+          "pre-merge: a card carrying the PROPOSED stock goal, approved with an EDITED goal, leaves the run's state carrying THE SELLER'S VALUE — snapshotted at approval, never re-derived at CONFIRM; asserted by reading the persisted run state back, and by showing a later re-computation of the proposal does not change it (tests/unit/test_clear_excess_stock_goal.py::test_seller_goal_is_snapshotted_and_out_of_range_is_refused)",
+          "pre-merge: a goal AT OR ABOVE sellable-after-exclusions, and a goal BELOW ZERO, are each REFUSED AT APPROVAL and NO RUN EXISTS — asserted on the absence of a `workflow_runs` row, a database fact, not on a raised exception alone; and the boundary is asserted at exactly `sellable` (refused) and `sellable - 1` (accepted), because an off-by-one here silently permits a goal nothing can reach",
+          "pre-merge: the goal is measured ON THE AVAILABLE BUCKET, after exclusions — a goal validated against gross quantity would let the seller set a target that the excluded units alone already satisfy",
+          "pre-merge: the goal is NEVER BLANK. ADR-055 d.19's rule is that the agent pre-commits a value for every field including the ones the seller decides, so an agent-proposed value of roughly 30 days of supply is present on every emitted card, asserted on the payload",
+          "pre-merge: an older client that approves WITH NO BODY still succeeds — approve gaining a body through #1709 must not break the existing call shape, asserted against the real route",
+          "pre-merge: `KPI_WORKFLOW_KEYS` is BYTE-IDENTICAL — `clear_excess_4` still maps to `inventory_turnover` (`kpi_catalog.py:46`) and `dsi` (`:47`), and ADR-055 d.15's table is untouched; asserted over the catalog itself so a well-meaning 'fix' fails the build",
+          "pre-merge: NO DISCOUNT DEPTH IS COMPUTED, NO VALIDATOR RUNS AND NOTHING IS WRITTEN TO THE VENDOR — asserted over the diff and by the absence of any promotion resource call; CE-4 owns all three",
+          "pre-merge: every new seller-facing string is Vietnamese and passes the outbound banned-pattern guard with NO internal identifier (S-NFR-4)",
+          "pre-merge: `alembic upgrade head`, then `downgrade -1`, then `upgrade head` round-trips cleanly on a real Postgres 16 already at the current tip, and the previous release reads and writes `action_cards` unchanged with the nullable field present",
+          "post-deploy: `alembic upgrade head` on the candidate, then candidate `/health` returns healthy and ONE AUTHENTICATED READ OF AN EXISTING NON-CLEAR-EXCESS CARD returns a byte-identical shape to stable — the emission path is a no-op for every other workflow key. NO ACTIVITY IS CREATED ON ANY SHOP BY DEPLOYING"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is the excess predicate under `services/scoring/`, the card producer under `services/action_cards/`, the goal validation in `services/agent/approval.py`, one additive Alembic migration and tests. The chips, the units field and the completion copy that RENDER this field are #1819's, in the AGT-W10A-UI lane; nothing under apps/, packages/ or ios/ is touched here — this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "alembic-history",
+      "postgres-catalog-dump"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "ADDITIVE, EXPAND-ONLY. A NULLABLE card field for the proposed stock goal and its SKU evidence, plus the seller's goal carried in `workflow_runs` run-state JSON (a JSON blob widening, not a column change). NO column is made NOT NULL, dropped, renamed or retyped; there is no backfill. NULL means 'this card predates the field', never zero — a defaulted zero goal would read as 'clear everything', the most destructive value in the range. Old and new code coexist: the previous release never names the field and keeps reading `action_cards` and `workflow_runs` unchanged. THE MIGRATION NUMBER AND `down_revision` ARE RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update`, but W6, W8, W9 and the sibling W10 lanes all hold unlanded numbers off-tree, and this tree already carries TWO duplicate-numbered pairs from exactly this mistake — `003_add_processed_events` / `003_alert_config_threshold` and `043_juli_app_role` / `043_stop_reason_consent_pause`. Both tables are tenant-scoped, so any new column must be covered by the runtime role's per-table grants from `043_juli_app_role.py` (ADR-085) and by the existing RLS policies — assert that coverage as `juli_app`, never as the owner. Do NOT alter `action_cards`' subject uniqueness invariant: it is what makes a second emission a REVISION instead of a duplicate, and it is #1703's, not this slice's."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. No excess predicate exists, no Clear Excess card names a SKU, no stock goal field exists on the card or in run state, and approve keeps taking no body. Every downstream slice — the validator (#1814), the playbook (#1815), the suspended run (#1816) and the UI chips (#1819) — stays blocked on inputs that do not exist, which is exactly where they are today. Nothing is exposed, nothing is partially applied, no data hazard.",
+    "postCutoverFailureBehavior": "Redeploy the previous release FIRST and restart juli-api and juli-celery-worker: the previous code neither writes nor reads the nullable card field nor the run-state goal, so it runs correctly against the widened schema and needs NO downgrade. Cards already written with the field REMAIN READABLE and the field is simply ignored. Only if the schema must ALSO be reverted, `alembic downgrade -1` drops the nullable column, destroying proposed and seller-edited goals and nothing else; that downgrade MUST FAIL LOUDLY with a named error rather than silently drop data when any run's state still carries a seller goal that a later slice depends on. Order: previous code first, downgrade second, so no live process is mid-write against a column being dropped. NO RUN CAN BE IN `waiting_external` ON ACCOUNT OF THIS SLICE — that state and its resume arrive in #1816 — so no drain or reap is required here; if #1816 has ALREADY landed when this is rolled back, drain or reap every `waiting_external` run BEFORE reverting, because a rollback that removes the resume path strands them with nothing that recognises the state.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_clear_excess_signal.py tests/unit/test_clear_excess_card.py tests/unit/test_clear_excess_stock_goal.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'action_card or approval or kpi_catalog'",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_days_of_supply_and_sell_through.py tests/unit/test_per_sku_daily_demand.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/integration/test_schema_parity.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. This slice DOES carry a migration, so the reservation is binding.",
+    "Do NOT touch `KPI_WORKFLOW_KEYS` or ADR-055 d.15's `analyticsMetricKey` table. `clear_excess_4` maps to `inventory_turnover` (`kpi_catalog.py:46`) and `dsi` (`:47`) while the ADR table says AOV; the two layers already disagree, CE-NFR-3 leaves both alone, and THE TIE STAYS WHATEVER THE SURFACE RENDERS TODAY. 'Fixing' the disagreement here is out of scope and would be a card-KPI change in disguise.",
+    "Do NOT compute discount depth, run the validator, or write anything to the vendor. All three are #1814 and #1815. A signal that already knows the depth has absorbed the next two slices.",
+    "Do NOT render the chips, the units field or the completion copy. This slice DEFINES the field, its proposed value and its validation; #1819 renders it, in the ui-ux lane.",
+    "Do NOT propose clearing units in an EXCLUDED bucket, and NEVER write stock. S-FR-6 forbids a stock write outright in this workflow, and ADR-091 d.4 deletes the one that used to exist.",
+    "Do NOT re-derive the goal at CONFIRM. It is snapshotted WITH the approval so the run carries the seller's number; a re-derivation silently discards the seller's edit and breaks the params-hash story.",
+    "Do NOT let the goal be blank. ADR-055 d.19's rule is that the agent pre-commits a value for every field including the ones the seller decides.",
+    "Do NOT invent a second route for the seller's goal. It reaches the run through #1709's seller-inputs path and NO OTHER: approve takes no body today (`api/routes/demo_execution.py:71-76`) and `_card_snapshot` copies exactly ten card columns (`services/agent/approval.py:136-154`). Building a private side-channel here forks the consent story.",
+    "Do NOT add the fifth exclusion (SKUs in a live promotion Juli created). It is Juli-side by necessity (CE-NFR-2) and lands with the discount tool, not here.",
+    "Do NOT reach for `Search Activities` for the collision check. It DOES NOT EXIST at TikTok (resolved 2026-09-05 — `contract-collection.md` A-25, `endpoints.md:509`, `scope-verification/optimize-product-clear-excess.md:69`); rule 5 reads Juli's own persisted activity ids and nothing else, in #1814.",
+    "Do NOT infer a flash sale or a markdown. ADR-091 d.2 defers Flash Sale behind three unmet conditions and d.4 deletes the markdown; a rule that 'chooses a lever' is the design this ADR rejected.",
+    "Do NOT let a model choose the threshold, the depth or the goal. Every price- or quantity-bearing parameter is computed by a deterministic rule from configuration and vendor data (S-FR-4); the model chooses subject and wording only.",
+    "Do NOT enforce the goal on a timer and do NOT add a second reaper policy. The goal is enforced by the purchase limit at or below 99 (#1814) and by a persisted webhook signal (#1816) — never by a clock this slice starts.",
+    "Do NOT ask for a fresh CONFIRM on the goal. It is set at approval and RESTATED at CONFIRM, not re-consented; the one act ADR-091 d.4 exempts from a fresh CONFIRM is the goal-triggered deactivation in #1816.",
+    "Do NOT read revenue anywhere. v1 records facts only; the revenue reading on cleared SKUs is deferred to v2 (spec §3 Deferred).",
+    "Do NOT emit an empty card. When nothing qualifies after exclusions, suppress with a NAMED reason; an unnamed suppression is indistinguishable from a crash.",
+    "Do NOT let an unevaluable exclusion pass. Fail closed (S-NFR-1) — campaign-locked, creator-reserved and Thanh lý have no field in the schema today, so that branch is the one that runs in production.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature — the real card row, the real emission path, the real approval transaction. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

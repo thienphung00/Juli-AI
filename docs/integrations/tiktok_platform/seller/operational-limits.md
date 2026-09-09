@@ -94,6 +94,10 @@ Source: Sep 2024 and Mar/Apr 2026 updates
 **Business hours setting:** Must be accurately configured in Seller Center → Shipping
 Settings to avoid avoidable Instant/Same-day LDR violations.
 
+**Contested — do not encode this number.** Sources disagree between a 14:00 and an 18:00
+cutoff; ADR-092 d.3 resolves it by reading the order's own SLA fields rather than
+recomputing a cutoff.
+
 **FDR/LDR cutoff times (effective Dec 1, 2025):**
 - Orders placed before **18:00** → must be shipped same working day
 - Orders placed after **18:00** → must be shipped by **11:59** the next working day

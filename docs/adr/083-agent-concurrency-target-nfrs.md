@@ -4,6 +4,8 @@
 **Date:** 2026-08-22
 **Deciders:** grill-with-docs (Architect) with owner
 
+**Narrowed by:** S-FR-11 (`v1-workflow-spec.md:40`, owner 2026-09-05) — one active run per
+subject **across all workflows**; d.3's cross-category concurrency is no longer permitted.
 **Builds on:** ADR-041 (Redis ephemeral — broker is never the queue of record), ADR-068/ADR-073
 (WorkflowRunner, one-active-run partial unique index, basis-snapshot concurrency guard),
 ADR-074 (Postgres-authoritative event streaming, per-run sequences), ADR-075 (approval gate,
@@ -70,6 +72,20 @@ It deliberately changes nothing now.
   run has no events); incomplete rather than wrong; its edge fix survives inside T4.
 - **Multiplexed per-shop stream now** — rebuilds reconnect/cursor semantics that already
   work, for an overview whose consumer today is one seller's browser; deferred with trigger.
+
+## Rationale
+
+*Extracted during the W6→main reconcile to satisfy `check_adr`, which requires a
+`## Rationale` heading (#1853). Nothing below is new reasoning — it summarises what
+this ADR already argues in the section named, which remains the fuller account.*
+
+From **Context** and **Options considered and rejected**: the agent execution
+subsystem (W1–W4) was designed and validated around a *single running workflow*,
+while the product's user-facing scale requirements were never written down as
+NFRs — one seller automating many workflows at once, bursts of ~100 run requests
+for a shop, Campaign/Sales-day surges, and progress visibility across many
+concurrent runs. Stating them as targets is what makes them testable rather than
+assumed.
 
 ## Consequences
 

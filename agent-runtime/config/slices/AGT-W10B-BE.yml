@@ -1,0 +1,30 @@
+# AGT-W10B-BE — v1 build lane; see agent-runtime.config.yml epicRegistry and the epic's ADR.
+AGT-W10B-BE:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/092-process-order-dispatch-design.md
+    - docs/adr/075-agent-approval-gate-and-security-prerequisites.md
+    - docs/product/agent-workflow-execution/scope-verification/process-order-replenish.md
+    - docs/product/agent-workflow-execution/seller-journeys/process-order-actors.md
+  requiredModules:
+    - backend/src/juli_backend/services/agent/playbooks/base.py
+    - backend/src/juli_backend/services/agent/runner/core.py
+    - backend/src/juli_backend/services/agent/runner/confirmation.py
+    - backend/src/juli_backend/services/agent/tools/registry.py
+    - backend/src/juli_backend/services/agent/events/payloads.py
+    - backend/src/juli_backend/integrations/tiktok/resources/fulfillment.py
+    - backend/src/juli_backend/services/aggregates/thresholds.py
+    - backend/src/juli_backend/models/models.py
+    - packages/contracts/src/agent-events.ts
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/agent_runs/confirmations.py
+    - backend/src/juli_backend/services/agent/status.py
+    - docs/integrations/tiktok_api/contract-collection.md
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

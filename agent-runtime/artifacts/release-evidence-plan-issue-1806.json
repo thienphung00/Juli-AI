@@ -1,0 +1,98 @@
+{
+  "planId": "dry-run-mode-the-exact-batch-ship-request-unsent-as-the-first-proof-2026-09-08",
+  "affectedPublicSurfaces": [
+    "THE RUNNER'S DRY-RUN FLAG — an OPERATOR-SIDE mode, OFF BY DEFAULT, and the only surface this slice adds. In dry-run a Process Order run does everything up to and including the re-verify and then, INSTEAD of calling Batch Ship, records the EXACT REQUEST IT WOULD HAVE SENT — endpoint, package ids, handover method and the whole body — UNSENT, on the run's ledger. Nothing reaches the vendor. There is NO seller-facing toggle, NO request-body field and NO route parameter: the mode must be unreachable from model output and from any seller-facing request, and that unreachability is asserted, not assumed. Note that a `dry_run` concept exists elsewhere in the tree — `services/demo_execution/dry_run.py`'s `approve_decision_dry_run`, deliberately built as an ISOLATED module rather than a flag on the real execution path — and it is NOT this: reusing it would give a proof of the demo path, not of the runner that ships.",
+    "THE RUN LEDGER — `services/agent/runner/ledger.py`, today the `ToolExecutionLedger` that is the idempotency boundary for WRITE-classified tool calls (ADR-073 d.3), keyed by `(workflow_run_id, tool_call_id, operation)` over the `ToolExecution` model, with the state machine no-row → `in_flight` → `succeeded`/`failed` and a byte-identical replay of a stored `succeeded` outcome. The unsent request is recorded HERE, so the operator can read the exact request the system would send before authorising anyone to send one. Recording an unsent request must NOT corrupt that state machine: a dry run must never leave a row that a later live run would replay as an already-succeeded write.",
+    "THE VALUE IS IDENTITY, NOT RESEMBLANCE. THE SAME REQUEST BUILDER produces both the dry-run and the live request, so the test asserts EQUALITY, not similarity. A dry run built by a separate code path proves the separate code path and nothing about what the live run would send — that is the exact consumer-without-producer failure this wave exists to prevent.",
+    "THE PROOF LADDER (ADR-092's Proof line, PRD story 11, S-NFR-3). Writes are SANDBOX-ONLY until the production-write gate #1339 passes; the dry run is the rung BELOW that, and it is what the #1810 gate walk opens with. The first live proof of the Process Order write is this dry run — the exact request, unsent — then the seeded sandbox batch, and never production.",
+    "NO seller-facing surface, NO route, NO response-model change, NO schema change. The predicate and the re-verify are UNCHANGED and NEITHER IS SKIPPED: a dry run whose orders were all dropped at re-verify ends with the SAME CAUSE a live run would, and records NO request."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the WORKTREE ROOT with PYTHONPATH pinned to the worktree's own `backend/src`, against a REAL Postgres 16 migrated to head, since the ledger row is the artifact under test. The identity test binds to the REAL `FulfillmentResource.batch_ship_packages` SIGNATURE (`def batch_ship_packages(self, *, body: dict[str, Any]) -> dict` at `integrations/tiktok/resources/fulfillment.py:41`) and the 'no call was made' assertion binds to the REAL CLIENT OBJECT — never a `**kwargs` double, which would happily accept a request the real method would reject and would make the identity assertion vacuous. Post-deploy: run ONE DRY RUN on the candidate against the SANDBOX shop, read the unsent request off the ledger, and confirm `/health` and one authenticated read are unchanged. No public traffic reaches the candidate.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the runner executes inside the Celery worker; a candidate with workers disabled can hold the flag but never exercise a run, which is the whole slice. apiSideEffectsInScope is FALSE and here it is LITERALLY true rather than merely scoped: in dry-run mode NO VENDOR CALL IS MADE AT ALL, and that is the property the slice exists to guarantee. NO PACKAGE IS SHIPPED ON ANY SHOP BY DEPLOYING THIS SLICE — the mode is off by default, is not settable from model output or a seller request, and when on it sends nothing. THIS SLICE IS THE FIRST LIVE PROOF: the dry run on the candidate against the sandbox shop, then the seeded sandbox batch of the #1810 walk. Production is never the first proof and stays gated on #1339 (S-NFR-3).",
+    "journeys": [
+      {
+        "name": "the-request-the-system-would-send-is-readable-before-anyone-is-authorised-to-send-one",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1806",
+        "assertions": [
+          "pre-merge: with ONE dispatch window and ONE confirmed batch, the request built in DRY-RUN mode and the request built in LIVE mode against a RECORDING DOUBLE are IDENTICAL, FIELD FOR FIELD — equality, not similarity, and produced by the SAME request builder; a test that compares two independently constructed dicts proves nothing about what the live run would send (tests/unit/test_process_order_dry_run.py::test_the_dry_run_request_equals_the_live_request)",
+          "pre-merge: in dry-run mode the REAL `FulfillmentResource.batch_ship_packages` WAS NEVER CALLED — asserted against the REAL CLIENT OBJECT, not a `**kwargs` double — and the UNSENT REQUEST is READABLE ON THE LEDGER with its endpoint, package ids, handover method and full body (tests/unit/test_process_order_dry_run.py::test_no_vendor_call_is_made_and_the_request_is_recorded)",
+          "pre-merge: a confirmed batch EVERY order of which is DROPPED AT RE-VERIFY ends a dry run with the SAME CAUSE a live run ends with, and RECORDS NO REQUEST — the re-verify is neither skipped nor weakened in dry-run mode, so the dry run proves the real path and not a shortcut through it (tests/unit/test_process_order_dry_run.py::test_dry_run_end_states_match_live_end_states)",
+          "pre-merge: a run created through the ORDINARY APPROVE PATH is LIVE, and NO MODEL OUTPUT CAN SET THE DRY-RUN MODE — asserted by feeding the flag's name through model arguments and a seller-facing request body and showing neither reaches it; a mode the model can set is a mode that can silently suppress a write the seller consented to (tests/unit/test_process_order_dry_run.py::test_dry_run_is_off_by_default_and_not_model_settable)",
+          "pre-merge: the LEDGER'S IDEMPOTENCY STATE MACHINE is not corrupted. A dry-run record must never be replayed by a later LIVE run as an already-`succeeded` write, and must never leave an `in_flight` row that a retry would resolve as APPLIED — asserted by running a live run after a dry run over the same confirmed batch and showing the live request is actually sent",
+          "pre-merge: the predicate and the re-verify are BYTE-IDENTICAL between modes — the same functions, the same order of calls, the same package re-reads — so the only difference is whether the last step is a send or a record",
+          "pre-merge: `services/demo_execution/dry_run.py` is NOT reused or extended. It is a deliberately isolated demo module, not a flag on the real execution path; a proof built on it would prove the demo",
+          "pre-merge: the dry run performs the READS it needs (order and package re-reads) and only suppresses the WRITE — a dry run that also skips the reads would not exercise the re-verify and could not produce the request",
+          "post-deploy: run ONE DRY RUN on the candidate against the SANDBOX shop and READ THE UNSENT REQUEST OFF THE LEDGER — observed on the ledger row itself, never inferred from a log line, because a run that raises before it logs is invisible to a success-marker grep. The candidate's outbound request log is asserted to contain NO ship request",
+          "post-deploy: `/health` and ONE authenticated read UNCHANGED, and no seller-facing surface differs from stable",
+          "post-deploy: NO PACKAGE IS SHIPPED ON ANY SHOP BY DEPLOYING THIS SLICE — dry-run sends nothing and live mode is unreachable without a card, an approval and a confirmation that the candidate has none of. This dry run IS the first live proof; the seeded sandbox batch (#1810) is the second; production is never the first and is gated on #1339"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the mode is operator-side with no seller-facing toggle. The diff is `services/agent/workflows/process_order/execute.py`, `services/agent/runner/ledger.py` and tests. Nothing under apps/, packages/ or ios/ is touched; those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "run-ledger-dump",
+      "unsent-request-record",
+      "outbound-request-log",
+      "celery-worker-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE IN THIS SLICE. The unsent request is recorded on the EXISTING run ledger — `services/agent/runner/ledger.py` over the existing `ToolExecution` model, which already persists a request payload — and the mode itself is a runtime flag, not a column. Do not open a migration file and do not open `backend/src/juli_backend/database/migrations/versions/`; migration numbers are RESERVED BY META and never read from head, but the correct action here is not to reserve one — it is to not need one. Stable and candidate run the same schema, so a code rollback needs no downgrade. If recording the unsent request appears to need a new column, that is a signal the record is being shaped wrong: it belongs beside the tool-execution record that a live write would produce, precisely so the two can be compared — stop and report rather than adding a parallel table."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. There is no dry-run mode, so the first proof of the Batch Ship write would have to be an actual sandbox write with nobody having read the request first — which is exactly the rung ADR-092's Proof line inserts a step below. The #1810 gate walk cannot open, but nothing about the deployed system changes and no package is arranged. Holding this slice is strictly safer than shipping a dry run that does not build the identical request, because such a dry run would give false assurance about a write nobody has inspected.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart juli-api and juli-celery-worker. NO DOWNGRADE IS NEEDED — there is no migration. The mode is OFF BY DEFAULT and operator-side, so the ordinary approve path is unaffected in both directions and no seller-visible behaviour changes either way. Ledger rows recording unsent requests are INERT to the previous release, which reads the ledger by its existing keys; the one property that must hold is that such a row NEVER causes a later live run to replay a write as already-`succeeded` — if that invariant is what failed, the remediation is to purge the dry-run records for the affected runs BEFORE any live run is permitted, and to re-run those windows from the card. Nothing here can ship or un-ship a package: dry-run sends nothing, and a package #1803 already shipped cannot be un-shipped by any rollback — Juli never cancels and no cancel tool exists.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_process_order_dry_run.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_process_order_reverify.py tests/unit/test_batch_ship_partial_success.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'ledger or tool_execution or idempoten or sandbox_guard'",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT write a migration. The unsent request lands on the existing ledger over the existing `ToolExecution` model. Migration numbers are RESERVED BY META and never read from head.",
+    "Do NOT build a second request builder for the dry run. THE SAME BUILDER produces both requests — the test asserts IDENTITY, field for field, and a parallel path makes that assertion meaningless.",
+    "Do NOT reuse or extend `services/demo_execution/dry_run.py`. It is a deliberately isolated demo module, not a flag on the real execution path; a proof built on it proves the demo, not the runner.",
+    "Do NOT make the mode reachable from model output or from any seller-facing request body, and do NOT add a seller-facing toggle. A mode the model can set can silently suppress a write the seller consented to.",
+    "Do NOT skip or weaken the predicate or the re-verify in dry-run mode, and do NOT skip the reads. A dry run that shortcuts the path proves the shortcut. A dry run whose orders were all dropped at re-verify ends with the same cause a live run would and records no request.",
+    "Do NOT let a dry-run ledger record be replayed by a later live run as an already-`succeeded` write, and do NOT leave an `in_flight` row a retry would resolve as APPLIED.",
+    "Do NOT send anything to the vendor in dry-run mode, and assert that against the REAL client object — a `**kwargs` double would accept a request the real method rejects and make the identity assertion vacuous.",
+    "Do NOT attempt a production write in either mode. S-NFR-3 keeps writes sandbox-only until #1339; the dry run is the rung below the sandbox write and it is what the #1810 gate walk opens with.",
+    "Do NOT change the predicate, the re-verify, the subset rule or the per-package error reading — all of that is #1803 and must be untouched here.",
+    "Do NOT cancel anything and do NOT add a cancel tool. Do NOT add a Create Packages or Confirm Package Shipment request to the builder: in SEA TikTok creates the package at order time, and Confirm Package Shipment is certified-warehouse-provider-only.",
+    "Do NOT build a vendor-refusal branch. TikTok does NOT refuse a ship write during a pending cancellation (ADR-092 amendment 2026-09-05); the exclusion is hard, in Juli's own code, and the dry run must show that exclusion already applied in the request it would send.",
+    "Do NOT widen the executed set, and do NOT auto-ship a window whose confirmation expired — dry-run changes nothing about either rule.",
+    "Do NOT include FBT or Seller Own Fleet orders in the built request. FBT is monitor-only by design (`21008025`) and SOF is v2.",
+    "Do NOT verify with a success-marker grep. A run that raises before it logs is invisible to one; assert on the ledger row and on the candidate's outbound request log showing no ship request.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/**, which are on this epic's doNotLoad list."
+  ]
+}

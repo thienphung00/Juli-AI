@@ -10,6 +10,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ci"))
 from common import (  # noqa: E402
     REPO_ROOT,
+    ChangedFilesUnresolved,
     git_changed_files,
     module_for_file,
     module_public_symbols_from_code,
@@ -23,7 +24,16 @@ from common import (  # noqa: E402
 
 def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:  # noqa: ARG001
     modules = parse_architecture_map()
-    changed = git_changed_files()
+    try:
+        changed = git_changed_files()
+    except ChangedFilesUnresolved as exc:
+        # Never a silent pass: an unresolvable diff is reported with its cause,
+        # the same way harness_bootstrap_pin.py degrades (#1540, #1571).
+        return (
+            False,
+            f"Changed-file set unresolved: {exc.reason}",
+            {"drift": [], "missingInterfaces": [], "changedFilesUnresolved": exc.reason},
+        )
     touched: set[str] = set()
     for path in changed:
         mod = module_for_file(path, modules)
@@ -65,7 +75,9 @@ def main() -> int:
         return 1
     passed, _, details = run_check(issue)
     detail = ""
-    if details.get("drift"):
+    if details.get("changedFilesUnresolved"):
+        detail = f"changed-file set unresolved: {details['changedFilesUnresolved']}"
+    elif details.get("drift"):
         detail = f"{len(details['drift'])} module(s) out of sync"
     return print_check_result("module_md_sync", passed, detail)
 

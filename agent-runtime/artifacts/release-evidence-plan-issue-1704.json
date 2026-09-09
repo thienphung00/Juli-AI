@@ -1,0 +1,92 @@
+{
+  "planId": "tools-belong-to-a-domain-subject-generic-dispatch-2026-09-07",
+  "affectedPublicSurfaces": [
+    "NO HTTP surface changes at all — no route, no request or response model, no field. The blast radius is entirely inside `services/agent/runner/`: `tool_executor.py` today dispatches with a literal if/elif over three module-level dicts imported at the top of the file — `PRODUCT_READ_TOOL_HANDLERS` (`tools/product.py`), `PRODUCT_WRITE_TOOL_HANDLERS` (`tools/product_write.py`) and `TERMINAL_TOOL_HANDLERS` (`tools/terminal.py`) — and the class is `ProductToolExecutor`. That is the only thing this slice reshapes.",
+    "The TOOL CONTEXT, which is the real change and is wider than the issue's bullet suggests. `ProductToolExecutor.__init__` takes `product_id: str` as CONSTRUCTOR STATE — deliberately never read from the model's params (its docstring says so) — and threads it into `ProductToolContext(product_id=self._product_id, ...)` at every dispatch. A non-product tool has no context object to receive; generalising the context to carry the RUN's subject (`subject_type`/`subject_ref` from #1701) plus the guarded resources is the substance of the slice, and the product domain must be migrated onto it with zero behaviour change.",
+    "`ToolSpec` (`services/agent/tools/registry.py`) — a frozen dataclass with `name`, `description`, `input_model`, `output_model`, `classification` (READ/WRITE), `policy` (AUTO/CONFIRM), `timeout_seconds` — gains a `domain` field, and registration of a domain-less spec is refused AT IMPORT TIME. `ToolRegistry` is explicit-registration with no decorators, so this is one additive frozen-dataclass field and one guard, not a framework.",
+    "The seam already exists and must be used, not replaced: `ToolExecutor` is a `@runtime_checkable Protocol` with the single method `execute(self, *, tool_name, params, tool_call_id=None) -> Mapping[str, Any]`. The domain handler registry (domain → handler table) sits behind that Protocol; the Protocol's own signature does NOT change, so `runner/core.py` and every existing caller keep compiling.",
+    "The CONFIRM pause is asserted to be DOMAIN-INDEPENDENT. Today the pause is driven by `ToolSpec.policy == CONFIRM` and lands in `waiting_approval` via `paused_for_confirmation`; a WRITE-CONFIRM tool registered in a test-only domain must pause identically, because ADR-075's consent binding is a property of the policy, never of the product domain. If it does not, the generalisation has leaked product assumptions into the consent path — the one thing this slice must not do.",
+    "NO schema change, no migration, nothing under apps/, packages/ or ios/."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the worktree root with PYTHONPATH pinned to the worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite; the full Optimize Product run the behaviour-preservation golden replays persists `workflow_runs`, `workflow_run_events` and `run_confirmations` rows whose ordering and JSON round-trip are Postgres behaviour. Every run is driven through the REAL `WorkflowRunner` and the REAL `ToolRegistry`, with the LLM bound to the existing fake adapter built on `LLMService.complete`'s real signature — never a `**kwargs` double. The test-only `inventory` domain is registered in the test module through the real registry, so the extension point is proven by using it. Post-deploy: one operator-triggered Optimize Product run on the candidate against the sandbox shop, observed to reach CONFIRM; no public traffic reaches a candidate task set and no production write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because `WorkflowRunner` and therefore every tool dispatch execute inside the Celery worker; a candidate with workers disabled cannot execute a tool at all and the journey would prove nothing. apiSideEffectsInScope is FALSE: the run stops AT the CONFIRM pause, no write tool executes against the vendor, and no production write occurs — the 2026-08-21 owner decision holds.",
+    "journeys": [
+      {
+        "name": "the-product-domain-becomes-one-domain-among-several-with-nothing-else-moving",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1704",
+        "assertions": [
+          "pre-merge: a FULL Optimize Product run against the fake LLM produces recorded events BYTE-EQUAL to the pre-change golden — `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json`, the only golden scenario in the tree, replayed through `tests/unit/test_golden_scenario_capture_from_real_runner.py::test_the_committed_scenario_is_what_the_tool_produces`. Zero behaviour change is the acceptance criterion, so the golden must pass UNREGENERATED; regenerating it is the failure this assertion exists to catch (tests/unit/test_tool_dispatcher_domains.py::test_product_domain_migration_is_behaviour_preserving)",
+          "pre-merge: a test-only `inventory` domain with ONE READ tool, registered in a test module through the real `ToolRegistry`, receives — when a run whose subject is a SKU SET calls it — a context carrying THAT subject and carrying NO product id; asserted on the object the handler actually received, and asserted that the attribute is absent rather than present-and-None, so a context that still smuggles a product through cannot pass (tests/unit/test_tool_dispatcher_domains.py::test_non_product_domain_receives_subject_generic_context)",
+          "pre-merge: a `ToolSpec` with no `domain` is REFUSED at import time — the guard fires when the module registering it is imported, not on first dispatch, so a mis-registered tool cannot reach a seller's run (tests/unit/test_tool_dispatcher_domains.py::test_domainless_spec_is_refused)",
+          "pre-merge: a WRITE-CONFIRM tool in the TEST domain pauses the runner at CONFIRM exactly as a product write does — the run lands in `waiting_approval` with `stop_reason = 'paused_for_confirmation'` and a `run_confirmations` row with a `params_sha` in its `options[]` entry, identical in kind to the product path; the consent policy is a property of `ToolSpec.policy`, never of the domain (tests/unit/test_tool_dispatcher_domains.py::test_confirm_policy_is_domain_independent)",
+          "pre-merge: every one of the six product tools still resolves through the domain registry, asserted against the REAL registry and the REAL playbook — `tests/unit/test_agent_tool_registry_contract.py`'s capability→workflow assertion is UPDATED to know about domains, never deleted, and `test_agent_prompt_playbook_consistency_gate.py::test_the_real_registry_and_the_one_real_playbook_agree_on_six_tools` still passes",
+          "pre-merge: the `ToolExecutor` Protocol's `execute(self, *, tool_name, params, tool_call_id=None)` signature is UNCHANGED, asserted structurally (the Protocol is `@runtime_checkable`), so `runner/core.py` and the terminal path are untouched by construction",
+          "pre-merge: dispatching an unknown tool name, and dispatching a known name against an unregistered domain, both fail closed with a named error and record `tool_error_unrecoverable` — the if/elif's fall-through behaviour is preserved rather than replaced by a silent no-op",
+          "pre-merge: the existing runner suites pass unchanged — `tests/unit/test_agent_runner_tool_executor.py`, `tests/unit/test_agent_tool_definition_contract.py`, `tests/unit/test_agent_golden_scenarios.py`",
+          "post-deploy: `/health` on the candidate is unchanged, and ONE Optimize Product run started by approving a real sandbox card on the candidate reaches CONFIRM and emits the same SSE event sequence as before — observed on the stream, not inferred from a log line"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is `services/agent/runner/tool_executor.py`, `services/agent/tools/registry.py`, the product tool modules' registration calls and tests. Nothing under apps/, packages/ or ios/ is touched; those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "golden-scenario-diff",
+      "sse-event-log"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE IN THIS SLICE. No column, index, constraint, table or grant is touched, and no Alembic revision file is created. The run's subject, which the generalised tool context reads, is #1701's `workflow_runs.subject_type`/`subject_ref`, already landed and already stamped by #1702. Old and new code coexist trivially: the deployed schema is identical before and after, so a candidate and a stable process can run side by side against one database."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. The dispatcher stays three literal handler dicts bound to `ProductToolContext(product_id=...)`, a non-product tool still has nowhere to live, and adding a WRITE tool still means five parallel edits named after products. That is the pre-existing state: nothing is exposed, nothing is partially applied, and no seller-visible behaviour changes.",
+    "postCutoverFailureBehavior": "Code-only rollback: redeploy the previous release and restart juli-api and juli-celery-worker. There is NO schema to revert and NO downgrade to run — this slice owns no migration. Runs already completed keep their events and their `run_confirmations` rows, all written in the pre-existing shape because behaviour is unchanged by construction. A run SUSPENDED at CONFIRM across the rollback resumes correctly, because the consent binding is `params_sha` over the tool call's arguments and neither the arguments nor the hash function move in this slice — assert this explicitly pre-merge rather than assuming it. If #1701's schema must also be reverted, that downgrade is #1701's and must FAIL LOUDLY when any `workflow_runs` row carries a non-product subject or a NULL `product_id`, or when any run sits in `waiting_external`. Order: previous code first, any schema revert second.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_tool_dispatcher_domains.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_golden_scenario_capture_from_real_runner.py tests/unit/test_agent_golden_scenarios.py tests/unit/test_agent_golden_scenarios_integration.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_runner_tool_executor.py tests/unit/test_agent_tool_registry_contract.py tests/unit/test_agent_tool_definition_contract.py tests/unit/test_agent_prompt_playbook_consistency_gate.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT read a migration number from head — do NOT write a migration at all. This slice has no schema change of any kind. The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake.",
+    "ZERO behaviour change for `optimize_product_2` is the acceptance criterion, not an aspiration. The golden is `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` (the tree's only golden scenario) and the prompt golden is `tests/fixtures/agent_prompt_gates/optimize_product_v3_composed.golden.md`. Do NOT regenerate either. If the golden moves, the migration was not behaviour-preserving and the diff is wrong — the golden is not.",
+    "Do NOT change the `ToolExecutor` Protocol's signature. `execute(self, *, tool_name, params, tool_call_id=None) -> Mapping[str, Any]` is the seam that already exists; widening it would push the change into `runner/core.py` and every caller, which is a different and much larger slice.",
+    "Do NOT let the model choose a domain, a subject or a product. `product_id` is constructor state on the executor precisely because it must never come from LLM input; the generalised context takes the subject from the RUN row (#1701's `subject_type`/`subject_ref`), never from `params`. A subject read out of a tool argument is a prompt-injection surface.",
+    "Do NOT derive the subject from revenue. `ProductsRepo.get_highest_revenue_product` has no place anywhere in the runner; #1702 removed it from approve and it must not reappear as a context fallback when a run's subject is not a product.",
+    "Do NOT make the CONFIRM policy domain-specific. Consent binding is ADR-075 and hangs off `ToolSpec.policy`; a per-domain confirm rule, a domain allow-list for pausing, or a domain that opts out of CONFIRM would fork the consent model.",
+    "Do NOT add a second reaper policy object or touch `workers/tasks/reaper.py`. Per-run policy resolution landed in #1702 through the existing `policy=` seam.",
+    "Do NOT delete the tool-registry contract test's capability→workflow assertion. Update it to know about domains — deleting a contract assertion because the shape moved is how a contract silently stops being one.",
+    "Do NOT emit or consume a per-order card, do NOT reuse the emission-budget suppression vocabulary (`active_cap`/`cooldown`/`weekly_novelty_cap`), and do NOT touch `services/action_cards/**` — cards are #1703's.",
+    "Do NOT register a real non-product tool here. The `inventory` domain in the acceptance criteria is TEST-ONLY; real tools land with their workflows in W9-B and W10. Registering one now ships a capability with no reviewed workflow behind it.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list. An executor that believes it needs a design reference here has been mis-routed: stop and report.",
+    "Bind every test collaborator to the REAL object's signature — the real `ToolRegistry`, the real `ToolSpec`, the real `WorkflowRunner`, the existing fake LLM adapter built on `LLMService.complete`. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "planId": "re-verify-then-one-batch-ship-subset-only-per-package-outcomes-documents-after-2026-09-08",
+  "affectedPublicSurfaces": [
+    "THE BATCH SHIP TOOL — the single most consequential surface in this epic, because after this slice a Process Order run CAN EXECUTE ITS ONE WRITE. `batch_ship_packages` is registered as a WRITE, CONFIRM agent tool on #1704's domain-registered dispatcher. The client method already exists and is guarded — `integrations/tiktok/resources/fulfillment.py:41` (`def batch_ship_packages(self, *, body: dict[str, Any]) -> dict:`), allowlisted at `integrations/tiktok/capabilities.py:134` (`(\"POST\", re.compile(r\"^/fulfillment/\\d+/packages/ship$\"))`; note the issue body's `capabilities.py:134-135` is a single line 134, and `:135` is the unrelated orders-split regex, and the file is under `integrations/tiktok/`, not `services/execution/`). It has ZERO PRODUCTION CALL SITES; its only caller today is `tests/unit/test_layer2_sandbox_write_contract.py:294`. Ship Package moves the order to `AWAITING_COLLECTION`, generates the label, assigns the carrier and schedules the handover — after it, the buyer can no longer cancel without seller approval. It is irreversible from Juli's side.",
+    "THE DOCUMENTS TOOLS — `get_package` and `get_shipping_documents`, both READ. Get Package Detail and Get Package Shipping Document exist ONLY as guard regexes today (`integrations/tiktok/capabilities.py:163-164`, exact) with NO client methods anywhere in `integrations/tiktok/`, so both need real methods built over #1720's captured shapes. DOCUMENTS ARE FETCHED ONLY AFTER THE SHIP CALL AND NEVER BEFORE: the label exists only once shipping has been arranged, and a run that shipped nothing fetches none.",
+    "A DELIBERATE CONTRACT REVERSAL, in the same commit. `tests/unit/test_agent_tool_registry_contract.py` pins `fulfillment.process_order` in `EXPECTED_UNREGISTERED_LEGACY_TOOL_NAMES` (`:99-106`) and asserts it at `:201` inside `TestFourKnownUnregisteredLegacyTools` — the issue body's `:98-111` names the constant, not the assertion. Note the namespace: that test governs the LEGACY Celery registry (`services/execution/runner.py`, `is_tool_registered`), where `\"process_order_5\" -> \"fulfillment.process_order\"` (`services/execution/tool_routing.py:23`) still has no handler; the AGENT registry is a different object (`services/agent/tools/registry.py`, today holding only the seven product tools in `tools/product.py` and `tools/product_write.py`, with no `tools/fulfillment.py` at all). Register the AGENT tool and update the legacy expectation in ONE change so the two contracts never disagree — and do not conflate them.",
+    "THE RE-VERIFY STEP AND THE SUBSET RULE (PO-FR-5, S-FR-5, ADR-092 d.2). A confirmation can sit for FOUR HOURS. Before the write, EVERY confirmed order AND ITS PACKAGES are re-read, the clean predicate is applied a SECOND time, and the executed set is a SUBSET of the confirmed set, NEVER a superset. TikTok may itself have split the order after an address update, which is why the packages are re-read and not just the order. Every order dropped at re-verify is named with its reason for the digest; the params hash still binds the confirmed list.",
+    "PER-PACKAGE OUTCOME READING. Batch Ship returns a TOP-LEVEL `code: 0` WITH A PER-PACKAGE `data.errors[]`. A caller that reads the top-level code alone reports PHANTOM SUCCESSES at volume — it tells the seller parcels are on their way that were never arranged. Each per-package error names its order; the failed order is reported failed and the others shipped. The top-level code alone never decides the outcome.",
+    "NO route shape changes and no new HTTP endpoint. Under S-NFR-3 the write stays SANDBOX-ONLY until the production-write gate #1339 passes; the sandbox order read path arrives with #1719 and the Batch Ship partial-error shape with #1720."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the WORKTREE ROOT with PYTHONPATH pinned to the worktree's own `backend/src`, against a REAL Postgres 16 migrated to head. Every tool test binds to the REAL `FulfillmentResource.batch_ship_packages` SIGNATURE (`def batch_ship_packages(self, *, body: dict[str, Any]) -> dict`) and to #1720's CAPTURED Batch Ship response including its per-package `data.errors[]` — never a `**kwargs` double and never a hand-written success body, because a `**kwargs` double proves routing and hides the contract break, and a hand-written body cannot contain the partial-error shape that is the whole point. Post-deploy: candidate `/health` and ONE authenticated read unchanged, and NO LIVE WRITE ATTEMPTED FROM THE CANDIDATE. The write itself is proven on the SANDBOX in the #1810 gate walk, since S-NFR-3 keeps writes sandbox-only until #1339 passes.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the runner and the tool dispatcher execute inside the Celery worker; a candidate with workers disabled can register a tool but never dispatch it. apiSideEffectsInScope is FALSE for the CANDIDATE specifically: no production write is attempted from it, because S-NFR-3 pins writes to the sandbox until #1339 and no window card, approval or confirmation exists on the candidate's production shops. DEPLOYING THIS SLICE SHIPS NO PACKAGE ON ANY SHOP: a run reaches Batch Ship only after a scheduled window card, a human approval AND a human confirmation, and every one of those is absent on a candidate carrying no public traffic. The first live proof of the write is the #1806 DRY RUN — the exact request, unsent — then the SEEDED SANDBOX BATCH of the #1810 walk. Never production, which stays gated on #1339.",
+    "journeys": [
+      {
+        "name": "re-verify-narrows-the-confirmed-set-and-one-batch-ship-is-read-per-package",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1803",
+        "assertions": [
+          "pre-merge: with a confirmed batch of three orders, one of which has a CANCELLATION OPENED AFTER THE CONFIRMATION, the Batch Ship request covers THE OTHER TWO and the executed set is a STRICT SUBSET of the confirmed set — and the drop happens in JULI'S OWN CODE with NO vendor-refusal branch anywhere in the path, because ADR-092's 2026-09-05 amendment records the platform does NOT refuse the write: it succeeds, the cancellation is approved anyway, and the seller pulls a parcel off the courier pile (tests/unit/test_process_order_reverify.py::test_executed_set_is_a_subset_after_a_cancellation_opens)",
+          "pre-merge: a confirmed order whose RECIPIENT ADDRESS CHANGED since its packages were read has ITS PACKAGES RE-READ — not just the order — and is dropped with the address reason; asserted on the actual package re-read call, because TikTok may have split the order itself after the address update and a stale package id is a label for a parcel that no longer exists (tests/unit/test_process_order_reverify.py::test_address_update_drops_the_order_after_a_package_re_read)",
+          "pre-merge: an order that is CLEAN AT RE-VERIFY BUT WAS NOT ON THE CONFIRMED LIST is NEVER SHIPPED — the run REFUSES TO WIDEN. The confirmed list is the ceiling and the params hash binds it; a superset is a write the seller never consented to (tests/unit/test_process_order_reverify.py::test_the_executed_set_can_never_widen)",
+          "pre-merge: a Batch Ship response with TOP-LEVEL SUCCESS and ONE PER-PACKAGE ERROR reports the failed order as FAILED and the others as SHIPPED; THE TOP-LEVEL CODE ALONE NEVER DECIDES THE OUTCOME, and each per-package error NAMES ITS ORDER. Asserted against #1720's captured response shape, not a hand-written body (tests/unit/test_batch_ship_partial_success.py::test_per_package_errors_name_their_orders)",
+          "pre-merge: a run that shipped at least one package calls `get_shipping_documents` ONLY AFTER the ship call, and a run that shipped NOTHING fetches NONE — asserted on call ORDER against the real client, since the label does not exist until shipping is arranged (tests/unit/test_batch_ship_partial_success.py::test_documents_are_fetched_only_after_the_ship_call)",
+          "pre-merge: EXACTLY ONE WRITE PER RUN (S-FR-6). One Batch Ship call, and no second write of any kind — no cancel, no combine, no split, no re-arrange, no delivery-status upload. Asserted by counting write-classified dispatches on the run",
+          "pre-merge: the tool tests bind to the REAL `FulfillmentResource.batch_ship_packages` signature and the REAL `get_package` / `get_shipping_documents` methods this slice adds; a signature change would FAIL the test rather than pass through a `**kwargs` double",
+          "pre-merge: an error string ADVISING CANCELLATION surfaces as a REASON and CANCELS NOTHING — asserted by showing no cancel-shaped request leaves the process for such a response",
+          "pre-merge: the handover method comes from the SHOP DEFAULT and slots are READ, never chosen; a run does not invent a pickup slot",
+          "pre-merge: `tests/unit/test_agent_tool_registry_contract.py` is updated IN THE SAME CHANGE — `fulfillment.process_order`'s membership in `EXPECTED_UNREGISTERED_LEGACY_TOOL_NAMES` (`:99-106`, asserted at `:201`) is revised deliberately, with the LEGACY registry (`services/execution/runner.py`) and the AGENT registry (`services/agent/tools/registry.py`) kept distinct rather than conflated, so two contracts never disagree",
+          "pre-merge: the write is GUARDED — the resource resolves through the existing sandbox/production write guard, and a production write is REFUSED by default under S-NFR-3 until #1339 passes. Asserted as a refusal, not as an absence",
+          "post-deploy: candidate `/health` and ONE authenticated read unchanged; NO LIVE WRITE ATTEMPTED — no window card, approval or confirmation exists on the candidate, so no run can reach Batch Ship, and the absence of any outbound ship request is asserted on the candidate's request log rather than assumed",
+          "post-deploy: NO PACKAGE IS SHIPPED ON ANY SHOP BY DEPLOYING THIS SLICE. The first live proof of this write is the #1806 DRY RUN returning the exact unsent request, then the SEEDED SANDBOX BATCH of the #1810 walk driven from Juli's own surfaces; production is never the first proof and stays gated on #1339"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is `services/agent/tools/fulfillment.py` (new), `services/agent/workflows/process_order/execute.py` (new), `integrations/tiktok/resources/fulfillment.py`, `integrations/tiktok/capabilities.py` and tests including `tests/unit/test_agent_tool_registry_contract.py`. Nothing under apps/, packages/ or ios/ is touched; those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "vendor-response-capture",
+      "vendor-error-response",
+      "outbound-request-log",
+      "tool-registry-diff",
+      "run-ledger-dump"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE IN THIS SLICE. The confirmed list lives in `proposed_change` (existing uncapped JSONB), the tool call is a ledger row on the existing `ToolExecution` model through `services/agent/runner/ledger.py`, and the dropped-order reasons are carried into #1805's completion act rather than persisted here. Do not open a migration file and do not open `backend/src/juli_backend/database/migrations/versions/`; migration numbers are RESERVED BY META and never read from head, but the correct action here is not to reserve one — it is to not need one. Stable and candidate run the same schema, so a code rollback needs no downgrade. The new stop reasons (`shipped_all`, `shipped_subset`, `vendor_partial_failure` and the rest) are #1805's migration, NOT this slice's: a run here ends on the EXISTING vocabulary, and a run that fails outright stays on the existing terminal failure path. If implementation concludes a column is needed, that is a signal the slice boundary is wrong — stop and report."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. `batch_ship_packages` keeps its zero production call sites, no agent tool is registered, `fulfillment.process_order` stays pinned as an unregistered legacy tool, and a Process Order run has nothing to execute. No package is arranged, no label is generated, and no seller state changes — the pre-existing state is safe by construction. A partially-correct re-verify must NEVER be merged to unblock #1805 or #1806: the failure mode is a real parcel shipped over a pending cancellation, and that is not recoverable by a redeploy.",
+    "postCutoverFailureBehavior": "DEREGISTER THE TOOL FIRST — with `batch_ship_packages` off the agent registry, no run can dispatch a ship call, which stops any further write immediately without touching the schema; deregistering also returns `tests/unit/test_agent_tool_registry_contract.py` to its current expectation. Then redeploy the previous release and restart juli-api and juli-celery-worker. NO DOWNGRADE IS NEEDED — there is no migration. THE CRITICAL PROPERTY: A PACKAGE ALREADY SHIPPED CANNOT BE UN-SHIPPED BY ANY ROLLBACK. Ship Package generates the label, assigns the carrier and moves the order to `AWAITING_COLLECTION`; after it the buyer cannot cancel without seller approval, and Juli must NEVER attempt a compensating cancel — no cancel tool exists and none may be added. The correct remediation for a wrongly shipped parcel is human: the seller pulls it from the courier pile, and the run's completion act names the order with a deep link. A run paused mid-execution is left to its ledger, which replays a `succeeded` write byte-identically rather than re-issuing it. Because writes are sandbox-only until #1339, the blast radius of a post-cutover failure here is the sandbox shop, not a real seller's orders — that boundary is the whole reason S-NFR-3 exists and it must hold in both directions.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_process_order_reverify.py tests/unit/test_batch_ship_partial_success.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_tool_registry_contract.py tests/unit/test_layer2_sandbox_write_contract.py tests/unit/test_fulfillment_resource_batch_ship.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'tool_registry or sandbox_guard or capabilities or ledger or confirmation'",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT write a migration. The six new stop reasons and their check-constraint change are #1805's slice with its own RESERVED number; a run here ends on the existing vocabulary. Migration numbers are RESERVED BY META and never read from head.",
+    "Do NOT build a vendor-refusal branch, and do NOT let any code path assume the platform will block a ship over a pending cancellation. ADR-092's 2026-09-05 amendment: TikTok does NOT refuse — the write goes through and the cancellation is approved anyway. The exclusion is HARD, in Juli's own code, at selection AND again at re-verify. The on-disk ADR Context and `seller-journeys/process-order-actors.md` §E row 3 still say the opposite; they are superseded.",
+    "Do NOT decide the outcome from the top-level response code. Batch Ship returns a top-level success WITH per-package `data.errors[]`; reading only the top level reports phantom successes at volume and tells the seller parcels are moving that were never arranged.",
+    "Do NOT widen the executed set. It is a SUBSET of the confirmed set, never a superset, however clean an unconfirmed order looks at re-verify. The params hash binds the confirmed list and the seller consented to that list and no other.",
+    "Do NOT skip the PACKAGE re-read and re-verify only the order. TikTok may have split the order itself after an address update, so a stale package id is a label for a parcel that no longer exists.",
+    "Do NOT cancel anything, ever, and do NOT add a cancel tool. An error string advising cancellation surfaces as a REASON and cancels nothing. Every cancellation is a human act on workflow 8a's surface.",
+    "Do NOT add Create Packages or Confirm Package Shipment. In SEA TikTok creates the package at order time (ADR-092 Context defect 1), and Confirm Package Shipment is a certified-warehouse-provider endpoint, not a seller one (defect 2). Neither belongs in Process Order in any version.",
+    "Do NOT perform a second write of any kind — no combine, no split, no Ship Package re-arrange, no Update Package Delivery Status, no Mark Package As Shipped (US/EMEA/JP-only, not VN). Exactly one write per run (S-FR-6); the rest are v2.",
+    "Do NOT handle FBT or Seller Own Fleet. FBT orders are refused by the vendor anyway (`21008025`) and are monitor-only by design; SOF with `self_shipment` is v2. Both are listed with their reasons and never acted on.",
+    "Do NOT choose a handover slot or invent a handover method. The method comes from the shop default; slots are READ, never chosen.",
+    "Do NOT fetch documents before the ship call, and do NOT fetch them at all for a run that shipped nothing. The label exists only once shipping has been arranged.",
+    "Do NOT bind the tests to a `**kwargs` double. Bind to the REAL `FulfillmentResource.batch_ship_packages` signature (`def batch_ship_packages(self, *, body: dict[str, Any]) -> dict` at `resources/fulfillment.py:41`) and to #1720's CAPTURED response, or the contract break stays invisible.",
+    "Do NOT conflate the two registries. `tests/unit/test_agent_tool_registry_contract.py` governs the LEGACY Celery registry (`services/execution/runner.py`, `tool_routing.py:23`); the agent's own `ToolRegistry` lives at `services/agent/tools/registry.py` and holds only the seven product tools today. Update both deliberately in the SAME change so two contracts never disagree.",
+    "Do NOT attempt a production write. S-NFR-3 keeps writes sandbox-only until #1339 passes; the production guard must REFUSE by default and that refusal is asserted, not assumed.",
+    "Do NOT verify with a success-marker grep. A dispatch that raises before it logs is invisible to one; assert on the ledger row, the outbound request and the run's own state.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/**, which are on this epic's doNotLoad list."
+  ]
+}

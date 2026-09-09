@@ -1,0 +1,107 @@
+{
+  "planId": "one-product-discount-computed-by-a-rule-2026-09-08",
+  "affectedPublicSurfaces": [
+    "The AGENT TOOL REGISTRY for `optimize_product_2` gains `create_product_discount` as this workflow's ONE WRITE/CONFIRM tool, in the product domain (#1704's domain registry). Registering a WRITE/CONFIRM spec is a consent surface: the runner PAUSES before it into `waiting_approval` with `paused_for_confirmation` and a `run_confirmations` row carrying a `params_sha` over the tool call's arguments. A tool registered WRITE/AUTO by mistake would execute a priced promotion with no seller tap — that is the single most damaging way this slice can go wrong.",
+    "The CONFIRMATION PAYLOAD gains a DISCOUNT PROPOSAL SHAPE — the seller-facing surface named in the issue. `runner/confirmation.py` mints exactly one option (`_SINGLE_OPTION_ID = \"1\"`, line 76; ADR-090 d.5, S-FR-3) and the proposed change names the concrete write: the depth, the 30-day window. The four consequence LINES themselves are prompt-and-copy work in #1782 and their rendering is #1787; what this slice owns is that the payload can CARRY a discount proposal at all, with its computed depth bound into `params_sha`.",
+    "The RUN LEDGER gains a PROMOTION WRITE ROW. `services/agent/runner/ledger.py` writes `ToolExecution.tool_name` as the registered name, so `create_product_discount` becomes a countable, scannable ledger value the moment it registers — including, automatically, in `composition.py::measurable_write_tool_names()` and therefore in `workers/impact_reader/queries.py::measurable_tool_names()` (`queries.py:41-65`). Note the consequence honestly: the impact reader will now SELECT discount executions as due, while `classify_mutation_kinds` (`workers/impact_reader/classify.py:57-66`) still keys only off `price_update`/`image_uri`/`title`/`description` and returns `[]` for a discount payload, so those executions are selected and then skipped. The mutation kind that closes that gap is #1784 — do not add it here, and do not paper over it by shaping the discount payload to look like a `price_update`.",
+    "THE DEPTH IS COMPUTED, NEVER CHOSEN (S-FR-4, ADR-090 d.1). A deterministic pricing rule derives the depth from the SKU's LIST PRICE, clamps it inside the 1–90 % band, and caps it at the shop maximum from #1775. The tool is called with EXACTLY the computed value; a call carrying any other depth is REFUSED AT THE DISPATCH VALIDATOR rather than executed. That refusal is the structural guarantee that a prompt revision can never become a pricing decision.",
+    "THE VENDOR CALL: `PromotionResource.create_activity` (`backend/src/juli_backend/integrations/tiktok/resources/promotion.py`) ALREADY EXISTS, is bound to the sandbox write bundle in `factories.py`, and is guard-allowlisted at `POST /promotion/\\d+/activities` (`capabilities.py`). This slice WRAPS it — it does not add a resource method and must not widen the guard allowlist. The body carries `DIRECT_DISCOUNT` and a 30-day window; `DIRECT_DISCOUNT` appears nowhere in code or captures until #1717 lands it, so the parsers and the body builder bind to #1717's CAPTURED shapes, never to a hand-written example (S-NFR-10).",
+    "A JULI-PERSISTED ACTIVITY-ID LEDGER — additive migration, number RESERVED BY META. Every activity id Juli creates is persisted against the run and the shop. This exists because lock detection is fail-safe rather than omniscient (ADR-090 d.2): `Search Activities` does NOT exist as a usable lock read — contract-collection A-25 and `endpoints.md:509` both record that TikTok exposes no list/search activity endpoint — so Juli's own ledger is the only place a 'did Juli already discount this SKU' question can be answered, and #1780's cooldown reads it. PLATFORM CAMPAIGNS REMAIN INVISIBLE whichever way this goes; that is stated, not worked around.",
+    "THE VENDOR REJECTION IS THE AUTHORITATIVE LOCK SIGNAL. On rejection the run continues with a content lever IF one has a diagnosis code behind it, and otherwise ends `completed` with stop reason `price_lever_locked`. `price_lever_locked` is a stop-reason NAME, never seller-facing words; the reachability of that end state and its Vietnamese copy are #1784's, and this slice must reach the cause without inventing new vocabulary.",
+    "WRITES STAY ON THE SANDBOX BUNDLE until the production-write gate (#1339). No production write is made by this slice, and the live sandbox proof of the write is #1788's HITL walk, not this issue's post-deploy step.",
+    "NO HTTP route contract changes: nothing under `api/routes/` moves, and no `/v1/**` or `/demo/**` request model changes. Nothing under `apps/`, `packages/` or `ios/` is touched — this epic's doNotLoad list."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest driven by the REAL `WorkflowRunner` against the FAKE LLM adapter (built on `LLMService.complete`'s real signature) from the worktree root with `PYTHONPATH` pinned to that worktree's own `backend/src`, against a REAL Postgres 16 migrated to head INCLUDING the reserved activity-ledger revision applied forward on a copy of the current schema — never SQLite, because the ledger rows, the `run_confirmations` `params_sha` round-trip and the run-state JSON the assertions read are Postgres behaviour. Every vendor collaborator is bound to the REAL `PromotionResource.create_activity` signature and every parser to #1717's COMMITTED captures — never a `**kwargs` double and never a hand-written response. Post-deploy: the candidate's `/health` plus ONE authenticated read of the run list, which must be unchanged. The write itself is proven on the sandbox in #1788, NOT here.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "apiSideEffectsInScope is FALSE for THIS JOURNEY, and the reason must not be misread: the slice adds a real vendor WRITE capability, but the journey deliberately stops short of exercising it against the vendor — pre-merge the promotion transport is a fake bound to the real signature, and post-deploy the only candidate traffic is a read. The first live create is #1788's HITL walk on the sandbox. workersDisabledOnCandidate is FALSE because `WorkflowRunner` and every dispatch execute inside the Celery worker; a candidate with workers disabled could not reach the dispatch validator the slice exists to prove.",
+    "journeys": [
+      {
+        "name": "the-depth-is-computed-capped-and-unforgeable-and-a-rejection-never-becomes-a-base-price-write",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1778",
+        "assertions": [
+          "pre-merge (GIVEN a list price and a shop maximum M / THEN in band and never above M): `tests/unit/test_create_product_discount.py::test_depth_follows_the_shop_maximum_and_stays_in_band` asserts the RELATIONSHIP, not a pinned number — move M down and the computed depth moves down with it; at every M in the band the depth is ≥ 1, ≤ 90 and ≤ M; the depth is computed off the SKU's LIST PRICE, never off a median or a promotional price",
+          "pre-merge (GIVEN an unset shop maximum / THEN no depth at all): with #1775's value NULL the pricing rule produces NO depth and the lever is unavailable — it does not clamp to 90, does not fall back to a default, and does not ask the model",
+          "pre-merge (GIVEN a model-supplied depth / THEN refused at dispatch): `::test_a_model_supplied_depth_is_refused_at_dispatch` drives the fake LLM to emit a tool call whose depth differs from the computed value and asserts (a) the dispatch validator refuses it with a named error, (b) ZERO promotion calls are attempted — asserted on the transport fake's recorded requests, so a call made and then discarded still fails — and (c) the refusal is recorded in the ledger rather than silently retried with the correct number",
+          "pre-merge (GIVEN an accepted create / THEN DIRECT_DISCOUNT, 30 days, id persisted, CONFIRM pause): `::test_direct_discount_thirty_day_create_persists_its_activity_id` asserts the request BODY carries `DIRECT_DISCOUNT` and a 30-day window — compared against #1717's captured create shape, not a hand-written one — that the returned activity id is persisted against BOTH the run and the shop, and that the tool's `ToolSpec` is WRITE with policy CONFIRM so the runner paused into `waiting_approval` with a `run_confirmations` row before it",
+          "pre-merge (CONSENT BINDING): the computed depth is inside the `params_sha` the seller's confirmation is bound to, so a depth that changes between proposal and execution produces `confirmation_diverged` rather than a silent execution of a different number",
+          "pre-merge (GIVEN the captured collision rejection and a coded content lever / THEN continue): `::test_rejection_falls_through_to_a_coded_content_lever` uses #1717's CAPTURED vendor rejection code and asserts the run continues with a content lever that has a diagnosis code behind it",
+          "pre-merge (GIVEN the same rejection and no coded content lever / THEN price_lever_locked, no base-price write): `::test_rejection_without_a_content_lever_ends_price_lever_locked` asserts the run ends `completed` with stop reason `price_lever_locked` AND that NO base-price call exists anywhere on the path — asserted by the transport fake recording zero `products/prices/update` requests, and by `update_product_price` being absent from the registry (#1773)",
+          "pre-merge (the ledger is the lock read, and its limits are asserted): the persisted activity ids are queryable per shop and per SKU, and a test states explicitly that an activity Juli did NOT create is invisible to this ledger — the fail-safe boundary is asserted, not assumed",
+          "pre-merge (MIGRATION forward and reverse): the reserved revision applies forward on a COPY OF THE CURRENT SCHEMA — never on `metadata.create_all` output — the new rows are additive and nullable-safe for stable, and the downgrade drops only what the upgrade added and is exercised",
+          "pre-merge (the boundary is not re-crossed): the diff contains NO edit to `integrations/tiktok/capabilities.py`, `constants.py`, `factories.py` or `resources/promotion.py`, and `tests/unit/test_layer2_sandbox_write_contract.py` and `tests/unit/test_tiktok_capability_factories.py` pass UNMODIFIED — proving ADR-068's hard-bound merchant ids and the production-read read-only property did not move",
+          "pre-merge (the honest gap is recorded, not hidden): `classify_mutation_kinds` still returns `[]` for a discount payload, so a discount execution is selected as due by `measurable_tool_names()` and then skipped. The test asserts that this is the CURRENT behaviour and names #1784 as the closer — the discount payload must NOT be shaped to trip the existing `price_update` branch to fake a classification",
+          "post-deploy: the candidate's `/health` is unchanged, and ONE authenticated read of the run list returns byte-identical content to stable",
+          "post-deploy: NO DISCOUNT IS CREATED ON ANY SHOP BY DEPLOYING. Asserted positively by counting rows in the Juli activity-id ledger before and after the deploy — the count must be unchanged (zero on first deploy) — and by the ABSENCE of any `POST /promotion/.../activities` request attributable to the deploy window in the outbound `tiktok_outbound_request` log, never by grepping for a success marker"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is backend Python under `backend/src/juli_backend/services/agent/`, one Alembic revision, and tests. `apps/`, `ios/`, `packages/` and `docs/product/design/` are on this epic's doNotLoad list and are not opened; the confirmation sheet's rendering of the discount proposal is #1787."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "migration-forward-and-reverse-log",
+      "activity-ledger-row-count",
+      "outbound-request-log",
+      "confirmation-payload-snapshot"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "ADDITIVE ONLY — expand, never contract. The Juli activity-id ledger is new storage: nothing is dropped, renamed, retyped or backfilled, no existing column gains NOT NULL or a server default, and no existing index or constraint is altered. A stable process that predates the ledger never reads or writes it, and a candidate finds it empty for every shop until it creates its first activity, so both run correctly on one database in either deploy order. THE MIGRATION NUMBER AND `down_revision` ARE RESERVED BY META and supplied with the issue — NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename, never renumber an existing head. The tree already carries two same-numbered `043_*` files from exactly that mistake, and W6/W8 hold unlanded numbers off-tree. Apply forward on a COPY OF THE CURRENT SCHEMA in test, and exercise the downgrade."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed system changes: the workflow has NO price lever at all (the state #1773 deliberately left it in), `PromotionResource.create_activity` keeps its zero agent callers, no activity ledger exists, and no promotion is created. Nothing is exposed, nothing is partially applied, no vendor state is touched, no data hazard.",
+    "postCutoverFailureBehavior": "Revert the code first, then decide about the schema — in that order. The code revert deregisters `create_product_discount`, so the workflow returns to having no price lever; no caller breaks, because the tool has no consumer outside this workflow. PERSISTED ACTIVITY IDS REMAIN READABLE and must be KEPT: they are the only record of promotions Juli actually created at the vendor, and #1780's cooldown depends on them — dropping the ledger would make Juli forget a live 30-day discount it created and re-discount the same SKU. NO VENDOR STATE IS TOUCHED BY THE REVERT: an activity already created at TikTok stays live for its window; the revert does not and must not deactivate it, and any activity created during the candidate window is deactivated by hand and recorded on the issue, never silently left. A run SUSPENDED at CONFIRM across the rollback cannot execute a tool the reverted registry no longer has: it must fail closed on the existing unknown-tool path and be visible as such — assert this pre-merge rather than assuming it. Redeploy the previous release and restart `juli-api` and `juli-celery-worker` together; a stable worker without the tool beside a candidate API that proposes it is the one mixed-version state to avoid.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_create_product_discount.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_tool_registry_contract.py tests/unit/test_agent_prompt_playbook_consistency_gate.py tests/unit/test_agent_runner_tool_executor.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_layer2_sandbox_write_contract.py tests/unit/test_tiktok_capability_factories.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_migrations.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "NEVER FALL BACK TO A BASE-PRICE WRITE when the discount is refused. ADR-090 d.1 rejected exactly that — a CONFIRM-guarded base-price fallback re-opens the harmful path precisely when the agent is most motivated to take it. `resources.products.update_prices` has no caller on this path; #1773 removed the tool and it must not return as a fallback, a flag, a fixture or a test helper.",
+    "The MODEL NEVER PICKS THE DEPTH (S-FR-4). A deterministic rule computes it from the list price, the band and the shop maximum; the tool is called with EXACTLY that value and any other value is refused at the dispatch validator, not corrected silently. A validator that rewrites the model's number instead of refusing it hides a prompt failure.",
+    "Do NOT ship a DEFAULT SHOP MAXIMUM, and do NOT compute a depth when #1775's value is unset. There is no fallback maximum, no 'sensible 20 %', no config default; unset means the price lever is unavailable for that shop.",
+    "Do NOT compute the depth off anything but the SKU's LIST PRICE. Not a median price, not a recent promotional price, not a competitor number — none of those exist as observed facts here.",
+    "Do NOT claim a TIKTOK TIER OR CODE the API did not return (OP-NFR-2). The Price Diagnostics tier and the 14 card recommendations are never claimed, and 'TikTok flags…' may appear only where a diagnosis code was actually returned by #1774's read.",
+    "Do NOT reach for SEARCH ACTIVITIES as a lock read. `POST /promotion/202309/activities/search` does NOT exist as a usable endpoint — contract-collection A-25 and `endpoints.md:509` both record it — and building a precheck on it would encode a guarantee the API cannot supply. Juli's own persisted ids plus the vendor rejection are the whole lock story, and PLATFORM CAMPAIGNS STAY INVISIBLE; say so rather than implying coverage.",
+    "Do NOT enable or lean on REPEAT CONSENT. Optimize Product is barred from it in v1 (ADR-090 d.6, narrowing ADR-055 d.19): a 30-day priced commitment must never be pre-approved. Every discount needs a fresh approval and a fresh confirmation.",
+    "Do NOT READ A MIGRATION NUMBER FROM HEAD. The revision id and `down_revision` for the activity ledger are RESERVED BY META and supplied with the issue. Never run `alembic heads`, never read the tip of the versions directory, never derive the number from the newest filename, never renumber an existing head.",
+    "Do NOT register the tool WRITE/AUTO, and do NOT bypass the CONFIRM pause. Consent binding is ADR-075 and hangs off `ToolSpec.policy`; an AUTO promotion write executes a priced 30-day commitment with no seller tap.",
+    "Do NOT widen the guard allowlist or edit the promotion resource. `create_activity` already exists, is already bound to the sandbox write bundle and is already allowlisted; #1717 owns the captures, the `DIRECT_DISCOUNT` shape and the error-code naming. Consume them. A diff that touches `capabilities.py` here has crossed a domain boundary — stop and report.",
+    "Do NOT make a PRODUCTION write. Writes stay on the sandbox bundle until the production-write gate (#1339), and the first live create is #1788's HITL walk.",
+    "Do NOT add the discount MUTATION KIND or touch `classify.py` / `metric_map.py`. That is #1784. And do NOT shape the discount payload so the existing `price_update` branch classifies it — a faked classification is worse than a skipped execution.",
+    "Do NOT add the cooldown, the title-length guard or the four-field bundle refusal. Those are #1780, and they belong in the input models and the dispatch validator, never in prompt text.",
+    "Do NOT invent a vendor rejection code. The collision rejection comes from #1717's capture; if a code cannot be sourced, record the gap rather than filling it in.",
+    "Do NOT put an internal identifier in seller-facing text. `price_lever_locked` is a stop-reason name, not the seller's words; copy is Vietnamese through the outbound sanitiser (S-NFR-4).",
+    "Do NOT touch `apps/**`, `ios/**`, `packages/**`, `docs/product/design/**` or the TikTok corpora catalogs (ADR-051) — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature — the real `PromotionResource.create_activity`, the real `ToolRegistry`, the real `WorkflowRunner`, the existing fake LLM adapter over `LLMService.complete`. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

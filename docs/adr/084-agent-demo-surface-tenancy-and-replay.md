@@ -5,6 +5,8 @@
 **Deciders:** grill-with-docs (Architect) with owner
 
 **Amends:** [ADR-076](076-agent-demo-execution-experience.md) decisions 1, 2 and 4.
+**Amended by:** [ADR-094](094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md)
+decisions 1 and 2.
 **Builds on:** [ADR-074](074-agent-event-streaming-and-relay.md) (event union, replay
 authority), [ADR-075](075-agent-approval-gate-and-security-prerequisites.md) (JWT on every
 agent route), [ADR-082](082-agent-run-product-binding.md) (server-derived product binding),
@@ -122,6 +124,18 @@ Four findings drive it:
    retry-in-place control exists**, asserted structurally — a new run requires a new
    approval by the approval gate's design, and a convenience button is the obvious way that
    gate gets bypassed.
+
+## Rationale
+
+*Extracted during the W6→main reconcile to satisfy `check_adr`, which requires a
+`## Rationale` heading (#1853). Nothing below is new reasoning — it summarises what
+this ADR already argues in the section named, which remains the fuller account.*
+
+From **Context**: ADR-076 settled the demo execution experience on 2026-08-12,
+*before any of it had been run against a deployed system*. W3, W4 and W5 then
+shipped and were each walked against reality, and those walks contradicted four
+of ADR-076's premises. This ADR records the corrections so W6 builds against
+what is true rather than against what was assumed.
 
 ## Consequences
 

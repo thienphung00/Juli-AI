@@ -1,0 +1,95 @@
+{
+  "planId": "per-sku-daily-demand-days-of-supply-and-sell-through-helpers-2026-09-08",
+  "affectedPublicSurfaces": [
+    "NO PUBLIC SURFACE CHANGES, PLAINLY. There is no HTTP route added, removed or altered; no response model changes shape; no seller-facing string is written; no card, run, notification or event payload gains a field. This slice produces two pure helpers and one demand query, and its release risk is entirely internal correctness — which is precisely why the pre-merge assertions carry the whole weight and the post-deploy check is a no-op proof.",
+    "A SHARED ARITHMETIC MODULE THAT TWO EPICS WILL IMPORT — the one durable decision in the slice. `days_of_supply` and the 30-day sell-through are used by Clear Excess (ADR-091 d.1, step A2) AND by Replenish (ADR-093, epic #1626, lane AGT-W10C-BE). They must live where BOTH lanes import ONE implementation. A private second copy in either lane is the defect this slice exists to prevent, and it is a defect that no test in either lane would fail on. State the module's location in the PR and say why both lanes can reach it.",
+    "THE ZERO-VELOCITY CONTRACT, which is a shape every downstream caller branches on. A SKU with no demand in the window has an UNDEFINED days of supply — not infinity, not a very large number, not an exception. CE-3's exclusion logic (#1813) and CE-9's chip rendering (#1819, which must hide the day chips and offer only a units field at zero velocity) both branch on that named value, so its identity is a contract before it is an implementation detail. Returning `float('inf')` would silently make every zero-velocity SKU the MOST excess SKU in the shop.",
+    "THE EXISTING EQUAL-SPLIT FORECAST PATH IS LEFT STANDING BUT MUST NOT BE READ — AND IT IS WORSE THAN THE ISSUE SAYS. Verified 2026-09-08: `ai/forecasting/forecaster.py:165-167` computes `per_sku_share = 1.0 / len(skus)` then `attributed = [v * per_sku_share …]` and returns `{item.tiktok_sku_id: list(attributed) …}` — EVERY SKU RECEIVES THE IDENTICAL SERIES OBJECT, not merely a proportional one. And the shop series it splits, `_daily_units_series`, counts ORDERS, not units: `counts_by_day[day] += 1.0` (`forecaster.py:149`). So the number being split is not a unit count at all, and a 'per-SKU daily UNITS forecast' cannot be recovered from it by any division. `get_forecast` (`forecaster.py:178-209`) issues two SELECTs and returns a `ForecastResult` with NO `session.add` and no commit — it persists nothing. The named T1 overlay is a permanent hardcoded `{\"availability\": \"unavailable\"}` stub (`analytics_kpi_precompute/unavailable_contract.py:37,51-53`). The equal-split path may STAY for its existing callers — removing it is a different slice — but the new series must not read it, and a test must show the two are not the same number.",
+    "`silver.order_items` IS THE GRAIN, AND THE SQL IS THE RISK. Verified 2026-09-08: `models.py:165-194` carries `shop_id` (:169), `tiktok_sku_id` (:175), `quantity` (:176) and `update_time` (:179), sits in the `silver` schema through `Order`, and is uniquely indexed as `ix_order_items_shop_order_sku` on `(shop_id, tiktok_order_id, tiktok_sku_id)` (:187-193) — that composite is what makes one order line countable exactly once, and it is the reason `quantity` here is a real unit count where the forecaster's order count is not. The correctness that can only fail in Postgres — the window boundary, the shop predicate, the per-SKU grouping, the uniqueness that stops one line being counted twice — is not observable against in-memory doubles."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run by the REAL runner from the worktree root with `PYTHONPATH` pinned to this worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite and never an in-memory stub. The demand series is computed over SEEDED `silver.order_items` ROWS through the real `OrderItem` model and the real session, so the SQL grain, the window boundary and the shop predicate are actually exercised; a fixture that hands the helper a pre-computed series proves nothing at all. The tenant-scope assertion runs AS THE RUNTIME ROLE `juli_app` (`043_juli_app_role.py`, ADR-085) UNDER RLS, because a cross-tenant test run as the table owner passes regardless. Post-deploy: candidate `/health` returns healthy and one authenticated read returns a byte-identical shape — this slice must be a NO-OP on every existing surface, and no activity is created on any shop by deploying.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is TRUE, matching ADR-035's default: nothing in this slice runs in a beat or a worker, so a candidate with schedulers disabled demonstrates everything there is to demonstrate. apiSideEffectsInScope is FALSE: no vendor call, no write of any kind, and the only rows touched are the synthetic shop's own seeded order lines. syntheticShopRequired is TRUE because the tenant-scope assertion needs a second shop's order lines to prove they contribute nothing.",
+    "journeys": [
+      {
+        "name": "each-skus-demand-is-its-own-and-two-shared-helpers-pin-the-arithmetic-to-its-inputs",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1812",
+        "assertions": [
+          "pre-merge: with TWO SKUs in one shop whose `silver.order_items` quantities DIFFER over the window, the two per-SKU daily series differ IN PROPORTION TO THEIR OWN LINE QUANTITIES, and NEITHER equals the shop total divided by the SKU count — the second half is the assertion that distinguishes a real series from `forecaster.py:165-167`'s equal split, which today hands EVERY SKU the identical series, and it must be stated explicitly rather than implied by the first (tests/unit/test_per_sku_daily_demand.py::test_series_follows_each_skus_own_order_lines)",
+          "pre-merge: the new series is a UNIT count, asserted by seeding two order lines for the SAME SKU on one day with quantities 1 and 5 and showing the day's demand is 6, NOT 2 — `_daily_units_series` (`forecaster.py:149`) increments by 1.0 per ORDER, so a series that copies its shape would report 2 and pass every proportionality check while being the wrong quantity entirely",
+          "pre-merge: the series is computed over SEEDED `silver.order_items` rows through the real `OrderItem` model and the real session — asserted against Postgres, so the window boundary and the per-line uniqueness are exercised; a double that returns a pre-built series is rejected in review",
+          "pre-merge: `days_of_supply(available, daily_forecast)` EQUALS `available ÷ forecast`, and HALVING the forecast DOUBLES the result — the second clause pins the direction as well as the value, so an inverted implementation cannot pass on one lucky number (tests/unit/test_days_of_supply_and_sell_through.py::test_days_of_supply_is_available_over_daily_forecast)",
+          "pre-merge: a SKU with NO orders in the window returns the NAMED UNDEFINED RESULT — not an exception, not `float('inf')`, not `None` conflated with zero — and the CALLER CAN DISTINGUISH IT FROM A LARGE FINITE VALUE, asserted by comparing the undefined result against a deliberately huge finite days-of-supply and showing the two are not equal and not ordered as if they were (tests/unit/test_days_of_supply_and_sell_through.py::test_zero_velocity_days_of_supply_is_undefined_not_infinite)",
+          "pre-merge: over a 30-day window with a KNOWN units-sold and a KNOWN opening available quantity, sell-through EQUALS `sold ÷ opening available`, and ADDING ONE SOLD UNIT RAISES IT (tests/unit/test_days_of_supply_and_sell_through.py::test_sell_through_is_sold_over_opening_available)",
+          "pre-merge: with a shop holding inventory rows and order lines, calling the helpers under ONE shop's scope means ANOTHER shop's order lines contribute NOTHING to either number — asserted AS `juli_app` UNDER RLS, so an escaped read returns zero rows and raises the named application error (ADR-086) rather than quietly succeeding (tests/unit/test_per_sku_daily_demand.py::test_demand_is_tenant_scoped)",
+          "pre-merge: exactly ONE implementation of each helper exists in the tree — asserted by a repository-wide grep for a second `days_of_supply` or sell-through definition returning nothing, because ADR-093 imports these same two helpers and a forked private copy is the defect the slice exists to prevent",
+          "pre-merge: the new series DOES NOT READ the equal-split path. `forecaster.py:166-168` may remain for its existing callers, but a test shows the new series and the equal-split attribution are different numbers for the same inputs",
+          "pre-merge: NO THRESHOLD, NO EXCLUSION, NO CARD AND NO SELLER-FACING STRING is introduced — asserted over the diff; the excess predicate and the four exclusions are #1813's, and a helper that already knows what 'excess' means has absorbed the next slice",
+          "pre-merge: ZERO behaviour change on every existing surface — the existing forecaster suite and the existing scoring suite pass untouched, and `get_forecast` still persists nothing",
+          "post-deploy: candidate `/health` returns healthy and one authenticated read returns byte-identical shape to stable, proving the slice is the no-op it claims to be; NO ACTIVITY IS CREATED ON ANY SHOP BY DEPLOYING"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The diff is a demand query and two pure helpers under `backend/src/juli_backend/ai/forecasting/` (placed where ADR-093's Replenish lane can import them) plus tests. Nothing under apps/, packages/ or ios/ is touched — this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "postgres-catalog-dump"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE. The helpers are pure functions and the demand series is a READ over `silver.order_items` (`models.py:165`), which already carries `tiktok_sku_id`, `quantity` and `update_time`, is shop-scoped and is uniquely indexed per order line. No column is added, dropped, renamed or retyped; no index is created; nothing is persisted — `get_forecast` persists nothing today and this slice does not change that. If implementation discovers that a computed series must be MATERIALISED to be usable, that is a scope change to raise with Meta before writing a migration, not a column to add quietly: any additive column's number is RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive a number from the newest filename — this tree already carries two same-numbered `043_*` files from exactly that mistake, and W6, W8, W9 and the sibling W10 lanes all hold unlanded numbers off-tree."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. `days_of_supply` and `sell_through` stay absent from the codebase (they appear only in ADR-091 prose today), the per-SKU 'forecast' stays a shop total divided by the SKU count, and #1813 stays blocked on arithmetic that does not exist. Nothing is exposed, nothing is partially applied, and there is no data hazard — the slice writes nothing at any point.",
+    "postCutoverFailureBehavior": "Redeploy the previous release and restart juli-api and juli-celery-worker. NO DOWNGRADE IS POSSIBLE OR NEEDED: there is no migration, no persisted value and no row written anywhere by this slice, so the previous release runs correctly against an unchanged schema. Nothing reads the helpers yet — #1813 is the first consumer and is a separate merge — so a revert cannot break a caller. There is no run in `waiting_external` on account of this slice and therefore nothing to drain or reap. The one thing to state in the PR: if #1813 has ALREADY landed when this is reverted, the revert removes ITS arithmetic and the excess predicate stops resolving; in that case revert the pair, not this slice alone.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_per_sku_daily_demand.py tests/unit/test_days_of_supply_and_sell_through.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'forecast or forecaster'",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'tenant_scope or rls'",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT fork a private copy of either helper. ADR-093's Replenish lane (epic #1626) imports the SAME `days_of_supply` and the SAME 30-day sell-through. One implementation, reachable from both lanes; a second copy is the exact defect this slice exists to prevent, and no test in either lane would catch it.",
+    "Do NOT return infinity for a zero-velocity SKU. An undefined days of supply is a NAMED result the caller branches on (CE-3's exclusions, CE-9's chip rendering). `float('inf')` would silently rank every zero-velocity SKU as the most excess SKU in the shop — the opposite of the truth.",
+    "Do NOT read the equal-split attribution. `forecaster.py:166-168`'s `per_sku_share = 1.0 / len(skus)` may stay for its existing callers, but the new series must not consult it, and a test shows the two are different numbers.",
+    "Do NOT test against in-memory doubles or a fixture that hands the helper the answer. Bind to the real `OrderItem` model and the real session over seeded `silver.order_items` rows; a stub that returns a pre-computed series proves nothing about the SQL grain, which is where the correctness lives.",
+    "Do NOT assert tenant scope as the table owner. The runtime role is `juli_app` (`043_juli_app_role.py`, ADR-085) and RLS only binds for it; a scoping test run as the owner passes regardless.",
+    "Do NOT add a threshold, an exclusion, a suppression reason, a card or any seller-visible copy. This slice produces NUMBERS and the tests that pin them to their inputs; the excess predicate and the four exclusions are #1813's.",
+    "Do NOT infer a flash sale, a markdown, a base-price write or a stock write. This workflow's only lever is a Product Discount (#1815), and nothing in this slice writes anywhere.",
+    "Do NOT let a model choose any number. Every price- or quantity-bearing value in this workflow is computed by a deterministic rule (S-FR-4); these helpers ARE that rule's arithmetic and the model never touches them.",
+    "Do NOT enforce a goal on a timer, do NOT add a second reaper policy, and do NOT ask for a fresh CONFIRM. Nothing in this slice waits, resumes or consents.",
+    "Do NOT change the card's KPI tie. `KPI_WORKFLOW_KEYS` maps `clear_excess_4` to `inventory_turnover` and `dsi` (`services/scoring/kpi_catalog.py:46-47`) while ADR-055 d.15's table says AOV; CE-NFR-3 leaves both layers exactly as they are, and the tie stays whatever the surface renders today.",
+    "Do NOT read revenue. v1 records facts only; the revenue reading on cleared SKUs is deferred to v2.",
+    "Do NOT reach for `Search Activities`. It DOES NOT EXIST at TikTok (resolved 2026-09-05 — `contract-collection.md` A-25, `endpoints.md:509`, `scope-verification/optimize-product-clear-excess.md:69`).",
+    "Do NOT write a migration. Any additive column's number is RESERVED BY META; never run `alembic heads` and never derive a number from the newest filename.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list."
+  ]
+}

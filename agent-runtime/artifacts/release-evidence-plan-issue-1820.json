@@ -1,0 +1,105 @@
+{
+  "planId": "clear-excess-irreversibility-copy-removal-and-repeat-consent-flip-2026-09-08",
+  "affectedPublicSurfaces": [
+    "THE DEMO COPY FILES — four of them, all under `apps/demo/src`, verified 2026-09-08. (1) `apps/demo/src/lib/recommendations.ts:169-170` — the `clear_excess_4` entry's `risks` string, exactly: \"Việc xoá tồn kho về 0 là bước không thể hoàn tác — chỉ thực hiện sau khi có xác nhận thực tế.\" (the entry's `workflowKey: \"clear_excess_4\"` is at `:149`). (2) `apps/demo/src/lib/repeat-consent.ts:93-96` — `clear_excess_4: { eligible: false, note: \"không thể hoàn tác — chỉ thực hiện sau khi có xác nhận thực tế\" }`, flipped to `eligible: true` with an EMPTY note. (3) `apps/demo/src/lib/workflows/clear-excess/review.ts:65` — inside the `inputs` stage body array: \"Xoá tồn kho sàn về 0 là bước sau, không thể hoàn tác — chỉ thực hiện sau khi có xác nhận thực tế, không được phê duyệt ngầm ở bước này.\" (4) `apps/demo/src/lib/workflows/clear-excess/execution.ts:93-104` — step 9, `id: \"update-inventory-zero\"`, title \"Cập nhật tồn kho sàn FBS về 0\", with its description and `recoveryText`, deleted outright.",
+    "THE REPEAT-CONSENT TABLE'S OWN HEADER COMMENT, which is copy in its own right and drifts silently if left. `apps/demo/src/lib/repeat-consent.ts:26-29` states the rationale — that `clear_excess_4`, `create_activity_7a` and `replenish_inventory_3` are excluded WITHOUT being class D because \"their blocking promises sit in `risks` rather than in `knownLimits`\". That sentence names `clear_excess_4` on the strength of a promise this slice deletes, so it must be CORRECTED WITH THE FLIP. The other excluded entries (`create_hero_product_1` :80, `replenish_inventory_3` :89, `create_activity_7a` :99, `prevent_cancellation_8a` :105, `prevent_return_8b` :109) are UNCHANGED.",
+    "THE FOUR NAMED TESTS — with a correction the issue body gets wrong, and it changes the work. The issue says the other three \"assert its presence and must be rewritten\". Verified 2026-09-08 only TWO do: `review.test.ts:57` asserts `expect(inputs?.body).toMatch(/không thể hoàn tác|bước sau/i)` and `execution.test.ts:48` asserts `expect(zeroInventory?.description).toMatch(/không thể hoàn tác|xác nhận thực tế/i)`. `apps/demo/src/__tests__/repeat-consent.test.tsx` (786 lines) NEVER mentions the phrase — zero occurrences of \"hoàn tác\" — and asserts ELIGIBILITY BOOLEANS ONLY: `clear_excess_4` inside `EXPECTED_EXCLUDED` (:56-63), `clear_excess_4: false` in an exhaustive map (:136), and `isRepeatConsentEligible(\"clear_excess_4\") === false` with a `not.toContain` against `REASSURANCE_CAVEAT_WORKFLOW_KEYS` (:217-224). So the work is: rewrite TWO presence assertions, rewrite THREE eligibility assertions in the fourth file, and keep `plan.test.ts:114-124` passing untouched.",
+    "THE EXISTING ABSENCE ASSERTION, which must KEEP PASSING and is the one safety net already in the tree. `apps/demo/src/lib/workflows/clear-excess/__tests__/plan.test.ts:114-124` — test named \"does not carry the risks copy, nor the irreversibility wording, anywhere in the plan\" — asserts `expect(text).not.toContain(fixture!.risks)` AND `expect(text).not.toMatch(/không thể hoàn tác/i)` over `collectPlanStrings()`. Note the first clause reads the phrase OUT OF the fixture: once `risks` is emptied, `not.toContain(\"\")` is vacuously false and the assertion INVERTS or breaks. Handle that deliberately rather than discovering it.",
+    "A NARROWING OF ADR-055 d.19 IN THE OPPOSITE DIRECTION FROM ADR-090 d.6. Removing the sentence removes the NO-AUTO-ACT PROMISE it constitutes, which is what d.19's Repeat-consent exclusion rests on for this workflow, so `clear_excess_4` becomes ELIGIBLE for Repeat consent ONCE THE AUTONOMY LADDER EXISTS. It grants NO autonomy today: the ladder does not exist and the discount create still pauses at CONFIRM, params-hash bound. ADR-090 d.6 moves `optimize_product_2` OUT of the eligible set; this moves `clear_excess_4` IN.",
+    "NO BACKEND CHANGE AND NO CONTRACTS CHANGE. Verified 2026-09-08: `packages/contracts` carries ZERO occurrences of `clear_excess` or `clear_excess_4`; the only contracts coupling the demo uses is the generic `SELLER_COPY_BANNED_PATTERNS` re-exported through `apps/demo/src/lib/review-seller-copy.ts:1,25`. All of this copy lives in `apps/demo/src/lib/`. This slice adds no new copy, no new surface and no backend change."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: VITEST run by the REAL runner in the workspace (`apps/demo` runs vitest 4.1.10, `environment: \"jsdom\"`, `setupFiles: [\"./vitest.setup.ts\"]`; `\"test\": \"vitest run\"` at `apps/demo/package.json:12`), over the FOUR NAMED TEST FILES with REAL CONTRACT PAYLOADS rather than snapshots — the rewritten assertions must assert THE NEW STATE, because a deleted assertion proves nothing and a snapshot that simply re-records the file would pass with the sentence still in it. Plus a REPOSITORY-WIDE GREP for the phrase under `apps/demo/src` returning NOTHING, which is the only check that catches a fifth copy of the sentence nobody listed. Post-deploy: LOAD THE DEMO'S CLEAR EXCESS RECOMMENDATION ON THE CANDIDATE and confirm the sentence is ABSENT, then confirm EVERY OTHER WORKFLOW'S COPY IS UNCHANGED. NO ACTIVITY IS CREATED ON ANY SHOP BY DEPLOYING — this is copy and one boolean, it issues no write, and the candidate is loaded read-only.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "syntheticShopRequired is FALSE: the tests run against static copy tables and workflow fixtures in the workspace and reach no shop, and the post-deploy check LOADS a recommendation without approving anything. workersDisabledOnCandidate is TRUE, matching ADR-035's default — nothing here runs in a beat or a worker. apiSideEffectsInScope is FALSE: the eligibility flip is a TABLE EDIT ONLY and grants no autonomy today, because the ladder does not exist and every write still pauses at CONFIRM.",
+    "journeys": [
+      {
+        "name": "false-safety-copy-leaves-the-tree-and-the-tests-prove-the-new-state-rather-than-forgetting-the-old-one",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1820",
+        "assertions": [
+          "pre-merge: the `clear_excess_4` entry in `apps/demo/src/lib/recommendations.ts` carries NO IRREVERSIBILITY STATEMENT, and NO FILE UNDER `apps/demo/src` MATCHES THE PHRASE — the second half is a repository-wide grep, the only check that catches a fifth copy nobody listed (apps/demo/src/lib/workflows/clear-excess/__tests__/review.test.ts::test_no_irreversibility_statement_remains)",
+          "pre-merge: `clear_excess_4` in `apps/demo/src/lib/repeat-consent.ts` reads `eligible: true` WITH AN EMPTY NOTE, and THE SURROUNDING ENTRIES' ELIGIBILITY IS UNCHANGED — asserted entry by entry over `create_hero_product_1` (:80), `replenish_inventory_3` (:89), `create_activity_7a` (:99), `prevent_cancellation_8a` (:105) and `prevent_return_8b` (:109), because a table edit that flips a neighbour is invisible to a test that only checks the one that moved (apps/demo/src/__tests__/repeat-consent.test.tsx::test_clear_excess_is_repeat_consent_eligible)",
+          "pre-merge: the file's OWN HEADER COMMENT at `repeat-consent.ts:26-29` no longer names `clear_excess_4` among the exclusions — it is corrected WITH the flip, or the file documents the opposite of what it does",
+          "pre-merge: THREE eligibility assertions in `repeat-consent.test.tsx` are REWRITTEN to the new state, not deleted — `EXPECTED_EXCLUDED` (:56-63), the exhaustive map's `clear_excess_4: false` (:136), and `isRepeatConsentEligible(\"clear_excess_4\") === false` with its `not.toContain` against `REASSURANCE_CAVEAT_WORKFLOW_KEYS` (:217-224). NOTE THE ISSUE BODY IS WRONG that this file asserts the phrase: it never mentions it (zero occurrences of \"hoàn tác\" in 786 lines) and asserts booleans only",
+          "pre-merge: NO ZERO-INVENTORY STEP EXISTS in `apps/demo/src/lib/workflows/clear-excess/execution.ts` — step 9 `id: \"update-inventory-zero\"` (:93-104) is GONE — and NO STEP COPY REFERENCES A PHYSICAL COUNT AS A GATE, including its `recoveryText` (apps/demo/src/lib/workflows/clear-excess/__tests__/execution.test.ts::test_zero_inventory_step_is_gone)",
+          "pre-merge: the TWO presence assertions are REWRITTEN, NOT DELETED — `review.test.ts:57` (`toMatch(/không thể hoàn tác|bước sau/i)`) and `execution.test.ts:48` (`toMatch(/không thể hoàn tác|xác nhận thực tế/i)`) each become an assertion about THE NEW STATE. A removed assertion proves nothing and would let the sentence return unnoticed",
+          "pre-merge: the `inputs` stage in `review.ts` still reads coherently with `:65` removed — a body array with a hole in its argument is a copy defect even when no test names it",
+          "pre-merge: the EXISTING ABSENCE ASSERTION at `plan.test.ts:114-124` STILL PASSES. Its `expect(text).not.toContain(fixture!.risks)` clause reads the phrase OUT OF the fixture, so once `risks` is emptied that clause becomes `not.toContain(\"\")` — handle it deliberately (keep the literal regex clause meaningful, or assert the fixture is empty first) rather than letting a vacuous or inverted assertion silently pass (apps/demo/src/lib/workflows/clear-excess/__tests__/plan.test.ts::test_plan_carries_no_irreversibility_phrase)",
+          "pre-merge: EVERY REMAINING STRING in the Clear Excess demo workflow PASSES THE SELLER-COPY GUARD — through `apps/demo/src/lib/review-seller-copy.ts`'s `REVIEW_UI_BANNED_PATTERNS` / `sanitizeSellerReviewText()` (`:25,:27`), Vietnamese, second person, no internal identifier (S-NFR-4)",
+          "pre-merge: NO NEW COPY, NO NEW SURFACE AND NO BACKEND CHANGE appear in the diff — this slice REMOVES copy and FLIPS ONE FLAG",
+          "pre-merge: `packages/contracts` is UNTOUCHED — verified to carry zero occurrences of `clear_excess`, so an edit there would be gratuitous",
+          "pre-merge: EVERY OTHER WORKFLOW'S copy and tests pass UNTOUCHED, proving the removal did not reach a neighbouring entry in a shared table",
+          "post-deploy: LOAD THE DEMO'S CLEAR EXCESS RECOMMENDATION ON THE CANDIDATE and confirm THE SENTENCE IS ABSENT; confirm EVERY OTHER WORKFLOW'S COPY IS UNCHANGED. The candidate is loaded READ-ONLY, so NO ACTIVITY IS CREATED ON ANY SHOP BY DEPLOYING"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "The `apps/demo` Clear Excess recommendation and its plan review, review and execution stages — the rendered surfaces the removed copy appears on. No new page or route is added and no new static asset is introduced; the bundle simply stops carrying the sentence.",
+      "Every other workflow's recommendation and repeat-consent rendering, checked as UNCHANGED — a shared copy table and a shared eligibility table are exactly where an edit reaches a neighbour, and that is the more likely regression here than the entry being edited."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "vitest-report",
+      "next-build-manifest",
+      "eslint-report",
+      "grep-report"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE, NO MIGRATION AND NO DATABASE ACCESS ANYWHERE IN THIS SLICE. The diff is four `apps/demo/src` files, their four tests and one boolean. There is NO PERSISTED STATE BEHIND ANY OF IT: `repeat-consent.ts` is a static table read at render time, not a stored per-shop setting, so the eligibility flip changes no row anywhere and grants no autonomy today — the autonomy ladder does not exist and the discount create still pauses at CONFIRM, params-hash bound. `packages/contracts` carries none of this copy (verified: zero occurrences of `clear_excess`) and is not touched. If implementation believes a migration is needed here, that belief is itself the error — stop and report."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. The `clear_excess_4` copy keeps telling the seller that zeroing stock is a step that cannot be undone and must wait on a physical count — a sentence describing the stock write ADR-091 d.4 deletes, and therefore FALSE, not merely redundant. `clear_excess_4` stays `eligible: false` in the repeat-consent table on the strength of that false promise, and the zero-inventory execution step keeps rendering. That is the pre-existing state; nothing is exposed, nothing is partially applied, and there is no data hazard because this slice writes nothing anywhere.",
+    "postCutoverFailureBehavior": "Revert and redeploy the previous demo build. THIS IS COPY AND ONE BOOLEAN, WITH NO PERSISTED STATE BEHIND IT — `repeat-consent.ts` is a static table read at render time, not a stored per-shop setting, so nothing was written and nothing needs unwinding. No migration means no downgrade of any kind. THE CONSEQUENCE TO STATE IN THE PR: the revert restores a FALSE safety sentence to a live seller surface — it describes a stock write this workflow no longer performs — so a rollback here trades a rendering defect for a truthfulness defect, and should be taken only if the removal broke something a seller can see. Reverting also flips `clear_excess_4` back to `eligible: false`, which is inert either way because the autonomy ladder does not exist and every write still pauses at CONFIRM. No run can be in `waiting_external` on account of this slice; if a combined rollback also removes the resume path (#1816/#1817), DRAIN OR REAP every `waiting_external` run first, because the previous reaper judges only `(QUEUED, RUNNING)` and `(WAITING_APPROVAL,)` and would leave a suspended run inert with its discount still live.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test src/lib/workflows/clear-excess/__tests__/plan.test.ts src/lib/workflows/clear-excess/__tests__/review.test.ts src/lib/workflows/clear-excess/__tests__/execution.test.ts src/__tests__/repeat-consent.test.tsx",
+    "pnpm --filter @juli/demo test",
+    "pnpm --filter @juli/demo lint",
+    "grep -rn 'không thể hoàn tác' apps/demo/src ; test $? -eq 1"
+  ],
+  "doNotInfer": [
+    "Do NOT delete the two presence assertions. `review.test.ts:57` and `execution.test.ts:48` must be REWRITTEN to assert THE NEW STATE — a removed assertion proves nothing and would let the sentence return unnoticed. Deleting an assertion is not the same as proving the copy is gone.",
+    "Do NOT assume `repeat-consent.test.tsx` asserts the phrase — THE ISSUE BODY IS WRONG. Verified 2026-09-08 it never mentions it (zero occurrences of \"hoàn tác\" in 786 lines) and asserts ELIGIBILITY BOOLEANS only, in three places: `EXPECTED_EXCLUDED` (:56-63), the exhaustive map's `clear_excess_4: false` (:136), and `isRepeatConsentEligible(\"clear_excess_4\") === false` with its `not.toContain` (:217-224). All three must be rewritten to the new state.",
+    "Do NOT let `plan.test.ts:114-124` pass vacuously. Its `not.toContain(fixture!.risks)` clause reads the phrase out of the fixture, so an emptied `risks` turns it into `not.toContain(\"\")`. Keep the literal regex clause meaningful, or assert the fixture is empty first — a vacuously passing absence test is worse than none.",
+    "Do NOT forget the header comment at `repeat-consent.ts:26-29`. It names `clear_excess_4` among the exclusions on the strength of the promise being deleted; correct it WITH the flip or the file documents the opposite of what it does.",
+    "Do NOT touch the other excluded entries. `create_hero_product_1` (:80), `replenish_inventory_3` (:89), `create_activity_7a` (:99), `prevent_cancellation_8a` (:105) and `prevent_return_8b` (:109) keep their eligibility exactly as it is, asserted entry by entry.",
+    "Do NOT touch `packages/contracts`. It carries NONE of this copy — verified zero occurrences of `clear_excess` — and the only coupling is the generic `SELLER_COPY_BANNED_PATTERNS` re-exported through `apps/demo/src/lib/review-seller-copy.ts:1,25`.",
+    "Do NOT make any backend change. This is the ui-ux lane and the slice is copy plus one boolean; the stock write it describes is deleted by ADR-091 d.4 in the backend lane, not here.",
+    "Do NOT add new copy or a new surface. The slice REMOVES copy and flips one flag; a replacement caution sentence would recreate the defect in softer words.",
+    "Do NOT read the eligibility flip as granting autonomy. It is a TABLE EDIT ONLY: the autonomy ladder does not exist, and every write in this workflow still pauses at CONFIRM, params-hash bound. It narrows ADR-055 d.19 in the opposite direction from ADR-090 d.6 — nothing more.",
+    "Do NOT leave the `inputs` stage body incoherent after removing `review.ts:65`. A body array with a hole in its argument is a copy defect even when no test names it.",
+    "Do NOT leave a fifth copy of the sentence in the tree. A repository-wide grep under `apps/demo/src` must return nothing — the four listed sites are what is KNOWN, not a proof of completeness.",
+    "Do NOT infer a flash sale, a markdown or a stock write from the removed copy. The only write in this design is a thirty-day Product Discount; deactivation ends it and Republish Activity revives it within seven days, so nothing here is irreversible and nothing waits on a count.",
+    "Do NOT let a model rewrite the seller copy freely. Every remaining string is Vietnamese through the seller-copy sanitiser, second person, with no internal identifier and no projected impact magnitude (S-NFR-4).",
+    "Do NOT enforce a goal on a timer, do NOT add a second reaper policy, and do NOT prompt a fresh CONFIRM. Nothing in this slice waits, resumes or consents.",
+    "Do NOT change the card's KPI tie. `KPI_WORKFLOW_KEYS` maps `clear_excess_4` to `inventory_turnover` and `dsi` while ADR-055 d.15 says AOV; CE-NFR-3 leaves both alone and THE TIE STAYS WHATEVER THE SURFACE RENDERS TODAY.",
+    "Do NOT render or reference a revenue reading. v1 records the facts only; the revenue reading on cleared SKUs is deferred to v2.",
+    "Do NOT reference `Search Activities` in any copy. It DOES NOT EXIST at TikTok (resolved 2026-09-05 — `contract-collection.md` A-25, `endpoints.md:509`).",
+    "Do NOT write a migration. There is no persisted state behind any of this; if a migration seems necessary, that belief is itself the error — stop and report.",
+    "Do NOT touch `apps/dashboard/`, `ios/`, `backend/src/juli_backend/ai/` or `backend/src/juli_backend/workers/` — the AGT-W10A-UI lane's doNotLoad list."
+  ]
+}

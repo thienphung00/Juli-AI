@@ -1,0 +1,23 @@
+# AGT-W10C-UI — v1 build lane; see agent-runtime.config.yml epicRegistry and the epic's ADR.
+AGT-W10C-UI:
+  executorDomain: ui-ux
+  requiredDocs:
+    - dictionary.md
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/093-replenish-inventory-design.md
+  requiredModules:
+    - apps/demo/src/components/plan-review-card.tsx
+    - apps/demo/src/lib/workflows/replenish-inventory/review.ts
+    - apps/demo/src/lib/workflows/replenish-inventory/plan.ts
+    - apps/demo/src/lib/workflows/replenish-inventory/execution.ts
+    - packages/contracts/src/review.ts
+  loadWhenNeeded:
+    - apps/demo/src/lib/review-seller-copy.ts
+  doNotLoad:
+    - apps/dashboard/
+    - ios/
+    - backend/src/juli_backend/ai/
+    - backend/src/juli_backend/workers/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

@@ -24,6 +24,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database.exceptions import NotFound
+from juli_backend.database.tenant_context import reapply_shop_scope
 from juli_backend.integrations.tiktok import (
     PRODUCTION_AUTH_ID,
     ClientFactoryConfig,
@@ -42,6 +43,9 @@ from juli_backend.services.analytics_backfill.budget import (
 )
 from juli_backend.services.analytics_backfill.catalog_partition import (
     run_catalog_partition,
+)
+from juli_backend.services.analytics_backfill.error_classification import (
+    is_retryable_partition_error,
 )
 from juli_backend.services.analytics_backfill.live_partition import (
     run_live_partition,
@@ -173,6 +177,56 @@ def _structured_log_fields(
     return fields
 
 
+PartitionFailureHook = Callable[[str, date, BaseException], Awaitable[None]]
+"""Called after a partition raised: un-poison the session AND persist the failure.
+
+Both halves are mandatory. A hook that only rolls back silently discards the
+runner's `mark_failed` flush (#1673).
+"""
+
+
+async def persist_partition_failure(
+    session: AsyncSession,
+    *,
+    session_lock: asyncio.Lock,
+    partitions_repo: AnalyticsBackfillPartitionsRepo,
+    shop_id: uuid.UUID,
+    bucket: str,
+    partition_date: date,
+    exc: BaseException,
+) -> None:
+    """Clear the poisoned transaction, then make the failure record durable.
+
+    THE ORDER IS THE FIX (#1673). `mark_failed` flushes and does not commit, so
+    the rollback that un-poisons the session also discards the runner's own
+    failure record. Between #1668 and this change the backfill's failure
+    bookkeeping was write-only: the same 30 live partitions failed on every run,
+    `attempt_count` never moved off its pre-#1668 value, and #1672's
+    `retryable=False` — the mechanism meant to stop a 401 being retried forever —
+    never reached a single row. The run could not converge, because nothing it
+    learned about a failure outlived the transaction that learned it.
+
+    Rolling back first and writing second is what makes the record survive.
+    Writing first and rolling back second is the bug.
+
+    Both `reapply_shop_scope` calls are load-bearing: rollback and commit each
+    discard SET LOCAL, and without the scope the write is an RLS refusal
+    (#1627, #1631).
+    """
+    async with session_lock:
+        await session.rollback()
+        await reapply_shop_scope(session, shop_id)
+        await partitions_repo.mark_failed(
+            shop_id,
+            bucket,
+            partition_date,
+            f"{type(exc).__name__}: {exc}",
+            retryable=is_retryable_partition_error(exc),
+        )
+        await session.commit()
+        await reapply_shop_scope(session, shop_id)
+
+
 async def backfill_analytics_history(
     session: AsyncSession,
     *,
@@ -182,6 +236,8 @@ async def backfill_analytics_history(
     buckets: Sequence[str] | None = None,
     budget: CallBudgetGovernor | None = None,
     run_partition: PartitionRunner,
+    on_partition_complete: Callable[[], Awaitable[None]] | None = None,
+    on_partition_failed: PartitionFailureHook | None = None,
     concurrency_limit: int = 1,
 ) -> OrchestratorResult:
     """Walk buckets and dates with bounded concurrency, honoring budget.
@@ -246,8 +302,56 @@ async def backfill_analytics_history(
 
             try:
                 await run_partition(bucket, partition_date)
+                # DURABILITY, NOT TIDINESS (#1665). Without this the whole run is
+                # one transaction: the task's 300s budget expires, everything
+                # rolls back, and the next run starts from zero. That is why
+                # `ops.analytics_backfill_partitions` held 571 rows with ALL 571
+                # incomplete — `mark_complete` had been called many times and
+                # committed never. The resumable-checkpoint design was correct
+                # and inert.
+                if on_partition_complete is not None:
+                    await on_partition_complete()
                 return (True, None)
             except Exception as e:
+                # UN-POISON THE SESSION BEFORE THE NEXT PARTITION RUNS.
+                #
+                # A partition that fails on a database error leaves the shared
+                # AsyncSession in a rolled-back state, and every partition after
+                # it then dies on PendingRollbackError rather than on its own
+                # merits. Observed on 2026-09-06: run 1 completed 32 partitions
+                # and then failed 31 consecutively; run 2 completed none at all.
+                # Catching the exception per partition is not enough — the
+                # session has to be made usable again, and the rollback discards
+                # SET LOCAL so the shop scope has to go back too.
+                #
+                # The hook also OWNS RECORDING THE FAILURE (#1673). The runner
+                # calls `mark_failed`, but `mark_failed` only flushes — so the
+                # rollback immediately below discards it. Between #1668 and this
+                # change every failure record was written and then thrown away,
+                # which is why 30 live partitions failed identically on every
+                # run, their `attempt_count` never moved, and #1672's
+                # `retryable=False` never reached a row. The hook has to put the
+                # record back after the rollback, not before it.
+                if on_partition_failed is not None:
+                    try:
+                        await on_partition_failed(bucket, partition_date, e)
+                    except Exception:
+                        # Recording a failure is best-effort; failing to record one
+                        # must not take the run down with it. Before #1683 this
+                        # exception escaped the task, and because `gather` below ran
+                        # without `return_exceptions` it aborted the whole batch
+                        # while sibling partitions were still mid-session — which
+                        # surfaced as `IllegalStateChangeError: Method 'close()'
+                        # can't be called here` when the caller's session context
+                        # exited underneath them.
+                        logger.exception(
+                            "analytics_backfill_failure_record_failed",
+                            extra={
+                                "shop_id": str(shop_id),
+                                "bucket": bucket,
+                                "partition_date": partition_date.isoformat(),
+                            },
+                        )
                 logger.error(
                     "analytics_backfill_partition_failed",
                     extra={
@@ -295,11 +399,52 @@ async def backfill_analytics_history(
                 for bucket, partition_date in partitions_to_run
             ]
 
-            # Run all tasks concurrently (semaphore limits to concurrency_limit)
-            results = await asyncio.gather(*tasks)
+            # DEFENCE IN DEPTH, not the fix itself (#1683). The fix is the guard
+            # around `on_partition_failed` above: the task body already catches
+            # `Exception`, so the failure hook was the ONLY way an exception could
+            # escape, and that is the path production actually took.
+            #
+            # This matters anyway because of what escaping costs. Without
+            # `return_exceptions`, the first task to raise propagates out of
+            # `gather` immediately while its siblings are still running against
+            # the SHARED AsyncSession. The
+            # caller's `async with factory() as session:` then closes that session
+            # underneath them, and the run dies with
+            #
+            #   IllegalStateChangeError: Method 'close()' can't be called here;
+            #   method '_connection_for_bind()' is already in progress
+            #
+            # followed by `greenlet is being finalized` and a garbage-collected
+            # connection. Observed in production 2026-09-04 and again on
+            # 2026-09-07, where it killed the run partway through `live` so the
+            # `catalog` bucket — last in the order — had not been attempted since
+            # 2026-08-18.
+            #
+            # Collecting exceptions instead lets every partition finish, which is
+            # what makes the session safe to close.
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Normalise: with `return_exceptions=True` a slot may hold a raised
+            # exception rather than the (was_completed, error) tuple. Treat it as
+            # the failure it is, so the loop below stays a single shape.
+            normalised: list[tuple[bool, str | None]] = []
+            for (bucket_i, date_i), raw in zip(partitions_to_run, results):
+                if isinstance(raw, BaseException):
+                    logger.error(
+                        "analytics_backfill_partition_raised_out_of_task",
+                        extra={
+                            "shop_id": str(shop_id),
+                            "bucket": bucket_i,
+                            "partition_date": date_i.isoformat(),
+                            "error": f"{type(raw).__name__}: {raw}",
+                        },
+                    )
+                    normalised.append((False, f"{type(raw).__name__}: {raw}"))
+                else:
+                    normalised.append(raw)
 
             # Process results in order
-            for (bucket_i, date_i), (was_completed, error) in zip(partitions_to_run, results):
+            for (bucket_i, date_i), (was_completed, error) in zip(partitions_to_run, normalised):
                 if error == "budget_exhausted":
                     # Budget stopped this task and all subsequent ones
                     stopped_reason = "budget"
@@ -554,6 +699,55 @@ async def backfill_analytics_history_auto_topup(
         concurrency_limit if concurrency_limit is not None else _resolve_concurrency_limit()
     )
 
+    async def commit_partition() -> None:
+        """Make one partition durable, then put the shop scope back.
+
+        Under `session_lock` because the four partition runners share this one
+        AsyncSession; their Partner fetches overlap but their DB touches must
+        not. Only the commit is serialized, so the overlap that makes this fast
+        is preserved.
+
+        The scope re-entry is not optional. The caller wraps this run in
+        `with_shop_scope`, whose SET LOCAL a commit discards — so without
+        putting it back, the first commit turns every later partition's write
+        into an RLS refusal. That is #1627 and #1631 in a different costume.
+        """
+        async with session_lock:
+            await session.commit()
+            await reapply_shop_scope(session, shop_id)
+
+    async def rollback_partition(bucket: str, partition_date: date, exc: BaseException) -> None:
+        """Make the session usable again after a partition raised, and keep the record.
+
+        Without the rollback the first database failure ends the whole run: the
+        session is left rolled back and every later partition raises
+        PendingRollbackError before doing any work of its own. The scope is
+        re-applied for the same reason it is after a commit — a rollback
+        discards SET LOCAL just as a commit does.
+
+        THE ROLLBACK ALONE IS A BUG (#1673). The partition runner records its own
+        failure through `mark_failed`, which flushes but does not commit, so the
+        rollback here threw that record away. Between #1668 and this change the
+        failure bookkeeping was write-only: 30 live partitions failed on every
+        single run, `attempt_count` stayed frozen at its pre-#1668 value, and
+        #1672's whole point — writing `retryable=False` so a 401 stops being
+        retried — never reached a row. The backfill could not converge, because
+        nothing it learned about a failure survived the transaction that learned
+        it.
+
+        So: roll back FIRST to clear the poison, then write the record into the
+        now-clean transaction and commit it. Order is the entire fix.
+        """
+        await persist_partition_failure(
+            session,
+            session_lock=session_lock,
+            partitions_repo=partitions_repo,
+            shop_id=shop_id,
+            bucket=bucket,
+            partition_date=partition_date,
+            exc=exc,
+        )
+
     return await backfill_analytics_history(
         session,
         shop_id=shop_id,
@@ -562,4 +756,6 @@ async def backfill_analytics_history_auto_topup(
         budget=budget,
         concurrency_limit=resolved_concurrency_limit,
         run_partition=partition_runner,
+        on_partition_complete=commit_partition,
+        on_partition_failed=rollback_partition,
     )

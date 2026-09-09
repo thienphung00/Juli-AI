@@ -1,0 +1,400 @@
+{
+  "architecturalChange": {
+    "signals": [],
+    "value": false
+  },
+  "gateVersion": 2,
+  "issue": 1600,
+  "metrics": {
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "tests/unit/test_status_record_gate.py",
+      "eval/quality_detectors.py",
+      "eval/baselines/debt_ratchet_baseline.json",
+      "agent-runtime/artifacts/waves/wave-harness-e-w5.json"
+    ]
+  },
+  "review": {
+    "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1600.json",
+    "ownerSignoffPresent": true,
+    "sha256": "f80660add3954eb622829f7b0ef4c207dd8be105c4b1ae52ece5c580a9c88da9",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "run": {
+    "artifactBytes": {
+      "reviewBytes": 7796,
+      "validationBytes": 8722
+    },
+    "claimVsExecuted": {
+      "citedCommandCount": 31,
+      "invokedCommandCount": 11436,
+      "matchedCommandCount": 0,
+      "reason": "31 of 31 cited commands have no matching invocation in the session transcripts",
+      "recordPasses": false,
+      "status": "FAIL",
+      "transcriptSources": [
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-codebase-audit-refactor-b9b867",
+        "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2--claude-worktrees-open-terminal-in-code-08e55d"
+      ],
+      "transcriptsScanned": 44,
+      "unmatchedCommandCount": 31,
+      "unmatchedCommands": [
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_status_record_gate.py -k \"schema_validity_delta_asserts_even_when_no_base_ref_resolves or backfill_half_skips_with_a_visible_warning or backfilled_record_is_still_caught_when_base_resolves\" -v --tb=short",
+          "cycle": 1,
+          "exitCode": 1
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_status_record_gate.py -v --tb=short",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_status_record_gate.py -k backfilled_record_is_still_caught_when_base_resolves -v --tb=short (mutation 3: dropped assert backfilled == [])",
+          "cycle": 1,
+          "exitCode": 1
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_status_record_gate.py -k \"schema_validity_delta_asserts_even_when_no_base_ref_resolves or backfill_half_skips_with_a_visible_warning\" -v --tb=short (mutation 4: restored original skip-before-compute ordering)",
+          "cycle": 1,
+          "exitCode": 1
+        },
+        {
+          "command": "ruff check tests/unit/test_status_record_gate.py",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "ruff format --check tests/unit/test_status_record_gate.py",
+          "cycle": 1,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_ratchets.py -v",
+          "cycle": 2,
+          "exitCode": 1
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_test_quality.py -v -k test_reconciliation_layers_are_derived_and_every_one_matches_the_committed_value",
+          "cycle": 2,
+          "exitCode": 1
+        },
+        {
+          "command": "python -m eval.ratchets tighten --write",
+          "cycle": 2,
+          "exitCode": 1
+        },
+        {
+          "command": "python3 -c \"measure(REPO_ROOT, classes=['suppressions']); baseline_from(...); splice into eval/baselines/debt_ratchet_baseline.json\"",
+          "cycle": 2,
+          "exitCode": 0
+        },
+        {
+          "command": "python -m eval.ratchets check",
+          "cycle": 2,
+          "exitCode": 1
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_ratchets.py -v",
+          "cycle": 2,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_test_quality.py -q",
+          "cycle": 2,
+          "exitCode": 0
+        },
+        {
+          "command": "ruff check tests/unit/test_status_record_gate.py",
+          "cycle": 3,
+          "exitCode": 0
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_status_record_gate.py -k schema_validity_delta_asserts_even_when_no_base_ref_resolves -v --tb=short (mutation 1 redo: dropped newly_invalid assert)",
+          "cycle": 3,
+          "exitCode": 1
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_status_record_gate.py -k \"schema_validity_delta_asserts_even_when_no_base_ref_resolves or backfill_half_skips_with_a_visible_warning\" -v --tb=short (mutation 4 redo: restored skip-before-compute ordering)",
+          "cycle": 3,
+          "exitCode": 1
+        },
+        {
+          "command": "python3 -c \"measure(REPO_ROOT, classes=['suppressions'])\" (re-measure before touching baseline)",
+          "cycle": 3,
+          "exitCode": 0
+        },
+        {
+          "command": "python3 -c \"baseline_from(measurement); splice suppressions class\" (re-splice)",
+          "cycle": 3,
+          "exitCode": 0
+        },
+        {
+          "command": "python -m eval.ratchets check",
+          "cycle": 3,
+          "exitCode": 1
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_ratchets.py -v --tb=short",
+          "cycle": 3,
+          "exitCode": 0
+        }
+      ],
+      "unmatchedCommandsTruncated": true,
+      "verified": true
+    },
+    "commandScope": {
+      "ciSelectors": {
+        "mypy": {
+          "command": "mypy backend/src/juli_backend --ignore-missing-imports --disable-error-code=valid-type",
+          "deselectedMarkers": [],
+          "paths": [
+            "backend/src/juli_backend"
+          ]
+        },
+        "pytest": {
+          "command": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "deselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "paths": [
+            "tests"
+          ]
+        },
+        "ruff check": {
+          "command": "ruff check backend/src/juli_backend tests scripts agent-runtime/scripts",
+          "deselectedMarkers": [],
+          "paths": [
+            "backend/src/juli_backend",
+            "tests",
+            "scripts",
+            "agent-runtime/scripts"
+          ]
+        }
+      },
+      "ciWorkflow": ".github/workflows/pr.yml",
+      "commandsCited": 0,
+      "invocations": [],
+      "invocationsScored": 0,
+      "invocationsUnrecognised": 0,
+      "narrowerCount": 0,
+      "narrowerThanCI": [],
+      "unit": "invocation",
+      "unitRationale": "76 corpus commands chain 2-5 runs; scoring per command lets a broad first run launder a narrow second one, so each invocation is scored on its own selector."
+    },
+    "environment": {
+      "cwd": "/Users/macos/Juli-AI-v2/.worktrees/w5-1600",
+      "dependencies": {
+        "constraints": "/Users/macos/Juli-AI-v2/.worktrees/w5-1600/backend/constraints.txt",
+        "drift": [
+          {
+            "installed": "3.18",
+            "package": "idna",
+            "pinned": "3.19"
+          },
+          {
+            "installed": "2.24.0",
+            "package": "narwhals",
+            "pinned": "2.25.0"
+          },
+          {
+            "installed": "1.26.4",
+            "package": "numpy",
+            "pinned": "2.5.2"
+          },
+          {
+            "installed": "0.16.3",
+            "package": "ruff",
+            "pinned": "0.16.4"
+          },
+          {
+            "installed": "1.13.1",
+            "package": "scipy",
+            "pinned": "1.18.1"
+          },
+          {
+            "installed": "5.9.0",
+            "package": "stevedore",
+            "pinned": "5.9.1"
+          },
+          {
+            "installed": "0.52.3",
+            "package": "uvicorn",
+            "pinned": "0.52.4"
+          }
+        ],
+        "matched": 75,
+        "missing": [],
+        "pinned": 82
+      },
+      "executable": "/opt/homebrew/anaconda3/bin/python3",
+      "git": {
+        "baseDistanceUnavailable": "shallow-clone",
+        "behindOriginMain": null,
+        "branch": "feature/issue-1600-fix",
+        "head": "c498903a0079d8e1f75245f487098f13139f7c94",
+        "shallow": true
+      },
+      "moduleResolution": {
+        "error": null,
+        "expectedPrefix": "/Users/macos/Juli-AI-v2/.worktrees/w5-1600/backend/src/juli_backend",
+        "insideRepo": true,
+        "module": "juli_backend",
+        "resolved": "/Users/macos/Juli-AI-v2/.worktrees/w5-1600/backend/src/juli_backend/__init__.py"
+      },
+      "python": "3.12.9",
+      "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/w5-1600"
+    },
+    "metrics": {
+      "agents": [],
+      "disagreements": [
+        {
+          "claimed": 165,
+          "field": "toolInvocationCount",
+          "observed": null,
+          "observedFrom": "unavailable",
+          "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "resolution": "unobservable"
+        },
+        {
+          "claimed": 6300000,
+          "field": "executionDurationMs",
+          "observed": null,
+          "observedFrom": "unavailable",
+          "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "resolution": "unobservable"
+        }
+      ],
+      "executionDurationMs": {
+        "available": false,
+        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+      },
+      "executorDomain": "backend",
+      "executorDomainSource": "implementation-artifact",
+      "gaps": [
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/cb047053-ee20-4e00-925f-7ebf36c0417b/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos/61a4eb31-9294-45c2-a803-0c26980300c6/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/491f9d6b-185a-43a4-bbea-f1fcd906bf1d/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "detail": "NameError: name '_settle_clock' is not defined",
+          "path": "/tmp/claude-501/-Users-macos-Juli-AI-v2/03369828-07b8-46b9-8587-8b7e97d289c1/tasks",
+          "reason": "task-dir-unreadable"
+        },
+        {
+          "agentsScanned": 0,
+          "detail": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "reason": "no-persisted-task-transcripts"
+        }
+      ],
+      "schemaVersion": 1,
+      "source": {
+        "agentsAttributed": 0,
+        "agentsScanned": 0,
+        "attributedBy": ".worktrees path naming issue-1600",
+        "executorsIdentified": 0,
+        "kind": "task-transcript",
+        "roleSelectedAgentId": null,
+        "roleSelectedBy": "spawn-directive",
+        "taskDirs": [
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/cb047053-ee20-4e00-925f-7ebf36c0417b/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
+          "/tmp/claude-501/-Users-macos/61a4eb31-9294-45c2-a803-0c26980300c6/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/491f9d6b-185a-43a4-bbea-f1fcd906bf1d/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/03369828-07b8-46b9-8587-8b7e97d289c1/tasks"
+        ]
+      },
+      "status": "not-measured",
+      "tokenUsage": {
+        "available": false,
+        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+      },
+      "toolInvocationCount": {
+        "available": false,
+        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+      },
+      "toolsUsed": []
+    },
+    "transcripts": {
+      "commands": {
+        "executor": 0,
+        "executorCommands": [],
+        "includesExecutorCommands": false,
+        "parent": 0,
+        "parentCommands": []
+      },
+      "coverage": {
+        "complete": false,
+        "executorsExpected": 1,
+        "executorsPersisted": 0,
+        "gaps": [
+          {
+            "agent": "executor-review-agent",
+            "reason": "no-transcript-persisted"
+          }
+        ]
+      },
+      "executorCount": 0,
+      "executors": [],
+      "parentOnly": true,
+      "schemaVersion": 1,
+      "status": "not-persisted"
+    }
+  },
+  "timestamp": "2026-09-05T01:00:00Z",
+  "validation": {
+    "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1600.json",
+    "sha256": "9141dd51662f1f6cf7b91cce11c5edba57fd0da01f83de7f09aceb10750f971b",
+    "status": "PASS"
+  },
+  "wave": "wave-harness-e-w5"
+}

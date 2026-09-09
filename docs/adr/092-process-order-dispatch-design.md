@@ -62,6 +62,16 @@ fields the workflow branches on — appear in **zero** live captures in
 
 ## Decisions
 
+> **Amendment 2026-09-05 (platform research, [`research/dispatch-sla-batch-exceptions.md`](../product/agent-workflow-execution/research/dispatch-sla-batch-exceptions.md)).**
+> The Context above and decision 2 treat the vendor's refusal of a ship write during a pending
+> cancellation as a backstop. TikTok's seller documentation says the opposite: shipping an order
+> with a pending cancellation request **still results in the cancellation being approved**; only
+> *combining* such orders is blocked. Amazon behaves the same way. Decision 2 therefore stands on
+> the **hard exclusion** alone — cancellation-flagged orders are removed at selection and again at
+> re-verify — and no design may rely on the vendor rejecting the write. Also: the deadline is a
+> ladder (`rts_sla_time` → `tts_sla_time` → `collection_due_time`) with the rung recorded, and the
+> first proof is a runner **dry-run mode** that returns the exact request unsent.
+
 1. **Grain: one run per dispatch window per shop, one batch confirmation.** The card's subject is
    the **dispatch window** (a Juli entity: shop + the deadline bucket the run covers), amending
    ADR-087 d.5; exceptions keep **Order** as their subject. The run reads the awaiting-shipment
@@ -197,6 +207,22 @@ fields the workflow branches on — appear in **zero** live captures in
 | C8 | Courier scan → `IN_TRANSIT` → delivered | TikTok | polled; no package-status webhook exists |
 | D | *(nothing suspended in v1)* | — | — |
 | E1 | Shipped-before-deadline ÷ due | Juli | fact per run |
+
+## Rationale
+
+*Extracted during the W6→main reconcile to satisfy `check_adr`, which requires a
+`## Rationale` heading (#1853). Nothing below is new reasoning — it summarises what
+this ADR already argues in the section named, which remains the fuller account.*
+
+The reasoning is recorded in full under **Context**. In brief: **region, not
+fulfilment model, decides the API shape.** Vietnam is SEA, and SEA uses the
+Partner API's *schedule shipping* flow rather than the *purchase shipping* flow
+the US and Japan use.
+
+`execution_layer.md` §5A was written against the US chain, so it carries defects
+that this design corrects — most consequentially that Create Packages is US/JP
+only: in Vietnam TikTok creates the package at order time, and production orders
+already carry `packages[]` before any seller action.
 
 ## Consequences
 

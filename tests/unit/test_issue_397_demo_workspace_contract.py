@@ -24,6 +24,38 @@ def _package_json(path: Path) -> dict[str, object]:
     return json.loads((path / "package.json").read_text(encoding="utf-8"))
 
 
+def _home_surface() -> str:
+    """The home surface's source: `app/page.tsx` plus the local components it renders.
+
+    These assertions used to read `app/page.tsx` alone. W6 extracted the markup
+    into `components/demo-landing.tsx` (#1319's dual entry), leaving the page a
+    four-line shell — so every content assertion below started failing against a
+    refactor that changed nothing a user can see. The contract is about what the
+    home surface *contains*, not which file holds it, so it follows the imports
+    one level rather than pinning a path a component extraction is free to move.
+    """
+    page = ROOT / "apps" / "demo" / "src" / "app" / "page.tsx"
+    seen: set[Path] = set()
+    parts: list[str] = []
+
+    def walk(path: Path) -> None:
+        # Transitive, because the extraction is two levels deep: page.tsx renders
+        # DemoLanding, which renders HomeLauncher, which holds the destination
+        # grid and the Vietnamese copy. Following one level would still miss it.
+        resolved = path.resolve()
+        if resolved in seen or not resolved.is_file():
+            return
+        seen.add(resolved)
+        text = resolved.read_text(encoding="utf-8")
+        parts.append(text)
+        for rel in re.findall(r'from "(\.\.?/[^"]+)"', text):
+            for suffix in (".tsx", ".ts"):
+                walk(resolved.parent / (rel + suffix))
+
+    walk(page)
+    return "\n".join(parts)
+
+
 def _source_files(path: Path) -> list[Path]:
     return [
         candidate
@@ -135,7 +167,7 @@ def test_demo_is_private_app_router_typescript_tailwind_app() -> None:
 def test_four_destinations_and_exactly_two_safe_home_launchers() -> None:
     demo_root = ROOT / "apps" / "demo" / "src"
     fixtures = (demo_root / "lib/mock-data.ts").read_text(encoding="utf-8")
-    home = (demo_root / "app/page.tsx").read_text(encoding="utf-8")
+    home = _home_surface()
 
     for route in ('"/"', '"/decisions"', '"/analytics"', '"/settings"'):
         assert route in fixtures
@@ -148,7 +180,7 @@ def test_four_destinations_and_exactly_two_safe_home_launchers() -> None:
 def test_theme_and_shared_home_primitives_are_consumed_by_demo() -> None:
     demo_root = ROOT / "apps" / "demo" / "src"
     globals_css = (demo_root / "app/globals.css").read_text(encoding="utf-8")
-    home = (demo_root / "app/page.tsx").read_text(encoding="utf-8")
+    home = _home_surface()
 
     assert '@import "@juli/theme/tokens.css";' in globals_css
     assert '@import "@juli/ui/styles.css";' in globals_css
@@ -180,7 +212,7 @@ def test_home_responsive_focus_touch_vietnamese_and_reduced_motion_contract() ->
     globals_css = (ROOT / "apps/demo/src/app/globals.css").read_text(encoding="utf-8")
     ui_css = (ROOT / "packages/ui/styles.css").read_text(encoding="utf-8")
     tokens_css = (ROOT / "packages/theme/tokens.css").read_text(encoding="utf-8")
-    home = (ROOT / "apps/demo/src/app/page.tsx").read_text(encoding="utf-8")
+    home = _home_surface()
     fixtures = (ROOT / "apps/demo/src/lib/mock-data.ts").read_text(encoding="utf-8")
 
     assert "@media (min-width: 42rem)" in globals_css
@@ -240,12 +272,46 @@ def test_workspace_import_boundaries_are_acyclic_and_app_isolated() -> None:
                 ), f"{source_file.relative_to(ROOT)} imports a sibling app"
 
 
-def test_demo_source_has_no_backend_or_secret_environment_dependency() -> None:
-    # Word-bound env-style prefixes only — product ids like GMV_TIKTOK_* must not match.
-    forbidden = re.compile(r"(NEXT_PUBLIC_API_URL|DATABASE_URL|\bTIKTOK_|\bSUPABASE_|process\.env)")
-    sources = _source_files(ROOT / "apps" / "demo")
+# The two environment variables the demo is allowed to read, and nothing else.
+# Both are `NEXT_PUBLIC_*`, which Next.js compiles into the client bundle — they
+# are public by construction, and the anon key is designed to be published and is
+# constrained by RLS rather than by secrecy.
+_ALLOWED_DEMO_ENV = frozenset({"NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"})
 
+# Word-bound env-style prefixes only — product ids like GMV_TIKTOK_* must not match.
+_FORBIDDEN_IN_DEMO = re.compile(
+    r"(NEXT_PUBLIC_API_URL|DATABASE_URL|\bTIKTOK_|SUPABASE_SERVICE|SERVICE_ROLE)"
+)
+_ENV_READ = re.compile(r"process\.env\.([A-Z0-9_]+)")
+
+
+def test_demo_source_reads_only_the_two_public_supabase_variables() -> None:
+    """NARROWED (#1321, ADR-094). This asserted that demo source touches
+    `process.env` at all — the Phase 2.6 "no backend or authentication
+    dependency" claim.
+
+    That claim was retired by design: `Đăng nhập với Google` (#1319) is real
+    Supabase Auth, and `lib/supabase-auth.ts` legitimately reads
+    `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`. `MODULE.md`
+    records the retirement; this test did not follow, so it failed on the wave
+    for a change that was intended.
+
+    Deleting it would give up a real control, so it is narrowed instead — and
+    narrowed to be STRICTER in the part that still matters. It no longer bans
+    `process.env` wholesale; it enumerates exactly which two variables may be
+    read, so a third one added later fails here rather than passing unnoticed.
+    A service-role key or a `DATABASE_URL` in demo source is still caught.
+    """
+    sources = _source_files(ROOT / "apps" / "demo")
     assert sources
+
     for source_file in sources:
         content = source_file.read_text(encoding="utf-8")
-        assert not forbidden.search(content), source_file.relative_to(ROOT)
+        where = source_file.relative_to(ROOT)
+        assert not _FORBIDDEN_IN_DEMO.search(content), f"secret-shaped reference in {where}"
+        for name in set(_ENV_READ.findall(content)):
+            assert name in _ALLOWED_DEMO_ENV, (
+                f"{where} reads process.env.{name}; the demo may read only "
+                f"{sorted(_ALLOWED_DEMO_ENV)}. Adding another environment "
+                f"dependency to the demo surface is a decision, not an edit."
+            )

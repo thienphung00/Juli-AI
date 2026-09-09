@@ -237,6 +237,23 @@ E2 revenue on the cleared SKUs vs the pre-discount baseline through the ADR-077 
 an estimate; E3 the card's KPI tie stays **AOV** (ADR-055 d.15), while **days of supply before and
 after** is recorded on the run and stated in the completion copy as the run's internal measure.
 
+## Rationale
+
+*Extracted during the W6→main reconcile to satisfy `check_adr`, which requires a
+`## Rationale` heading (#1853). Nothing below is new reasoning — it summarises what
+this ADR already argues in the section named, which remains the fuller account.*
+
+The reasoning is recorded in full under **Context**. In brief: the decisions
+follow from the baseline markdown in `execution_layer.md:191` being both harmful
+and mis-ordered, which the promotion seller-journey grades WRONG-ORDER/harmful on
+four counts — a percentage promo recomputes off the lowered list price so the two
+**compound**; a fixed-price discount **freezes** the list price so the update is
+blocked while it runs; and marking down today **raises** the 14-day floor that
+later pricing has to clear.
+
+The design therefore chooses the promotion lever over a base-price change, and
+orders the steps so the lever is selected before any price is touched.
+
 ## Consequences
 
 - **Tool set.** Reuse `create_product_discount` (ADR-090 d.1); add `deactivate_activity` (WRITE,
@@ -264,11 +281,13 @@ after** is recorded on the run and stated in the completion copy as the run's in
 - **`execution_layer.md` §4 rewrite** (its own slice): step 3 deleted; step 4 becomes a
   `DIRECT_DISCOUNT` create behind the validator; step 6a becomes the Thanh lý checklist item;
   step 7 becomes goal-or-expiry close-out.
-- **Contract captures needed** on the sandbox: `Search Activities` (does it exist?), a
-  `DIRECT_DISCOUNT` create, a deactivate, later a republish. Until Search Activities captures,
-  validator rule 5 is declared unchecked and the vendor is the only lock signal — ADR-090 d.2's
-  posture, unchanged.
-- **Risk.** Two unverified facts: whether Search Activities exists live, and whether the inventory
-  webhooks fire fast enough that D1 does not lag the goal by hours. Neither touches decisions 1–3
-  or 5–7; both sit inside decision 4's resume path, which degrades to the 30-day expiry if the
-  webhook never comes.
+- **Contract captures needed** on the sandbox: a `DIRECT_DISCOUNT` create, a deactivate, later a
+  republish. `Search Activities` **does not exist at TikTok** (resolved 2026-09-05 —
+  `contract-collection.md` A-25, `endpoints.md:509`,
+  `scope-verification/optimize-product-clear-excess.md:69`), so validator rule 5 has no vendor
+  check, collision detection is Juli-side permanently, and the vendor stays the only lock
+  signal — ADR-090 d.2's posture, unchanged.
+- **Risk.** One unverified fact: whether the inventory webhooks fire fast enough that D1 does not
+  lag the goal by hours. (The other is resolved — `Search Activities` **does not exist at
+  TikTok**.) It does not touch decisions 1–3 or 5–7; it sits inside decision 4's resume path,
+  which degrades to the 30-day expiry if the webhook never comes.

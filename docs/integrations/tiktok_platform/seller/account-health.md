@@ -64,7 +64,7 @@ Source: https://seller-vn.tiktok.com/university/essay?knowledge_id=10015235&lang
 | | Listing/shipping unsupported products | 0–48 |
 | | Non-compliance with listing guidelines | 0–48 |
 | **Product Quality** | Product quality violation (sampling inspection) | 0–48 |
-| **Customer Service** | Low 24-hour response rate | 1 |
+| **Customer Service** | Low **12-hour** response rate (12HRR, *Tỷ lệ phản hồi 12 giờ*) — threshold **≥ 85 %**; 75–84 % warning, 51–74 % −10 AHR, ≤ 50 % −20 AHR (`seller-journeys/customers.md:29,78`) | 1 |
 | | Inappropriate / prohibited customer communication | 1–12 |
 | **Seller Fulfilment** | High Seller-Fault Cancellation Rate (SFCR) | 2–4 |
 | | High Late Dispatch Rate (LDR) | 2–4 |

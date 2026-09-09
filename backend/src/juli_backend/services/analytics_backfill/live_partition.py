@@ -17,6 +17,7 @@ from juli_backend.integrations.tiktok import (
     analytics_snapshot_key,
     expand_analytics_live_session,
 )
+from juli_backend.repositories._base import utc_from_timestamp_naive
 from juli_backend.repositories.repos import (
     AnalyticsBackfillPartitionsRepo,
     AnalyticsPerformanceRepo,
@@ -24,6 +25,9 @@ from juli_backend.repositories.repos import (
 from juli_backend.services.analytics_backfill.budget import (
     BudgetExhaustedError,
     CallBudgetGovernor,
+)
+from juli_backend.services.analytics_backfill.error_classification import (
+    is_retryable_partition_error,
 )
 
 LIVE_BUCKET = "live"
@@ -222,7 +226,7 @@ def build_live_shop_rollup_kwargs(
         "grain": "shop",
         "start_date": partition_date,
         "end_date": date.fromisoformat(end_date),
-        "update_time": datetime.fromtimestamp(synced_at, tz=UTC),
+        "update_time": utc_from_timestamp_naive(synced_at),
         "live_hours": compute_live_hours(sessions, partition_date),
         "live_sessions": compute_live_sessions_count(sessions),
         "visitors": sum_live_views(sessions),
@@ -332,13 +336,19 @@ async def run_live_partition(
         return LivePartitionResult(status="complete", called_paths=tuple(called_paths))
     except BudgetExhaustedError:
         return LivePartitionResult(status="paused", called_paths=tuple(called_paths))
-    except Exception:
+    except Exception as exc:
         async with lock:
+            # RECORD THE CAUSE, NOT A LABEL (#1670). This used to store the
+            # literal string "LIVE partition failed", which told a reader
+            # nothing: 47 partitions sat with that message and five attempts
+            # each, and nobody could tell whether retrying was even sensible.
+            # `mark_failed` redacts secrets, so passing the real message is safe.
             await partitions_repo.mark_failed(
                 shop_id,
                 LIVE_BUCKET,
                 partition_date,
-                "LIVE partition failed",
+                f"{type(exc).__name__}: {exc}",
+                retryable=is_retryable_partition_error(exc),
             )
         raise
 
@@ -348,7 +358,7 @@ def _session_row_to_upsert_kwargs(row: dict[str, Any], synced_at: int) -> dict[s
         "snapshot_key": row["snapshot_key"],
         "grain": row["grain"],
         "start_date": date.fromisoformat(str(row["start_date"])),
-        "update_time": datetime.fromtimestamp(synced_at, tz=UTC),
+        "update_time": utc_from_timestamp_naive(synced_at),
     }
     if row.get("end_date"):
         kwargs["end_date"] = date.fromisoformat(str(row["end_date"]))

@@ -1,0 +1,105 @@
+{
+  "planId": "the-stockout-by-signal-and-its-card-2026-09-08",
+  "affectedPublicSurfaces": [
+    "THE CARD FEED — one NEW CARD KIND for one workflow key, emitted through #1703's standard subject-scoped path. This is the only seller-visible surface this slice touches: existing cards for every other workflow key are unchanged, no new route appears, and no new surface is added (the seven surfaces of S-FR-1 are fixed; a Replenish need that appears to require an eighth is a design error — stop and report it).",
+    "THE TWO LABELLED NUMBERS ON THE CARD PAYLOAD. The **baseline** is `forecast × period − available`, COMPUTED BY JULI with TikTok's dashboard formula and labelled *\"tính theo công thức của TikTok\"* — never attributed to TikTok as a number it returned. **No Partner endpoint returns TikTok's recommended replenishment**: the scope verification searched `docs/integrations/tiktok_corpora/partner-catalog.json` for replenish/forecast/restock/recommend and found only `Get Recommended Product Package` (a packaging box) and title/description/category recommenders. RI-FR-2 as originally written was a spec DEFECT for exactly this reason and was rewritten. **Juli's uplift** is a category-default MULTIPLIER ON THE FORECAST TERM ONLY — `1.0` reproduces the formula exactly — applied ONLY when the seller has entered an event date (#1709's seller inputs). The two are summed into one editable total; the seller must be able to see which part is the formula's arithmetic and which is Juli's judgment.",
+    "THE SUPPRESSION PATH. An order quantity that would push the SKU past NINETY DAYS OF SUPPLY is NOT PROPOSED AT ALL — the card is suppressed with a NAMED REASON through #1703's path, never shrunk silently to fit. Note what that reason must not be: the emission-budget vocabulary (`active_cap` / `cooldown` / `weekly_novelty_cap` in `services/action_cards/emission_budget.py`) describes carding pressure, not a domain guard, and reusing it would make a deliberate refusal indistinguishable from a rate limit in every count that follows.",
+    "THE SUPPLIER, LEAD TIME AND NEEDED-BY DATE ON THE CARD, READ FROM THE `suppliers` ROW #1794 ADDED — not from prior-run payload memory. ADR-093's 2026-09-08 amendment (c) replaced d.2's \"remembered from the seller's prior runs\" with a supplier entity precisely because that memory had no store: the scope verification found the only homes were free-form JSON and the demo's hardcoded prose. The needed-by date is computed backwards as (event date − supplier lead time). A shop with no supplier record prefills none — an absent supplier is a legitimate state, not an error.",
+    "WHAT THE NUMBERS REPLACE, AND WHY THEY CANNOT BE COMPUTED FROM TODAY'S FORECASTER. `ai/forecasting/forecaster.py` computes `daily_velocity` and a depletion date on demand from `_daily_units_series` (line 127), which counts ORDERS PER DAY for the shop and then multiplies by `per_sku_share = 1.0 / len(skus)` — an EQUAL SPLIT of shop order counts across every SKU, a silently wrong per-SKU number, and not even a units series. Lead time and safety stock are the module-level constants `REORDER_LEAD_TIME_DAYS = 3` and `REORDER_SAFETY_STOCK_DAYS = 2` (lines 25-26), global rather than per shop or per supplier. The per-SKU demand series and the days-of-supply helper arrive from W10-A/P-CE-2 (#1812, per the issue's own blocked-by comment) and are CONSUMED here, not rebuilt.",
+    "THE EXISTING `/{workflow_key}/inputs` ENDPOINT IS NOT THIS SURFACE AND MUST NOT DRIFT. `api/routes/action_cards.py::get_action_card_inputs` (lines 148-197) already returns one editable `reorder_quantity` with a `ReorderBasis` block built from `REORDER_LEAD_TIME_DAYS` / `REORDER_SAFETY_STOCK_DAYS` and `days_until_stockout`, computed per request with no persistence. Its response shape and its numbers are UNCHANGED by this slice; the two labelled numbers live on the card payload, and a change that alters this endpoint's output is out of scope.",
+    "THERE IS NO EVENT CALENDAR ANYWHERE, AND THIS SLICE DOES NOT BUILD ONE. `models.py::Campaign` (line 1090) is a creator-collaboration OUTCOME record carrying `predicted_gmv`/`realized_gmv` — not a sale calendar and not a date source. The event date is a SELLER INPUT on the card (#1709) and nothing else. A seller-entered event date ALREADY IN THE PAST is masked out of the baseline's demand window, so a finished sale does not inflate the run rate the next order is sized from.",
+    "NOTHING BEYOND THE CARD. This slice creates no run, enters no `waiting_external`, accepts no report and writes NOTHING — not to the vendor, not to stock, not to `supply_events`. Those are #1800 and #1802. Its deployed effect on a shop with no stockout risk must be nil: the action-card read returns the same cards it returned before."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest driven by the REAL runner from the worktree root with PYTHONPATH pinned to that worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite. The signal is run over SEEDED inventory and order-line ROWS through the real repositories and the real emission path, not over hand-passed dicts: the suppression, the subject-scoped uniqueness of the emitted card and the supplier lookup are all database behaviour. The supplier, its lead time and the needed-by date are read from a REAL `suppliers` row written through the real model. Post-deploy: one authenticated action-card read on the candidate for a shop with NO stockout risk, expected to be byte-for-byte what it was before; no public traffic reaches a candidate task set, no vendor call is made, and NO STOCK IS WRITTEN ON ANY SHOP BY DEPLOYING — this slice contains no write path of any kind.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because card emission runs on the Celery side (`services/action_cards/refresh.py` / `dispatch.py` are driven from the worker, not from a request); with workers disabled the candidate could show a computed number but never that a card was actually emitted or suppressed, which is half the claim. apiSideEffectsInScope is FALSE — no vendor call, no production write, no stock write; the only rows written are this shop's own `action_cards`.",
+    "journeys": [
+      {
+        "name": "two-labelled-numbers-a-needed-by-date-and-a-refusal-that-is-named-not-silent",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1798",
+        "assertions": [
+          "pre-merge: for a KNOWN daily-demand series and a known available level, the baseline equals `forecast × period − available` EXACTLY for that series, and its label is the Vietnamese formula string *\"tính theo công thức của TikTok\"* with no claim anywhere on the card that TikTok RETURNED the number (tests/unit/test_stockout_by_signal.py::test_baseline_equals_the_formula_for_a_known_series)",
+          "pre-merge: with NO event date the uplift multiplier is 1.0 and the proposed total EQUALS the baseline; with a FUTURE event date the multiplier applies to the FORECAST TERM ONLY and the `− available` term is unchanged — asserted as a relationship between the two computations, not against a literal quantity (tests/unit/test_stockout_by_signal.py::test_uplift_multiplies_only_the_forecast_term_and_is_one_without_an_event)",
+          "pre-merge: a seller-entered event date ALREADY IN THE PAST is masked out of the baseline's demand window, and the baseline is then the SAME NUMBER it would be with no event recorded at all — asserted by computing both and comparing, so a mask that merely shifts the window fails (tests/unit/test_stockout_by_signal.py::test_past_event_date_is_masked_from_the_baseline)",
+          "pre-merge: a SKU whose proposed order would leave it ABOVE ninety days of supply emits NO CARD, and the suppression carries a NAMED reason through the #1703 path — asserted on the absence of the card row AND on the reason, so a card that is emitted and merely flagged fails; and the reason is NOT one of the emission-budget vocabulary values, which describe carding pressure rather than a domain refusal (tests/unit/test_stockout_by_signal.py::test_order_past_ninety_days_of_supply_is_not_proposed)",
+          "pre-merge: the guard's BOUNDARY is pinned — an order landing exactly at ninety days is decided one way deliberately and the neighbouring case the other, so the guard cannot pass by being unreachable",
+          "pre-merge: with a `suppliers` row carrying a lead time and a seller-entered event date, the emitted card carries supplier, lead time and a needed-by date of (event date − lead time), READ FROM THE SUPPLIER ROW — asserted by changing the row's lead time and seeing the needed-by date move, so a hardcoded 3-day `REORDER_LEAD_TIME_DAYS` cannot satisfy it (tests/unit/test_stockout_by_signal.py::test_card_carries_supplier_lead_time_and_needed_by)",
+          "pre-merge: a shop with NO supplier record still emits its card with no supplier prefilled and no error — an absent supplier is a legitimate state, and the needed-by date is then absent rather than computed from a global constant",
+          "pre-merge: the per-SKU demand series and the days-of-supply helper are CONSUMED from W10-A/P-CE-2 (#1812) — asserted by binding to the real helper's signature; a local re-derivation, or any path that reaches `_daily_units_series`'s equal-split, fails the test rather than silently producing a wrong per-SKU number",
+          "pre-merge: every number on the card is produced by a RULE from configuration and vendor data (S-FR-4) — asserted by driving the computation with no model in the loop at all; a number chosen or adjusted by the model is a failure, not a variant",
+          "pre-merge: the card's seller-facing copy passes the outbound guard — Vietnamese, second person, NO internal identifier (no SKU-internal id, no stop-reason token, no workflow key), no projected impact magnitude, no causal claim (S-NFR-4); the formula label is seller-facing text and is asserted through the sanitiser, not merely present in a fixture",
+          "pre-merge: the existing surfaces do not move — `api/routes/action_cards.py::get_action_card_inputs` returns the same shape and the same `ReorderBasis` numbers it returns today, and the existing action-card suite passes untouched",
+          "post-deploy: the candidate's `/health` and ONE AUTHENTICATED ACTION-CARD READ for a shop with no stockout risk return exactly the cards they returned before the deploy — this slice is a no-op there — and NO STOCK IS WRITTEN ON ANY SHOP BY DEPLOYING: the slice ends at the card, calls no vendor endpoint and resolves no write credential"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is under `backend/src/juli_backend/services/action_cards/` (the replenish signal) plus tests. The seller-facing rendering of the two labelled numbers, the event-date field and the report forms is #1807 (ui-ux); nothing under apps/, packages/ or ios/ is touched here, and those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "postgres-row-dump",
+      "action-card-payload-golden"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE. The card payload is the EXISTING JSONB column (`action_cards.recommendation_payload`), which is uncapped and needs no widening to carry two labelled numbers, an uplift multiplier, an event date, a supplier reference and a needed-by date. The `suppliers` row this slice READS is RI-1's (#1794), already landed before this slice opens; the days-of-supply helper and per-SKU demand series are #1812's. This slice writes no Alembic revision, adds no column, and does not open `backend/src/juli_backend/database/migrations/versions/`. Stable and candidate therefore run the SAME schema and a code rollback needs no downgrade. If implementation concludes a column or a table is needed — for the uplift default, the event date, or the suppression reason — REPORT it and stop; do not write a migration under this issue, and do not invent a `shop_events` table (the spec's own §8.3 decision 5 resolved that to a seller-entered date on the card)."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. No stockout-by card exists, the only replenishment number a seller sees stays the single `reorder_quantity` from `get_action_card_inputs` computed off an equal-split per-SKU series with global lead-time and safety-stock constants, no uplift is expressible, no 90-days-of-supply guard exists, and no needed-by date is computed — the pre-existing state the scope verification recorded. No new exposure, nothing partially applied, no vendor call made, no stock touched on any shop.",
+    "postCutoverFailureBehavior": "Revert the code and redeploy the previous release; restart juli-api and juli-celery-worker. NO DOWNGRADE IS INVOLVED — this slice ships no schema change, so stable and candidate run the same schema. Cards already emitted stay readable and are REVISABLE through #1703's standard path: the previous release renders them from the same JSONB payload, and any card the reverted code cannot interpret is superseded by a revision rather than mutated in place, so no seller sees a half-rendered proposal. State in the PR that a card emitted by the candidate may name a supplier and a needed-by date the reverted code does not display; that is a display gap, not a data hazard, and no run, no confirmation and no write exists behind any of these cards yet — RI-4 and RI-5 have not shipped, so nothing can act on a stale card.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_stockout_by_signal.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'action_card or forecast or seller_copy or sanitiz'",
+    "PYTHONPATH=backend/src python -m pytest tests/integration -k 'action_card' -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT infer a TikTok replenishment-recommendation endpoint — NONE EXISTS. The scope verification searched `docs/integrations/tiktok_corpora/partner-catalog.json` for replenish/forecast/restock/recommend and found only `Get Recommended Product Package` (packaging) and title/description/category recommenders. RI-FR-2 as originally written was a spec defect for this reason. Do not call one, do not stub one, do not name one.",
+    "Do NOT label a Juli number as TikTok's. The baseline is computed by Juli WITH TikTok's dashboard formula and labelled *\"tính theo công thức của TikTok\"*; presenting it as a number TikTok returned breaches S-NFR-4's no-false-attribution rule and is the single most likely defect in this slice.",
+    "Do NOT compute an absolute stock set. This slice proposes an ORDER QUANTITY; the stock write is a DELTA on a freshly re-read level and belongs to #1802.",
+    "Do NOT apply an uplift without a seller-entered event date. With no date the multiplier is 1.0 and the total IS the baseline. There is no campaign calendar to fall back on — `models.py::Campaign` (line 1090) is a creator-collaboration outcome record with `predicted_gmv`/`realized_gmv`, not a sale calendar — and §8.3 decision 5 resolved the uplift source to a seller-entered date.",
+    "Do NOT propose an order beyond 90 days of supply, and do NOT shrink one silently to fit. The card is SUPPRESSED with a named reason; a card that is emitted and merely flagged is the wrong behaviour.",
+    "Do NOT add a supplier API client, a portal, an EDI adapter or a Zalo channel. No per-supplier API is in scope at any version, and Zalo Notification Service is customer-only by Zalo's own template rules — not a supplier channel. The supplier here is a ROW that #1794 added.",
+    "Do NOT treat a supplier message, delivery note or invoice line as a confirmed fact that can set a lead time or a quantity. Supplier text is untrusted provenance; the intake pipe and its confirmation are #1800's.",
+    "Do NOT hash model-supplied values for a report. No confirmation exists on this path — this slice ends at the card, before approval creates a run.",
+    "Do NOT write stock, and do NOT create any path that could write stock below the committed quantity. This slice writes nothing to the vendor and nothing to inventory.",
+    "Do NOT let the model choose a number. Every price- or quantity-bearing parameter is computed by a rule from configuration and vendor data (S-FR-4); the model chooses subject, wording and whether to proceed.",
+    "Do NOT rebuild the per-SKU demand series or the days-of-supply helper. They arrive from W10-A/P-CE-2 (#1812) and are CONSUMED. In particular do NOT reach `forecaster.py::_daily_units_series`, which counts ORDERS per day and multiplies by `1.0 / len(skus)` — an equal split across every SKU, and a silently wrong per-SKU number.",
+    "Do NOT hardcode `REORDER_LEAD_TIME_DAYS = 3` or `REORDER_SAFETY_STOCK_DAYS = 2` into the needed-by date. Lead time comes from the shop's `suppliers` row; those constants are global and belong to the legacy `get_action_card_inputs` basis, which this slice leaves untouched.",
+    "Do NOT reuse the emission-budget suppression vocabulary (`active_cap` / `cooldown` / `weekly_novelty_cap`) for the 90-day guard. It describes carding pressure, not a domain refusal, and reusing it makes a deliberate refusal uncountable.",
+    "Do NOT create a run, enter `waiting_external`, accept a report, or add a confirmation. Those are #1800; this slice ends at the card.",
+    "Do NOT build a campaign or event calendar, and do NOT add a `shop_events` table. The event date is a seller input on the card and nothing else.",
+    "Do NOT add an eighth seller surface. The seven of S-FR-1 are fixed; a Replenish need that seems to require another is a design error — stop and report it.",
+    "Do NOT put an internal identifier, a projected impact magnitude or a causal claim in seller-facing text. Copy is Vietnamese through the seller-copy sanitiser (S-NFR-4).",
+    "Do NOT dual-load the data-platform domain. One domain per issue: the tables are #1794's, the sync #1795's, the write #1802's.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test to REAL objects — real repositories, a real async session against a real Postgres 16, the real emission path, the real sanitiser. Pin RELATIONSHIPS (baseline vs uplift, the guard boundary, needed-by moving with the supplier's lead time), not literal quantities. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

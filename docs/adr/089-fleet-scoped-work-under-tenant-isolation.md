@@ -1,6 +1,6 @@
 # ADR-089: Fleet-scoped work under tenant isolation
 
-**Status:** Proposed
+**Status:** Accepted
 
 **Supersedes/amends:** Amends ADR-086 (the runtime database role) by answering a question it
 did not ask. Constrains #1339 observation 1 and the W7-bis work that follows it.
@@ -162,6 +162,32 @@ loop already sets.
 
 **`credential_refresh_beat`** takes the same shape: `list_expiring_within()` fleet-wide, then a
 loop that is already per-credential.
+
+## Rationale
+
+*Extracted during the W6→main reconcile to satisfy `check_adr`, which requires a
+`## Rationale` heading (#1853). Nothing below is new reasoning — it summarises what
+this ADR already argues in the section named, which remains the fuller account.*
+
+The reasoning is recorded in full under **Options considered**. In brief: the
+narrow `SECURITY DEFINER` enumeration exemption was chosen because each
+alternative reopens the thing W7 exists to close.
+
+- `BYPASSRLS` on a worker role is one attribute and no code change, but the
+  worker connection runs agent code over untrusted vendor content — the last
+  connection that should hold an unconditional exemption — and it reopens the
+  second of the two escapes ADR-086 named.
+- A policy predicated on an `app.system_scope` GUC is unsound in detail:
+  `juli_app` can set that GUC itself, so any path or injection can assert it.
+  That makes row-level security an honour system administered by the role it
+  constrains.
+- `SECURITY DEFINER` for every fleet query is correct but heavier than needed.
+  Confining the exemption to enumeration achieves the same isolation with a
+  handful of functions, and leaves the data reads under ordinary tenant context
+  where the existing proof already covers them.
+- Running beats as the owner on a second connection preserves today's behaviour
+  and today's problem, and splits the runtime across two isolation models so the
+  boot check can no longer answer "is this database bypassable" with one answer.
 
 ## Consequences
 

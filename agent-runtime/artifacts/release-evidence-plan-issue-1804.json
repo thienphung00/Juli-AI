@@ -1,0 +1,109 @@
+{
+  "planId": "the-stock-intervention-guard-six-end-states-and-a-measure-with-no-revenue-reading-2026-09-08",
+  "affectedPublicSurfaces": [
+    "STOP REASONS — REPLENISH CLAIMS SIX CAUSES, AND EVERY ONE OF THEM IS ABSENT TODAY. `models.py::WorkflowRun.__table_args__` declares `ck_workflow_runs_stop_reason` with exactly sixteen values (`final_response`, `confirmation_declined`, `paused_for_confirmation`, `cancelled_by_seller`, `confirmation_expired`, `confirmation_diverged`, `prompt_version_unrecoverable`, `iteration_cap_exceeded`, `wall_clock_timeout`, `tool_error_unrecoverable`, `llm_error`, `concurrency_conflict`, `output_validation_failed`, `worker_lost`, `concluded_without_changes`, `required_steps_unfulfilled`) — NONE of `received_and_updated`, `received_partial`, `not_ordered`, `not_received_by_needed_date`, `seller_modified` or `declined` is among them. #1707 lands the vocabulary mechanism; this slice claims Replenish's six and makes each reachable and COUNTABLE.",
+    "THE FIVE PINNED PLACES MOVE TOGETHER OR NOT AT ALL. A stop-reason addition in this repo touches the Python `StopReason` StrEnum in `services/agent/status.py`, the `ck_workflow_runs_stop_reason` CHECK on the table, the TypeScript union in `packages/contracts`, the status-mapping TOTALITY test, and the non-terminal set — the W9-A architect lock states it as one slice, and a partial move is the drift the schema-parity and dual-language tests exist to catch after the fact rather than before.",
+    "RUN FACTS — THE COMPLETION PAYLOAD'S MEASURE BLOCK FOR THIS WORKFLOW KEY, AND NOTHING ELSE'S. Units added ÷ units proposed; received before the needed-by date, yes or no; days of supply BEFORE and AFTER; whether available hit ZERO before receipt; and the run's own FORECAST VERSUS ACTUAL, recorded ON THE RUN for the next event's uplift. The separate event outcome store stays DEFERRED (spec §5 deferred list, epic deferrals) — v1 records forecast versus actual on the run itself.",
+    "**NO REVENUE READING, AND THE ABSENCE IS A DELIVERABLE.** ADR-093 d.4 amends ADR-077 FOR THIS WORKFLOW ALONE: Replenish measures the ability to keep stock healthy, produces no revenue reading during events or otherwise, and ADR-077's reader is NOT INVOKED. A test asserting the reader is not called is part of the shipped work, not a nicety — an omission is invisible to every test that only checks what IS produced.",
+    "THE INTERVENTION GUARD FOR STOCK, BOUND TO PLUMBING THAT EXISTS BUT HAS NO READER. `services/tiktok/webhook_catalog.py` already handles and archives `INVENTORY_STATUS_CHANGE` (#27, `confirmed=False`) and `INVENTORY_CHANGED` (#68, `confirmed=True`), both mapped to workflows `(\"replenish_inventory_3\", \"clear_excess_4\")` — but into `workflow_webhook_signals`, which is shop-scoped with ZERO readers, so no guard can fire from them today. #1708's dispatcher supplies the SKU-scoped resume and #1715 the guard mechanism; this slice BINDS Replenish's guard to them rather than re-deriving a Replenish-only path.",
+    "THE GUARD'S DIRECTIONALITY IS THE WHOLE POINT. An **UPWARD** move in available stock during EITHER wait means the seller restocked by hand: the run closes `seller_modified`, WRITES NOTHING, reverts nothing, and re-cards NOTHING for that SKU (S-FR-8). A **DOWNWARD** move is ordinary selling and is NOT an intervention — the run stays suspended. A guard that fires on any change would end every run of every busy SKU.",
+    "`received_partial` IS A SUCCESS WITH A STATED SHORTFALL, NEVER A FAILURE (ADR-093 d.5, S-FR-7). It ends `completed` with a named cause and carries its shortfall; classifying it as a failure would make the honest end state a red run in every count that follows.",
+    "A RUN THAT WROTE NOTHING PRODUCES NO STOCK-HEALTH READING (S-FR-7). `seller_modified`, `not_ordered` and `declined` all close with a named cause and NO measure — not a zero, not an empty block, no reading at all.",
+    "NO SURFACE IS ADDED. The completion message and the exception list are #1807's and #1791's; this slice changes no route, adds no seller surface, and does not change the write (#1802's tool is untouched)."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest driven by the REAL runner from the worktree root with PYTHONPATH pinned to that worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — NEVER SQLite. A CHECK constraint IS the assertion for the six causes: SQLite does not enforce it and would let a forbidden value insert silently, proving the exact opposite of what the test claims. The guard is driven from a REAL SKU-scoped signal ROW through #1708's dispatcher and #1715's guard — not from a hand-authored event JSON — and the CHECK is asserted against the LIVE Postgres catalog rather than against the migration's own source text. The dual-language half needs the node toolchain and `packages/contracts`' dependency graph installed, or the TS-union equality test fails with a bare CalledProcessError that reads as a product defect. Post-deploy: one authenticated run read on the candidate for ANOTHER workflow key, expected unchanged; no public traffic reaches a candidate task set, no vendor call is attempted, and NO STOCK IS WRITTEN ON ANY SHOP BY DEPLOYING — this slice contains no write path and does not change #1802's.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is FALSE because the guard fires from the webhook→resume consumer and the wait is policed by the reaper — both run in the Celery beat/worker pair. With workers disabled the candidate could show the six causes admitted by the CHECK but never that a manual stock rise actually ends a suspended run, which is the load-bearing half. apiSideEffectsInScope is FALSE: no vendor call, no production write and NO STOCK WRITE occur anywhere in this slice; the only rows written are this shop's own runs and their facts.",
+    "journeys": [
+      {
+        "name": "a-manual-restock-ends-the-run-without-a-write-and-the-measure-reads-no-revenue",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1804",
+        "assertions": [
+          "pre-merge: with a run in EITHER wait, an inventory signal reporting that available stock has RISEN through a manual edit closes the run `seller_modified`, NO WRITE IS ATTEMPTED — asserted on the real guarded resource receiving nothing, not merely on an unchanged row — and NO replacement card is emitted for that SKU (tests/unit/test_replenish_intervention_guard.py::test_manual_stock_rise_closes_the_run_without_writing)",
+          "pre-merge: the same guard, driven from a REAL SKU-scoped signal row through #1708's dispatcher, fires in BOTH waits — the \"ordered\" wait and the \"received\" wait — so a guard wired to only one of them cannot pass",
+          "pre-merge: with a run in a wait, available stock FALLING through ordinary selling leaves the run SUSPENDED — a downward move is not an intervention, asserted as a distinct case so a guard that fires on any change goes red (tests/unit/test_replenish_intervention_guard.py::test_a_fall_in_stock_is_not_an_intervention)",
+          "pre-merge: each of the SIX causes is ADMITTED by the DB CHECK — asserted against the LIVE Postgres catalog, never against the migration's source text — the status mapping is TOTAL over the six in BOTH directions, and `received_partial` is classified a SUCCESS carrying its shortfall, not a failure (tests/unit/test_replenish_end_states.py::test_six_causes_are_admitted_and_partial_is_a_success)",
+          "pre-merge: a seventh, unlisted cause is REJECTED by the CHECK, so the totality test cannot pass by the constraint being permissive",
+          "pre-merge: the five pinned places AGREE — the `StopReason` enum, the `ck_workflow_runs_stop_reason` CHECK, the TypeScript union in `packages/contracts`, the status-mapping totality test and the non-terminal set — with the dual-language equality proven through node introspection and shown to FAIL when either side is edited alone",
+          "pre-merge: a completed run that wrote N units against a proposal of M reports N ÷ M, on-time against the NEEDED-BY date, days of supply BEFORE and AFTER, and whether available hit ZERO before receipt — and INVOKES NO REVENUE READER, asserted as a not-called assertion on ADR-077's reader, which no other test in the suite can catch (tests/unit/test_replenish_stock_health_measure.py::test_measure_is_stock_health_and_reads_no_revenue)",
+          "pre-merge: the run's own FORECAST VERSUS ACTUAL is recorded ON THE RUN for the next event's uplift, and NO separate event outcome store is created — that table is an epic deferral",
+          "pre-merge: a run that closed WITHOUT WRITING (`seller_modified`, `not_ordered`, `declined`) produces NO stock-health reading at all — not a zero, not an empty block (tests/unit/test_replenish_stock_health_measure.py::test_a_run_that_wrote_nothing_has_no_reading)",
+          "pre-merge: NO stop-reason cause reaches seller-facing text — a cause is an internal identifier, and the outbound guard rejects it; the completion copy is Vietnamese through the seller-copy sanitiser with no projected impact magnitude and no causal claim (S-NFR-4)",
+          "pre-merge: ZERO behaviour change for every other workflow key — the existing status-mapping, reaper and run-list suites pass untouched, and a run of another workflow key still ends on the causes it ended on before",
+          "pre-merge: if a migration is carried (see migrationCompatibility), `alembic upgrade head` → `downgrade -1` → `upgrade head` round-trips cleanly on a real Postgres 16, and `downgrade -1` FAILS LOUDLY with a named error while any run carries one of the six causes — narrowing the CHECK under such a row would otherwise be impossible or would require rewriting a closed run's history",
+          "post-deploy: the candidate's `/health` and ONE AUTHENTICATED RUN READ for ANOTHER workflow key return exactly what they returned before the deploy, and NO STOCK IS WRITTEN ON ANY SHOP BY DEPLOYING — this slice adds no write path, does not change #1802's tool, and every stock quantity on every shop is byte-for-byte unchanged by the deploy"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes. The only file outside `backend/` that may move is the TypeScript stop-reason union in `packages/contracts`, which is a type declaration consumed by the dual-language equality test — no page, no bundle, no rendered surface. The completion message and the exception list are #1807's and #1791's; nothing under apps/ or ios/ is touched, and those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "postgres-catalog-dump",
+      "typescript-union-introspection"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "AT MOST ONE ADDITIVE, EXPAND-ONLY MIGRATION, AND IT MAY BE ZERO. The only possible schema step is WIDENING the `ck_workflow_runs_stop_reason` IN-list with Replenish's six causes — and that step exists ONLY IF #1707 has not already added them; check #1707's landed migration first and, if it has, this slice carries no revision at all and `schemaChangeInScope` is honestly false for the diff that ships. A widened IN-list accepts every value it accepted before, so the PREVIOUS release keeps writing and reading `workflow_runs` unchanged — it simply never emits the new causes. No column is added, dropped, renamed or retyped; there is no backfill and no NOT NULL. The same constraint text also lives in `models.py::WorkflowRun.__table_args__` and must move in the SAME commit, or the schema-parity test finds the drift after the fact. The run's forecast-versus-actual and the stock-health measure are recorded on EXISTING run storage — no new table, and specifically NOT a separate event outcome store, which is an epic deferral. The migration number and `down_revision`, if a revision is carried, are RESERVED BY META and supplied with the issue — NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. W6, W7-bis (#1469), W8, W9 and the sibling W10 lanes all hold unlanded numbers off-tree, and this tree already carries a duplicate-numbered `043_*` pair from exactly that mistake."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. No Replenish run can close on an honest cause — the CHECK admits none of the six — the inventory webhooks stay archived into a shop-scoped table with no reader so no guard can fire, a manual restock during a wait goes unnoticed and the run would eventually write on top of it, and there is no stock-health measure. That is the pre-existing state the scope verification recorded. No new exposure, nothing partially applied, no vendor call made, no stock touched on any shop.",
+    "postCutoverFailureBehavior": "Redeploy the previous release FIRST and restart juli-api and juli-celery-worker: it neither emits nor interprets the six causes and runs correctly with a widened CHECK present, so it needs no downgrade. Runs already closed on one of the six remain READABLE — their rows are valid under the widened constraint. THE ONE REAL HAZARD, to state in the PR and assert pre-merge: a run CLOSED on a cause the reverted code does not know must not be re-opened, re-carded or re-classified as a failure by the previous release's status mapping — assert that a closed run stays closed and that `received_partial` is never rendered as a failure by either release. Only if the schema must ALSO be reverted, `alembic downgrade -1` narrows the CHECK, and that downgrade MUST FAIL LOUDLY with a named error while any run carries one of the six causes; narrowing it under such a row would otherwise be impossible or would require rewriting a closed run's history. Order matters: previous code first, downgrade second, so no live process is mid-write against a constraint being narrowed.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_replenish_intervention_guard.py tests/unit/test_replenish_end_states.py tests/unit/test_replenish_stock_health_measure.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_workflow_run_status_mapping.py tests/unit/test_agent_events_contract.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'stop_reason or intervention or webhook_signal or measure'",
+    "PYTHONPATH=backend/src python -m pytest tests/integration/test_schema_parity.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT infer a TikTok replenishment-recommendation endpoint — none exists (`partner-catalog.json` holds only packaging and title/description/category recommenders). No measure or end state may be described as one the vendor computed.",
+    "Do NOT label a Juli number as TikTok's. Days of supply before and after are computed by Juli with TikTok's formula and never presented as a number the vendor returned (S-NFR-4's no-false-attribution rule).",
+    "Do NOT record or infer an absolute stock set. The write was a DELTA on a re-read level (#1802); the measure reports UNITS ADDED, not a target level.",
+    "Do NOT apply an uplift, and never one without a seller-entered event date. The run's forecast-versus-actual is RECORDED here for the next event's uplift; applying an uplift is #1798's rule, and there is no campaign calendar (`models.py::Campaign` is a creator-collaboration outcome record).",
+    "Do NOT treat an order beyond 90 days of supply as measurable. Such a proposal is suppressed before a run exists; nothing here may reintroduce or account for one.",
+    "Do NOT add a supplier API client, a portal, an EDI adapter or a Zalo channel. No per-supplier API is in scope at any version, and Zalo Notification Service is customer-only by Zalo's own template rules — not a supplier channel.",
+    "Do NOT treat a supplier message as a confirmed fact, and do NOT close a run on one. An end state is decided by Juli's own observations — a signal row, a reaper deadline, a confirmed receipt — never by untrusted supplier text.",
+    "Do NOT hash model-supplied values for a report. The consent binding is #1800's; this slice reads run facts and writes none.",
+    "Do NOT write stock, and do NOT create any path that could write stock below the committed quantity. The guard's whole claim is that a `seller_modified` close writes NOTHING; the write is #1802's and is untouched here.",
+    "Do NOT invoke ADR-077's revenue reader, and do NOT compute, cache, or emit a revenue figure for this workflow. ADR-093 d.4 amends ADR-077 for Replenish alone: the measure is stock health only, during events and otherwise, and a test asserting the reader is NOT called is part of the deliverable.",
+    "Do NOT fire the guard on a DOWNWARD stock move. That is ordinary selling; only an upward move is an intervention, and a guard that fires on any change would end every run of every busy SKU.",
+    "Do NOT revert anything or re-card the SKU after `seller_modified`. Juli reverts nothing and re-issues no card for that thing (S-FR-8).",
+    "Do NOT classify `received_partial` as a failure. It is a success with a stated shortfall (ADR-093 d.5, S-FR-7).",
+    "Do NOT produce a reading for a run that wrote nothing — not a zero, not an empty block, nothing at all (S-FR-7).",
+    "Do NOT create a separate event outcome store. Forecast versus actual is recorded ON THE RUN in v1; the table is an epic deferral.",
+    "Do NOT re-derive a Replenish-only webhook path or signal reader. The plumbing is #1708's and the guard mechanism #1715's — bind to them. `workflow_webhook_signals` is shop-scoped with no reader today, and adding a second, private reader would leave two answers to the same question.",
+    "Do NOT let a stop-reason cause reach seller-facing text. A cause is an internal identifier; copy is Vietnamese through the seller-copy sanitiser (S-NFR-4).",
+    "Do NOT move fewer than all five pinned places if a cause is added — the enum, the DB CHECK, the TypeScript union, the totality test and the non-terminal set move together, in one commit.",
+    "The migration number and `down_revision`, IF a revision is carried at all, are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of the versions directory, never derive the number from the newest filename — and check whether #1707 already added the six before writing any revision.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/** or ios/** — this epic's doNotLoad list. The only permitted change outside `backend/` is the stop-reason union in `packages/contracts`.",
+    "Bind every test to REAL objects — a real signal row through the real dispatcher, the real reaper, a real async session against a real Postgres 16, and the live catalog for the CHECK. A `**kwargs` double or a hand-authored event JSON proves routing, never that the guard would fire."
+  ]
+}

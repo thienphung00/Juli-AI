@@ -1,0 +1,92 @@
+{
+  "planId": "runs-and-cards-carry-workflow-and-subject-2026-09-07",
+  "affectedPublicSurfaces": [
+    "The `workflow_runs` table's identity itself. Today `models.py::WorkflowRun` declares `product_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(\"products.id\"), nullable=False)` and pins active-run uniqueness with the partial index `uq_workflow_runs_active_shop_product` on `(shop_id, product_id)` filtered to `status IN ('queued','running','waiting_approval')`. This slice adds `workflow_key`, `subject_type` and `subject_ref`, makes `product_id` nullable, and re-keys that partial unique to `(shop_id, workflow_key, subject_type, subject_ref)` over the same non-terminal statuses. A run can finally say which workflow it is and what it is about.",
+    "The `action_cards` table's identity. Today the row carries `UniqueConstraint(\"shop_id\", \"workflow_key\", name=\"uq_action_cards_shop_workflow\")` — one card per shop per workflow, no subject anywhere (zero hits for `subject_type`/`subject_id`/`supersedes_card_id` across `backend/src` and `tests`). This slice adds `subject_type`, `subject_id`, `revision`, `supersedes_card_id`, a full unique on `(shop_id, workflow_key, subject_type, subject_id, revision)`, a partial unique on that tuple minus `revision` where the card is active, and DROPS `uq_action_cards_shop_workflow` in the same migration.",
+    "NO HTTP surface changes. `POST /v1/demo/decisions/{action_card_id}/approve` (`api/routes/demo_execution.py::approve_demo_decision`) keeps its exact request shape, its 404/409 ladder and its `DemoDecisionApproveResponse` — including the `product_id` field, because `approval.py` still derives the bound product from `ProductsRepo.get_highest_revenue_product` in this slice. Deleting that derivation is P-SHARED-2 (#1702), not here. The decisions list and the run list are likewise untouched: nothing reads the new columns.",
+    "The deployed runtime is deliberately UNAFFECTED. Every new column is nullable or defaulted, no repository method is asked for one, and no reader exists — this slice must be a no-op for the running process, exactly as migration 043's role creation was. If implementation finds itself editing a service or route to make a test pass, the scope has slipped.",
+    "One genuine coexistence hazard on the card side, which must be stated in the PR rather than discovered in production: dropping `uq_action_cards_shop_workflow` removes the race backstop that `ActionCardsRepo.upsert` (via `services/action_cards/persist.py::_existing_card`, a `SELECT ... WHERE shop_id AND workflow_key`) leans on. The replacement partial unique keys on `subject_id`, which the PREVIOUS release never writes, so a NULL `subject_id` makes two concurrent emissions non-colliding under the new constraint. Either give `subject_type`/`subject_id` deterministic backfilled-and-defaulted values so the new partial unique still binds old writers, or keep the old constraint until #1703 writes subjects — decide it deliberately and say which in the PR.",
+    "Tenant classification is unchanged: `workflow_runs` and `action_cards` are already `tenant_direct` in `database/tenant_scoped_tables.py`, so this slice adds no table, no RLS policy and no grant. If a new table appears here, the plan is wrong."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest run from the worktree root with PYTHONPATH pinned to the worktree's backend/src, against a real Postgres 16 migrated to head — NEVER SQLite. Partial unique indexes with a WHERE clause, a NOT NULL drop on a foreign key, `ON CONFLICT` behaviour under NULLs, and an Alembic down-revision round trip are all Postgres behaviour; SQLite tolerates several of them silently and would prove nothing. Post-deploy: `alembic upgrade head` on the candidate while the API continues to serve the previous code; no public traffic is routed to any candidate task set and no production write occurs.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is TRUE because nothing in this slice executes in a Celery worker: the diff is one Alembic migration, the two model classes and tests. apiSideEffectsInScope is FALSE — no route changes, no vendor call, no production write. The journey's whole point is proving a no-op for the running process: after the migration the candidate's /health and one authenticated decisions read must be byte-for-byte what they were before it.",
+    "journeys": [
+      {
+        "name": "workflow-and-subject-land-additively-and-nothing-reads-them",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1701",
+        "assertions": [
+          "pre-merge: on a clean Postgres 16, `alembic upgrade head` then `downgrade -1` then `upgrade head` round-trips cleanly, and every pre-existing `workflow_runs` row carries `workflow_key = 'optimize_product_2'`, `subject_type = 'product'` and `subject_ref = product_id` — asserted by re-reading the rows after the round trip, on rows seeded BEFORE the upgrade, never on rows inserted with the columns already present (tests/unit/test_migration_workflow_subject_roundtrip.py::test_upgrade_downgrade_upgrade_backfills_existing_runs)",
+          "pre-merge: two runs for the SAME product under DIFFERENT `workflow_key`s, both non-terminal, both insert successfully under the re-keyed partial unique — the cross-workflow lock is #1710's approve-transaction refusal, deliberately NOT this index (tests/unit/test_workflow_run_subject_index.py::test_two_workflows_on_one_product_do_not_collide_on_the_index)",
+          "pre-merge: two non-terminal runs for the same `(shop_id, workflow_key, subject_type, subject_ref)` still collide — the index did not merely get wider, it got re-keyed; asserted as an IntegrityError on the second insert, so the widening test above cannot pass vacuously",
+          "pre-merge: a run with `product_id = NULL` and `subject_type = 'dispatch_window'` inserts, persists and is returned by the run listing query — the NOT NULL drop is real, not just declared (tests/unit/test_workflow_run_subject_index.py::test_non_product_subject_persists)",
+          "pre-merge: a terminal run for a subject does NOT block a new active run for that subject — the partial index's WHERE clause still filters to `queued`/`running`/`waiting_approval`, asserted by ending the first run and inserting a second",
+          "pre-merge: with one active card for a `(shop, workflow, subject)`, a second ACTIVE card for the same tuple is rejected by the partial unique; a second REVISION with `revision + 1`, `supersedes_card_id` pointing at the predecessor and the predecessor no longer active inserts successfully (tests/unit/test_action_card_subject_constraints.py::test_one_active_card_per_subject_and_chained_revisions)",
+          "pre-merge: the dropped `uq_action_cards_shop_workflow` is gone from `pg_indexes`/`information_schema`, asserted against the live catalog rather than against the migration source, and the two replacement constraints are present with their exact columns and WHERE clause",
+          "pre-merge: the previous release's write path still works with the new columns present — a card written through `ActionCardsRepo.upsert` naming none of the new columns, and a run written through `approval.py::approve_action_card` naming none of them, both succeed; this is the coexistence claim, proven by exercising the REAL repository and the REAL approve transaction, not a hand-built row",
+          "pre-merge: the existing suite passes unchanged, specifically tests/unit/test_agent_approval_transaction.py, tests/unit/test_action_cards_persist.py and tests/unit/test_agent_runs_list.py — no service, route or repository behaviour moved in this slice",
+          "post-deploy: `alembic upgrade head` on the candidate applies the migration, and the candidate's `/health` plus one authenticated decisions read return exactly what they returned before the upgrade — the migration is a no-op for the running process, which neither reads nor writes the new columns"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is one Alembic migration, two model classes in `backend/src/juli_backend/models/models.py`, and tests. Nothing under apps/, packages/ or ios/ is touched; those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "alembic-history",
+      "postgres-catalog-dump"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "ONE additive, expand-only migration. On `workflow_runs`: `workflow_key` NOT NULL with a server default of the single key that exists today (`optimize_product_2`) so existing rows and old writers are both satisfied; `subject_type` and `subject_ref` backfilled as `'product'` + `product_id`; `product_id` widened from NOT NULL to nullable (a widening — the previous release always supplies it, so it keeps working); the active-run partial unique re-keyed. On `action_cards`: four additive columns, two new constraints, and the drop of `uq_action_cards_shop_workflow`. No column is renamed, retyped or dropped, and no data is destroyed. The migration number and `down_revision` are RESERVED BY META and supplied with the issue — NEVER computed from `alembic heads` and never read from the tip of `backend/src/juli_backend/database/migrations/versions/`. W6, W7-bis (#1469) and W8 all hold unlanded numbers, and this tree ALREADY carries a duplicate-number pair (`043_stop_reason_consent_pause.py` and `043_juli_app_role.py`, chained one after the other) from exactly that mistake; there is only ONE `042_*` file, so any claim of a duplicate 042 pair is wrong. The one coexistence caveat is the dropped card unique named in affectedPublicSurfaces: state in the PR which of the two remedies was chosen, and prove the chosen one under a concurrent double-emission test."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing about the deployed system changes: runs stay bound to a product derived from revenue, cards stay unique per `(shop, workflow_key)`, and no v1 workflow beyond Optimize Product becomes expressible — the pre-existing state, and the exact blockage the ladder names. No new exposure, nothing partially applied, no data hazard.",
+    "postCutoverFailureBehavior": "Redeploy the previous release first (it neither reads nor writes the new columns, so it runs correctly with them present and needs no downgrade), then, only if the schema must also be reverted, `alembic downgrade -1`. The downgrade MUST FAIL LOUDLY, never silently drop data, in two named cases: (a) any `workflow_runs` row has `product_id IS NULL` or `subject_type <> 'product'` — restoring the NOT NULL foreign key would otherwise erase a non-product run; (b) any two `action_cards` rows share `(shop_id, workflow_key)` — restoring `uq_action_cards_shop_workflow` would otherwise be impossible or would require deleting a card. Both refusals must be surfaced as an explicit, named error, and both are asserted pre-merge. Order matters: previous code first, downgrade second, so no live process is mid-write against a column being narrowed.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_migration_workflow_subject_roundtrip.py tests/unit/test_workflow_run_subject_index.py tests/unit/test_action_card_subject_constraints.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_agent_approval_transaction.py tests/unit/test_action_cards_persist.py tests/unit/test_agent_runs_list.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/integration -k 'migration or workflow_run or action_card' -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "The migration number and `down_revision` are Meta-assigned and reserved. NEVER run `alembic heads`, never read the tip of the versions directory, never compute the number from the newest file. W6, W7-bis and W8 hold unlanded numbers; this tree already carries a duplicate `043_*` pair (`043_stop_reason_consent_pause.py`, `043_juli_app_role.py`) from that exact mistake — there is only one `042_*` file.",
+    "Do NOT add any reader of the new columns. `approval.py` still stamps nothing new, `persist.py` still writes no subject, the run listing still selects what it selects. Reading `workflow_key`/`subject_*` is #1702's and #1703's work; a reader here would ship a consumer whose producer has not been reviewed.",
+    "Do NOT delete `ProductsRepo.get_highest_revenue_product` or the revenue-derived binding in `approval.py`. That deletion is #1702's third acceptance criterion; removing it here breaks approve on a schema-only slice.",
+    "Do NOT flip ADR-087 from Proposed to Accepted here. The issue is explicit: that happens in #1703's PR.",
+    "Do NOT drop `product_id`. It becomes NULLABLE and nothing more — every existing product-subject run keeps its foreign key, and the impact reader, the run list and the concurrency guard all still resolve a product through it.",
+    "Do NOT test constraints, partial indexes or the NOT NULL drop on SQLite. Assert against a real Postgres 16 catalog (`information_schema` / `pg_indexes`), not against the migration's own source text — a test that reads the migration file is a test of the test.",
+    "Do NOT backfill `subject_ref` with anything invented. It is exactly `product_id` for every existing row, and `workflow_key` is exactly `optimize_product_2` — the one key `playbooks/__init__.py::get_registered_playbooks` returns today. A default of any other value is fabricated history.",
+    "Do NOT silently accept the dropped-card-unique hazard. Removing `uq_action_cards_shop_workflow` while the previous release writes NULL `subject_id` leaves concurrent emissions uncollided. Choose deliberately — deterministic subject defaults, or keep the old constraint until #1703 — and prove the choice with a concurrent-emission test.",
+    "Do NOT widen the active-run index into a cross-workflow lock. The issue states plainly that two workflows on one product must NOT collide on this index; the lock is #1710's named refusal inside the approve transaction. An index that refuses here would make #1710 untestable and would silently change approve's failure mode.",
+    "Do NOT add a table, an RLS policy or a grant. `workflow_runs` and `action_cards` are already `tenant_direct` in `database/tenant_scoped_tables.py`; the act-record and checklist tables are #1712.",
+    "Do NOT touch apps/**, packages/**, ios/** — this epic's doNotLoad list — and do not open the TikTok corpora catalogs (ADR-051)."
+  ]
+}

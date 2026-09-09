@@ -1,6 +1,6 @@
 # ADR-086: The runtime database role, and why tenant isolation is a connection property
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-26
 **Supersedes/amends:** none. Constrains W7-A (#1326, #1327, #1328, #1329, #1330).
 
@@ -103,6 +103,19 @@ and the tests asserting their text mention it.
    `postgres://<role>.<PROJECT-REF>@<region>.pooler.supabase.com:5432`, and recommends a custom
    role over `postgres` for security and observability. No probe of the deployed project was
    needed to establish it.
+
+## Rationale
+
+*Extracted during the W6→main reconcile to satisfy `check_adr`, which requires a
+`## Rationale` heading (#1853). Nothing below is new reasoning — it summarises what
+this ADR already argues in the section named, which remains the fuller account.*
+
+From **Context** and **Options considered**: W7 was planned on the premise that
+the deployed runtime authenticates as the Supabase pooler `postgres` role, which
+owns the tables and is therefore exempt from row policies entirely. That premise
+is **true but incomplete**, and the incomplete half changes what the wave can
+promise — table ownership is one of two escapes from RLS, not the only one, so
+removing it is necessary rather than sufficient.
 
 ## Consequences
 

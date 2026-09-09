@@ -1,0 +1,94 @@
+{
+  "planId": "granted-oauth-scopes-persisted-and-checked-before-the-call-2026-09-07",
+  "affectedPublicSurfaces": [
+    "THE CREDENTIAL ROW — WHICH ALREADY CARRIES SCOPES. The issue's premise, 'No scope is stored anywhere', is FALSE and the executor must not act on it. `models.py::TikTokCredential.scopes` is `Mapped[str | None] = mapped_column(Text)`, created by migration `001_create_users_shops_tiktok_credentials.py` at the very start of the project; `repositories/tiktok_credentials.py` already accepts and writes `scopes: str | None`; and `core/security/tiktok_oauth.py` already extracts them from the token response — `token_data.get(\"scopes\")`, falling back to `granted_scopes` and comma-joining a list. THERE IS NO MIGRATION TO WRITE HERE. The issue's note that 'the scope column is an additive migration reserved through Meta' describes work that was done years ago.",
+    "THE REAL DEFECT, which is narrower and sharper than the issue states: scopes are written ONLY on the `cred_repo.create(...)` branch — a BRAND-NEW credential. On the `cred_repo.update_tokens(...)` branch, taken when `get_by_merchant` finds an EXISTING credential, `scopes` is NOT passed at all, so the stored list is never refreshed. That is precisely the owner's 2026-09-07 note ('the connected shops must re-authorise once for newly enabled scopes to appear') colliding with the code: a re-authorisation by an already-connected shop takes the update branch and leaves the scope list STALE. Fixing that branch is the substance of this slice.",
+    "A NEW CAPABILITY CHECK ON THE VENDOR BOUNDARY. `has_scope(shop, scope)` becomes readable per shop, and every resource method that requires a scope DECLARES it and refuses with a named `ScopeMissing` BEFORE any HTTP call — a fail-closed guard at the boundary (S-NFR-1). The workflow maps that refusal to `scope_unavailable`, a cause #1707 added. Nothing about the transport, signing or retry behaviour changes.",
+    "SECOND CONTRADICTION — THE NAMED FILES DO NOT HOLD WHAT THE ISSUE SAYS. `integrations/tiktok/auth.py` is `TikTokAuth`: token exchange and refresh only (`exchange_code`, `refresh_access_token`). It is NOT the callback and it persists nothing. The callback is `api/routes/auth_tiktok.py::tiktok_oauth_callback` → `services/tiktok/oauth.py::complete_tiktok_oauth_callback` → `core/security/tiktok_oauth.py`. And `integrations/tiktok/resources/products.py` has NO diagnosis method at all — its methods are `search`, `search_all`, `get_details`, `create`, `edit`, `get_categories`, `check_listing_prerequisites`, `get_category_attributes`, `get_brands`, `get_seo_words`, `get_suggestions`, `upload_product_image`, `upload_product_file`, `update_prices`. Acceptance criterion 2 names a method that does not exist; assert the guard on a REAL scoped method (or on a declared-scope method added deliberately and named in the PR), never on a stub written to satisfy the criterion.",
+    "NO HTTP SURFACE CHANGES: the OAuth callback route keeps its path, its redirect and its status codes; no /v1 route is added or altered; no response model gains a field. Scopes are runtime knowledge, not seller-facing data — do NOT expose them on any route in this slice."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest from the worktree root with PYTHONPATH pinned to the worktree's own `backend/src`, against a REAL Postgres 16 migrated to head — never SQLite; the credential row is tenant-scoped under RLS and the create-versus-update branch is a transaction shape. The OAuth callback is exercised through the REAL `complete_tiktok_oauth_callback` with the token response bound to a fake built on the real vendor payload shape, never a `**kwargs` double, and the scope refusal is asserted on a RECORDING TRANSPORT so 'no HTTP call was made' is a fact about the wire rather than an inference from a branch. Post-deploy: ONE re-authorisation on the candidate against the sandbox shop, then read the credential row back; no public traffic reaches a candidate task set and no production write occurs.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "workersDisabledOnCandidate is TRUE because nothing in this slice executes in a Celery worker: the diff is the OAuth persistence branch, a scope checker and declarations on resource methods. apiSideEffectsInScope is FALSE: the only row written is this shop's own credential during a re-authorisation the operator performs, no vendor MUTATION occurs, and no production write occurs.",
+    "journeys": [
+      {
+        "name": "the-runtime-knows-what-a-shop-granted-and-refuses-before-the-wire",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1714",
+        "assertions": [
+          "pre-merge: an OAuth callback carrying scopes persists the scope list on the credential, readable per shop — asserted for BOTH the `scopes` and the `granted_scopes` shapes the extraction already handles, and asserted on a NEW credential (the `create` branch, which works today) (tests/unit/test_granted_scopes.py::test_callback_persists_granted_scopes)",
+          "pre-merge: THE BRANCH THAT IS ACTUALLY BROKEN — a re-authorisation by an ALREADY-CONNECTED shop, which takes `cred_repo.update_tokens(...)` because `get_by_merchant` finds the credential, now UPDATES the stored scope list; asserted by seeding a credential with an old list, re-authorising with a wider one, and re-reading the row. Without this the owner's 'shops must re-authorise once' has no effect at all",
+          "pre-merge: a callback carrying NO scope information leaves the stored list UNCHANGED rather than blanking it — an absent field is 'the vendor said nothing', never 'the shop granted nothing', and clearing the column would turn a silent vendor omission into a fleet-wide capability outage",
+          "pre-merge: `has_scope(shop, scope)` reads the persisted list and answers per shop, with a scope stored under one shop invisible to another — asserted as the runtime role `juli_app` under RLS, since the credential table is tenant-scoped",
+          "pre-merge: a shop WITHOUT the required scope calling a scoped resource method is refused with `ScopeMissing` BEFORE ANY HTTP CALL — asserted on a recording transport that records zero requests, so 'before the call' is observed at the wire and not inferred; and the run maps that refusal to `scope_unavailable` (#1707's cause) rather than to a generic tool error (tests/unit/test_granted_scopes.py::test_scoped_call_is_refused_before_transport_when_scope_absent)",
+          "pre-merge: a shop WITH the scope proceeds normally and the recorded transport shows the request made unchanged — same path, same signing, same retry behaviour (tests/unit/test_granted_scopes.py::test_scoped_call_proceeds_when_scope_present)",
+          "pre-merge: a shop whose stored scope list is NULL (every credential written before this fix, and there are such rows) is handled by a stated, deliberate policy — proceed-and-let-the-vendor-answer, or refuse — decided in the PR and asserted; an unstated NULL policy would either break every existing shop or make the guard useless on all of them",
+          "pre-merge: the guard is asserted on a REAL scoped resource method. `integrations/tiktok/resources/products.py` has NO diagnosis method today, so name the method actually used and do not write a stub purely to satisfy the acceptance criterion",
+          "pre-merge: the existing OAuth suite passes untouched — the callback route, the `#1200` credential-binding verification that runs BEFORE any write, and the capability/`shop_cipher` checks are all unmoved",
+          "post-deploy: `/health` on the candidate is unchanged, and after ONE re-authorisation of the sandbox shop on the candidate the credential row shows the granted scope list — read back by direct query, and read back for a shop that ALREADY had a credential, since that is the branch this slice repairs"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset changes — the diff is `core/security/tiktok_oauth.py`'s persistence branch, `repositories/tiktok_credentials.py`, a scope checker, scope declarations on TikTok resource methods, and tests. Nothing under apps/, packages/ or ios/ is touched; those are on this epic's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report",
+      "vendor-transport-recording",
+      "postgres-row-dump"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": false,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO SCHEMA CHANGE IN THIS SLICE, and the issue's note to the contrary is wrong. `tiktok_credentials.scopes` (Text, nullable) ALREADY EXISTS — created by migration `001_create_users_shops_tiktok_credentials.py` and declared on `models.py::TikTokCredential` — and `repositories/tiktok_credentials.py` already writes it on the create path. Do NOT reserve or write a migration number, do NOT add a second scope column, and do NOT change the column's type or nullability: NULL is a meaningful value here ('this credential predates the fix, and we do not know what was granted') and defaulting it to an empty list would be a claim the data does not support. Old and new code coexist because the schema is identical before and after; only which branch writes the column changes."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Scopes keep being written only when a credential is first created and never on re-authorisation, so a shop that re-authorises for newly enabled scopes still shows the old list; nothing checks a scope before a call, and a missing scope keeps failing at the vendor or not at all. That is the pre-existing state — including the stale-on-update branch, which stays broken rather than half-fixed.",
+    "postCutoverFailureBehavior": "Code-only rollback: redeploy the previous release and restart juli-api and juli-celery-worker. There is NO schema to revert and NO downgrade to run — this slice owns no migration, and the `scopes` column predates it by the entire life of the project. Scope lists already persisted stay VALID and simply stop being consulted: the previous code neither reads them nor refuses on them, so every call reverts to the pre-existing behaviour of failing at the vendor instead of at the boundary. Nothing is stranded, no credential is invalidated, and no re-authorisation is undone. The honest caveat to state in the PR: the previous release will keep the scope list stale on re-authorisation again, so any operator instruction to 'have the shops re-authorise' becomes ineffective the moment the rollback lands. If #1701's, #1706's, #1707's, #1709's or #1712's schema is being reverted in the same operation, those downgrades are theirs and must FAIL LOUDLY on any non-product `subject_type` row, NULL `product_id`, `waiting_external` row, new stop-reason cause, non-default confirmation `kind`, or any act-record row.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_granted_scopes.py -q",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'oauth or credential or tiktok_auth'",
+    "PYTHONPATH=backend/src python -m pytest tests/unit -q -k 'products_resource or resources or transport'",
+    "PYTHONPATH=backend/src python -m pytest tests/integration/test_schema_parity.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do NOT read a migration number from head, and do NOT write a migration at all. `tiktok_credentials.scopes` already exists (migration `001_create_users_shops_tiktok_credentials.py`, `models.py::TikTokCredential.scopes`); the issue's note reserving a number is wrong. The migration number and `down_revision` are RESERVED BY META and supplied with the issue. NEVER run `alembic heads`, never read the tip of `backend/src/juli_backend/database/migrations/versions/`, never derive the number from the newest filename. The chain's single head today is `055_juli_app_sync_state_update` (revising `054_juli_app_bronze_select`), but W6 and W8 both hold unlanded numbers off-tree, and this tree already carries two same-numbered `043_*` files (`043_stop_reason_consent_pause` and `043_juli_app_role`, chained one after the other) from exactly this mistake.",
+    "Do NOT add a second scope column, a scopes table, or a JSON re-encoding of what is already a Text column. One place, already chosen.",
+    "Do NOT blank the scope list when the vendor returns no scope field. An absent field means the vendor said nothing, never that the shop granted nothing; clearing the column would turn a silent omission into a fleet-wide capability outage the next time anything checks.",
+    "Do NOT treat NULL as 'no scopes granted' without deciding. Every credential written before this fix has NULL. State the policy in the PR — proceed-and-let-the-vendor-answer, or refuse — and assert it; an unstated NULL policy either breaks every existing shop or makes the guard useless on all of them.",
+    "Do NOT write a diagnosis method to satisfy acceptance criterion 2. `integrations/tiktok/resources/products.py` has no such method; assert the guard on a real scoped method and name it, rather than adding a stub whose only caller is a test.",
+    "Do NOT edit `integrations/tiktok/auth.py` expecting to find the callback. `TikTokAuth` does token exchange and refresh only; the persistence path is `api/routes/auth_tiktok.py::tiktok_oauth_callback` → `services/tiktok/oauth.py` → `core/security/tiktok_oauth.py`, and the branch that needs fixing is the `update_tokens(...)` one.",
+    "Do NOT make the HTTP call and then check. The refusal happens BEFORE the transport — a fail-closed guard at the boundary (S-NFR-1) — and 'no call was made' must be asserted on a recording transport, not on a code branch.",
+    "Do NOT invent a new stop reason. `scope_unavailable` is #1707's and the vocabulary is closed; a cause coined at the call site would fail the CHECK constraint anyway.",
+    "Do NOT expose scopes on any /v1 route or in any seller-facing string. They are runtime knowledge, not seller data, and a scope name is exactly the kind of internal identifier the outbound guard forbids (S-NFR-4).",
+    "Do NOT log a token, a refresh token or a `shop_cipher` while touching this path, and do NOT weaken the #1200 credential-binding verification that runs before any write.",
+    "Do NOT derive the subject from revenue, do NOT emit a per-order card, do NOT reuse the emission-budget suppression vocabulary (`active_cap`/`cooldown`/`weekly_novelty_cap`), do NOT add a second reaper policy object, and do NOT add a push, email or Zalo transport — none of it belongs in a credential slice.",
+    "Do NOT open the TikTok corpora catalogs (ADR-051); do NOT touch apps/**, packages/** or ios/** — this epic's doNotLoad list.",
+    "Bind every test collaborator to the REAL object's signature — the real callback path, the real credentials repository, the real resource method and a recording transport built on the real client's interface. A `**kwargs` double proves routing, never that the real call would work."
+  ]
+}

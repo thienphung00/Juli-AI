@@ -12,12 +12,13 @@ from typing import Any, Callable
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (
     VALIDATION_DIR,
+    SchemaValidationError,
     enrich_validation_artifact,
     load_review_artifact,
     merge_override_active,
     resolve_issue_number,
     utc_now_iso,
-    write_json,
+    write_json_with_schema_validation,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -250,13 +251,23 @@ def main() -> int:
     review = load_review_artifact(issue)
     first_pass = run_checks(issue, exclude=SELF_REFERENTIAL_CHECKS)
     out = VALIDATION_DIR / f"validation-issue-{issue}.json"
-    write_json(out, build_artifact(issue, first_pass, review))
+    try:
+        write_json_with_schema_validation(
+            out, build_artifact(issue, first_pass, review), "validation"
+        )
+    except SchemaValidationError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
 
     deferred = run_checks(issue, only=SELF_REFERENTIAL_CHECKS)
     by_name = {r["name"]: r for r in first_pass + deferred}
     results = [by_name[name] for name, _ in CHECKS if name in by_name]
     artifact = build_artifact(issue, results, review)
-    write_json(out, artifact)
+    try:
+        write_json_with_schema_validation(out, artifact, "validation")
+    except SchemaValidationError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
     print(f"wrote {out}")
     blocking_failed = sum(
         1 for r in results if r["status"] == "FAIL" and r["name"] not in ADVISORY_CHECKS

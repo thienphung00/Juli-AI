@@ -137,6 +137,7 @@ async def test_preliminary_reading_fills_weekly_and_final_fills_monthly(
             confidence="thap",
             control_set_json="{}",
             computed_at=datetime(2026, 1, 22, tzinfo=UTC),
+            series_source="measured",
         )
     )
     session.add(
@@ -154,6 +155,7 @@ async def test_preliminary_reading_fills_weekly_and_final_fills_monthly(
             confidence="trung_binh",
             control_set_json="{}",
             computed_at=datetime(2026, 1, 29, tzinfo=UTC),
+            series_source="measured",
         )
     )
     await session.commit()
@@ -194,6 +196,7 @@ async def test_suppressed_or_confounded_reading_renders_as_na_not_a_fabricated_n
             confidence="suppressed",
             control_set_json="{}",
             computed_at=datetime(2026, 1, 22, tzinfo=UTC),
+            series_source="measured",
         )
     )
     await _record_outcome(session, shop, execution)
