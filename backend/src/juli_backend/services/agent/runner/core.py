@@ -431,31 +431,27 @@ class WorkflowRunner:
         terminal_tools = set(playbook.termination_policy.terminal_tools)
         self._allowed_tool_names: frozenset[str] = frozenset(step_tools | terminal_tools)
 
-        # Issue #1653 (W8-A / P10-1): per-run rollup tracking
-        # These are reset on each run() call and accumulated as the run progresses.
-        self._rollup_input_tokens = 0
-        self._rollup_output_tokens = 0
-        self._rollup_tool_call_count = 0
-        self._rollup_rows_affected = 0
-        self._run_start_time: float | None = None
-        self._original_started_at: datetime | None = None  # For duration across pause/resume
-
-    def _compute_rollup_values(self) -> dict[str, int | float | None]:
-        """Compute the rollup values for the current run (issue #1653, W8-A / P10-1).
+    def _compute_rollup_values(self, state: RunState) -> dict[str, int | float | None]:
+        """Compute the rollup values for the current run (issue #1653, W8-A / P10-1)
+        from `RunState`'s own accumulated fields — never from a private read of the
+        `WorkflowRun` row. The counters live on `RunState` (`input_tokens`,
+        `output_tokens`, `tool_call_count`, `rows_affected`, `started_at`) exactly
+        like `running_seconds_elapsed` (#1216): `ConversationStore.load`/`persist`
+        round-trip them through the `workflow_runs.state` blob, so they survive
+        pause/resume with no second channel needed (#1653-Meta4).
 
         Returns a dict with keys: input_tokens, output_tokens, cost_usd, duration_ms,
-        tool_call_count, rows_affected. The values are computed from the accumulated
-        state during this run.
+        tool_call_count, rows_affected.
 
         cost_usd is None if the model is unpriced (issue #1653-Meta3); otherwise computed
         using estimate_cost_usd over the accumulated token counts.
-        duration_ms is wall-clock time from the original _original_started_at to now,
-        including any pause/resume gaps. All others are accumulated counters.
+        duration_ms is wall-clock time from `state.started_at` to now, INCLUDING any
+        approval-wait gap -- unlike `running_seconds_elapsed`, which excludes it
+        (#1216, ADR-073 decision 2).
         """
-        # Calculate duration from original started_at to now (includes pause time)
-        if self._original_started_at is not None:
-            now = datetime.now(UTC)
-            duration_ms = int((now - self._original_started_at).total_seconds() * 1000)
+        if state.started_at is not None:
+            started = datetime.fromisoformat(state.started_at)
+            duration_ms = int((datetime.now(UTC) - started).total_seconds() * 1000)
         else:
             duration_ms = 0
 
@@ -468,18 +464,18 @@ class WorkflowRunner:
             cost_usd = None
         else:
             usage = Usage(
-                input_tokens=self._rollup_input_tokens,
-                output_tokens=self._rollup_output_tokens,
+                input_tokens=state.input_tokens,
+                output_tokens=state.output_tokens,
             )
             cost_usd = estimate_cost_usd(self._llm_config.model, usage)
 
         return {
-            "input_tokens": self._rollup_input_tokens,
-            "output_tokens": self._rollup_output_tokens,
+            "input_tokens": state.input_tokens,
+            "output_tokens": state.output_tokens,
             "cost_usd": cost_usd,
             "duration_ms": duration_ms,
-            "tool_call_count": self._rollup_tool_call_count,
-            "rows_affected": self._rollup_rows_affected,
+            "tool_call_count": state.tool_call_count,
+            "rows_affected": state.rows_affected,
         }
 
     def _compose_prompt(self) -> tuple[str, str, str]:
@@ -548,15 +544,18 @@ class WorkflowRunner:
         docstring's `FinalResponse` bullet for why this is left to propagate
         rather than translated into a `RunResult`.
         """
-        # Initialize rollup tracking (issue #1653, W8-A / P10-1)
-        self._rollup_input_tokens = 0
-        self._rollup_output_tokens = 0
-        self._rollup_tool_call_count = 0
-        self._rollup_rows_affected = 0
-        self._run_start_time = self._clock()
-        self._original_started_at = datetime.now(UTC)
-
+        # Issue #1653 (W8-A / P10-1): stamp the wall-clock start at the very
+        # top of `run()`, before the `load()` await below -- `duration_ms`
+        # measures from THIS instant to the terminal event, so it must
+        # include the state-load round-trip itself, not just the in-memory
+        # loop that follows it.
+        run_started_at_iso = datetime.now(UTC).isoformat()
         state = await self._conversation_store.load(workflow_run_id)
+        # Set once, on `state` itself, never reset here or in `resume()`.
+        # `duration_ms` INCLUDES any approval wait -- unlike
+        # `running_seconds_elapsed`, which excludes it (#1216).
+        if state.started_at is None:
+            state.started_at = run_started_at_iso
 
         system_prompt, version_str, sha256 = self._compose_prompt()
         tool_definitions = self._tool_definitions()
@@ -709,38 +708,16 @@ class WorkflowRunner:
                 "pending_confirmation to resume from."
             )
 
-        # Issue #1653: load existing rollup values to add to across the pause
-        # We need to read the existing values from the row and accumulate on top
-        try:
-            from juli_backend.models.models import WorkflowRun
-
-            run_row = await self._conversation_store._session.get(WorkflowRun, workflow_run_id)
-            if run_row is not None:
-                self._rollup_input_tokens = run_row.input_tokens or 0
-                self._rollup_output_tokens = run_row.output_tokens or 0
-                self._rollup_tool_call_count = run_row.tool_call_count or 0
-                self._rollup_rows_affected = run_row.rows_affected or 0
-                # Duration accumulates across pause: set _original_started_at from the
-                # row's started_at so that duration_ms includes the pause time
-                if run_row.started_at is not None:
-                    self._original_started_at = run_row.started_at
-                else:
-                    # Fallback: use current time if no started_at (shouldn't happen in practice)
-                    self._original_started_at = datetime.now(UTC)
-            else:
-                self._rollup_input_tokens = 0
-                self._rollup_output_tokens = 0
-                self._rollup_tool_call_count = 0
-                self._rollup_rows_affected = 0
-                self._original_started_at = None
-        except (AttributeError, TypeError):
-            # In tests, the conversation store might be a double without _session
-            # Just initialize to defaults - the test will manage state separately
-            self._rollup_input_tokens = 0
-            self._rollup_output_tokens = 0
-            self._rollup_tool_call_count = 0
-            self._rollup_rows_affected = 0
-            self._original_started_at = None
+        # Issue #1653 (W8-A / P10-1): the rollup counters (`input_tokens`,
+        # `output_tokens`, `tool_call_count`, `rows_affected`, `started_at`)
+        # already came back on `state` from the `load()` call above -- they
+        # round-trip through the `workflow_runs.state` blob exactly like
+        # `running_seconds_elapsed` (#1216). No further read is needed here;
+        # in particular, never reach into `ConversationStore`'s private
+        # session to re-read the row directly (#1653-Meta4) -- that bypasses
+        # the one `RunState` object this method already has, and silently
+        # returns zeros for any `ConversationStore` implementation (a test
+        # double included) that has no such private attribute at all.
 
         await self._conversation_store.persist(
             workflow_run_id,
@@ -770,7 +747,7 @@ class WorkflowRunner:
                 sha256="",
             )
             # Issue #1653: persist rollup values on terminal resume failure
-            rollup = self._compute_rollup_values()
+            rollup = self._compute_rollup_values(state)
             await self._conversation_store.persist(
                 workflow_run_id,
                 state,
@@ -806,6 +783,10 @@ class WorkflowRunner:
                 version_str="",
                 sha256="",
             )
+            # Issue #1653: persist rollup values on this terminal exit too --
+            # every stop_reason-stamping persist() call carries the rollup,
+            # never only some of them.
+            rollup = self._compute_rollup_values(state)
             await self._conversation_store.persist(
                 workflow_run_id,
                 state,
@@ -813,6 +794,12 @@ class WorkflowRunner:
                 stop_reason=stop.stop_reason,
                 required_steps_completed=self._required_steps_completed(state),
                 running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+                input_tokens=rollup["input_tokens"],
+                output_tokens=rollup["output_tokens"],
+                cost_usd=rollup["cost_usd"],
+                duration_ms=rollup["duration_ms"],
+                tool_call_count=rollup["tool_call_count"],
+                rows_affected=rollup["rows_affected"],
             )
             return stop
         tool_definitions = self._tool_definitions()
@@ -872,6 +859,8 @@ class WorkflowRunner:
                     version_str,
                     sha256,
                 )
+                # Issue #1653: persist rollup values on this terminal exit too.
+                rollup = self._compute_rollup_values(state)
                 await self._conversation_store.persist(
                     workflow_run_id,
                     state,
@@ -881,6 +870,12 @@ class WorkflowRunner:
                     running_seconds_elapsed=running_seconds_column_value(
                         state.running_seconds_elapsed
                     ),
+                    input_tokens=rollup["input_tokens"],
+                    output_tokens=rollup["output_tokens"],
+                    cost_usd=rollup["cost_usd"],
+                    duration_ms=rollup["duration_ms"],
+                    tool_call_count=rollup["tool_call_count"],
+                    rows_affected=rollup["rows_affected"],
                 )
                 return stop
             await self._emit(
@@ -889,6 +884,8 @@ class WorkflowRunner:
                 WorkflowCompletedEvent,
                 WorkflowCompletedPayload(stop_reason=stop_reason),
             )
+            # Issue #1653: persist rollup values on this terminal exit too.
+            rollup = self._compute_rollup_values(state)
             await self._conversation_store.persist(
                 workflow_run_id,
                 state,
@@ -896,6 +893,12 @@ class WorkflowRunner:
                 stop_reason=stop_reason,
                 required_steps_completed=self._required_steps_completed(state),
                 running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+                input_tokens=rollup["input_tokens"],
+                output_tokens=rollup["output_tokens"],
+                cost_usd=rollup["cost_usd"],
+                duration_ms=rollup["duration_ms"],
+                tool_call_count=rollup["tool_call_count"],
+                rows_affected=rollup["rows_affected"],
             )
             return RunResult(
                 stop_reason=stop_reason,
@@ -967,6 +970,8 @@ class WorkflowRunner:
             stop = await self._terminate(
                 workflow_run_id, state, StopReason.CONFIRMATION_DIVERGED, version_str, sha256
             )
+            # Issue #1653: persist rollup values on this terminal exit too.
+            rollup = self._compute_rollup_values(state)
             await self._conversation_store.persist(
                 workflow_run_id,
                 state,
@@ -974,6 +979,12 @@ class WorkflowRunner:
                 stop_reason=stop.stop_reason,
                 required_steps_completed=self._required_steps_completed(state),
                 running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+                input_tokens=rollup["input_tokens"],
+                output_tokens=rollup["output_tokens"],
+                cost_usd=rollup["cost_usd"],
+                duration_ms=rollup["duration_ms"],
+                tool_call_count=rollup["tool_call_count"],
+                rows_affected=rollup["rows_affected"],
             )
             return stop
 
@@ -985,13 +996,13 @@ class WorkflowRunner:
         )
         try:
             # Issue #1653: increment tool_call_count before dispatch
-            self._rollup_tool_call_count += 1
+            state.tool_call_count += 1
             raw_result = self._tool_executor.execute(
                 tool_name=tool_name, params=params, tool_call_id=call_id
             )
             # Issue #1653: increment rows_affected for successful WRITE tool executions
             if spec.classification is ToolClassification.WRITE:
-                self._rollup_rows_affected += 1
+                state.rows_affected += 1
             # #1382: the guard just updated its in-memory basis (on a read, or
             # via the post-write refresh). Mirror it into state now, while we
             # are still on this leg — after the pause it is unrecoverable.
@@ -1006,6 +1017,8 @@ class WorkflowRunner:
             stop = await self._terminate(
                 workflow_run_id, state, StopReason.CONCURRENCY_CONFLICT, version_str, sha256
             )
+            # Issue #1653: persist rollup values on this terminal exit too.
+            rollup = self._compute_rollup_values(state)
             await self._conversation_store.persist(
                 workflow_run_id,
                 state,
@@ -1013,12 +1026,20 @@ class WorkflowRunner:
                 stop_reason=stop.stop_reason,
                 required_steps_completed=self._required_steps_completed(state),
                 running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+                input_tokens=rollup["input_tokens"],
+                output_tokens=rollup["output_tokens"],
+                cost_usd=rollup["cost_usd"],
+                duration_ms=rollup["duration_ms"],
+                tool_call_count=rollup["tool_call_count"],
+                rows_affected=rollup["rows_affected"],
             )
             return stop
         except ToolExecutionUnrecoverableError:
             stop = await self._terminate(
                 workflow_run_id, state, StopReason.TOOL_ERROR_UNRECOVERABLE, version_str, sha256
             )
+            # Issue #1653: persist rollup values on this terminal exit too.
+            rollup = self._compute_rollup_values(state)
             await self._conversation_store.persist(
                 workflow_run_id,
                 state,
@@ -1026,6 +1047,12 @@ class WorkflowRunner:
                 stop_reason=stop.stop_reason,
                 required_steps_completed=self._required_steps_completed(state),
                 running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+                input_tokens=rollup["input_tokens"],
+                output_tokens=rollup["output_tokens"],
+                cost_usd=rollup["cost_usd"],
+                duration_ms=rollup["duration_ms"],
+                tool_call_count=rollup["tool_call_count"],
+                rows_affected=rollup["rows_affected"],
             )
             return stop
         sanitized = guard_inbound_tool_result(raw_result, tool_name=tool_name)
@@ -1109,7 +1136,7 @@ class WorkflowRunner:
                     workflow_run_id, state, checkpoint_reason, version_str, sha256
                 )
                 # Issue #1653: persist rollup values on terminal checkpoint
-                rollup = self._compute_rollup_values()
+                rollup = self._compute_rollup_values(state)
                 await self._conversation_store.persist(
                     workflow_run_id,
                     state,
@@ -1147,7 +1174,7 @@ class WorkflowRunner:
                     sha256,
                 )
                 # Issue #1653: persist rollup values on terminal iteration cap
-                rollup = self._compute_rollup_values()
+                rollup = self._compute_rollup_values(state)
                 await self._conversation_store.persist(
                     workflow_run_id,
                     state,
@@ -1201,7 +1228,7 @@ class WorkflowRunner:
                     workflow_run_id, state, StopReason.LLM_ERROR, version_str, sha256
                 )
                 # Issue #1653: persist rollup values on terminal failure
-                rollup = self._compute_rollup_values()
+                rollup = self._compute_rollup_values(state)
                 await self._conversation_store.persist(
                     workflow_run_id,
                     state,
@@ -1220,8 +1247,8 @@ class WorkflowRunner:
                 )
                 return stop
             # Issue #1653: accumulate token counts from this LLM turn
-            self._rollup_input_tokens += turn.usage.input_tokens
-            self._rollup_output_tokens += turn.usage.output_tokens
+            state.input_tokens += turn.usage.input_tokens
+            state.output_tokens += turn.usage.output_tokens
             state.iteration_count += 1
             # Whatever forced choice was set, the call above has spent it.
             next_tool_choice = None
@@ -1397,7 +1424,7 @@ class WorkflowRunner:
             # Issue #1653: compute and persist rollup values on terminal exits
             rollup: dict[str, int | float] = {}
             if stop is not None:
-                rollup = self._compute_rollup_values()
+                rollup = self._compute_rollup_values(state)
 
             await self._conversation_store.persist(
                 workflow_run_id,
@@ -1523,13 +1550,13 @@ class WorkflowRunner:
 
         try:
             # Issue #1653: increment tool_call_count before dispatch
-            self._rollup_tool_call_count += 1
+            state.tool_call_count += 1
             raw_result = self._tool_executor.execute(
                 tool_name=block.tool_name, params=params, tool_call_id=block.call_id
             )
             # Issue #1653: increment rows_affected for successful WRITE tool executions
             if spec.classification is ToolClassification.WRITE:
-                self._rollup_rows_affected += 1
+                state.rows_affected += 1
             self._sync_basis(state)  # #1382 — see the sibling dispatch site
             self._sync_product_detail(state)  # #1389 — product persists across pause
         except ConcurrencyExhaustedError:

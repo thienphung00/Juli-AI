@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -637,8 +637,21 @@ class TestTerminalFailureRollup:
 
 
 class TestPauseDurationAccumulation:
-    async def test_pause_records_duration(self, session: AsyncSession):
-        """Issue #1653-Meta7D: Duration is recorded across pause/resume boundary."""
+    async def test_pause_duration_includes_the_wait_but_running_seconds_does_not(
+        self, session: AsyncSession
+    ):
+        """Issue #1653-Meta7D / Meta4: `duration_ms` is wall-clock across the
+        pause and MUST include a known wait interval -- `> 0` is not the
+        assertion. We simulate the seller taking `_PAUSE_SECONDS` to approve
+        by backdating the persisted `state.started_at` (never by touching a
+        private runner attribute -- the rollup lives on `RunState`, exactly
+        like `running_seconds_elapsed`, #1216). `running_seconds_elapsed`
+        must NOT be inflated by that same simulated wait: its clock pauses at
+        `waiting_approval` (ADR-073 decision 2) and only resumes counting
+        once the run is running again.
+        """
+        _PAUSE_SECONDS = 5
+
         run_id = await _seed_workflow_run(session)
         store = JsonbConversationStore(session)
         playbook = _minimal_playbook((_step("update_product_listing", policy=ToolPolicy.CONFIRM),))
@@ -666,8 +679,23 @@ class TestPauseDurationAccumulation:
             clock=_SteppingClock(step=0.1, start=0.0),
         )
 
-        await pause_runner.run(run_id, product_ref="prod-1")
-        assert pause_runner._original_started_at is not None
+        paused_result = await pause_runner.run(run_id, product_ref="prod-1")
+        assert paused_result.stop_reason == StopReason.PAUSED_FOR_CONFIRMATION
+
+        # Backdate the persisted `started_at` by exactly `_PAUSE_SECONDS`, as
+        # if the seller took that long to approve -- the only channel this
+        # value travels through is the `state` blob (`ConversationStore.
+        # load`/`persist`), so mutating the row's `state` here is the
+        # equivalent of "real time passed while paused", with no private
+        # runner attribute involved.
+        paused_row = await _reload_row(session, run_id)
+        backdated_state = dict(paused_row.state)
+        original_started_at = datetime.fromisoformat(backdated_state["started_at"])
+        backdated_state["started_at"] = (
+            original_started_at - timedelta(seconds=_PAUSE_SECONDS)
+        ).isoformat()
+        paused_row.state = backdated_state
+        await session.flush()
 
         # Resume and approve the tool
         resume_store = JsonbConversationStore(session)
@@ -683,9 +711,20 @@ class TestPauseDurationAccumulation:
             clock=_SteppingClock(step=0.1, start=0.0),
         )
 
-        await resume_runner.resume(run_id, approved=True)
+        resumed_result = await resume_runner.resume(run_id, approved=True)
+        assert resumed_result.stop_reason == StopReason.FINAL_RESPONSE
 
-        row = await _reload_row(session, run_id)
-        # Duration should be recorded across the pause/resume
-        assert row.duration_ms is not None, "duration_ms must be recorded"
-        assert row.duration_ms >= 0, "duration_ms must be non-negative (wall-clock from started_at)"
+        final_row = await _reload_row(session, run_id)
+        # duration_ms must reflect (at least) the simulated pause length --
+        # not merely be positive.
+        assert final_row.duration_ms is not None
+        assert final_row.duration_ms >= _PAUSE_SECONDS * 1000, (
+            f"Expected duration_ms >= {_PAUSE_SECONDS * 1000} (the simulated "
+            f"pause), got {final_row.duration_ms}"
+        )
+        # running_seconds_elapsed must stay far below the simulated pause --
+        # it excludes waiting_approval time entirely (#1216).
+        assert final_row.running_seconds_elapsed < _PAUSE_SECONDS, (
+            "running_seconds_elapsed must exclude the pause wait, got "
+            f"{final_row.running_seconds_elapsed}"
+        )
