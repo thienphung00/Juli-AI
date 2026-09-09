@@ -647,6 +647,20 @@ TOKEN_USAGE_UNAVAILABLE_REASON = (
 )
 
 
+def unavailable_measurement(field: str) -> dict[str, Any]:
+    """The unmeasured shape for a scalar measurement (#1732).
+
+    Mirrors :func:`unavailable_token_usage`. A freshly templated artifact has
+    measured nothing, so defaulting these to ``0`` made every template
+    schema-invalid the moment #1732 gave them a two-shape contract -- and worse,
+    a ``0`` that survived was indistinguishable from a real reading.
+    """
+    return {
+        "available": False,
+        "reason": f"{field} was not instrumented for this run",
+    }
+
+
 def unavailable_token_usage(
     reason: str = TOKEN_USAGE_UNAVAILABLE_REASON,
 ) -> dict[str, Any]:
@@ -694,10 +708,10 @@ def implementation_artifact_template(
         "phaseRunId": phase_run_id or default_phase_run_id(),
         "startedAt": now,
         "completedAt": now,
-        "executionDurationMs": 0,
+        "executionDurationMs": unavailable_measurement("executionDurationMs"),
         "tokenUsage": unavailable_token_usage(),
         "toolsUsed": [],
-        "toolInvocationCount": 0,
+        "toolInvocationCount": unavailable_measurement("toolInvocationCount"),
         "contextFilesLoaded": [],
         "skillsLoaded": [],
         "rulesLoaded": [],
@@ -1205,6 +1219,10 @@ def enrich_validation_artifact(
     artifact["testsFailed"] = tests_failed
     artifact.setdefault("coveragePercentage", 0)
     artifact.setdefault("benchmarkStatus", "not_run")
+    # #1732 governs the *implementation* artifact. The validation artifact's own
+    # schema still requires a plain integer here, so the two-shape default does
+    # not belong in this builder -- extending it is a separate slice, not a
+    # side effect of this one.
     artifact.setdefault("executionDurationMs", 0)
     if review and review.get("phaseRunId"):
         artifact["phaseRunId"] = review["phaseRunId"]

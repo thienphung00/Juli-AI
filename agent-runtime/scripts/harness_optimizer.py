@@ -113,8 +113,44 @@ def validation_failure_count(validation: dict[str, Any] | None) -> int:
     return sum(1 for check in validation.get("checks", []) if check.get("status") == "FAIL")
 
 
-def token_usage(implementation: dict[str, Any] | None) -> dict[str, int]:
+def scalar_measurement(value: Any) -> int | dict[str, Any]:
+    """Read a scalar two-shape field (executionDurationMs, toolInvocationCount).
+
+    Mirrors ``token_usage()``: a missing/absent value is tolerated as "no
+    contribution" (``0``, matching the legacy leniency for artifacts predating
+    this field), but an explicit unavailable reading — ``{"available": False,
+    "reason": ...}`` — is passed through unchanged rather than coerced by
+    ``as_int``. #1732: ``as_int({"available": False, ...})`` raises inside the
+    try/except and silently returns ``0``, undoing the schema fix one layer
+    down — exactly what happened to ``token_usage`` before #1539's partial fix.
+    """
+    if isinstance(value, dict) and value.get("available") is False:
+        return {"available": False, "reason": value.get("reason", "unknown")}
+    return as_int(value)
+
+
+def measured_int(value: int | dict[str, Any]) -> int | None:
+    """Unwrap a `scalar_measurement` result: the int, or None when unavailable."""
+    if isinstance(value, dict):
+        return None
+    return value
+
+
+def token_usage(implementation: dict[str, Any] | None) -> dict[str, int | bool | str]:
+    """Extract token usage from implementation artifact.
+
+    Returns either a measured dict with input/output/total keys (all non-negative integers),
+    or an unavailable dict with {available: false, reason: str} — never coerces unmeasured
+    runs to 0. #1732: returning 0 masks the difference between "measured zero" and
+    "unmeasured", and baselineMetrics.tokenUsageTotal must not read 0 for an unmeasured run.
+    """
     usage = (implementation or {}).get("tokenUsage") or {}
+
+    # Unavailable shape: {available: false, reason: ...}
+    if usage.get("available") is False:
+        return {"available": False, "reason": usage.get("reason", "unknown")}
+
+    # Measured shape: {input?, output?, total?}
     input_tokens = as_int(usage.get("input"))
     output_tokens = as_int(usage.get("output"))
     total = as_int(usage.get("total"), input_tokens + output_tokens)
@@ -218,11 +254,20 @@ def collect_metrics(
     usage = token_usage(implementation)
     review_failures = review_failure_count(review)
     validation_failures = validation_failure_count(validation)
-    execution_duration = as_int((implementation or {}).get("executionDurationMs")) + as_int(
-        (validation or {}).get("executionDurationMs")
-    )
+    impl_duration = scalar_measurement((implementation or {}).get("executionDurationMs"))
+    validation_duration = scalar_measurement((validation or {}).get("executionDurationMs"))
+    # #1732: an unavailable component makes the sum unavailable — never silently
+    # treat the unmeasured half as a zero-length contribution.
+    if isinstance(impl_duration, dict) or isinstance(validation_duration, dict):
+        reasons = [d["reason"] for d in (impl_duration, validation_duration) if isinstance(d, dict)]
+        execution_duration: int | dict[str, Any] = {
+            "available": False,
+            "reason": "; ".join(reasons),
+        }
+    else:
+        execution_duration = impl_duration + validation_duration
     retry_count = as_int((validation or {}).get("retryCount"))
-    tool_count = as_int((implementation or {}).get("toolInvocationCount"))
+    tool_count = scalar_measurement((implementation or {}).get("toolInvocationCount"))
     context_files = (implementation or {}).get("contextFilesLoaded") or []
     skills = (implementation or {}).get("skillsLoaded") or []
 
@@ -265,14 +310,14 @@ def collect_metrics(
         "contextTransferCount": as_int((implementation or {}).get("contextTransferCount")),
         "toolInvocationCount": tool_count,
         "baselineMetrics": {
-            "executionTimeMs": execution_duration,
-            "tokenUsageTotal": usage["total"],
+            "executionTimeMs": measured_int(execution_duration),
+            "tokenUsageTotal": usage.get("total") if "total" in usage else None,
             "testPassRate": test_pass_rate(validation, review),
             "coveragePercentage": coverage_percentage(validation, review),
             "reviewFailureRate": 1.0 if review_failures else 0.0,
             "validationFailureRate": 1.0 if validation_failures else 0.0,
             "retryCount": retry_count,
-            "toolInvocationCount": tool_count,
+            "toolInvocationCount": measured_int(tool_count),
         },
     }
 
@@ -444,17 +489,40 @@ def fix_context_underloaded(metrics: dict[str, Any]) -> ProposedFix:
 
 
 def detect_tool_overuse(metrics: dict[str, Any]) -> bool:
+    # #1732: an unmeasured count cannot exceed a limit — it cannot be compared
+    # at all. Do not fire, and do not invent a 0 to compare against.
+    count = measured_int(metrics["toolInvocationCount"])
+    if count is None:
+        return False
     limit = as_int(metrics["config"].get("tools", {}).get("max_invocations_per_run"), 80)
-    return metrics["toolInvocationCount"] > limit
+    return count > limit
 
 
 def fix_tool_overuse(metrics: dict[str, Any]) -> ProposedFix:
     limit = as_int(metrics["config"].get("tools", {}).get("max_invocations_per_run"), 80)
-    new_value = max(limit, metrics["toolInvocationCount"])
+    count = measured_int(metrics["toolInvocationCount"])
+    # detect_tool_overuse gates this in the normal flow (never fires when count
+    # is unmeasured), but stay honest if ever called directly on unmeasured data:
+    # never propose a threshold derived from an invented zero.
+    if count is None:
+        return ProposedFix(
+            summary="toolInvocationCount was unmeasured; no benchmark threshold change proposed.",
+            change_type="benchmark_threshold",
+            details=f"toolInvocationCount carried the unavailable shape; limit {limit} left unchanged.",
+            config_target="benchmark.thresholds.tool_invocation_regression_count",
+            expected_impact="No expected metric change; the measurement needed to propose one is missing.",
+            metric_impacts=[
+                {"metric": "toolInvocationCount", "direction": "neutral", "magnitude": "low"}
+            ],
+            harness_config_targets=["benchmark_tasks"],
+            auto_apply_eligible=False,
+            value=None,
+        )
+    new_value = max(limit, count)
     return ProposedFix(
         summary="Raise a benchmark threshold for tool use before changing tool availability.",
         change_type="benchmark_threshold",
-        details=f"Observed {metrics['toolInvocationCount']} tool invocations above configured limit {limit}.",
+        details=f"Observed {count} tool invocations above configured limit {limit}.",
         config_target="benchmark.thresholds.tool_invocation_regression_count",
         expected_impact="Expected to make tool overuse measurable before disabling tools.",
         metric_impacts=[
@@ -626,8 +694,23 @@ def evaluate_before_after(before: dict[str, Any], after: dict[str, Any]) -> dict
     improved = 0
     regressed = 0
     for key, label in metric_map.items():
-        before_value = as_float(before_metrics.get(key))
-        after_value = as_float(after_metrics.get(key))
+        before_raw = before_metrics.get(key)
+        after_raw = after_metrics.get(key)
+        # #1732: baselineMetrics carries None (not a measured 0) for an
+        # unavailable executionTimeMs/tokenUsageTotal. as_float(None) silently
+        # returns 0.0, which would compare an invented zero against a real
+        # reading and call the delta "improved" or "regressed" by accident.
+        if before_raw is None or after_raw is None:
+            comparisons[key] = {
+                "label": label,
+                "before": before_raw,
+                "after": after_raw,
+                "delta": None,
+                "status": "unmeasured",
+            }
+            continue
+        before_value = as_float(before_raw)
+        after_value = as_float(after_raw)
         delta = after_value - before_value
         status = "unchanged"
         if delta < 0:
