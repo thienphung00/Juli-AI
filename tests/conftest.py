@@ -180,6 +180,7 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         "test_stop_reason_prompt_version_unrecoverable_schema.py",
         "test_run_confirmations_approvals_schema.py",
         "test_workflow_runs_schema.py",
+        "test_workflow_run_rollup_migration.py",
         "test_workflow_run_events_schema.py",
         "test_workflow_run_action_card_fk_schema.py",
         "test_juli_app_role_downgrade_cross_database.py",

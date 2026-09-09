@@ -2,6 +2,7 @@
 
 from juli_backend.core.observability.logging import (
     CORRELATION_ID_HEADER,
+    REDACTION_MARKER,
     JsonFormatter,
     coerce_correlation_id,
     configure_logging,
@@ -16,6 +17,7 @@ from juli_backend.core.observability.logging import (
 
 __all__ = [
     "CORRELATION_ID_HEADER",
+    "REDACTION_MARKER",
     "JsonFormatter",
     "coerce_correlation_id",
     "configure_logging",

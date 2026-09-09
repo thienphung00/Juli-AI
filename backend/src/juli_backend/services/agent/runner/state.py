@@ -34,6 +34,31 @@ _KNOWN_FIELDS = (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class RollupValues:
+    """The six per-run rollup values `WorkflowRunner._compute_rollup_values`
+    computes from `RunState`'s own accumulated fields (issue #1653, W8-A /
+    P10-1) and every terminal-exit `ConversationStore.persist(...)` call
+    passes onward, unpacked to its matching keyword argument.
+
+    A typed dataclass rather than a `dict[str, int | float | None]`: the
+    dict shape let `cost_usd` (the one nullable-float member) widen every
+    OTHER field's static type to `int | float | None` as well, so mypy could
+    not tell `rows_affected=rollup["rows_affected"]` (always an `int`) from
+    `cost_usd=rollup["cost_usd"]` (an `int | float | None`) -- both looked
+    identical to the type checker, and `ConversationStore.persist`'s
+    `rows_affected: int | None` parameter flagged every call site as a
+    type error. Each field below carries its own real type instead.
+    """
+
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float | None
+    duration_ms: int
+    tool_call_count: int
+    rows_affected: int
+
+
 class RunStateFieldMissingError(ValueError):
     """Raised by `RunState.from_dict` when a blob is missing one of the
     currently-required fields.
@@ -113,6 +138,12 @@ class RunState:
     running_seconds_elapsed: float = 0.0
     prompt_version: str | None = None
     prompt_sha256: str | None = None
+    # Issue #1653: rollup tracking fields (optional, backward-compat with old state JSON)
+    input_tokens: int = 0
+    output_tokens: int = 0
+    tool_call_count: int = 0
+    rows_affected: int = 0
+    started_at: str | None = None  # ISO8601 string, set once in run(), not reset on resume()
 
     # Fields present on a deserialized blob that this version of RunState
     # does not recognize (ADR-073 decision 5, the P-CS forward-compat
@@ -171,6 +202,17 @@ class RunState:
             blob["prompt_sha256"] = self.prompt_sha256
         if self.product_detail is not None:
             blob["product_detail"] = dict(self.product_detail)
+        # Issue #1653: rollup tracking fields (optional, backward-compat)
+        if self.input_tokens != 0:
+            blob["input_tokens"] = self.input_tokens
+        if self.output_tokens != 0:
+            blob["output_tokens"] = self.output_tokens
+        if self.tool_call_count != 0:
+            blob["tool_call_count"] = self.tool_call_count
+        if self.rows_affected != 0:
+            blob["rows_affected"] = self.rows_affected
+        if self.started_at is not None:
+            blob["started_at"] = self.started_at
         blob.update(self.unknown_fields)
         return blob
 
@@ -200,6 +242,11 @@ class RunState:
             "prompt_version",  # issue #1359
             "prompt_sha256",  # issue #1359
             "product_detail",  # issue #1389
+            "input_tokens",  # issue #1653
+            "output_tokens",  # issue #1653
+            "tool_call_count",  # issue #1653
+            "rows_affected",  # issue #1653
+            "started_at",  # issue #1653
         }
         unknown = {
             key: value
@@ -217,5 +264,10 @@ class RunState:
             prompt_version=blob.get("prompt_version"),
             prompt_sha256=blob.get("prompt_sha256"),
             product_detail=blob.get("product_detail"),
+            input_tokens=blob.get("input_tokens", 0),
+            output_tokens=blob.get("output_tokens", 0),
+            tool_call_count=blob.get("tool_call_count", 0),
+            rows_affected=blob.get("rows_affected", 0),
+            started_at=blob.get("started_at"),
             unknown_fields=unknown,
         )

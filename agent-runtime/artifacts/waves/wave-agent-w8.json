@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "wave_manifest",
+  "waveId": "wave-agent-w8",
+  "branch": "feature/agent-w8-wave",
+  "issues": [
+    1653,
+    1654,
+    1655,
+    1656,
+    1657
+  ]
+}
