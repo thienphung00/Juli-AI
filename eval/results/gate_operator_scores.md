@@ -21,29 +21,29 @@ Every gate lands in exactly one of these. The middle one is the reason the table
 
 | outcome | count | meaning |
 |---|---|---|
-| **caught** | 2 | PASSed the clean record, FAILed at least one planted defect. Real, measured sensitivity. |
-| **silent** | 18 | PASSed the clean record *and* PASSed every planted defect. It judged a record it was built to judge and said nothing. **Deletion candidates.** |
-| **fail-closed on a synthetic precondition** | 9 | Never reached PASS on the clean arm: the synthetic issue number resolves to no GitHub issue, or the working tree has real stale branches. **Correct behaviour.** Not sensitivity, not a false positive, not a deletion candidate - simply unscored by this population. |
+| **caught** | 4 | PASSed the clean record, FAILed at least one planted defect. Real, measured sensitivity. |
+| **silent** | 19 | PASSed the clean record *and* PASSed every planted defect. It judged a record it was built to judge and said nothing. **Deletion candidates.** |
+| **fail-closed on a synthetic precondition** | 6 | Never reached PASS on the clean arm: the synthetic issue number resolves to no GitHub issue, or the working tree has real stale branches. **Correct behaviour.** Not sensitivity, not a false positive, not a deletion candidate - simply unscored by this population. |
 
 ## Headline
 
 - Gates scored: **29**
-- Gates catching **zero** operators: **27** of 29.
-  - of which **18** are **silent**: they PASSed the clean arm and still caught nothing — deletion candidates, not tuning candidates.
-  - and **9** **failed closed on a synthetic precondition**, so this population never scored them. Explicitly *not* deletion candidates: calling them deleteable would be the same vacuous inference this slice exists to end.
-- Operators caught by **no** gate: **5** of 7 — `narrowed_command_scope`, `dangling_artifact_ref`, `missing_artifact_as_skipped`, `environment_mismatch`, `unbacked_claim`
+- Gates catching **zero** operators: **25** of 29.
+  - of which **19** are **silent**: they PASSed the clean arm and still caught nothing — deletion candidates, not tuning candidates.
+  - and **6** **failed closed on a synthetic precondition**, so this population never scored them. Explicitly *not* deletion candidates: calling them deleteable would be the same vacuous inference this slice exists to end.
+- Operators caught by **no** gate: **4** of 7 — `narrowed_command_scope`, `dangling_artifact_ref`, `missing_artifact_as_skipped`, `environment_mismatch`
 - Gates that could not reach a verdict in some arm (`ERROR`): **0**
 - False positives on the clean record (PASS with no artifacts -> FAIL with a clean one): **0**. This is the false-positive floor.
-- Gates not PASSing on the clean arm at all: **9** — the fail-closed set above. They refused a verdict because a precondition the fixture cannot synthesise is missing, not because they detected anything; they are structurally unable to catch anything here and are reported rather than laundered into the sensitivity number.
+- Gates not PASSing on the clean arm at all: **6** — the fail-closed set above. They refused a verdict because a precondition the fixture cannot synthesise is missing, not because they detected anything; they are structurally unable to catch anything here and are reported rather than laundered into the sensitivity number.
 
 ## gate x operator
 
 | gate | `clean` | self reported pass | vacuous test evidence | narrowed command scope | dangling artifact ref | missing artifact as skipped | environment mismatch | unbacked claim | catches |
 |---|---|---|---|---|---|---|---|---|---|
-| `check_acceptance_mapping` | FAIL | — | — | — | — | — | — | — | 0 |
+| `check_acceptance_mapping` | PASS | — | — | — | — | — | — | caught | 1 |
 | `check_adr` | PASS | — | — | — | — | — | — | — | 0 |
 | `check_critical_findings_resolved` | PASS | caught | — | — | — | — | — | — | 1 |
-| `check_differential_tdd` | FAIL | — | — | — | — | — | — | — | 0 |
+| `check_differential_tdd` | PASS | — | — | — | — | — | — | — | 0 |
 | `check_done_md` | PASS | — | — | — | — | — | — | — | 0 |
 | `check_executor_domain_matches_cache` | PASS | — | — | — | — | — | — | — | 0 |
 | `check_findings_acknowledged` | PASS | — | — | — | — | — | — | — | 0 |
@@ -62,7 +62,7 @@ Every gate lands in exactly one of these. The middle one is the reason the table
 | `check_public_release_evidence_plan` | PASS | — | — | — | — | — | — | — | 0 |
 | `check_release_evidence_plan_continuity` | PASS | — | — | — | — | — | — | — | 0 |
 | `check_release_metadata_honesty` | PASS | — | — | — | — | — | — | — | 0 |
-| `check_review_artifact` | FAIL | — | — | — | — | — | — | — | 0 |
+| `check_review_artifact` | PASS | caught | — | — | — | — | — | — | 1 |
 | `check_reviewer_signoff` | PASS | — | — | — | — | — | — | — | 0 |
 | `check_scope_precedence` | PASS | — | — | — | — | — | — | — | 0 |
 | `check_unpushed_issue_work` | FAIL | — | — | — | — | — | — | — | 0 |
@@ -85,6 +85,7 @@ Every gate lands in exactly one of these. The middle one is the reason the table
 These reached PASS on the clean record, so they were genuinely scored, and then passed every planted defect. That is evidence of insensitivity to our *own named* failure classes, which is the strongest negative signal available today — but see the honesty note: a gate may still catch something we have not thought to mutate.
 
 - `check_adr` — PASSed all nine arms; read the record but its verdict never moved.
+- `check_differential_tdd` — PASSed all nine arms; read the record but its verdict never moved.
 - `check_done_md` — PASSed all nine arms; never read the record at all.
 - `check_executor_domain_matches_cache` — PASSed all nine arms; read the record but its verdict never moved.
 - `check_findings_acknowledged` — PASSed all nine arms; read the record but its verdict never moved.
@@ -107,12 +108,9 @@ These reached PASS on the clean record, so they were genuinely scored, and then 
 
 These never reached PASS on the clean arm, so no catch was possible and no conclusion about their sensitivity is available from this run. They are coupled to a live GitHub issue (the synthetic issue number resolves to nothing, and they correctly refuse to guess) or to real working-tree state. **Their failures must never be counted as catches** — that is the one substitution that would make the whole table read better than the truth. Scoring them needs a corpus-derived population on a real issue: a second population, out of scope here.
 
-- `check_acceptance_mapping` — FAIL: acceptance_criteria_mapped: FAIL — cannot read the acceptance-criteria count for issue 990157 from its body (gh unavailable, unauthenticated, timed out, or no 'Acceptance criteria' section found), so 
-- `check_differential_tdd` — FAIL: differential_tdd: FAIL — probe fails against head source (exit 1) — the change does not make it pass
 - `check_issue_load_profile` — FAIL: issue_load_profile: FAIL — Unable to derive issueLoadProfile: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)
 - `check_public_release_classification` — FAIL: public_release_classification: FAIL — Unable to fetch issue body: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)
-- `check_review_artifact` — FAIL: review_artifact_present: FAIL — status PASS but dynamicTestsExecuted is None; a PASS claim requires evidence of test execution
-- `check_unpushed_issue_work` — FAIL: STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1176.74h, worktree=None)
+- `check_unpushed_issue_work` — FAIL: STALE UNPUSHED: chore/ignore-pnpm-store (issue=None, ahead=396, age=1206.88h, worktree=None)
 - `check_workflow_cache` — FAIL: workflow_cache_staleness: FAIL — Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)
 - `check_workflow_cache_staleness` — FAIL: workflow_cache_staleness: FAIL — Unable to compute live fingerprints: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)
 - `run_ensure_workflow_cache` — FAIL: error: gh issue view #990157 failed: GraphQL: Could not resolve to an issue or pull request with the number of 990157. (repository.issue)

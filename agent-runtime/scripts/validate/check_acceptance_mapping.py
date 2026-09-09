@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import subprocess
 import sys
@@ -19,9 +21,50 @@ from common import (  # noqa: E402
     resolve_issue_number,
 )
 
+#: Injectable-fact seam (#1761), the same shape as ``_ref_scheme_seam()`` in
+#: ``generate_status_records.py``: production resolves for real, a
+#: test/harness substitutes. This env var carries the ONLY substitution path —
+#: never a Python-level monkeypatch of the resolver — because the mutation
+#: harness (``eval/gate_scoring.py``) always runs this gate as a subprocess, so
+#: a substitution that does not cross a process boundary would never reach the
+#: real sweep that produces ``eval/results/gate_operator_scores.json``.
+#:
+#: Scoped to one exact issue number (JSON ``{"issue": N, "count": M}``) so a
+#: stale override left in an environment can never answer for a different
+#: issue — the override is ignored, not fallen back on blindly, when the
+#: issue does not match.
+CRITERIA_COUNT_OVERRIDE_ENV = "JULI_HARNESS_CRITERIA_COUNT_OVERRIDE"
 
-def extract_criteria_count_from_issue_body(issue: int) -> int | None:
-    """Extract acceptance criteria count from GitHub issue body.
+
+def criteria_count_override_env(issue: int, count: int) -> dict[str, str]:
+    """Build the env-var injection a harness registers as its provider.
+
+    ``eval/gate_scoring.py`` merges this into the subprocess environment it
+    runs every gate under, for the exact synthetic issue number the mutation
+    fixture is installed for — the harness's substitute for a real ``gh``
+    lookup, which can never resolve a synthetic issue.
+    """
+    return {CRITERIA_COUNT_OVERRIDE_ENV: json.dumps({"issue": issue, "count": count})}
+
+
+def _criteria_count_from_override(issue: int) -> int | None:
+    """The harness's provider, if one is registered for this exact issue."""
+    raw = os.environ.get(CRITERIA_COUNT_OVERRIDE_ENV)
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw)
+        override_issue = int(payload["issue"])
+        override_count = int(payload["count"])
+    except (TypeError, ValueError, KeyError, json.JSONDecodeError):
+        return None
+    if override_issue != issue:
+        return None
+    return override_count
+
+
+def _criteria_count_from_gh(issue: int) -> int | None:
+    """Production's only source: parse the issue body via ``gh``.
 
     Parses the "Acceptance criteria" section looking for numbered list items.
     Returns count of criteria, or None if unable to fetch/parse.
@@ -64,6 +107,24 @@ def extract_criteria_count_from_issue_body(issue: int) -> int | None:
         return criteria_count if criteria_count > 0 else None
     except Exception:
         return None
+
+
+def extract_criteria_count_from_issue_body(issue: int) -> int | None:
+    """Resolve the acceptance-criteria-count fact this gate needs.
+
+    Checks the harness's injected provider first (scoped to the exact issue),
+    then falls back to the real ``gh`` lookup — the only source in
+    production. Never a third outcome: this either returns a real count or
+    ``None``, and ``run_check`` fails closed on ``None`` (Architect lock 2).
+    The seam must never become a way to make the gate green by withholding
+    the fact — the override supplies a *count*, not a bypass, so a caller
+    that registers no provider gets exactly the ``gh``-unavailable behaviour
+    it always had.
+    """
+    override = _criteria_count_from_override(issue)
+    if override is not None:
+        return override
+    return _criteria_count_from_gh(issue)
 
 
 def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:

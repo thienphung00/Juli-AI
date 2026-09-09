@@ -14,26 +14,40 @@ and the runner decides what events that produces.
 
 That distinction is the point of the criterion. A hand-written fixture encodes
 what someone believed the runner emits. This one encodes what it emits, so when
-the runner changes the fixture changes with it — and the regeneration check
-below turns that into a visible diff instead of silent drift.
+the runner changes the fixture changes with it.
 
 The two options are the two real answers to a confirm pause: approve and
 decline. `resume(approved=True)` and `resume(approved=False)` are the same calls
 the confirmation endpoint makes, so both continuations are real runner output.
 
-The fixture is written on every run and compared to the committed copy. To
-accept a change: run this test, inspect the diff, commit it.
+**The fixture is a recorded output, not an input (issue #1677).** A normal test
+run only *compares* a fresh capture against the committed copy — it never
+writes `FIXTURE_PATH`. `captured_at` is produced from a fixed clock
+(`_fixed_clock` below) rather than wall-clock `now()`, and the whole build runs
+under a frozen system clock (`_FROZEN_SYSTEM_CLOCK`), so the comparison is
+byte-identical and deterministic instead of being made to pass by restamping
+the field every run. To accept an intentional change in what the runner
+produces: run the committed-scenario test with `JULI_REGENERATE_GOLDEN_SCENARIOS=1`
+set, inspect the diff, commit it —
+
+    JULI_REGENERATE_GOLDEN_SCENARIOS=1 python -m pytest \\
+        tests/unit/test_golden_scenario_capture_from_real_runner.py::test_the_committed_scenario_is_what_the_tool_produces
+
+Regeneration is that explicit, separately-invoked step; it is never a side
+effect of `pytest tests/unit`.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
+from freezegun import freeze_time
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from juli_backend.models.models import Product, Shop, User, WorkflowRun
@@ -71,6 +85,42 @@ FIXTURE_PATH = FIXTURE_DIR / "optimize_product_confirm_pause.json"
 
 WORKFLOW_KEY = _pause_resume_playbook().workflow_key
 
+# Injected into `capture_run_as_scenario` instead of wall-clock `now()` (#1677,
+# AC3). Fixed so a fresh capture's `captured_at` is byte-identical to the
+# committed fixture's, rather than differing on every run and being "fixed" by
+# restamping the file.
+_FIXED_CAPTURE_INSTANT = datetime(2026, 1, 1, tzinfo=UTC)
+
+
+def _fixed_clock() -> datetime:
+    return _FIXED_CAPTURE_INSTANT
+
+
+# `WorkflowRunner`/`PersistingEventSink` stamp each event's `timestamp` (and
+# derived fields like `expires_at`) from wall-clock `datetime.now(UTC)` inside
+# `runner/core.py` -- out of this issue's owned paths, so it cannot be given an
+# injectable clock here. `freeze_time` pins that wall clock for the duration of
+# `_build_scenario` instead, the same "freeze the system clock the code already
+# reads" approach `run-ledger-panel.test.tsx` uses for its expiry countdown
+# (`vi.setSystemTime`), so every event in the captured scenario is deterministic
+# too, not just `captured_at`.
+_FROZEN_SYSTEM_CLOCK = "2026-01-01T00:00:00+00:00"
+
+# Each `_build_scenario` run seeds a fresh `WorkflowRun` row; a random
+# `uuid.uuid4()` id would make `workflow_run_id` differ on every invocation
+# regardless of the clock, defeating a byte-identical comparison for a reason
+# that has nothing to do with runner behavior. Fixed per branch instead.
+_BASE_RUN_ID = uuid.UUID("00000000-0000-0000-0000-00000000b453")
+_APPROVED_RUN_ID = uuid.UUID("00000000-0000-0000-0000-00000000a99e")
+_DECLINED_RUN_ID = uuid.UUID("00000000-0000-0000-0000-00000000dec1")
+
+
+# Explicit, separately-invoked regeneration switch (#1677). Unset (the default,
+# and every normal `pytest tests/unit` run): the committed-scenario test only
+# reads and compares. Set: it overwrites the committed fixture with a fresh
+# capture, for a human to diff and decide whether to commit.
+_REGENERATE_ENV_VAR = "JULI_REGENERATE_GOLDEN_SCENARIOS"
+
 
 class _NullPublisher:
     """Publish is best-effort by contract (ADR-074 d.3); capture only needs the
@@ -80,12 +130,17 @@ class _NullPublisher:
         return None
 
 
-async def _seed_run(session) -> uuid.UUID:
+async def _seed_run(session, run_id: uuid.UUID) -> uuid.UUID:
     """A run stamped with the REAL production prompt identity.
 
     `prompt_sha256` is what the staleness command compares against, so seeding a
     placeholder would make the committed scenario permanently "stale" and the
     AC7 check meaningless on the one scenario that exists.
+
+    `run_id` is caller-supplied (fixed, per #1677) rather than generated here —
+    a random id would make the captured `workflow_run_id` differ on every
+    invocation for a reason unrelated to runner behavior, defeating a
+    byte-identical comparison against the committed fixture.
     """
     version = production_version(WORKFLOW_KEY)
     user = User(id=uuid.uuid4(), phone=f"+8490{uuid.uuid4().int % 10_000_000:07d}")
@@ -99,7 +154,7 @@ async def _seed_run(session) -> uuid.UUID:
         update_time=datetime.now(UTC),
     )
     run = WorkflowRun(
-        id=uuid.uuid4(),
+        id=run_id,
         shop_id=shop.id,
         product_id=product.id,
         state=RunState().to_dict(),
@@ -127,10 +182,12 @@ def _script() -> list[Any]:
     ]
 
 
-async def _run_to_confirm_pause(engine: AsyncEngine) -> tuple[uuid.UUID, async_sessionmaker]:
+async def _run_to_confirm_pause(
+    engine: AsyncEngine, run_id: uuid.UUID
+) -> tuple[uuid.UUID, async_sessionmaker]:
     factory = async_sessionmaker(engine, expire_on_commit=False)
     async with factory() as session:
-        run_id = await _seed_run(session)
+        run_id = await _seed_run(session, run_id)
 
     async with factory() as session:
         runner = WorkflowRunner(
@@ -167,7 +224,7 @@ async def _resume(factory: async_sessionmaker, run_id: uuid.UUID, *, approved: b
 
 async def _capture(factory: async_sessionmaker, run_id: uuid.UUID) -> GoldenScenario:
     async with factory() as session:
-        return await capture_run_as_scenario(session, run_id)
+        return await capture_run_as_scenario(session, run_id, clock=_fixed_clock)
 
 
 async def _build_scenario(engine: AsyncEngine) -> GoldenScenario:
@@ -177,17 +234,22 @@ async def _build_scenario(engine: AsyncEngine) -> GoldenScenario:
     and the other two supply the divergent tails. Taking the tail as
     `events[len(base):]` keeps the continuation to exactly what the answer
     caused, which is what `append_continuation` expects to append.
+
+    The whole build runs under a frozen system clock and fixed run ids
+    (#1677), so two invocations of this function produce byte-identical
+    scenarios unless the runner's actual behavior changed.
     """
-    base_run_id, factory = await _run_to_confirm_pause(engine)
-    base = await _capture(factory, base_run_id)
+    with freeze_time(_FROZEN_SYSTEM_CLOCK):
+        base_run_id, factory = await _run_to_confirm_pause(engine, _BASE_RUN_ID)
+        base = await _capture(factory, base_run_id)
 
-    approved_run_id, _ = await _run_to_confirm_pause(engine)
-    await _resume(factory, approved_run_id, approved=True)
-    approved = await _capture(factory, approved_run_id)
+        approved_run_id, _ = await _run_to_confirm_pause(engine, _APPROVED_RUN_ID)
+        await _resume(factory, approved_run_id, approved=True)
+        approved = await _capture(factory, approved_run_id)
 
-    declined_run_id, _ = await _run_to_confirm_pause(engine)
-    await _resume(factory, declined_run_id, approved=False)
-    declined = await _capture(factory, declined_run_id)
+        declined_run_id, _ = await _run_to_confirm_pause(engine, _DECLINED_RUN_ID)
+        await _resume(factory, declined_run_id, approved=False)
+        declined = await _capture(factory, declined_run_id)
 
     n = len(base.events)
     return base.model_copy(
@@ -201,23 +263,45 @@ async def _build_scenario(engine: AsyncEngine) -> GoldenScenario:
     )
 
 
-def _stable(scenario: GoldenScenario) -> dict[str, Any]:
-    """Everything except `captured_at`, which is expected to move."""
-    blob = json.loads(scenario.model_dump_json())
-    blob.pop("captured_at", None)
-    return blob
+def _as_dict(scenario: GoldenScenario) -> dict[str, Any]:
+    return json.loads(scenario.model_dump_json())
 
 
 @pytest.mark.asyncio
 async def test_the_committed_scenario_is_what_the_tool_produces(engine: AsyncEngine):
-    """Regenerate and compare. A drift here is a real change in runner output."""
+    """Compare a fresh capture to the committed copy. A drift here is a real
+    change in runner output.
+
+    This test never writes `FIXTURE_PATH` by default (#1677) — it only reads
+    the committed copy and compares. `captured_at` is produced from
+    `_fixed_clock`, not wall-clock `now()`, so the two are byte-identical
+    (including `captured_at`) when nothing has drifted, and the comparison is
+    a real assertion rather than a self-fulfilling restamp.
+
+    To accept an intentional change in what the runner produces, regenerate
+    explicitly:
+
+        JULI_REGENERATE_GOLDEN_SCENARIOS=1 python -m pytest \\
+            tests/unit/test_golden_scenario_capture_from_real_runner.py::test_the_committed_scenario_is_what_the_tool_produces
+
+    then inspect the diff and commit it.
+    """
     scenario = await _build_scenario(engine)
 
-    FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
-    FIXTURE_PATH.write_text(scenario.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    if os.environ.get(_REGENERATE_ENV_VAR):
+        FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
+        FIXTURE_PATH.write_text(scenario.model_dump_json(indent=2) + "\n", encoding="utf-8")
 
+    assert FIXTURE_PATH.exists(), (
+        f"{FIXTURE_PATH} is missing; regenerate with {_REGENERATE_ENV_VAR}=1 against this test"
+    )
+    mtime_before = FIXTURE_PATH.stat().st_mtime_ns
     committed = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
-    assert _stable(GoldenScenario(**committed)) == _stable(scenario)
+
+    assert _as_dict(GoldenScenario(**committed)) == _as_dict(scenario)
+    assert FIXTURE_PATH.stat().st_mtime_ns == mtime_before, (
+        "comparing against the committed fixture must never write it (#1677)"
+    )
 
 
 @pytest.mark.asyncio
@@ -244,17 +328,22 @@ async def test_it_covers_a_confirm_pause_with_two_options_and_both_continuations
 
 @pytest.mark.asyncio
 async def test_the_captured_scenario_carries_the_current_production_prompt(
-    engine: AsyncEngine,
+    engine: AsyncEngine, tmp_path: Path
 ):
     """A fresh capture must read as current, or AC7's command is meaningless on
-    the only scenario that exists."""
+    the only scenario that exists.
+
+    Writes into a scratch directory (`tmp_path`), never into the committed
+    fixture (#1677) — `check_scenarios` takes an arbitrary directory, and this
+    test only needs a scenario file to scan, not the tracked one.
+    """
     from juli_backend.services.agent.golden_scenarios.staleness import check_scenarios
 
     scenario = await _build_scenario(engine)
-    FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
-    FIXTURE_PATH.write_text(scenario.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    scratch_path = tmp_path / "optimize_product_confirm_pause.json"
+    scratch_path.write_text(scenario.model_dump_json(indent=2) + "\n", encoding="utf-8")
 
-    results = check_scenarios(FIXTURE_DIR)
+    results = check_scenarios(tmp_path)
     assert results, "the staleness scan found no scenarios"
     stale = [r for r in results if r.is_stale]
     assert not stale, f"a freshly captured scenario reads as stale: {stale}"

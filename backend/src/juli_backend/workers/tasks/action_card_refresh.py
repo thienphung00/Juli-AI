@@ -30,17 +30,20 @@ def _ensure_session_factory() -> async_sessionmaker:
 
 
 async def _refresh_async(shop_id: uuid.UUID) -> None:
+    from juli_backend.database.tenant_context import with_shop_scope
+
     factory = _ensure_session_factory()
     async with factory() as session:
-        # Sync sandbox_write catalog before refresh if credential exists
-        await sync_sandbox_write_products(session, shop_id)
+        async with with_shop_scope(session, shop_id):
+            # Sync sandbox_write catalog before refresh if credential exists
+            await sync_sandbox_write_products(session, shop_id)
 
-        # Check for credential identity mismatch
-        await check_sandbox_write_catalog_identity_mismatch(session, shop_id)
+            # Check for credential identity mismatch
+            await check_sandbox_write_catalog_identity_mismatch(session, shop_id)
 
-        # Run the standard refresh
-        await run_action_card_refresh(session, shop_id)
-        await session.commit()
+            # Run the standard refresh
+            await run_action_card_refresh(session, shop_id)
+            await session.commit()
 
 
 def refresh_action_cards_sync(shop_id: str) -> None:
