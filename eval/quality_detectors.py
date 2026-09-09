@@ -1241,10 +1241,10 @@ def build_report(
 #: rather than reconciled away. Regenerate with
 #: ``python -m eval.quality_detectors scan`` and update both numbers together.
 MEASURED_ZERO_ASSERTION_TESTS = 50
-MEASURED_TEST_FUNCTIONS = 4891
+MEASURED_TEST_FUNCTIONS = 5002
 #: Test modules the corpus figure is spread over. Like the corpus it is a
 #: denominator, not a claim, so it is held to a tolerance rather than pinned.
-MEASURED_TEST_MODULES = 499
+MEASURED_TEST_MODULES = 506
 
 #: The measured decomposition that reconciles the two figures. Each layer
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
@@ -1271,8 +1271,8 @@ RECONCILIATION: dict[str, Any] = {
     "note": (
         "Neither figure is wrong; they count different things, and the layer "
         "decomposition above shows exactly where they part. Measured here: 50 "
-        "zero-assertion tests in a corpus of 4,891 test functions over tests/ "
-        "backend/ scripts/ agent-runtime/ eval/ (499 test modules). The prior "
+        "zero-assertion tests in a corpus of 5,002 test functions over tests/ "
+        "backend/ scripts/ agent-runtime/ eval/ (506 test modules). The prior "
         "~97-of-4,048 reading corresponds to the `and_no_mock_assert_called` "
         "layer — a detector that credits `pytest.raises` and `mock.assert_called*` "
         "as assertions but not delegation to a same-file asserting helper. That "
@@ -1283,7 +1283,7 @@ RECONCILIATION: dict[str, Any] = {
         "at 4,798 and at 4,878 — so scaling either side by corpus growth diverges "
         "mechanically as the repository grows and says nothing about the code "
         "(#1682). The rates are recorded beside it as readings, not as the claim "
-        "(2.40% then, 2.19% now). "
+        "(2.40% then, 2.14% now). "
         "So the prior measurement "
         "reproduces, and the gap between 107 and 50 is 53 tests whose only "
         "assertion is inside a "
