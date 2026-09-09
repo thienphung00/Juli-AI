@@ -223,8 +223,12 @@ async def test_refresh_task_raises_not_found_without_the_fix_applied(owner_engin
     shop_id = _seed_shop_with_scoreable_commerce_data(owner_engine, label="refresh-noscope")
 
     async with juli_app_session() as session:
-        with pytest.raises(NotFound):
+        with pytest.raises(NotFound) as excinfo:
             await action_card_refresh.run_action_card_refresh(session, shop_id, poll=False)
+
+    assert str(shop_id) in str(excinfo.value), (
+        f"expected the unresolved shop id {shop_id} in the NotFound message, got: {excinfo.value!s}"
+    )
 
 
 # ---------------------------------------------------------------------------
