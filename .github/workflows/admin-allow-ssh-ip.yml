@@ -1,0 +1,73 @@
+name: Admin — allow an IP through the VPS SSH firewall
+
+# Break-glass for the case this exists to solve: the owner's ISP rotates their
+# dynamic address, the new address is not on the SSH allowlist, and SSH is
+# therefore unavailable — including the SSH you would use to fix the allowlist.
+#
+# CI reaches the host from GitHub's runners, which are allowlisted independently,
+# so this path stays open when yours does not. It is deliberately narrow: it adds
+# ONE additive ufw rule for ONE validated IPv4 address and prints the resulting
+# state. It cannot disable the firewall, open a port range, or run arbitrary
+# input, because the address is validated before it reaches a shell and is passed
+# as an environment variable rather than interpolated into the remote script.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ip:
+        description: "IPv4 address to allow on port 22 (e.g. 14.187.245.76)"
+        required: true
+
+jobs:
+  allow:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Validate the address before it can reach a shell
+        env:
+          # Read through env, never interpolated directly into `run:` — a
+          # ${{ }} expansion inside a shell is a command-injection seam even
+          # when only maintainers can dispatch the workflow.
+          RAW_IP: ${{ inputs.ip }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$RAW_IP" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$'; then
+            echo "refusing: '$RAW_IP' is not a bare IPv4 address" >&2
+            exit 1
+          fi
+          for octet in ${RAW_IP//./ }; do
+            if [ "$octet" -gt 255 ]; then
+              echo "refusing: '$RAW_IP' has an octet above 255" >&2
+              exit 1
+            fi
+          done
+          echo "ALLOW_IP=$RAW_IP" >> "$GITHUB_ENV"
+
+      - name: Allow it on the VPS
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.VPS_SSH_HOST }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          envs: ALLOW_IP
+          script: |
+            set -euo pipefail
+            SUDO=""
+            [ "$(id -u)" -ne 0 ] && SUDO="sudo -n"
+
+            echo "== before =="
+            $SUDO ufw status numbered || echo "(ufw not active or not installed)"
+
+            echo "== adding an additive allow rule for $ALLOW_IP =="
+            $SUDO ufw allow from "$ALLOW_IP" to any port 22 proto tcp \
+              comment "admin access $(date -u +%Y-%m-%d)"
+
+            if command -v fail2ban-client >/dev/null 2>&1; then
+              echo "== fail2ban =="
+              $SUDO fail2ban-client status sshd || true
+              $SUDO fail2ban-client set sshd unbanip "$ALLOW_IP" || true
+            fi
+
+            echo "== after =="
+            $SUDO ufw status numbered || true
