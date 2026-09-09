@@ -273,7 +273,7 @@ from juli_backend.services.agent.runner.seller_facing_copy import (
     SellerFacingDeclinedReason,
     SellerFacingRefusalReason,
 )
-from juli_backend.services.agent.runner.state import ConversationMessage, RunState
+from juli_backend.services.agent.runner.state import ConversationMessage, RollupValues, RunState
 from juli_backend.services.agent.runner.termination import (
     IterationGateAction,
     accumulate_running_seconds,
@@ -431,7 +431,7 @@ class WorkflowRunner:
         terminal_tools = set(playbook.termination_policy.terminal_tools)
         self._allowed_tool_names: frozenset[str] = frozenset(step_tools | terminal_tools)
 
-    def _compute_rollup_values(self, state: RunState) -> dict[str, int | float | None]:
+    def _compute_rollup_values(self, state: RunState) -> RollupValues:
         """Compute the rollup values for the current run (issue #1653, W8-A / P10-1)
         from `RunState`'s own accumulated fields — never from a private read of the
         `WorkflowRun` row. The counters live on `RunState` (`input_tokens`,
@@ -469,14 +469,14 @@ class WorkflowRunner:
             )
             cost_usd = estimate_cost_usd(self._llm_config.model, usage)
 
-        return {
-            "input_tokens": state.input_tokens,
-            "output_tokens": state.output_tokens,
-            "cost_usd": cost_usd,
-            "duration_ms": duration_ms,
-            "tool_call_count": state.tool_call_count,
-            "rows_affected": state.rows_affected,
-        }
+        return RollupValues(
+            input_tokens=state.input_tokens,
+            output_tokens=state.output_tokens,
+            cost_usd=cost_usd,
+            duration_ms=duration_ms,
+            tool_call_count=state.tool_call_count,
+            rows_affected=state.rows_affected,
+        )
 
     def _compose_prompt(self) -> tuple[str, str, str]:
         """Compose the system prompt and its stamp from the PRODUCTION prompt
@@ -755,12 +755,12 @@ class WorkflowRunner:
                 stop_reason=stop.stop_reason,
                 required_steps_completed=self._required_steps_completed(state),
                 running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
-                input_tokens=rollup["input_tokens"],
-                output_tokens=rollup["output_tokens"],
-                cost_usd=rollup["cost_usd"],
-                duration_ms=rollup["duration_ms"],
-                tool_call_count=rollup["tool_call_count"],
-                rows_affected=rollup["rows_affected"],
+                input_tokens=rollup.input_tokens,
+                output_tokens=rollup.output_tokens,
+                cost_usd=rollup.cost_usd,
+                duration_ms=rollup.duration_ms,
+                tool_call_count=rollup.tool_call_count,
+                rows_affected=rollup.rows_affected,
             )
             return stop
 
@@ -794,12 +794,12 @@ class WorkflowRunner:
                 stop_reason=stop.stop_reason,
                 required_steps_completed=self._required_steps_completed(state),
                 running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
-                input_tokens=rollup["input_tokens"],
-                output_tokens=rollup["output_tokens"],
-                cost_usd=rollup["cost_usd"],
-                duration_ms=rollup["duration_ms"],
-                tool_call_count=rollup["tool_call_count"],
-                rows_affected=rollup["rows_affected"],
+                input_tokens=rollup.input_tokens,
+                output_tokens=rollup.output_tokens,
+                cost_usd=rollup.cost_usd,
+                duration_ms=rollup.duration_ms,
+                tool_call_count=rollup.tool_call_count,
+                rows_affected=rollup.rows_affected,
             )
             return stop
         tool_definitions = self._tool_definitions()
@@ -870,12 +870,12 @@ class WorkflowRunner:
                     running_seconds_elapsed=running_seconds_column_value(
                         state.running_seconds_elapsed
                     ),
-                    input_tokens=rollup["input_tokens"],
-                    output_tokens=rollup["output_tokens"],
-                    cost_usd=rollup["cost_usd"],
-                    duration_ms=rollup["duration_ms"],
-                    tool_call_count=rollup["tool_call_count"],
-                    rows_affected=rollup["rows_affected"],
+                    input_tokens=rollup.input_tokens,
+                    output_tokens=rollup.output_tokens,
+                    cost_usd=rollup.cost_usd,
+                    duration_ms=rollup.duration_ms,
+                    tool_call_count=rollup.tool_call_count,
+                    rows_affected=rollup.rows_affected,
                 )
                 return stop
             await self._emit(
@@ -893,12 +893,12 @@ class WorkflowRunner:
                 stop_reason=stop_reason,
                 required_steps_completed=self._required_steps_completed(state),
                 running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
-                input_tokens=rollup["input_tokens"],
-                output_tokens=rollup["output_tokens"],
-                cost_usd=rollup["cost_usd"],
-                duration_ms=rollup["duration_ms"],
-                tool_call_count=rollup["tool_call_count"],
-                rows_affected=rollup["rows_affected"],
+                input_tokens=rollup.input_tokens,
+                output_tokens=rollup.output_tokens,
+                cost_usd=rollup.cost_usd,
+                duration_ms=rollup.duration_ms,
+                tool_call_count=rollup.tool_call_count,
+                rows_affected=rollup.rows_affected,
             )
             return RunResult(
                 stop_reason=stop_reason,
@@ -979,12 +979,12 @@ class WorkflowRunner:
                 stop_reason=stop.stop_reason,
                 required_steps_completed=self._required_steps_completed(state),
                 running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
-                input_tokens=rollup["input_tokens"],
-                output_tokens=rollup["output_tokens"],
-                cost_usd=rollup["cost_usd"],
-                duration_ms=rollup["duration_ms"],
-                tool_call_count=rollup["tool_call_count"],
-                rows_affected=rollup["rows_affected"],
+                input_tokens=rollup.input_tokens,
+                output_tokens=rollup.output_tokens,
+                cost_usd=rollup.cost_usd,
+                duration_ms=rollup.duration_ms,
+                tool_call_count=rollup.tool_call_count,
+                rows_affected=rollup.rows_affected,
             )
             return stop
 
@@ -1026,12 +1026,12 @@ class WorkflowRunner:
                 stop_reason=stop.stop_reason,
                 required_steps_completed=self._required_steps_completed(state),
                 running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
-                input_tokens=rollup["input_tokens"],
-                output_tokens=rollup["output_tokens"],
-                cost_usd=rollup["cost_usd"],
-                duration_ms=rollup["duration_ms"],
-                tool_call_count=rollup["tool_call_count"],
-                rows_affected=rollup["rows_affected"],
+                input_tokens=rollup.input_tokens,
+                output_tokens=rollup.output_tokens,
+                cost_usd=rollup.cost_usd,
+                duration_ms=rollup.duration_ms,
+                tool_call_count=rollup.tool_call_count,
+                rows_affected=rollup.rows_affected,
             )
             return stop
         except ToolExecutionUnrecoverableError:
@@ -1047,12 +1047,12 @@ class WorkflowRunner:
                 stop_reason=stop.stop_reason,
                 required_steps_completed=self._required_steps_completed(state),
                 running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
-                input_tokens=rollup["input_tokens"],
-                output_tokens=rollup["output_tokens"],
-                cost_usd=rollup["cost_usd"],
-                duration_ms=rollup["duration_ms"],
-                tool_call_count=rollup["tool_call_count"],
-                rows_affected=rollup["rows_affected"],
+                input_tokens=rollup.input_tokens,
+                output_tokens=rollup.output_tokens,
+                cost_usd=rollup.cost_usd,
+                duration_ms=rollup.duration_ms,
+                tool_call_count=rollup.tool_call_count,
+                rows_affected=rollup.rows_affected,
             )
             return stop
         sanitized = guard_inbound_tool_result(raw_result, tool_name=tool_name)
@@ -1146,12 +1146,12 @@ class WorkflowRunner:
                     running_seconds_elapsed=running_seconds_column_value(
                         state.running_seconds_elapsed
                     ),
-                    input_tokens=rollup["input_tokens"],
-                    output_tokens=rollup["output_tokens"],
-                    cost_usd=rollup["cost_usd"],
-                    duration_ms=rollup["duration_ms"],
-                    tool_call_count=rollup["tool_call_count"],
-                    rows_affected=rollup["rows_affected"],
+                    input_tokens=rollup.input_tokens,
+                    output_tokens=rollup.output_tokens,
+                    cost_usd=rollup.cost_usd,
+                    duration_ms=rollup.duration_ms,
+                    tool_call_count=rollup.tool_call_count,
+                    rows_affected=rollup.rows_affected,
                 )
                 return stop
 
@@ -1184,12 +1184,12 @@ class WorkflowRunner:
                     running_seconds_elapsed=running_seconds_column_value(
                         state.running_seconds_elapsed
                     ),
-                    input_tokens=rollup["input_tokens"],
-                    output_tokens=rollup["output_tokens"],
-                    cost_usd=rollup["cost_usd"],
-                    duration_ms=rollup["duration_ms"],
-                    tool_call_count=rollup["tool_call_count"],
-                    rows_affected=rollup["rows_affected"],
+                    input_tokens=rollup.input_tokens,
+                    output_tokens=rollup.output_tokens,
+                    cost_usd=rollup.cost_usd,
+                    duration_ms=rollup.duration_ms,
+                    tool_call_count=rollup.tool_call_count,
+                    rows_affected=rollup.rows_affected,
                 )
                 return stop
             if gate.action is IterationGateAction.EXTEND:
@@ -1238,12 +1238,12 @@ class WorkflowRunner:
                     running_seconds_elapsed=running_seconds_column_value(
                         state.running_seconds_elapsed
                     ),
-                    input_tokens=rollup["input_tokens"],
-                    output_tokens=rollup["output_tokens"],
-                    cost_usd=rollup["cost_usd"],
-                    duration_ms=rollup["duration_ms"],
-                    tool_call_count=rollup["tool_call_count"],
-                    rows_affected=rollup["rows_affected"],
+                    input_tokens=rollup.input_tokens,
+                    output_tokens=rollup.output_tokens,
+                    cost_usd=rollup.cost_usd,
+                    duration_ms=rollup.duration_ms,
+                    tool_call_count=rollup.tool_call_count,
+                    rows_affected=rollup.rows_affected,
                 )
                 return stop
             # Issue #1653: accumulate token counts from this LLM turn
@@ -1421,10 +1421,14 @@ class WorkflowRunner:
                 state.running_seconds_elapsed, delta_seconds=elapsed
             )
 
-            # Issue #1653: compute and persist rollup values on terminal exits
-            rollup: dict[str, int | float] = {}
+            # Issue #1653: compute and persist rollup values on terminal exits.
+            # A distinct name from the `rollup` used elsewhere in this method
+            # (always unconditionally assigned a `RollupValues` right before
+            # use) -- this one is genuinely optional, since a non-terminal
+            # per-iteration persist has no rollup to compute yet.
+            maybe_rollup: RollupValues | None = None
             if stop is not None:
-                rollup = self._compute_rollup_values(state)
+                maybe_rollup = self._compute_rollup_values(state)
 
             await self._conversation_store.persist(
                 workflow_run_id,
@@ -1435,12 +1439,12 @@ class WorkflowRunner:
                     self._required_steps_completed(state) if stop is not None else None
                 ),
                 running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
-                input_tokens=rollup.get("input_tokens"),
-                output_tokens=rollup.get("output_tokens"),
-                cost_usd=rollup.get("cost_usd"),
-                duration_ms=rollup.get("duration_ms"),
-                tool_call_count=rollup.get("tool_call_count"),
-                rows_affected=rollup.get("rows_affected"),
+                input_tokens=maybe_rollup.input_tokens if maybe_rollup is not None else None,
+                output_tokens=maybe_rollup.output_tokens if maybe_rollup is not None else None,
+                cost_usd=maybe_rollup.cost_usd if maybe_rollup is not None else None,
+                duration_ms=maybe_rollup.duration_ms if maybe_rollup is not None else None,
+                tool_call_count=maybe_rollup.tool_call_count if maybe_rollup is not None else None,
+                rows_affected=maybe_rollup.rows_affected if maybe_rollup is not None else None,
             )
 
             if stop is not None:

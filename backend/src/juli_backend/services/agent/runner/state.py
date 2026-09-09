@@ -34,6 +34,31 @@ _KNOWN_FIELDS = (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class RollupValues:
+    """The six per-run rollup values `WorkflowRunner._compute_rollup_values`
+    computes from `RunState`'s own accumulated fields (issue #1653, W8-A /
+    P10-1) and every terminal-exit `ConversationStore.persist(...)` call
+    passes onward, unpacked to its matching keyword argument.
+
+    A typed dataclass rather than a `dict[str, int | float | None]`: the
+    dict shape let `cost_usd` (the one nullable-float member) widen every
+    OTHER field's static type to `int | float | None` as well, so mypy could
+    not tell `rows_affected=rollup["rows_affected"]` (always an `int`) from
+    `cost_usd=rollup["cost_usd"]` (an `int | float | None`) -- both looked
+    identical to the type checker, and `ConversationStore.persist`'s
+    `rows_affected: int | None` parameter flagged every call site as a
+    type error. Each field below carries its own real type instead.
+    """
+
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float | None
+    duration_ms: int
+    tool_call_count: int
+    rows_affected: int
+
+
 class RunStateFieldMissingError(ValueError):
     """Raised by `RunState.from_dict` when a blob is missing one of the
     currently-required fields.
