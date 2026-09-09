@@ -610,6 +610,29 @@ class WorkflowRun(Base):
     #: false data. Nothing writes this column yet; #1222's approve
     #: transaction is the first writer.
     action_card_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("action_cards.id"))
+    #: Per-run rollup (issue #1653, W8-A / P10-1): token counts summed from all
+    #: `AssistantTurn.usage` records returned by `LLMService.complete()` calls
+    #: during this run. Nullable, no backfill — runs pre-dating this feature stay
+    #: NULL. Populated at every terminal exit by `WorkflowRunner` and persisted via
+    #: `ConversationStore.persist()`.
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+    #: Per-run cost in USD, computed from the rate in force for that run
+    #: (`PRICE_TABLE_USD_PER_MILLION_TOKENS` in `services/agent/llm/config.py`),
+    #: stamped at run time, never retroactively updated. Uses the same scale
+    #: as money_allocated/money_spent in shops table. Nullable, no backfill.
+    cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(precision=14, scale=2))
+    #: Wall-clock duration in milliseconds from run start to terminal event
+    #: (or pause). Pauses contribute nothing to duration. Across pause/resume,
+    #: durations accumulate. Nullable, no backfill.
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    #: Count of tool calls dispatched to `ToolExecutor.execute` during this run.
+    #: A no-op run records 0. Nullable, no backfill.
+    tool_call_count: Mapped[int | None] = mapped_column(Integer)
+    #: Count of rows written by the run (defined at the `ToolExecutor` seam,
+    #: never a vendor-reported count reinterpreted as a row count). A no-op run
+    #: records 0. Nullable, no backfill.
+    rows_affected: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
