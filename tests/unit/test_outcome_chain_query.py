@@ -507,7 +507,21 @@ class TestLegacyRunWithNoActionCard:
 
 
 class TestUnknownRun:
-    async def test_an_unknown_run_id_raises_a_typed_error(self, session_factory):
+    async def test_an_unknown_run_id_raises_a_typed_error_naming_that_id(self, session_factory):
+        """An absent run is an error, not five empty links — and the error has
+        to name the run that was actually asked for.
+
+        Asserted on the raised object rather than on the mere fact of raising:
+        a `RunNotFoundError` that reported some *other* id, or that carried no
+        machine-readable code, would still satisfy a bare `pytest.raises` while
+        being useless to the caller that has to map it.
+        """
+        unknown_id = uuid.uuid4()
+
         async with session_factory() as session:
-            with pytest.raises(RunNotFoundError):
-                await load_outcome_chain(session, uuid.uuid4())
+            with pytest.raises(RunNotFoundError) as excinfo:
+                await load_outcome_chain(session, unknown_id)
+
+        assert excinfo.value.workflow_run_id == unknown_id
+        assert str(unknown_id) in str(excinfo.value)
+        assert excinfo.value.error_code == "workflow_run_not_found"
