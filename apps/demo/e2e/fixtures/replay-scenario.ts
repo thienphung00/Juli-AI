@@ -23,22 +23,25 @@ export const REPLAY_SCENARIO_OPTION_ID = "1" as const;
 export const REPLAY_SCENARIO_PROPOSED_TITLE = "Tiêu đề đã tối ưu" as const;
 
 /**
- * A fixed wall-clock anchor for every replay-journey test — NOT a workaround
- * for "today happens to be past the capture date." `getReplayInitialEvents()`
- * rebases each event's own `timestamp` to `Date.now()` at mount, but the
- * nested `workflow.approval_required.expires_at` field is left as captured
- * (`2026-01-01T04:00:00Z`, absolute, never rebased) — verified
- * directly against a running build (issue #1321's own investigation). A
- * journey anchored to the real system clock would therefore silently start
- * failing the day real time crosses that fixed expiry, which is a latent
- * flakiness bomb the "deterministic across ten consecutive runs" bar is
- * meant to rule out, not just today's happenstance. Pinning `page.clock` to
- * a moment inside the captured scenario's own 4-hour validity window makes
- * every run — today, next month, next year — deterministic in exactly the
- * same way. Reported separately (not fixed here — production source is
- * outside this issue's file boundary): the SAME absolute-timestamp gap
- * means real visitors will see a permanently-expired offer in production
- * once real wall-clock time passes this date.
+ * A fixed wall-clock anchor for every replay-journey test, so a run today, next
+ * month and next year all see the same instant — the "deterministic across ten
+ * consecutive runs" bar.
+ *
+ * CORRECTED 2026-09-10. This block used to state that `expires_at` is
+ * "absolute, never rebased", and justified the pin as protection against the
+ * offer expiring once real time passed the capture date. That was true when it
+ * was written and stopped being true at #1764: `rebaseTemporalFields` now
+ * shifts every nested temporal field, not just the envelope `timestamp`, so
+ * `expires_at` moves with the series. Measured against the current capture,
+ * `getReplayInitialEvents(Date.now())` puts it 11 hours in the FUTURE.
+ *
+ * The stale claim was not harmless — it read as a live production defect
+ * ("real visitors will see a permanently-expired offer in production"), and was
+ * one step from being filed as one. It is not a defect; #1764 fixed it.
+ *
+ * The pin stays, for determinism rather than for expiry. It must sit inside the
+ * captured offer's validity window, which `e2e-fixture-transcription.test.ts`
+ * asserts against the capture rather than trusting this comment.
  */
 export const REPLAY_SCENARIO_CLOCK_PIN = "2026-01-01T01:00:00.000Z" as const;
 
