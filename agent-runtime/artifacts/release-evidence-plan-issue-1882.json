@@ -1,0 +1,74 @@
+{
+  "planId": "demo-lane-migration-gate-baseline-2026-09-10",
+  "affectedPublicSurfaces": [
+    "None changed by this slice. It edits infra/scripts/deploy-demo-release.sh only \u2014 the baseline the additive-only migration gate measures pending migrations from. No route, asset, schema or deployed artifact changes as a result of merging it.",
+    "It does, however, UNBLOCK a public surface: demo.app-juli.com has been serving the 25491b06 build since 2026-09-07 because this gate refused every attempt to advance it."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Local script-level tests on feature/issue-1882-demo-gate-baseline; the deploy itself is a separate, human-run step on the VPS.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "demo-lane-gate-accepts-when-nothing-is-genuinely-pending",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/actions",
+        "assertions": [
+          "On the candidate, run the demo deploy against a target sha whose migrations are already applied by the API lane, and confirm the gate reports ADDITIVE-ONLY: ACCEPTED with an empty pending set rather than re-proposing 056_series_source_column.",
+          "Confirm the note line names the API lane's release as the baseline, not the demo lane's: 'pending schema change measured against the live release <api-sha>'.",
+          "Confirm demo-current repoints and the served build is the target sha \u2014 merged is not deployed, and this gate's whole failure mode was a lane that did not repoint.",
+          "Negative case: with ~/releases/current absent, confirm the run still resolves a baseline from the demo lane and does not accept an empty pending set silently."
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "pytest output for tests/unit/test_demo_migration_gate_baseline.py"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report"
+    ],
+    "notes": "No asset pipeline is touched. The demo bundle this lane deploys is built by CI and unchanged by this slice.",
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "This slice adds no migration. It changes which commit the gate DIFFS FROM when deciding what is pending. The gate's refusal semantics, its additive/destructive classification, and safe-alembic-upgrade.sh are all untouched \u2014 a genuinely pending destructive migration is refused exactly as before. Verified by test: an explicit DEMO_MIGRATION_GATE_BASE_SHA still wins, so an operator can still force a narrower baseline."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. The demo lane stays pinned at 25491b06 and demo.app-juli.com continues to serve a build predating the W6 wave, which is the state this slice exists to end. No candidate is started by the refusal, so nothing is left half-cut-over.",
+    "postCutoverFailureBehavior": "Revert the commit. The baseline reverts to the demo lane's own live release and the gate returns to its previous behaviour \u2014 refusing releases whose baseline has gone stale. That is worse but not unsafe: the failure mode is a refused deploy, never an applied migration.",
+    "retainedStableRequired": true,
+    "automatic": false,
+    "notes": "The direction that would be dangerous \u2014 a baseline AHEAD of the database, causing the gate to under-inspect \u2014 cannot occur: the API lane repoints ~/releases/current only after its migrations apply and its candidate serves, so its live release is bounded by what the database already has."
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src:. pytest tests/unit/test_demo_migration_gate_baseline.py -q",
+    "bash -n infra/scripts/deploy-demo-release.sh",
+    "PYTHONPATH=backend/src:. pytest tests/unit/test_demo_candidate_verification.py tests/unit/test_deploy_release_script_contract.py -q"
+  ],
+  "doNotInfer": [
+    "Do not infer that the demo lane was deployed by merging this. Merging makes the next deploy able to succeed; it does not run one. The deploy is a separate step, and #1322 cannot be walked until the served build is confirmed to be the target sha.",
+    "Do not infer that 056_series_source_column was unsafe. It was already applied to the live database \u2014 impact_readings.series_source exists \u2014 and the gate was re-proposing it because it measured from a four-day-stale baseline, not because the migration was pending.",
+    "Do not infer that this fixes the API lane. The API lane already resolves its pending set from the database's own alembic revision and was never affected.",
+    "Do not infer that DEMO_MIGRATION_GATE_BASE_SHA is now redundant. It remains the operator override and is asserted by test; it is no longer the only way through a routine deploy."
+  ],
+  "notes": "Filed as #1882 after the gate refused the W6 release (d1d498ba2) minutes after #1844 merged. Root cause: every release since 2026-09-07 skipped the demo lane because apps/demo was unchanged, so its baseline drifted while the API lane deployed past it. A lane could become undeployable purely by not being deployed."
+}
