@@ -151,6 +151,27 @@ def _unresolved_reason(issue: int) -> str:
     )
 
 
+# Paths whose contents can carry an architectural change. Everything else --
+# committed artifacts, prose, ADRs themselves -- cannot: an ADR-only diff is
+# already satisfied by the ADR, and an artifact-only diff has no design in it.
+_SOURCE_SUFFIXES = (".py", ".ts", ".tsx", ".js", ".jsx", ".sql", ".swift", ".sh", ".yml", ".yaml")
+_NON_SOURCE_PREFIXES = ("docs/", "agent-runtime/artifacts/")
+
+
+def _is_source_path(path: str) -> bool:
+    """Whether a changed path could carry an architectural decision.
+
+    Prefix beats suffix: `.github/workflows/*.yml` IS source (it decides what
+    runs), while `agent-runtime/artifacts/**/*.yml` is a committed record of a
+    run that already happened. Getting that backwards would let a workflow edit
+    skip the ADR requirement, which is the one case in this file worth being
+    strict about.
+    """
+    if path.startswith(_NON_SOURCE_PREFIXES):
+        return False
+    return path.endswith(_SOURCE_SUFFIXES)
+
+
 def resolve_architectural_change(
     issue: int, changed: list[str]
 ) -> tuple[bool | None, str, list[str]]:
@@ -199,6 +220,34 @@ def resolve_architectural_change(
     """
     if any("docs/architecture/map.md" in c for c in changed):
         return True, "diff", []
+
+    # Rung 1b: a diff that changes no source cannot BE an architectural change.
+    #
+    # #1853: four PRs in one day were failed by this gate for a question it had
+    # no source to answer. Rung 2 is gitignored by policy and never present in
+    # CI; rung 3 is silent for every issue whose record predates #1562, and
+    # backfilling those is forbidden by that issue's Architect lock. So any PR
+    # filed under such an issue falls to rung 4 and fails closed forever --
+    # including a one-line edit to a JSON array of issue numbers.
+    #
+    # This rung is deliberately NOT "a merge commit is not architectural", the
+    # shape considered first: that would skip the requirement for authored code
+    # sitting in the same PR. It asks a narrower question with a definite answer
+    # -- did this diff change any source at all? An architectural change has to
+    # live in code or in an ADR. A diff of artifacts and prose is neither, so
+    # "no" here is a fact about the diff rather than an inference from silence,
+    # which is what rung 4 exists to refuse.
+    # An ADR in the diff keeps the PR on the ladder even when nothing else in it
+    # is source. Skipping ahead here would answer "no architectural change" and
+    # return PASS without ever validating the ADR — which is how an ADR-shaped
+    # file with no content would buy a green check
+    # (test_unresolved_evidence_still_rejects_a_malformed_adr).
+    if (
+        changed
+        and not any(_is_source_path(c) for c in changed)
+        and not any(c.startswith("docs/adr/") for c in changed)
+    ):
+        return False, "no-source-change", []
 
     try:
         review = load_review_artifact(issue)
