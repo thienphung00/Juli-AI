@@ -282,30 +282,40 @@ def _paragraphs_mentioning(text: str, token: str) -> list[str]:
     return chunks
 
 
-def test_every_admin_bypass_instruction_carries_a_recording_obligation() -> None:
-    """#1436 AC1, asserted as a property rather than as a phrase.
+def test_no_document_instructs_an_admin_bypass() -> None:
+    """#1436: the privilege was withdrawn, so nothing may instruct it.
 
-    `--admin` skips `status-check`, the single required check on both rulesets
-    and the roll-up every gate in this epic reports through. The requirement is
-    not that some paragraph somewhere mentions recording — it is that *no*
-    instruction to bypass stands without one. Quantifying over every occurrence
-    is what makes this catch an instruction added later, which an assertion on
-    fixed strings cannot.
+    This replaces `test_every_admin_bypass_instruction_carries_a_recording_obligation`,
+    which required every `--admin` instruction to carry a recording obligation and then
+    asserted at least one existed. Its own failure message said: "if the lane genuinely
+    dropped it, delete this test rather than leaving it vacuously green." The lane
+    dropped it on 2026-09-10 — the bypass actor was removed from the `Protect main`
+    ruleset after both justifying cases were measured and found obsolete (docs-only PRs
+    report a real verdict; PR #1855 proved a watched-`sourcePath` PR goes green under
+    #1608's merge-base anchor).
+
+    The invariant is now the inverse and strictly stronger: no document may instruct the
+    bypass at all. Prose *about* the withdrawal is expected — what is banned is a command
+    telling someone to run it.
     """
-    found_any = False
+    offenders = []
     for doc in _POLICY_DOCS:
         text = doc.read_text(encoding="utf-8")
-        for chunk in _paragraphs_mentioning(text, "--admin"):
-            found_any = True
-            lowered = chunk.lower()
-            assert any(word in lowered for word in _RECORDING_OBLIGATION), (
-                f"{doc.name} instructs `--admin` with no recording obligation in the "
-                f"same instruction, so a sanctioned bypass is indistinguishable from "
-                f"an unsanctioned one:\n\n{chunk.strip()[:400]}"
-            )
-    assert found_any, (
-        "no document instructs `--admin`; if the lane genuinely dropped it, delete "
-        "this test rather than leaving it vacuously green"
+        # Only a *command* counts. These docs carry very long single-line bullets,
+        # so a line-level "both tokens present" match flags the withdrawal note
+        # itself. Requiring the flag to follow the verb with no backtick between
+        # them separates `gh pr merge --squash --admin` (one command span) from
+        # "...`gh pr merge --squash`... **No `--admin`**" (prose about it).
+        #
+        # An earlier version paired backticks with `re.findall(r"`([^`]+)`")`.
+        # That is wrong in a document containing ``` fences: the fences consume
+        # backticks and misalign every later pair, so it found zero spans and the
+        # test passed vacuously. Caught by probing it with a real re-introduction.
+        for match in re.finditer(r"gh pr merge[^\n`]*--admin", text):
+            offenders.append(f"{doc.name}: {match.group(0)[:120]}")
+    assert not offenders, (
+        "a document instructs `gh pr merge --admin`, but the privilege was withdrawn "
+        "from the Protect main ruleset (#1436) and no longer exists:\n  " + "\n  ".join(offenders)
     )
 
 
@@ -359,29 +369,3 @@ def test_the_two_harnesses_agree_on_what_is_sanctioned() -> None:
             f"`{token}` is addressed in only one of git-baseline.mdc / CLAUDE.md; "
             f"the two harnesses would carry different policies"
         )
-
-
-def test_the_harness_path_bypass_documents_its_recording_form_and_the_repin() -> None:
-    """#1641/#1647: the second sanctioned `--admin` case needs its own assertion.
-
-    `test_every_admin_bypass_instruction_carries_a_recording_obligation` quantifies
-    over paragraphs containing `--admin`, and the harness case is a sub-item under
-    a parent bullet that carries the obligation — so the sub-item could lose its
-    own recording form, or the re-pin requirement, without that test noticing.
-
-    The re-pin half is the part that decays silently: skipping it leaves every
-    later PR on the branch inheriting the same red, which reads as "CI is flaky"
-    rather than "someone owes a re-pin".
-    """
-    rule = GIT_BASELINE_RULE.read_text(encoding="utf-8")
-    if "sourcePath" not in rule:
-        return  # the second case was withdrawn; nothing to assert
-
-    assert "bypass: harness sourcePath change" in rule, (
-        "the harness-path bypass is sanctioned without prescribing how it is recorded"
-    )
-    lowered = rule.lower()
-    assert "re-pin" in lowered or "repin" in lowered, (
-        "the harness-path bypass does not state that the pin must be refreshed afterwards; "
-        "without it every later PR on the branch inherits the same red"
-    )
