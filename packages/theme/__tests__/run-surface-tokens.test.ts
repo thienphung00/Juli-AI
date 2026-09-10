@@ -292,6 +292,17 @@ describe("the live-edge accent is reserved for the live edge only", () => {
   });
 });
 
+describe("MODULE.md records the layer shape and the token-only-theming rule", () => {
+  it("names all four layers and the token-only re-theme rule", () => {
+    const moduleMd = readFileSync(resolve(themeDir, "MODULE.md"), "utf8");
+    for (const layer of ["canvas", "panel", "raised", "overlay"]) {
+      expect(moduleMd, `MODULE.md must name the ${layer} layer`).toContain(layer);
+    }
+    expect(moduleMd).toMatch(/changes this file only/i);
+    expect(moduleMd).toContain("run-surface-tokens.css");
+  });
+});
+
 describe("focus states are visible and were not removed by a token override", () => {
   it("the scoped layer never redefines the app-wide --juli-focus-ring token", () => {
     expect(runSurfaceCss).not.toMatch(/--juli-focus-ring\s*:/);
