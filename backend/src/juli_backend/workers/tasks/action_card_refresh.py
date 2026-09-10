@@ -30,16 +30,23 @@ def _ensure_session_factory() -> async_sessionmaker:
 
 
 async def _refresh_async(shop_id: uuid.UUID) -> None:
-    from juli_backend.database.tenant_context import with_shop_scope
+    from juli_backend.database.tenant_context import reapply_shop_scope, with_shop_scope
 
     factory = _ensure_session_factory()
     async with factory() as session:
         async with with_shop_scope(session, shop_id):
-            # Sync sandbox_write catalog before refresh if credential exists
+            # Sync sandbox_write catalog before refresh if credential exists.
+            # This can commit internally (resolve_sandbox_write_credential ->
+            # _lazy_refresh -> refresh_credential), which discards the SET
+            # LOCAL shop GUC (#1860 reopen, 2026-09-10) -- re-apply after it.
             await sync_sandbox_write_products(session, shop_id)
+            await reapply_shop_scope(session, shop_id)
 
-            # Check for credential identity mismatch
+            # Check for credential identity mismatch. No known commit today,
+            # but re-applied defensively -- the task must be correct even if
+            # a future change to this helper starts one.
             await check_sandbox_write_catalog_identity_mismatch(session, shop_id)
+            await reapply_shop_scope(session, shop_id)
 
             # Run the standard refresh
             await run_action_card_refresh(session, shop_id)

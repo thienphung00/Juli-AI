@@ -16,6 +16,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.database.tenant_context import reapply_shop_scope
 from juli_backend.models.models import ActionCard
 from juli_backend.services.action_cards.emission_budget import apply_emission_budget
 from juli_backend.services.action_cards.persist import persist_scoring_result
@@ -152,6 +153,13 @@ async def run_action_card_refresh(
     if poll:
         runner = poll_hook or maybe_poll_tiktok_data
         await runner(session, shop_id)
+        # The poll path can commit internally for a production-read shop
+        # (maybe_poll_tiktok_data -> resolve_production_read_credential ->
+        # _lazy_refresh -> refresh_credential), which discards the caller's
+        # SET LOCAL shop GUC. Re-apply unconditionally rather than only on
+        # the branches known to commit today -- the task must be correct
+        # even when a collaborator commits (#1860 reopen, 2026-09-10).
+        await reapply_shop_scope(session, shop_id)
 
     result = await run_daily_scoring_for_shop(session, shop_id)
     persisted_cards = await persist_scoring_result(session, shop_id, result)
