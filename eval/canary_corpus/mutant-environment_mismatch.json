@@ -1,0 +1,81 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "mutant-environment_mismatch",
+  "artifactType": "implementation",
+  "sourceOperator": "environment_mismatch",
+  "expectedVerdict": "fail",
+  "record": {
+    "schemaVersion": "1.0.0",
+    "artifactType": "implementation",
+    "issueId": 1457,
+    "executorDomain": "backend",
+    "phaseRunId": "1457-20260901T090000",
+    "startedAt": "2026-09-01T09:00:00Z",
+    "completedAt": "2026-09-01T09:42:00Z",
+    "executionDurationMs": 2520000,
+    "tokenUsage": {
+      "input": 120000,
+      "output": 18000,
+      "total": 138000
+    },
+    "toolsUsed": [
+      {
+        "toolName": "Bash",
+        "count": 31,
+        "stage": "red"
+      },
+      {
+        "toolName": "Bash",
+        "count": 44,
+        "stage": "green"
+      }
+    ],
+    "toolInvocationCount": 75,
+    "contextFilesLoaded": [
+      "docs/handoffs/issue-1434.md",
+      "agent-runtime/docs/schemas/implementation-artifact.schema.json"
+    ],
+    "skillsLoaded": [
+      "backend-executor"
+    ],
+    "rulesLoaded": [
+      ".cursor/rules/core-safety.mdc"
+    ],
+    "mcpsUsed": [],
+    "filesModified": [
+      "eval/artifact_mutants.py",
+      "eval/gate_scoring.py"
+    ],
+    "testsAdded": [
+      "tests/unit/test_mutants.py"
+    ],
+    "testsUpdated": [],
+    "redGreenRefactorEvidence": [
+      {
+        "cycle": 1,
+        "failingTestEvidence": "ModuleNotFoundError: No module named 'eval.artifact_mutants' \u2014 collection error, 1 error in 0.33s",
+        "passingTestEvidence": "6 passed in 11.42s",
+        "refactorEvidence": "Extracted the arm sweep from the CLI entrypoint.",
+        "commands": [
+          {
+            "command": "PYTHONPATH=/Users/macos/Juli-AI-v2/.worktrees/stale-w6/backend/src /opt/homebrew/anaconda3/bin/python -m pytest tests -q",
+            "exitCode": 1,
+            "outputSummary": "1 error during collection (red)"
+          },
+          {
+            "command": "PYTHONPATH=/Users/macos/Juli-AI-v2/.worktrees/stale-w6/backend/src /opt/homebrew/anaconda3/bin/python -m pytest tests -q",
+            "exitCode": 0,
+            "outputSummary": "6 passed (green) under .worktrees/stale-w6; CI runs .venv-ci from repo root"
+          }
+        ]
+      }
+    ],
+    "implementationSummary": "Schema-driven mutant generator plus a differential scorer that runs every gate in agent-runtime/scripts/validate/ against the corpus.",
+    "assumptions": [
+      "Operators mirror our own failure taxonomy; sensitivity is not a generalisation claim."
+    ],
+    "risks": [
+      "Gates that never ran in CI may fail for environment reasons."
+    ]
+  }
+}

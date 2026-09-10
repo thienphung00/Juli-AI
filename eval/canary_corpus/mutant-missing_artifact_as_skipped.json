@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "mutant-missing_artifact_as_skipped",
+  "artifactType": "validation",
+  "sourceOperator": "missing_artifact_as_skipped",
+  "expectedVerdict": "fail",
+  "record": {
+    "schemaVersion": "1.0.0",
+    "artifactType": "validation",
+    "id": "validation-issue-1457",
+    "issue": 1457,
+    "timestamp": "2026-09-01T09:00:00Z",
+    "validatedBy": "validate skill",
+    "status": "PASS",
+    "passedChecks": 2,
+    "failedChecks": 0,
+    "checks": [
+      {
+        "name": "implementation_artifact_present",
+        "status": "SKIP",
+        "description": "Implementation artifact not found on disk; check skipped.",
+        "classification": "blocking"
+      },
+      {
+        "name": "review_artifact_present",
+        "status": "PASS",
+        "description": "Review artifact present; status PASS",
+        "classification": "blocking"
+      }
+    ],
+    "advisoryFailures": [],
+    "overallSummary": "Clean baseline record with no planted defect.",
+    "readyForMerge": true,
+    "reviewStatus": "PASS",
+    "reviewWarningCount": 0,
+    "sourceReviewArtifact": "agent-runtime/artifacts/reviews/review-issue-1457.json",
+    "phaseRunId": "1457-20260901T090000",
+    "testsExecuted": 6,
+    "testsPassed": 6,
+    "testsFailed": 0
+  }
+}

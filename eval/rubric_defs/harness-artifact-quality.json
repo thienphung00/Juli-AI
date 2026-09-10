@@ -1,0 +1,18 @@
+{
+  "prompt": "Judge whether this ADR-003 artifact body (implementation, review, or validation) is internally consistent: no PASS asserted over an unresolved CRITICAL finding, every artifact reference resolves to the path this run's own naming convention implies, every cited test node exists in the tree, every red/green command matches the CI oracle exactly, and no missing input is recorded as SKIP while the run still reports PASS. Answer pass, fail, or cannot_determine.",
+  "anchors": [
+    "A review with status=PASS and an empty criticalFindings list is pass.",
+    "A review with status=PASS and one unresolved CRITICAL finding is fail (self_reported_pass).",
+    "A validation whose checks include one SKIP while overall status=PASS is fail (missing_artifact_as_skipped)."
+  ],
+  "model": "heuristic-v1",
+  "canaryIds": [
+    "mutant-self_reported_pass",
+    "mutant-vacuous_test_evidence",
+    "mutant-narrowed_command_scope",
+    "mutant-dangling_artifact_ref",
+    "mutant-missing_artifact_as_skipped",
+    "mutant-environment_mismatch",
+    "mutant-unbacked_claim"
+  ]
+}
