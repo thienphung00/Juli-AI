@@ -300,3 +300,98 @@ jobs:
         with:
           generate_release_notes: true
           files: artifacts/releases/release-*.json
+
+  # #1887/#1893: a failed release is silent. `deploy` runs only if `build` passed,
+  # so a red build means production quietly stays on the previous release --
+  # nothing says so, and the merge that thought it was shipping looks merged.
+  #
+  # On 2026-09-10 that gap held the credential-refresh fix out of production for
+  # ~2h while every TikTok token refresh failed live and KPIs aged past 72 hours.
+  # Three consecutive releases had failed; it was found by hand, not by an alarm.
+  #
+  # This does NOT use Slack. The uptime workflow already alerts that way and its
+  # `SLACK_WEBHOOK_URL` secret is unset, so for 18 runs it detected real staleness
+  # and then died on `::warning::... no alert sent` -- a correct alarm with nowhere
+  # to ring (#1887). A GitHub issue needs no secret beyond the built-in token, is
+  # readable after the fact, and survives nobody being at a keyboard. Slack is
+  # posted too when the webhook happens to exist, but its absence is not fatal.
+  notify-failure:
+    name: Announce a failed release
+    runs-on: ubuntu-latest
+    needs: [build, app-release-artifact, deploy, generate-release-artifact]
+    # `always()` so this runs even though the jobs it watches failed. The explicit
+    # `== 'failure'` tests matter: `needs.<job>.result` is also `skipped` and
+    # `cancelled`, and neither means production missed a release.
+    if: >-
+      always()
+      && (needs.build.result == 'failure'
+        || needs.app-release-artifact.result == 'failure'
+        || needs.deploy.result == 'failure'
+        || needs.generate-release-artifact.result == 'failure')
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Open or update the release-failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # No checkout in this job, so `gh` cannot infer the repo from a git remote.
+          GH_REPO: ${{ github.repository }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          ARTIFACT_RESULT: ${{ needs.app-release-artifact.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          GENERATE_RESULT: ${{ needs.generate-release-artifact.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          marker="Release failed on main — production did not get this commit"
+          body="$(sed 's/^          //' <<BODY
+          \`${SHA}\` merged to \`main\` but **the release did not deploy**, so production
+          is still serving the previous release.
+
+          | job | result |
+          |---|---|
+          | build | ${BUILD_RESULT} |
+          | app-release-artifact | ${ARTIFACT_RESULT} |
+          | deploy | ${DEPLOY_RESULT} |
+          | generate-release-artifact | ${GENERATE_RESULT} |
+
+          Run: ${RUN_URL}
+
+          Whatever that commit was meant to ship is **not live**. If it was a fix for a
+          production problem, that problem is still happening.
+
+          To see what is actually running:
+          \`\`\`
+          readlink -f /root/releases/current
+          \`\`\`
+          BODY
+          )"
+          existing="$(gh issue list --state open --search "\"${marker}\" in:title" \
+            --json number --jq '.[0].number // empty')"
+          if [ -n "${existing}" ]; then
+            gh issue comment "${existing}" --body "${body}"
+            echo "commented on #${existing}"
+          else
+            gh issue create --title "${marker}" --body "${body}"
+          fi
+
+      - name: Also post to Slack when a webhook is configured
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # Unlike uptime.yml, a missing webhook is NOT fatal here: the issue above
+          # already carried the signal. Exiting non-zero on the secret's absence
+          # would only add a second red run saying nothing new -- which is exactly
+          # how #1887 turned a working alarm into 18 silent failures.
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "No SLACK_WEBHOOK_URL configured; the GitHub issue above carries the signal."
+            exit 0
+          fi
+          text=":rotating_light: Juli release FAILED for ${SHA} — production did not get this commit (run: ${RUN_URL})"
+          payload="$(python3 -c 'import json, sys; print(json.dumps({"text": sys.argv[1]}))' "${text}")"
+          curl -sS -X POST -H 'Content-type: application/json' --data "${payload}" "${SLACK_WEBHOOK_URL}"
