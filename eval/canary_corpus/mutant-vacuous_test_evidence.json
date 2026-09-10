@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "mutant-vacuous_test_evidence",
+  "artifactType": "implementation",
+  "sourceOperator": "vacuous_test_evidence",
+  "expectedVerdict": "fail",
+  "record": {
+    "schemaVersion": "1.0.0",
+    "artifactType": "implementation",
+    "issueId": 1457,
+    "executorDomain": "backend",
+    "phaseRunId": "1457-20260901T090000",
+    "startedAt": "2026-09-01T09:00:00Z",
+    "completedAt": "2026-09-01T09:42:00Z",
+    "executionDurationMs": 2520000,
+    "tokenUsage": {
+      "input": 120000,
+      "output": 18000,
+      "total": 138000
+    },
+    "toolsUsed": [
+      {
+        "toolName": "Bash",
+        "count": 31,
+        "stage": "red"
+      },
+      {
+        "toolName": "Bash",
+        "count": 44,
+        "stage": "green"
+      }
+    ],
+    "toolInvocationCount": 75,
+    "contextFilesLoaded": [
+      "docs/handoffs/issue-1434.md",
+      "agent-runtime/docs/schemas/implementation-artifact.schema.json"
+    ],
+    "skillsLoaded": [
+      "backend-executor"
+    ],
+    "rulesLoaded": [
+      ".cursor/rules/core-safety.mdc"
+    ],
+    "mcpsUsed": [],
+    "filesModified": [
+      "eval/artifact_mutants.py",
+      "eval/gate_scoring.py"
+    ],
+    "testsAdded": [
+      "tests/unit/test_mutants.py"
+    ],
+    "testsUpdated": [],
+    "redGreenRefactorEvidence": [
+      {
+        "cycle": 1,
+        "failingTestEvidence": "Wrote the test first and watched it fail.",
+        "passingTestEvidence": "All tests pass now.",
+        "refactorEvidence": "Extracted the arm sweep from the CLI entrypoint."
+      }
+    ],
+    "implementationSummary": "Schema-driven mutant generator plus a differential scorer that runs every gate in agent-runtime/scripts/validate/ against the corpus.",
+    "assumptions": [
+      "Operators mirror our own failure taxonomy; sensitivity is not a generalisation claim."
+    ],
+    "risks": [
+      "Gates that never ran in CI may fail for environment reasons."
+    ]
+  }
+}

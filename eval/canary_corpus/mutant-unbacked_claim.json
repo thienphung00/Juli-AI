@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "mutant-unbacked_claim",
+  "artifactType": "review",
+  "sourceOperator": "unbacked_claim",
+  "expectedVerdict": "fail",
+  "record": {
+    "schemaVersion": "1.0.0",
+    "artifactType": "review",
+    "id": "review-issue-1457",
+    "issue": 1457,
+    "timestamp": "2026-09-01T09:00:00Z",
+    "reviewedBy": "review skill",
+    "status": "PASS",
+    "dynamicTestsExecuted": true,
+    "summary": "Clean baseline record with no planted defect.",
+    "criticalFindings": [],
+    "modulesTouched": [],
+    "interfaceChanges": [],
+    "moduleDrift": false,
+    "driftDetails": [],
+    "testCoverage": {
+      "acceptance": {
+        "total": 1,
+        "mapped": 1,
+        "unmapped": [],
+        "mappings": [
+          {
+            "criterion": "GIVEN the three artifact schemas WHEN the mutator runs THEN every mutant validates against its schema",
+            "test": "tests/unit/test_mutants.py::test_gate_sensitivity_is_generalisable"
+          }
+        ]
+      },
+      "unit": {
+        "passed": 6,
+        "failed": 0
+      }
+    },
+    "recommendations": [],
+    "approvalReady": true,
+    "reviewerSignoff": null,
+    "ownerSignoff": null,
+    "mlGates": null,
+    "priorReviewBlockers": [],
+    "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-1457.json",
+    "phaseRunId": "1457-20260901T090000"
+  }
+}
