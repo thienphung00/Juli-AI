@@ -1,6 +1,9 @@
 # P-UI Design Spec — Optimize Product execution experience
 
 **Status:** Design settled 2026-08-12 (grill session, [ADR-076](../../adr/076-agent-demo-execution-experience.md)).
+**§6's visual direction superseded 2026-09-10** by [ADR-102](../../adr/102-run-surface-light-canvas-and-layer-tokens.md) — the run surface
+returns to the light Juli canvas. §§1–5 and 7–9 are unaffected. See the amendment at the
+end of this document.
 **Mandate:** structural design policy is lifted for these surfaces (user directive) —
 layout, components, flows, and **visual identity (theme tokens)** may be redefined for
 the Optimize Product workflow (all its states/flows) + the In-Progress sub-tab, and
@@ -142,6 +145,13 @@ event; nothing animates to fake progress.
 
 ## 6. Visual identity (scoped to these surfaces)
 
+> **Superseded in part, 2026-09-10 — [ADR-102](../../adr/102-run-surface-light-canvas-and-layer-tokens.md).**
+> The **direction** below ("quieter ground than the dashboard … deeper neutral") is WITHDRAWN.
+> The run surface is light, on the Juli canvas. Everything else in this section stands:
+> token freedom, the single live-edge accent, semantic status colours keeping the app's
+> meaning system, the narration display treatment, and the scoped-layer rule. Do not build
+> the dark ground from this paragraph — read the amendment at the end of this document first.
+
 Token freedom is granted for this surface. Direction (final palette at
 implementation with the `ui-ux-design` skill): a **focus surface** — quieter ground
 than the dashboard (reduced chrome, deeper neutral), a single accent reserved for
@@ -196,3 +206,55 @@ regression — the other 10 workflows' flows stay green.
 **Gate:** replay E2E green in CI + one observed live-mode run (flag on, real GPT-5.4
 nano + sandbox) end-to-end in browser + dictionary entries landed + `apps/demo/
 MODULE.md` invariant updated + this spec published + zero regressions elsewhere.
+
+---
+
+## Amendment — Visual identity: the light Juli canvas (2026-09-10, ADR-102)
+
+§6 chose a dark focus ground under ADR-076's token-freedom mandate, and #1314 implemented
+it (`#121214` / `#1c1c20` / `#232328`, a `#ff5fa8` live-edge accent, a `#ff8dc0` focus
+ring). The owner walked the W6 gate (#1322) on the deployed demo on 2026-09-10 and
+reversed that direction:
+
+> *"we will likely refine the UI to a liquid glass style in the future. This option must be
+> able to adapt into the future design seamlessly."*
+
+[ADR-102](../../adr/102-run-surface-light-canvas-and-layer-tokens.md) is the full record.
+The parts a reader of this spec needs:
+
+**The ground is light.** Every surface carrying `data-juli-surface="run"` — the staged run
+view of §2 and the run ledger of §4 — sits on the white seller canvas that `design.md` and
+`colors_and_type.css` already specify. The dark values are deleted, not retained behind a
+selector.
+
+**The single live-edge accent survives, at a new value.** §6's rule — one accent, reserved
+for the stepper's active node, the streaming caret and the armed CTA, never for ordinary
+emphasis — is unchanged and still binding. Only the value moves, because the old one is
+unusable on white: `#ff5fa8` measures **2.82:1** against `#ffffff`, failing both AA text
+(4.5:1) and the 3.0:1 non-text minimum. The accent becomes `--juli-primary-text`
+(`#b0386a`, **5.80:1**), the only pink `colors_and_type.css` permits as text on light
+(ADR-054). White on `#b0386a` is also 5.80:1, so one token still serves both the filled
+node and the thin caret — no fill/text split is needed, and the token keeps its name.
+
+**Semantic status colours still keep the app's meaning system**, as §6 already required —
+but three of the four fail AA *as text* on white, and this surface uses two of them as
+text. Each gains a surface-scoped `-text` variant (success `#15803d`, warning `#b45309`,
+destructive `#b42318`; info `#2563eb` needs none) while the base token continues to serve
+fills and tints.
+
+**Surfaces are now layer tokens, so a future glass pass changes only the token file.**
+`canvas` / `panel` / `raised` / `overlay`, each carrying fill, border, shadow **and blur**.
+The blur tokens are `0px` today and are consumed anyway — a glass pass that had to add a
+CSS property to every panel rule would be a consumer change, which is exactly what the
+owner's constraint forbids.
+
+**§2's dedicated run page is NOT reversed by this.** A sibling owner decision of the same
+session takes the run route *out* of the four-destination shell chrome, which reinforces
+§2 rather than amending it. The dark ground and the shell composition were two halves of
+the same "out of place" complaint; only the first is a §6 matter.
+
+**Unaffected by this amendment:** §1 entry flows, §2 the staged run view, §3 the option
+picker, §4 the run ledger, §5 the motion spec (all eight primitives stand, unedited), §7
+the copy table, §8 client architecture, §9 tests & gate — except that §9's "contrast on
+new tokens" a11y check is now re-derived against the light grounds rather than the dark
+ones.
