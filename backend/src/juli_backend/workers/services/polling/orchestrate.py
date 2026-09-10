@@ -29,6 +29,7 @@ from juli_backend.core.security.credential_resolver import (
     resolve_production_read_credential,
 )
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
+from juli_backend.database.tenant_context import reapply_shop_scope
 from juli_backend.integrations.tiktok import (
     ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
     INVENTORY_SEARCH_PATH,
@@ -180,6 +181,12 @@ async def run_fujiwa_material_resource_fetch(
     """Fetch orders/products/returns/inventory + incremental analytics for material precompute."""
     resolve = resolve_credential or resolve_production_read_credential
     credential = await resolve(session)
+    # `resolve_production_read_credential` -> `_lazy_refresh` -> `refresh_credential`
+    # commits inside the caller's `with_shop_scope` (SET LOCAL), discarding
+    # `app.current_shop_id` (#1880). Reapplied immediately so the sync-state
+    # load and shop read just below still run under scope instead of a
+    # silent-empty-read / NotFound-shaped `shop is None`.
+    await reapply_shop_scope(session, credential.shop_id)
     _assert_fujiwa_credential(credential)
 
     client_factory = factory or ProductionReadClientFactory()
@@ -245,6 +252,10 @@ async def run_fujiwa_poll_cycle(
     """Run one Fujiwa poll cycle for orders, products, returns, and inventory."""
     resolve = resolve_credential or resolve_production_read_credential
     credential = await resolve(session)
+    # See the matching comment in `run_fujiwa_material_resource_fetch` (#1880):
+    # the resolver's own `refresh_credential` commit discards the caller's
+    # shop scope, so it must be reapplied before any further tenant read.
+    await reapply_shop_scope(session, credential.shop_id)
     _assert_fujiwa_credential(credential)
 
     client_factory = factory or ProductionReadClientFactory()
