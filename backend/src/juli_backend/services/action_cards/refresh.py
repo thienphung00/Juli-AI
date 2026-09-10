@@ -177,6 +177,13 @@ async def run_action_card_refresh(
     # recomputation must be durable even when the surfacing decision that
     # follows it fails. Matches decision_rules_scoring_stage (#716, B-4).
     await session.commit()
+    # The commit above discards the caller's SET LOCAL shop GUC exactly like
+    # the poll-step commit re-applied above -- and `action_cards` is a
+    # shop-GUC-gated table (migration 045), so without this,
+    # `apply_emission_budget`'s SELECT silently returns zero candidates
+    # under RLS instead of raising: the surfacing step becomes a no-op, not
+    # an error (#1860 reopen, 2026-09-10).
+    await reapply_shop_scope(session, shop_id)
 
     try:
         outcome = await apply_emission_budget(session, shop_id)

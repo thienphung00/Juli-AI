@@ -390,6 +390,60 @@ async def test_refresh_survives_a_commit_inside_the_poll_step(owner_engine):
     )
 
 
+@requires_postgres
+@pytest.mark.asyncio
+async def test_refresh_survives_a_commit_before_the_emission_budget(owner_engine):
+    """`run_action_card_refresh`'s own commit after persisting candidates
+    (the "own boundary" commit right before `apply_emission_budget`) discards
+    the shop GUC exactly like the sandbox-sync and poll-step commits above.
+    `action_cards` is a shop-GUC-gated table (migration 045, direct
+    ``shop_id = current_setting('app.current_shop_id', true)::uuid``, with
+    "unset denies... rather than raising" by design), so the scope must be
+    re-applied before `apply_emission_budget` runs -- or its SELECT comes
+    back empty under RLS and nothing is ever surfaced.
+
+    RED on the pre-fix code, but NOT as a `NotFound`: `persist_scoring_result`
+    runs and commits *while still scoped* (the commit is the last statement
+    inside the scoped section, ordered after the write), so persisting
+    succeeds. It is `apply_emission_budget`'s read immediately after that
+    commit, now unscoped, that silently sees zero candidate rows -- RLS's
+    documented "unset denies (NULL comparison, no rows) rather than raising"
+    behaviour. So the pre-fix failure mode here is silent data loss (every
+    persisted card's `surfaced_at` stays NULL forever), not an exception --
+    which is exactly why this needs its own test rather than trusting the
+    two `NotFound`-shaped tests above to have covered it.
+    """
+    shop_id = _seed_shop_with_scoreable_commerce_data(owner_engine, label="refresh-emission-commit")
+
+    async with _juli_app_engine_session_factory() as factory, factory() as session:
+        async with with_shop_scope(session, shop_id):
+            persisted_cards = await run_action_card_refresh(session, shop_id, poll=False)
+            # `run_action_card_refresh` only flushes the emission-budget's
+            # writes (`apply_emission_budget`'s own docstring: "performs no
+            # commit... the caller controls the transaction") -- the caller
+            # here, exactly like `_refresh_async` at the production call
+            # site, commits once at the very end.
+            await session.commit()
+
+    assert persisted_cards, (
+        f"expected at least one ActionCard persisted for {shop_id}, got {persisted_cards!r}"
+    )
+
+    with owner_engine.connect() as conn:
+        surfaced_count = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM action_cards "
+                "WHERE shop_id = :shop_id AND surfaced_at IS NOT NULL"
+            ),
+            {"shop_id": str(shop_id)},
+        ).scalar()
+    assert surfaced_count and surfaced_count > 0, (
+        f"expected at least one surfaced ActionCard for {shop_id} after "
+        f"apply_emission_budget, found {surfaced_count}: the shop scope must "
+        f"survive the commit that precedes the emission-budget step"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Test 2: the structural claim -- scope entered before any tenant read.
 # ---------------------------------------------------------------------------
