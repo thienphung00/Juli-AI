@@ -154,15 +154,20 @@ import contextlib
 import logging
 import os
 import uuid
-from collections.abc import Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import create_engine as create_sync_engine
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
+from sqlalchemy.exc import DBAPIError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import Session, sessionmaker
 
+from juli_backend.database.tenant_context import (
+    with_sticky_shop_scope,
+    with_sticky_shop_scope_sync,
+)
 from juli_backend.models.models import Product, WorkflowRun
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 from juli_backend.services.agent import crash_classification as crash_module
@@ -218,6 +223,159 @@ def _ensure_session_factory() -> async_sessionmaker:
     from juli_backend.database.database import ensure_worker_session_factory
 
     return ensure_worker_session_factory(_database_url())
+
+
+async def _resolve_run_shop_id(session: AsyncSession, run_id: uuid.UUID) -> uuid.UUID | None:
+    """Learn which shop owns this run, before any tenant scope exists (#1883).
+
+    THE BOOTSTRAP PROBLEM. `_load_context` reads `workflow_runs`, which is
+    RLS-gated, so it cannot run until a scope is open — and the scope needs the
+    `shop_id` that only that row carries. Something has to break the circle.
+
+    ADR-089 decision 3 already answers this class of question, once: the only
+    sanctioned cross-tenant read is an enumeration that returns identifiers and
+    scheduling metadata, never tenant data.
+    `enumerate_active_workflow_runs()` (SECURITY DEFINER, `search_path` pinned,
+    EXECUTE granted only to `juli_app` — migration 051, widened to
+    `waiting_approval` by 052) is exactly that enumeration, and `reaper.py`
+    already learns `(run_id, shop_id)` from it before it scopes. This filters
+    the same function to one run rather than inventing a second exemption; the
+    filter is pushed into SQL so nothing but the one shop id crosses back.
+
+    RETURNS `None` when the run is not in an active status — `queued`,
+    `running` or `waiting_approval`. Both task bodies are entered against one
+    of those three, so a `None` means the run is already terminal or gone. The
+    caller's scope entry then refuses rather than proceeding with no tenant,
+    which is the fail-closed answer: there is no shop to act on behalf of.
+
+    WHEN THE FUNCTION IS NOT THERE. A Postgres database is not automatically a
+    MIGRATED Postgres database. Two test modules build their schema straight
+    from `Base.metadata.create_all`, which knows about tables and nothing about
+    migration 051 — so the enumeration simply does not exist there, and
+    assuming it does turned every run on such a database into an
+    `UndefinedFunctionError`. The fallback below is for that, and only that:
+    SQLSTATE 42883 and nothing else. An RLS refusal is 42501 and must keep
+    propagating, because "the policy said no" and "the function is missing" are
+    opposite diagnoses and a broad `except` would report the first as the
+    second.
+    """
+    if session.get_bind().dialect.name != "postgresql":
+        # SQLite (unit tests) has neither the function nor RLS. The same
+        # dialect branch, and the same reasoning, as
+        # `reaper._enumerate_active_runs`: an ordinary query stands in. It is
+        # deliberately not status-filtered — there is no policy here for a
+        # status filter to protect, and a redelivered task must still resolve.
+        return await _resolve_run_shop_id_by_row(session, run_id)
+
+    try:
+        result = await session.execute(
+            text(
+                "SELECT out_shop_id FROM public.enumerate_active_workflow_runs() "
+                "WHERE out_run_id = CAST(:run_id AS uuid)"
+            ).bindparams(run_id=str(run_id))
+        )
+        return result.scalars().first()
+    except ProgrammingError as exc:
+        if not _is_undefined_function(exc):
+            raise
+        logger.info(
+            "agent_run_shop_id_enumeration_absent",
+            extra={
+                "run_id": str(run_id),
+                "reason": (
+                    "public.enumerate_active_workflow_runs() is not defined on this "
+                    "database (migration 051 has not run); falling back to a direct "
+                    "workflow_runs read for the bootstrap"
+                ),
+            },
+        )
+
+    # Postgres aborts the whole transaction on a failed statement, so every
+    # statement after one raises `InFailedSqlTransaction` until it is rolled
+    # back. Nothing has been written at this point — this is the first read of
+    # the unit of work — so the rollback discards nothing.
+    await session.rollback()
+    return await _resolve_run_shop_id_by_row(session, run_id)
+
+
+async def _resolve_run_shop_id_by_row(session: AsyncSession, run_id: uuid.UUID) -> uuid.UUID | None:
+    """Read the shop id straight off the row, for databases with no enumeration.
+
+    NOT status-filtered, unlike the enumeration it stands in for. There is no
+    policy here for a status filter to protect: this path is only ever taken on
+    a database that has no RLS in force over `workflow_runs` — SQLite, which
+    has none at all, or a `create_all` schema, which has neither the policies
+    nor the SECURITY DEFINER function migration 051 installs together. On the
+    deployed database the enumeration answers and this is never reached.
+    """
+    result = await session.execute(select(WorkflowRun.shop_id).where(WorkflowRun.id == run_id))
+    return result.scalars().first()
+
+
+# `undefined_function`. Named rather than inlined so the contrast with 42501
+# (`insufficient_privilege`, an RLS refusal) is legible at the catch site.
+_UNDEFINED_FUNCTION_SQLSTATE = "42883"
+
+
+def _is_undefined_function(exc: DBAPIError) -> bool:
+    """Is this the driver saying the function does not exist, and nothing else?
+
+    Both drivers this repo uses surface the SQLSTATE on the wrapped DBAPI
+    exception: asyncpg as `sqlstate`, psycopg2 as `pgcode` (asyncpg carries
+    both). Matching on the code rather than on the exception class keeps the
+    check driver-agnostic and, more importantly, keeps it narrow — the class
+    `sqlalchemy.exc.ProgrammingError` alone covers a large family of errors
+    that must not silently downgrade to a fallback query.
+    """
+    orig = getattr(exc, "orig", None)
+    code = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
+    return code == _UNDEFINED_FUNCTION_SQLSTATE
+
+
+def _shop_scoped_session_factory(shop_id: uuid.UUID | None):
+    """`_ensure_session_factory`, wrapped so every session it hands out already
+    holds a sticky shop scope (#1883).
+
+    `PersistingEventSink` opens a FRESH session per `emit` and commits it —
+    that is its contract (ADR-074 decision 3), and it is why the sink cannot
+    inherit the task's own scope. Under RLS as `juli_app` that session sees no
+    tenant, and `workflow_run_events`'s INSERT policy
+    (`EXISTS (... workflow_runs.shop_id = app_current_shop_id())`) refuses
+    every row — so the run dies on its first emitted event.
+
+    Scoping the FACTORY rather than the sink keeps the fix where the shop id is
+    known. The sink is constructed per run and never outlives it, so a factory
+    bound to one shop is exactly as narrow as the sink itself.
+    """
+    factory = _ensure_session_factory()
+
+    @contextlib.asynccontextmanager
+    async def _scoped_session() -> AsyncIterator[AsyncSession]:
+        async with factory() as session:
+            async with with_sticky_shop_scope(session, shop_id):
+                yield session
+
+    return _scoped_session
+
+
+@contextlib.asynccontextmanager
+async def _scoped_ledger_session(shop_id: uuid.UUID | None) -> AsyncIterator[Session]:
+    """`_sync_ledger_session` under a sticky shop scope (#1883).
+
+    `ToolExecutionLedger` writes the RLS-gated `tool_executions` and commits
+    four times per write (`ledger.py:368/378/389/396`), so a scope applied once
+    would be gone by the second statement. `_make_cancel_check` reads
+    `workflow_runs.cancel_requested` on this same session at every runner
+    checkpoint, and that read is gated too.
+
+    An async context manager wrapping a sync one, so both scopes can be entered
+    in a single `async with` header in the task body — the thin-shell contract
+    (`test_agent_workflow_celery_tasks.py`) forbids branch logic there, and a
+    second nesting level would only obscure the shape.
+    """
+    with _sync_ledger_session() as sync_session:
+        with with_sticky_shop_scope_sync(sync_session, shop_id):
+            yield sync_session
 
 
 @contextlib.contextmanager
@@ -470,8 +628,12 @@ async def _construct_runner(
         product_detail=run.state.get("product_detail"),
     )
     conversation_store = runner_module.JsonbConversationStore(session)
+    # #1883: a shop-scoped factory, not the bare one. The sink opens a fresh
+    # session per emit by contract, so it cannot inherit the caller's scope —
+    # and `workflow_run_events`'s INSERT policy refuses every row written
+    # without one. See `_shop_scoped_session_factory`.
     event_sink = events_module.PersistingEventSink(
-        _ensure_session_factory(), _resolve_event_publisher()
+        _shop_scoped_session_factory(run.shop_id), _resolve_event_publisher()
     )
 
     return runner_module.WorkflowRunner(
@@ -503,10 +665,56 @@ async def _next_sequence_number(session: AsyncSession, run_id: uuid.UUID) -> int
     return result.scalar_one() + 1
 
 
+def _crash_terminal_session_factory(shop_id: uuid.UUID | None, run_id: uuid.UUID):
+    """The session factory the crash handler writes its terminal event through.
+
+    Scoped when there is a shop to scope to, and a plain factory when there is
+    not — deliberately, and this is a correction to #1883's first attempt.
+
+    That attempt made a missing `shop_id` an early `return`: no tenant, no
+    write. It is the wrong trade in the one place it can possibly apply. This
+    function exists so that a run cannot be stranded non-terminal (ADR-074
+    decision 4, #1291); a crash handler that declines to record the crash it
+    was called about has failed at the only thing it does, and it fails
+    silently, in the exact situation where nobody is watching. It also stops
+    the terminal event ever reaching the Redis channel the SSE endpoint
+    subscribes to, which is #1396 reopened — every connected stream back on
+    heartbeats forever while the run is already dead.
+
+    So the unscoped path is attempted rather than skipped. On an RLS-governed
+    connection with no tenant it will be refused, and that surfaces as
+    `workflow_run_crash_terminal_event_emission_failed` with a traceback — a
+    loud, diagnosable outcome, and strictly more than the nothing it replaced.
+    On any connection that is not RLS-governed it simply works. Neither
+    outcome is worse than declining to try.
+
+    Every production call site — both task bodies below — passes a `shop_id`
+    that is non-`None` by construction: they resolve it before they enter their
+    own scope, and that scope refuses ahead of the `try` this handler is
+    reached from. The unscoped branch is therefore for direct callers and for
+    whatever the next one turns out to be.
+    """
+    if shop_id is None:
+        logger.warning(
+            "workflow_run_crash_terminal_event_unscoped",
+            extra={
+                "run_id": str(run_id),
+                "reason": (
+                    "no shop id was resolvable for this run; writing the terminal event "
+                    "without a tenant scope rather than leaving the run non-terminal"
+                ),
+            },
+        )
+        return _ensure_session_factory()
+    return _shop_scoped_session_factory(shop_id)
+
+
 async def _emit_crash_terminal_event(
     session: AsyncSession,
     run_id: uuid.UUID,
     exc: BaseException | None = None,
+    *,
+    shop_id: uuid.UUID | None = None,
 ) -> None:
     """Emit a terminal `workflow.failed` event after a crash (issue #1291).
 
@@ -516,12 +724,25 @@ async def _emit_crash_terminal_event(
     no terminal event.
 
     The incoming session may be poisoned (transaction failed). Rollback and
-    use a fresh session to write durably (NullPool via #871 makes this safe)."""
+    use a fresh session to write durably (NullPool via #871 makes this safe).
+
+    #1883: that fresh session needs its own scope. Every row this function
+    touches — `workflow_runs`, `workflow_run_events`, `action_cards` — is
+    RLS-gated, so an unscoped fresh session reads the run as `None` and logs
+    "skipped_run_not_found" for a row that plainly exists, leaving the run
+    stranded exactly as the crash handler exists to prevent. `shop_id` comes
+    from the caller, which resolved it before it entered its own scope.
+
+    THE SCOPE IS BEST-EFFORT; THE WRITE IS NOT. #1883 first made a missing
+    `shop_id` an early return, and that was the wrong trade — see
+    `_crash_terminal_session_factory` above for why, and for what happens
+    instead.
+    """
     # Rollback the poisoned session to clear transaction state
     await session.rollback()
 
     # Get a fresh session to write the terminal state durably
-    factory = _ensure_session_factory()
+    factory = _crash_terminal_session_factory(shop_id, run_id)
     async with factory() as fresh_session:
         try:
             from juli_backend.models.models import ActionCard
@@ -609,7 +830,11 @@ async def _emit_crash_terminal_event(
 async def _run_agent_workflow_async(run_id: str) -> None:
     factory = _ensure_session_factory()
     async with factory() as session:
-        with _sync_ledger_session() as sync_session:
+        shop_id = await _resolve_run_shop_id(session, uuid.UUID(run_id))
+        async with (
+            with_sticky_shop_scope(session, shop_id),
+            _scoped_ledger_session(shop_id) as sync_session,
+        ):
             try:
                 run, product = await _load_context(session, uuid.UUID(run_id))
                 runner = await _construct_runner(session, sync_session, run, product)
@@ -625,13 +850,17 @@ async def _run_agent_workflow_async(run_id: str) -> None:
                     extra={"run_id": str(run_uuid)},
                     exc_info=True,
                 )
-                await _emit_crash_terminal_event(session, run_uuid, exc)
+                await _emit_crash_terminal_event(session, run_uuid, exc, shop_id=shop_id)
 
 
 async def _resume_agent_workflow_async(run_id: str, *, approved: bool) -> None:
     factory = _ensure_session_factory()
     async with factory() as session:
-        with _sync_ledger_session() as sync_session:
+        shop_id = await _resolve_run_shop_id(session, uuid.UUID(run_id))
+        async with (
+            with_sticky_shop_scope(session, shop_id),
+            _scoped_ledger_session(shop_id) as sync_session,
+        ):
             try:
                 run, product = await _load_context(session, uuid.UUID(run_id))
                 runner = await _construct_runner(session, sync_session, run, product)
@@ -645,7 +874,7 @@ async def _resume_agent_workflow_async(run_id: str, *, approved: bool) -> None:
                     extra={"run_id": str(run_uuid)},
                     exc_info=True,
                 )
-                await _emit_crash_terminal_event(session, run_uuid, exc)
+                await _emit_crash_terminal_event(session, run_uuid, exc, shop_id=shop_id)
 
 
 def run_agent_workflow_sync(run_id: str) -> None:

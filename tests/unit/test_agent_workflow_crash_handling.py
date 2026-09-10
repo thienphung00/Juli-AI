@@ -24,7 +24,8 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest_asyncio
-from sqlalchemy import select
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import sessionmaker
 
 from juli_backend.models.models import Product, Shop, WorkflowRun
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
@@ -35,6 +36,23 @@ from juli_backend.workers.tasks.reaper import reap_workflow_runs
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+
+@contextlib.contextmanager
+def _throwaway_sqlite_session():
+    """Stands in for `agent_workflow._sync_ledger_session`'s throwaway Session.
+
+    These tests only ever hand it to a monkeypatched `_construct_runner`, so
+    nothing is ever read or written through it — but it must be a real
+    `Session`, because the task shell now opens a tenant scope on it.
+    """
+    engine = create_engine("sqlite://")
+    session = sessionmaker(bind=engine)()
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
 
 
 @pytest_asyncio.fixture
@@ -108,7 +126,13 @@ async def test_run_workflow_crash_leaves_run_in_failed_status_with_terminal_even
 
     @contextlib.contextmanager
     def _fake_sync_session():
-        yield "sync-session-sentinel"
+        # A REAL `sqlalchemy.orm.Session`, not a sentinel string (#1883). The
+        # task now holds a sticky shop scope over the ledger's sync session, so
+        # a stand-in has to be something a scope can actually be entered on;
+        # an in-memory SQLite session is the cheapest real one, and every GUC
+        # operation is a documented no-op on that dialect.
+        with _throwaway_sqlite_session() as sync_session:
+            yield sync_session
 
     monkeypatch.setattr(agent_workflow, "_ensure_session_factory", lambda: _factory_cm)
     monkeypatch.setattr(agent_workflow, "_sync_ledger_session", _fake_sync_session)
@@ -182,7 +206,13 @@ async def test_run_workflow_crash_from_queued_status_is_handled_terminally(
 
     @contextlib.contextmanager
     def _fake_sync_session():
-        yield "sync-session-sentinel"
+        # A REAL `sqlalchemy.orm.Session`, not a sentinel string (#1883). The
+        # task now holds a sticky shop scope over the ledger's sync session, so
+        # a stand-in has to be something a scope can actually be entered on;
+        # an in-memory SQLite session is the cheapest real one, and every GUC
+        # operation is a documented no-op on that dialect.
+        with _throwaway_sqlite_session() as sync_session:
+            yield sync_session
 
     monkeypatch.setattr(agent_workflow, "_ensure_session_factory", lambda: _factory_cm)
     monkeypatch.setattr(agent_workflow, "_sync_ledger_session", _fake_sync_session)
@@ -238,7 +268,13 @@ async def test_run_workflow_crash_exception_is_pickle_safe(session, shop, produc
 
     @contextlib.contextmanager
     def _fake_sync_session():
-        yield "sync-session-sentinel"
+        # A REAL `sqlalchemy.orm.Session`, not a sentinel string (#1883). The
+        # task now holds a sticky shop scope over the ledger's sync session, so
+        # a stand-in has to be something a scope can actually be entered on;
+        # an in-memory SQLite session is the cheapest real one, and every GUC
+        # operation is a documented no-op on that dialect.
+        with _throwaway_sqlite_session() as sync_session:
+            yield sync_session
 
     monkeypatch.setattr(agent_workflow, "_ensure_session_factory", lambda: _factory_cm)
     monkeypatch.setattr(agent_workflow, "_sync_ledger_session", _fake_sync_session)
@@ -343,7 +379,13 @@ async def test_resume_workflow_crash_leaves_run_in_failed_status(
 
     @contextlib.contextmanager
     def _fake_sync_session():
-        yield "sync-session-sentinel"
+        # A REAL `sqlalchemy.orm.Session`, not a sentinel string (#1883). The
+        # task now holds a sticky shop scope over the ledger's sync session, so
+        # a stand-in has to be something a scope can actually be entered on;
+        # an in-memory SQLite session is the cheapest real one, and every GUC
+        # operation is a documented no-op on that dialect.
+        with _throwaway_sqlite_session() as sync_session:
+            yield sync_session
 
     monkeypatch.setattr(agent_workflow, "_ensure_session_factory", lambda: _factory_cm)
     monkeypatch.setattr(agent_workflow, "_sync_ledger_session", _fake_sync_session)
@@ -400,7 +442,13 @@ async def test_run_workflow_crash_with_poisoned_session_writes_terminal_event(
 
     @contextlib.contextmanager
     def _fake_sync_session():
-        yield "sync-session-sentinel"
+        # A REAL `sqlalchemy.orm.Session`, not a sentinel string (#1883). The
+        # task now holds a sticky shop scope over the ledger's sync session, so
+        # a stand-in has to be something a scope can actually be entered on;
+        # an in-memory SQLite session is the cheapest real one, and every GUC
+        # operation is a documented no-op on that dialect.
+        with _throwaway_sqlite_session() as sync_session:
+            yield sync_session
 
     monkeypatch.setattr(agent_workflow, "_ensure_session_factory", lambda: _factory_cm)
     monkeypatch.setattr(agent_workflow, "_sync_ledger_session", _fake_sync_session)
@@ -479,7 +527,13 @@ async def test_failed_run_auto_reverts_action_card_from_approved_to_active(
 
     @contextlib.contextmanager
     def _fake_sync_session():
-        yield "sync-session-sentinel"
+        # A REAL `sqlalchemy.orm.Session`, not a sentinel string (#1883). The
+        # task now holds a sticky shop scope over the ledger's sync session, so
+        # a stand-in has to be something a scope can actually be entered on;
+        # an in-memory SQLite session is the cheapest real one, and every GUC
+        # operation is a documented no-op on that dialect.
+        with _throwaway_sqlite_session() as sync_session:
+            yield sync_session
 
     monkeypatch.setattr(agent_workflow, "_ensure_session_factory", lambda: _factory_cm)
     monkeypatch.setattr(agent_workflow, "_sync_ledger_session", _fake_sync_session)

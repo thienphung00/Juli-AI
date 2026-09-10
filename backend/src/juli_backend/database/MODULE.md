@@ -38,6 +38,45 @@ and ``init_session_factory`` are eager exports.
 - `get_session() -> AsyncIterator[AsyncSession]` — FastAPI dependency yielding a DB session
 - `init_session_factory(factory)` — configures the global session factory at app startup
 
+### Tenant scopes (`tenant_context.py`)
+
+Not re-exported at the package facade — import from
+`juli_backend.database.tenant_context` directly, as every current caller does.
+Each sets `app.current_shop_id` / `app.current_user_id` with `SET LOCAL` via a
+parameterized `set_config(name, value, true)`, and restores the prior pair on
+exit, on the error path as well as the normal one.
+
+| Scope | Sets | For |
+|-------|------|-----|
+| `with_tenant_scope(session, shop_id, user_id)` | both GUCs | an HTTP request, which knows both |
+| `with_shop_scope(session, shop_id)` | shop only; user withheld as `""` | a beat/worker task that has a shop and no user (ADR-089) |
+| `with_user_scope(session, user_id)` | user only; shop withheld as `""` | the authentication lookup itself (#1691) |
+| `system_scope(session, caller)` | neither | genuinely fleet-wide work, logged |
+| `reapply_shop_scope(session, shop_id)` | shop only | putting the GUC back after a COMMIT the caller made itself (#1874) |
+| **`with_sticky_shop_scope(session, shop_id)`** | shop only | a unit of work whose callees commit (#1883) |
+| **`with_sticky_shop_scope_sync(session, shop_id)`** | shop only | the same, on a sync `sqlalchemy.orm.Session` |
+
+**Sticky scope invariants (#1883).** The sticky pair adds one thing to
+`with_shop_scope`: a SQLAlchemy `after_begin` listener, bound to that one
+session, that re-writes the same GUC pair whenever a new transaction starts —
+so a COMMIT inside the block cannot silently drop tenancy.
+
+- **Transaction-local, always.** Only `set_config(..., is_local=true)`; never a
+  session-level or connection-level `SET`. A pooled connection cannot carry a
+  shop id into its next checkout.
+- **One shop, no widening.** The listener writes exactly what `with_shop_scope`
+  writes — the shop id, and the user GUC withheld as the empty string. No
+  cross-tenant read, no enumeration exemption (ADR-089 decision 3 untouched).
+- **Refuses before any SQL.** A sticky scope with no `shop_id` raises
+  `TenantContextRequiredError` before a statement is emitted and before a
+  listener is bound.
+- **The listener is removed on exit**, on the normal path and the exception
+  path alike. The session usually outlives the scope, and a handler left
+  attached would keep re-asserting a shop id after the block that chose it
+  ended.
+- **No-op on SQLite**, which has neither `set_config` nor RLS — the dialect
+  check runs before `AsyncSession.sync_session` is ever touched.
+
 ## Dependencies
 - `sqlalchemy[asyncio]` — async ORM
 - `asyncpg` — PostgreSQL async driver (production)
