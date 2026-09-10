@@ -199,7 +199,22 @@ async def test_beat_cycle_refreshes_every_enumerated_row(owner_engine):
         summary = await run_credential_refresh_cycle(session, auth=auth)
         await session.commit()
 
-    assert summary.refreshed == 2, f"expected 2 refreshed, got {summary!r}"
+    # `run_credential_refresh_cycle` enumerates every expiring credential in the
+    # database, not only the two rows this test seeded. CI runs the whole tree in
+    # one `pytest tests/` invocation, so `tests/integration` has already run by the
+    # time this module does and its two-tenant fixtures leave 13 expiring rows
+    # behind. An exact `== 2` therefore asserts a property of the shared database
+    # rather than of this test: it went red in the Release job on 2026-09-10 with
+    # `assert 23 == 2` and held the #1880 production fix out of production while
+    # every credential refresh was still failing live.
+    #
+    # AC2's claim is "refresh every enumerated row", so assert exactly that. It is
+    # strictly stronger than the old count (it covers the contaminating rows too)
+    # and it cannot be perturbed by how many rows a sibling module left behind.
+    assert summary.refreshed == summary.scanned, (
+        f"every enumerated row must refresh, got {summary!r}"
+    )
+    assert summary.refreshed >= 2, f"expected at least the 2 seeded rows, got {summary!r}"
     assert summary.failed == 0, f"expected 0 failed, got {summary!r}"
 
     for credential_id in (credential_a, credential_b):
