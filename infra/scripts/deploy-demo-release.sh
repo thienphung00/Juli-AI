@@ -116,6 +116,10 @@ set -euo pipefail
 CANONICAL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RELEASES_ROOT="${RELEASES_ROOT:-$HOME/releases}"
 DEMO_CURRENT="${RELEASES_ROOT}/demo-current"
+# The API lane's live release. It is the lane that APPLIES migrations, so its
+# current release is the honest marker of "what the shared database already has"
+# (#1882). Named here rather than derived inline so the two symlinks read as a pair.
+API_CURRENT="${RELEASES_ROOT}/current"
 HISTORY_LOG="${RELEASES_ROOT}/demo-deploy-history.log"
 KEEP_DEMO_RELEASES="${KEEP_DEMO_RELEASES:-3}"
 HEALTH_TIMEOUT_SECS="${HEALTH_TIMEOUT_SECS:-60}"
@@ -581,14 +585,48 @@ run_migration_gate() {
     python3 "${MIGRATION_GATE}" "$@"
 }
 
-# The commit the live Demo release was cut from. That is the "previous code" the gate asks
-# about compatibility with, so it is the correct baseline for pending-migration discovery.
+# The commit a lane's live release was cut from.
 live_release_commit() {
-    local live
-    live="$(readlink -f "${DEMO_CURRENT}" 2>/dev/null || true)"
+    local link="${1:-${DEMO_CURRENT}}" live
+    live="$(readlink -f "${link}" 2>/dev/null || true)"
     [ -n "${live}" ] || return 1
     [ -d "${live}" ] || return 1
     git -C "${live}" rev-parse HEAD 2>/dev/null || return 1
+}
+
+# The baseline the additive gate measures pending migrations from: the API lane's live
+# release, NOT this lane's (#1882).
+#
+# This lane used to measure from its own live release, on the reading that the gate asks
+# "what is this release incompatible with" and the answer is the previous demo code. That
+# is the wrong question for SCHEMA. Migrations are applied by the API lane; the demo lane
+# never applies one. So the set of migrations the database already has is bounded by the
+# API lane's release, and the demo lane's own release says nothing about it.
+#
+# The consequence was unbounded and self-reinforcing. Every release from 2026-09-07 skipped
+# the demo lane because `apps/demo` was unchanged, so its baseline stayed at 25491b06 while
+# the API lane deployed past it. When W6 finally touched `apps/demo`, the lane looked back
+# four days and re-proposed 056_series_source_column — a data-moving, NOT NULL-adding
+# migration that had already run. The gate refused a release for a change the database had
+# already applied, and `demo.app-juli.com` could not be updated at all. A lane could become
+# undeployable purely by not being deployed.
+#
+# Still a pure git question: no database connection and no alembic import at the front of a
+# release. Only the baseline moved, from a symlink that goes stale to one that cannot.
+#
+# The API lane repoints `current` only after its migrations apply and its candidate serves,
+# so its live release can never be AHEAD of the database — the direction that would make
+# this gate under-inspect.
+migration_baseline_commit() {
+    local from_api
+    if from_api="$(live_release_commit "${API_CURRENT}")" && [ -n "${from_api}" ]; then
+        printf '%s\n' "${from_api}"
+        return 0
+    fi
+    # No API release resolvable (a fresh box, or the symlink is missing). Fall back to this
+    # lane's own, which is what shipped before this fix — narrower than nothing, and the
+    # empty case below is still an abort rather than an accept.
+    live_release_commit "${DEMO_CURRENT}"
 }
 
 # Emit the gate's argv, one token per line. Pending == the migration files this release
@@ -787,7 +825,7 @@ main() {
     log "migration gate (#834)"
     base_sha="${DEMO_MIGRATION_GATE_BASE_SHA:-}"
     if [ -z "${base_sha}" ]; then
-        base_sha="$(live_release_commit || true)"
+        base_sha="$(migration_baseline_commit || true)"
     fi
     if [ -n "${base_sha}" ]; then
         note "pending schema change measured against the live release ${base_sha:0:7}"
