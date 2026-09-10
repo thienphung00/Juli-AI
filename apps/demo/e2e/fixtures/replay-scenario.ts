@@ -13,7 +13,7 @@ export const REPLAY_SCENARIO_WORKFLOW_TITLE = "Tối ưu sản phẩm" as const;
 
 /** The scenario's own captured `workflow_run_id` — the well-known replay
  *  run id `RunDetailRoute`'s replay branch matches against. */
-export const REPLAY_SCENARIO_RUN_ID = "6fed3803-a77e-4d55-9ea3-ac72d25e77e2" as const;
+export const REPLAY_SCENARIO_RUN_ID = "00000000-0000-0000-0000-00000000b453" as const;
 
 export const REPLAY_SCENARIO_PRODUCT_NAME = "Áo thun cotton nam" as const;
 
@@ -27,7 +27,7 @@ export const REPLAY_SCENARIO_PROPOSED_TITLE = "Tiêu đề đã tối ưu" as co
  * for "today happens to be past the capture date." `getReplayInitialEvents()`
  * rebases each event's own `timestamp` to `Date.now()` at mount, but the
  * nested `workflow.approval_required.expires_at` field is left as captured
- * (`2026-08-28T12:32:13.308159Z`, absolute, never rebased) — verified
+ * (`2026-01-01T04:00:00Z`, absolute, never rebased) — verified
  * directly against a running build (issue #1321's own investigation). A
  * journey anchored to the real system clock would therefore silently start
  * failing the day real time crosses that fixed expiry, which is a latent
@@ -40,7 +40,7 @@ export const REPLAY_SCENARIO_PROPOSED_TITLE = "Tiêu đề đã tối ưu" as co
  * means real visitors will see a permanently-expired offer in production
  * once real wall-clock time passes this date.
  */
-export const REPLAY_SCENARIO_CLOCK_PIN = "2026-08-28T09:00:00.000Z" as const;
+export const REPLAY_SCENARIO_CLOCK_PIN = "2026-01-01T01:00:00.000Z" as const;
 
 /** The confirmation POST route shape the client hits when a decision is
  *  submitted with a bearer token (`lib/run-surface/confirmation-client.ts`,
