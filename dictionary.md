@@ -271,6 +271,12 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - VI: Kết nối TikTok Shop
 - Definition: The screen a signed-in seller reaches after Google sign-in. States its actual state honestly — no control implies a working merchant exchange before the live OAuth exchange is wired (a flagged follow-up).
 
+**`auth.google.unavailable`**
+- EN: Sign in with Google is not available in this environment.
+- VI: Đăng nhập với Google chưa sẵn sàng trong môi trường này.
+- _Avoid_: Google chưa được cấu hình (dev-facing "cấu hình" tells the seller nothing they can act on)
+- Definition: Visible copy rendered beneath the disabled `auth.google` door when `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` are absent at build time (issue #1905) — the honest-disabled state stays real and lives in visible text, not only in `aria-label`.
+
 ## Phrases
 
 **`home.tagline`**

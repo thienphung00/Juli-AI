@@ -126,4 +126,37 @@ describe("DemoLanding — the two doors", () => {
     const link = screen.getByRole("link", { name: /Đăng nhập với Google/ });
     expect(link).toHaveAttribute("aria-disabled", "true");
   });
+
+  // Issue #1905: the disabled state's explanation must be VISIBLE copy, not
+  // only the aria-label above -- that is exactly what shipped a defect no
+  // sighted, non-screen-reader visitor could see any explanation for.
+  it("shows visible Vietnamese copy explaining the disabled Google door when Supabase env is missing, resolved from dictionary.md `auth.google.unavailable`", async () => {
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    render(<DemoLanding />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("link", { name: /Đăng nhập với Google/ }),
+      ).toHaveAttribute("aria-disabled", "true");
+    });
+
+    expect(
+      screen.getByText("Đăng nhập với Google chưa sẵn sàng trong môi trường này."),
+    ).toBeVisible();
+  });
+
+  it("never shows the unavailable copy once the Google door is actually configured", async () => {
+    render(<DemoLanding />);
+
+    await waitFor(() => {
+      const link = screen.getByRole("link", { name: /Đăng nhập với Google/ });
+      expect(link).toHaveAttribute("href");
+    });
+
+    expect(
+      screen.queryByText("Đăng nhập với Google chưa sẵn sàng trong môi trường này."),
+    ).not.toBeInTheDocument();
+  });
 });
