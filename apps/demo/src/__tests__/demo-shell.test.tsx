@@ -79,10 +79,6 @@ describe("Demo shell controls", () => {
       "aria-pressed",
       "true",
     );
-    expect(screen.getByRole("button", { name: "Sign-in" })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
 
     await waitFor(() => {
       expect(localStorage.getItem("juli_demo_mode")).toBe("mock");
@@ -102,20 +98,15 @@ describe("Demo shell controls", () => {
     }
   });
 
-  it("explains disabled Sign-in without routing or making a network call", async () => {
-    const user = userEvent.setup();
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-
+  it("retires the fake 'coming soon' Sign-in stub for a real link back to the dual-entry landing", () => {
     render(<DemoShell>Nội dung</DemoShell>);
-    await user.click(screen.getByRole("button", { name: "Sign-in" }));
 
+    const signInLink = screen.getByRole("link", { name: "Đăng nhập" });
+    expect(signInLink).toHaveAttribute("href", "/");
+    expect(signInLink).not.toHaveAttribute("aria-disabled");
     expect(
-      screen.getByRole("status", { name: "Phản hồi Demo" }),
-    ).toHaveTextContent("Sign-in sắp ra mắt");
-    expect(push).not.toHaveBeenCalled();
-    expect(replace).not.toHaveBeenCalled();
-    expect(fetchSpy).not.toHaveBeenCalled();
-    expect(localStorage.getItem("juli_demo_mode")).toBe("mock");
+      screen.queryByRole("button", { name: "Sign-in" }),
+    ).not.toBeInTheDocument();
   });
 
   it("resets every mutable mock-state category and opens Decisions", async () => {
@@ -389,7 +380,7 @@ describe("Demo shell controls", () => {
     render(<DemoShell>Nội dung</DemoShell>);
 
     expect(screen.getByRole("button", { name: "Mock" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sign-in" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Đăng nhập" })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Làm mới Demo" }),
     ).toBeInTheDocument();

@@ -18,37 +18,14 @@ export interface RecommendationFixture {
   workflowKey: string;
 }
 
-export const DEMO_RECOMMENDATIONS_API_PATH = "/v1/demo/recommendations" as const;
-export const ACTION_CARD_INPUTS_API_PATH = "/v1/action-cards" as const;
-
-export class DemoRecommendationsFetchError extends Error {
-  constructor(public readonly status: number) {
-    super(`Demo recommendations fetch failed (${status})`);
-    this.name = "DemoRecommendationsFetchError";
-  }
-}
-
-export interface ActionCardInputsData {
-  workflow_key: string;
-  sku_id: string | null;
-  tiktok_product_id: string | null;
-  current_stock: number | null;
-  reorder_quantity: number | null;
-  editable: boolean;
-  basis: {
-    daily_velocity: number;
-    lead_time_days: number;
-    safety_stock_days: number;
-    days_until_stockout: number;
-  } | null;
-}
-
-export class ActionCardInputsFetchError extends Error {
-  constructor(public readonly status: number) {
-    super(`Action card inputs fetch failed (${status})`);
-    this.name = "ActionCardInputsFetchError";
-  }
-}
+/**
+ * Signed-in fetch clients that read the routes below live in
+ * `recommendations-api-client.ts`, not here (issue #1772) — this file's
+ * fixtures and href builders are reached by the anonymous replay door via
+ * the review page, and ADR-094 decision 1 forbids that door any backend
+ * v1 route capability, structurally as well as at runtime. See that file's own
+ * docstring for the full reasoning.
+ */
 
 export function buildRecommendationDetailHref(workflowKey: string): string {
   return `/decisions/recommendations/${workflowKey}`;
@@ -336,64 +313,3 @@ export const recommendationFixtures = [
   },
 ] as const satisfies readonly RecommendationFixture[];
 
-export async function fetchRecommendations(
-  fetchImpl: typeof fetch = fetch,
-): Promise<readonly RecommendationFixture[]> {
-  try {
-    const response = await fetchImpl(DEMO_RECOMMENDATIONS_API_PATH, {
-      headers: { Accept: "application/json" },
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      throw new DemoRecommendationsFetchError(response.status);
-    }
-
-    const payload = (await response.json()) as {
-      recommendations?: RecommendationFixture[];
-    };
-
-    if (
-      Array.isArray(payload.recommendations) &&
-      payload.recommendations.length > 0
-    ) {
-      return payload.recommendations;
-    }
-  } catch {
-    // Phase 2.10 read path optional — fixtures remain authoritative in Demo.
-  }
-
-  return recommendationFixtures;
-}
-
-export async function fetchActionCardInputs(
-  workflowKey: string,
-  fetchImpl: typeof fetch = fetch,
-): Promise<ActionCardInputsData | null> {
-  try {
-    const response = await fetchImpl(
-      `${ACTION_CARD_INPUTS_API_PATH}/${workflowKey}/inputs`,
-      {
-        headers: { Accept: "application/json" },
-        cache: "no-store",
-      },
-    );
-
-    if (!response.ok) {
-      throw new ActionCardInputsFetchError(response.status);
-    }
-
-    const payload = (await response.json()) as {
-      success?: boolean;
-      data?: ActionCardInputsData;
-    };
-
-    if (payload.data) {
-      return payload.data;
-    }
-  } catch {
-    // Fallback to fixture when backend unavailable — demo remains functional offline.
-  }
-
-  return null;
-}

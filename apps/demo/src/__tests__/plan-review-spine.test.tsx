@@ -41,6 +41,7 @@ import { getPreventReturnPlanReview } from "../lib/workflows/prevent-return/plan
 import { PREVENT_RETURN_WORKFLOW_KEY } from "../lib/workflows/prevent-return";
 import { getPreventRefundPlanReview } from "../lib/workflows/prevent-refund/plan";
 import { PREVENT_REFUND_WORKFLOW_KEY } from "../lib/workflows/prevent-refund";
+import { REPLAY_SCENARIO_RUN_ID } from "../lib/run-surface/replay-scenario";
 import {
   confirmApproveThroughGate,
   makeValidPngFile,
@@ -63,6 +64,14 @@ interface SpineTableEntry {
    * without this flag keep the unqualified one-tap contract.
    */
   sellerUploadGate?: true;
+  /**
+   * #1320 part 2, ADR-094 — true only for Optimize Product. Approval reaches
+   * the staged run view directly (the replay's captured golden scenario, or
+   * a real signed-in run) instead of a localStorage-persisted mock
+   * `ExecutionRecord`: `startExecution` is never called, and the push target
+   * is the well-known replay run id, not `exec-<workflowKey>-1`.
+   */
+  replayRunEntry?: true;
 }
 
 const SPINE_WORKFLOWS: SpineTableEntry[] = [
@@ -73,6 +82,7 @@ const SPINE_WORKFLOWS: SpineTableEntry[] = [
   {
     workflowKey: OPTIMIZE_PRODUCT_WORKFLOW_KEY,
     getPlan: getOptimizeProductPlanReview,
+    replayRunEntry: true,
   },
   {
     workflowKey: CREATE_ACTIVITY_WORKFLOW_KEY,
@@ -195,7 +205,7 @@ vi.mock("../components/demo-state", () => ({
 
 describe.each(SPINE_WORKFLOWS)(
   "Plan review spine — $workflowKey",
-  ({ workflowKey, getPlan, sellerUploadGate }) => {
+  ({ workflowKey, getPlan, sellerUploadGate, replayRunEntry }) => {
     const plan = getPlan();
     const fixture = recommendationFixtures.find(
       (entry) => entry.workflowKey === workflowKey,
@@ -468,7 +478,36 @@ describe.each(SPINE_WORKFLOWS)(
       });
     }
 
-    if (!sellerUploadGate) {
+    if (replayRunEntry) {
+      // #1320 part 2, ADR-094 — Optimize Product is the one entry whose
+      // approval never calls `startExecution` at all: it reaches the staged
+      // run view via the well-known replay run id, exactly the wiring
+      // `#1752`'s `run-detail-route.test.tsx` proved renders (this test only
+      // proves the *navigation*, not the staged view's own rendering).
+      it("approves in one tap and routes straight to the staged run view — no mock execution, no startExecution call", async () => {
+        const user = userEvent.setup();
+
+        renderSpine();
+
+        await confirmApproveThroughGate(user);
+
+        expect(mockStartExecution).not.toHaveBeenCalled();
+        expect(push).toHaveBeenCalledWith(
+          `/decisions/in-progress/${REPLAY_SCENARIO_RUN_ID}`,
+        );
+      });
+
+      it("opens the approval gate before routing to the staged run view", async () => {
+        const user = userEvent.setup();
+
+        renderSpine();
+
+        await user.click(screen.getByRole("button", { name: "Phê duyệt" }));
+
+        expect(screen.getByRole("dialog")).toBeInTheDocument();
+        expect(push).not.toHaveBeenCalled();
+      });
+    } else if (!sellerUploadGate) {
       it("approves in one tap without expanding anything and routes to In Progress", async () => {
         const user = userEvent.setup();
 

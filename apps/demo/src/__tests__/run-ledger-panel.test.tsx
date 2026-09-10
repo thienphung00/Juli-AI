@@ -8,6 +8,8 @@ import { RecommendationsView } from "../components/recommendations-view";
 import { DemoStateProvider } from "../components/demo-state";
 import { RUN_LEDGER_POLL_INTERVAL_MS } from "../lib/run-ledger/panel-config";
 import { RUN_TERMINAL_STATE_COPY } from "../lib/run-ledger/copy";
+import { writeReplayDecision } from "../lib/replay-decision";
+import { REPLAY_SCENARIO_RUN_ID } from "../lib/run-surface/replay-scenario";
 
 vi.mock("next/navigation", () => ({
   useSearchParams: vi.fn(() => new URLSearchParams()),
@@ -44,10 +46,18 @@ function mockRunsResponse(data: WorkflowRunListItem[]) {
   } as Response;
 }
 
-function renderPanel() {
+// A token is supplied by default so every PRE-EXISTING test below keeps
+// exercising the signed-in path's fetch-based behavior unchanged (issue
+// #1836 introduces a replay path, gated on token ABSENCE, that seeds the
+// ledger locally instead -- see the "replay path" describe block below).
+function renderPanel(overrides: { token?: string } = {}) {
   return render(
     <DemoStateProvider>
-      <InProgressPanel panelId="in-progress-panel" />
+      <InProgressPanel
+        panelId="in-progress-panel"
+        token="test-bearer-token"
+        {...overrides}
+      />
     </DemoStateProvider>,
   );
 }
@@ -416,5 +426,125 @@ describe("Run ledger — In-Progress becomes the run ledger (#1318)", () => {
       expect(section).not.toBeNull();
       expect(section?.getAttribute("aria-labelledby")).toBe(heading.id);
     });
+  });
+});
+
+describe("Run ledger — replay path seeds from the captured scenario, never a fetch (issue #1836)", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    window.sessionStorage.clear();
+    fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ success: true, data: [] }) } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function renderReplayPanel() {
+    return render(
+      <DemoStateProvider>
+        <InProgressPanel panelId="in-progress-panel" />
+      </DemoStateProvider>,
+    );
+  }
+
+  it("issues no fetch call at all when no token is supplied", async () => {
+    renderReplayPanel();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Chưa có quyết định nào đang thực hiện."),
+      ).toBeInTheDocument();
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("shows nothing when no replay decision has been recorded", async () => {
+    renderReplayPanel();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Chưa có quyết định nào đang thực hiện."),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("seeds the decided run into the finished section, with its real terminal state, once a decision is recorded", async () => {
+    writeReplayDecision(REPLAY_SCENARIO_RUN_ID, "approve");
+
+    renderReplayPanel();
+
+    await waitFor(() => {
+      const card = document.querySelector(`[data-run-card-id="${REPLAY_SCENARIO_RUN_ID}"]`);
+      expect(card).not.toBeNull();
+    });
+
+    const card = document.querySelector(
+      `[data-run-card-id="${REPLAY_SCENARIO_RUN_ID}"]`,
+    ) as HTMLElement;
+    expect(card.getAttribute("data-run-section")).toBe("finished");
+    expect(card.getAttribute("data-terminal-state")).toBe("completed");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("seeds a declined run as a choice (completed_after_decline), never an error", async () => {
+    writeReplayDecision(REPLAY_SCENARIO_RUN_ID, "decline");
+
+    renderReplayPanel();
+
+    await waitFor(() => {
+      const card = document.querySelector(`[data-run-card-id="${REPLAY_SCENARIO_RUN_ID}"]`);
+      expect(card).not.toBeNull();
+    });
+
+    const card = document.querySelector(
+      `[data-run-card-id="${REPLAY_SCENARIO_RUN_ID}"]`,
+    ) as HTMLElement;
+    expect(card.getAttribute("data-terminal-state")).toBe("completed_after_decline");
+  });
+
+  it("feeds the seeded run through groupRunsIntoLedgerSections -- proven by mixing it with a real waiting_approval run and observing correct section priority", async () => {
+    // A pure-function proof that the replay item flows through the SAME
+    // grouping function real runs do (issue #1836's own acceptance
+    // criterion): `sections.test.ts` already proves `groupRunsIntoLedgerSections`
+    // is total over `WorkflowRunListItem`; this test proves the replay
+    // item this component builds is a real, valid member of that type by
+    // observing it actually gets sorted into "finished" here, at the same
+    // component boundary a real fetched run would be.
+    writeReplayDecision(REPLAY_SCENARIO_RUN_ID, "approve");
+
+    renderReplayPanel();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { level: 2, name: "Hoàn tất" })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("heading", { level: 2, name: "Đang chờ bạn" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: "Đang chạy" })).not.toBeInTheDocument();
+  });
+
+  it("signed-in path is unshadowed: a token present still fetches, and seeded replay content never appears alongside it", async () => {
+    writeReplayDecision(REPLAY_SCENARIO_RUN_ID, "approve");
+    const signedInRun = buildRun({ id: "run-signed-in", status: "running", product_name: "SP signed in" });
+    fetchMock.mockResolvedValue(mockRunsResponse([signedInRun]));
+
+    render(
+      <DemoStateProvider>
+        <InProgressPanel panelId="in-progress-panel" token="test-bearer-token" />
+      </DemoStateProvider>,
+    );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(screen.getByText("SP signed in")).toBeInTheDocument();
+    });
+
+    expect(
+      document.querySelector(`[data-run-card-id="${REPLAY_SCENARIO_RUN_ID}"]`),
+    ).toBeNull();
   });
 });

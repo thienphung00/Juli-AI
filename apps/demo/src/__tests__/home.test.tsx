@@ -1,23 +1,31 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import HomePage from "../app/page";
 import { DemoStateProvider } from "../components/demo-state";
+import { ENTRY_MODE_STORAGE_KEY } from "../lib/entry-mode";
 import { demoSnapshot, homeDestinations } from "../lib/mock-data";
 import { createMockDemoAnalyticsEnvelope } from "../lib/analytics/__tests__/fixtures";
 
-describe("Demo Home", () => {
-  it("Home and Settings unchanged mock; Sign-in stub stays non-functional", () => {
+// `/` is now the dual-entry landing (issue #1319, ADR-094): this file covers
+// the launcher content reached once "Dùng thử Demo" has been chosen — the
+// landing gate itself has its own coverage in `demo-landing.test.tsx`.
+beforeEach(() => {
+  window.sessionStorage.setItem(ENTRY_MODE_STORAGE_KEY, "replay");
+});
+
+describe("Demo Home (post Dùng thử Demo entry)", () => {
+  it("renders the mock launcher once the replay entry has been chosen", async () => {
     expect(demoSnapshot.mode).toBe("mock");
     render(
       <DemoStateProvider>
         <HomePage />
       </DemoStateProvider>,
     );
-    expect(screen.getByTestId("mock-data-notice")).toBeInTheDocument();
+    expect(await screen.findByTestId("mock-data-notice")).toBeInTheDocument();
   });
 
-  it("renders exactly the two keyboard-operable destination launchers", () => {
+  it("renders exactly the two keyboard-operable destination launchers", async () => {
     render(
       <DemoStateProvider>
         <HomePage />
@@ -25,7 +33,7 @@ describe("Demo Home", () => {
     );
 
     const launchers = within(
-      screen.getByRole("region", { name: "Điểm đến chính" }),
+      await screen.findByRole("region", { name: "Điểm đến chính" }),
     ).getAllByRole("link");
 
     expect(launchers).toHaveLength(2);
@@ -37,7 +45,7 @@ describe("Demo Home", () => {
     ).toHaveAttribute("href", "/analytics");
   });
 
-  it("keeps keyboard navigation and identifiable card targets on Home launchers", () => {
+  it("keeps keyboard navigation and identifiable card targets on Home launchers", async () => {
     render(
       <DemoStateProvider>
         <HomePage />
@@ -45,7 +53,7 @@ describe("Demo Home", () => {
     );
 
     const launchers = within(
-      screen.getByRole("region", { name: "Điểm đến chính" }),
+      await screen.findByRole("region", { name: "Điểm đến chính" }),
     ).getAllByRole("link");
 
     expect(launchers).toHaveLength(2);
@@ -56,7 +64,7 @@ describe("Demo Home", () => {
     }
   });
 
-  it("uses @juli/ui Lucide icons instead of Unicode glyphs on Home launchers", () => {
+  it("uses @juli/ui Lucide icons instead of Unicode glyphs on Home launchers", async () => {
     render(
       <DemoStateProvider>
         <HomePage />
@@ -64,7 +72,7 @@ describe("Demo Home", () => {
     );
 
     const launchers = within(
-      screen.getByRole("region", { name: "Điểm đến chính" }),
+      await screen.findByRole("region", { name: "Điểm đến chính" }),
     ).getAllByRole("link");
 
     for (const launcher of launchers) {
@@ -75,12 +83,14 @@ describe("Demo Home", () => {
     expect(document.body).not.toHaveTextContent("↗");
   });
 
-  it("documents lucide icon choices without dvr a0 reference bundles when not landed", () => {
+  it("documents lucide icon choices without dvr a0 reference bundles when not landed", async () => {
     render(
       <DemoStateProvider>
         <HomePage />
       </DemoStateProvider>,
     );
+
+    await screen.findByRole("region", { name: "Điểm đến chính" });
 
     expect(
       homeDestinations.every(
@@ -95,19 +105,21 @@ describe("Demo Home", () => {
     ).toBeInTheDocument();
   });
 
-  it("leaves in progress settings and recommendations surfaces untouched on Home", () => {
+  it("leaves in progress settings and recommendations surfaces untouched on Home", async () => {
     render(
       <DemoStateProvider>
         <HomePage />
       </DemoStateProvider>,
     );
 
+    await screen.findByTestId("mock-data-notice");
+
     expect(screen.queryByText(/Phê duyệt|Từ chối|Mở rộng/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Mẫu quy trình|Ngưỡng/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Doanh thu|ROAS|CSAT|SPS/)).not.toBeInTheDocument();
   });
 
-  it("uses deterministic mock contracts and performs no network call", () => {
+  it("uses deterministic mock contracts and performs no network call", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
     render(
@@ -118,7 +130,7 @@ describe("Demo Home", () => {
 
     expect(homeDestinations).toHaveLength(2);
     expect(demoSnapshot.mode).toBe("mock");
-    expect(screen.getByTestId("mock-data-notice")).toHaveTextContent(
+    expect(await screen.findByTestId("mock-data-notice")).toHaveTextContent(
       "Juli Demo Shop",
     );
     expect(fetchSpy).not.toHaveBeenCalled();

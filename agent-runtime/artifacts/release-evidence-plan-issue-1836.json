@@ -1,0 +1,100 @@
+{
+  "planId": "rep-1836-decided-replay-run-moves-to-in-progress",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com Decisions — Đề xuất and Đang thực hiện tabs (apps/demo)",
+    "demo.app-juli.com replay run route"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Load the candidate demo build — zero public canary traffic. The replay path calls no authenticated route and persists nothing beyond sessionStorage",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "notes": "Issue's own Release evidence section, transcribed verbatim. Card consumption was a side effect of the mock ExecutionRecord deleted by #1320 part 2; this restores the rendered outcome ADR-084 decision 6 requires, on a surface that persists nothing.",
+    "journeys": [
+      {
+        "name": "confirmed-run-leaves-recommendations-and-appears-in-ledger",
+        "entryUrl": "/",
+        "assertions": [
+          "html_200",
+          "Dùng thử Demo → approve → confirm → return to Decisions",
+          "the recommendation is absent from Đề xuất",
+          "the run is present in Đang thực hiện's finished section with its real terminal state",
+          "the browser issues no /v1/* request throughout"
+        ]
+      },
+      {
+        "name": "declined-run-renders-as-a-choice",
+        "entryUrl": "/",
+        "assertions": [
+          "declining removes the recommendation from Đề xuất the same way",
+          "the ledger renders the declined outcome as a choice, never as an error"
+        ]
+      },
+      {
+        "name": "manual-refresh-restores-the-recommendation",
+        "entryUrl": "/decisions",
+        "assertions": [
+          "Làm mới Demo returns the recommendation to Đề xuất",
+          "Làm mới Demo empties the replay run from Đang thực hiện",
+          "this is what makes #1322's two walks (confirm once, decline once) possible"
+        ]
+      },
+      {
+        "name": "signed-in-ledger-unshadowed",
+        "entryUrl": "/decisions/in-progress",
+        "assertions": [
+          "with a token present, Đang thực hiện still populates from GET /v1/demo/runs",
+          "seeded replay content does not shadow or suppress real runs"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": ["/", "/decisions", "/decisions/in-progress"],
+    "discoverFromHtml": true,
+    "assetTypes": ["js"],
+    "failOnMissing": true,
+    "failOnNon200": true,
+    "notes": "No new assets. The captured scenario must still be present in the built artifact — verify-replay-scenario-in-build.mjs stays wired and passing."
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Issue text: 'No migration.' Client-side sessionStorage state and a seeded ledger source in apps/demo."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false,
+    "notes": "Issue text: a rollback returns to showing the recommendation after completion rather than leaving the ledger seeded with a run that has no decision behind it."
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm check:demo",
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit"
+  ],
+  "doNotInfer": [
+    "release evidence fields beyond what the issue's Release evidence (ADR-035) section states",
+    "using localStorage — a decision surviving a tab close leaves the next visitor with the recommendation already missing, which is worse than the behaviour being fixed",
+    "copying the run into storage; store only the decision, and derive every WorkflowRunListItem field from the captured scenario so there is one source of truth",
+    "building a replay-only ledger beside groupRunsIntoLedgerSections() — same grouping, different source, or the two drift",
+    "letting seeded replay content shadow real runs on the signed-in path",
+    "rendering a declined run as an error or a failure exit",
+    "issuing any /v1/* request from the replay path to make the ledger populate",
+    "editing the other ten workflows' Decisions or In-Progress tests to accommodate this"
+  ]
+}

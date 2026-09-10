@@ -316,6 +316,16 @@ def _run_gate(tmp_path: Path, monkeypatch: Any, repo: Path, artifact: dict[str, 
     impl_dir.mkdir(parents=True, exist_ok=True)
     (impl_dir / "implementation-issue-1498.json").write_text(json.dumps(artifact))
     monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", impl_dir)
+    # Pin BASE_REF to the fixture repo's own base branch (`_gate_repo` does
+    # `git init -b main`). Since #1864 the gate resolves its merge base against
+    # `origin/$BASE_REF`, so without this the helper inherits whatever BASE_REF
+    # the ambient CI run happens to set. On a PR into `main` that is "main" and
+    # the fixture resolves; on a PR into a wave it is the wave's name, which no
+    # fixture repo contains — the gate then returns early on "could not resolve
+    # merge-base" BEFORE `details["verdict"]` is assigned, and every assertion
+    # on that key dies with `KeyError: 'verdict'` rather than a readable failure.
+    # Tests that deliberately vary BASE_REF set it after this call.
+    monkeypatch.setenv("BASE_REF", "main")
     return _load_gate_seam().run_check(1498, repo_root=repo)
 
 

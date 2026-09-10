@@ -105,4 +105,30 @@ describe("useRunStream", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(result.current.view.liveEdge).toBe("phan-tich");
   });
+
+  it("exposes the raw events the view was folded from (issue #1316)", async () => {
+    // #1316's stage canvas needs actual payload content (a tool's `summary`,
+    // a decision request's `proposed_change`) that `view` deliberately does
+    // not carry -- only sequence numbers per stage. This is the addition
+    // that makes that possible without a second reducer or a second fetch.
+    const events = [
+      event(1, "workflow.started", {
+        workflow_key: "optimize_product_2",
+        product_ref: "product-ref-1",
+        prompt_version: "optimize_product.v3",
+      }),
+      event(2, "tool.started", { tool_call_id: "c1", tool_name: "get_product_information" }),
+    ];
+    const fetchImpl = vi.fn(async () => streamResponse(sse(events)));
+
+    const { result } = renderHook(() =>
+      useRunStream(RUN_ID, { token: "t", fetchImpl: fetchImpl as never }),
+    );
+
+    await waitFor(() => expect(result.current.events).toHaveLength(2));
+    expect(result.current.events.map((e) => e.event_type)).toEqual([
+      "workflow.started",
+      "tool.started",
+    ]);
+  });
 });

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  enterReplayDemo,
   expectContextualAssistance,
   expectFourDestinationShell,
   navigatePrimaryDestination,
@@ -15,7 +16,7 @@ const DESTINATION_PATHS = [
 
 test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
   test("Vietnamese diacritics appear on Home and Decisions", async ({ page }) => {
-    await page.goto("/");
+    await enterReplayDemo(page);
     const launchers = page.getByRole("region", { name: "Điểm đến chính" });
     await expect(
       launchers.getByRole("link", { name: /Quyết định/ }),
@@ -33,15 +34,22 @@ test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
     ).toBeVisible();
   });
 
-  test("Mock mode notice and Sign-in stub stay truthful", async ({ page }) => {
-    await page.goto("/");
+  test("Mock mode notice stays truthful, and sign-in is a real route rather than a disabled stub", async ({
+    page,
+  }) => {
+    // #1319 retired the "coming soon" Sign-in stub -- it was an affordance that
+    // looked like a control and did nothing, and retiring it was one of that
+    // slice's acceptance criteria. What replaced it is a real `Đăng nhập` link
+    // back to the landing gate, so this asserts the new truth rather than
+    // guarding the old lie.
+    await enterReplayDemo(page);
     await expect(page.getByTestId("mock-data-notice")).toBeVisible();
     await expect(page.getByRole("button", { name: "Mock" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
-    const signIn = page.getByRole("button", { name: "Sign-in" });
-    await expect(signIn).toHaveAttribute("aria-disabled", "true");
+    const signIn = page.getByRole("link", { name: "Đăng nhập" });
+    await expect(signIn).toHaveAttribute("href", "/");
 
     const requests: string[] = [];
     page.on("request", (request) => {
@@ -54,8 +62,15 @@ test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
       }
     });
 
-    await signIn.click({ force: true });
-    await expect(page).toHaveURL("/");
+    await signIn.click();
+    // A real navigation now, not a no-op on a dead control. It does NOT re-show
+    // the landing gate: #1319 records the entry choice in sessionStorage, so a
+    // visitor who has already entered lands back on Home rather than being
+    // asked to choose again. Asserting the gate here was my own error.
+    await expect(page).toHaveURL(/\/$/);
+    await expect(
+      page.getByRole("region", { name: "Điểm đến chính" }),
+    ).toBeVisible();
     expect(requests).toEqual([]);
   });
 

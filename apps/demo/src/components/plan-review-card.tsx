@@ -29,6 +29,18 @@ import { PlanImpactBlock } from "./impact-block";
 
 interface PlanReviewCardProps {
   plan: PlanReviewContent;
+  /**
+   * Overrides what happens when the approval gate is confirmed. Every
+   * workflow left this unset before #1320 part 2, and still does: the
+   * default below (`startExecution` + push to
+   * `/decisions/in-progress/<executionId>`) is byte-identical to this
+   * component's prior, sole behavior. Optimize Product is the one caller
+   * that supplies this — its approval reaches the staged run view directly
+   * instead of a mock execution record (ADR-094) — and it supplies it from
+   * `recommendation-review.tsx`, the per-workflow dispatch point, so this
+   * shared card carries no workflow-identity branch of its own.
+   */
+  onApproveConfirm?: () => void;
 }
 
 /**
@@ -56,7 +68,7 @@ interface PlanReviewCardProps {
  *   upload is supplied. The section explains why Juli cannot propose there
  *   and what unblocks approval; it is never a silent blank.
  */
-export function PlanReviewCard({ plan }: PlanReviewCardProps) {
+export function PlanReviewCard({ plan, onApproveConfirm }: PlanReviewCardProps) {
   const router = useRouter();
   const { startExecution, updateMutableState } = useDemoState();
   const [situationOpen, setSituationOpen] = useState(false);
@@ -112,10 +124,12 @@ export function PlanReviewCard({ plan }: PlanReviewCardProps) {
     "feature-unavailable",
   );
 
-  const handleApproveConfirm = () => {
-    const executionId = startExecution(plan.workflowKey);
-    router.push(`/decisions/in-progress/${executionId}`);
-  };
+  const handleApproveConfirm =
+    onApproveConfirm ??
+    (() => {
+      const executionId = startExecution(plan.workflowKey);
+      router.push(`/decisions/in-progress/${executionId}`);
+    });
 
   return (
     <section className="demo-plan">

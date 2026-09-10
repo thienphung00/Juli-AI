@@ -52,6 +52,18 @@ export interface UseRunStreamOptions {
 export interface UseRunStreamResult {
   /** Derived purely from the events seen so far. */
   readonly view: RunViewState;
+  /**
+   * The raw events the view was folded from, in arrival order (duplicates
+   * and out-of-order arrivals included -- `reduceRunView` is the layer that
+   * dedupes/orders, not this array). `view` only carries *sequence numbers*
+   * per stage (`RunStageState.eventSequences`), never the event payloads
+   * themselves -- a consumer that needs actual stage content (a tool's
+   * `summary`, the last `workflow.approval_required`'s `proposed_change`)
+   * looks it up here by sequence number. This is #1316's addition to
+   * #1315's hook: exposing data the hook already held internally, not a
+   * second derivation of it.
+   */
+  readonly events: readonly AgentEvent[];
   /** The connection, not the run. */
   readonly streamStatus: RunStreamStatus;
   /** Set only for connection failures. A failed RUN is `view.terminal`. */
@@ -134,6 +146,7 @@ export function useRunStream(
 
   return {
     view,
+    events,
     streamStatus,
     streamError: current?.error,
     closeReason: current?.closeReason,

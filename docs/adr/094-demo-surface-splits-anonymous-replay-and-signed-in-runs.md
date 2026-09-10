@@ -107,6 +107,19 @@ Demo Launch needs a visitor-facing surface sooner than that deletion can be paid
    the real product visibly disagree, or the first external demo where that disagreement
    would matter.**
 
+## Rationale
+
+*Extracted during the W6→main reconcile to satisfy `check_adr`, which requires a
+`## Rationale` heading (#1853). Nothing below is new reasoning — it summarises what
+this ADR already argues in the section named, which remains the fuller account.*
+
+From **Context**: ADR-084 settled the demo surface on 2026-08-25 as a seeded
+demo tenant with an anonymous Supabase session scoped to it, replaying golden
+scenarios through the real streaming endpoint as real `workflow_run_events` rows
+— *every* visitor, anonymous or signed in, transacting against real persistence.
+Splitting the surface removes the anonymous visitor from that path entirely,
+which is what lets the replay door call nothing at all.
+
 ## Consequences
 
 - **#1353 is dissolved, not answered.** With no anonymous persistence there are no anonymous

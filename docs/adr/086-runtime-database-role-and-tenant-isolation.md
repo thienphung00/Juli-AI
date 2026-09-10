@@ -104,6 +104,19 @@ and the tests asserting their text mention it.
    role over `postgres` for security and observability. No probe of the deployed project was
    needed to establish it.
 
+## Rationale
+
+*Extracted during the W6→main reconcile to satisfy `check_adr`, which requires a
+`## Rationale` heading (#1853). Nothing below is new reasoning — it summarises what
+this ADR already argues in the section named, which remains the fuller account.*
+
+From **Context** and **Options considered**: W7 was planned on the premise that
+the deployed runtime authenticates as the Supabase pooler `postgres` role, which
+owns the tables and is therefore exempt from row policies entirely. That premise
+is **true but incomplete**, and the incomplete half changes what the wave can
+promise — table ownership is one of two escapes from RLS, not the only one, so
+removing it is necessary rather than sufficient.
+
 ## Consequences
 
 - Gate #1339 observation 1 can honestly claim isolation for connections made as `juli_app`, and

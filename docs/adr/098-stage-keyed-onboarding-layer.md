@@ -118,6 +118,20 @@ Noom), and setup to-do lists that ask for chores (Strava).
    dictionary entries, and the bootstrap-status read. No new surface, no workflow-specific screen,
    nothing that changes when a fifth workflow arrives.
 
+## Rationale
+
+*Extracted during the W6→main reconcile to satisfy `check_adr`, which requires a
+`## Rationale` heading (#1853). Nothing below is new reasoning — it summarises what
+this ADR already argues in the section named, which remains the fuller account.*
+
+From **Context**, quoting the objective as the owner stated it (2026-09-08):
+onboarding must help a seller understand Juli's core feature, guide them through
+a seamless first interaction with the agent, and get them to the moment where
+they see the impact of their first workflow. The three constraints that follow —
+**dynamic** (not tied to one workflow, because different sellers see different
+first cards), **cheap to implement**, and minimal — are what select a stage-keyed
+layer over a scripted tour.
+
 ## Consequences
 
 - **UI slices (W9-D or the onboarding wave):** the explainer strip component with a stage counter;
