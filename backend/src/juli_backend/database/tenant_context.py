@@ -30,11 +30,13 @@ Implementation:
 import contextvars
 import logging
 import uuid
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator, Callable, Iterator
+from contextlib import asynccontextmanager, contextmanager
 
-from sqlalchemy import text
+from sqlalchemy import event, text
+from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session, SessionTransaction
 
 logger = logging.getLogger(__name__)
 
@@ -180,13 +182,17 @@ _SHOP_GUC = "app.current_shop_id"
 _USER_GUC = "app.current_user_id"
 
 
-def _require_shop_for_shop_scope(shop_id: uuid.UUID | None) -> None:
+def _require_shop_for_shop_scope(shop_id: uuid.UUID | None) -> uuid.UUID:
     """Refuse a shop scope with no shop, before anything reaches the database.
 
     Extracted so `with_shop_scope` can run it ahead of the GUC read it now does
     on entry. `system_scope` exists for work with no tenant at all; a shop scope
     without a shop is neither, and admitting it would make "which shop" an
     omission rather than a decision in the code.
+
+    Returns the shop id it just proved is present, so a caller that needs a
+    non-optional one downstream can bind it here instead of asserting again
+    (#1883). Callers that only want the refusal keep ignoring the return.
     """
     if shop_id is None:
         raise TenantContextRequiredError(
@@ -194,6 +200,7 @@ def _require_shop_for_shop_scope(shop_id: uuid.UUID | None) -> None:
             "A shop-scoped unit of work must name its shop; use system_scope() if the "
             "work is genuinely fleet-wide."
         )
+    return shop_id
 
 
 def _session_is_sqlite(session: AsyncSession) -> bool:
@@ -440,6 +447,282 @@ async def reapply_shop_scope(session: AsyncSession, shop_id: uuid.UUID) -> None:
     """
     _require_shop_for_shop_scope(shop_id)
     await _write_tenant_gucs(session, str(shop_id), "")
+
+
+# --- sticky shop scope (#1883) --------------------------------------------
+#
+# `SET LOCAL` dies with the transaction, so `with_shop_scope` holds only until
+# the first COMMIT inside its own block. `reapply_shop_scope` above is the
+# answer when the caller knows where the commits are. It is not the answer on
+# the agent-run path: `JsonbConversationStore.persist` commits on every turn
+# and `ToolExecutionLedger` commits around every write, so "immediately after
+# the callee returns" would have to be spelled at a dozen call sites inside a
+# loop that lives in another module. The scope has to survive the commits
+# instead of being rebuilt after each one.
+#
+# THE MECHANISM. A SQLAlchemy `after_begin` listener bound to ONE session
+# re-applies the same GUC pair at the start of every transaction that session
+# opens, including the one autobegun by the first statement after a commit. It
+# is still `SET LOCAL`: nothing is ever set at session or connection level, so
+# a pooled connection cannot carry a shop id into its next checkout. What
+# changes is only that the value is put back as each new transaction starts.
+#
+# AUTHORITY IS UNCHANGED (ADR-089). One shop id, the same policies, the user
+# GUC withheld as the empty string exactly as `with_shop_scope` withholds it,
+# and no enumeration exemption — decision 3 is untouched.
+
+_STICKY_GUC_SQL = (
+    "SELECT set_config(:shop_key, :shop_val, true), set_config(:user_key, :user_val, true)"
+)
+
+
+def _shop_scope_guc_params(shop_id: uuid.UUID) -> dict[str, str]:
+    """The GUC pair a shop scope writes: the shop, and a withheld user."""
+    return {
+        "shop_key": _SHOP_GUC,
+        "shop_val": str(shop_id),
+        "user_key": _USER_GUC,
+        "user_val": "",
+    }
+
+
+def _make_sticky_after_begin_listener(
+    shop_id: uuid.UUID,
+) -> Callable[[Session, SessionTransaction, Connection], None]:
+    """Build the `after_begin` handler that re-applies the shop GUC.
+
+    The handler runs in the sync context — for an `AsyncSession` that is inside
+    the greenlet SQLAlchemy already spawned for the enclosing await — so it
+    issues the statement on the `Connection` it is handed rather than on the
+    session. `set_config(name, value, true)` is bound as parameters, never
+    interpolated: the shop id reaches Postgres as a value.
+
+    A new closure per scope, deliberately. `event.remove` matches on the
+    function object, so two concurrently open scopes on two sessions must not
+    share one, or removing either would remove the other's.
+    """
+    params = _shop_scope_guc_params(shop_id)
+
+    def _reapply_shop_guc_on_begin(
+        session: Session, transaction: SessionTransaction, connection: Connection
+    ) -> None:
+        connection.execute(text(_STICKY_GUC_SQL), params)
+
+    return _reapply_shop_guc_on_begin
+
+
+@asynccontextmanager
+async def with_sticky_shop_scope(
+    session: AsyncSession,
+    shop_id: uuid.UUID | None,
+) -> AsyncIterator[None]:
+    """`with_shop_scope` that survives the commits inside its own block (#1883).
+
+    Same authority, same single shop, same withheld user GUC, same refusal
+    before any SQL when no shop is named. The only difference is that a
+    transaction begun after a COMMIT inside the block starts with the shop GUC
+    already set, instead of starting with nothing and failing the next gated
+    read.
+
+    Use this when the unit of work contains a callee that commits and you
+    cannot re-apply the scope after it — the agent-run worker path
+    (`workers/tasks/agent_workflow.py`) is the case this exists for. When the
+    commits are visible at the call site, `reapply_shop_scope` is smaller and
+    is still the right tool.
+
+    WHAT IT DOES NOT DO. It does not widen visibility by one row: the listener
+    writes the same `SET LOCAL` pair `with_shop_scope` writes. It is not a
+    session-level or connection-level `SET`, so it cannot leak through the
+    pool. And it is not `system_scope`: the shop id is mandatory.
+
+    Args:
+        session: AsyncSession to hold the scope on
+        shop_id: the shop this unit of work belongs to. Typed optional because
+            refusing a `None` IS the contract — callers resolve the shop from a
+            read that can legitimately come back empty, and this is where that
+            becomes a fail-closed error rather than an unscoped transaction.
+
+    Raises:
+        TenantContextRequiredError: if shop_id is None, before any SQL is
+            emitted and before a listener is bound.
+    """
+    token = _shop_scope_active.set(True)
+    body_failed = False
+    prior_shop, prior_user = "", ""
+    applied = False
+    listener = None
+    listen_target = None
+    try:
+        # Before the GUC read, for the reason `with_shop_scope` gives: the read
+        # is itself a statement, and a scope with no shop must reach the
+        # database not at all.
+        shop = _require_shop_for_shop_scope(shop_id)
+        prior_shop, prior_user = await _read_tenant_gucs(session)
+        listen_target, listener = _register_sticky_listener(session, shop)
+        await _apply_tenant_context_to_session(session, shop, None)
+        # Withhold the user GUC explicitly rather than by omission — the same
+        # reasoning as `with_shop_scope`, and the same pair the listener puts
+        # back on every subsequent transaction.
+        await _write_tenant_gucs(session, str(shop), "")
+        applied = True
+        yield
+    except BaseException:
+        body_failed = True
+        raise
+    finally:
+        try:
+            _remove_sticky_listener(listen_target, listener)
+        finally:
+            try:
+                if applied:
+                    await _restore_tenant_gucs(
+                        session, prior_shop, prior_user, body_failed=body_failed
+                    )
+            finally:
+                _shop_scope_active.reset(token)
+
+
+_StickyListener = Callable[[Session, SessionTransaction, Connection], None]
+
+
+def _register_sticky_listener(
+    session: AsyncSession | Session,
+    shop_id: uuid.UUID,
+) -> tuple[Session | None, _StickyListener | None]:
+    """Bind the re-apply handler to THIS session, or to nothing on SQLite.
+
+    SQLite has neither `set_config` nor RLS, so every GUC operation in this
+    module is already a no-op there; registering a handler that emits one would
+    turn the no-op into a syntax error on the unit-test dialect. The dialect
+    check comes before `AsyncSession.sync_session` is ever touched, so a
+    SQLite-backed caller never has to own one.
+
+    Returns the pair the exit path needs — `event.remove` matches on both the
+    target and the function object, so the caller must not have to re-derive
+    either.
+    """
+    if _any_session_is_sqlite(session):
+        return None, None
+    listen_target = session.sync_session if isinstance(session, AsyncSession) else session
+    listener = _make_sticky_after_begin_listener(shop_id)
+    event.listen(listen_target, "after_begin", listener)
+    return listen_target, listener
+
+
+def _remove_sticky_listener(
+    listen_target: Session | None,
+    listener: _StickyListener | None,
+) -> None:
+    """Unbind the handler on the way out, on both the normal and error paths.
+
+    Removal is not optional housekeeping. The session outlives the scope — the
+    worker path hands the same session to the crash handler — and a handler
+    left attached would keep re-asserting a shop id after the block that chose
+    it has ended, which is precisely the leak `SET LOCAL` exists to prevent.
+    """
+    if listener is None or listen_target is None:
+        return
+    event.remove(listen_target, "after_begin", listener)
+
+
+def _any_session_is_sqlite(session: AsyncSession | Session) -> bool:
+    """`_session_is_sqlite` for either session flavour — the bind check is the
+    same on both, only the annotation differs."""
+    bind = session.get_bind()
+    dialect_name = bind.dialect.name if hasattr(bind, "dialect") else "postgresql"
+    return dialect_name == "sqlite"
+
+
+def _read_tenant_gucs_sync(session: Session) -> tuple[str, str]:
+    """`_read_tenant_gucs` for a sync `Session` — same statement, same
+    empty-string normalisation."""
+    if _any_session_is_sqlite(session):
+        return "", ""
+    row = session.execute(
+        text(
+            f"SELECT current_setting('{_SHOP_GUC}', true), "  # nosec B608
+            f"       current_setting('{_USER_GUC}', true)"
+        )
+    ).one()
+    return (row[0] or "", row[1] or "")
+
+
+def _write_tenant_gucs_sync(session: Session, shop: str, user: str) -> None:
+    """`_write_tenant_gucs` for a sync `Session`."""
+    if _any_session_is_sqlite(session):
+        return
+    session.execute(
+        text(_STICKY_GUC_SQL).bindparams(
+            shop_key=_SHOP_GUC, shop_val=shop, user_key=_USER_GUC, user_val=user
+        )
+    )
+
+
+def _restore_tenant_gucs_sync(session: Session, shop: str, user: str, *, body_failed: bool) -> None:
+    """`_restore_tenant_gucs` for a sync `Session`.
+
+    Never raises, for the reason spelled out at length on the async twin: a
+    cleanup step in a `finally` must not replace the caller's exception, and a
+    failed restore is safe on its own because `SET LOCAL` dies with the
+    transaction anyway.
+    """
+    try:
+        _write_tenant_gucs_sync(session, shop, user)
+    except Exception:
+        logger.log(
+            logging.WARNING if body_failed else logging.ERROR,
+            "tenant_context_restore_failed",
+            extra={"body_failed": body_failed, "sync": True},
+            exc_info=True,
+        )
+
+
+@contextmanager
+def with_sticky_shop_scope_sync(
+    session: Session,
+    shop_id: uuid.UUID | None,
+) -> Iterator[None]:
+    """`with_sticky_shop_scope` for a synchronous `sqlalchemy.orm.Session`.
+
+    WHY A SECOND FLAVOUR RATHER THAN ONE. `ToolExecutionLedger`
+    (`services/agent/runner/ledger.py`) is sync by construction and runs on its
+    own throwaway `Session` (`agent_workflow.py::_sync_ledger_session`), which
+    it commits around every write to `tool_executions` — an RLS-gated table.
+    Fixing only the async session would leave every ledger row unscoped, so the
+    run would still fail, one layer down. Nothing about the mechanism differs:
+    the same `after_begin` listener, the same `SET LOCAL` pair, the same single
+    shop.
+
+    Args:
+        session: the sync Session to hold the scope on
+        shop_id: the shop this unit of work belongs to. Optional for the same
+            reason as the async twin: refusing a `None` is the contract.
+
+    Raises:
+        TenantContextRequiredError: if shop_id is None, before any SQL is
+            emitted and before a listener is bound.
+    """
+    body_failed = False
+    prior_shop, prior_user = "", ""
+    applied = False
+    listener = None
+    listen_target = None
+    try:
+        shop = _require_shop_for_shop_scope(shop_id)
+        prior_shop, prior_user = _read_tenant_gucs_sync(session)
+        listen_target, listener = _register_sticky_listener(session, shop)
+        _write_tenant_gucs_sync(session, str(shop), "")
+        applied = True
+        yield
+    except BaseException:
+        body_failed = True
+        raise
+    finally:
+        try:
+            _remove_sticky_listener(listen_target, listener)
+        finally:
+            if applied:
+                _restore_tenant_gucs_sync(session, prior_shop, prior_user, body_failed=body_failed)
 
 
 @asynccontextmanager

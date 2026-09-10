@@ -27,6 +27,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from juli_backend.models.models import Product, Shop, WorkflowRun
 from juli_backend.workers.celery_app import celery_app
@@ -106,15 +108,54 @@ def test_tasks_configured_acks_late_and_max_retries_one():
 # ---------------------------------------------------------------------------
 
 
+_SHOP_ID_FOR_STUBBED_SCOPES = uuid.uuid4()
+
+
+@contextlib.contextmanager
+def _throwaway_sqlite_session():
+    """Stands in for `_sync_ledger_session`'s throwaway `Session`.
+
+    A REAL `sqlalchemy.orm.Session`, not the sentinel string this used to
+    yield (#1883): the task shell now opens a tenant scope on the ledger's
+    session, so a stand-in has to be something a scope can be entered on. SQLite
+    is the cheapest real one, and every GUC operation in `tenant_context` is a
+    documented no-op on that dialect.
+    """
+    engine = create_engine("sqlite://")
+    session = sessionmaker(bind=engine)()
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
+
+
 def _patch_session_scopes(monkeypatch, order):
-    """Bind both session scopes the reconciled shell opens (#1145).
+    """Bind the session scopes the reconciled shell opens (#1145, #1883).
 
     `_ensure_session_factory` yields an `AsyncSession` stand-in whose
-    `commit()` is recorded, and `_sync_ledger_session` yields a sentinel for
-    the ledger's sync `Session`. Neither touches a database.
+    `commit()` is recorded, `_sync_ledger_session` yields a real throwaway
+    SQLite `Session`, and `_resolve_run_shop_id` answers with a fixed shop id.
+
+    The last of those is a seam substitution in the same spirit as
+    `_load_context`/`_construct_runner` above it: these tests assert the shell's
+    CALL ORDER, and resolving the shop for real would mean seeding a
+    `workflow_runs` row this suite has no other use for.
+    `test_agent_workflow_task_scope.py` is where the real resolution runs, over
+    real Postgres, as `juli_app`.
     """
 
     class _AsyncSessionStub:
+        """An `AsyncSession` stand-in with the two methods the shell reaches
+        for: `commit()` and `get_bind()`. The bind is a real SQLite engine, so
+        `with_sticky_shop_scope` takes its documented no-op path."""
+
+        def __init__(self) -> None:
+            self._engine = create_engine("sqlite://")
+
+        def get_bind(self):
+            return self._engine
+
         async def commit(self):
             order.append(("commit", None))
 
@@ -126,9 +167,15 @@ def _patch_session_scopes(monkeypatch, order):
 
     @contextlib.contextmanager
     def _fake_sync_session():
-        yield "sync-session-sentinel"
+        with _throwaway_sqlite_session() as sync_session:
+            yield sync_session
 
     monkeypatch.setattr(agent_workflow, "_sync_ledger_session", _fake_sync_session)
+
+    async def _fake_resolve_run_shop_id(session, run_id):
+        return _SHOP_ID_FOR_STUBBED_SCOPES
+
+    monkeypatch.setattr(agent_workflow, "_resolve_run_shop_id", _fake_resolve_run_shop_id)
 
 
 def _function_node(func) -> ast.AsyncFunctionDef:
@@ -167,40 +214,56 @@ def test_task_body_has_no_loop_or_branch_logic(func):
     [agent_workflow._run_agent_workflow_async, agent_workflow._resume_agent_workflow_async],
 )
 def test_task_body_is_a_session_scoped_thin_shell(func):
-    """load-context, construct-runner, run/resume, commit -- nothing else.
+    """resolve-shop, open the scopes, then load-context, construct-runner,
+    run/resume, commit -- nothing else.
 
     #1129 asserted exactly three top-level statements, which was the right
     shape while `_load_context` owned its own session and the runner was a
     placeholder needing no resources. The real `WorkflowRunner` (#1119/#1123)
     shares one `AsyncSession` with `JsonbConversationStore` and needs a
     separate sync `Session` for `ToolExecutionLedger` (#1121), so the shell
-    now binds both scopes and commits. Reconciled by #1145: the invariant
-    that matters -- no loop or state-machine logic in the task body -- is
-    unchanged and still enforced by
+    binds both. Reconciled by #1145: the invariant that matters -- no loop or
+    state-machine logic in the task body -- is unchanged and still enforced by
     `test_task_body_has_no_loop_or_branch_logic` above.
 
-    Issue #1291 adds try/except for crash handling, so the 4 statements are
-    now wrapped in a try block. The invariant is preserved: the try block
-    contains exactly load-context, construct-runner, run/resume, commit, with
-    exception handling to emit terminal events.
+    Issue #1291 wrapped the 4 statements in a try/except for crash handling.
+
+    Issue #1883 adds the tenant scope, and this assertion now PINS it rather
+    than merely tolerating it. The worker connects as `juli_app`, so a shell
+    that opens a session and reads without a scope reads nothing at all; the
+    shape below is what makes that structurally impossible to lose in a
+    refactor. `_resolve_run_shop_id` is sited OUTSIDE the try deliberately --
+    a task that cannot even name its tenant has nothing to write a terminal
+    event under, and must fail loudly to Celery rather than quietly.
     """
     node = _function_node(func)
     assert len(node.body) == 2, (
         f"{func.__name__} has {len(node.body)} top-level statements; expected "
         "the session factory binding plus one `async with` scope"
     )
-    async_with = node.body[1]
-    assert isinstance(async_with, ast.AsyncWith), "the second statement opens the async session"
-    sync_with = async_with.body[0]
-    assert isinstance(sync_with, ast.With), "the ledger's sync session is bound inside it"
+    session_with = node.body[1]
+    assert isinstance(session_with, ast.AsyncWith), "the second statement opens the async session"
+    assert len(session_with.body) == 2, (
+        f"{func.__name__}'s session block has {len(session_with.body)} statements; expected "
+        "the shop-id resolution plus one `async with` holding both tenant scopes"
+    )
+    assert isinstance(session_with.body[0], ast.Assign), (
+        "the shop id must be resolved first -- the scope below cannot be entered without it"
+    )
+    scope_with = session_with.body[1]
+    assert isinstance(scope_with, ast.AsyncWith), (
+        "the sticky shop scope and the scoped ledger session are bound together"
+    )
+    assert len(scope_with.items) == 2, (
+        f"{func.__name__} enters {len(scope_with.items)} scopes; expected two -- the async "
+        "session's sticky shop scope and the ledger's sync one"
+    )
 
-    # Issue #1291: crash handling is now a top-level try/except wrapping the
-    # 4 statements (load-context, construct-runner, run/resume, commit).
-    assert len(sync_with.body) == 1, (
-        f"{func.__name__}'s inner block has {len(sync_with.body)} statements; expected "
+    assert len(scope_with.body) == 1, (
+        f"{func.__name__}'s inner block has {len(scope_with.body)} statements; expected "
         "a single try/except wrapping the shell logic"
     )
-    try_stmt = sync_with.body[0]
+    try_stmt = scope_with.body[0]
     assert isinstance(try_stmt, ast.Try), "the single statement should be a try/except block"
     assert len(try_stmt.body) == 4, (
         f"{func.__name__}'s try block has {len(try_stmt.body)} statements; "

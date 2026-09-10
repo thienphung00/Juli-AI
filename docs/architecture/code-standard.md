@@ -78,6 +78,16 @@ base. A fifth bronze table is three lines and cannot get the loop wrong.
   insert of the same key.
 - **Naive UTC at the persistence edge.** `utc_now_naive()` for every `now` a
   repository writes (#1138).
+- **Any callee that may commit is scope-hostile.** `with_shop_scope` is
+  `SET LOCAL`, which a COMMIT discards — so a unit of work that calls something
+  that commits must either re-apply the scope immediately after that call
+  returns and before the next gated read (`reapply_shop_scope`), or hold a
+  sticky scope for the whole unit of work (`with_sticky_shop_scope`, and
+  `with_sticky_shop_scope_sync` for a sync `Session`). Prove it on a real-COMMIT
+  `juli_app` session, never on a savepoint fixture: a session bound to an
+  already-open connection turns `commit()` into a SAVEPOINT release, `SET LOCAL`
+  survives it, and the test passes whether or not the code is correct
+  (#1860/#1874/#1880/#1883).
 
 ## 4. Services and routes
 
