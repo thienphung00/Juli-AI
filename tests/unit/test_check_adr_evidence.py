@@ -486,3 +486,99 @@ def test_the_unresolved_reason_says_which_silence_it_hit(gate: _Harness) -> None
     assert "no status record exists" not in present, (
         f"the record is on disk; the gate said it was not: {present!r}"
     )
+
+
+# --- #1853: rung 1b, a diff with no source cannot be an architectural change --
+#
+# Four PRs in one day were failed by this gate for a question it had no source
+# to answer: rung 2 is gitignored by policy and never present in CI, and rung 3
+# is silent for every issue whose record predates #1562 — which cannot be
+# backfilled, because that issue's Architect lock forbids it. A one-line edit to
+# a JSON array of issue numbers was blocked on "could this be architectural?"
+#
+# The shape considered first — "a merge commit is not architectural" — is the
+# one these tests exist to keep out: it would skip the requirement for authored
+# code sitting in the same PR. Rung 1b asks a narrower question with a definite
+# answer instead, and the discriminating test below is the one that proves the
+# difference.
+
+
+def test_artifact_only_diff_is_not_an_architectural_change(gate: _Harness) -> None:
+    """A committed artifact carries no design, so the question is answered by
+    the diff rather than left to the fail-closed rung."""
+    gate.changed("agent-runtime/artifacts/waves/wave-agent-w6.json")
+
+    passed, _description, details = gate.run()
+
+    assert passed is True
+    assert details["evidenceSource"] == "no-source-change"
+    assert details["architecturalChange"] is False
+
+
+def test_prose_only_diff_is_not_an_architectural_change(gate: _Harness) -> None:
+    gate.changed("docs/handoffs/2026-09-09-w6-wave-to-main-reconcile.md")
+
+    passed, _description, details = gate.run()
+
+    assert passed is True
+    assert details["evidenceSource"] == "no-source-change"
+
+
+def test_one_source_file_among_artifacts_still_requires_an_adr(gate: _Harness) -> None:
+    """THE DISCRIMINATING TEST. Rung 1b must not become a way to smuggle code
+    past the requirement by burying it among artifacts.
+
+    Without this, the natural implementation — "most of the diff is artifacts"
+    or "the head is a merge commit" — passes, and a PR that edits a service
+    alongside a manifest skips the ADR question entirely. With it, a single
+    source path is enough to put the PR back on the evidence ladder.
+    """
+    gate.changed(
+        "agent-runtime/artifacts/waves/wave-agent-w6.json",
+        "docs/adr/README.md",
+        "backend/src/juli_backend/services/agent_runs/events.py",
+    )
+
+    passed, _description, details = gate.run()
+
+    assert passed is False
+    assert details["evidenceSource"] != "no-source-change"
+    assert details["architecturalChange"] is None
+
+
+def test_a_workflow_edit_is_source_despite_living_beside_artifacts(gate: _Harness) -> None:
+    """`.github/workflows/*.yml` decides what runs; `agent-runtime/artifacts/**`
+    records a run that already happened. Both are YAML, so suffix alone gets
+    this backwards — and getting it backwards would let a CI workflow change
+    skip the ADR requirement, which is the one case here worth being strict
+    about."""
+    gate.changed(".github/workflows/pr.yml")
+
+    passed, _description, details = gate.run()
+
+    assert passed is False
+    assert details["evidenceSource"] != "no-source-change"
+
+
+def test_an_adr_in_the_diff_keeps_the_pr_on_the_ladder(gate: _Harness) -> None:
+    """Rung 1b must defer whenever the diff carries an ADR, even though an ADR
+    is not source.
+
+    Answering "no architectural change" here would return PASS without ever
+    validating the ADR — the exact hole
+    `test_unresolved_evidence_still_rejects_a_malformed_adr` guards. A
+    well-formed ADR therefore passes on the ADR path, not on rung 1b, and the
+    evidence source says so.
+    """
+    (gate.repo / "docs" / "adr" / "902-well-formed.md").write_text(
+        "# ADR-902\n\n**Status:** Proposed\n\n## Context\nc\n\n"
+        "## Decision\nd\n\n## Rationale\nr\n\n## Consequences\nq\n",
+        encoding="utf-8",
+    )
+    gate.changed("docs/adr/902-well-formed.md")
+
+    passed, _description, details = gate.run()
+
+    assert passed is True
+    assert details["evidenceSource"] != "no-source-change"
+    assert details["adrPresent"] is True
