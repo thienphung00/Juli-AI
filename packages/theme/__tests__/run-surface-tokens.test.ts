@@ -1,32 +1,44 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { contrastRatio, WCAG_AA_TEXT_MIN, WCAG_AA_UI_MIN } from "./wcag-contrast";
+import { extractDeclarations, extractRuleBlocks, stripCssComments } from "./css-utils";
 
 /**
- * Issue #1314 / AGT-W6A -- proves the scoped run-surface token layer never
- * touches the app-wide `tokens.css` (ACs 1 & 6), that the single live-edge
- * accent is reserved for exactly the live-edge primitives (AC 2), that
- * every new text-carrying token pairing clears WCAG AA (AC 4), and that
- * focus states stay visible and were not removed by a token override
- * (AC 5).
+ * Issue #1912 / ADR-102 -- structural guards for the run surface's light
+ * layer-token file:
+ *
+ *  - the app-wide `tokens.css` stays byte-identical (the #1314 criterion
+ *    that still holds) and the scoping contract is not weakened;
+ *  - all four semantic layers (canvas/panel/raised/overlay) declare all
+ *    four facets (fill/border/shadow/blur) -- the guard that keeps a
+ *    future liquid-glass pass a token-only change;
+ *  - every blur token is CONSUMED by a `backdrop-filter` in this same
+ *    file, at `0px` today, because a glass pass that must ADD a property
+ *    to every panel rule is a consumer change;
+ *  - zero `rgba()` literals -- every derived value is a `color-mix()` so
+ *    tints track their base;
+ *  - the dark palette is deleted, not retained behind a selector
+ *    (ADR-102 decision 5);
+ *  - the live-edge accent stays reserved for exactly its three sanctioned
+ *    rules, and the TS constants consumers import are unchanged.
+ *
+ * Contrast is covered separately in `run-surface-contrast.test.ts`,
+ * re-derived from scratch against the layer fills.
  */
 
 const packageDir = dirname(fileURLToPath(import.meta.url));
-const tokensCssPath = resolve(packageDir, "../tokens.css");
-const runSurfaceCssPath = resolve(packageDir, "../run-surface-tokens.css");
-
-const tokensCss = readFileSync(tokensCssPath, "utf8");
+const themeDir = resolve(packageDir, "..");
+const tokensCss = readFileSync(resolve(themeDir, "tokens.css"), "utf8");
+const runSurfaceCssPath = resolve(themeDir, "run-surface-tokens.css");
 const runSurfaceCss = readFileSync(runSurfaceCssPath, "utf8");
 
-/** Captured from `tokens.css` at the time this issue landed -- see the
- *  commit that introduced this test. Any edit to the app-wide token file,
- *  however small, changes this hash and fails this test: that is the
- *  point (AC 1's "byte-identical before and after"). */
+/** Captured from `tokens.css` before #1314 landed -- any edit to the
+ *  app-wide token file, however small, changes this hash and fails this
+ *  test: that is the point ("byte-identical before and after"). */
 const APP_WIDE_TOKENS_SHA256 =
   "c479c8b04768a632790b5047808b6c5bd913d641d003ea3435a1533eca30c884"; // gitleaks:allow -- SHA-256 pin of tokens.css, not a credential
 
@@ -78,76 +90,24 @@ const APP_WIDE_ROOT_KEYS = [
   "--juli-motion-fast",
 ].sort();
 
-/** Extracts top-level `selector { decl; decl; }` blocks. Both files in
- *  this test are flat (no nested rules beyond one `@media` block in
- *  `tokens.css`, which this regex also matches as its own "selector"
- *  spanning the `@media (...) { :root { ... } }` text -- harmless, since
- *  no assertion below inspects that block's inner declarations). */
-function stripCssComments(css: string): string {
-  return css.replace(/\/\*[\s\S]*?\*\//g, "");
-}
-
-function extractRuleBlocks(css: string): Array<{ selector: string; body: string }> {
-  const blocks: Array<{ selector: string; body: string }> = [];
-  const withoutComments = stripCssComments(css);
-  const re = /([^{}]+)\{([^{}]*)\}/g;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(withoutComments)) !== null) {
-    const selector = match[1].trim();
-    if (!selector) continue; // stray braces left by a stripped comment
-    blocks.push({ selector, body: match[2] });
-  }
-  return blocks;
-}
-
-function extractDeclarations(body: string): Record<string, string> {
-  const declarations: Record<string, string> = {};
-  for (const rawDecl of body.split(";")) {
-    const decl = rawDecl.trim();
-    if (!decl) continue;
-    const colonIndex = decl.indexOf(":");
-    if (colonIndex === -1) continue;
-    const property = decl.slice(0, colonIndex).trim();
-    const value = decl.slice(colonIndex + 1).trim();
-    declarations[property] = value;
-  }
-  return declarations;
-}
-
 const tokensRootBlock = extractRuleBlocks(tokensCss).find((block) => block.selector === ":root");
 if (!tokensRootBlock) {
   throw new Error("run-surface-tokens.test.ts: tokens.css has no top-level :root block");
 }
 const appWideTokenValues = extractDeclarations(tokensRootBlock.body);
 
-const runSurfaceScopeBlock = extractRuleBlocks(runSurfaceCss).find(
+const runSurfaceBlocks = extractRuleBlocks(runSurfaceCss);
+const scopeBlock = runSurfaceBlocks.find(
   (block) => block.selector === '[data-juli-surface="run"]',
 );
-if (!runSurfaceScopeBlock) {
+if (!scopeBlock) {
   throw new Error(
     'run-surface-tokens.test.ts: run-surface-tokens.css has no top-level [data-juli-surface="run"] block',
   );
 }
-const runSurfaceTokenValues = extractDeclarations(runSurfaceScopeBlock.body);
+const scopedTokenValues = extractDeclarations(scopeBlock.body);
 
-/** Resolves a `--juli-run-*` value that may itself be `var(--juli-x)`,
- *  one level deep into `tokens.css`'s resolved values -- enough for this
- *  file, which never nests `var()` more than once. */
-function resolveRunToken(name: string): string {
-  const raw = runSurfaceTokenValues[name];
-  if (raw === undefined) {
-    throw new Error(`run-surface-tokens.test.ts: token ${name} is not declared in the scoped layer`);
-  }
-  const varMatch = /^var\((--[a-z0-9-]+)\)$/i.exec(raw);
-  if (!varMatch) return raw;
-  const resolved = appWideTokenValues[varMatch[1]];
-  if (resolved === undefined) {
-    throw new Error(`run-surface-tokens.test.ts: ${name} references unknown app-wide token ${varMatch[1]}`);
-  }
-  return resolved;
-}
-
-describe("app-wide tokens are untouched (AC 1 + rollback safety)", () => {
+describe("app-wide tokens are untouched (the #1314 criterion that still holds)", () => {
   it("app-wide tokens are byte-identical to their pre-change content", () => {
     const actualHash = createHash("sha256").update(tokensCss).digest("hex");
     expect(actualHash).toBe(APP_WIDE_TOKENS_SHA256);
@@ -162,33 +122,155 @@ describe("app-wide tokens are untouched (AC 1 + rollback safety)", () => {
   });
 
   it("the scoped layer never declares a bare :root block", () => {
-    const rootBlocks = extractRuleBlocks(runSurfaceCss).filter((block) => block.selector === ":root");
+    const rootBlocks = runSurfaceBlocks.filter((block) => block.selector === ":root");
     expect(rootBlocks).toHaveLength(0);
   });
 
   it("the scoped layer never redefines an app-wide --juli-* token name", () => {
-    const scopedNames = Object.keys(runSurfaceTokenValues).filter((name) => name.startsWith("--juli-"));
+    const scopedNames = Object.keys(scopedTokenValues).filter((name) =>
+      name.startsWith("--juli-"),
+    );
+    expect(scopedNames.length).toBeGreaterThan(0);
     for (const name of scopedNames) {
       const isRunScoped = name.startsWith("--juli-run-");
-      expect(isRunScoped, `${name} must be prefixed --juli-run- (scoped layer, never overwrites app-wide)`).toBe(
-        true,
+      expect(
+        isRunScoped,
+        `${name} must be prefixed --juli-run- (scoped layer, never overwrites app-wide)`,
+      ).toBe(true);
+    }
+  });
+
+  it("every custom property in the file is declared under the scope selector", () => {
+    for (const { selector, body } of runSurfaceBlocks) {
+      if (selector === '[data-juli-surface="run"]') continue;
+      const declared = Object.keys(extractDeclarations(body)).filter((p) => p.startsWith("--"));
+      expect(declared, `${selector} must not declare custom properties`).toEqual([]);
+    }
+  });
+});
+
+describe("four layers x four facets (ADR-102 decision 4)", () => {
+  const LAYERS = ["canvas", "panel", "raised", "overlay"] as const;
+  const FACETS = ["fill", "border", "shadow", "blur"] as const;
+
+  const cells: Array<[token: string]> = [];
+  for (const layer of LAYERS) {
+    for (const facet of FACETS) {
+      cells.push([`--juli-run-${layer}-${facet}`]);
+    }
+  }
+
+  it.each(cells)("%s is declared in the scope block", (token) => {
+    expect(scopedTokenValues[token], `${token} missing -- a glass pass would need a consumer edit`).toBeDefined();
+  });
+
+  it("the literal dark-era ground tokens are gone", () => {
+    for (const retired of [
+      "--juli-run-bg",
+      "--juli-run-surface",
+      "--juli-run-surface-raised",
+      "--juli-run-border",
+    ]) {
+      // Exact-name check: `--juli-run-surface` must not match the
+      // longer `--juli-run-surface-raised` while both are being checked.
+      expect(
+        scopedTokenValues[retired],
+        `${retired} must be replaced by the layer tokens`,
+      ).toBeUndefined();
+    }
+  });
+
+  it.each(LAYERS.map((l) => [l] as [string]))(
+    "the %s blur token is consumed by a backdrop-filter in this file",
+    (layer) => {
+      const expected = `backdrop-filter:blur(var(--juli-run-${layer}-blur))`;
+      const normalized = stripCssComments(runSurfaceCss).replace(/\s+/g, "");
+      expect(
+        normalized.includes(expected),
+        `--juli-run-${layer}-blur declared but never read by a backdrop-filter -- ` +
+          "a glass pass would have to ADD the property, which is a consumer change",
+      ).toBe(true);
+    },
+  );
+});
+
+describe("derived values are color-mix, never rgba literals", () => {
+  it("the file contains zero rgb()/rgba() literals", () => {
+    expect(stripCssComments(runSurfaceCss)).not.toMatch(/\brgba?\(/i);
+  });
+
+  it("every -soft / -tint token derives via color-mix from a var()", () => {
+    for (const [name, value] of Object.entries(scopedTokenValues)) {
+      if (!/-(soft|tint)$/.test(name)) continue;
+      expect(value, `${name} must derive from its base token`).toMatch(
+        /^color-mix\(in srgb,\s*var\(--juli-run-[a-z-]+\)\s+\d+%,\s*transparent\)$/,
       );
     }
   });
 });
 
-describe("the live-edge accent is reserved for the live edge only (AC 2)", () => {
+describe("the dark palette is deleted, not retained (ADR-102 decision 5)", () => {
+  // Constructed, not written literally, so this test file itself cannot
+  // trip its own assertion.
+  const FORBIDDEN_HEXES = ["121214", "1c1c20", "232328", "ff5fa8", "ff8dc0", "ff6b70", "6d9bff"].map(
+    (hex) => `#${hex}`,
+  );
+  const SCANNED_EXTENSIONS = new Set([".css", ".ts", ".tsx", ".js", ".jsx", ".md", ".json"]);
+
+  function walk(dir: string, out: string[] = []): string[] {
+    for (const entry of readdirSync(dir)) {
+      if (entry === "node_modules" || entry === ".next" || entry === "dist") continue;
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) {
+        walk(full, out);
+      } else if (SCANNED_EXTENSIONS.has(full.slice(full.lastIndexOf(".")))) {
+        out.push(full);
+      }
+    }
+    return out;
+  }
+
+  it("no dark-era value survives anywhere in packages/theme or apps/demo/src", () => {
+    const roots = [themeDir, resolve(themeDir, "../../apps/demo/src")];
+    const offenders: string[] = [];
+    for (const root of roots) {
+      for (const file of walk(root)) {
+        const content = readFileSync(file, "utf8").toLowerCase();
+        for (const hex of FORBIDDEN_HEXES) {
+          if (content.includes(hex)) offenders.push(`${file}: ${hex}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe("the live-edge accent is reserved for the live edge only", () => {
+  const EXPECTED_LIVE_EDGE_CLASS_NAMES = {
+    stepperNodeActive: "juli-run-stepper-node--active",
+    streamingCaret: "juli-run-streaming-caret",
+    ctaArmed: "juli-run-cta--armed",
+  } as const;
+
   const ALLOWED_LIVE_EDGE_SELECTORS = [
-    '[data-juli-surface="run"]', // the token's own definition
-    ".juli-run-stepper-node--active",
-    ".juli-run-streaming-caret",
-    ".juli-run-cta--armed",
+    '[data-juli-surface="run"]', // the token's own definition block
+    `.${EXPECTED_LIVE_EDGE_CLASS_NAMES.stepperNodeActive}`,
+    `.${EXPECTED_LIVE_EDGE_CLASS_NAMES.streamingCaret}`,
+    `.${EXPECTED_LIVE_EDGE_CLASS_NAMES.ctaArmed}`,
   ];
+
+  it("all three sanctioned live-edge rules still exist", () => {
+    for (const className of Object.values(EXPECTED_LIVE_EDGE_CLASS_NAMES)) {
+      const rule = runSurfaceBlocks.find((block) => block.selector === `.${className}`);
+      expect(rule, `.${className} rule must exist`).toBeDefined();
+      expect(rule!.body).toMatch(/--juli-run-live-edge/);
+    }
+  });
 
   it("every rule referencing --juli-run-live-edge(-foreground) is on the allow-list", () => {
     const offenders: string[] = [];
-    for (const { selector, body } of extractRuleBlocks(runSurfaceCss)) {
-      const referencesLiveEdge = /--juli-run-live-edge(-foreground)?/.test(body);
+    for (const { selector, body } of runSurfaceBlocks) {
+      const referencesLiveEdge = /--juli-run-live-edge(-foreground)?\b/.test(body);
       if (referencesLiveEdge && !ALLOWED_LIVE_EDGE_SELECTORS.includes(selector)) {
         offenders.push(selector);
       }
@@ -196,75 +278,21 @@ describe("the live-edge accent is reserved for the live edge only (AC 2)", () =>
     expect(offenders, "the live-edge accent must never back ordinary emphasis").toEqual([]);
   });
 
-  it("no other scoped token (ground, border, status) is aliased to the live-edge value", () => {
-    const liveEdgeValue = runSurfaceTokenValues["--juli-run-live-edge"];
-    for (const [name, value] of Object.entries(runSurfaceTokenValues)) {
-      if (name === "--juli-run-live-edge") continue;
-      if (name.startsWith("--juli-run-live-edge")) continue; // -foreground / -soft derive from it, by design
-      expect(value, `${name} must not equal the live-edge accent`).not.toBe(liveEdgeValue);
+  it("RUN_SURFACE_LIVE_EDGE_CLASS_NAMES values are unchanged byte-for-byte", () => {
+    const consumerConstantsPath = resolve(
+      themeDir,
+      "../../apps/demo/src/lib/run-surface/tokens.ts",
+    );
+    const source = readFileSync(consumerConstantsPath, "utf8");
+    for (const [key, className] of Object.entries(EXPECTED_LIVE_EDGE_CLASS_NAMES)) {
+      const declaration = new RegExp(`${key}:\\s*"([^"]+)"`).exec(source);
+      expect(declaration, `${key} must be declared in run-surface/tokens.ts`).not.toBeNull();
+      expect(declaration![1]).toBe(className);
     }
   });
 });
 
-describe("contrast passes WCAG AA for every new text-carrying token pairing (AC 4)", () => {
-  it("contrast passes WCAG AA 4.5:1 minimum for all text-carrying token pairings on new ground", () => {
-    const bg = resolveRunToken("--juli-run-bg");
-    const surface = resolveRunToken("--juli-run-surface");
-
-    const textPairings: Array<[label: string, fg: string, ground: string]> = [
-      ["foreground on bg", resolveRunToken("--juli-run-foreground"), bg],
-      ["foreground on surface", resolveRunToken("--juli-run-foreground"), surface],
-      ["muted-foreground on bg", resolveRunToken("--juli-run-muted-foreground"), bg],
-      ["muted-foreground on surface", resolveRunToken("--juli-run-muted-foreground"), surface],
-      ["success on bg", resolveRunToken("--juli-run-success"), bg],
-      ["success on surface", resolveRunToken("--juli-run-success"), surface],
-      ["warning on bg", resolveRunToken("--juli-run-warning"), bg],
-      ["warning on surface", resolveRunToken("--juli-run-warning"), surface],
-      ["destructive on bg", resolveRunToken("--juli-run-destructive"), bg],
-      ["destructive on surface", resolveRunToken("--juli-run-destructive"), surface],
-      ["info on bg", resolveRunToken("--juli-run-info"), bg],
-      ["info on surface", resolveRunToken("--juli-run-info"), surface],
-      [
-        "live-edge-foreground on live-edge (armed CTA label)",
-        resolveRunToken("--juli-run-live-edge-foreground"),
-        resolveRunToken("--juli-run-live-edge"),
-      ],
-    ];
-
-    for (const [_label, fg, ground] of textPairings) {
-      expect(contrastRatio(fg, ground)).toBeGreaterThanOrEqual(WCAG_AA_TEXT_MIN);
-    }
-  });
-
-  const bg = resolveRunToken("--juli-run-bg");
-  const surface = resolveRunToken("--juli-run-surface");
-
-  const textPairings: Array<[label: string, fg: string, ground: string]> = [
-    ["foreground on bg", resolveRunToken("--juli-run-foreground"), bg],
-    ["foreground on surface", resolveRunToken("--juli-run-foreground"), surface],
-    ["muted-foreground on bg", resolveRunToken("--juli-run-muted-foreground"), bg],
-    ["muted-foreground on surface", resolveRunToken("--juli-run-muted-foreground"), surface],
-    ["success on bg", resolveRunToken("--juli-run-success"), bg],
-    ["success on surface", resolveRunToken("--juli-run-success"), surface],
-    ["warning on bg", resolveRunToken("--juli-run-warning"), bg],
-    ["warning on surface", resolveRunToken("--juli-run-warning"), surface],
-    ["destructive on bg", resolveRunToken("--juli-run-destructive"), bg],
-    ["destructive on surface", resolveRunToken("--juli-run-destructive"), surface],
-    ["info on bg", resolveRunToken("--juli-run-info"), bg],
-    ["info on surface", resolveRunToken("--juli-run-info"), surface],
-    [
-      "live-edge-foreground on live-edge (armed CTA label)",
-      resolveRunToken("--juli-run-live-edge-foreground"),
-      resolveRunToken("--juli-run-live-edge"),
-    ],
-  ];
-
-  it.each(textPairings)("%s clears WCAG AA 4.5:1 contrast minimum", (_label, fg, ground) => {
-    expect(contrastRatio(fg, ground)).toBeGreaterThanOrEqual(WCAG_AA_TEXT_MIN);
-  });
-});
-
-describe("focus states are visible and were not removed by a token override (AC 5)", () => {
+describe("focus states are visible and were not removed by a token override", () => {
   it("the scoped layer never redefines the app-wide --juli-focus-ring token", () => {
     expect(runSurfaceCss).not.toMatch(/--juli-focus-ring\s*:/);
   });
@@ -274,20 +302,14 @@ describe("focus states are visible and were not removed by a token override (AC 
   });
 
   it("declares a :focus-visible rule under the scope with a visible outline", () => {
-    const focusBlock = extractRuleBlocks(runSurfaceCss).find((block) =>
-      block.selector.includes(':focus-visible'),
-    );
+    const focusBlock = runSurfaceBlocks.find((block) => block.selector.includes(":focus-visible"));
     expect(focusBlock).toBeDefined();
     const decls = extractDeclarations(focusBlock!.body);
     expect(decls["outline"]).toBeDefined();
     expect(decls["outline"]).not.toMatch(/none|^0$/);
   });
 
-  it("the new scoped focus ring clears the WCAG AA non-text minimum on both grounds", () => {
-    const ring = resolveRunToken("--juli-run-focus-ring");
-    const bg = resolveRunToken("--juli-run-bg");
-    const surface = resolveRunToken("--juli-run-surface");
-    expect(contrastRatio(ring, bg)).toBeGreaterThanOrEqual(WCAG_AA_UI_MIN);
-    expect(contrastRatio(ring, surface)).toBeGreaterThanOrEqual(WCAG_AA_UI_MIN);
+  it("the retired scoped focus ring resolves to the accent, not a literal", () => {
+    expect(scopedTokenValues["--juli-run-focus-ring"]).toBe("var(--juli-run-live-edge)");
   });
 });
