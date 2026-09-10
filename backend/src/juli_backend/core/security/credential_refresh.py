@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession
 from sqlalchemy.orm.attributes import set_committed_value
 
 from juli_backend.database.exceptions import NotFound
+from juli_backend.database.tenant_context import reapply_shop_scope
 from juli_backend.database.token_crypto import decrypt_token
 from juli_backend.models.models import TikTokCredential
 from juli_backend.repositories.repos import TikTokCredentialRepo
@@ -289,16 +290,27 @@ async def _release_advisory_lock(conn: AsyncConnection | None, credential_id: uu
 
 
 async def _poll_for_refresh(
-    session: AsyncSession, credential_id: uuid.UUID, baseline_expiry: datetime
+    session: AsyncSession,
+    credential_id: uuid.UUID,
+    baseline_expiry: datetime,
+    shop_id: uuid.UUID,
 ) -> TikTokCredential | None:
     """Lock loser: poll the row for a bounded couple of seconds (ADR-081
     decision 5) rather than queueing behind the winner -- so N simultaneous
-    callers for the same row produce one vendor call, not N."""
+    callers for the same row produce one vendor call, not N.
+
+    Each loop iteration's ``session.commit()`` discards the caller's
+    ``with_shop_scope`` GUC (``SET LOCAL`` is transaction-scoped) -- reapplied
+    with the ``shop_id`` passed in from the first fetch so the *next*
+    iteration's ``_fetch`` still runs under scope instead of raising
+    ``NotFound`` (#1880).
+    """
     deadline = time.monotonic() + _LOCK_POLL_TIMEOUT_SECONDS
     while time.monotonic() < deadline:
         await asyncio.sleep(_LOCK_POLL_INTERVAL_SECONDS)
         current = await _fetch(session, credential_id)
         await session.commit()
+        await reapply_shop_scope(session, shop_id)
         if current.token_expires_at != baseline_expiry:
             return current
     return None
@@ -320,6 +332,7 @@ async def _handle_vendor_failure(
     cred_repo = TikTokCredentialRepo(session)
     updated = await cred_repo.mark_needs_reauth(credential.id, _NEEDS_REAUTH_MESSAGE)
     await session.commit()
+    await reapply_shop_scope(session, updated.shop_id)
     logger.error(
         "tiktok_credential_refresh_needs_reauth",
         extra={**_log_extra(updated), "error_type": type(exc).__name__},
@@ -345,11 +358,20 @@ async def refresh_credential(
     ``force=True`` ignores the ``token_expires_at`` column and always
     attempts a refresh, promoting the operator's manual ``FORCE_EXPIRED=1``
     flag to a typed argument (ADR-081 decision 1).
+
+    Callers run this inside ``with_shop_scope`` (a per-row ``SET LOCAL``),
+    which a ``COMMIT`` discards. ``shop_id`` is captured from the very first
+    fetch and every ``session.commit()`` below is immediately followed by
+    ``reapply_shop_scope(session, shop_id)`` -- otherwise the next read runs
+    unscoped under RLS and raises ``NotFound`` for a row that plainly exists
+    (#1880: every refresh failed this way from the RLS cutover onward).
     """
     credential = await _fetch(session, credential_id)
+    shop_id = credential.shop_id
     baseline_expiry = credential.token_expires_at
     is_fresh = not force and baseline_expiry > _utc_now() + REFRESH_BUFFER
     await session.commit()
+    await reapply_shop_scope(session, shop_id)
 
     if is_fresh:
         return RefreshOutcome(credential=_hydrate(credential), status=RefreshStatus.FRESH)
@@ -357,16 +379,18 @@ async def refresh_credential(
     acquired, lock_conn = await _try_advisory_lock(session, credential_id)
 
     if not acquired:
-        winner = await _poll_for_refresh(session, credential_id, baseline_expiry)
+        winner = await _poll_for_refresh(session, credential_id, baseline_expiry, shop_id)
         if winner is not None:
             return RefreshOutcome(credential=_hydrate(winner), status=RefreshStatus.REFRESHED)
         current = await _fetch(session, credential_id)
         await session.commit()
+        await reapply_shop_scope(session, shop_id)
         return RefreshOutcome(credential=_hydrate(current), status=RefreshStatus.LOCKED)
 
     try:
         current = await _fetch(session, credential_id)
         await session.commit()
+        await reapply_shop_scope(session, shop_id)
 
         if current.token_expires_at != baseline_expiry:
             # Another refresher already renewed this row while we waited for
@@ -405,6 +429,7 @@ async def refresh_credential(
             refresh_token_expires_at=new_refresh_token_expires_at,
         )
         await session.commit()
+        await reapply_shop_scope(session, shop_id)
 
         logger.info("tiktok_token_refreshed", extra=_log_extra(updated))
         return RefreshOutcome(credential=updated, status=RefreshStatus.REFRESHED)
