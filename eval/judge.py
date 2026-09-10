@@ -66,6 +66,12 @@ EXIT_CANARY_FAILED = 2
 #: Reserved for the CLI: a named-but-missing canary is a hard error, not a
 #: silent skip, and gets a distinct exit code from "canary ran and disagreed".
 EXIT_CANARY_MISSING = 3
+#: #1896: the corpus could not fill a stratum. Distinct from both canary exit
+#: codes above — this is neither "the judge stopped discriminating" nor "a
+#: rubric names a canary that does not exist", it is "the corpus itself is too
+#: skewed to sample from today". Reported, never turned into a short list that
+#: reads as a full one.
+EXIT_SAMPLER_SHORTFALL = 4
 
 Scorer = Callable[[dict[str, Any], str], str]
 
@@ -368,6 +374,180 @@ def stratified_sample(
 
 
 # ---------------------------------------------------------------------------
+# corpus reader — the committed status-record corpus, the only artifact set
+# that survives merge (#1896)
+# ---------------------------------------------------------------------------
+
+#: `agent-runtime/artifacts/status/issue-*.json`. The five body directories
+#: (`reviews/`, `implementations/`, `intent-reviews/`, `validation/`,
+#: `optimization/`) are gitignored per ADR-003 and never reach a pushed
+#: branch — this is the one directory a checkout of `main` actually has.
+STATUS_DIR = REPO_ROOT / "agent-runtime" / "artifacts" / "status"
+
+
+def _review_view(payload: dict[str, Any]) -> dict[str, Any]:
+    """Extract the review sub-record a committed status record carries.
+
+    Two shapes exist on disk. The current one nests it:
+    `{"review": {"status": "PASS", ...}, "validation": {...}, ...}`
+    (`generate_status_records.py`, gateVersion 1 and 2 alike — both copy
+    `review.status` straight from the review artifact's own `status` field).
+    One record predating that migration (`issue-1291.json`) is flat instead:
+    `{"reviewStatus": "PASS", ...}`. Both are tolerated so the loader does not
+    silently drop the older shape; nothing here invents a third meaning for
+    either — a missing status in both shapes surfaces as `None`, which
+    `heuristic_scorer`'s review scorer already turns into `cannot_determine`.
+    """
+    review = payload.get("review")
+    if isinstance(review, dict):
+        return review
+    return {"status": payload.get("reviewStatus")}
+
+
+def load_status_corpus(status_dir: Path = STATUS_DIR) -> list[tuple[str, dict[str, Any], str]]:
+    """Read every committed `issue-*.json` status record and shape it for
+    `judge_records`/`run_judge`: `(record_id, record, artifact_type)`.
+
+    Every row is scored as artifact type `"review"`, against the review
+    sub-record the status record itself carries — the same `status` field
+    `_score_review` already understands (`PASS` / `FAIL` / anything else,
+    including `PASS_WITH_WARNINGS`, falls to `cannot_determine` — that is
+    `_score_review`'s existing, already-tested behaviour, not a rule invented
+    here). A malformed file is skipped, not silently coerced into a verdict:
+    a status record this module cannot parse is not evidence about a record
+    that exists, it is evidence of nothing.
+    """
+    if not status_dir.is_dir():
+        return []
+    records: list[tuple[str, dict[str, Any], str]] = []
+    for path in sorted(status_dir.glob("issue-*.json")):
+        try:
+            payload = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        records.append((path.stem, _review_view(payload), "review"))
+    return records
+
+
+def stratum_counts(candidates: Sequence[JudgeVerdict] | Sequence[dict[str, Any]]) -> dict[str, int]:
+    """How many candidates fall in each of the three strata, without raising.
+
+    Companion to `stratified_sample`, which raises on the *first* insufficient
+    stratum it hits and stops — correct for "never backfill", too narrow for
+    "report the shortfall", which needs every stratum's actual count, not just
+    the first short one.
+    """
+    counts: dict[str, int] = {verdict: 0 for verdict, _ in STRATA}
+    for item in candidates:
+        verdict = _verdict_of(item)
+        if verdict in counts:
+            counts[verdict] += 1
+    return counts
+
+
+@dataclass(frozen=True)
+class SamplerRunResult:
+    exit_code: int
+    rubric: Rubric | None
+    canary_results: list[dict[str, str]]
+    #: `{record_id, rubric_id, verdict, note, rubric_hash}` rows, in the shape
+    #: #1461 consumes — populated only when `exit_code == EXIT_OK`.
+    candidates: list[dict[str, str]]
+    #: Every stratum's actual count against this corpus, always populated
+    #: once canaries have passed — reported whether or not the sample filled.
+    stratum_counts: dict[str, int]
+    #: `None` unless a stratum came up short. Never partially populated with a
+    #: short candidate list alongside it — AC2's "never backfilled" applies to
+    #: the whole run, not just to `stratified_sample`'s own return value.
+    shortfall: dict[str, dict[str, int]] | None = None
+    error: str | None = None
+
+
+def run_sampler(
+    rubric_id: str,
+    *,
+    status_dir: Path = STATUS_DIR,
+    rubric_dir: Path = RUBRIC_DIR,
+    canary_dir: Path = CANARY_DIR,
+    state_dir: Path = STATE_DIR,
+    scorer: Scorer = heuristic_scorer,
+) -> SamplerRunResult:
+    """The sampler entrypoint #1896 adds: read the committed corpus, judge it,
+    emit the stratified candidate list — or an explicit, non-backfilled
+    shortfall.
+
+    Canaries run first on this path exactly as on every other invocation
+    (`run_judge` owns that gate; this function does not re-implement it) —
+    acceptance criterion 3. `CanaryNotFoundError` propagates uncaught, same
+    contract as `run_judge`.
+    """
+    corpus_records = load_status_corpus(status_dir)
+    result = run_judge(
+        rubric_id,
+        corpus_records,
+        rubric_dir=rubric_dir,
+        canary_dir=canary_dir,
+        state_dir=state_dir,
+        scorer=scorer,
+    )
+    if result.exit_code != EXIT_OK:
+        # Canary gate failed (or, for a missing canary, `run_judge` never
+        # returned at all — `CanaryNotFoundError` already propagated past
+        # this function). Nothing about the corpus has been read for scoring.
+        return SamplerRunResult(
+            exit_code=result.exit_code,
+            rubric=result.rubric,
+            canary_results=result.canary_results,
+            candidates=[],
+            stratum_counts={},
+            error=result.error,
+        )
+
+    counts = stratum_counts(result.verdicts)
+    shortfall = {
+        verdict: {"needed": needed, "available": counts.get(verdict, 0)}
+        for verdict, needed in STRATA
+        if counts.get(verdict, 0) < needed
+    }
+    if shortfall:
+        return SamplerRunResult(
+            exit_code=EXIT_SAMPLER_SHORTFALL,
+            rubric=result.rubric,
+            canary_results=result.canary_results,
+            candidates=[],
+            stratum_counts=counts,
+            shortfall=shortfall,
+            error=(
+                f"stratified sample short against {len(corpus_records)} corpus "
+                f"record(s): {shortfall} — reported, not backfilled from "
+                "another stratum (#1896)"
+            ),
+        )
+
+    rows = stratified_sample(result.verdicts)
+    assert result.rubric is not None  # EXIT_OK implies a rubric loaded.
+    candidates = [
+        {
+            "record_id": row["recordId"],
+            "rubric_id": result.rubric.id,
+            "verdict": row["verdict"],
+            "note": "",
+            "rubric_hash": result.rubric.rubric_hash,
+        }
+        for row in rows
+    ]
+    return SamplerRunResult(
+        exit_code=EXIT_OK,
+        rubric=result.rubric,
+        canary_results=result.canary_results,
+        candidates=candidates,
+        stratum_counts=counts,
+    )
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -392,7 +572,29 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
         help="path:artifactType[:recordId], repeatable",
     )
+    parser.add_argument(
+        "--sample-corpus",
+        action="store_true",
+        help=(
+            "read the committed agent-runtime/artifacts/status/issue-*.json corpus, "
+            "judge every record under --rubric, and emit the stratified 5/3/2 "
+            "candidate list for human labelling (#1461). Canaries still run first. "
+            "Mutually exclusive with --record."
+        ),
+    )
+    parser.add_argument(
+        "--status-dir",
+        type=Path,
+        default=STATUS_DIR,
+        help="override the status-record corpus directory (tests only)",
+    )
     args = parser.parse_args(argv)
+
+    if args.sample_corpus:
+        if args.record:
+            print("ERROR: --sample-corpus cannot be combined with --record", file=sys.stderr)
+            return 1
+        return _run_sampler_cli(args)
 
     try:
         records = [_load_record_arg(spec) for spec in args.record]
@@ -429,6 +631,37 @@ def main(argv: list[str] | None = None) -> int:
             indent=2,
         )
     )
+    return EXIT_OK
+
+
+def _run_sampler_cli(args: argparse.Namespace) -> int:
+    try:
+        result = run_sampler(args.rubric, status_dir=args.status_dir)
+    except CanaryNotFoundError as exc:
+        print(f"HARD ERROR (missing canary): {exc}", file=sys.stderr)
+        return EXIT_CANARY_MISSING
+
+    if result.exit_code == EXIT_CANARY_FAILED:
+        print(f"CANARY FAILURE: {result.error}", file=sys.stderr)
+        return EXIT_CANARY_FAILED
+
+    payload = {
+        "rubricId": result.rubric.id if result.rubric else args.rubric,
+        "rubricHash": result.rubric.rubric_hash if result.rubric else None,
+        "state": "advisory",
+        "canaryResults": result.canary_results,
+        "stratumCounts": result.stratum_counts,
+    }
+
+    if result.exit_code == EXIT_SAMPLER_SHORTFALL:
+        payload["shortfall"] = result.shortfall
+        payload["candidates"] = []
+        print(f"SAMPLER SHORTFALL: {result.error}", file=sys.stderr)
+        print(json.dumps(payload, indent=2), file=sys.stderr)
+        return EXIT_SAMPLER_SHORTFALL
+
+    payload["candidates"] = result.candidates
+    print(json.dumps(payload, indent=2))
     return EXIT_OK
 
 
