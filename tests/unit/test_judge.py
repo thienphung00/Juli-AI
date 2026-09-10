@@ -37,9 +37,12 @@ from eval.canaries import (
 from eval.judge import (
     EXIT_CANARY_FAILED,
     EXIT_OK,
+    EXIT_SAMPLER_SHORTFALL,
     JudgeVerdict,
     ensure_never_blocking,
+    load_status_corpus,
     run_judge,
+    run_sampler,
     stratified_sample,
 )
 
@@ -196,6 +199,163 @@ def test_sampler_emits_stratified_candidates() -> None:
         "fail": 3,
         "cannot_determine": 2,
     }
+
+
+# --------------------------------------------------------------------------
+# #1896 — the sampler CLI reads the committed status-record corpus
+# --------------------------------------------------------------------------
+#
+# #1460 built and tested `stratified_sample` against an in-memory list. #1896
+# closes the gap: there was no entrypoint that reads the committed
+# `agent-runtime/artifacts/status/issue-*.json` corpus — the only artifact set
+# that survives merge (ADR-003; the five body directories are gitignored) —
+# judges each record, and emits the stratified candidate list #1461 needs.
+
+
+def _write_status_record(
+    status_dir: Path,
+    issue: int,
+    *,
+    review_status: str | None = "PASS",
+    legacy_flat: bool = False,
+) -> None:
+    """Write one committed-shape status record.
+
+    `legacy_flat=True` reproduces the one pre-#670-migration record actually
+    observed on disk (`issue-1291.json`): a flat `reviewStatus` field instead
+    of a nested `review.status`. The corpus loader must tolerate both shapes
+    rather than silently dropping the older one.
+    """
+    status_dir.mkdir(parents=True, exist_ok=True)
+    if legacy_flat:
+        payload = {"issue": issue, "reviewStatus": review_status}
+    else:
+        payload = {
+            "gateVersion": 2,
+            "issue": issue,
+            "review": {"status": review_status},
+            "validation": {"status": "PASS"},
+        }
+    (status_dir / f"issue-{issue}.json").write_text(json.dumps(payload))
+
+
+def _setup_sampler_rubric(tmp_path: Path) -> dict[str, Path]:
+    rubric_dir = tmp_path / "rubrics"
+    canary_dir = tmp_path / "canaries"
+    state_dir = tmp_path / "state"
+    write_canary_corpus(canary_dir, issue=SYNTHETIC_ISSUE)
+    canary_ids = [canary_id_for_operator(op) for op in OPERATORS]
+    _write_rubric(rubric_dir, "quality-rubric", prompt="judge it", canary_ids=canary_ids)
+    return {"rubric_dir": rubric_dir, "canary_dir": canary_dir, "state_dir": state_dir}
+
+
+def test_sampler_reads_real_corpus_and_emits_stratified_candidates(tmp_path: Path) -> None:
+    dirs = _setup_sampler_rubric(tmp_path)
+    status_dir = tmp_path / "status"
+    for i in range(6):
+        _write_status_record(status_dir, 20_000 + i, review_status="PASS")
+    for i in range(4):
+        _write_status_record(status_dir, 21_000 + i, review_status="FAIL")
+    for i in range(3):
+        _write_status_record(status_dir, 22_000 + i, review_status="PASS_WITH_WARNINGS")
+
+    result = run_sampler(
+        "quality-rubric",
+        status_dir=status_dir,
+        rubric_dir=dirs["rubric_dir"],
+        canary_dir=dirs["canary_dir"],
+        state_dir=dirs["state_dir"],
+    )
+
+    assert result.exit_code == EXIT_OK
+    assert result.shortfall is None
+    assert len(result.candidates) == 10
+    assert Counter(row["verdict"] for row in result.candidates) == {
+        "pass": 5,
+        "fail": 3,
+        "cannot_determine": 2,
+    }
+    # Every row carries exactly the shape #1461 will consume, plus the hash
+    # labels are bound to.
+    for row in result.candidates:
+        assert set(row) == {"record_id", "rubric_id", "verdict", "note", "rubric_hash"}
+        assert row["rubric_id"] == "quality-rubric"
+        assert row["rubric_hash"] == result.rubric.rubric_hash
+        assert row["note"] == ""
+
+
+def test_sampler_shortfall_is_reported_never_backfilled(tmp_path: Path) -> None:
+    dirs = _setup_sampler_rubric(tmp_path)
+    status_dir = tmp_path / "status"
+    # Plenty of pass and cannot_determine candidates, but zero fail — the real
+    # corpus's actual shape (#1896): 98% passes, zero review FAIL.
+    for i in range(20):
+        _write_status_record(status_dir, 30_000 + i, review_status="PASS")
+    for i in range(5):
+        _write_status_record(status_dir, 31_000 + i, review_status="PASS_WITH_WARNINGS")
+
+    result = run_sampler(
+        "quality-rubric",
+        status_dir=status_dir,
+        rubric_dir=dirs["rubric_dir"],
+        canary_dir=dirs["canary_dir"],
+        state_dir=dirs["state_dir"],
+    )
+
+    assert result.exit_code == EXIT_SAMPLER_SHORTFALL
+    # No short list that reads as a full one: the shortfall path emits no
+    # candidates at all, never a partial 7-of-10.
+    assert result.candidates == []
+    assert result.shortfall is not None
+    assert result.shortfall["fail"] == {"needed": 3, "available": 0}
+    # The strata that WERE fillable are not reported as short.
+    assert "pass" not in result.shortfall
+    assert "cannot_determine" not in result.shortfall
+
+
+def test_sampler_runs_canaries_first_and_aborts_before_reading_corpus(tmp_path: Path) -> None:
+    rubric_dir = tmp_path / "rubrics"
+    canary_dir = tmp_path / "canaries"
+    state_dir = tmp_path / "state"
+    status_dir = tmp_path / "status"
+
+    clean = clean_records(SYNTHETIC_ISSUE)
+    _write_canary(canary_dir, "broken-canary", "review", clean["review"])
+    _write_rubric(rubric_dir, "test-rubric", prompt="judge it", canary_ids=["broken-canary"])
+
+    # A corpus that would trivially fill every stratum — if the sampler ever
+    # read it. It must not: the canary gate runs first, on this path exactly
+    # as on every other invocation (#1460's whole point).
+    for i in range(6):
+        _write_status_record(status_dir, 40_000 + i, review_status="PASS")
+    for i in range(4):
+        _write_status_record(status_dir, 41_000 + i, review_status="FAIL")
+    for i in range(3):
+        _write_status_record(status_dir, 42_000 + i, review_status="PASS_WITH_WARNINGS")
+
+    result = run_sampler(
+        "test-rubric",
+        status_dir=status_dir,
+        rubric_dir=rubric_dir,
+        canary_dir=canary_dir,
+        state_dir=state_dir,
+    )
+
+    assert result.exit_code == EXIT_CANARY_FAILED
+    assert result.candidates == []
+    assert result.shortfall is None
+
+
+def test_sampler_corpus_loader_tolerates_the_legacy_flat_schema(tmp_path: Path) -> None:
+    status_dir = tmp_path / "status"
+    _write_status_record(status_dir, 1291, review_status="PASS", legacy_flat=True)
+    _write_status_record(status_dir, 1002, review_status="FAIL")
+
+    records = load_status_corpus(status_dir)
+
+    by_id = {record_id: (record, artifact_type) for record_id, record, artifact_type in records}
+    assert by_id["issue-1291"] == ({"status": "PASS"}, "review")
+    assert by_id["issue-1002"] == ({"status": "FAIL"}, "review")
 
 
 # --------------------------------------------------------------------------
