@@ -598,6 +598,50 @@ async def _next_sequence_number(session: AsyncSession, run_id: uuid.UUID) -> int
     return result.scalar_one() + 1
 
 
+def _crash_terminal_session_factory(shop_id: uuid.UUID | None, run_id: uuid.UUID):
+    """The session factory the crash handler writes its terminal event through.
+
+    Scoped when there is a shop to scope to, and a plain factory when there is
+    not — deliberately, and this is a correction to #1883's first attempt.
+
+    That attempt made a missing `shop_id` an early `return`: no tenant, no
+    write. It is the wrong trade in the one place it can possibly apply. This
+    function exists so that a run cannot be stranded non-terminal (ADR-074
+    decision 4, #1291); a crash handler that declines to record the crash it
+    was called about has failed at the only thing it does, and it fails
+    silently, in the exact situation where nobody is watching. It also stops
+    the terminal event ever reaching the Redis channel the SSE endpoint
+    subscribes to, which is #1396 reopened — every connected stream back on
+    heartbeats forever while the run is already dead.
+
+    So the unscoped path is attempted rather than skipped. On an RLS-governed
+    connection with no tenant it will be refused, and that surfaces as
+    `workflow_run_crash_terminal_event_emission_failed` with a traceback — a
+    loud, diagnosable outcome, and strictly more than the nothing it replaced.
+    On any connection that is not RLS-governed it simply works. Neither
+    outcome is worse than declining to try.
+
+    Every production call site — both task bodies below — passes a `shop_id`
+    that is non-`None` by construction: they resolve it before they enter their
+    own scope, and that scope refuses ahead of the `try` this handler is
+    reached from. The unscoped branch is therefore for direct callers and for
+    whatever the next one turns out to be.
+    """
+    if shop_id is None:
+        logger.warning(
+            "workflow_run_crash_terminal_event_unscoped",
+            extra={
+                "run_id": str(run_id),
+                "reason": (
+                    "no shop id was resolvable for this run; writing the terminal event "
+                    "without a tenant scope rather than leaving the run non-terminal"
+                ),
+            },
+        )
+        return _ensure_session_factory()
+    return _shop_scoped_session_factory(shop_id)
+
+
 async def _emit_crash_terminal_event(
     session: AsyncSession,
     run_id: uuid.UUID,
@@ -620,22 +664,18 @@ async def _emit_crash_terminal_event(
     RLS-gated, so an unscoped fresh session reads the run as `None` and logs
     "skipped_run_not_found" for a row that plainly exists, leaving the run
     stranded exactly as the crash handler exists to prevent. `shop_id` comes
-    from the caller, which resolved it before it entered its own scope; when it
-    is absent (the caller crashed before resolving one) there is no tenant to
-    act on behalf of and the handler says so rather than writing unscoped.
+    from the caller, which resolved it before it entered its own scope.
+
+    THE SCOPE IS BEST-EFFORT; THE WRITE IS NOT. #1883 first made a missing
+    `shop_id` an early return, and that was the wrong trade — see
+    `_crash_terminal_session_factory` above for why, and for what happens
+    instead.
     """
     # Rollback the poisoned session to clear transaction state
     await session.rollback()
 
-    if shop_id is None:
-        logger.warning(
-            "workflow_run_crash_terminal_event_skipped_tenant_unresolved",
-            extra={"run_id": str(run_id)},
-        )
-        return
-
     # Get a fresh session to write the terminal state durably
-    factory = _shop_scoped_session_factory(shop_id)
+    factory = _crash_terminal_session_factory(shop_id, run_id)
     async with factory() as fresh_session:
         try:
             from juli_backend.models.models import ActionCard
