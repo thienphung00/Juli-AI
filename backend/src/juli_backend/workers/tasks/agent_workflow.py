@@ -160,6 +160,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import create_engine as create_sync_engine
 from sqlalchemy import func, select, text
+from sqlalchemy.exc import DBAPIError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -246,6 +247,17 @@ async def _resolve_run_shop_id(session: AsyncSession, run_id: uuid.UUID) -> uuid
     of those three, so a `None` means the run is already terminal or gone. The
     caller's scope entry then refuses rather than proceeding with no tenant,
     which is the fail-closed answer: there is no shop to act on behalf of.
+
+    WHEN THE FUNCTION IS NOT THERE. A Postgres database is not automatically a
+    MIGRATED Postgres database. Two test modules build their schema straight
+    from `Base.metadata.create_all`, which knows about tables and nothing about
+    migration 051 — so the enumeration simply does not exist there, and
+    assuming it does turned every run on such a database into an
+    `UndefinedFunctionError`. The fallback below is for that, and only that:
+    SQLSTATE 42883 and nothing else. An RLS refusal is 42501 and must keep
+    propagating, because "the policy said no" and "the function is missing" are
+    opposite diagnoses and a broad `except` would report the first as the
+    second.
     """
     if session.get_bind().dialect.name != "postgresql":
         # SQLite (unit tests) has neither the function nor RLS. The same
@@ -253,16 +265,71 @@ async def _resolve_run_shop_id(session: AsyncSession, run_id: uuid.UUID) -> uuid
         # `reaper._enumerate_active_runs`: an ordinary query stands in. It is
         # deliberately not status-filtered — there is no policy here for a
         # status filter to protect, and a redelivered task must still resolve.
-        result = await session.execute(select(WorkflowRun.shop_id).where(WorkflowRun.id == run_id))
-        return result.scalars().first()
+        return await _resolve_run_shop_id_by_row(session, run_id)
 
-    result = await session.execute(
-        text(
-            "SELECT out_shop_id FROM public.enumerate_active_workflow_runs() "
-            "WHERE out_run_id = CAST(:run_id AS uuid)"
-        ).bindparams(run_id=str(run_id))
-    )
+    try:
+        result = await session.execute(
+            text(
+                "SELECT out_shop_id FROM public.enumerate_active_workflow_runs() "
+                "WHERE out_run_id = CAST(:run_id AS uuid)"
+            ).bindparams(run_id=str(run_id))
+        )
+        return result.scalars().first()
+    except ProgrammingError as exc:
+        if not _is_undefined_function(exc):
+            raise
+        logger.info(
+            "agent_run_shop_id_enumeration_absent",
+            extra={
+                "run_id": str(run_id),
+                "reason": (
+                    "public.enumerate_active_workflow_runs() is not defined on this "
+                    "database (migration 051 has not run); falling back to a direct "
+                    "workflow_runs read for the bootstrap"
+                ),
+            },
+        )
+
+    # Postgres aborts the whole transaction on a failed statement, so every
+    # statement after one raises `InFailedSqlTransaction` until it is rolled
+    # back. Nothing has been written at this point — this is the first read of
+    # the unit of work — so the rollback discards nothing.
+    await session.rollback()
+    return await _resolve_run_shop_id_by_row(session, run_id)
+
+
+async def _resolve_run_shop_id_by_row(session: AsyncSession, run_id: uuid.UUID) -> uuid.UUID | None:
+    """Read the shop id straight off the row, for databases with no enumeration.
+
+    NOT status-filtered, unlike the enumeration it stands in for. There is no
+    policy here for a status filter to protect: this path is only ever taken on
+    a database that has no RLS in force over `workflow_runs` — SQLite, which
+    has none at all, or a `create_all` schema, which has neither the policies
+    nor the SECURITY DEFINER function migration 051 installs together. On the
+    deployed database the enumeration answers and this is never reached.
+    """
+    result = await session.execute(select(WorkflowRun.shop_id).where(WorkflowRun.id == run_id))
     return result.scalars().first()
+
+
+# `undefined_function`. Named rather than inlined so the contrast with 42501
+# (`insufficient_privilege`, an RLS refusal) is legible at the catch site.
+_UNDEFINED_FUNCTION_SQLSTATE = "42883"
+
+
+def _is_undefined_function(exc: DBAPIError) -> bool:
+    """Is this the driver saying the function does not exist, and nothing else?
+
+    Both drivers this repo uses surface the SQLSTATE on the wrapped DBAPI
+    exception: asyncpg as `sqlstate`, psycopg2 as `pgcode` (asyncpg carries
+    both). Matching on the code rather than on the exception class keeps the
+    check driver-agnostic and, more importantly, keeps it narrow — the class
+    `sqlalchemy.exc.ProgrammingError` alone covers a large family of errors
+    that must not silently downgrade to a fallback query.
+    """
+    orig = getattr(exc, "orig", None)
+    code = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
+    return code == _UNDEFINED_FUNCTION_SQLSTATE
 
 
 def _shop_scoped_session_factory(shop_id: uuid.UUID | None):
