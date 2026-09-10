@@ -32,6 +32,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -80,7 +81,7 @@ async def _juli_app_engine_session_factory():
     engine = create_async_engine(async_database_url(url))
 
     @event.listens_for(engine.sync_engine, "connect")
-    def _set_runtime_role(dbapi_connection, connection_record) -> None:  # noqa: ANN001
+    def _set_runtime_role(dbapi_connection: Any, connection_record: Any) -> None:
         cursor = dbapi_connection.cursor()
         cursor.execute(f"SET ROLE {RUNTIME_ROLE}")
         cursor.close()
