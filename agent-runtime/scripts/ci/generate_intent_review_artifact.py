@@ -32,6 +32,11 @@ def main() -> int:
         action="store_true",
         help="Ignore existing artifact on disk; start from template + --input-json only",
     )
+    parser.add_argument(
+        "--phase-run-id",
+        help="Correlates this intent-review with its implementation/validation artifacts; "
+        "derived from issue + git HEAD sha when omitted (#1881)",
+    )
     args = parser.parse_args()
     issue = resolve_issue_number(args.issue)
     if issue is None:
@@ -45,7 +50,11 @@ def main() -> int:
     overrides = load_json(args.input_json) if args.input_json and args.input_json.exists() else None
 
     artifact = build_intent_review_artifact(
-        issue, existing=existing, overrides=overrides, fresh=args.fresh
+        issue,
+        existing=existing,
+        overrides=overrides,
+        fresh=args.fresh,
+        phase_run_id=args.phase_run_id,
     )
 
     out = intent_review_artifact_path(issue)
