@@ -1,0 +1,118 @@
+# Post-merge verification on `main`.
+#
+# Why this exists (#1436 follow-through): `pr.yml` triggers on `pull_request`,
+# `push: [feature/*-wave]` and `merge_group` -- there is no `push: [main]`
+# trigger, so nothing re-runs the suite on `main` after a merge. A change that
+# passes alone and breaks in combination with another therefore lands silently
+# and only surfaces when the next PR opens.
+#
+# That case is not hypothetical here: the corpus reconciliation in
+# `eval/quality_detectors.py` has gone red four times because `main` gained
+# tests while a branch was in flight. "Require branches to be up to date"
+# (`strict_required_status_checks_policy`) approximates this pre-merge, but it
+# is only a proxy, and merging a batch makes every PR behind the first, which
+# is what drove the recorded ruleset bypasses.
+#
+# The real fix is GitHub's merge queue, which tests each PR against the queue
+# head. It is unavailable here: merge queue requires an organization-owned
+# repository, this one is user-owned, and `merge_group` has fired zero times
+# (ADR-052 records the same conclusion; ADR-088 observes the dead job).
+# This workflow is the substitute -- it measures after the merge what the
+# queue would have measured before it.
+#
+# Deliberately NOT in `pr.yml`: adding `push: [main]` there sends every run
+# through `classify-tier`, which has no branch for a push to `main` and exits 1
+# ("Unsupported CI flow"). Fixing that means editing a 30-job graph whose
+# duplicate `needs:` entries make string edits land on the wrong job.
+name: Main post-merge
+
+on:
+  push:
+    branches: [main]
+
+# One run per commit, and never cancel: each merge must get its own verdict,
+# otherwise the commit that broke `main` is the one whose run was cancelled.
+concurrency:
+  group: main-postmerge-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  postmerge-regression:
+    name: Full non-live regression on main
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:test@localhost:5432/test_db
+      # tests/conftest.py refuses destructive suites against a database that has
+      # not declared itself throwaway, and fails closed rather than skipping.
+      JULI_TEST_DATABASE_DISPOSABLE: "1"
+      REDIS_URL: redis://localhost:6379
+      TIKTOK_APP_KEY: ${{ secrets.TIKTOK_APP_KEY }}
+      TIKTOK_APP_SECRET: ${{ secrets.TIKTOK_APP_SECRET }}
+      # `github.base_ref` is empty on `push`. This workflow is reachable only
+      # via its own `push: branches: [main]` trigger, so `main` is the only
+      # value it could mean -- the same reasoning `classify-tier` applies to
+      # `merge_group`, not a guess.
+      BASE_REF: main
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The base-anchored modules (test_checkout_preflight,
+          # test_differential_tdd, test_environment_provider, test_ratchets)
+          # need history, same as `full-regression` in pr.yml. Bounded, not 0.
+          fetch-depth: 200
+      - name: Fetch base ref (origin/main)
+        run: |
+          git fetch --depth=200 origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          git fetch --depth=200 origin "$(git rev-parse HEAD)"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+          standalone: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install contracts dependency graph
+        run: pnpm install --frozen-lockfile --filter "./packages/contracts..."
+      - name: Install backend dependencies
+        run: pip install -e "./backend[dev]" -c backend/constraints.txt
+      - name: Log resolved backend dependency versions
+        run: pip freeze | sort
+      - name: Install PostgreSQL client 16
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client-16
+      - name: Lint
+        run: ruff check backend tests scripts eval agent-runtime
+      - name: Full non-live regression suite
+        run: |
+          coverage erase
+          python -X faulthandler -m pytest tests/unit -v --tb=short \
+            -m "not live and not demo_contract" \
+            --cov=juli_backend --cov-report= --cov-fail-under=0
