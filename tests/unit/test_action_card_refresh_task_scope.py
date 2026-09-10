@@ -29,22 +29,67 @@ import inspect
 import os
 import textwrap
 import uuid
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from juli_backend.core.config.runtime import sync_database_url
+from juli_backend.core.config.runtime import async_database_url, sync_database_url
 from juli_backend.database.exceptions import NotFound
+from juli_backend.database.tenant_context import with_shop_scope
+from juli_backend.services.action_cards.refresh import run_action_card_refresh
 from juli_backend.workers.tasks import action_card_refresh
-from tests.integration.two_tenant import juli_app_session
+from tests.integration.two_tenant import RUNTIME_ROLE, juli_app_session
 
 requires_postgres = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL", "").strip().startswith("postgresql"),
     reason="DATABASE_URL is not set to a Postgres instance",
 )
+
+
+@asynccontextmanager
+async def _juli_app_engine_session_factory():
+    """A real ``async_sessionmaker`` bound to an ENGINE, running as `juli_app`.
+
+    `tests.integration.two_tenant.juli_app_session` binds one `AsyncSession`
+    to a single, already-open `AsyncConnection` (`session = AsyncSession(bind=conn)`
+    over a connection that already has an implicit transaction started by its
+    own `SET ROLE` statement). Verified empirically against real Postgres:
+    under that shape, `session.commit()` does NOT end the underlying
+    transaction -- SQLAlchemy joins an externally-supplied, already-active
+    connection as a SAVEPOINT, so `SET LOCAL` state SURVIVES the "commit".
+    That fixture is exactly right for proving initial-state RLS behaviour
+    (the existing two tests above), but reusing it here would make these two
+    new tests pass whether or not the reapply fix is applied -- the
+    fake-collaborator trap this reopen exists to close.
+
+    Here each session gets its OWN connection lifecycle from the engine, the
+    same shape as production's `_ensure_session_factory` ->
+    `ensure_worker_session_factory`: `session.commit()` issues a real
+    Postgres COMMIT, discarding `app.current_shop_id` -- confirmed
+    empirically against this same database (`before commit: <value>`,
+    `after commit: <empty>`). `SET ROLE` is applied on the driver's
+    `connect` event so every physical connection the pool opens runs as
+    `juli_app`, mirroring `juli_app_session`'s own `SET ROLE {RUNTIME_ROLE}`.
+    """
+    url = os.environ.get("DATABASE_URL", "").strip()
+    engine = create_async_engine(async_database_url(url))
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _set_runtime_role(dbapi_connection: Any, connection_record: Any) -> None:
+        cursor = dbapi_connection.cursor()
+        cursor.execute(f"SET ROLE {RUNTIME_ROLE}")
+        cursor.close()
+
+    try:
+        yield async_sessionmaker(engine, expire_on_commit=False)
+    finally:
+        await engine.dispose()
 
 
 @pytest.fixture
@@ -228,6 +273,175 @@ async def test_refresh_task_raises_not_found_without_the_fix_applied(owner_engin
 
     assert str(shop_id) in str(excinfo.value), (
         f"expected the unresolved shop id {shop_id} in the NotFound message, got: {excinfo.value!s}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 1b/1c: `with_shop_scope` is `SET LOCAL` (transaction-scoped) -- a
+# COMMIT inside the scope discards it, and #1861 never crossed one. Reopened
+# 2026-09-10 (#1860): the sandbox sync's own credential-refresh path commits
+# via `refresh_credential` (`core/security/credential_refresh.py:352`), and
+# the poll path commits the same way through
+# `resolve_production_read_credential`. Both doubles below commit on the
+# REAL session to reproduce that, rather than mocking the collaborator away
+# -- the exact fake-collaborator gap the reopen diagnosis names.
+# ---------------------------------------------------------------------------
+
+
+@requires_postgres
+@pytest.mark.asyncio
+async def test_refresh_task_survives_a_commit_inside_the_sandbox_sync(owner_engine, monkeypatch):
+    """The task must re-apply the shop scope after `sync_sandbox_write_products`
+    commits, so `run_action_card_refresh` still sees the shop.
+
+    RED on the current code: `_refresh_async` enters `with_shop_scope` once
+    on entry and never re-applies it, so the sandbox-sync double's COMMIT
+    below discards `app.current_shop_id` before `run_action_card_refresh`
+    runs and `build_feature_aggregates` raises `NotFound`.
+    """
+    shop_id = _seed_shop_with_scoreable_commerce_data(owner_engine, label="refresh-sync-commit")
+
+    async def _sandbox_sync_that_commits(session, shop_id: uuid.UUID) -> None:
+        # Real signature, real session -- mirrors what
+        # `resolve_sandbox_write_credential` -> `refresh_credential` does in
+        # production when the token needs no refresh (`is_fresh` branch,
+        # `credential_refresh.py:352`).
+        await session.commit()
+
+    async def _identity_check_noop(session, shop_id: uuid.UUID) -> None:
+        return None
+
+    monkeypatch.setattr(
+        action_card_refresh, "sync_sandbox_write_products", _sandbox_sync_that_commits
+    )
+    monkeypatch.setattr(
+        action_card_refresh, "check_sandbox_write_catalog_identity_mismatch", _identity_check_noop
+    )
+
+    real_run_action_card_refresh = action_card_refresh.run_action_card_refresh
+    captured: dict[str, str | None] = {}
+
+    async def _spy_run_action_card_refresh(session, shop_id, *, poll=True, poll_hook=None):
+        guc = await session.execute(text("SELECT current_setting('app.current_shop_id', true)"))
+        captured["shop_guc"] = guc.scalar()
+        return await real_run_action_card_refresh(session, shop_id, poll=False)
+
+    monkeypatch.setattr(
+        action_card_refresh, "run_action_card_refresh", _spy_run_action_card_refresh
+    )
+
+    async with _juli_app_engine_session_factory() as factory:
+        monkeypatch.setattr(action_card_refresh, "_ensure_session_factory", lambda: factory)
+
+        # No NotFound: the scope must survive the sandbox-sync's commit.
+        await action_card_refresh._refresh_async(shop_id)
+
+    assert captured.get("shop_guc") == str(shop_id), (
+        f"run_action_card_refresh ran with app.current_shop_id={captured.get('shop_guc')!r}, "
+        f"expected {shop_id!s}: the scope must be re-applied after the sandbox sync's commit"
+    )
+
+    with owner_engine.connect() as conn:
+        count = conn.execute(
+            text("SELECT COUNT(*) FROM action_cards WHERE shop_id = :shop_id"),
+            {"shop_id": str(shop_id)},
+        ).scalar()
+    assert count and count > 0, (
+        f"expected at least one ActionCard persisted for {shop_id}, found {count}"
+    )
+
+
+@requires_postgres
+@pytest.mark.asyncio
+async def test_refresh_survives_a_commit_inside_the_poll_step(owner_engine):
+    """`run_action_card_refresh` must re-apply the shop scope after its poll
+    step commits, so scoring still resolves the shop.
+
+    RED on the current code: `run_action_card_refresh` calls
+    `runner(session, shop_id)` and goes straight to
+    `run_daily_scoring_for_shop` with no re-apply in between; the poll
+    double's COMMIT discards `app.current_shop_id` and
+    `build_feature_aggregates` raises `NotFound`.
+    """
+    shop_id = _seed_shop_with_scoreable_commerce_data(owner_engine, label="refresh-poll-commit")
+
+    async def _poll_hook_that_commits(session, shop_id: uuid.UUID) -> None:
+        # Real signature, real session -- mirrors what
+        # `resolve_production_read_credential` -> `refresh_credential` does
+        # for the production-read shop's poll (`credential_refresh.py:352`).
+        await session.commit()
+
+    async with _juli_app_engine_session_factory() as factory, factory() as session:
+        async with with_shop_scope(session, shop_id):
+            persisted_cards = await run_action_card_refresh(
+                session, shop_id, poll=True, poll_hook=_poll_hook_that_commits
+            )
+
+    assert persisted_cards, (
+        f"expected at least one ActionCard persisted for {shop_id}, got {persisted_cards!r}"
+    )
+
+    with owner_engine.connect() as conn:
+        count = conn.execute(
+            text("SELECT COUNT(*) FROM action_cards WHERE shop_id = :shop_id"),
+            {"shop_id": str(shop_id)},
+        ).scalar()
+    assert count and count > 0, (
+        f"expected at least one ActionCard persisted for {shop_id}, found {count}"
+    )
+
+
+@requires_postgres
+@pytest.mark.asyncio
+async def test_refresh_survives_a_commit_before_the_emission_budget(owner_engine):
+    """`run_action_card_refresh`'s own commit after persisting candidates
+    (the "own boundary" commit right before `apply_emission_budget`) discards
+    the shop GUC exactly like the sandbox-sync and poll-step commits above.
+    `action_cards` is a shop-GUC-gated table (migration 045, direct
+    ``shop_id = current_setting('app.current_shop_id', true)::uuid``, with
+    "unset denies... rather than raising" by design), so the scope must be
+    re-applied before `apply_emission_budget` runs -- or its SELECT comes
+    back empty under RLS and nothing is ever surfaced.
+
+    RED on the pre-fix code, but NOT as a `NotFound`: `persist_scoring_result`
+    runs and commits *while still scoped* (the commit is the last statement
+    inside the scoped section, ordered after the write), so persisting
+    succeeds. It is `apply_emission_budget`'s read immediately after that
+    commit, now unscoped, that silently sees zero candidate rows -- RLS's
+    documented "unset denies (NULL comparison, no rows) rather than raising"
+    behaviour. So the pre-fix failure mode here is silent data loss (every
+    persisted card's `surfaced_at` stays NULL forever), not an exception --
+    which is exactly why this needs its own test rather than trusting the
+    two `NotFound`-shaped tests above to have covered it.
+    """
+    shop_id = _seed_shop_with_scoreable_commerce_data(owner_engine, label="refresh-emission-commit")
+
+    async with _juli_app_engine_session_factory() as factory, factory() as session:
+        async with with_shop_scope(session, shop_id):
+            persisted_cards = await run_action_card_refresh(session, shop_id, poll=False)
+            # `run_action_card_refresh` only flushes the emission-budget's
+            # writes (`apply_emission_budget`'s own docstring: "performs no
+            # commit... the caller controls the transaction") -- the caller
+            # here, exactly like `_refresh_async` at the production call
+            # site, commits once at the very end.
+            await session.commit()
+
+    assert persisted_cards, (
+        f"expected at least one ActionCard persisted for {shop_id}, got {persisted_cards!r}"
+    )
+
+    with owner_engine.connect() as conn:
+        surfaced_count = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM action_cards "
+                "WHERE shop_id = :shop_id AND surfaced_at IS NOT NULL"
+            ),
+            {"shop_id": str(shop_id)},
+        ).scalar()
+    assert surfaced_count and surfaced_count > 0, (
+        f"expected at least one surfaced ActionCard for {shop_id} after "
+        f"apply_emission_budget, found {surfaced_count}: the shop scope must "
+        f"survive the commit that precedes the emission-budget step"
     )
 
 
