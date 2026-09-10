@@ -2,6 +2,12 @@
 body, not from the artifact under review, and fails when the two disagree,
 naming both numbers.
 
+#1879 extends the same gate: the issue-body parser only ever recognised
+numbered lists (`1.`, `2.`, ...), but the canonical shape `to-issues` writes
+— and every architect-authored issue carries — is a GIVEN/WHEN/THEN bullet
+(`- GIVEN ... WHEN ... THEN ...`). The parser was blind to that shape and
+reported the section as "missing" even when it was present and populated.
+
 The gate calls `load_review_artifact` first and returns early ("Review
 artifact missing") if it is None — stubbing only the issue-body lookup and
 leaving `load_review_artifact` unstubbed makes every exhibit fail for the
@@ -61,14 +67,43 @@ def _review(total: int, mapped: int) -> dict:
     }
 
 
+def _no_gh_available(*_args: object, **_kwargs: object) -> None:
+    """Stand-in for a sandbox with no `gh` binary at all."""
+    raise FileNotFoundError("gh: command not found")
+
+
+class _GhResult:
+    """A minimal stand-in for `subprocess.run`'s return value."""
+
+    def __init__(self, stdout: str, returncode: int = 0) -> None:
+        self.stdout = stdout
+        self.returncode = returncode
+
+
+def _spy_run_returning(stdout: str) -> callable:
+    calls: list[list[str]] = []
+
+    def _run(cmd: list[str], **_kwargs: object) -> _GhResult:
+        calls.append(cmd)
+        return _GhResult(stdout)
+
+    _run.calls = calls  # type: ignore[attr-defined]
+    return _run
+
+
 def test_lookup_unavailable_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
     """The issue body is unreadable (gh unavailable/unauthenticated/no
     section) — the gate must fail closed rather than trust the artifact's
     own count."""
-    monkeypatch.setattr(_cam(), "load_review_artifact", lambda issue: _review(1, 1))
-    monkeypatch.setattr(_cam(), "extract_criteria_count_from_issue_body", lambda issue: None)
+    cam = _cam()
+    monkeypatch.setattr(cam, "load_review_artifact", lambda issue: _review(1, 1))
+    monkeypatch.setattr(cam, "extract_criteria_count_from_issue_body", lambda issue: None)
+    # run_check also derives a *reason* for its message, via a real (second)
+    # gh call on the failure path — mock it too so this test makes no
+    # network call regardless of what run_check does internally.
+    monkeypatch.setattr(cam.subprocess, "run", _no_gh_available)
 
-    passed, message, details = _cam().run_check(1732)
+    passed, message, details = cam.run_check(1732)
 
     assert passed is False
     assert any("cannot read the acceptance-criteria count" in p for p in details["problems"])
@@ -108,11 +143,6 @@ def test_count_disagrees_fails_naming_both_numbers(monkeypatch: pytest.MonkeyPat
 # #1761 — the criteria-count fact becomes injectable, without ever letting
 # production pass because the fact was withheld.
 # ---------------------------------------------------------------------------
-
-
-def _no_gh_available(*_args: object, **_kwargs: object) -> None:
-    """Stand-in for a sandbox with no `gh` binary at all."""
-    raise FileNotFoundError("gh: command not found")
 
 
 def test_ac2_no_provider_and_gh_unavailable_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -206,3 +236,215 @@ def test_harness_override_ignored_for_a_different_issue(monkeypatch: pytest.Monk
 
     assert calls, "a mismatched override must fall through to the real gh lookup"
     assert result == 1
+
+
+# ---------------------------------------------------------------------------
+# #1879 — the parser is blind to the repo's canonical GIVEN/WHEN/THEN bullet
+# format, and mislabels "found but unparseable" as "section missing".
+# ---------------------------------------------------------------------------
+
+# Real "Acceptance criteria" section bodies, verbatim from `gh issue view
+# <n> --json body -q .body`, captured 2026-09-10. These are the exact shapes
+# the parser must handle — not a synthetic stand-in for them.
+
+_ISSUE_1460_BODY = """## What to build
+Some prose paragraph that is not part of the section.
+
+## Acceptance criteria
+- GIVEN any judge invocation WHEN it runs THEN every canary for the invoked rubric is evaluated ...
+  Observable at: the judge runner under `eval/`
+  Verified by: tests/unit/test_judge.py::test_canary_pass_aborts_with_exit_2
+- GIVEN a rubric set WHEN the canary directory is checked THEN every canary ID named in the rubr ...
+  Verified by: tests/unit/test_judge.py::test_missing_canary_is_hard_error
+- GIVEN an uncalibrated rubric WHEN the judge produces a verdict THEN the verdict is recorded as ...
+  Verified by: tests/unit/test_judge.py::test_advisory_verdict_never_blocks
+- GIVEN a corpus of merged records WHEN the judge runs as a sampler THEN it emits a stratified c ...
+  Verified by: tests/unit/test_judge.py::test_sampler_emits_stratified_candidates
+- GIVEN a rubric whose prompt, anchors or model changed WHEN it is loaded THEN its `rubric_hash` ...
+  Verified by: tests/unit/test_judge.py::test_rubric_edit_resets_to_advisory
+
+## Blocked by
+Blocked by #1457
+"""
+
+_ISSUE_1461_BODY = """## Acceptance criteria
+- GIVEN a week of merged records WHEN the sampler runs THEN it presents 10 records stratified 5/ ...
+  Observable at: the labelling entrypoint under `eval/`
+  Verified by: tests/unit/test_calibrate.py::test_stratification_is_enforced_and_shortfall_reported
+- GIVEN ≥ 40 human labels under one `rubric_hash` WHEN calibration runs THEN it reports κ agains ...
+  Verified by: tests/unit/test_calibrate.py::test_kappa_refuses_to_pool_across_rubric_hashes
+- GIVEN a rubric meeting all four thresholds WHEN promotion is requested THEN it opens a PR chan ...
+  Verified by: tests/unit/test_calibrate.py::test_promotion_emits_pr_not_runtime_change
+- GIVEN a rubric failing any one of the four thresholds WHEN promotion is requested THEN it is r ...
+  Verified by: tests/unit/test_calibrate.py::test_promotion_refused_names_failing_threshold
+
+## Blocked by
+Blocked by #1460
+"""
+
+_ISSUE_1436_BODY = """## Acceptance criteria
+- GIVEN the fast-track lane instructions WHEN read after this change THEN they either no longer ...
+  Observable at: `.cursor/rules/git-baseline.mdc`
+  Verified by: tests/unit/test_wave_free_merge_docs.py::test_fast_track_lane_bypass_language_is_ ...
+- GIVEN a merge performed with `--admin` after this change WHEN the PR is inspected THEN a recor ...
+  Observable at: the PR
+  Verified by: a linked example PR on this issue
+- GIVEN the repository ruleset WHEN bypass privileges are reviewed THEN the bypass actor list is ...
+  Observable at: GitHub → Settings → Rules → Ruleset "Protect main" → Bypass list
+  Verified by: the decision and its reasoning recorded on this issue
+
+## Blocked by
+None - can start immediately
+"""
+
+_ISSUE_1761_BODY = """## Acceptance criteria
+
+1. `check_acceptance_mapping` catches `unbacked_claim` again in the scored
+   table, and `check_review_artifact` catches `self_reported_pass` again.
+2. With no provider registered and `gh` unavailable, both still fail closed.
+   Exhibit: the existing lookup-unavailable test stays green.
+3. `caught` returns to at least 4 in `eval/results/gate_operator_scores.json`,
+   regenerated by a real sweep, and the three-way partition still covers every
+   row.
+4. No gate is added to the fail-closed exclusion list by hand.
+
+Refs #1732, #1664. Parent #1434.
+"""
+
+_ISSUE_1732_BODY = """## Acceptance criteria
+
+1. An implementation artifact recording `{available: false, reason}` for
+   `executionDurationMs` or `toolInvocationCount` validates and passes
+   `check_implementation_artifact`. Exhibit: the same artifact with a bare `0`
+   and no measurement is still accepted only if a measurement genuinely exists.
+2. `harness_optimizer` reports an unmeasured run as unmeasured. Exhibit
+   (ADR-092): given an artifact on the unavailable branch,
+   `baselineMetrics.tokenUsageTotal` is not `0`.
+3. `acceptance_criteria_mapped` reads the criteria count from the issue and fails
+   when the artifact disagrees, naming both numbers. Exhibit: an artifact
+   recording `total: 1` against a three-criterion issue fails.
+4. A review artifact with `dynamicTestsExecuted: false` cannot carry a PASS.
+   Exhibit: each of the four shapes in the table above fails.
+5. Every `gateVersion: 2` record already committed keeps validating, with no
+   `sha256` changed. No backfill, no history rewrite.
+
+Closes #1534, #1537, #1539, #1664.
+"""
+
+_ISSUE_1865_BODY = """## Acceptance criteria
+
+1. A successful live run leaves `git status --porcelain tests/fixtures/` empty.
+2. Regeneration is explicitly invoked (a flag or its own entry point), not a side effect of runn ...
+3. The three existing safety assertions (no vendor SKU id, no vendor product id, no `access_toke ...
+
+Refs #1677. Parent #1434.
+"""
+
+
+@pytest.mark.parametrize(
+    ("body", "expected_count"),
+    [
+        (_ISSUE_1460_BODY, 5),
+        (_ISSUE_1461_BODY, 4),
+        (_ISSUE_1436_BODY, 3),
+    ],
+)
+def test_ac1_given_when_then_bullets_are_counted(
+    monkeypatch: pytest.MonkeyPatch, body: str, expected_count: int
+) -> None:
+    """AC1: a GIVEN/WHEN/THEN bullet section parses to the bullet count —
+    demonstrated against the real bodies of #1460 (5), #1461 (4) and #1436
+    (3), the exact three the issue measured as reading `None`."""
+    cam = _cam()
+    monkeypatch.setattr(cam.subprocess, "run", _spy_run_returning(body))
+
+    result = cam.extract_criteria_count_from_issue_body(1)
+
+    assert result == expected_count
+
+
+@pytest.mark.parametrize(
+    ("body", "expected_count"),
+    [
+        (_ISSUE_1761_BODY, 4),
+        (_ISSUE_1732_BODY, 5),
+        (_ISSUE_1865_BODY, 3),
+    ],
+)
+def test_ac2_numbered_lists_still_parse(
+    monkeypatch: pytest.MonkeyPatch, body: str, expected_count: int
+) -> None:
+    """AC2: numbered criteria keep parsing unchanged — demonstrated against
+    the real bodies of #1761 (4) and #1732 (5), plus #1865 (3)."""
+    cam = _cam()
+    monkeypatch.setattr(cam.subprocess, "run", _spy_run_returning(body))
+
+    result = cam.extract_criteria_count_from_issue_body(1)
+
+    assert result == expected_count
+
+
+def test_continuation_lines_do_not_inflate_the_count(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`Observable at:` / `Verified by:` continuation lines must never be
+    counted as their own criterion — widening the parser to match any bullet
+    would make the artifact-vs-issue comparison meaningless in the other
+    direction (#1879 requirement 3). #1460's body has 5 bullets and 9
+    continuation lines (5 `Verified by:` + 4 `Observable at:`); the count
+    must be exactly 5, not 14."""
+    cam = _cam()
+    monkeypatch.setattr(cam.subprocess, "run", _spy_run_returning(_ISSUE_1460_BODY))
+
+    result = cam.extract_criteria_count_from_issue_body(1)
+
+    assert result == 5
+
+
+def test_section_present_but_unparseable_names_that_distinctly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#1879 requirement 2 / AC3: when the "Acceptance criteria" section is
+    present but nothing under it matches either recognised shape, the gate's
+    message must say so distinctly from "section missing" — not send the
+    reader hunting for a heading that is right there."""
+    cam = _cam()
+    body = (
+        "## Acceptance criteria\n"
+        "The seller can reprice a listing and see the change reflected.\n"
+        "\n"
+        "## Blocked by\nNone\n"
+    )
+    monkeypatch.setattr(cam.subprocess, "run", _spy_run_returning(body))
+    monkeypatch.setattr(cam, "load_review_artifact", lambda issue: _review(1, 1))
+
+    assert cam.extract_criteria_count_from_issue_body(1) is None
+
+    passed, message, details = cam.run_check(1)
+
+    assert passed is False
+    problem = next(p for p in details["problems"] if "cannot read" in p)
+    assert "no criteria recognised" in problem
+    assert "no 'Acceptance criteria' section found" not in problem
+
+
+def test_section_missing_entirely_still_fails_closed_and_names_that(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#1879 requirement 2 / AC4: with no "Acceptance criteria" heading at
+    all, the gate still fails closed, and the message names the section as
+    missing — the case this must stay distinct from is 'found but
+    unparseable', proven by the assertion below. A test proving only that it
+    fails, without checking *which* reason fired, could not tell this defect
+    apart from its own fix."""
+    cam = _cam()
+    body = "## What to build\nNo acceptance section anywhere in this body.\n"
+    monkeypatch.setattr(cam.subprocess, "run", _spy_run_returning(body))
+    monkeypatch.setattr(cam, "load_review_artifact", lambda issue: _review(1, 1))
+
+    assert cam.extract_criteria_count_from_issue_body(1) is None
+
+    passed, message, details = cam.run_check(1)
+
+    assert passed is False
+    problem = next(p for p in details["problems"] if "cannot read" in p)
+    assert "no 'Acceptance criteria' section found" in problem
+    assert "no criteria recognised" not in problem

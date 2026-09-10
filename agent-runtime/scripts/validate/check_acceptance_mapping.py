@@ -63,14 +63,82 @@ def _criteria_count_from_override(issue: int) -> int | None:
     return override_count
 
 
-def _criteria_count_from_gh(issue: int) -> int | None:
-    """Production's only source: parse the issue body via ``gh``.
+#: The two, and only two, criterion shapes the repo's issues actually carry
+#: (#1879). Numbered lists are the hand-authored corpus; GIVEN/WHEN/THEN
+#: bullets are what ``to-issues`` writes and what every architect-authored
+#: issue uses. Matched at the *start* of the line only, on purpose: a
+#: continuation line such as ``  Observable at: ...`` or ``  Verified by:
+#: ...`` is indented prose describing the previous criterion, not a new
+#: bullet, and must never inflate the count — that would make the
+#: artifact-vs-issue comparison in ``run_check`` meaningless in the other
+#: direction.
+_NUMBERED_CRITERION_RE = re.compile(r"^\d+\.\s")
+_GIVEN_WHEN_THEN_CRITERION_RE = re.compile(r"^-\s+GIVEN\b")
 
-    Parses the "Acceptance criteria" section looking for numbered list items.
-    Returns count of criteria, or None if unable to fetch/parse.
+#: ADR-093: a query that cannot answer must not return a value that means
+#: something else. These two reasons are kept textually distinct so
+#: ``run_check``'s message never conflates "the section was never there"
+#: with "the section is there and nothing under it parsed" — the second is
+#: what silently misled a prior session into hunting for a missing heading.
+_NO_SECTION_REASON = "no 'Acceptance criteria' section found"
+_UNPARSEABLE_SECTION_REASON = (
+    "Acceptance criteria section found but no criteria recognised, expected "
+    "`- GIVEN ... WHEN ... THEN` or `1.`"
+)
+_GH_UNAVAILABLE_REASON = "gh unavailable, unauthenticated, timed out, or the issue body is empty"
+
+
+def _parse_acceptance_section(body: str) -> tuple[int | None, str | None]:
+    """Count acceptance criteria in an issue body's "Acceptance criteria" section.
+
+    Recognises both shapes side by side: a numbered list (``1.``, ``2.``, ...)
+    and a GIVEN/WHEN/THEN bullet (``- GIVEN ...``). Returns ``(count, None)``
+    when at least one criterion parses. Returns ``(None, reason)`` when it
+    cannot answer, with ``reason`` distinguishing "the section was never
+    found" from "the section was found but nothing under it matched" —
+    conflating the two into one message is exactly the defect this exists to
+    fix (#1879).
+    """
+    lines = body.split("\n")
+    in_acceptance = False
+    section_found = False
+    criteria_count = 0
+
+    for line in lines:
+        # Check for "Acceptance criteria" header
+        if "acceptance criteria" in line.lower():
+            in_acceptance = True
+            section_found = True
+            continue
+
+        # If we hit another section header, stop
+        if in_acceptance and line.strip() and line.startswith("#"):
+            break
+
+        if not in_acceptance:
+            continue
+
+        # Count numbered list items (1., 2., etc.) and GIVEN/WHEN/THEN
+        # bullets side by side. A plain "- " bullet that is not GIVEN/.../
+        # or a continuation line like "Observable at:" never matches either
+        # pattern, so it never counts.
+        if _NUMBERED_CRITERION_RE.match(line) or _GIVEN_WHEN_THEN_CRITERION_RE.match(line):
+            criteria_count += 1
+
+    if not section_found:
+        return None, _NO_SECTION_REASON
+    if criteria_count == 0:
+        return None, _UNPARSEABLE_SECTION_REASON
+    return criteria_count, None
+
+
+def _fetch_issue_body(issue: int) -> str | None:
+    """The one subprocess boundary: fetch an issue's raw body via ``gh``.
+
+    Returns ``None`` on any failure to fetch (missing binary, non-zero exit,
+    timeout, empty body) — never raises.
     """
     try:
-        # Fetch issue body using gh
         result = subprocess.run(
             ["gh", "issue", "view", str(issue), "--json", "body", "-q", ".body"],
             capture_output=True,
@@ -79,34 +147,47 @@ def _criteria_count_from_gh(issue: int) -> int | None:
         )
         if result.returncode != 0:
             return None
-
-        body = result.stdout
-        if not body:
-            return None
-
-        # Find "Acceptance criteria" section and count numbered items
-        # Pattern: lines starting with "1. ", "2. ", etc.
-        lines = body.split("\n")
-        in_acceptance = False
-        criteria_count = 0
-
-        for line in lines:
-            # Check for "Acceptance criteria" header
-            if "acceptance criteria" in line.lower():
-                in_acceptance = True
-                continue
-
-            # If we hit another section header, stop
-            if in_acceptance and line.strip() and line.startswith("#"):
-                break
-
-            # Count numbered list items (1., 2., etc.)
-            if in_acceptance and re.match(r"^\d+\.\s", line):
-                criteria_count += 1
-
-        return criteria_count if criteria_count > 0 else None
+        return result.stdout or None
     except Exception:
         return None
+
+
+def _criteria_count_from_gh(issue: int) -> int | None:
+    """Production's only source: parse the issue body via ``gh``.
+
+    Parses the "Acceptance criteria" section, matching numbered list items
+    and GIVEN/WHEN/THEN bullets side by side. Returns the count, or ``None``
+    if the body cannot be fetched or nothing recognisable parses.
+    """
+    body = _fetch_issue_body(issue)
+    if body is None:
+        return None
+    count, _reason = _parse_acceptance_section(body)
+    return count
+
+
+def _criteria_count_unavailable_reason(issue: int) -> str:
+    """Best-effort detail for *why* the count could not be read.
+
+    Used only to make ``run_check``'s failure message name the real cause
+    (ADR-093) — never consulted for the pass/fail decision itself, which
+    rests solely on ``extract_criteria_count_from_issue_body``'s return
+    value (the "never a third outcome" lock). Re-fetches the body — a second
+    ``gh`` call, on the failure path only — because ``run_check`` must keep
+    calling ``extract_criteria_count_from_issue_body`` as the single source
+    of truth for the count, so the existing override/test seam on that
+    function stays exactly what it was.
+    """
+    if _criteria_count_from_override(issue) is not None:
+        # Unreachable in practice: an override means a count existed, so
+        # extract_criteria_count_from_issue_body would not have returned
+        # None in the first place. Kept for exhaustiveness, not tested.
+        return _GH_UNAVAILABLE_REASON
+    body = _fetch_issue_body(issue)
+    if body is None:
+        return _GH_UNAVAILABLE_REASON
+    _, reason = _parse_acceptance_section(body)
+    return reason or _GH_UNAVAILABLE_REASON
 
 
 def extract_criteria_count_from_issue_body(issue: int) -> int | None:
@@ -148,10 +229,10 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:
         # count comes from somewhere the graded agent cannot write; if that
         # source is unreachable, the artifact's own number is the only one left,
         # which is the self-referential comparison this check exists to replace.
+        reason = _criteria_count_unavailable_reason(issue)
         problems.append(
             f"cannot read the acceptance-criteria count for issue {issue} from its body "
-            "(gh unavailable, unauthenticated, timed out, or no 'Acceptance criteria' "
-            "section found), so the artifact's total cannot be checked against a source "
+            f"({reason}), so the artifact's total cannot be checked against a source "
             "the agent does not control; failing closed rather than accepting it"
         )
     elif total != issue_criteria_count:
