@@ -290,6 +290,28 @@ KNOWN_TRANSIENT: tuple[MutationSite, ...] = (
 
 _TOLERATED = {site.qualified for site in (*GRANT_REQUIRED, *KNOWN_TRANSIENT)}
 
+
+def tables_requiring(privilege: str, *, schema: str = "public") -> frozenset[str]:
+    """The tables `GRANT_REQUIRED` justifies for `privilege` in `schema`.
+
+    THE ONE AUTHORITY, and the reason it is a function rather than a constant.
+    `tests/integration/test_migrations.py` reads this instead of keeping a list
+    of its own, so the two guards cannot drift apart: this module asserts that
+    every table the code mutates HOLDS the privilege, and that one asserts that
+    no table HOLDS a privilege the code does not need. Over one list those are
+    the two halves of an equality; over two hand-copied lists they are two
+    opinions, and the stale one wins silently -- which is precisely what
+    happened, since `test_juli_app_public_tables_have_select_insert` pinned
+    `public.shops` at SELECT+INSERT and would have gone on pinning the broken
+    state that made every confirmation decision impossible (#1897).
+    """
+    return frozenset(
+        site.table
+        for site in GRANT_REQUIRED
+        if site.schema == schema and site.privilege == privilege
+    )
+
+
 #: Method-call receivers whose result is one mapped row, used to type a name
 #: bound from a `select(Model)` statement variable.
 _ROW_HELPERS = frozenset(
