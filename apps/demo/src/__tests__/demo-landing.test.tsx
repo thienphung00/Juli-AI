@@ -4,17 +4,41 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DemoLanding } from "../components/demo-landing";
 import { ENTRY_MODE_STORAGE_KEY } from "../lib/entry-mode";
+import { buildGoogleAuthorizeUrl } from "../lib/supabase-auth";
 
-const ORIGINAL_ENV = { ...process.env };
+/**
+ * DemoLanding's own responsibility is branching on whatever
+ * buildGoogleAuthorizeUrl returns, not on whether a given
+ * NEXT_PUBLIC_SUPABASE_* combination maps to a URL or to null -- that
+ * mapping is supabase-auth.ts's own concern and is already covered
+ * exhaustively by supabase-auth.test.ts. This file used to mutate
+ * process.env directly (set real-looking values in beforeEach, `delete`
+ * them in the two "unconfigured" cases) to drive that branching, which
+ * quietly depended on the demo's real build-time env being ABSENT
+ * wherever this test ran -- true only until #1905 got CI's Supabase
+ * secrets configured, at which point deleting the runtime process.env key
+ * stopped being able to force the unconfigured branch (whatever mechanism
+ * produced that in a given CI run, mutating process.env after the fact is
+ * not a reliable way to control it -- controlling the seam directly is).
+ * Mocking the module instead makes both branches deterministic regardless
+ * of what CI's actual env looks like when this file runs.
+ */
+const SUPABASE_ORIGIN_AUTHORIZE_URL =
+  "https://rmxzbvgiwrvjuzlzqdcz.supabase.co/auth/v1/authorize?provider=google&redirect_to=http%3A%2F%2Flocalhost%2Fauth%2Fcallback&apikey=anon-key-for-tests";
+
+vi.mock("../lib/supabase-auth", () => ({
+  buildGoogleAuthorizeUrl: vi.fn(),
+}));
+
+const mockedBuildGoogleAuthorizeUrl = vi.mocked(buildGoogleAuthorizeUrl);
 
 beforeEach(() => {
   window.sessionStorage.clear();
-  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://rmxzbvgiwrvjuzlzqdcz.supabase.co";
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key-for-tests";
+  mockedBuildGoogleAuthorizeUrl.mockReturnValue(SUPABASE_ORIGIN_AUTHORIZE_URL);
 });
 
 afterEach(() => {
-  process.env = { ...ORIGINAL_ENV };
+  vi.clearAllMocks();
 });
 
 describe("DemoLanding — the two doors", () => {
@@ -117,9 +141,8 @@ describe("DemoLanding — the two doors", () => {
     ).toHaveFocus();
   });
 
-  it("renders an honest, non-broken Google door even when Supabase env is missing", () => {
-    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
-    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  it("renders an honest, non-broken Google door when buildGoogleAuthorizeUrl reports unconfigured (null)", () => {
+    mockedBuildGoogleAuthorizeUrl.mockReturnValue(null);
 
     render(<DemoLanding />);
 
@@ -130,9 +153,8 @@ describe("DemoLanding — the two doors", () => {
   // Issue #1905: the disabled state's explanation must be VISIBLE copy, not
   // only the aria-label above -- that is exactly what shipped a defect no
   // sighted, non-screen-reader visitor could see any explanation for.
-  it("shows visible Vietnamese copy explaining the disabled Google door when Supabase env is missing, resolved from dictionary.md `auth.google.unavailable`", async () => {
-    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
-    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  it("shows visible Vietnamese copy explaining the disabled Google door when buildGoogleAuthorizeUrl reports unconfigured (null), resolved from dictionary.md `auth.google.unavailable`", async () => {
+    mockedBuildGoogleAuthorizeUrl.mockReturnValue(null);
 
     render(<DemoLanding />);
 
