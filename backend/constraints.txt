@@ -45,7 +45,7 @@ anyio==4.14.2
     # via
     #   httpx
     #   starlette
-ast-serialize==0.8.0
+ast-serialize==0.10.0
     # via mypy
 asyncpg==0.31.0
     # via juli-backend (pyproject.toml)
