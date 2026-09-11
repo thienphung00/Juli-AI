@@ -36,7 +36,6 @@ import {
   RUN_STAGE_EMPTY_COPY,
   describeToolAction,
 } from "../lib/run-surface/stage-copy";
-import { prefersReducedMotion, resolveRunSurfaceMotion } from "../lib/run-surface/motion";
 import { RUN_SURFACE_PANEL_CLASS_NAMES } from "../lib/run-surface/tokens";
 import type { ConfirmDecisionFn } from "../lib/run-surface/confirmation-decision";
 import { OptionPicker } from "./option-picker";
@@ -88,39 +87,14 @@ function ToolActivityList({ items }: { items: readonly StageToolActivityItem[] }
   );
 }
 
-function PhanTichContent({
-  view,
-  isActive,
-  isTerminal,
-}: {
-  view: RunViewState;
-  isActive: boolean;
-  isTerminal: boolean;
-}) {
-  const showThinking = isActive && !isTerminal && view.narration.length === 0;
-  const thinkingMotion = showThinking
-    ? resolveRunSurfaceMotion(
-        "thinking-state",
-        { kind: "state-transition", from: "idle", to: "running" },
-        prefersReducedMotion(),
-      )
-    : null;
-
+function PhanTichContent({ view }: { view: RunViewState }) {
+  // The thinking indicator lives on the active stepper node now
+  // (PUI-DESIGN.md §5 "on the active stepper node"; issue #1913 item 4)
+  // -- this stage renders only its narration or its empty copy.
   return (
     <div>
       {view.narration.length === 0 ? (
         <p className={RUN_SURFACE_PANEL_CLASS_NAMES.narration}>
-          {thinkingMotion ? (
-            <span
-              aria-hidden="true"
-              className="run-stage__thinking-dot"
-              data-testid="run-stage-thinking-dot"
-              style={{
-                animationDuration: `${thinkingMotion.durationMs}ms`,
-                animationTimingFunction: thinkingMotion.easing,
-              }}
-            />
-          ) : null}
           {RUN_STAGE_EMPTY_COPY["phan-tich"]}
         </p>
       ) : (
@@ -283,7 +257,6 @@ export function RunStageCanvas({
   events,
   productName,
   nowMs,
-  isTerminal,
   headingRef,
   runId,
   confirmationToken,
@@ -291,8 +264,6 @@ export function RunStageCanvas({
   confirmationFetchImpl,
   confirm,
 }: RunStageCanvasProps) {
-  const isActive = view.currentStage === stageId;
-
   return (
     <section
       aria-labelledby={`run-stage-tab-${stageId}`}
@@ -305,7 +276,7 @@ export function RunStageCanvas({
         {RUN_STAGE_HEADING_COPY[stageId]}
       </h2>
       {stageId === "phan-tich" ? (
-        <PhanTichContent isActive={isActive} isTerminal={isTerminal} view={view} />
+        <PhanTichContent view={view} />
       ) : null}
       {stageId === "thong-tin-san-pham" ? (
         <ProductSnapshotContent events={events} productName={productName} view={view} />
