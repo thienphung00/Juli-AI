@@ -34,12 +34,16 @@ import { fileURLToPath } from "node:url";
 
 const APP_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
-// Test-only seam (mirrors the RELEASE_ARTIFACT_*_CMD override idiom in
-// infra/scripts/build-release-artifact.sh): production/CI never sets this,
-// so BUILD_DIR always resolves to the real `.next` next to this script.
-const BUILD_DIR = process.env.SUPABASE_BUILD_CHECK_BUILD_DIR
-  ? process.env.SUPABASE_BUILD_CHECK_BUILD_DIR
-  : join(APP_ROOT, ".next");
+// Build directory override -- a CLI argument, not an environment variable.
+// `tests/unit/test_issue_397_demo_workspace_contract.py` enumerates exactly
+// which two `process.env.*` names the demo surface may read
+// (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY) and fails any
+// third one, on purpose -- "adding another environment dependency to the
+// demo surface is a decision, not an edit." A test-only override belongs on
+// argv, not in that enumerated surface. Positional: `node
+// verify-supabase-env-in-build.mjs [buildDir]`; omitted, it defaults to the
+// real `.next` next to this script, exactly as CI invokes it.
+const BUILD_DIR = process.argv[2] ? process.argv[2] : join(APP_ROOT, ".next");
 
 // Text-bearing build output only -- `.next` also carries binary/cache files
 // (webpack pack cache, fonts) that a naive readFileSync(..., "utf8") scan

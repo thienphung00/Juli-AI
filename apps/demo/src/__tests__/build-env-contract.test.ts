@@ -28,11 +28,12 @@ import { afterEach, describe, expect, it } from "vitest";
 
 const SCRIPT = resolve(__dirname, "../../scripts/verify-supabase-env-in-build.mjs");
 
-const ENV_KEYS_UNDER_TEST = [
-  "NEXT_PUBLIC_SUPABASE_URL",
-  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-  "SUPABASE_BUILD_CHECK_BUILD_DIR",
-];
+// The two names the demo surface is allowed to read from `process.env`
+// (tests/unit/test_issue_397_demo_workspace_contract.py::_ALLOWED_DEMO_ENV).
+// The build-directory override is deliberately NOT an env var -- see the
+// script's own comment -- so it is never stripped/injected here either; it
+// is passed as a positional CLI argument to `runCheck` instead.
+const ENV_KEYS_UNDER_TEST = ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"];
 
 let tempDirs: string[] = [];
 
@@ -43,15 +44,21 @@ function makeBuildDirWithChunk(chunkContents: string): string {
   return dir;
 }
 
-/** Runs the real check script as a subprocess against a controlled env. */
-function runCheck(overrides: Record<string, string>) {
+/**
+ * Runs the real check script as a subprocess against a controlled env, with
+ * an optional build directory passed positionally (never through the
+ * environment -- that surface is enumerated and closed by
+ * test_issue_397_demo_workspace_contract.py).
+ */
+function runCheck(overrides: Record<string, string>, buildDir?: string) {
   const env = { ...process.env };
   for (const key of ENV_KEYS_UNDER_TEST) {
     delete env[key];
   }
   Object.assign(env, overrides);
 
-  return spawnSync("node", [SCRIPT], { env, encoding: "utf8" });
+  const args = buildDir ? [SCRIPT, buildDir] : [SCRIPT];
+  return spawnSync("node", args, { env, encoding: "utf8" });
 }
 
 afterEach(() => {
@@ -89,11 +96,13 @@ describe("verify-supabase-env-in-build — the build-time env contract (issue #1
   it("fails non-zero when env is configured but the host never made it into the built output", () => {
     const buildDir = makeBuildDirWithChunk("this chunk mentions no supabase host at all");
 
-    const result = runCheck({
-      NEXT_PUBLIC_SUPABASE_URL: "https://project-ref.supabase.co",
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key-value",
-      SUPABASE_BUILD_CHECK_BUILD_DIR: buildDir,
-    });
+    const result = runCheck(
+      {
+        NEXT_PUBLIC_SUPABASE_URL: "https://project-ref.supabase.co",
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key-value",
+      },
+      buildDir,
+    );
 
     expect(result.status, result.stderr).not.toBe(0);
     expect(result.stderr).toMatch(/project-ref\.supabase\.co/);
@@ -104,11 +113,13 @@ describe("verify-supabase-env-in-build — the build-time env contract (issue #1
       'const authorizeUrl = "https://project-ref.supabase.co/auth/v1/authorize";',
     );
 
-    const result = runCheck({
-      NEXT_PUBLIC_SUPABASE_URL: "https://project-ref.supabase.co",
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key-value",
-      SUPABASE_BUILD_CHECK_BUILD_DIR: buildDir,
-    });
+    const result = runCheck(
+      {
+        NEXT_PUBLIC_SUPABASE_URL: "https://project-ref.supabase.co",
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key-value",
+      },
+      buildDir,
+    );
 
     expect(result.status, result.stderr).toBe(0);
     expect(result.stdout).toMatch(/project-ref\.supabase\.co/);
