@@ -154,7 +154,13 @@ class TestMissingOrExpiredJwtReturns401:
 
         assert resp.status_code == 401
 
-    async def test_user_not_in_db_returns_401(self, session: AsyncSession):
+    async def test_user_not_in_db_is_no_longer_a_401(self, session: AsyncSession):
+        """#1906: a validly-signed JWT for a `sub` with no `users` row used to
+        401 here -- that was exactly the first-time-Google-user bug this issue
+        closes. `tests/unit/test_google_identity_provisioning.py` covers the
+        provisioning behaviour itself (row created, phone placeholder, no
+        shop) against real Postgres; this one only pins the regression that
+        the *old* 401 is gone."""
         os.environ["SUPABASE_JWT_SECRET"] = TEST_JWT_SECRET
         app = _create_test_app(session)
         token = _make_token(uuid.uuid4())
@@ -163,7 +169,7 @@ class TestMissingOrExpiredJwtReturns401:
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.get("/me", headers={"Authorization": f"Bearer {token}"})
 
-        assert resp.status_code == 401
+        assert resp.status_code == 200
 
 
 class TestJwtSecretFailsClosed:
