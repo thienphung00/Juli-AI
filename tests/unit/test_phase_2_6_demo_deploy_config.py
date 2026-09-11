@@ -206,10 +206,26 @@ def test_runbook_documents_dns_tls_and_provisioning_without_secrets(runbook_text
 
 
 def test_env_demo_example_has_no_backend_credentials():
+    """Issue #1905: `demo.env.example` now names
+    `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` -- the Google
+    sign-in door's real, intentional build-time requirement, and neither is
+    a backend credential (both are public, client-visible values by design;
+    the anon key is constrained by RLS, not secrecy -- see
+    `tests/unit/test_issue_397_demo_workspace_contract.py`'s
+    `_ALLOWED_DEMO_ENV`). A bare substring check would flag
+    `NEXT_PUBLIC_SUPABASE_ANON_KEY=` as a false positive of
+    `SUPABASE_ANON_KEY` in SECRET_ENV_KEYS purely because one is a suffix of
+    the other, so this asserts on the exact declared key names instead.
+    """
     assert ENV_DEMO_PATH.is_file()
     env = _read(ENV_DEMO_PATH)
+    declared_keys = {
+        match.group(1)
+        for line in env.splitlines()
+        if (match := re.match(r"\s*#?\s*(?:export\s+)?([A-Z0-9_]+)=", line))
+    }
     for key in SECRET_ENV_KEYS:
-        assert f"{key}=" not in env, f"demo env must not require {key}"
+        assert key not in declared_keys, f"demo env must not require {key}"
 
 
 def test_env_demo_example_do_not_contain_real_secrets():

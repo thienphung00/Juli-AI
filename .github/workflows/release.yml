@@ -185,7 +185,19 @@ jobs:
           } >> "$GITHUB_OUTPUT"
       # Fails non-zero and writes no tarball if the install, the build, the
       # dependency resolution, or the packaging fails.
+      # Issue #1905: Next.js inlines NEXT_PUBLIC_* at `next build` TIME only, so
+      # the "Đăng nhập với Google" door on demo.app-juli.com can only ever be a
+      # real link if these two values are present for THIS step, on THIS build.
+      # A runtime env file on the server changes nothing already built. Scoped
+      # to matrix.app == 'demo' (apps/landing does not use Supabase); the two
+      # repository secrets must exist under Settings > Secrets before this job
+      # can produce a build with the door enabled -- until then,
+      # verify-supabase-env-in-build.mjs (wired into `pnpm build`) fails this
+      # step non-zero rather than shipping a build with the door dead.
       - name: Build release artifact
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ matrix.app == 'demo' && secrets.NEXT_PUBLIC_SUPABASE_URL || '' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ matrix.app == 'demo' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || '' }}
         run: |
           ./infra/scripts/build-release-artifact.sh \
             --app "${{ matrix.app }}" \

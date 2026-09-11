@@ -55,6 +55,12 @@ export function DemoLanding() {
   };
 
   const googleConfigured = googleHref !== null && googleHref !== undefined;
+  // Distinct from "not yet resolved" (`googleHref === undefined`, the
+  // transient pre-effect state that also renders the disabled branch to
+  // match SSR) -- the visible unavailable copy below only appears once the
+  // door's fate is actually decided, so a build that IS configured never
+  // flashes "chưa sẵn sàng" for one frame before the real link appears.
+  const googleUnavailable = googleHref === null;
 
   return (
     <section aria-labelledby="landing-title" className="demo-landing">
@@ -88,14 +94,24 @@ export function DemoLanding() {
               Đăng nhập với Google
             </a>
           ) : (
-            <span
-              aria-disabled="true"
-              className="demo-landing__google-link demo-landing__google-link--disabled juli-btn juli-btn--secondary juli-btn--default"
-              role="link"
-              aria-label="Đăng nhập với Google — chưa cấu hình trong môi trường này"
-            >
-              Đăng nhập với Google
-            </span>
+            <>
+              <span
+                aria-disabled="true"
+                className="demo-landing__google-link demo-landing__google-link--disabled juli-btn juli-btn--secondary juli-btn--default"
+                role="link"
+                aria-label="Đăng nhập với Google — chưa cấu hình trong môi trường này"
+              >
+                Đăng nhập với Google
+              </span>
+              {googleUnavailable ? (
+                // dictionary.md `auth.google.unavailable` (issue #1905) --
+                // the disabled state's explanation as VISIBLE copy, not
+                // only the aria-label above.
+                <p className="demo-landing__google-unavailable" role="status">
+                  Đăng nhập với Google chưa sẵn sàng trong môi trường này.
+                </p>
+              ) : null}
+            </>
           )}
         </article>
       </div>

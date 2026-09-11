@@ -17,6 +17,10 @@ import { describe, expect, it } from "vitest";
 const REPLAY_SCENARIO_SRC = resolve(__dirname, "../replay-scenario.ts");
 const DEMO_PACKAGE_JSON = resolve(__dirname, "../../../../package.json");
 const VERIFY_SCRIPT = "verify-replay-scenario-in-build.mjs";
+// Issue #1905's build-time env gate -- same discipline, same file, checked
+// alongside the replay-scenario one so a future edit to this script string
+// cannot drop either guard without a red test.
+const VERIFY_SUPABASE_ENV_SCRIPT = "verify-supabase-env-in-build.mjs";
 
 describe("the scenario reaches the built artifact", () => {
   it("is pulled in by a static import, never fetched or required at runtime", () => {
@@ -50,5 +54,14 @@ describe("the scenario reaches the built artifact", () => {
 
     const build = pkg.scripts?.build ?? "";
     expect(build).toContain(VERIFY_SCRIPT);
+  });
+
+  it("keeps the build-time Supabase env check wired into the build (issue #1905), so a missing env cannot ship a dead door silently", () => {
+    const pkg = JSON.parse(readFileSync(DEMO_PACKAGE_JSON, "utf8")) as {
+      scripts?: Record<string, string>;
+    };
+
+    const build = pkg.scripts?.build ?? "";
+    expect(build).toContain(VERIFY_SUPABASE_ENV_SCRIPT);
   });
 });
