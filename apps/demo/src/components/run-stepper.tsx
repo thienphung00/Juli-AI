@@ -18,6 +18,7 @@
  */
 
 import type { RunStageId } from "../lib/run-surface/reduce-run-view";
+import { prefersReducedMotion, resolveRunSurfaceMotion } from "../lib/run-surface/motion";
 import { RUN_STAGE_STATUS_COPY } from "../lib/run-surface/stage-copy";
 import { RUN_SURFACE_LIVE_EDGE_CLASS_NAMES } from "../lib/run-surface/tokens";
 
@@ -48,25 +49,47 @@ export function RunStepper({ nodes, viewingIndex, onNavigate, stagePanelId }: Ru
       {nodes.map((node, index) => {
         const isLocked = node.displayStatus === "locked";
         const isViewing = index === viewingIndex;
+        const isActive = node.displayStatus === "active";
+
+        // PUI-DESIGN.md §5: "Soft breathing indicator on the active stepper
+        // node (loop)" -- the thinking-state primitive, resolved here (its
+        // trigger is the run entering/being in a live stage), applied by
+        // globals.css's `run-stepper-node-breathe` keyframes. Reduced
+        // motion resolves the primitive's stated alternative (0ms static);
+        // the sheet also drops the animation under the media query, so the
+        // static token-layer glow is what remains.
+        const thinkingMotion = isActive
+          ? resolveRunSurfaceMotion(
+              "thinking-state",
+              { kind: "state-transition", from: "idle", to: "running" },
+              prefersReducedMotion(),
+            )
+          : null;
 
         return (
           <button
             key={node.id}
             aria-controls={stagePanelId(node.id)}
-            aria-current={node.displayStatus === "active" ? "step" : undefined}
+            aria-current={isActive ? "step" : undefined}
             aria-selected={isViewing}
             className={joinClassNames(
               "run-stepper__node",
               `run-stepper__node--${node.displayStatus}`,
-              node.displayStatus === "active"
-                ? RUN_SURFACE_LIVE_EDGE_CLASS_NAMES.stepperNodeActive
-                : undefined,
+              isActive ? RUN_SURFACE_LIVE_EDGE_CLASS_NAMES.stepperNodeActive : undefined,
               isViewing ? "run-stepper__node--viewing" : undefined,
             )}
             disabled={isLocked}
             id={`run-stage-tab-${node.id}`}
             onClick={() => onNavigate(index)}
             role="tab"
+            style={
+              thinkingMotion
+                ? {
+                    animationDuration: `${thinkingMotion.durationMs}ms`,
+                    animationTimingFunction: thinkingMotion.easing,
+                  }
+                : undefined
+            }
             type="button"
           >
             <span aria-hidden="true" className="run-stepper__node-index">
