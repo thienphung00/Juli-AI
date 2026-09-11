@@ -492,6 +492,12 @@ workflow_prompt_cache:
         1311: AGT-W6B
         1313: AGT-W6B
         1312: AGT-W6B-DP
+        # W6 gate-walk fixes (#1322). Both are server-contract work and would
+        # otherwise inherit the AGT-W6A (ui-ux) default and be mis-routed:
+        # #1904 rewrites the confirmation option rationale at its source in the
+        # agent runner; #1906 provisions the users row in the auth dependency.
+        1904: AGT-W6B
+        1906: AGT-W6B
       doNotLoad:
         - apps/dashboard/
         - ios/
