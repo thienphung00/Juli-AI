@@ -739,6 +739,14 @@ jobs:
       || needs.classify-tier.outputs.tier == 'wave'
       || needs.classify-tier.outputs.tier == 'main')
       && needs.changes.outputs.demo == 'true'
+    # Issue #1905: `pnpm check:demo` runs `next build`, which now fails
+    # closed (scripts/verify-supabase-env-in-build.mjs) without these two
+    # values -- Next inlines NEXT_PUBLIC_* at build time only. Same two
+    # repository secrets release.yml's app-release-artifact job already
+    # uses for matrix.app == 'demo'; never a literal here.
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -816,6 +824,17 @@ jobs:
     if: >-
       needs.classify-tier.outputs.tier == 'main'
       && needs.changes.outputs.demo == 'true'
+    # Issue #1905: `pnpm --filter @juli/demo test:e2e` builds the demo via
+    # Playwright's webServer (no DEMO_E2E_ARTIFACT_DIR here, so it rebuilds
+    # rather than starting a pre-built artifact) -- without these two
+    # values the build fails closed, and landing-doors.spec.ts's assertion
+    # that the Google door is a real <a> to a Supabase-origin href would
+    # otherwise be asserting against a door that can never be anything but
+    # dead in this job. Same two repository secrets as demo-frontend and
+    # release.yml's app-release-artifact job.
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
