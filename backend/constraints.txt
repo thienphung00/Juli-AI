@@ -33,7 +33,7 @@
 # file exists to prevent.
 aiosqlite==0.22.1
     # via juli-backend (pyproject.toml)
-alembic==1.19.1
+alembic==1.19.2
     # via juli-backend (pyproject.toml)
 amqp==5.3.1
     # via kombu
