@@ -1,0 +1,82 @@
+{
+  "planId": "rep-1913-accent-paints-and-status-token-roles",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com run view — the stepper's active node, the option picker, the stage canvas",
+    "demo.app-juli.com In-Progress ledger — its breathing dot, error text and chips"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the demo candidate unit on its own port, before the nginx upstream cutover",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "the-accent-paints-on-the-active-step",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/decisions/in-progress/<replay run id>",
+        "assertions": [
+          "the active stepper node is filled with the live-edge accent and its label is legible on it",
+          "no element on the surface computes to a colour outside the token layer",
+          "the reconnecting and expiry lines are legible on white — the -text variants, not the base"
+        ]
+      },
+      {
+        "name": "no-unresolved-token-references-remain",
+        "entryUrl": "the built stylesheet in the candidate artifact",
+        "assertions": [
+          "zero var() references to --juli-run-surface, --juli-run-border, --juli-run-surface-raised, --juli-run-bg or --juli-run-muted-foreground",
+          "zero occurrences of --juli-radius-medium"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions",
+      "/decisions/in-progress/<replay run id>"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Stylesheet consumers only. No schema change, no API contract movement."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "repoint the nginx demo upstream to the retained previous release; the surface reverts whole, never half-applied",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test",
+    "pnpm --filter @juli/theme test",
+    "pnpm -w turbo run build"
+  ],
+  "doNotInfer": [
+    "This branch is cut from #1912's branch, NOT from main. #1912 deleted the old ground tokens and 17 var() references in globals.css now resolve to nothing. Fixing those is THIS issue's job and the reason the two must land together.",
+    "Do NOT edit packages/theme/run-surface-tokens.css. #1912 owns it and its content is settled. If a token you need is missing, report it rather than adding it here.",
+    "Do NOT use !important anywhere, and do NOT weaken the token layer to win the cascade. The correct shape is `.run-stepper__node:not(.juli-run-stepper-node--active)` or higher specificity at the consumer.",
+    "The computed-style test for the active node MUST be seen failing against the unmodified globals.css before the fix. Record that you saw it fail.",
+    "Status tokens used as TEXT switch to their -text variant; tokens used as BACKGROUND keep the base or -tint. Do not switch both.",
+    "The real shadow tokens are --juli-shadow-small and --juli-shadow-medium. --juli-shadow-sm/-md do not exist; #1912 found this.",
+    "--juli-run-muted-foreground was renamed by #1912. Use the new name; do not reintroduce the old one."
+  ]
+}
