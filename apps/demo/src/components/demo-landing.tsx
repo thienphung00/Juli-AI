@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { Button } from "@juli/ui";
 
 import { readEntryMode, writeEntryMode } from "../lib/entry-mode";
-import { buildGoogleAuthorizeUrl } from "../lib/supabase-auth";
+import {
+  GOOGLE_SIGN_IN_UNAVAILABLE_COPY,
+  buildGoogleAuthorizeUrl,
+} from "../lib/supabase-auth";
 import { HomeLauncher } from "./home-launcher";
 
 /**
@@ -15,8 +19,17 @@ import { HomeLauncher } from "./home-launcher";
  * is resolved on mount (never during SSR, so client and server agree on the
  * first paint) and is `null` — an honest disabled state, not a broken link —
  * when Supabase env is not configured in this build.
+ *
+ * `/?entry=door` (issue #1907) is the explicit escape from the
+ * `hasEnteredReplay` short-circuit below — without it, once a visitor picked
+ * "Dùng thử Demo", the Google door became unreachable for the rest of the
+ * tab session by any navigation back to `/`. This does not remove the
+ * short-circuit: a bare `/` visit with replay stored still goes straight to
+ * `HomeLauncher`, unchanged.
  */
 export function DemoLanding() {
+  const searchParams = useSearchParams();
+  const forceDoorEntry = searchParams.get("entry") === "door";
   const [hasEnteredReplay, setHasEnteredReplay] = useState(false);
   const [googleHref, setGoogleHref] = useState<string | null | undefined>(
     undefined,
@@ -45,7 +58,7 @@ export function DemoLanding() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  if (hasEnteredReplay) {
+  if (hasEnteredReplay && !forceDoorEntry) {
     return <HomeLauncher />;
   }
 
@@ -108,7 +121,7 @@ export function DemoLanding() {
                 // the disabled state's explanation as VISIBLE copy, not
                 // only the aria-label above.
                 <p className="demo-landing__google-unavailable" role="status">
-                  Đăng nhập với Google chưa sẵn sàng trong môi trường này.
+                  {GOOGLE_SIGN_IN_UNAVAILABLE_COPY}
                 </p>
               ) : null}
             </>

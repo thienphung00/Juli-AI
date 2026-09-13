@@ -7,6 +7,13 @@ import { ENTRY_MODE_STORAGE_KEY } from "../lib/entry-mode";
 import { demoSnapshot, homeDestinations } from "../lib/mock-data";
 import { createMockDemoAnalyticsEnvelope } from "../lib/analytics/__tests__/fixtures";
 
+// `DemoLanding` (issue #1907) reads `?entry=door` via `useSearchParams` to
+// escape the replay short-circuit below — this suite is not exercising that
+// query param, so an empty result reproduces the plain-`/` case throughout.
+vi.mock("next/navigation", () => ({
+  useSearchParams: vi.fn(() => new URLSearchParams()),
+}));
+
 // `/` is now the dual-entry landing (issue #1319, ADR-094): this file covers
 // the launcher content reached once "Dùng thử Demo" has been chosen — the
 // landing gate itself has its own coverage in `demo-landing.test.tsx`.

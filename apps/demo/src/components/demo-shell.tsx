@@ -3,11 +3,15 @@
 import { PrimaryNavigation } from "@juli/ui";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { demoDestinations } from "../lib/mock-data";
 import { sanitizeSellerReviewText } from "../lib/review-seller-copy";
 import { AnalyticsDataProvider, useAnalyticsData } from "../lib/analytics/analytics-data-context";
+import {
+  GOOGLE_SIGN_IN_UNAVAILABLE_COPY,
+  buildGoogleAuthorizeUrl,
+} from "../lib/supabase-auth";
 import { DemoStateProvider, useDemoState } from "./demo-state";
 
 const assistanceByPath = {
@@ -43,6 +47,28 @@ function DemoShellContent({ children }: { children: ReactNode }) {
     resetMockState,
   } = useDemoState();
   const { refreshAnalytics } = useAnalyticsData();
+
+  // The header's "Đăng nhập" control (issue #1907) — the seller's only
+  // sign-in affordance once past the landing gate, so it must stay a real
+  // link to Supabase Auth rather than an internal `/` link that immediately
+  // short-circuits back to HomeLauncher for anyone who already entered the
+  // replay demo. Resolved on mount (never during SSR) via the same
+  // `buildGoogleAuthorizeUrl` DemoLanding uses — never a second URL builder.
+  const [googleHref, setGoogleHref] = useState<string | null | undefined>(
+    undefined,
+  );
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setGoogleHref(
+        buildGoogleAuthorizeUrl(`${window.location.origin}/auth/callback`),
+      );
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const googleConfigured = googleHref !== null && googleHref !== undefined;
 
   // Resolve assistance by prefix matching for nested routes
   const getAssistance = () => {
@@ -95,11 +121,22 @@ function DemoShellContent({ children }: { children: ReactNode }) {
               type="button"
               aria-pressed={mode === "mock"}
             >
-              Mock
+              Bản minh họa
             </button>
-            <Link className="demo-mode-switcher__option" href="/">
-              Đăng nhập
-            </Link>
+            {googleConfigured ? (
+              <a className="demo-mode-switcher__option" href={googleHref}>
+                Đăng nhập
+              </a>
+            ) : (
+              <span
+                aria-disabled="true"
+                className="demo-mode-switcher__option"
+                role="link"
+                title={GOOGLE_SIGN_IN_UNAVAILABLE_COPY}
+              >
+                Đăng nhập
+              </span>
+            )}
           </div>
           <button
             className="demo-refresh"

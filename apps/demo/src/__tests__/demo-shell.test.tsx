@@ -11,11 +11,25 @@ import {
   useDemoState,
 } from "../components/demo-state";
 import { DestinationPlaceholder } from "../components/destination-placeholder";
+import { buildGoogleAuthorizeUrl } from "../lib/supabase-auth";
 
 vi.mock("next/navigation", () => ({
   usePathname: vi.fn(),
   useRouter: vi.fn(),
 }));
+
+// Same idiom as demo-landing.test.tsx (#1905): mock the seam directly rather
+// than mutate process.env.NEXT_PUBLIC_SUPABASE_* — CI now has real values.
+const SUPABASE_ORIGIN_AUTHORIZE_URL =
+  "https://rmxzbvgiwrvjuzlzqdcz.supabase.co/auth/v1/authorize?provider=google&redirect_to=http%3A%2F%2Flocalhost%2Fauth%2Fcallback&apikey=anon-key-for-tests";
+
+vi.mock("../lib/supabase-auth", () => ({
+  buildGoogleAuthorizeUrl: vi.fn(),
+  GOOGLE_SIGN_IN_UNAVAILABLE_COPY:
+    "Đăng nhập với Google chưa sẵn sàng trong môi trường này.",
+}));
+
+const mockedBuildGoogleAuthorizeUrl = vi.mocked(buildGoogleAuthorizeUrl);
 
 const replace = vi.fn();
 const push = vi.fn();
@@ -64,21 +78,22 @@ describe("Demo shell controls", () => {
       replace,
     });
     localStorage.clear();
+    window.sessionStorage.clear();
     push.mockClear();
     replace.mockClear();
+    mockedBuildGoogleAuthorizeUrl.mockReturnValue(SUPABASE_ORIGIN_AUTHORIZE_URL);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("persists Mock as the default mode", async () => {
+  it("persists the replay mode as the default", async () => {
     render(<DemoShell>Nội dung</DemoShell>);
 
-    expect(screen.getByRole("button", { name: "Mock" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(
+      screen.getByRole("button", { name: "Bản minh họa" }),
+    ).toHaveAttribute("aria-pressed", "true");
 
     await waitFor(() => {
       expect(localStorage.getItem("juli_demo_mode")).toBe("mock");
@@ -98,15 +113,50 @@ describe("Demo shell controls", () => {
     }
   });
 
-  it("retires the fake 'coming soon' Sign-in stub for a real link back to the dual-entry landing", () => {
+  it("the header's Đăng nhập control links directly to the Supabase authorize URL — reachable even after a visitor has entered the replay demo (issue #1907)", async () => {
+    window.sessionStorage.setItem("juli_demo_entry_mode", "replay");
+
     render(<DemoShell>Nội dung</DemoShell>);
 
+    await waitFor(() => {
+      const signInLink = screen.getByRole("link", { name: "Đăng nhập" });
+      expect(signInLink).toHaveAttribute(
+        "href",
+        expect.stringContaining("rmxzbvgiwrvjuzlzqdcz.supabase.co/auth/v1/authorize"),
+      );
+    });
+
     const signInLink = screen.getByRole("link", { name: "Đăng nhập" });
-    expect(signInLink).toHaveAttribute("href", "/");
+    expect(new URL(signInLink.getAttribute("href") as string).origin).toBe(
+      "https://rmxzbvgiwrvjuzlzqdcz.supabase.co",
+    );
     expect(signInLink).not.toHaveAttribute("aria-disabled");
+    expect(signInLink).not.toHaveAttribute("href", "/");
     expect(
       screen.queryByRole("button", { name: "Sign-in" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("renders the same honest disabled state and dictionary copy as the landing door when Supabase env is absent", async () => {
+    mockedBuildGoogleAuthorizeUrl.mockReturnValue(null);
+
+    render(<DemoShell>Nội dung</DemoShell>);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("link", { name: "Đăng nhập" }),
+      ).toHaveAttribute("aria-disabled", "true");
+    });
+
+    expect(
+      screen.getByTitle("Đăng nhập với Google chưa sẵn sàng trong môi trường này."),
+    ).toBeInTheDocument();
+  });
+
+  it("contains no developer vocabulary — the literal string 'Mock' never appears", () => {
+    const { container } = render(<DemoShell>Nội dung</DemoShell>);
+
+    expect(container.textContent).not.toContain("Mock");
   });
 
   it("resets every mutable mock-state category and opens Decisions", async () => {
@@ -379,7 +429,9 @@ describe("Demo shell controls", () => {
 
     render(<DemoShell>Nội dung</DemoShell>);
 
-    expect(screen.getByRole("button", { name: "Mock" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Bản minh họa" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Đăng nhập" })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Làm mới Demo" }),

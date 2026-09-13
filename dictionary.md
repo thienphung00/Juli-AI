@@ -261,6 +261,12 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - VI: Dùng thử Demo
 - Definition: The landing's sessionless, dataless client-replay entry (ADR-094 decision 1, PUI-DESIGN §1). Mints no session, calls no `/v1/*` route.
 
+**`demo.mode.replay`**
+- EN: Illustrative example (replay mode indicator)
+- VI: Bản minh họa
+- _Avoid_: Mock (developer vocabulary in front of a seller)
+- Definition: `DemoShell`'s header mode-switcher label (issue #1907) for the replay/mock state, consistent with `demo.try`'s own "bản minh họa" wording.
+
 **`auth.google`**
 - EN: Sign in with Google
 - VI: Đăng nhập với Google

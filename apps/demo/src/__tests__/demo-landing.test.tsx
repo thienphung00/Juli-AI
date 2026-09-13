@@ -1,10 +1,15 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useSearchParams } from "next/navigation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DemoLanding } from "../components/demo-landing";
 import { ENTRY_MODE_STORAGE_KEY } from "../lib/entry-mode";
 import { buildGoogleAuthorizeUrl } from "../lib/supabase-auth";
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: vi.fn(() => new URLSearchParams()),
+}));
 
 /**
  * DemoLanding's own responsibility is branching on whatever
@@ -28,6 +33,8 @@ const SUPABASE_ORIGIN_AUTHORIZE_URL =
 
 vi.mock("../lib/supabase-auth", () => ({
   buildGoogleAuthorizeUrl: vi.fn(),
+  GOOGLE_SIGN_IN_UNAVAILABLE_COPY:
+    "Đăng nhập với Google chưa sẵn sàng trong môi trường này.",
 }));
 
 const mockedBuildGoogleAuthorizeUrl = vi.mocked(buildGoogleAuthorizeUrl);
@@ -35,6 +42,9 @@ const mockedBuildGoogleAuthorizeUrl = vi.mocked(buildGoogleAuthorizeUrl);
 beforeEach(() => {
   window.sessionStorage.clear();
   mockedBuildGoogleAuthorizeUrl.mockReturnValue(SUPABASE_ORIGIN_AUTHORIZE_URL);
+  vi.mocked(useSearchParams).mockReturnValue(
+    new URLSearchParams() as unknown as ReturnType<typeof useSearchParams>,
+  );
 });
 
 afterEach(() => {
@@ -108,6 +118,57 @@ describe("DemoLanding — the two doors", () => {
 
   it("skips straight to the replay content on a later render within the same session", async () => {
     window.sessionStorage.setItem(ENTRY_MODE_STORAGE_KEY, "replay");
+
+    render(<DemoLanding />);
+
+    expect(
+      await screen.findByRole("region", { name: "Điểm đến chính" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Dùng thử Demo/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  // Issue #1907: the sign-in door was unreachable once a visitor entered the
+  // replay demo, by any navigation, because `/` always short-circuited back
+  // to HomeLauncher. `/?entry=door` is the explicit escape.
+  it("renders both doors at /?entry=door even with replay stored — the explicit escape from the short-circuit", async () => {
+    window.sessionStorage.setItem(ENTRY_MODE_STORAGE_KEY, "replay");
+    vi.mocked(useSearchParams).mockReturnValue(
+      new URLSearchParams("entry=door") as unknown as ReturnType<
+        typeof useSearchParams
+      >,
+    );
+
+    render(<DemoLanding />);
+
+    // Both the `hasEnteredReplay` read and the Google-href resolution are
+    // deferred one macrotask (setTimeout(0)); wait for the latter so the
+    // assertions below run AFTER the deferred replay-mode read has settled,
+    // not merely during the synchronous pre-effect first paint (which would
+    // pass trivially regardless of whether the escape actually works).
+    await waitFor(() => {
+      expect(
+        screen.getByRole("link", { name: /Đăng nhập với Google/ }),
+      ).toHaveAttribute("href");
+    });
+
+    expect(
+      screen.getByRole("button", { name: /Dùng thử Demo/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Đăng nhập với Google/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Điểm đến chính" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("still renders HomeLauncher on a bare / with replay stored — existing behaviour preserved, not replaced", async () => {
+    window.sessionStorage.setItem(ENTRY_MODE_STORAGE_KEY, "replay");
+    vi.mocked(useSearchParams).mockReturnValue(
+      new URLSearchParams() as unknown as ReturnType<typeof useSearchParams>,
+    );
 
     render(<DemoLanding />);
 
