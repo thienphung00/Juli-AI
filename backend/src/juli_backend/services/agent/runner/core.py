@@ -1678,12 +1678,18 @@ class WorkflowRunner:
         `workflow.approval_required` event.
 
         **Decision request recording (issue #1221 / AGT-W5A, ADR-075
-        decision 2).** `build_confirmation_options` (`confirmation.py`)
-        builds the `options[]` list exactly once here — binary confirm's
-        N=1 case, `spec.description` as the placeholder rationale (a
-        genuinely reasoned, per-option rationale is P12's prompt-content
-        concern, not this module's) — and the *same* list is both emitted
-        on `WorkflowApprovalRequiredPayload.options` and written to a new
+        decision 2; rationale source corrected by issue #1904, W6-FIX).**
+        `build_confirmation_options` (`confirmation.py`) builds the
+        `options[]` list exactly once here — binary confirm's N=1 case,
+        `spec.seller_rationale_vi` as the deterministic, dictionary-governed
+        rationale (a genuinely reasoned, per-option rationale is still P12's
+        prompt-content concern, not this module's — this is a fixed
+        Vietnamese string per tool, never model-authored). Before #1904 this
+        passed `spec.description`, the LLM-facing English tool description,
+        onto the seller-facing event and the persisted `run_confirmations`
+        row verbatim; `spec.description` itself is unchanged, because the
+        model still reads it every turn. The *same* options list is both
+        emitted on `WorkflowApprovalRequiredPayload.options` and written to a new
         `run_confirmations` row via a dedicated
         `self._conversation_store.persist(..., pending_confirmation=...)`
         call, deliberately separate from the per-iteration
@@ -1711,7 +1717,7 @@ class WorkflowRunner:
         policy = self._playbook.termination_policy
         expires_at = datetime.now(UTC) + timedelta(hours=policy.approval_timeout_h)
         options = build_confirmation_options(
-            rationale=spec.description,
+            rationale=spec.seller_rationale_vi,
             arguments=block.arguments,
         )
         await self._emit(
