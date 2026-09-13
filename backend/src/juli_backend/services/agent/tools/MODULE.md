@@ -15,7 +15,9 @@ stays untouched.
 
 ## Public Interface
 
-- `ToolSpec` (frozen dataclass) — `name`, `description`, `input_model`, `output_model`
+- `ToolSpec` (frozen dataclass) — `name`, `description` (LLM-facing English, unchanged by
+  #1904), `seller_rationale_vi` (required; dictionary-governed seller-facing Vietnamese —
+  distinct from `description`, issue #1904/W6-FIX), `input_model`, `output_model`
   (Pydantic `BaseModel` subclasses), `classification` (`ToolClassification`), `policy`
   (`ToolPolicy`), `timeout_seconds`
 - `ToolSpec.render_input_schema()` — the model-facing JSON schema, exactly

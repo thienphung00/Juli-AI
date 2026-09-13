@@ -51,6 +51,7 @@ def make_get_widget_status_spec() -> ToolSpec:
     return ToolSpec(
         name="get_widget_status",
         description="Look up the current status of a widget.",
+        seller_rationale_vi="Xem trạng thái hiện tại của widget (test-only).",
         input_model=GetWidgetStatusInput,
         output_model=GetWidgetStatusOutput,
         classification=ToolClassification.READ,
@@ -79,6 +80,7 @@ class TestToolSpecAttributes:
             ToolSpec(
                 name="get_widget_status",
                 description="Look up the current status of a widget.",
+                seller_rationale_vi="Xem trạng thái hiện tại của widget (test-only).",
                 input_model=GetWidgetStatusInput,
                 output_model=GetWidgetStatusOutput,
                 classification="read",  # type: ignore[arg-type]
@@ -92,6 +94,7 @@ class TestToolSpecAttributes:
             ToolSpec(
                 name="get_widget_status",
                 description="Look up the current status of a widget.",
+                seller_rationale_vi="Xem trạng thái hiện tại của widget (test-only).",
                 input_model=GetWidgetStatusInput,
                 output_model=GetWidgetStatusOutput,
                 classification=ToolClassification.READ,
@@ -162,6 +165,7 @@ class TestEnumeration:
         other_spec = ToolSpec(
             name="get_other_thing",
             description="Look up another thing.",
+            seller_rationale_vi="Xem thông tin điều khác (test-only).",
             input_model=GetOtherThingInput,
             output_model=GetOtherThingOutput,
             classification=ToolClassification.READ,
@@ -201,6 +205,7 @@ class TestRenderedSchemaIsDerivedFromInputModel:
         narrow_spec = ToolSpec(
             name="get_widget_status_v1",
             description="Look up the current status of a widget.",
+            seller_rationale_vi="Xem trạng thái hiện tại của widget (test-only).",
             input_model=GetWidgetStatusInput,
             output_model=GetWidgetStatusOutput,
             classification=ToolClassification.READ,
@@ -210,6 +215,7 @@ class TestRenderedSchemaIsDerivedFromInputModel:
         widened_spec = ToolSpec(
             name="get_widget_status_v2",
             description="Look up the current status of a widget, optionally with history.",
+            seller_rationale_vi="Xem trạng thái widget, có thể kèm lịch sử (test-only).",
             input_model=GetWidgetStatusInputV2,
             output_model=GetWidgetStatusOutput,
             classification=ToolClassification.READ,
@@ -263,6 +269,7 @@ class TestRenderedSchemaIsModelConsumable:
         spec = ToolSpec(
             name="get_widget_status_optional",
             description="Look up widget status, optionally including history.",
+            seller_rationale_vi="Xem trạng thái widget, tuỳ chọn kèm lịch sử (test-only).",
             input_model=OptionalFieldInput,
             output_model=GetWidgetStatusOutput,
             classification=ToolClassification.READ,
