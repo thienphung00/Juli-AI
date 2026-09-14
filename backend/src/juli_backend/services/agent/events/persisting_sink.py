@@ -31,15 +31,29 @@ in `sink.py`.
 from __future__ import annotations
 
 import logging
+import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any, Protocol, runtime_checkable
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 from juli_backend.services.agent.events.envelope import WorkflowRunEvent
 
 logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def _null_scope() -> AsyncIterator[None]:
+    """The scope a `shop_id`-less sink enters: none at all.
+
+    Exists so `emit`'s body can `async with self._scope(session):`
+    unconditionally, matching this sink's exact pre-#1890 behaviour when no
+    `shop_id` was ever given -- no GUC read, no GUC write, no listener."""
+    yield
 
 
 @runtime_checkable
@@ -69,9 +83,37 @@ class PersistingEventSink:
         self,
         session_factory: async_sessionmaker[AsyncSession],
         publisher: EventPublisher,
+        shop_id: uuid.UUID | None = None,
     ) -> None:
+        """`shop_id` is the fix for #1890: safe by construction rather than
+        by the caller's diligence. When given, `emit` enters `with_shop_scope`
+        (never the sticky variant -- `emit` opens one fresh session and
+        commits it exactly once, ADR-074 decision 3's own contract, so there
+        is no second transaction for a sticky listener to survive into)
+        around its own insert, and a bare `session_factory` under `juli_app`
+        passes RLS with no wrapping required from the caller (retiring
+        #1889's `_shop_scoped_session_factory` workaround for this call
+        site -- `workers/tasks/agent_workflow.py`).
+
+        Optional, defaulting to `None`, so the pre-existing suite
+        (`test_persisting_event_sink.py`), which proves sink *behavior* on
+        an owner-role connection RLS never applies to and constructs this
+        sink with exactly these first two arguments, keeps working
+        unmodified. On a `juli_app`-bound factory, omitting `shop_id` is
+        exactly as unsafe as it always was -- RLS still refuses the insert,
+        loudly, which is the pre-#1890 behaviour this default preserves
+        rather than a new bypass.
+        """
         self._session_factory = session_factory
         self._publisher = publisher
+        self._shop_id = shop_id
+
+    def _scope(self, session: AsyncSession):
+        """The scope this emit's insert runs under -- `with_shop_scope` when
+        a `shop_id` was given at construction, none at all otherwise."""
+        if self._shop_id is None:
+            return _null_scope()
+        return with_shop_scope(session, self._shop_id)
 
     async def emit(self, event: WorkflowRunEvent) -> None:
         row = WorkflowRunEventRow(
@@ -83,19 +125,20 @@ class PersistingEventSink:
             v=event.v,
         )
         async with self._session_factory() as session:
-            session.add(row)
-            try:
-                await session.commit()
-            except IntegrityError:
-                # Crash-replayed emit colliding on the unique
-                # (workflow_run_id, sequence_number) index -- ADR-074
-                # decisions 1/3: a no-op, not an error. The winning emit's
-                # row is already committed and already published (or is
-                # about to be, on its own call); this attempt contributed
-                # nothing durable, so there is nothing left here to
-                # publish either.
-                await session.rollback()
-                return
+            async with self._scope(session):
+                session.add(row)
+                try:
+                    await session.commit()
+                except IntegrityError:
+                    # Crash-replayed emit colliding on the unique
+                    # (workflow_run_id, sequence_number) index -- ADR-074
+                    # decisions 1/3: a no-op, not an error. The winning emit's
+                    # row is already committed and already published (or is
+                    # about to be, on its own call); this attempt contributed
+                    # nothing durable, so there is nothing left here to
+                    # publish either.
+                    await session.rollback()
+                    return
 
         # This line only runs after `await session.commit()` above has
         # returned successfully -- the row is now durably committed and
