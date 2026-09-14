@@ -125,6 +125,37 @@ def _score_review(record: dict[str, Any]) -> str:
         if symbol not in test_path.read_text():
             return VERDICT_FAIL
 
+    # #1900: the three checks above all read fields the committed status-record
+    # corpus never carries (`criticalFindings` as a list, `sourceImplementation
+    # Artifact`, `testCoverage.acceptance.mappings` -- 0-of-385 on disk), so on
+    # that corpus they silently no-op. What every committed record DOES carry
+    # is a sibling `metrics` object with `acceptanceMapped`/`acceptanceTotal`/
+    # `criticalFindings` (a COUNT here, never confused with the list above
+    # because it lives under its own `metrics` namespace). These two checks
+    # grade that thinner, but real, shape -- without touching the full-shape
+    # checks above, which keep scoring exactly as before when their own richer
+    # fields are present.
+    metrics = record.get("metrics") or {}
+
+    # self_reported_pass (metrics shape): status=PASS with one or more
+    # critical findings recorded. Not necessarily a defect -- the findings may
+    # already be resolved -- so this is the judge's prediction that the
+    # record is worth a human's attention, not an assertion of a bug.
+    metrics_critical = metrics.get("criticalFindings")
+    if status == "PASS" and isinstance(metrics_critical, int) and metrics_critical > 0:
+        return VERDICT_FAIL
+
+    # unbacked_claim (metrics shape): the record's own acceptance-mapping
+    # count falls short of its own total.
+    acceptance_mapped = metrics.get("acceptanceMapped")
+    acceptance_total = metrics.get("acceptanceTotal")
+    if (
+        isinstance(acceptance_mapped, int)
+        and isinstance(acceptance_total, int)
+        and acceptance_mapped < acceptance_total
+    ):
+        return VERDICT_FAIL
+
     if status in ("PASS", "FAIL"):
         return VERDICT_PASS if status == "PASS" else VERDICT_FAIL
     return VERDICT_CANNOT_DETERMINE
@@ -386,9 +417,9 @@ STATUS_DIR = REPO_ROOT / "agent-runtime" / "artifacts" / "status"
 
 
 def _review_view(payload: dict[str, Any]) -> dict[str, Any]:
-    """Extract the review sub-record a committed status record carries.
+    """Build the record `_score_review` grades from a committed status record.
 
-    Two shapes exist on disk. The current one nests it:
+    Two review shapes exist on disk. The current one nests it:
     `{"review": {"status": "PASS", ...}, "validation": {...}, ...}`
     (`generate_status_records.py`, gateVersion 1 and 2 alike — both copy
     `review.status` straight from the review artifact's own `status` field).
@@ -397,11 +428,27 @@ def _review_view(payload: dict[str, Any]) -> dict[str, Any]:
     silently drop the older shape; nothing here invents a third meaning for
     either — a missing status in both shapes surfaces as `None`, which
     `heuristic_scorer`'s review scorer already turns into `cannot_determine`.
+
+    #1900: the status record's own `issue` number and `metrics` object (both
+    committed on every record) are merged into the view, namespaced under
+    `metrics` rather than flattened — so `metrics.criticalFindings` (a count)
+    can never collide with a full review artifact's own top-level
+    `criticalFindings` (a list of finding dicts). `issue` was already a field
+    `_score_review`'s `dangling_artifact_ref` check reads on the full artifact
+    shape; carrying it here is the same field, not a new meaning, and the
+    corpus view still never sets `sourceImplementationArtifact`, so that
+    check's no-op on this corpus is unchanged. Neither key changes what a
+    caller passing a full review-artifact record sees, since a full artifact
+    that has no `metrics` companion leaves `record.get("metrics")` `None`
+    exactly as before.
     """
     review = payload.get("review")
-    if isinstance(review, dict):
-        return review
-    return {"status": payload.get("reviewStatus")}
+    view = dict(review) if isinstance(review, dict) else {"status": payload.get("reviewStatus")}
+    view["issue"] = payload.get("issue")
+    metrics = payload.get("metrics")
+    if isinstance(metrics, dict):
+        view["metrics"] = metrics
+    return view
 
 
 def load_status_corpus(status_dir: Path = STATUS_DIR) -> list[tuple[str, dict[str, Any], str]]:
@@ -463,6 +510,19 @@ class SamplerRunResult:
     #: the whole run, not just to `stratified_sample`'s own return value.
     shortfall: dict[str, dict[str, int]] | None = None
     error: str | None = None
+
+
+def _adjudication_note(record: dict[str, Any]) -> str:
+    """Render the minimum context #1900 (AC4) requires a candidate row to
+    carry: the issue number, the record's own recorded status, and the
+    finding count that a `self_reported_pass`-shaped `fail` prediction was
+    made from. `record` is the same view `_score_review` graded — see
+    `_review_view` — so this reads no field the scorer did not already see.
+    """
+    issue = record.get("issue")
+    status = record.get("status")
+    critical_findings = (record.get("metrics") or {}).get("criticalFindings", 0)
+    return f"issue {issue}: recordedStatus={status}, criticalFindings={critical_findings}"
 
 
 def run_sampler(
@@ -528,12 +588,20 @@ def run_sampler(
 
     rows = stratified_sample(result.verdicts)
     assert result.rubric is not None  # EXIT_OK implies a rubric loaded.
+    # #1900 AC4: a bare record_id gives a human labeller nothing to
+    # adjudicate. `metrics.criticalFindings` is a COUNT, not necessarily
+    # unresolved — a review may have raised and resolved CRITICALs before
+    # passing — so `note` must carry the issue number and the record's own
+    # recorded status alongside the count that triggered a `fail` prediction,
+    # so a human can tell "self-reported pass over 2 findings" from "false
+    # positive" without opening the corpus file themselves.
+    records_by_id = {record_id: record for record_id, record, _ in corpus_records}
     candidates = [
         {
             "record_id": row["recordId"],
             "rubric_id": result.rubric.id,
             "verdict": row["verdict"],
-            "note": "",
+            "note": _adjudication_note(records_by_id.get(row["recordId"], {})),
             "rubric_hash": result.rubric.rubric_hash,
         }
         for row in rows
