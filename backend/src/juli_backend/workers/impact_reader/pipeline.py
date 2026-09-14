@@ -206,6 +206,7 @@ async def _process_kind(
         db_confidence = _PERSISTED_CONFIDENCE[confidence_result.tier]
 
         row = build_reading_row(
+            run_id=execution.workflow_run_id,
             tool_execution_id=execution.id,
             metric=metric_key,
             kind=kind,
