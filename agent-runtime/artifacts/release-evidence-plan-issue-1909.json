@@ -11,7 +11,7 @@
     "candidatePublicTrafficPercent": 0,
     "restrictedRoute": "the demo candidate unit on its own port, before the nginx upstream cutover",
     "syntheticShopRequired": false,
-    "workersDisabledOnCandidate": false,
+    "workersDisabledOnCandidate": true,
     "apiSideEffectsInScope": true,
     "journeys": [
       {
@@ -20,7 +20,7 @@
         "assertions": [
           "GET /v1/demo/decisions is issued with a bearer token and its response is rendered — not recommendationFixtures",
           "approving issues exactly one POST /v1/demo/decisions/{id}/approve and navigates to /decisions/in-progress/{run_id} using the id FROM THE RESPONSE",
-          "the run view streams real events over SSE",
+          "the run view opens its SSE subscription against the real run id — workers are disabled on the candidate, so the stream is verified as OPENED, not as completing a run; a completing run is the gate walk's job on stable",
           "a 401, a 404 and a 409 each render a distinct honest Vietnamese message and none falls back to a fixture"
         ]
       },
@@ -56,7 +56,7 @@
   },
   "rollbackAssertion": {
     "preCutoverFailureBehavior": "discard_candidate_keep_stable",
-    "postCutoverFailureBehavior": "repoint the nginx demo upstream to the retained previous release; the surface reverts to replay-only and any workflow_runs rows created before the rollback stay readable",
+    "postCutoverFailureBehavior": "repoint the nginx demo upstream to the retained previous release; the surface reverts to replay-only and any workflow_runs rows created before the rollback stay readable. Workers stay disabled on the candidate throughout, so no background run is started by verification itself.",
     "retainedStableRequired": true,
     "automatic": false
   },
