@@ -492,6 +492,12 @@ workflow_prompt_cache:
         1311: AGT-W6B
         1313: AGT-W6B
         1312: AGT-W6B-DP
+        # W6 gate-walk fixes (#1322). Both are server-contract work and would
+        # otherwise inherit the AGT-W6A (ui-ux) default and be mis-routed:
+        # #1904 rewrites the confirmation option rationale at its source in the
+        # agent runner; #1906 provisions the users row in the auth dependency.
+        1904: AGT-W6B
+        1906: AGT-W6B
       doNotLoad:
         - apps/dashboard/
         - ios/
@@ -574,6 +580,28 @@ workflow_prompt_cache:
         1723: AGT-W9C-INT
         1718: AGT-W9C-INT
         1724: AGT-W9C-INT
+      doNotLoad:
+        - apps/
+        - ios/
+        - packages/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
+    # 1652 - W8-F: the follow-ups the W8 gate walk surfaced. The gate closed
+    # 2026-09-14 with all four observations passing; these are the gaps it named
+    # rather than defects in the shipped slices. One backend lane: every slice is
+    # backend or harness-path work with disjoint write paths, so nothing routes apart.
+    1652:
+      defaultSliceId: AGT-W8F-BE
+      handoffPath: docs/adr/077-incremental-impact-measurement.md
+      parentScopeBlock: "# Parent #1652 - W8-F: the follow-ups the gate walk surfaced (constant)\n## Product boundary\n- Observability follow-ups only: beat-task no-op visibility, the impact reader's run_id, the outcome record an agent write never leaves, the persisting sink's session scope, the MODULE.md sync gate, and re-verification of two scope tests\n- No new metric, no new surface, no UI, no prompt change, no vendor contract change\n## Architect locks\n- W8's shipped semantics are FIXED: the rollup rides ConversationStore.persist, empty chain links carry pending|unavailable|missing and never null, the four metrics are never blended, suppressed and confounded readings are never counted, and an empty denominator returns no-data and never 0\n- Reuse by reference, never by copy: record_workflow_outcome, services/impact's floors, impact_honesty's exclusion tiers\n- A scope test runs on a session factory that performs a REAL Postgres COMMIT as juli_app (tests/support/postgres.py); the on-connect SET ROLE helper holds only for the first pooled session and is a false green\n- Any callee that may commit is scope-hostile: re-apply the scope before the next gated read, or hold a sticky scope for the unit of work\n- juli_app privileges are a closed loop between the call-site registry and the least-privilege guard (#1897); a new mutation needs a registry entry, not a blind GRANT\n## Evidence standard\n- The failure mode this epic exists to fix is a SILENT one - a fact never written down, a gate that passes vacuously. 'Did not raise' is not evidence; each slice proves the fact now exists where it did not.\n## Epic deferrals\n- Backfilling history; trends, alerting, dashboards; producing a real impact reading (#1339, owner)\n"
+      childSlices:
+        1857: AGT-W8F-BE
+        1858: AGT-W8F-BE
+        1859: AGT-W8F-BE
+        1890: AGT-W8F-BE
+        1891: AGT-W8F-BE
+        1939: AGT-W8F-BE
       doNotLoad:
         - apps/
         - ios/

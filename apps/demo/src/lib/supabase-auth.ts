@@ -42,6 +42,16 @@ export function isGoogleSignInConfigured(): boolean {
 }
 
 /**
+ * `dictionary.md` `auth.google.unavailable` (issue #1905) — the single
+ * source for the honest-disabled-state copy. `DemoLanding`'s landing door
+ * and `DemoShell`'s header control (issue #1907) both render this exact
+ * sentence when `buildGoogleAuthorizeUrl` returns null; neither authors its
+ * own second string.
+ */
+export const GOOGLE_SIGN_IN_UNAVAILABLE_COPY =
+  "Đăng nhập với Google chưa sẵn sàng trong môi trường này.";
+
+/**
  * Builds the Supabase GoTrue authorize URL for a full-page browser redirect.
  * Returns null (never a broken link) when the project URL/anon key are not
  * configured in this environment.

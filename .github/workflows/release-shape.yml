@@ -1,0 +1,110 @@
+name: Release shape
+
+# `release.yml`'s build job runs `pytest tests/` -- the WHOLE tree in ONE
+# invocation against ONE database. Every test job in `pr.yml` instead runs
+# `tests/unit` and `tests/integration` as separate invocations, unit first. So a
+# unit test never sees rows an integration fixture left behind there, and always
+# does in release (`tests/integration` sorts first inside a single collection).
+#
+# That asymmetry is invisible until it blocks a deploy: a red `build` skips
+# `deploy`, so the release simply does not happen and nothing says so. It has now
+# done that three times -- #1402 (the W7 wave), #1739 (which took #1700 with it),
+# and on 2026-09-10 the credential-refresh outage fix itself, where
+# `test_beat_cycle_refreshes_every_enumerated_row` asserted a global
+# `refreshed == 2` while the two-tenant fixtures left 13 expiring rows behind, so
+# release saw `assert 23 == 2`. Three consecutive releases died on it while every
+# TikTok credential refresh kept failing in production and KPIs reached 72h stale.
+#
+# This runs release's shape at PR time, where the author can still see it.
+#
+# DELIBERATELY NOT IN pr.yml (#1893). `command_scope.ci_selectors()` derives "CI's
+# scope" from the broadest pytest lane in pr.yml, and this lane deselects no
+# markers by design -- adding it there would make every executor citing
+# `-m "not live and not demo_contract"` read as narrower than CI and score worse,
+# silently degrading a harness verdict that has nothing to do with this gate.
+# A separate workflow is still a required-able PR check and costs that nothing.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      # Mirrors the `backend` domain filter in pr.yml's `changes` job, plus the
+      # two workflows whose drift this job exists to detect.
+      - 'backend/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'agent-runtime/scripts/**'
+      - 'pyproject.toml'
+      - 'pytest.ini'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/release-shape.yml'
+
+concurrency:
+  group: release-shape-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  release-shape:
+    name: Release-shape regression (one invocation, whole tree)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # Mirrors release.yml's build job deliberately and exactly: Postgres only
+    # (there is no Redis there), the same env, the same deselect list, and a
+    # plain shallow checkout. `tests/unit/test_release_shape_gate.py` fails if the
+    # two drift apart, so this cannot quietly stop reproducing release.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:test@localhost:5432/test_db
+      # The service above is created for this job and destroyed with it.
+      # tests/conftest.py refuses to run destructive suites against a database
+      # that has not declared itself throwaway, and fails closed rather than
+      # skipping -- a silent skip would report success having run no Postgres
+      # test at all.
+      JULI_TEST_DATABASE_DISPOSABLE: "1"
+    steps:
+      # No `fetch-depth`: release.yml checks out shallow, and the point of this
+      # job is to BE that, not to be a better-provisioned version of it. The
+      # three deselects below are deselected for exactly this reason -- a shallow
+      # checkout gives the branch-relative tests no base to compare against. They
+      # still run in pr.yml's `test` and `full-regression`, which deepen to 200.
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      # `pytest tests/` includes the dual-language contract tests (#1126), which
+      # shell out to node against packages/contracts.
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+          standalone: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install contracts dependency graph
+        run: pnpm install --frozen-lockfile --filter "./packages/contracts..."
+      - name: Install backend dependencies
+        run: pip install -e "./backend[dev]" -c backend/constraints.txt
+      - name: Release-shape suite (mirrors release.yml build)
+        run: |
+          pytest tests/ -q \
+            --deselect tests/unit/test_harness_bootstrap_pin.py::test_shipped_config_pin_branch_resolves_against_this_repository \
+            --deselect tests/unit/test_mutants.py::test_clean_record_produces_no_failures \
+            --deselect tests/unit/test_mutants.py::test_planted_defect_is_actually_detectable_in_the_written_file

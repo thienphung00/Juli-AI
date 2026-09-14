@@ -8,11 +8,15 @@ import { loadUiStyles } from "./test-utils";
 
 const styles = loadUiStyles();
 
+/** Mirrors `apps/demo/src/lib/mock-data.ts` `demoDestinations` — icon *names*
+ * for Decisions/Analytics, literal glyphs for Home/Settings. The W6 gate walk
+ * (#1903) saw the names rendered as raw English text beside the Vietnamese
+ * labels, so this fixture must keep using names, not glyphs. */
 const destinations = [
-  { href: "/", label: "Trang chủ", icon: "⌂" },
-  { href: "/decisions", label: "Quyết định", icon: "✓" },
-  { href: "/analytics", label: "Phân tích", icon: "↗" },
-  { href: "/settings", label: "Cài đặt", icon: "⚙" },
+  { href: "/", label: "Trang chủ", icon: { glyph: "⌂" } },
+  { href: "/decisions", label: "Quyết định", icon: "decisions" },
+  { href: "/analytics", label: "Phân tích", icon: "analytics" },
+  { href: "/settings", label: "Cài đặt", icon: { glyph: "⚙" } },
 ] as const;
 
 describe("isNavTabActive", () => {
@@ -44,6 +48,49 @@ describe("PrimaryNavigation", () => {
     expect(screen.getByRole("link", { name: "Trang chủ" })).not.toHaveAttribute(
       "aria-current",
     );
+  });
+
+  it("renders icon names as SVG icons, never as raw English text (#1903)", () => {
+    render(
+      <PrimaryNavigation
+        activePath="/decisions"
+        destinations={destinations}
+        label="Điều hướng chính"
+      />,
+    );
+
+    const navigation = screen.getByRole("navigation", {
+      name: "Điều hướng chính",
+    });
+
+    // The seller must never see the icon keys as words in the nav.
+    expect(navigation.textContent).not.toMatch(/\bdecisions\b/);
+    expect(navigation.textContent).not.toMatch(/\banalytics\b/);
+
+    // Each name-carrying destination renders a real SVG icon instead.
+    expect(
+      screen.getByRole("link", { name: "Quyết định" }).querySelector("svg"),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Phân tích" }).querySelector("svg"),
+    ).not.toBeNull();
+  });
+
+  it("still renders literal glyph icons for Home and Settings", () => {
+    render(
+      <PrimaryNavigation
+        activePath="/"
+        destinations={destinations}
+        label="Điều hướng chính"
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Trang chủ" }).textContent,
+    ).toContain("⌂");
+    expect(
+      screen.getByRole("link", { name: "Cài đặt" }).textContent,
+    ).toContain("⚙");
   });
 
   it("is keyboard-operable across all destinations", async () => {

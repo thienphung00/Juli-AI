@@ -165,6 +165,8 @@ UPLOAD_PRODUCT_IMAGE_SPEC = ToolSpec(
         "run. The image is not applied to the listing until update_product_listing is "
         "called with attach_staged_image=True."
     ),
+    # dictionary.md `run.option_rationale.upload_product_image` (issue #1904, W6-FIX).
+    seller_rationale_vi="Tải ảnh đã chuẩn bị lên cho sản phẩm này; ảnh chưa được áp dụng.",
     input_model=UploadProductImageInput,
     output_model=UploadProductImageOutput,
     classification=ToolClassification.WRITE,
@@ -340,6 +342,11 @@ UPDATE_PRODUCT_LISTING_SPEC = ToolSpec(
         "Apply agent-authored title/description (and, if attach_staged_image is true, "
         "the run's staged image) to the bound product's listing."
     ),
+    # dictionary.md `run.option_rationale.update_product_listing` (issue
+    # #1904, W6-FIX). This is the string that replaced `description` above
+    # on the Đề xuất option picker -- `description` itself is unchanged
+    # because the model still reads it every turn.
+    seller_rationale_vi="Áp dụng tiêu đề và mô tả Juli đã soạn cho sản phẩm này.",
     input_model=UpdateProductListingInput,
     output_model=UpdateProductListingOutput,
     classification=ToolClassification.WRITE,
@@ -410,6 +417,8 @@ UPDATE_PRODUCT_PRICE_SPEC = ToolSpec(
         "Apply new SKU prices (by opaque sku_ref) to the bound product. Independently "
         "rejectable from update_product_listing."
     ),
+    # dictionary.md `run.option_rationale.update_product_price` (issue #1904, W6-FIX).
+    seller_rationale_vi="Áp dụng mức giá mới Juli đề xuất cho sản phẩm này.",
     input_model=UpdateProductPriceInput,
     output_model=UpdateProductPriceOutput,
     classification=ToolClassification.WRITE,

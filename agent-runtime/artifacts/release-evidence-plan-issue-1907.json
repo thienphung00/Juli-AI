@@ -1,0 +1,70 @@
+{
+  "planId": "rep-1907-signin-door-reachable",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com landing and shell header — the 'Đăng nhập' control after a visitor has entered the replay demo"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the candidate unit on its own port, before the nginx upstream cutover",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "the-door-is-reachable-after-entering-replay",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/",
+        "assertions": [
+          "enter the replay demo, then click 'Đăng nhập' in the header and observe a full-page navigation whose origin is the Supabase project host",
+          "visiting /?entry=door with replay stored renders both doors, not the launcher",
+          "visiting / without that param with replay stored still renders the launcher"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. Client navigation and stored entry-mode only."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "repoint the nginx upstream to the retained previous release",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test",
+    "pnpm --filter @juli/demo exec playwright test e2e/exit-gate/landing-doors.spec.ts"
+  ],
+  "doNotInfer": [
+    "ADR-094 decision 1 is untouched: the replay door still mints no session and issues no /v1/* request. This issue changes only how a visitor LEAVES the replay door.",
+    "buildGoogleAuthorizeUrl must have exactly two call sites and no duplicated logic — reuse it, do not write a second URL builder.",
+    "When it returns null the header control renders the SAME honest disabled state and the SAME dictionary key as the landing door (#1905 added it). Do not author a second string.",
+    "Do not remove the short-circuit that renders HomeLauncher for a stored replay entry — add an explicit escape, do not replace existing behaviour.",
+    "No component may contain the literal string 'Mock'; replace the header label with the dictionary-resolved Vietnamese.",
+    "Do not touch apps/demo/src/lib/mock-data.ts — a sibling executor owns it for #1903."
+  ]
+}

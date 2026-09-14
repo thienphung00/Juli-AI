@@ -54,6 +54,7 @@ def _make_registry(*names: str) -> ToolRegistry:
             ToolSpec(
                 name=name,
                 description=f"Test-only fixture tool {name}.",
+                seller_rationale_vi=f"Công cụ kiểm thử {name} (test-only).",
                 input_model=_FixtureInput,
                 output_model=_FixtureOutput,
                 classification=ToolClassification.READ,

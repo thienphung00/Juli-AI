@@ -19,7 +19,10 @@ unless re-exported below.
 
 Matches ``__all__`` — re-exports only:
 
-- ``get_current_user`` — FastAPI dependency: validates JWT → returns authenticated ``User``
+- ``get_current_user`` — FastAPI dependency: validates JWT → returns authenticated ``User``.
+  A verified JWT for a `sub` with no `users` row provisions one (#1906) via
+  `UsersRepo.get_for_authentication` → `get_or_create` before returning — never before
+  verification succeeds, and never a shop, capability, or credential alongside it.
 - ``TikTokOAuthService`` — TikTok Shop OAuth token exchange and lifecycle
 - ``Unauthorized`` — raised when auth fails
 - ``verify_supabase_jwt`` — async; decodes and validates a Supabase JWT (HS256 or ES256,
@@ -57,3 +60,9 @@ directly (`monkeypatch.setattr(jwt_module, "_default_jwks_client", ...)`).
 ## Notes
 - Frontend demo login (`NEXT_PUBLIC_UI_ONLY=1`) uses a local session token; no OTP endpoints.
 - TikTok OAuth callback is served at `/v1/auth/tiktok/callback` (see issue #259).
+- `get_current_user` is the one place in this module that commits (#1906) — right after
+  resolving/provisioning the user, before the route runs. A first-sighting insert has
+  nothing downstream guaranteed to commit it (`GET /v1/shops` never does), and the
+  concurrency proof in `tests/integration/test_google_identity_provisioning.py` depends
+  on it: the losing concurrent request's blocked `INSERT` only unblocks, into a handled
+  `IntegrityError`, once the winner commits.
