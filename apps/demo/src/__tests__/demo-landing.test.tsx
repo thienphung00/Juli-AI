@@ -24,16 +24,23 @@ import { buildGoogleAuthorizeUrl } from "../lib/supabase-auth";
  * of what CI's actual env looks like when this file runs.
  */
 const SUPABASE_ORIGIN_AUTHORIZE_URL =
-  "https://rmxzbvgiwrvjuzlzqdcz.supabase.co/auth/v1/authorize?provider=google&redirect_to=http%3A%2F%2Flocalhost%2Fauth%2Fcallback&apikey=anon-key-for-tests";
+  "https://placeholder-project-ref.supabase.co/auth/v1/authorize?provider=google&redirect_to=http%3A%2F%2Flocalhost%2Fauth%2Fcallback&apikey=anon-key-for-tests";
 
 vi.mock("../lib/supabase-auth", () => ({
   buildGoogleAuthorizeUrl: vi.fn(),
+  GOOGLE_SIGN_IN_UNAVAILABLE_COPY:
+    "Đăng nhập với Google chưa sẵn sàng trong môi trường này.",
 }));
 
 const mockedBuildGoogleAuthorizeUrl = vi.mocked(buildGoogleAuthorizeUrl);
 
 beforeEach(() => {
   window.sessionStorage.clear();
+  // DemoLanding reads `?entry=door` from window.location.search (not
+  // useSearchParams — see the component's own comment on the
+  // missing-suspense-with-csr-bailout build error), so tests drive the
+  // real URL. Reset it to a bare `/` between tests.
+  window.history.replaceState(null, "", "/");
   mockedBuildGoogleAuthorizeUrl.mockReturnValue(SUPABASE_ORIGIN_AUTHORIZE_URL);
 });
 
@@ -76,7 +83,7 @@ describe("DemoLanding — the two doors", () => {
       });
       expect(link).toHaveAttribute(
         "href",
-        expect.stringContaining("rmxzbvgiwrvjuzlzqdcz.supabase.co/auth/v1/authorize"),
+        expect.stringContaining("placeholder-project-ref.supabase.co/auth/v1/authorize"),
       );
     });
 
@@ -107,6 +114,50 @@ describe("DemoLanding — the two doors", () => {
   });
 
   it("skips straight to the replay content on a later render within the same session", async () => {
+    window.sessionStorage.setItem(ENTRY_MODE_STORAGE_KEY, "replay");
+
+    render(<DemoLanding />);
+
+    expect(
+      await screen.findByRole("region", { name: "Điểm đến chính" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Dùng thử Demo/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  // Issue #1907: the sign-in door was unreachable once a visitor entered the
+  // replay demo, by any navigation, because `/` always short-circuited back
+  // to HomeLauncher. `/?entry=door` is the explicit escape.
+  it("renders both doors at /?entry=door even with replay stored — the explicit escape from the short-circuit", async () => {
+    window.sessionStorage.setItem(ENTRY_MODE_STORAGE_KEY, "replay");
+    window.history.replaceState(null, "", "/?entry=door");
+
+    render(<DemoLanding />);
+
+    // Both the `hasEnteredReplay` read and the Google-href resolution are
+    // deferred one macrotask (setTimeout(0)); wait for the latter so the
+    // assertions below run AFTER the deferred replay-mode read has settled,
+    // not merely during the synchronous pre-effect first paint (which would
+    // pass trivially regardless of whether the escape actually works).
+    await waitFor(() => {
+      expect(
+        screen.getByRole("link", { name: /Đăng nhập với Google/ }),
+      ).toHaveAttribute("href");
+    });
+
+    expect(
+      screen.getByRole("button", { name: /Dùng thử Demo/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Đăng nhập với Google/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Điểm đến chính" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("still renders HomeLauncher on a bare / with replay stored — existing behaviour preserved, not replaced", async () => {
     window.sessionStorage.setItem(ENTRY_MODE_STORAGE_KEY, "replay");
 
     render(<DemoLanding />);

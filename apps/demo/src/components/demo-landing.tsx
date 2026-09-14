@@ -5,7 +5,10 @@ import { useEffect, useState } from "react";
 import { Button } from "@juli/ui";
 
 import { readEntryMode, writeEntryMode } from "../lib/entry-mode";
-import { buildGoogleAuthorizeUrl } from "../lib/supabase-auth";
+import {
+  GOOGLE_SIGN_IN_UNAVAILABLE_COPY,
+  buildGoogleAuthorizeUrl,
+} from "../lib/supabase-auth";
 import { HomeLauncher } from "./home-launcher";
 
 /**
@@ -15,8 +18,25 @@ import { HomeLauncher } from "./home-launcher";
  * is resolved on mount (never during SSR, so client and server agree on the
  * first paint) and is `null` — an honest disabled state, not a broken link —
  * when Supabase env is not configured in this build.
+ *
+ * `/?entry=door` (issue #1907) is the explicit escape from the
+ * `hasEnteredReplay` short-circuit below — without it, once a visitor picked
+ * "Dùng thử Demo", the Google door became unreachable for the rest of the
+ * tab session by any navigation back to `/`. This does not remove the
+ * short-circuit: a bare `/` visit with replay stored still goes straight to
+ * `HomeLauncher`, unchanged.
+ *
+ * The param is read from `window.location.search` inside the same deferred
+ * client-only read as the entry mode, NOT via `useSearchParams` — that hook
+ * forces a Suspense boundary around the page during `next build`
+ * (missing-suspense-with-csr-bailout) and would replace the landing's
+ * statically prerendered HTML with a fallback shell. The escape is for
+ * fresh navigations (a typed URL or the header's full-page links); a
+ * same-page client-side query change would not re-run the mount effect,
+ * and no such internal link exists.
  */
 export function DemoLanding() {
+  const [forceDoorEntry, setForceDoorEntry] = useState(false);
   const [hasEnteredReplay, setHasEnteredReplay] = useState(false);
   const [googleHref, setGoogleHref] = useState<string | null | undefined>(
     undefined,
@@ -27,6 +47,12 @@ export function DemoLanding() {
   // its own browser-storage read (`react-hooks/set-state-in-effect`).
   useEffect(() => {
     const timer = window.setTimeout(() => {
+      // Both reads land in the same deferred callback (one React batch), so
+      // the launcher-vs-doors decision below is made once — never a flash
+      // of HomeLauncher before the escape param is honoured.
+      setForceDoorEntry(
+        new URLSearchParams(window.location.search).get("entry") === "door",
+      );
       if (readEntryMode() === "replay") {
         setHasEnteredReplay(true);
       }
@@ -45,7 +71,7 @@ export function DemoLanding() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  if (hasEnteredReplay) {
+  if (hasEnteredReplay && !forceDoorEntry) {
     return <HomeLauncher />;
   }
 
@@ -108,7 +134,7 @@ export function DemoLanding() {
                 // the disabled state's explanation as VISIBLE copy, not
                 // only the aria-label above.
                 <p className="demo-landing__google-unavailable" role="status">
-                  Đăng nhập với Google chưa sẵn sàng trong môi trường này.
+                  {GOOGLE_SIGN_IN_UNAVAILABLE_COPY}
                 </p>
               ) : null}
             </>
