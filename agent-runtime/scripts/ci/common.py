@@ -13,7 +13,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 AGENT_RUNTIME_ROOT = REPO_ROOT / "agent-runtime"
@@ -1445,6 +1445,53 @@ def tarjan_scc(graph: dict[str, set[str]]) -> list[list[str]]:
     return sccs
 
 
+def _is_type_checking_guard(test: ast.expr) -> bool:
+    """Whether an ``if`` test is the ``TYPE_CHECKING`` guard.
+
+    Both spellings in the tree are recognised — a bare ``TYPE_CHECKING`` name
+    and a qualified ``typing.TYPE_CHECKING`` attribute. A negated guard
+    (``if not TYPE_CHECKING:``) is deliberately NOT recognised: it is a
+    UnaryOp, so the branch is traversed normally and its imports are kept.
+    Failing conservatively here keeps an edge that might be real rather than
+    dropping one that is.
+    """
+    if isinstance(test, ast.Name):
+        return test.id == "TYPE_CHECKING"
+    if isinstance(test, ast.Attribute):
+        return test.attr == "TYPE_CHECKING"
+    return False
+
+
+def runtime_import_froms(tree: ast.AST) -> Iterator[ast.ImportFrom]:
+    """Every ``from X import …`` that actually executes.
+
+    A TYPE_CHECKING import is not a dependency: it never runs, and its whole
+    purpose is to express a type relationship WITHOUT creating a runtime one —
+    `database/__init__.py` says so in its own docstring, guarding its
+    `services.etl` import so `repositories` can finish loading. Counting those
+    as edges invented a six-module import cycle (`database` → `services/etl` →
+    `integrations/tiktok` → `core/security` → `database`) the moment #1859 made
+    `parse_architecture_map` honest enough for `collect_import_graph` to see
+    anything at all. Only the guard's ``else`` branch runs, so only that is
+    traversed.
+
+    The `from __future__ import annotations` case needs no handling: this
+    extractor reads ImportFrom nodes, never annotations, so a stringified
+    annotation cannot produce an edge either way — and `__future__` itself
+    resolves to no module.
+    """
+    stack: list[ast.AST] = [tree]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, ast.ImportFrom):
+            yield node
+            continue
+        if isinstance(node, ast.If) and _is_type_checking_guard(node.test):
+            stack.extend(node.orelse)
+            continue
+        stack.extend(ast.iter_child_nodes(node))
+
+
 def collect_import_graph(modules: dict[str, ModuleInfo]) -> dict[str, set[str]]:
     graph: dict[str, set[str]] = {m: set() for m in modules}
     for py_file in (REPO_ROOT / "backend").rglob("*.py"):
@@ -1456,11 +1503,12 @@ def collect_import_graph(modules: dict[str, ModuleInfo]) -> dict[str, set[str]]:
             tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
         except SyntaxError:
             continue
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module:
-                imported = resolve_import_to_module(node.module, modules)
-                if imported and imported != owner:
-                    graph[owner].add(imported)
+        for node in runtime_import_froms(tree):
+            if not node.module:
+                continue
+            imported = resolve_import_to_module(node.module, modules)
+            if imported and imported != owner:
+                graph[owner].add(imported)
     return graph
 
 
