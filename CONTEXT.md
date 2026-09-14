@@ -402,11 +402,23 @@ The generalized CONFIRM pause (ADR-075 pending, user directive): at a mutation p
 _Avoid_: approve/decline-only confirmation framing, decline-kills-run, executing anything not shown to the seller, model-invocable request_approval tools
 
 **Onboarding layer**:
-The first-time experience of the demo app (ADR-098): a layer keyed on which of the five workflow stages the seller has met, rendered on the existing surfaces — five one-sentence explainers shown once, a setup card that marks "bắt đầu từ đây" on the first card of the list's own ordering and shows progress, a one-sheet "what Juli does", and the first impact-reading act record as the closing moment. Identical for the demo visitor (replay) and the connected seller (own shop); seen-state in browser storage in v1.
-_Avoid_: a tour before the first list, a workflow-specific onboarding, preference quizzes, an autonomy-mode question, any new surface
+The first-time experience of the demo app ([ADR-103](docs/adr/103-first-connect-onboarding.md), superseding ADR-098): a cold-start read that produces a [[First Connect Score]] and three [[Insight]]s, then walks the seller to approving and executing their first card. Carries ADR-098's five stage explainers, setup card and "what Juli does" sheet as the walk from the third insight to the first approval, and keeps the first impact-reading act record as the closing moment. Identical for the demo visitor (replay) and the connected seller (own shop); seen-state lives in the [[Onboarding record]], not the browser.
+_Avoid_: a tour before the first list, a workflow-specific onboarding, preference quizzes, an autonomy-mode question, any new surface, browser-storage seen-state
+
+**First Connect Score**:
+A one-time snapshot, computed once when a seller first connects, of how much of what Juli can act on is healthy: `100 − 100 × (2·critical + warning) / (2 × evaluated)` over the launch-backed KPIs that returned a real signal (ADR-103 d.5). Computed from the same `ScoringSignals` object that produces the insights, so the two can never disagree. `unavailable` KPIs leave the denominator; the denominator is disclosed to the seller. It never recomputes — ongoing progress is carried by impact readings. Named for a moment, not a standing claim, deliberately distinct from TikTok's own SPS.
+_Avoid_: "Shop Performance Score" (that is TikTok's SPS, unavailable via Partner API), scoring on card count, a score that re-floats, counting unavailable KPIs as healthy, a fabricated health score
+
+**Insight**:
+One of the up-to-three things the onboarding shows a seller after the first connect. An insight **is** an ActionCard (ADR-103 d.1), headlined by its KPI area — Doanh thu, Tồn kho, Vận hành — so Signals → Card → Impact reading stay consistent by construction rather than through a mapping table. Never surfaced unless its workflow has a registered playbook, and never padded to reach three.
+_Avoid_: an insight as a bare KPI or domain, an insight as a workflow recommendation, a fourth area, padding the count, surfacing a card whose approval would 409
+
+**Onboarding record**:
+One server-side per-shop row carrying bootstrap status, the frozen First Connect Score with its computed-at timestamp and denominator, and which of the five stages the seller has met (ADR-103 d.12). Per-shop rather than per-device because a one-time snapshot cannot survive a seller connecting on a phone and opening on a laptop.
+_Avoid_: browser-storage seen-state, a per-device score, recomputing the stored score
 
 **Bootstrap status**:
-A per-shop record written by the seven-day bootstrap (backfill and polls) as it progresses and read by the app to drive the connected seller's empty-list step list — kết nối shop, đọc sản phẩm và đơn hàng, chuẩn bị đề xuất đầu tiên — where a step is done only when its job finished (ADR-098 d.6). Replaces the "trong vòng 24 giờ" promise.
+A per-shop record written by the cold-start read (backfill and polls) as it progresses and read by the app to drive the onboarding's three-step read list — kết nối shop, đọc sản phẩm và đơn hàng, chuẩn bị đề xuất đầu tiên — where a step is done only when its job finished (ADR-103 d.9, was ADR-098 d.6). Lives on the [[Onboarding record]]. Replaces the "trong vòng 24 giờ" promise.
 _Avoid_: a fake progress percentage, a static waiting notice, marking a step done on a timer
 
 **Demo session**:

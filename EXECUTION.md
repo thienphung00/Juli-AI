@@ -244,7 +244,7 @@ independent public deployment with DNS + HTTPS at `demo.app-juli.com`
 [ADR-026](docs/adr/026-phase-2.6-analytics-optional-exit-gate.md)).
 
 Out of scope: real backend calls and real TikTok OAuth (Phase 3); login/onboarding and
-Affiliate/Seller mode switching (`Flows/home/login.md`, `Flows/home/onboarding.md`).
+Affiliate/Seller mode switching (`Flows/home/login.md`; onboarding is now [ADR-103](docs/adr/103-first-connect-onboarding.md), which supersedes `Flows/home/onboarding.md`).
 
 ### Exit gate
 
