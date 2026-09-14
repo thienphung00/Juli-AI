@@ -21,6 +21,7 @@ export type { HealthBarProps } from "./health-bar";
 export { PrimaryNavigation } from "./primary-navigation";
 export type {
   NavigationDestination,
+  NavigationDestinationIcon,
   PrimaryNavigationProps,
 } from "./primary-navigation";
 export { ProgressBar, RealEstimatedProgressBar } from "./progress-bar";

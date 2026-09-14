@@ -14,7 +14,11 @@ export interface DemoSnapshotFixture {
   shopName: string;
 }
 
-const homeDestination = { href: "/", label: "Trang chủ", icon: "⌂" } as const;
+const homeDestination = {
+  href: "/",
+  label: "Trang chủ",
+  icon: { glyph: "⌂" },
+} as const;
 const decisionsDestination = {
   href: "/decisions",
   label: "Quyết định",
@@ -28,7 +32,7 @@ const analyticsDestination = {
 const settingsDestination = {
   href: "/settings",
   label: "Cài đặt",
-  icon: "⚙",
+  icon: { glyph: "⚙" },
 } as const;
 
 export const demoDestinations = [
