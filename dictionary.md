@@ -311,9 +311,11 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - EN: OTP code is incorrect. Please try again.
 - VI: Mã OTP không đúng. Vui lòng thử lại.
 
-**`empty.decisions.waiting_data`**
-- EN: Juli is collecting your shop data; first recommendations within 24h.
-- VI: Juli đang thu thập dữ liệu shop của bạn. Đề xuất đầu tiên sẽ xuất hiện trong vòng 24 giờ.
+**`empty.decisions.waiting_data`** — **RETIRED (ADR-103, was ADR-098 d.6).** Do not use in new
+work. The 24-hour promise is replaced by the onboarding's live three-step read list, whose steps
+turn done on real job completion. Kept here only so the key resolves until its last call site goes.
+- EN: ~~Juli is collecting your shop data; first recommendations within 24h.~~
+- VI: ~~Juli đang thu thập dữ liệu shop của bạn. Đề xuất đầu tiên sẽ xuất hiện trong vòng 24 giờ.~~
 
 **`toast.decision.approved`**
 - EN: Recommendation approved.

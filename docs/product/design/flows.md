@@ -38,11 +38,11 @@ current content. It cannot authorize, reject, or execute a workflow.
 
 | File | Journey |
 |---|---|
-| `onboarding.md` | Shop connection, permissions, first useful state |
+| `onboarding.md` | Shop connection, permissions, first useful state — **superseded for the demo app by [ADR-103](../../adr/103-first-connect-onboarding.md)** |
 | `login.md` | Authentication, OTP, password recovery, session recovery |
 
 After entry, Home presents a summary-only activity strip (done / running /
-needs attention — [ADR-053](../adr/053-demo-home-activity-summary.md)) above
+needs attention — [ADR-053](../../adr/053-demo-home-activity-summary.md)) above
 exactly two prominent clickable cards: **Decisions** and **Analytics**.
 
 ### `decisions/`

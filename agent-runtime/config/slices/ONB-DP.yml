@@ -1,0 +1,29 @@
+# ONB-DP — first-connect onboarding, data lane; epic #1951, design ADR-103.
+# BLOCKED BY #1948 and #1949. The cold-start read this slice owns has no orders
+# and no inventory to read until both land — do not report it complete against an
+# empty `orders` / `inventory_items` table.
+ONB-DP:
+  executorDomain: data-platform
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/103-first-connect-onboarding.md
+    - docs/adr/086-runtime-database-role-and-tenant-isolation.md
+    - docs/adr/089-fleet-scoped-work-under-tenant-isolation.md
+  requiredModules:
+    - backend/src/juli_backend/services/action_cards/refresh.py
+    - backend/src/juli_backend/database/migrations/
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/database/tenant_scoped_tables.py
+    - backend/src/juli_backend/core/security/credential_resolver.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/workers/services/polling/orchestrate.py
+    - backend/src/juli_backend/workers/services/polling/sync.py
+    - backend/src/juli_backend/integrations/tiktok/factories.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - backend/src/juli_backend/ai/
+    - docs/integrations/tiktok_corpora/
+    - docs/adr/098-stage-keyed-onboarding-layer.md
+    - Sibling issue context caches

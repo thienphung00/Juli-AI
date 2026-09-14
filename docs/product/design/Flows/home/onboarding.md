@@ -1,5 +1,11 @@
 # Flows/home/onboarding.md — Shop Connection & First Report
 
+> **SUPERSEDED for the demo app (2026-09-14) by
+> [ADR-103](../../../../adr/103-first-connect-onboarding.md)**, which replaces this wizard with a
+> first-connect read producing a First Connect Score and three insights. In particular **step 6
+> (autonomy mode) is rejected** — v1 has no autonomy and the human-approval gate is never
+> configurable. This file is retained for its error-state and platform-parity copy patterns only.
+
 > Follows successful login + mode-select ([`login.md`](login.md)). Ends at the
 > sparse launcher ([`../../Screens/home.md`](../../Screens/home.md)).
 

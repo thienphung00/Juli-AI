@@ -1,8 +1,8 @@
 # Home — activity summary + launcher
 
 > Route: `/` (`apps/demo`; the IA model here is ADR-023-shared, but this spec's current
-> layout targets `apps/demo` — see [ADR-053](../../adr/053-demo-home-activity-summary.md)).
-> First-run flow: [`../Flows/home/onboarding.md`](../Flows/home/onboarding.md).
+> layout targets `apps/demo` — see [ADR-053](../../../adr/053-demo-home-activity-summary.md)).
+> First-run flow: [ADR-103](../../../adr/103-first-connect-onboarding.md) (supersedes [`../Flows/home/onboarding.md`](../Flows/home/onboarding.md)).
 > `apps/dashboard`'s authenticated Home (`SellerHomeShell`/`HomeSummaryShell`) is a
 > separate, already-richer experience; it is a known divergence from this spec, not
 > touched by this update, and pending its own future reconciliation ADR.
@@ -13,7 +13,7 @@
 
 Top to bottom:
 
-1. **Activity summary** (new — [ADR-053](../../adr/053-demo-home-activity-summary.md)) —
+1. **Activity summary** (new — [ADR-053](../../../adr/053-demo-home-activity-summary.md)) —
    three stat tiles in a row: Done, Running, Needs attention (see Content rules). Summary
    only — no list, no card content, no actions.
 2. Optional connection/collection notice, if applicable.

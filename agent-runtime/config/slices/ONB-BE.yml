@@ -1,0 +1,29 @@
+# ONB-BE — first-connect onboarding, scoring lane; epic #1951, design ADR-103.
+# Owns the First Connect Score (d.5), the launch gate (d.3) and the ShopProfile
+# removal (d.4). Depends on ONB-DP for the onboarding record.
+ONB-BE:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/103-first-connect-onboarding.md
+    - docs/adr/087-subject-scoped-action-cards-and-card-revisions.md
+    - docs/ml/visual_layer.md
+  requiredModules:
+    - backend/src/juli_backend/services/scoring/kpi_catalog.py
+    - backend/src/juli_backend/services/scoring/recommendations.py
+    - backend/src/juli_backend/services/scoring/signals.py
+    - backend/src/juli_backend/services/scoring/pipeline.py
+    - backend/src/juli_backend/services/aggregates/shop_profile.py
+    - backend/src/juli_backend/services/aggregates/types.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/action_cards/emission_budget.py
+    - backend/src/juli_backend/services/aggregates/computed_kpis.py
+    - backend/src/juli_backend/services/scoring/copy_layer.py
+  doNotLoad:
+    - apps/dashboard/
+    - ios/
+    - backend/src/juli_backend/ai/
+    - docs/integrations/tiktok_corpora/
+    - docs/adr/098-stage-keyed-onboarding-layer.md
+    - Sibling issue context caches

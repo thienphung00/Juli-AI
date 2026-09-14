@@ -1893,7 +1893,7 @@ digest, the completion message, the exception list. **A workflow that needs a ne
 signal the design is wrong**, and every later workflow ADR must carry the instantiation row below.
 
 | | ADR-090 Optimize Product | ADR-091 Clear Excess | ADR-092 Process Order (v1) | ADR-093 Replenish |
-|---|---|---|---|
+|---|---|---|---|---|
 | Subject | Product | Product (SKU evidence) | Dispatch window (Order for v2 exceptions) | Product (SKU evidence) |
 | Trigger | Nightly scoring: CTOR drift, price tier, TikTok diagnosis codes | Nightly scoring: days of supply > 90 and low sell-through | Scheduled read of orders due before the next run | Risk monitor: stockout-by date, stranded committed stock, post-event excess |
 | Deterministic rule | Discount depth from T9 margin floor; diagnosis code selects the field | Depth envelope + recommended depth per SKU; stock goal | Clean predicate; sort by `rts_sla` | TikTok baseline + Juli event uplift; needed-by date; reconciliation tally |
@@ -1901,6 +1901,16 @@ signal the design is wrong**, and every later workflow ADR must carry the instan
 | Suspended? | No (lapse emits a card revision) | Yes — until goal or expiry | No in v1; v2 exceptions only | Yes — twice, on attested reports |
 | Guards | Diagnosis-first, title gate, never bundle four fields, lock via vendor rejection | Eight-rule validator, disclosure check, intervention guard | Re-verify before write, subset only, per-package read, cancellation and address guards | Re-verify, auto-restock state, Luôn sẵn hàng lock, warehouse allocation, intervention guard |
 | Measure | Impact reading on the tied KPI | Goal progress; days of supply before/after | Shipped before deadline ÷ due | Stock-health series; forecast vs actual into the event outcome store; no revenue |
+
+**The onboarding layer instantiates no stage of its own; it annotates the five**
+([ADR-103](../../adr/103-first-connect-onboarding.md), superseding ADR-098). Its row reads: subject
+none; trigger first connect, then the first render of each surface; deterministic rule the First
+Connect Score, a severity share over the launch-backed KPIs that returned a real signal; write none;
+suspended no; guards the per-shop onboarding record only; measure the five stage-met timestamps per
+seller (an execution-quality fact, not an impact reading). The four launch workflows above are the
+eligibility gate — an onboarding insight **is** one of their cards, so the layer adds no surface and
+stays correct as workflows are added.
+
 
 #### Automation vs monitoring — non-functional-requirement reference
 
@@ -2293,9 +2303,12 @@ So no seller — and no owner — can obtain a token against production today.
    `demo.app-juli.com`.** The page exists and is Supabase-backed; the question
    is where it should live now that its host app is retired, and whether the two
    domains share one auth surface or each get their own.
-2. **An onboarding flow for the demo page (UI design).** A seller arriving at
+2. **An onboarding flow for the demo page (UI design).** ~~A seller arriving at
    `demo.app-juli.com` currently has no path from landing to an authenticated
-   session with a shop bound to it.
+   session with a shop bound to it.~~ **Designed 2026-09-14 —
+   [ADR-103](../../adr/103-first-connect-onboarding.md).** The flow itself is settled; the
+   *entry* half (sign-in, OAuth surface) remains open here, and the read the flow depends on is
+   blocked by #1948 and #1949.
 
 Both are **owner-led design first** — to be taken through the Architect agent
 before any implementation. This note exists so that agents routing work in this

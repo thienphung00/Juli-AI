@@ -1,0 +1,37 @@
+# ONB-UI — first-connect onboarding, interface lane; epic #1951, design ADR-103.
+#
+# NOT READY TO CUT. The UI design has not been grilled: the three-step read list,
+# the score reveal, the insight-card presentation and the stage-explainer
+# placement are undesigned as of 2026-09-14. This file exists so the dependency is
+# visible in the workflow, not so an executor can be routed onto it. Meta must
+# halt on this slice until the UI grill lands and this comment is removed.
+#
+# Depends on ONB-BE (score + launch gate) and ONB-DP (onboarding record).
+# Blocked by #1948 / #1949 for any end-to-end verification.
+ONB-UI:
+  executorDomain: ui-ux
+  requiredDocs:
+    - dictionary.md
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/103-first-connect-onboarding.md
+    - docs/adr/094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md
+    - docs/adr/055-decision-plan-review.md
+    - docs/product/design/design-context.md
+  requiredModules:
+    - apps/demo/src/components/recommendations-panel.tsx
+    - apps/demo/src/components/plan-review-card.tsx
+    - apps/demo/src/components/connect-shop-view.tsx
+    - apps/demo/src/lib/analytics/main-kpis.ts
+    - packages/contracts/src/review.ts
+  loadWhenNeeded:
+    - apps/demo/src/components/decisions-page-client.tsx
+    - apps/demo/src/components/impact-block.tsx
+  doNotLoad:
+    - apps/dashboard/
+    - ios/
+    - backend/src/juli_backend/workers/
+    - docs/integrations/tiktok_corpora/
+    - docs/product/design/Flows/home/onboarding.md
+    - docs/adr/098-stage-keyed-onboarding-layer.md
+    - Sibling issue context caches
