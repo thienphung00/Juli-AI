@@ -58,16 +58,33 @@ class UnknownToolError(KeyError):
 class ToolSpec:
     """An agent-callable capability definition (ADR-069 decision 3).
 
-    Carries the seven business-semantic attributes an agent tool needs:
+    Carries the eight business-semantic attributes an agent tool needs:
     `name` (business-semantic English snake_case — never a vendor endpoint
-    name), model-facing English `description`, declared `input_model` /
-    `output_model` (Pydantic; `input_model` is the sole source the rendered
-    JSON schema is derived from), read|write `classification`, auto|confirm
-    `policy`, and `timeout_seconds`.
+    name), model-facing English `description`, the seller-facing Vietnamese
+    `seller_rationale_vi`, declared `input_model` / `output_model` (Pydantic;
+    `input_model` is the sole source the rendered JSON schema is derived
+    from), read|write `classification`, auto|confirm `policy`, and
+    `timeout_seconds`.
+
+    **`description` vs. `seller_rationale_vi` (issue #1904, W6-FIX).**
+    `description` is the LLM-facing tool description the model reads every
+    turn — English, and never shown to a seller. `seller_rationale_vi` is a
+    deterministic, dictionary-governed Vietnamese string
+    (`dictionary.md`, key `run.option_rationale.<name>`) that
+    `_pause_pending_confirmation` (`runner/core.py`) passes as a CONFIRM
+    option's `rationale` instead. Before this field existed,
+    `_pause_pending_confirmation` passed `spec.description` itself onto the
+    `workflow.approval_required` event and into the persisted
+    `run_confirmations` row — an English, model-facing string a Vietnamese
+    seller was asked to authorize a real mutation against. The two fields
+    must never be confused: `description` stays exactly what it always was
+    (the model's view does not move), and `seller_rationale_vi` is the only
+    field a seller-facing surface may read.
     """
 
     name: str
     description: str
+    seller_rationale_vi: str
     input_model: type[BaseModel]
     output_model: type[BaseModel]
     classification: ToolClassification
@@ -79,6 +96,8 @@ class ToolSpec:
             raise ValueError("ToolSpec.name must be a non-empty string")
         if not self.description:
             raise ValueError("ToolSpec.description must be a non-empty string")
+        if not self.seller_rationale_vi:
+            raise ValueError("ToolSpec.seller_rationale_vi must be a non-empty string")
         if not isinstance(self.classification, ToolClassification):
             raise TypeError(
                 "ToolSpec.classification must be a ToolClassification member, "

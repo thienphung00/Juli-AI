@@ -677,6 +677,54 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - VI: Đã kết thúc
 - Definition: Fallback label for a terminal `stop_reason` this table has no dedicated bucket for yet -- honest ("ended"), never one of the seven named outcomes it is not. Body: "Luồng đã kết thúc. Vui lòng xem lại tại Quyết định." ("The run has ended. Please review it in Decisions."). Landed by issue #1321.
 
+**`run.option_rationale.get_product_information`**
+- EN: View this product's current listing details.
+- VI: Xem thông tin hiện tại của sản phẩm này.
+- _Avoid_: Get Product Information, Lấy thông tin sản phẩm
+- Definition: `ToolSpec.seller_rationale_vi` for the `get_product_information` tool (issue #1904, W6-FIX) -- the Đề xuất option picker's per-option rationale, distinct from the tool's English, model-facing `description`.
+
+**`run.option_rationale.get_seo_keywords`**
+- EN: Look up suggested SEO keywords for this product.
+- VI: Tra cứu từ khoá SEO gợi ý cho sản phẩm này.
+- _Avoid_: Get SEO Keywords, Lấy từ khoá SEO
+- Definition: `ToolSpec.seller_rationale_vi` for the `get_seo_keywords` tool (issue #1904, W6-FIX).
+
+**`run.option_rationale.check_product_status`**
+- EN: Check this product's current status.
+- VI: Kiểm tra trạng thái hiện tại của sản phẩm này.
+- _Avoid_: Check Product Status
+- Definition: `ToolSpec.seller_rationale_vi` for the `check_product_status` tool (issue #1904, W6-FIX).
+
+**`run.option_rationale.inspect_product_image`**
+- EN: Check whether this product's photo matches its listing copy.
+- VI: Kiểm tra xem ảnh sản phẩm có khớp với nội dung mô tả không.
+- _Avoid_: Inspect Product Image
+- Definition: `ToolSpec.seller_rationale_vi` for the `inspect_product_image` tool (issue #1904, W6-FIX).
+
+**`run.option_rationale.upload_product_image`**
+- EN: Upload the staged image for this product; it is not applied yet.
+- VI: Tải ảnh đã chuẩn bị lên cho sản phẩm này; ảnh chưa được áp dụng.
+- _Avoid_: Upload Product Image
+- Definition: `ToolSpec.seller_rationale_vi` for the `upload_product_image` tool (issue #1904, W6-FIX).
+
+**`run.option_rationale.update_product_listing`**
+- EN: Apply Juli's proposed title and description to this product's listing.
+- VI: Áp dụng tiêu đề và mô tả Juli đã soạn cho sản phẩm này.
+- _Avoid_: Update Product Listing, Apply agent-authored title/description
+- Definition: `ToolSpec.seller_rationale_vi` for the `update_product_listing` tool (issue #1904, W6-FIX) -- the exact string that replaced the English `description` a seller was previously shown verbatim on the Đề xuất option picker (confirmed live in `run_confirmations` row for run `4e00d60e`).
+
+**`run.option_rationale.update_product_price`**
+- EN: Apply Juli's proposed new price to this product.
+- VI: Áp dụng mức giá mới Juli đề xuất cho sản phẩm này.
+- _Avoid_: Update Product Price
+- Definition: `ToolSpec.seller_rationale_vi` for the `update_product_price` tool (issue #1904, W6-FIX).
+
+**`run.option_rationale.conclude_without_changes`**
+- EN: End this run without making any changes.
+- VI: Kết thúc phiên xử lý này mà không thay đổi gì.
+- _Avoid_: Conclude Without Changes
+- Definition: `ToolSpec.seller_rationale_vi` for the `conclude_without_changes` terminal tool (issue #1904, W6-FIX) -- this tool is READ/AUTO and never reaches the option picker today, but every registered `ToolSpec` carries one so a future policy change cannot re-open the English-leak defect by omission.
+
 **`agent.narration.extension_grant`**
 - EN: Continuing past the standard iteration limit: granting [extension_iterations] more iteration(s) (extension [granted] of [max]).
 - VI: Đã đạt giới hạn số lượt thực hiện tiêu chuẩn, Juli gia hạn thêm [extension_iterations] lượt để hoàn tất công việc (lần gia hạn [granted]/[max]).

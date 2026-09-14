@@ -285,6 +285,7 @@ class TestRegisteringANewWriteToolRequiresNoReaderEdit:
             description=(
                 "A hypothetical new WRITE capability, registered purely to prove #1219's contract."
             ),
+            seller_rationale_vi="Công cụ giả định dùng để kiểm thử #1219 (test-only).",
             input_model=_NewWriteToolInput,
             output_model=_NewWriteToolOutput,
             classification=ToolClassification.WRITE,

@@ -76,6 +76,7 @@ def _register_confirm_tool(registry: ToolRegistry) -> None:
     spec = ToolSpec(
         name=_CONFIRM_TOOL_NAME,
         description="Test write tool requiring confirmation",
+        seller_rationale_vi="Công cụ kiểm thử cần xác nhận (test-only).",
         input_model=_ConfirmToolInputModel,
         output_model=_ConfirmToolOutputModel,
         classification=ToolClassification.WRITE,
