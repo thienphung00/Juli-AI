@@ -1,15 +1,10 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useSearchParams } from "next/navigation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DemoLanding } from "../components/demo-landing";
 import { ENTRY_MODE_STORAGE_KEY } from "../lib/entry-mode";
 import { buildGoogleAuthorizeUrl } from "../lib/supabase-auth";
-
-vi.mock("next/navigation", () => ({
-  useSearchParams: vi.fn(() => new URLSearchParams()),
-}));
 
 /**
  * DemoLanding's own responsibility is branching on whatever
@@ -41,10 +36,12 @@ const mockedBuildGoogleAuthorizeUrl = vi.mocked(buildGoogleAuthorizeUrl);
 
 beforeEach(() => {
   window.sessionStorage.clear();
+  // DemoLanding reads `?entry=door` from window.location.search (not
+  // useSearchParams — see the component's own comment on the
+  // missing-suspense-with-csr-bailout build error), so tests drive the
+  // real URL. Reset it to a bare `/` between tests.
+  window.history.replaceState(null, "", "/");
   mockedBuildGoogleAuthorizeUrl.mockReturnValue(SUPABASE_ORIGIN_AUTHORIZE_URL);
-  vi.mocked(useSearchParams).mockReturnValue(
-    new URLSearchParams() as unknown as ReturnType<typeof useSearchParams>,
-  );
 });
 
 afterEach(() => {
@@ -134,11 +131,7 @@ describe("DemoLanding — the two doors", () => {
   // to HomeLauncher. `/?entry=door` is the explicit escape.
   it("renders both doors at /?entry=door even with replay stored — the explicit escape from the short-circuit", async () => {
     window.sessionStorage.setItem(ENTRY_MODE_STORAGE_KEY, "replay");
-    vi.mocked(useSearchParams).mockReturnValue(
-      new URLSearchParams("entry=door") as unknown as ReturnType<
-        typeof useSearchParams
-      >,
-    );
+    window.history.replaceState(null, "", "/?entry=door");
 
     render(<DemoLanding />);
 
@@ -166,9 +159,6 @@ describe("DemoLanding — the two doors", () => {
 
   it("still renders HomeLauncher on a bare / with replay stored — existing behaviour preserved, not replaced", async () => {
     window.sessionStorage.setItem(ENTRY_MODE_STORAGE_KEY, "replay");
-    vi.mocked(useSearchParams).mockReturnValue(
-      new URLSearchParams() as unknown as ReturnType<typeof useSearchParams>,
-    );
 
     render(<DemoLanding />);
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 
 import { Button } from "@juli/ui";
 
@@ -26,10 +25,18 @@ import { HomeLauncher } from "./home-launcher";
  * tab session by any navigation back to `/`. This does not remove the
  * short-circuit: a bare `/` visit with replay stored still goes straight to
  * `HomeLauncher`, unchanged.
+ *
+ * The param is read from `window.location.search` inside the same deferred
+ * client-only read as the entry mode, NOT via `useSearchParams` — that hook
+ * forces a Suspense boundary around the page during `next build`
+ * (missing-suspense-with-csr-bailout) and would replace the landing's
+ * statically prerendered HTML with a fallback shell. The escape is for
+ * fresh navigations (a typed URL or the header's full-page links); a
+ * same-page client-side query change would not re-run the mount effect,
+ * and no such internal link exists.
  */
 export function DemoLanding() {
-  const searchParams = useSearchParams();
-  const forceDoorEntry = searchParams.get("entry") === "door";
+  const [forceDoorEntry, setForceDoorEntry] = useState(false);
   const [hasEnteredReplay, setHasEnteredReplay] = useState(false);
   const [googleHref, setGoogleHref] = useState<string | null | undefined>(
     undefined,
@@ -40,6 +47,12 @@ export function DemoLanding() {
   // its own browser-storage read (`react-hooks/set-state-in-effect`).
   useEffect(() => {
     const timer = window.setTimeout(() => {
+      // Both reads land in the same deferred callback (one React batch), so
+      // the launcher-vs-doors decision below is made once — never a flash
+      // of HomeLauncher before the escape param is honoured.
+      setForceDoorEntry(
+        new URLSearchParams(window.location.search).get("entry") === "door",
+      );
       if (readEntryMode() === "replay") {
         setHasEnteredReplay(true);
       }
