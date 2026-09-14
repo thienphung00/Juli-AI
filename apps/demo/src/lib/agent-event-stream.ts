@@ -57,10 +57,16 @@ export function buildAgentEventStreamUrl(
 export function buildAgentEventStreamHeaders(
   token: string,
   lastSequenceNumber: number | null,
+  shopId?: string,
 ): Headers {
   const headers = new Headers();
   headers.set("Authorization", `Bearer ${token}`);
   headers.set("Accept", "text/event-stream");
+  if (shopId) {
+    // `get_active_shop` requires the acting shop on the stream route too
+    // (#1909) -- a header, never a query parameter, same as the token.
+    headers.set("X-Shop-Id", shopId);
+  }
   if (lastSequenceNumber !== null) {
     headers.set(AGENT_EVENT_STREAM_LAST_EVENT_ID_HEADER, String(lastSequenceNumber));
   }
@@ -222,6 +228,9 @@ export interface AgentEventStreamConfig {
   /** Bearer token -- sent only in the `Authorization` header, never in the
    *  URL. */
   token: string;
+  /** The acting shop, sent as `X-Shop-Id` (#1909) -- required by the
+   *  server's `get_active_shop` on the demo runs stream route. */
+  shopId?: string;
   baseUrl?: string;
   /** Injectable for tests; defaults to the global `fetch`. */
   fetchImpl?: typeof fetch;
@@ -316,7 +325,7 @@ async function runConnection(
   try {
     response = await fetchImpl(buildAgentEventStreamUrl(config.runId, config.baseUrl), {
       method: "GET",
-      headers: buildAgentEventStreamHeaders(config.token, afterSequenceNumber),
+      headers: buildAgentEventStreamHeaders(config.token, afterSequenceNumber, config.shopId),
       signal,
     });
   } catch (cause) {

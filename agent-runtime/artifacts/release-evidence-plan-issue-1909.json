@@ -1,0 +1,85 @@
+{
+  "planId": "rep-1909-signed-in-run-path",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com /decisions — the signed-in branch now reads GET /v1/demo/decisions instead of fixtures",
+    "demo.app-juli.com /decisions/in-progress/<runId> — the signed-in branch now streams a real run",
+    "POST /v1/demo/decisions/{id}/approve, GET /v1/demo/runs and its SSE stream — reached by a browser for the first time"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the demo candidate unit on its own port, before the nginx upstream cutover",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": true,
+    "journeys": [
+      {
+        "name": "a-signed-in-seller-reaches-a-real-run",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/decisions with a stored auth session",
+        "assertions": [
+          "GET /v1/demo/decisions is issued with a bearer token and its response is rendered — not recommendationFixtures",
+          "approving issues exactly one POST /v1/demo/decisions/{id}/approve and navigates to /decisions/in-progress/{run_id} using the id FROM THE RESPONSE",
+          "the run view opens its SSE subscription against the real run id — workers are disabled on the candidate, so the stream is verified as OPENED, not as completing a run; a completing run is the gate walk's job on stable",
+          "a 401, a 404 and a 409 each render a distinct honest Vietnamese message and none falls back to a fixture"
+        ]
+      },
+      {
+        "name": "the-anonymous-door-is-unchanged",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/ with no session",
+        "assertions": [
+          "zero /v1/* requests for the whole anonymous journey",
+          "replay-module-graph.test.ts still finds no network call site in the anonymous entry's reachable module graph"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions",
+      "/decisions/in-progress/<runId>"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change and no backend change — every route this calls already exists and is unchanged. Client wiring only."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "repoint the nginx demo upstream to the retained previous release; the surface reverts to replay-only and any workflow_runs rows created before the rollback stay readable. Workers stay disabled on the candidate throughout, so no background run is started by verification itself.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test",
+    "pnpm --filter @juli/demo exec playwright test",
+    "pnpm -w turbo run build"
+  ],
+  "doNotInfer": [
+    "NO BACKEND CHANGE. demo_decisions.py, demo_execution.py and agent_runs.py already implement every route this calls. If a route looks wrong, report it — do not edit backend/.",
+    "ADR-094 decision 1 is absolute: the ANONYMOUS branch must remain in a module graph that reaches no network call site. apps/demo/src/__tests__/replay-module-graph.test.ts is the guard and must stay green. Give the signed-in branch its own module, following replay-run-detail.tsx's precedent.",
+    "Navigate using the run_id FROM THE APPROVE RESPONSE, never a client-constructed id.",
+    "A failed fetch must surface honestly and never fall back to recommendationFixtures. fetchRecommendations already refuses to (#1320); do not reintroduce it in the component.",
+    "Do not manipulate process.env.NEXT_PUBLIC_SUPABASE_* in tests to control branching — CI has real values. Mock the seam, the way demo-landing.test.tsx does since #1905.",
+    "Do not use useSearchParams in a route that must prerender — it fails the build with missing-suspense-with-csr-bailout, and jsdom cannot see it. #1907 hit this.",
+    "Renaming any user-visible string cascades to the e2e specs AND to tests/unit/test_phase_2_6_demo_exit_gate.py, which greps spec source text for prose titles. Grep before renaming.",
+    "apps/demo/MODULE.md currently claims the signed-in run path is live-backed end to end. That becomes true with this slice — correct the Invariants section in the same diff rather than leaving a claim that was false."
+  ]
+}

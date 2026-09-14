@@ -20,11 +20,28 @@ export class DemoRunsFetchError extends Error {
   }
 }
 
+export interface FetchDemoRunsOptions {
+  /** Bearer token — the route is authenticated (ADR-075 decision 3); the
+   *  pre-#1909 client sent no credentials at all, which is why the
+   *  "live-backed" signed-in door could never actually resolve a run. */
+  token?: string;
+  /** The acting shop (`lib/shop-session.ts`) — `get_active_shop`
+   *  ownership-checks it as `X-Shop-Id`. */
+  shopId?: string;
+  fetchImpl?: typeof fetch;
+}
+
 export async function fetchDemoRuns(
-  fetchImpl: typeof fetch = fetch,
+  options: FetchDemoRunsOptions = {},
 ): Promise<WorkflowRunListItem[]> {
+  const { token, shopId, fetchImpl = fetch } = options;
+
+  const headers = new Headers({ Accept: "application/json" });
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  if (shopId) headers.set("X-Shop-Id", shopId);
+
   const response = await fetchImpl(DEMO_RUNS_API_PATH, {
-    headers: { Accept: "application/json" },
+    headers,
     cache: "no-store",
   });
 

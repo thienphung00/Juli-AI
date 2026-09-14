@@ -136,6 +136,16 @@ describe("buildAgentEventStreamHeaders", () => {
     const headers = buildAgentEventStreamHeaders(TOKEN, 41);
     expect(headers.get("Last-Event-ID")).toBe("41");
   });
+
+  it("carries the acting shop as X-Shop-Id when provided — get_active_shop requires it (#1909)", () => {
+    const headers = buildAgentEventStreamHeaders(TOKEN, null, "shop-1");
+    expect(headers.get("X-Shop-Id")).toBe("shop-1");
+  });
+
+  it("omits X-Shop-Id entirely when no shop id is provided", () => {
+    const headers = buildAgentEventStreamHeaders(TOKEN, null);
+    expect(headers.get("X-Shop-Id")).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------

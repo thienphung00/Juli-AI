@@ -62,6 +62,9 @@ export class ConfirmationRejectedError extends Error {
 
 export interface SubmitConfirmationDecisionOptions {
   readonly token?: string;
+  /** The acting shop, sent as `X-Shop-Id` (#1909) -- the confirmation
+   *  route's `get_active_shop` requires it alongside the bearer token. */
+  readonly shopId?: string;
   readonly baseUrl?: string;
   readonly fetchImpl?: typeof fetch;
 }

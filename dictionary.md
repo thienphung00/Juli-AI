@@ -736,3 +736,49 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - VI: Đã đạt giới hạn số lượt thực hiện tiêu chuẩn, Juli gia hạn thêm [extension_iterations] lượt để hoàn tất công việc (lần gia hạn [granted]/[max]).
 - Status: reviewed — mechanical gates (banned-pattern gate, dynamic-number tests) green, and the repo owner approved the Vietnamese register and tone on 2026-08-21, supplying the human voice review ADR-072/​#1071 requires for seller-facing copy. The reviewed wording renders "extension K of M" as the fraction `K/M` rather than translating the preposition, and carries no plural inflection because Vietnamese has none.
 - Definition: `workflow.status` `phase_narration` (ADR-074 d.2) for one iteration-cap extension grant (`services/agent/narration_copy.py::extension_grant_phase_narration`, issue #1140). The one narration the agent runner produces today; every bracketed number is sourced from `TerminationPolicy`, never a literal.
+
+**`decisions.signed_in.acting_shop`**
+- EN: You are acting on: [shop name]
+- VI: Bạn đang thao tác trên: [tên shop]
+- Definition: The signed-in Decisions surface's shop-identity line (issue #1909, #1319's surviving criterion) — reuses the connect-shop screen's exact phrasing so a seller with more than one shop can always tell which shop the `X-Shop-Id` on every request belongs to.
+
+**`decisions.signed_in.no_shop`**
+- EN: You have not chosen the shop you are acting on. Open Connect TikTok Shop to choose one.
+- VI: Bạn chưa chọn shop đang thao tác. Mở Kết nối TikTok Shop để chọn shop.
+- Definition: Signed-in Decisions state when a session exists but no acting shop is stored (issue #1909) — honest recovery pointing back at `auth.connect_shop`, never a silent default onto a shop the seller did not pick.
+
+**`error.decisions.load_failed`**
+- EN: Could not load recommendations for your shop. Please try again.
+- VI: Không thể tải đề xuất cho shop của bạn. Vui lòng thử lại.
+- _Avoid_: falling back to sample recommendations (a dead backend must never look healthy — #1320)
+- Definition: Signed-in Decisions read failure (issue #1909) — rendered with a retry control; the anonymous branch's sample content is never substituted.
+
+**`decisions.approve.confirm_title`**
+- EN: Approve this recommendation?
+- VI: Phê duyệt đề xuất này?
+- Definition: Title of the signed-in approve consent dialog (issue #1909, two-step consent per #1317's pattern).
+
+**`decisions.approve.confirm_body`**
+- EN: Juli will start a real run on your shop. You can still review and confirm every change before it is applied.
+- VI: Juli sẽ bắt đầu một luồng thực hiện thật trên shop của bạn. Bạn vẫn xem và xác nhận từng thay đổi trước khi áp dụng.
+- Definition: Body of the signed-in approve consent dialog (issue #1909) — states honestly that this creates a real run (approve-is-run-creation, ADR-075 decision 1) while naming the surviving human-in-the-loop control.
+
+**`error.approve.session_expired`**
+- EN: Your sign-in session is no longer valid. Please sign in with Google again, then approve.
+- VI: Phiên đăng nhập của bạn không còn hiệu lực. Vui lòng đăng nhập với Google lại, rồi phê duyệt.
+- Definition: Signed-in approve 401 (issue #1909) — the token was rejected; recovery is a fresh sign-in, never a retry loop and never fixture content.
+
+**`error.approve.not_found`**
+- EN: This recommendation no longer exists or does not belong to the shop you are acting on.
+- VI: Đề xuất này không còn tồn tại hoặc không thuộc shop bạn đang thao tác.
+- Definition: Signed-in approve 404 (issue #1909) — the server never distinguishes unknown from cross-tenant (no existence oracle), so neither does this copy.
+
+**`error.approve.conflict`**
+- EN: This recommendation was already handled, or another run is in progress for this product. Check the In Progress tab.
+- VI: Đề xuất này đã được xử lý, hoặc sản phẩm đang có luồng khác chạy. Hãy kiểm tra tab Đang thực hiện.
+- Definition: Signed-in approve 409 (issue #1909) — covers a double-approve, a card already flipped, or a concurrent active run for the derived product; recovery points at the run ledger.
+
+**`error.approve.generic`**
+- EN: Could not approve this recommendation right now (error [status]). Please try again.
+- VI: Chưa thể phê duyệt đề xuất này lúc này (lỗi [status]). Vui lòng thử lại.
+- Definition: Signed-in approve fallback for any other non-2xx (issue #1909) — names the fact and the raw status honestly; never a spinner-forever, never a fabricated run id.

@@ -115,6 +115,12 @@ interface InProgressPanelProps {
    * through so it is ready the moment that wiring lands.
    */
   token?: string;
+  /**
+   * The acting shop (issue #1909), sent as `X-Shop-Id` on the poll --
+   * `get_active_shop` rejects the authenticated list route without it.
+   * Meaningful only alongside `token`.
+   */
+  shopId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -263,6 +269,7 @@ function FinishedRunCard({ run }: RunCardProps) {
 function useRunLedger(
   active: boolean,
   token: string | undefined,
+  shopId: string | undefined,
   /**
    * Any value that changes reference when the replay decision might have
    * changed -- `InProgressPanel` passes its own `mutableState`, which
@@ -317,7 +324,7 @@ function useRunLedger(
       if (inFlightRef.current) return;
       inFlightRef.current = true;
       try {
-        const nextRuns = await fetchDemoRuns();
+        const nextRuns = await fetchDemoRuns({ token, shopId });
         if (!cancelled) {
           setRuns(nextRuns);
           setStatus("ready");
@@ -345,7 +352,7 @@ function useRunLedger(
       cancelled = true;
       clearInterval(intervalId);
     };
-  }, [active, token, replayRefreshKey]);
+  }, [active, token, shopId, replayRefreshKey]);
 
   return {
     sections: groupRunsIntoLedgerSections(runs),
@@ -657,10 +664,10 @@ function ExecutionProgressCard({
 // Composed panel
 // ---------------------------------------------------------------------------
 
-export function InProgressPanel({ panelId, active = true, token }: InProgressPanelProps) {
+export function InProgressPanel({ panelId, active = true, shopId, token }: InProgressPanelProps) {
   const { mutableState, updateMutableState } = useDemoState();
 
-  const ledger = useRunLedger(active, token, mutableState);
+  const ledger = useRunLedger(active, token, shopId, mutableState);
   // While this sub-tab is not the visible one, treat the ledger as
   // trivially "ready with nothing yet fetched" rather than perpetually
   // "loading" — `useRunLedger` deliberately never issues a request while

@@ -2293,3 +2293,83 @@ a {
   font-size: 0.9rem;
   line-height: 1.6;
 }
+
+/* --------------------------------------------------------------------------
+   Signed-in Decisions branch (issue #1909)
+   -------------------------------------------------------------------------- */
+
+.demo-decisions__acting-shop {
+  margin: var(--juli-space-3) 0 0;
+  color: var(--juli-muted-foreground);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.demo-decisions__acting-shop strong {
+  color: var(--juli-foreground);
+}
+
+.signed-in-decision__description {
+  max-width: 38rem;
+  margin: 0;
+  color: var(--juli-muted-foreground);
+  font-size: clamp(1rem, 2vw, 1.0625rem);
+  line-height: 1.7;
+}
+
+.signed-in-decision__section {
+  display: grid;
+  gap: var(--juli-space-1);
+  margin-top: var(--juli-space-5);
+}
+
+.signed-in-decision__label {
+  margin: 0;
+  color: var(--juli-primary-text);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.signed-in-decision__section p {
+  margin: 0;
+  color: var(--juli-foreground);
+  line-height: 1.6;
+}
+
+.signed-in-decision__steps {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: var(--juli-foreground);
+  line-height: 1.7;
+  list-style: decimal;
+}
+
+.signed-in-decision__approve-error {
+  max-width: 38rem;
+  margin: var(--juli-space-5) 0 0;
+  border: 1px solid color-mix(in srgb, var(--juli-destructive) 40%, var(--juli-border));
+  border-radius: var(--juli-radius);
+  background: color-mix(in srgb, var(--juli-destructive) 8%, var(--juli-surface));
+  padding: var(--juli-space-3) var(--juli-space-4);
+  color: var(--juli-foreground);
+  line-height: 1.6;
+}
+
+.signed-in-decision__approve-error:focus-visible {
+  outline: var(--juli-focus-width) solid var(--juli-focus-ring);
+  outline-offset: 2px;
+}
+
+.signed-in-decision__manual-note {
+  width: fit-content;
+  margin: var(--juli-space-5) 0 0;
+  border: 1px solid var(--juli-border);
+  border-radius: var(--juli-radius);
+  background: var(--juli-surface);
+  padding: var(--juli-space-2) var(--juli-space-3);
+  color: var(--juli-muted-foreground);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}

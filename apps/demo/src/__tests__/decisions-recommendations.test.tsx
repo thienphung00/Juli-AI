@@ -4,10 +4,15 @@ import { useSearchParams } from "next/navigation";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { GOLDEN_DEMO_DECISION_EXECUTABLE } from "@juli/contracts";
+
+import { DecisionsPageClient } from "../components/decisions-page-client";
 import { DemoStateProvider } from "../components/demo-state";
 import { DemoShell } from "../components/demo-shell";
 import { RecommendationsView } from "../components/recommendations-view";
 import { recommendationFixtures } from "../lib/recommendations";
+import { storeActiveShop } from "../lib/shop-session";
+import { storeAuthSession } from "../lib/supabase-auth";
 
 const push = vi.fn();
 const replace = vi.fn();
@@ -684,5 +689,79 @@ describe("Decisions — Recommendations", () => {
       const recTab = screen.getByRole("button", { name: "Đề xuất" });
       expect(recTab).toHaveAttribute("aria-pressed", "true");
     });
+  });
+});
+
+describe("DecisionsPageClient — the session split (#1909, ADR-094)", () => {
+  beforeEach(() => {
+    mockHighlight();
+    window.sessionStorage.clear();
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  function renderPage() {
+    return render(
+      <DemoStateProvider>
+        <DecisionsPageClient />
+      </DemoStateProvider>,
+    );
+  }
+
+  it("an anonymous visit renders the fixture branch and issues zero /v1/* requests", async () => {
+    const fetchSpy = vi.spyOn(global, "fetch");
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Tạo sản phẩm nổi bật")).toBeInTheDocument();
+    });
+
+    const v1Calls = fetchSpy.mock.calls.filter(([input]) =>
+      String(input).includes("/v1/"),
+    );
+    expect(v1Calls).toEqual([]);
+  });
+
+  it("a signed-in visit issues GET /v1/demo/decisions with a bearer token and renders its response — not the fixtures", async () => {
+    storeAuthSession({
+      accessToken: "real-bearer-token",
+      refreshToken: null,
+      expiresIn: 3600,
+      tokenType: "bearer",
+    });
+    storeActiveShop({ id: "shop-1", name: "Shop Minh Anh" });
+
+    const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        data: [GOLDEN_DEMO_DECISION_EXECUTABLE],
+        error: null,
+      }),
+    } as Response);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(GOLDEN_DEMO_DECISION_EXECUTABLE.title),
+      ).toBeInTheDocument();
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [calledUrl, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(calledUrl).toBe("/v1/demo/decisions");
+    const headers = new Headers(init.headers);
+    expect(headers.get("Authorization")).toBe("Bearer real-bearer-token");
+    expect(headers.get("X-Shop-Id")).toBe("shop-1");
+
+    // The anonymous branch's fixture content must not be standing in.
+    expect(screen.queryByText("Tạo sản phẩm nổi bật")).not.toBeInTheDocument();
   });
 });
