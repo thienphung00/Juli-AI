@@ -77,3 +77,84 @@ test.describe("Landing doors — the Google door is a real link in the artifact,
     expect(targetOrigin).not.toBe(currentOrigin);
   });
 });
+
+/**
+ * Issue #1907 -- once a visitor clicked "Dùng thử Demo", the header's only
+ * sign-in affordance (`<Link href="/">`) landed back on `/`, which
+ * immediately short-circuited to HomeLauncher: the door became unreachable
+ * for the rest of the tab session, by any navigation. Same artifact-level
+ * caveat as the suite above -- these assertions are the ones a jsdom
+ * component test cannot make: what a real browser sees against the actual
+ * built bytes.
+ */
+test.describe("The header's sign-in door stays reachable after entering the replay demo (issue #1907)", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    await page.evaluate(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+    });
+    await page.reload();
+  });
+
+  test("after entering the replay demo, the header's Đăng nhập control is a real <a> to a Supabase project host, not a dead link back to /", async ({
+    page,
+  }) => {
+    await page.getByRole("button", { name: "Dùng thử Demo" }).click();
+
+    const headerLink = page.getByRole("link", { name: "Đăng nhập" });
+    await expect(headerLink).toBeVisible();
+
+    const tagName = await headerLink.evaluate((el) => el.tagName);
+    expect(
+      tagName,
+      'the header sign-in control rendered as a <span>, not an <a> -- see the landing-door test above for the same build-env caveat.',
+    ).toBe("A");
+
+    const href = await headerLink.getAttribute("href");
+    expect(href, "the header <a> has no href").toBeTruthy();
+    expect(href).not.toBe("/");
+
+    const hostname = new URL(href!).hostname;
+    expect(hostname).toMatch(/\.supabase\.co$/);
+  });
+
+  test("/?entry=door renders both doors even with the replay entry stored", async ({
+    page,
+  }) => {
+    await page.getByRole("button", { name: "Dùng thử Demo" }).click();
+    await expect(
+      page.getByRole("region", { name: "Điểm đến chính" }),
+    ).toBeVisible();
+
+    await page.goto("/?entry=door");
+
+    await expect(
+      page.getByRole("button", { name: "Dùng thử Demo" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Đăng nhập với Google" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "Điểm đến chính" }),
+    ).not.toBeVisible();
+  });
+
+  test("a bare / with the replay entry stored still renders HomeLauncher — existing behaviour preserved", async ({
+    page,
+  }) => {
+    await page.getByRole("button", { name: "Dùng thử Demo" }).click();
+    await expect(
+      page.getByRole("region", { name: "Điểm đến chính" }),
+    ).toBeVisible();
+
+    await page.goto("/");
+
+    await expect(
+      page.getByRole("region", { name: "Điểm đến chính" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Dùng thử Demo" }),
+    ).not.toBeVisible();
+  });
+});
