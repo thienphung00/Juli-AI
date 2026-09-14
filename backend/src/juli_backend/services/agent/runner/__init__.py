@@ -31,6 +31,15 @@ is nothing left to cycle. `WorkflowRunner`, `RunResult`, and
 eager exports below, importable the same way as everything else in
 `__all__`.
 
+**#1939 (W8-F) adds `outcome_recording`** (`WriteOutcomeRecorder`,
+`LedgerWriteOutcomeRecorder`) — the async seam where a WRITE that reached the
+ledger's terminal state records a `workflow_outcome_records` row through
+`services/operations/outcome_tracking.py::record_workflow_outcome`. It is a
+separate module, and an optional `WorkflowRunner` collaborator, because
+`ledger.py` is synchronous by construction and the recorder is `async def`
+over an `AsyncSession`; see that module's own docstring for why bridging the
+two inside `execute_write` cannot work.
+
 **#1224 (AGT-W5A) adds `compute_params_sha` to this package's exports.**
 `api/routes/agent_runs.py`'s confirmation-decision endpoint re-derives an
 approved option's params fingerprint from the run's reconstructed state
@@ -84,6 +93,10 @@ from juli_backend.services.agent.runner.ledger import (
     VerifyOutcome,
     VerifyReadBack,
 )
+from juli_backend.services.agent.runner.outcome_recording import (
+    LedgerWriteOutcomeRecorder,
+    WriteOutcomeRecorder,
+)
 from juli_backend.services.agent.runner.state import (
     ConversationMessage,
     RunState,
@@ -128,6 +141,7 @@ __all__ = [
     "IterationGateAction",
     "JsonbConversationStore",
     "LedgerStatus",
+    "LedgerWriteOutcomeRecorder",
     "MutableProductFields",
     "NoPendingConfirmationError",
     "ProductToolExecutor",
@@ -144,6 +158,7 @@ __all__ = [
     "VerifyReadBack",
     "WorkflowRunStatus",
     "WorkflowRunner",
+    "WriteOutcomeRecorder",
     "accumulate_running_seconds",
     "capture_basis_snapshot",
     "compute_params_sha",

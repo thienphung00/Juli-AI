@@ -59,6 +59,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from juli_backend.models.models import Product, WorkflowRun
 from juli_backend.services.agent.playbooks.base import Playbook, PlaybookStep, TerminationPolicy
+from juli_backend.services.agent.runner.outcome_recording import LedgerWriteOutcomeRecorder
 from juli_backend.services.agent.runner.tool_executor import ProductToolExecutor
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry
 from juli_backend.workers.tasks import agent_workflow
@@ -458,6 +459,11 @@ class TestConstructRunner:
             # basis into RunState before each persist. Without that the basis
             # dies at the pause and every seller-confirmed write is refused.
             "concurrency_guard",
+            # #1939: the async seam a terminal WRITE records its outcome
+            # through. Without it every agent write leaves no
+            # workflow_outcome_records row and the outcome chain's
+            # state-change link reads `missing` forever.
+            "outcome_recorder",
         }
         assert callable(kwargs["cancel_check"])
         # Same object, not merely an equivalent one — two guards would each
@@ -482,6 +488,11 @@ class TestConstructRunner:
         # a real composed run's first tool call crash uncaught.
         assert kwargs["tool_executor"]._read_resources == "FAKE_READ_RESOURCES"
         assert kwargs["tool_executor"]._write_resources == "FAKE_WRITE_RESOURCES"
+        # #1939: the recorder is the real one, bound to THIS run's shop — an
+        # outcome row written under any other tenant's scope is refused by
+        # `workflow_outcome_records`' INSERT policy.
+        assert isinstance(kwargs["outcome_recorder"], LedgerWriteOutcomeRecorder)
+        assert kwargs["outcome_recorder"]._shop_id == run.shop_id
 
     async def test_construct_runner_seeds_the_concurrency_guard_from_state_basis_snapshots(
         self, monkeypatch
