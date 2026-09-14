@@ -42,8 +42,8 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 **`nav.decisions`**
 - EN: Actions
 - VI: Hành động
-- _Avoid_: Quyết định (the tab's former name — owner decision on #1910, 2026-09-14), Khuyến nghị, Gợi ý
-- Definition: The recommendation and execution hub — where you review Juli's proposals, approve or decline them, and watch them run. Runtime constant `ACTIONS_DESTINATION_LABEL` in `apps/demo/src/lib/destination-copy.ts` (shared by the nav rail and the run header's back control); keep them byte-identical.
+- _Avoid_: Quyết định, Khuyến nghị
+- Definition: The recommendation and execution hub — where you review Juli's proposals, approve or decline them, and watch them run. "Quyết định" is the tab's former name, retired by owner decision on #1910 (2026-09-14). Runtime constant `ACTIONS_DESTINATION_LABEL` in `apps/demo/src/lib/destination-copy.ts` (shared by the nav rail and the run header's back control); keep them byte-identical.
 
 **`decisions.tab.recommendations`**
 - EN: Recommendations (sub-tab)
@@ -432,8 +432,8 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 **`run.back_to_actions`**
 - EN: Actions
 - VI: Hành động
-- _Avoid_: Quay lại, Trở về, /decisions (a route, not a word for you)
-- Definition: The run page header's back control (issue #1910, owner amendment 2026-09-14), returning you to the Hành động tab. Reads the destination tab's owner-decided name — the control tells you where you land, never a bare "back". Runtime constant `RUN_HEADER_BACK_LABEL` in `apps/demo/src/lib/run-surface/stage-copy.ts`; keep them byte-identical.
+- _Avoid_: Quay lại, Trở về
+- Definition: The run page header's back control (issue #1910, owner amendment 2026-09-14), returning you to the Hành động tab. Reads the destination tab's owner-decided name — the control tells you where you land, never a bare "back" and never a raw route path like /decisions. Runtime constant `RUN_HEADER_BACK_LABEL` in `apps/demo/src/lib/run-surface/stage-copy.ts`; keep them byte-identical.
 
 **`run.expiry`**
 - EN: Offer valid for {time}
