@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import type { AuthSession } from "../lib/supabase-auth";
+import { storeActiveShop } from "../lib/shop-session";
 import { decodeJwtPayload } from "../lib/supabase-auth";
 import { ShopsFetchError, fetchShops, type Shop } from "../lib/shops-client";
 
@@ -34,6 +36,15 @@ export function ConnectShopView({
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
 
+  // Issue #1909: the selection made here is what every signed-in surface
+  // sends as `X-Shop-Id` — persist it (default first shop, then whatever
+  // the seller picks) so Decisions and the run view act on the same shop
+  // this screen told the seller they are acting on.
+  const selectShop = (shop: Shop) => {
+    setSelectedShopId(shop.id);
+    storeActiveShop({ id: shop.id, name: shop.shop_name });
+  };
+
   useEffect(() => {
     let cancelled = false;
 
@@ -41,7 +52,12 @@ export function ConnectShopView({
       .then((shops) => {
         if (cancelled) return;
         setState({ status: "ready", shops });
-        setSelectedShopId(shops[0]?.id ?? null);
+        if (shops[0]) {
+          setSelectedShopId(shops[0].id);
+          storeActiveShop({ id: shops[0].id, name: shops[0].shop_name });
+        } else {
+          setSelectedShopId(null);
+        }
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -85,7 +101,7 @@ export function ConnectShopView({
 
       {state.status === "ready" && (
         <ConnectShopReady
-          onSelectShop={setSelectedShopId}
+          onSelectShop={selectShop}
           selectedShopId={selectedShopId}
           shops={state.shops}
         />
@@ -99,7 +115,7 @@ function ConnectShopReady({
   selectedShopId,
   shops,
 }: {
-  onSelectShop: (shopId: string) => void;
+  onSelectShop: (shop: Shop) => void;
   selectedShopId: string | null;
   shops: Shop[];
 }) {
@@ -140,7 +156,7 @@ function ConnectShopReady({
               <input
                 checked={shop.id === selectedShopId}
                 name="active-shop"
-                onChange={() => onSelectShop(shop.id)}
+                onChange={() => onSelectShop(shop)}
                 type="radio"
                 value={shop.id}
               />
@@ -160,6 +176,10 @@ function ConnectShopReady({
         Kết nối TikTok Shop thật (đồng bộ đơn hàng, sản phẩm) đang được hoàn
         thiện — chưa có thao tác nào ở đây thay đổi shop thật của bạn.
       </p>
+
+      <Link className="juli-btn juli-btn--primary juli-btn--default" href="/decisions">
+        Đi tới Quyết định
+      </Link>
     </div>
   );
 }
