@@ -1,0 +1,70 @@
+{
+  "planId": "rep-1903-nav-renders-icons",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com primary navigation on every destination",
+    "apps/dashboard if it consumes PrimaryNavigation"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the candidate unit on its own port, before the nginx upstream cutover",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "the-nav-shows-icons-not-words",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/decisions",
+        "assertions": [
+          "the nav contains an SVG for Quyết định and for Phân tích",
+          "the standalone words 'decisions' and 'analytics' appear nowhere in the nav's text",
+          "Home and Settings still render their glyphs"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. A component and a type."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "repoint the nginx upstream to the retained previous release",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/ui test",
+    "pnpm --filter @juli/demo test",
+    "pnpm -w turbo run build"
+  ],
+  "doNotInfer": [
+    "DestinationIcon already exists in packages/ui/src/destination-icons.tsx and HomeLauncher already uses it correctly — reuse it, do not write a second mapping.",
+    "Make the type carry the distinction so a raw arbitrary string fails type-check; a runtime guard alone lets the defect recur.",
+    "Check apps/dashboard for a PrimaryNavigation consumer before assuming there is none, and update it in the same diff.",
+    "Do not touch apps/demo/src/components/demo-landing.tsx or demo-shell.tsx — a sibling executor owns them for #1907."
+  ]
+}
