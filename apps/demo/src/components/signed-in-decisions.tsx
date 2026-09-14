@@ -39,7 +39,7 @@ import {
 } from "@juli/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import {
   approveDemoDecision,
@@ -128,6 +128,32 @@ export function SignedInDecisions({
   const [pendingApproval, setPendingApproval] = useState<DemoDecisionItem | null>(null);
   const [approving, setApproving] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
+  const approveErrorRef = useRef<HTMLParagraphElement | null>(null);
+
+  // The error renders above the list; the seller who just clicked Phê duyệt
+  // inside a card further down must actually SEE it, not just have it
+  // announced -- bring it into view and hand it focus when it appears.
+  useEffect(() => {
+    if (!approveError) {
+      return;
+    }
+
+    const node = approveErrorRef.current;
+
+    if (!node) {
+      return;
+    }
+
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    node.scrollIntoView({
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+      block: "center",
+    });
+    node.focus();
+  }, [approveError]);
 
   useEffect(() => {
     if (!activeShop) {
@@ -223,7 +249,12 @@ export function SignedInDecisions({
       </div>
 
       {approveError && (
-        <p className="demo-notice" role="alert">
+        <p
+          ref={approveErrorRef}
+          className="signed-in-decision__approve-error"
+          role="alert"
+          tabIndex={-1}
+        >
           {approveError}
         </p>
       )}
@@ -325,21 +356,31 @@ function SignedInDecisionCard({
         </div>
       </CardHeader>
       <CardBody>
-        <p className="demo-intro">{item.description}</p>
-        {item.recommendation.rationale && (
-          <p className="demo-decisions__rationale">{item.recommendation.rationale}</p>
+        <p className="signed-in-decision__description">{item.description}</p>
+        {(item.recommendation.rationale || reasoning?.why) && (
+          <div className="signed-in-decision__section">
+            <p className="signed-in-decision__label">Vì sao</p>
+            {reasoning?.why && <p>{reasoning.why}</p>}
+            {item.recommendation.rationale && <p>{item.recommendation.rationale}</p>}
+          </div>
         )}
         {reasoning?.expected_impact && (
-          <p className="demo-decisions__impact">
-            Tác động kỳ vọng: {reasoning.expected_impact}
-          </p>
+          <div className="signed-in-decision__section">
+            <p className="signed-in-decision__label">Tác động kỳ vọng</p>
+            <p>{reasoning.expected_impact}</p>
+          </div>
         )}
         {reasoning && reasoning.next_steps.length > 0 && (
-          <ol aria-label="Các bước tiếp theo" className="demo-decisions__next-steps">
-            {reasoning.next_steps.map((step) => (
-              <li key={step}>{step}</li>
-            ))}
-          </ol>
+          <div className="signed-in-decision__section">
+            <p className="signed-in-decision__label" id={`steps-${item.id}`}>
+              Các bước tiếp theo
+            </p>
+            <ol aria-labelledby={`steps-${item.id}`} className="signed-in-decision__steps">
+              {reasoning.next_steps.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+          </div>
         )}
         {item.is_executable ? (
           <div className="execution-card__actions">
@@ -348,7 +389,7 @@ function SignedInDecisionCard({
             </Button>
           </div>
         ) : (
-          <p className="demo-decisions__manual-note">
+          <p className="signed-in-decision__manual-note">
             Đề xuất này cần bạn thực hiện thủ công — Juli chưa tự thực thi được.
           </p>
         )}
