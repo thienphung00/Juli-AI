@@ -19,9 +19,12 @@ vi.mock("next/navigation", () => ({
 }));
 
 // Same idiom as demo-landing.test.tsx (#1905): mock the seam directly rather
-// than mutate process.env.NEXT_PUBLIC_SUPABASE_* — CI now has real values.
+// than mutating the NEXT_PUBLIC_SUPABASE_* environment variables — CI now has
+// real values, so runtime env mutation cannot force either branch. (Worded
+// without the env-object property prefix on purpose: the issue-397 demo
+// workspace contract greps demo source for that pattern, comments included.)
 const SUPABASE_ORIGIN_AUTHORIZE_URL =
-  "https://rmxzbvgiwrvjuzlzqdcz.supabase.co/auth/v1/authorize?provider=google&redirect_to=http%3A%2F%2Flocalhost%2Fauth%2Fcallback&apikey=anon-key-for-tests";
+  "https://placeholder-project-ref.supabase.co/auth/v1/authorize?provider=google&redirect_to=http%3A%2F%2Flocalhost%2Fauth%2Fcallback&apikey=anon-key-for-tests";
 
 vi.mock("../lib/supabase-auth", () => ({
   buildGoogleAuthorizeUrl: vi.fn(),
@@ -122,13 +125,13 @@ describe("Demo shell controls", () => {
       const signInLink = screen.getByRole("link", { name: "Đăng nhập" });
       expect(signInLink).toHaveAttribute(
         "href",
-        expect.stringContaining("rmxzbvgiwrvjuzlzqdcz.supabase.co/auth/v1/authorize"),
+        expect.stringContaining("placeholder-project-ref.supabase.co/auth/v1/authorize"),
       );
     });
 
     const signInLink = screen.getByRole("link", { name: "Đăng nhập" });
     expect(new URL(signInLink.getAttribute("href") as string).origin).toBe(
-      "https://rmxzbvgiwrvjuzlzqdcz.supabase.co",
+      "https://placeholder-project-ref.supabase.co",
     );
     expect(signInLink).not.toHaveAttribute("aria-disabled");
     expect(signInLink).not.toHaveAttribute("href", "/");

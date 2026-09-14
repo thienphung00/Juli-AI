@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
+import { DEMO_MODE_REPLAY_LABEL } from "../lib/demo-mode-copy";
 import { demoDestinations } from "../lib/mock-data";
 import { sanitizeSellerReviewText } from "../lib/review-seller-copy";
 import { AnalyticsDataProvider, useAnalyticsData } from "../lib/analytics/analytics-data-context";
@@ -121,7 +122,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
               type="button"
               aria-pressed={mode === "mock"}
             >
-              Bản minh họa
+              {DEMO_MODE_REPLAY_LABEL}
             </button>
             {googleConfigured ? (
               <a className="demo-mode-switcher__option" href={googleHref}>

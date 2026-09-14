@@ -24,7 +24,7 @@ import { buildGoogleAuthorizeUrl } from "../lib/supabase-auth";
  * of what CI's actual env looks like when this file runs.
  */
 const SUPABASE_ORIGIN_AUTHORIZE_URL =
-  "https://rmxzbvgiwrvjuzlzqdcz.supabase.co/auth/v1/authorize?provider=google&redirect_to=http%3A%2F%2Flocalhost%2Fauth%2Fcallback&apikey=anon-key-for-tests";
+  "https://placeholder-project-ref.supabase.co/auth/v1/authorize?provider=google&redirect_to=http%3A%2F%2Flocalhost%2Fauth%2Fcallback&apikey=anon-key-for-tests";
 
 vi.mock("../lib/supabase-auth", () => ({
   buildGoogleAuthorizeUrl: vi.fn(),
@@ -83,7 +83,7 @@ describe("DemoLanding — the two doors", () => {
       });
       expect(link).toHaveAttribute(
         "href",
-        expect.stringContaining("rmxzbvgiwrvjuzlzqdcz.supabase.co/auth/v1/authorize"),
+        expect.stringContaining("placeholder-project-ref.supabase.co/auth/v1/authorize"),
       );
     });
 
