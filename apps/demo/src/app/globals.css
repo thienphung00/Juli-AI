@@ -273,8 +273,8 @@ a {
   min-height: var(--juli-touch-target);
   padding: var(--juli-space-2) var(--juli-space-3);
   border: 1px solid var(--juli-border);
-  border-radius: var(--juli-radius-medium);
-  background: var(--juli-surface-muted, var(--juli-surface));
+  border-radius: var(--juli-radius);
+  background: var(--juli-surface);
   color: var(--juli-foreground);
   font: inherit;
   text-align: left;
@@ -328,8 +328,8 @@ a {
   gap: var(--juli-space-1);
   padding: var(--juli-space-4);
   border: 1px solid var(--juli-border-accent);
-  border-radius: var(--juli-radius-medium);
-  background: var(--juli-primary-soft, var(--juli-surface-muted));
+  border-radius: var(--juli-radius);
+  background: var(--juli-primary-soft);
 }
 
 .demo-plan__impact p {
@@ -369,7 +369,7 @@ a {
 }
 
 .demo-plan__impact-delta--negative {
-  color: var(--juli-danger, var(--juli-warning));
+  color: var(--juli-warning);
 }
 
 .demo-plan__impact-delta--neutral {
@@ -562,7 +562,7 @@ a {
   margin: var(--juli-space-4) 0 var(--juli-space-6);
   padding: var(--juli-space-4);
   border: 1px solid var(--juli-border-accent);
-  border-radius: var(--juli-radius-base);
+  border-radius: var(--juli-radius);
   background: var(--juli-surface);
 }
 
@@ -693,7 +693,7 @@ a {
   margin: var(--juli-space-5) 0;
   padding: var(--juli-space-4);
   border: 1px solid var(--juli-border-accent);
-  border-radius: var(--juli-radius-base);
+  border-radius: var(--juli-radius);
   background: var(--juli-surface);
 }
 
@@ -704,7 +704,7 @@ a {
   min-height: var(--juli-touch-target);
   justify-content: center;
   padding: var(--juli-space-3);
-  border-radius: var(--juli-radius-base);
+  border-radius: var(--juli-radius);
   text-decoration: none;
   color: inherit;
   transition: background-color 150ms ease-out;
@@ -742,7 +742,7 @@ a {
   max-width: 38rem;
   margin: var(--juli-space-5) 0;
   border: 1px solid var(--juli-border-accent);
-  border-radius: var(--juli-radius-base);
+  border-radius: var(--juli-radius);
   background: var(--juli-surface);
   padding: var(--juli-space-4);
   color: var(--juli-muted-foreground);
@@ -756,14 +756,14 @@ a {
   margin: var(--juli-space-5) 0;
   padding: var(--juli-space-4);
   border: 1px solid var(--juli-border-accent);
-  border-radius: var(--juli-radius-base);
+  border-radius: var(--juli-radius);
   background: var(--juli-surface);
 }
 
 .demo-activity-tracker__skeleton-tile {
   min-height: var(--juli-touch-target);
-  border-radius: var(--juli-radius-base);
-  background: var(--juli-surface-muted, var(--juli-surface));
+  border-radius: var(--juli-radius);
+  background: var(--juli-surface);
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
@@ -780,7 +780,7 @@ a {
   max-width: 38rem;
   margin: var(--juli-space-5) 0;
   border: 1px solid var(--juli-border-accent);
-  border-radius: var(--juli-radius-base);
+  border-radius: var(--juli-radius);
   background: var(--juli-surface);
   padding: var(--juli-space-4);
   color: var(--juli-muted-foreground);
@@ -910,7 +910,7 @@ a {
 .settings-field--readonly {
   padding: var(--juli-space-4);
   border: 1px dashed var(--juli-border);
-  border-radius: var(--juli-radius-medium);
+  border-radius: var(--juli-radius);
   background: color-mix(in srgb, var(--juli-surface) 92%, var(--juli-muted-foreground));
 }
 
@@ -927,7 +927,7 @@ a {
 .settings-feedback {
   margin: 0;
   padding: var(--juli-space-3) var(--juli-space-4);
-  border-radius: var(--juli-radius-medium);
+  border-radius: var(--juli-radius);
 }
 
 .settings-feedback--error {
@@ -1325,7 +1325,7 @@ a {
 .analytics-supplementary {
   display: grid;
   gap: var(--juli-space-5);
-  margin-top: var(--juli-space-7);
+  margin-top: var(--juli-space-8);
 }
 
 .analytics-supplementary__section {
@@ -1512,7 +1512,7 @@ a {
 .execution-card__duration {
   display: inline-block;
   padding: var(--juli-space-1) var(--juli-space-2);
-  border-radius: var(--juli-radius-medium);
+  border-radius: var(--juli-radius);
   background: color-mix(in srgb, var(--juli-primary-soft) 50%, var(--juli-surface));
   color: var(--juli-foreground);
   font-size: 0.85rem;
@@ -1523,7 +1523,7 @@ a {
 .execution-card__next-action {
   margin: var(--juli-space-4) 0 0;
   padding: var(--juli-space-3);
-  border-radius: var(--juli-radius-medium);
+  border-radius: var(--juli-radius);
   background: color-mix(in srgb, var(--juli-background) 65%, var(--juli-surface));
   border: 1px solid var(--juli-border);
 }
@@ -1549,7 +1549,7 @@ a {
 .execution-card__recovery {
   margin: var(--juli-space-4) 0 0;
   padding: var(--juli-space-3);
-  border-radius: var(--juli-radius-medium);
+  border-radius: var(--juli-radius);
   background: var(--juli-warning-tint);
   border: 1px solid
     color-mix(in srgb, var(--juli-warning) 45%, var(--juli-border));
@@ -1650,22 +1650,22 @@ a {
 
 .run-ledger__chip--success {
   background: var(--juli-run-success-tint);
-  color: var(--juli-run-success);
+  color: var(--juli-run-success-text);
 }
 
 .run-ledger__chip--warning {
   background: var(--juli-run-warning-tint);
-  color: var(--juli-run-warning);
+  color: var(--juli-run-warning-text);
 }
 
 .run-ledger__chip--destructive {
   background: var(--juli-run-destructive-tint);
-  color: var(--juli-run-destructive);
+  color: var(--juli-run-destructive-text);
 }
 
 .run-ledger__chip--info {
   background: var(--juli-run-info-tint);
-  color: var(--juli-run-info);
+  color: var(--juli-run-info-text);
 }
 
 .run-ledger__chip--neutral {
@@ -1678,22 +1678,23 @@ a {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--juli-run-info);
+  background: var(--juli-run-live-edge);
   animation-name: run-ledger-breathe;
   animation-iteration-count: infinite;
 }
 
 .run-ledger__no-retry {
   margin: 0;
-  color: var(--juli-run-muted-foreground);
+  color: var(--juli-run-foreground-muted);
 }
 
 .run-ledger__no-retry a {
-  color: var(--juli-run-info);
+  color: var(--juli-run-foreground);
+  text-decoration: underline;
 }
 
 .run-ledger__error {
-  color: var(--juli-run-warning);
+  color: var(--juli-run-destructive-text);
 }
 
 .run-ledger__finished-card {
@@ -1747,7 +1748,7 @@ a {
 
 .run-staged-view__reconnecting {
   margin: 0;
-  color: var(--juli-run-warning);
+  color: var(--juli-run-warning-text);
   font-weight: 600;
 }
 
@@ -1763,12 +1764,39 @@ a {
   align-items: flex-start;
   gap: var(--juli-space-1);
   padding: var(--juli-space-2) var(--juli-space-3);
-  border-radius: var(--juli-radius-medium, 0.75rem);
-  border: 1px solid var(--juli-run-border);
-  background: var(--juli-run-surface);
-  color: var(--juli-run-foreground);
+  border-radius: var(--juli-radius);
+  border: 1px solid var(--juli-run-panel-border);
   min-height: var(--juli-touch-target);
   cursor: pointer;
+}
+
+/* The cascade fix (#1913; ADR-102 context, finding 2). The token layer's
+   `.juli-run-stepper-node--active` accent rule is @imported EARLIER at
+   EQUAL specificity, so an unqualified `background` here silently
+   cancelled the surface's one brand-coloured element on every build ever
+   shipped. This sheet now paints only the nodes that are NOT the live
+   edge; the accent fill belongs to the token layer alone. */
+.run-stepper__node:not(.juli-run-stepper-node--active) {
+  background: var(--juli-run-panel-fill);
+  color: var(--juli-run-foreground);
+  box-shadow: var(--juli-run-panel-shadow);
+  backdrop-filter: blur(var(--juli-run-panel-blur));
+}
+
+/* PUI-DESIGN.md §5: "Soft breathing indicator on the active stepper
+   node (loop)". The label sits ON the accent fill (5.80:1, ADR-102
+   decision 3); the glow breathes through the derived `-soft` token;
+   duration/easing arrive inline from the thinking-state motion
+   primitive, never a bare timer. */
+.run-stepper__node.juli-run-stepper-node--active {
+  border-color: transparent;
+  color: var(--juli-run-live-edge-foreground);
+  animation-name: run-stepper-node-breathe;
+  animation-iteration-count: infinite;
+}
+
+.run-stepper__node.juli-run-stepper-node--active .juli-run-text-muted {
+  color: var(--juli-run-live-edge-foreground);
 }
 
 .run-stepper__node:disabled {
@@ -1776,8 +1804,10 @@ a {
   opacity: 0.5;
 }
 
-.run-stepper__node--frozen {
-  background: var(--juli-run-surface-raised);
+.run-stepper__node.run-stepper__node--frozen {
+  background: var(--juli-run-raised-fill);
+  box-shadow: var(--juli-run-raised-shadow);
+  backdrop-filter: blur(var(--juli-run-raised-blur));
 }
 
 .run-stepper__node--viewing {
@@ -1815,19 +1845,11 @@ a {
   justify-content: space-between;
   gap: var(--juli-space-3);
   padding: var(--juli-space-2) var(--juli-space-3);
-  border-radius: var(--juli-radius-medium, 0.75rem);
-  background: var(--juli-run-surface);
-}
-
-.run-stage__thinking-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--juli-run-info);
-  margin-right: var(--juli-space-2);
-  animation-name: run-stage-breathe;
-  animation-iteration-count: infinite;
+  border-radius: var(--juli-radius);
+  border: 1px solid var(--juli-run-panel-border);
+  background: var(--juli-run-panel-fill);
+  box-shadow: var(--juli-run-panel-shadow);
+  backdrop-filter: blur(var(--juli-run-panel-blur));
 }
 
 .run-stage__proposed-change {
@@ -1844,7 +1866,7 @@ a {
 
 .run-stage__expiry {
   font-weight: 600;
-  color: var(--juli-run-warning);
+  color: var(--juli-run-warning-text);
 }
 
 .run-staged-view__nav {
@@ -1856,10 +1878,12 @@ a {
 .run-staged-view__nav button {
   min-height: var(--juli-touch-target);
   padding: var(--juli-space-2) var(--juli-space-4);
-  border-radius: var(--juli-radius-medium, 0.75rem);
-  border: 1px solid var(--juli-run-border);
-  background: var(--juli-run-surface);
+  border-radius: var(--juli-radius);
+  border: 1px solid var(--juli-run-panel-border);
+  background: var(--juli-run-panel-fill);
   color: var(--juli-run-foreground);
+  box-shadow: var(--juli-run-panel-shadow);
+  backdrop-filter: blur(var(--juli-run-panel-blur));
   cursor: pointer;
 }
 
@@ -1879,15 +1903,13 @@ a {
   }
 }
 
-@keyframes run-stage-breathe {
+@keyframes run-stepper-node-breathe {
   0%,
   100% {
-    opacity: 0.35;
-    transform: scale(0.85);
+    box-shadow: 0 0 0 4px var(--juli-run-live-edge-soft);
   }
   50% {
-    opacity: 1;
-    transform: scale(1);
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--juli-run-live-edge) 7%, transparent);
   }
 }
 
@@ -1896,8 +1918,8 @@ a {
     animation-name: run-stage-crossfade;
   }
 
-  .run-stage__thinking-dot {
-    animation: none;
+  .run-stepper__node.juli-run-stepper-node--active {
+    animation-name: none;
   }
 }
 
@@ -1931,10 +1953,12 @@ a {
   gap: var(--juli-space-2);
   padding: var(--juli-space-4);
   text-align: left;
-  border: 1px solid var(--juli-run-border);
-  border-radius: var(--juli-radius-medium, 0.75rem);
-  background: var(--juli-run-surface);
+  border: 1px solid var(--juli-run-panel-border);
+  border-radius: var(--juli-radius);
+  background: var(--juli-run-panel-fill);
   color: var(--juli-run-foreground);
+  box-shadow: var(--juli-run-panel-shadow);
+  backdrop-filter: blur(var(--juli-run-panel-blur));
   cursor: pointer;
   animation-name: option-picker-card-arrive;
   animation-fill-mode: backwards;
@@ -1961,7 +1985,7 @@ a {
 
 .option-picker__headline-label {
   margin: 0;
-  color: var(--juli-run-muted-foreground);
+  color: var(--juli-run-foreground-muted);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1995,22 +2019,22 @@ a {
 }
 
 .option-picker__diff-arrow {
-  color: var(--juli-run-muted-foreground);
+  color: var(--juli-run-foreground-muted);
 }
 
 .option-picker__diff-before {
-  color: var(--juli-run-muted-foreground);
+  color: var(--juli-run-foreground-muted);
   text-decoration: line-through;
 }
 
 .option-picker__diff-after {
-  color: var(--juli-run-info);
+  color: var(--juli-run-foreground);
   font-weight: 600;
 }
 
 .option-picker__rationale {
   margin: 0;
-  color: var(--juli-run-muted-foreground);
+  color: var(--juli-run-foreground-muted);
   font-size: 0.9rem;
   line-height: 1.5;
 }
@@ -2021,18 +2045,18 @@ a {
 
 .option-picker__rejection {
   margin: var(--juli-space-2) 0 0;
-  color: var(--juli-run-destructive);
+  color: var(--juli-run-destructive-text);
   font-weight: 600;
 }
 
 .option-picker__no-retry {
   margin: var(--juli-space-2) 0 0;
-  color: var(--juli-run-muted-foreground);
+  color: var(--juli-run-foreground-muted);
 }
 
 .option-picker__submitting {
   margin: var(--juli-space-2) 0 0;
-  color: var(--juli-run-muted-foreground);
+  color: var(--juli-run-foreground-muted);
 }
 
 .option-picker__outcome {
@@ -2053,11 +2077,20 @@ a {
 .option-picker__confirm {
   min-height: var(--juli-touch-target);
   padding: var(--juli-space-2) var(--juli-space-4);
-  border-radius: var(--juli-radius-medium, 0.75rem);
-  border: 1px solid var(--juli-run-border);
-  background: var(--juli-run-surface);
-  color: var(--juli-run-foreground);
+  border-radius: var(--juli-radius);
+  border: 1px solid var(--juli-run-panel-border);
   cursor: pointer;
+}
+
+/* Same cascade discipline as the stepper (#1913): the armed CTA's fill
+   and label belong to the token layer's `.juli-run-cta--armed`; this
+   sheet paints only the un-armed states. */
+.option-picker__decline,
+.option-picker__confirm:not(.juli-run-cta--armed) {
+  background: var(--juli-run-panel-fill);
+  color: var(--juli-run-foreground);
+  box-shadow: var(--juli-run-panel-shadow);
+  backdrop-filter: blur(var(--juli-run-panel-blur));
 }
 
 .option-picker__confirm:disabled,
@@ -2109,7 +2142,7 @@ a {
 .repeat-consent {
   margin: var(--juli-space-4) 0 0;
   padding: var(--juli-space-4);
-  border-radius: var(--juli-radius-medium);
+  border-radius: var(--juli-radius);
   border: 1px solid var(--juli-border);
   background: color-mix(in srgb, var(--juli-background) 65%, var(--juli-surface));
 }

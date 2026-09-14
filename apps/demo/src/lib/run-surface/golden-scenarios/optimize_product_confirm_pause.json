@@ -58,7 +58,7 @@
             "proposed_change": {
               "title": "Tiêu đề đã tối ưu"
             },
-            "rationale": "Apply agent-authored title/description (and, if attach_staged_image is true, the run's staged image) to the bound product's listing.",
+            "rationale": "Áp dụng tiêu đề và mô tả Juli đã soạn cho sản phẩm này.",
             "params_sha": "70767739d8d4ab0c2c1aedce7672e337f843db023847ee709eff11b35a520d4d"
           }
         ]

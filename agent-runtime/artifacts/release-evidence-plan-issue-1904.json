@@ -1,0 +1,72 @@
+{
+  "planId": "rep-1904-seller-rationale-at-source",
+  "affectedPublicSurfaces": [
+    "the workflow.approval_required event payload served by /v1/demo/runs/{id}/events — a public event contract",
+    "the bundled replay scenario in demo.app-juli.com's artifact"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the candidate unit on its own port, before the nginx upstream cutover",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": true,
+    "journeys": [
+      {
+        "name": "a-confirm-pause-carries-vietnamese-seller-copy",
+        "entryUrl": "a real runner-driven CONFIRM pause against a scratch database",
+        "assertions": [
+          "options[0].rationale equals the tool's seller_rationale_vi",
+          "spec.description appears nowhere in the emitted payload or the persisted run_confirmations row",
+          "every registered ToolSpec's seller_rationale_vi contains a Vietnamese diacritic and no snake_case identifier"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: event payload and fixture"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration. run_confirmations rows already committed keep the old English rationale and are NOT backfilled — the column is trustworthy only from this merge forward."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "repoint the nginx upstream to the retained previous release",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest -q tests/unit/test_agent_tool_specs.py",
+    "pytest -q tests/integration/test_confirmation_option_rationale.py",
+    "pnpm --filter @juli/demo test -- replay-scenario"
+  ],
+  "doNotInfer": [
+    "spec.description is the LLM-facing text and must stay byte-identical for every tool — the model's view does not move.",
+    "Do NOT hand-edit the golden scenario. ADR-084 decision 2 forbids hand-authored event JSON and replay-scenario.test.ts asserts byte-identity with tests/fixtures/golden_scenarios/. Re-run the #1311 capture tool and commit its output.",
+    "Do NOT add a client-side translation layer — the payload must carry seller-facing copy, because the payload is what run_confirmations records as what the seller consented to.",
+    "Assert over a REAL run's persisted event log, not one constructed payload.",
+    "The shared `session` test fixture is SQLite even when DATABASE_URL names Postgres; build a real engine for any DB-level claim.",
+    "Do not touch apps/demo/src/components/ — sibling executors own that tree."
+  ]
+}

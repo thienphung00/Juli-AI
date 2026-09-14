@@ -270,6 +270,10 @@ GET_PRODUCT_INFORMATION_SPEC = ToolSpec(
         "Read the bound product's listing: title, description, status, "
         "last-updated time, SKU count and prices, total inventory, and image sizes."
     ),
+    # dictionary.md `run.option_rationale.get_product_information` (issue
+    # #1904, W6-FIX) -- seller-facing, distinct from `description` above,
+    # which the model reads and which stays unchanged.
+    seller_rationale_vi="Xem thông tin hiện tại của sản phẩm này.",
     input_model=GetProductInformationInput,
     output_model=GetProductInformationOutput,
     classification=ToolClassification.READ,
@@ -357,6 +361,8 @@ GET_SEO_KEYWORDS_SPEC = ToolSpec(
         "Get SEO keyword suggestions and title/description suggestions for the "
         "bound product, combined into one result."
     ),
+    # dictionary.md `run.option_rationale.get_seo_keywords` (issue #1904, W6-FIX).
+    seller_rationale_vi="Tra cứu từ khoá SEO gợi ý cho sản phẩm này.",
     input_model=GetSeoKeywordsInput,
     output_model=GetSeoKeywordsOutput,
     classification=ToolClassification.READ,
@@ -394,6 +400,8 @@ CHECK_PRODUCT_STATUS_SPEC = ToolSpec(
         "Get an in-run snapshot of the bound product's current status. This snapshot is "
         "not authoritative — the confirmed status arrives later, outside this tool call."
     ),
+    # dictionary.md `run.option_rationale.check_product_status` (issue #1904, W6-FIX).
+    seller_rationale_vi="Kiểm tra trạng thái hiện tại của sản phẩm này.",
     input_model=CheckProductStatusInput,
     output_model=CheckProductStatusOutput,
     classification=ToolClassification.READ,
@@ -494,6 +502,8 @@ INSPECT_PRODUCT_IMAGE_SPEC = ToolSpec(
         "A photo dominated by promotional banners or price overlays is a finding even "
         "when the product shown is correct."
     ),
+    # dictionary.md `run.option_rationale.inspect_product_image` (issue #1904, W6-FIX).
+    seller_rationale_vi="Kiểm tra xem ảnh sản phẩm có khớp với nội dung mô tả không.",
     input_model=InspectProductImageInput,
     output_model=InspectProductImageOutput,
     classification=ToolClassification.READ,

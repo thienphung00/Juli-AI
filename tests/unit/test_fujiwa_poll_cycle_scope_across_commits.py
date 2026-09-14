@@ -13,11 +13,12 @@ session immediately after: ``TikTokSyncStateRepo.load`` (a direct-GUC policy
 ``None`` -> this module's own ``ValueError``).
 
 Real-COMMIT session factory reused from
-``tests/unit/test_action_card_refresh_task_scope.py::_juli_app_engine_session_factory``
--- the same reasoning as ``test_credential_refresh_scope_across_commits.py``:
-the shared ``juli_app_session`` fixture only joins a SAVEPOINT on
-``session.commit()``, which would pass whether or not the reapply fix is
-applied.
+``tests.support.postgres.juli_app_async_sessionmaker`` -- the same reasoning
+as ``test_credential_refresh_scope_across_commits.py``: the shared
+``juli_app_session`` fixture only joins a SAVEPOINT on ``session.commit()``,
+which would pass whether or not the reapply fix is applied, and a
+``connect``-event role listener (the shape that module's docstring warns
+against) only holds for the first pooled session.
 """
 
 from __future__ import annotations
@@ -39,7 +40,7 @@ from juli_backend.workers.services.polling.orchestrate import (
     FujiwaPollConfig,
     run_fujiwa_poll_cycle,
 )
-from tests.unit.test_action_card_refresh_task_scope import _juli_app_engine_session_factory
+from tests.support.postgres import juli_app_async_sessionmaker
 
 requires_postgres = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL", "").strip().startswith("postgresql"),
@@ -170,7 +171,7 @@ async def test_poll_cycle_survives_the_resolvers_own_commit_under_shop_scope(own
     async def _handoff(channel: str, shop_key: str, value: bytes) -> None:
         return None
 
-    async with _juli_app_engine_session_factory() as factory, factory() as session:
+    async with juli_app_async_sessionmaker() as factory, factory() as session:
         async with with_shop_scope(session, shop_id):
             # No ValueError, no NotFound: the regression this issue exists to close.
             await run_fujiwa_poll_cycle(

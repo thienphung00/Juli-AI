@@ -1,0 +1,82 @@
+{
+  "planId": "rep-1905-demo-google-door-build-env",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com landing page — the 'Đăng nhập với Google' door, today a disabled <span> in every artifact CI has ever built",
+    "the Release workflow's app-release-artifact job for matrix.app == 'demo' (build-time env)",
+    "repository secrets: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the demo candidate unit on its own port, before the nginx upstream cutover",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "the-google-door-is-a-real-link-in-the-artifact",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/",
+        "assertions": [
+          "the control labelled 'Đăng nhập với Google' is an <a> with an href, NOT a <span role=link>",
+          "the href origin equals the configured Supabase project host",
+          "clicking it performs a full-page navigation off the demo origin",
+          "the built .next output contains the Supabase project host — asserted against the artifact, never the dev server"
+        ]
+      },
+      {
+        "name": "the-unconfigured-branch-still-renders-honestly",
+        "entryUrl": "a build produced with the env deliberately absent",
+        "assertions": [
+          "the build FAILS non-zero rather than producing an artifact with a dead door",
+          "when rendered in jsdom without env, visible Vietnamese copy from dictionary.md explains the state — not only an aria-label"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. Build-time client env only; NEXT_PUBLIC_* is inlined by Next at build and reaches no server."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "repoint the nginx demo upstream to the retained previous release; the door reverts to its honest disabled state rather than erroring",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- build-env-contract",
+    "pnpm --filter @juli/demo test -- demo-landing",
+    "DEMO_E2E_ARTIFACT_DIR=<built artifact> pnpm --filter @juli/demo exec playwright test e2e/exit-gate/landing-doors.spec.ts"
+  ],
+  "doNotInfer": [
+    "Do NOT add the values to a runtime EnvironmentFile or the systemd unit — Next inlines NEXT_PUBLIC_* at BUILD time, so runtime env changes nothing. Verified: the deployed demo unit has no EnvironmentFiles and the built chunks contain zero occurrences of 'supabase'.",
+    "Do NOT delete the unconfigured branch of demo-landing.tsx as dead code — it is a real state and must keep its test.",
+    "Do NOT string-replace into any existing `needs:` block in release.yml. CI workflow edits are APPENDS; duplicate `- <job>` entries make a replace hit the wrong job and an empty needs.X.result is the silent symptom.",
+    "Do NOT commit either secret value. The workflow references secrets; demo.env.example carries names only.",
+    "Do NOT assert the door from jsdom alone — that is exactly how #1319 passed while shipping a dead door. The artifact-mode Playwright assertion is the criterion that matters.",
+    "Do NOT weaken buildGoogleAuthorizeUrl's null return; the honest-disabled contract stays."
+  ]
+}

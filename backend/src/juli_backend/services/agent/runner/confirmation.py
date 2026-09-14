@@ -140,10 +140,14 @@ def build_confirmation_options(
     `proposed_change` by construction.
 
     `rationale` is caller-supplied (`_pause_pending_confirmation` passes
-    the tool's own `ToolSpec.description`) rather than generated here --
-    generating a genuinely reasoned, signal-grounded rationale per option
-    is P12's prompt-content concern (ADR-075 consequences), not this
-    slice's; this function only ever carries whatever string it is given.
+    the tool's own `ToolSpec.seller_rationale_vi` -- a deterministic,
+    dictionary-governed Vietnamese string, never `ToolSpec.description`,
+    which is the LLM-facing English text the model reads and which a
+    seller must never be shown -- issue #1904, W6-FIX) rather than
+    generated here -- generating a genuinely reasoned, signal-grounded
+    rationale per option is still P12's prompt-content concern (ADR-075
+    consequences), not this slice's; this function only ever carries
+    whatever string it is given.
     There is no `tool_name` parameter here: the tool's name already lives
     once on the enclosing `WorkflowApprovalRequiredPayload.tool_name`
     (`_pause_pending_confirmation`'s other sibling field on the same

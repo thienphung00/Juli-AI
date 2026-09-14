@@ -28,6 +28,11 @@ from sqlalchemy.exc import IntegrityError
 
 from juli_backend.core.config.runtime import sync_database_url
 
+# The call-site registry for juli_app's write privileges lives with the guard
+# that derives it from the code. Read, never re-copied -- see
+# `tables_requiring`'s docstring for why the two guards share one list.
+from tests.unit.test_juli_app_grants_cover_mutations import tables_requiring
+
 pytestmark = pytest.mark.migration_heavy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -1648,34 +1653,102 @@ def test_juli_app_has_schema_usage_grants(postgres_at_head: Engine):
         assert schema in granted_schemas, f"juli_app missing grants in schema {schema}"
 
 
+#: Three public tables held UPDATE for `juli_app` before #1897's call-site audit
+#: existed, and are outside its remit. Named rather than tolerated silently: an
+#: allowance nobody can see is indistinguishable from a gap.
+#:
+#: * `orders` / `returns` -- legacy duplicates of the medallion tables. The ORM
+#:   maps `Order` and `Return` to `silver.orders` / `silver.returns` (migration
+#:   025's cutover), which the registry does cover; migration 043 granted the
+#:   public pair as well and nothing has revoked them.
+#: * `processed_events` -- granted UPDATE by migration 046 (#1329). It has no ORM
+#:   model, so the mutation scan cannot see its call path either way.
+#:
+#: Revoking any of these is a change of its own with its own evidence, not a
+#: side errand of the confirmation fix. Removing a name here without revoking
+#: the grant turns this test red, which is the point.
+JULI_APP_UPDATE_GRANTED_BEFORE_THE_AUDIT = frozenset({"orders", "processed_events", "returns"})
+
+
+def _juli_app_public_privileges(engine: Engine, table: str) -> set[str]:
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT privilege_type FROM information_schema.role_table_grants
+                WHERE grantee = 'juli_app'
+                AND table_schema = 'public'
+                AND table_name = :table_name
+            """),
+            {"table_name": table},
+        ).fetchall()
+    return {row[0] for row in rows}
+
+
 @requires_postgres
 def test_juli_app_public_tables_have_select_insert(postgres_at_head: Engine):
-    """READ-ONLY tables grant SELECT and INSERT to juli_app.
+    """The read path holds SELECT and INSERT, and any write verb is justified.
 
-    Proves the grant surface exactly: for each table in the explicit map,
-    the granted verbs match and no other privileges are granted.
+    ONE AUTHORITY, READ NOT COPIED. This test used to hand-copy
+    `{"shops": {"SELECT", "INSERT"}}` and assert equality, which made it a pin on
+    the exact defect #1897 reports: `ShopsRepo.pause_automation` writes
+    `shop.is_active = False`, `juli_app` could not, and this guard would have
+    failed anyone who fixed it. The least-privilege intent was right; the
+    expectation was wrong.
+
+    So the UPDATE half is no longer written here at all. It is read from
+    `tests.unit.test_juli_app_grants_cover_mutations.tables_requiring`, the
+    call-site registry, where every entry is pinned to the source line that
+    proves the application mutates that table. That module asserts every such
+    table HAS the privilege; this one asserts nothing has a privilege that list
+    does not justify. Two directions, one list -- so they cannot disagree.
     """
-    # This is a subset check of read-only tables; the actual map includes upsert tables
-    expected_grants = {
-        "users": {"SELECT", "INSERT"},
-        "shops": {"SELECT", "INSERT"},
-    }
+    needs_update = tables_requiring("UPDATE", schema="public")
 
+    for table in ("users", "shops"):
+        expected_verbs = {"SELECT", "INSERT"} | ({"UPDATE"} if table in needs_update else set())
+        granted_verbs = _juli_app_public_privileges(postgres_at_head, table)
+        assert granted_verbs == expected_verbs, (
+            f"public.{table}: expected {expected_verbs}, got {granted_verbs}"
+        )
+
+
+@requires_postgres
+def test_no_public_table_holds_update_beyond_its_call_site(postgres_at_head: Engine):
+    """The least-privilege bite, over the whole public schema rather than two tables.
+
+    The other half of the loop with
+    `tests/unit/test_juli_app_grants_cover_mutations.py`. It reads the code and
+    says "every table the application mutates must hold UPDATE"; this reads the
+    database and says "and nothing else may". A future migration granting UPDATE
+    to a table with no mutation site fails here, and the only way to make it pass
+    is to add the call site to the registry -- which the unit module's AST scan
+    then checks against the code.
+
+    Equality, not containment, in both directions on purpose: a registry entry
+    whose grant was never applied is as much a defect as a grant nobody asked
+    for, and #1897 was the first kind.
+    """
     with postgres_at_head.connect() as conn:
-        for table, expected_verbs in expected_grants.items():
-            result = conn.execute(
-                text("""
-                    SELECT privilege_type FROM information_schema.role_table_grants
-                    WHERE grantee = 'juli_app'
-                    AND table_schema = 'public'
-                    AND table_name = :table_name
-                """),
-                {"table_name": table},
-            ).fetchall()
-            granted_verbs = {row[0] for row in result}
-            assert granted_verbs == expected_verbs, (
-                f"public.{table}: expected {expected_verbs}, got {granted_verbs}"
-            )
+        rows = conn.execute(
+            text("""
+                SELECT table_name FROM information_schema.role_table_grants
+                WHERE grantee = 'juli_app'
+                AND table_schema = 'public'
+                AND privilege_type = 'UPDATE'
+            """)
+        ).fetchall()
+    live_update = {row[0] for row in rows}
+    justified = set(tables_requiring("UPDATE", schema="public"))
+
+    assert live_update == justified | JULI_APP_UPDATE_GRANTED_BEFORE_THE_AUDIT, (
+        "the public UPDATE surface no longer matches the call-site registry.\n"
+        f"  granted but unjustified: "
+        f"{sorted(live_update - justified - JULI_APP_UPDATE_GRANTED_BEFORE_THE_AUDIT)}\n"
+        f"  justified but not granted: {sorted(justified - live_update)}\n"
+        "Add the call site to GRANT_REQUIRED in "
+        "tests/unit/test_juli_app_grants_cover_mutations.py and the grant to a "
+        "migration, or revoke the grant -- never widen this test."
+    )
 
 
 @requires_postgres
