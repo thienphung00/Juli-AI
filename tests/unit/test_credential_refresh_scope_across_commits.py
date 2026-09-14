@@ -15,13 +15,15 @@ throughout the RLS suite) binds one ``AsyncSession`` to a single,
 already-open connection whose own ``SET ROLE`` started an implicit
 transaction; under that shape ``session.commit()`` joins a SAVEPOINT rather
 than issuing a real Postgres ``COMMIT``, so ``SET LOCAL`` state survives it
-regardless of whether the fix is applied -- a false green. Reusing
-``tests/unit/test_action_card_refresh_task_scope.py``'s
-``_juli_app_engine_session_factory`` instead: each session gets its own
-connection lifecycle from an ``AsyncEngine``, so ``session.commit()`` issues
-a real ``COMMIT`` and genuinely discards ``app.current_shop_id`` -- the same
-shape production's worker session factory uses, and the only shape that
-falsifies the defect this issue exists to close.
+regardless of whether the fix is applied -- a false green. Using
+``tests.support.postgres.juli_app_async_sessionmaker`` instead: each session
+gets its own connection lifecycle from an ``AsyncEngine`` whose role is set
+in the connection's startup packet (not on a ``connect``-event listener,
+which the pool's reset-on-return undoes after the first checkout -- see that
+module's docstring), so ``session.commit()`` issues a real ``COMMIT`` and
+genuinely discards ``app.current_shop_id`` -- the same shape production's
+worker session factory uses, and the only shape that falsifies the defect
+this issue exists to close.
 """
 
 from __future__ import annotations
@@ -42,7 +44,7 @@ from juli_backend.core.security.credential_refresh import (
 )
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.workers.tasks.credential_refresh_beat import run_credential_refresh_cycle
-from tests.unit.test_action_card_refresh_task_scope import _juli_app_engine_session_factory
+from tests.support.postgres import juli_app_async_sessionmaker
 
 requires_postgres = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL", "").strip().startswith("postgresql"),
@@ -161,7 +163,7 @@ async def test_refresh_survives_its_own_commit_under_shop_scope(owner_engine):
     shop_id, credential_id = _seed_expiring_credential(owner_engine, label="scope-commit")
     auth = _auth_returning()
 
-    async with _juli_app_engine_session_factory() as factory, factory() as session:
+    async with juli_app_async_sessionmaker() as factory, factory() as session:
         async with with_shop_scope(session, shop_id):
             outcome = await refresh_credential(session, credential_id, auth=auth, force=False)
         await session.commit()
@@ -195,7 +197,7 @@ async def test_beat_cycle_refreshes_every_enumerated_row(owner_engine):
     shop_b, credential_b = _seed_expiring_credential(owner_engine, label="beat-b")
     auth = _auth_returning()
 
-    async with _juli_app_engine_session_factory() as factory, factory() as session:
+    async with juli_app_async_sessionmaker() as factory, factory() as session:
         summary = await run_credential_refresh_cycle(session, auth=auth)
         await session.commit()
 
