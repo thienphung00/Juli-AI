@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import keyword
 import os
 import re
 import subprocess
@@ -30,14 +31,36 @@ RUNTIME_SCHEMA_VERSION = "1.0.0"
 DONE_MD = REPO_ROOT / "done.md"
 
 ISSUE_BRANCH_RE = re.compile(r"(?:feat|fix)/issue-(\d+)", re.IGNORECASE)
+# Every row in docs/architecture/map.md writes its module path as a markdown
+# link — [`path`](../../path/MODULE.md) | 1 | … — so the link target has to be
+# consumed before the tier cell. The previous pattern stopped at the closing
+# backtick-bracket and then demanded `|` where the link's `(` actually sits, so
+# it matched no row at all and parse_architecture_map returned {} (#1859). The
+# regex is widened rather than map.md normalised: the map is the human-authored
+# as-built registry and its links are load-bearing for readers, so the parser
+# is what should learn the format the tree already uses.
 MODULE_ROW_RE = re.compile(
-    r"\[`([^`]+)`]([^)]*MODULE\.md)?\s*\|\s*(\d+)\s*\|",
+    r"\[`([^`]+)`\](?:\([^)]*\))?\s*\|\s*(\d+)\s*\|",
 )
-BACKTICK_SYMBOL_RE = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*)`")
+# A documented entry is either a bare identifier — `name` — or a call signature
+# — `name(args) -> T`. Dotted spans (`pkg.module`) stay unmatched on purpose:
+# they name a location, not a public symbol of this module.
+BACKTICK_SYMBOL_RE = re.compile(
+    r"`([A-Za-z_][A-Za-z0-9_]*)(?:\([^`]*\))?(?:\s*->[^`]*)?`",
+)
+# Heading-level aware: a `### Public interface` sub-section ends at the next
+# heading of the same or a shallower level, not at the next `## `. The previous
+# whole-section pattern was also applied with search(), so only the FIRST
+# Public Interface section in a MODULE.md was ever read (#1859).
 PUBLIC_SECTION_RE = re.compile(
-    r"##\s+Public\s+Interface[s]?\s*\n(.*?)(?=\n##\s+|\Z)",
-    re.DOTALL | re.IGNORECASE,
+    r"^(#{2,6})\s+Public\s+Interface[s]?\s*$",
+    re.IGNORECASE | re.MULTILINE,
 )
+HEADING_RE = re.compile(r"^(#{1,6})\s+\S")
+# `None`, `True` and `False` appear backticked in Public Interface prose
+# ("a `None` stop reason stays `None`"). They are language keywords and can
+# never be a module's public symbol, so they are never documented entries.
+NEVER_A_SYMBOL = frozenset(keyword.kwlist) | {"self", "cls"}
 HANDOFF_FILE_RE = re.compile(r"^[a-z0-9][a-z0-9-]*-\d{2}\.md$", re.IGNORECASE)
 ADR_FILE_RE = re.compile(r"^(\d{3})-([a-z0-9-]+)\.md$")
 REQUIRED_ADR_SECTIONS = ("## Context", "## Decision", "## Rationale", "## Consequences")
@@ -392,10 +415,16 @@ def parse_architecture_map(path: Path | None = None) -> dict[str, ModuleInfo]:
         match = MODULE_ROW_RE.search(line)
         if not match:
             continue
-        module_path, _, tier_str = match.groups()
+        module_path, tier_str = match.groups()
         module_path = module_path.strip().rstrip("/")
         if not _is_backend_module_path(module_path):
             continue
+        # map.md writes both forms — backend/src/juli_backend/services/x and
+        # backend/ai/x. Key on the logical backend/… form, which is what
+        # module_for_file, resolve_import_to_module and backend_module_root all
+        # already speak; keying on the raw form left module_for_file resolving
+        # nothing even when the row parsed (#1859).
+        module_path = normalize_backend_module_path(module_path)
         short = module_path.removeprefix("backend/").removeprefix("src/").split("/")[0]
         rel = module_path.removeprefix("backend/").removeprefix("src/")
         if "/" in rel:
@@ -419,15 +448,107 @@ def path_to_package(module_path: str) -> str:
     return module_path.replace("/", ".")
 
 
+def strip_markdown_parentheticals(text: str) -> str:
+    """Drop ``(…)`` groups that sit outside backticks.
+
+    A Public Interface bullet names its symbol and then, in parentheses, the
+    vocabulary that symbol ranges over — ``\u0060LinkReason\u0060 (\u0060pending\u0060 |
+    \u0060unavailable\u0060 | \u0060missing\u0060)``. Those parenthesised words are prose, not
+    documented symbols, and reading them as symbols manufactured three orphans
+    in services/operations alone (#1859). Parentheses *inside* a backtick span
+    are part of a call signature and are left untouched.
+    """
+    out: list[str] = []
+    i = 0
+    length = len(text)
+    while i < length:
+        char = text[i]
+        if char == "`":
+            end = text.find("`", i + 1)
+            if end == -1:
+                out.append(text[i:])
+                break
+            out.append(text[i : end + 1])
+            i = end + 1
+            continue
+        if char == "(":
+            close = _matching_paren(text, i)
+            if close is None:
+                out.append(char)
+                i += 1
+                continue
+            i = close + 1
+            continue
+        out.append(char)
+        i += 1
+    return "".join(out)
+
+
+def _matching_paren(text: str, start: int) -> int | None:
+    """Index of the ``)`` closing ``text[start]``, ignoring backtick spans."""
+    depth = 0
+    i = start
+    length = len(text)
+    while i < length:
+        char = text[i]
+        if char == "`":
+            end = text.find("`", i + 1)
+            if end == -1:
+                return None
+            i = end + 1
+            continue
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return None
+
+
+def public_interface_sections(text: str) -> list[str]:
+    """Bodies of EVERY Public Interface section, `##` or `###`, in order.
+
+    A MODULE.md acquires further sections as lanes land (services/operations
+    carries three today). Reading only the first — the previous behaviour —
+    made every symbol after it look undocumented (#1859).
+    """
+    lines = text.splitlines()
+    bodies: list[str] = []
+    current: list[str] | None = None
+    depth = 0
+    for line in lines:
+        heading = HEADING_RE.match(line)
+        if heading and current is not None and len(heading.group(1)) <= depth:
+            bodies.append("\n".join(current))
+            current = None
+        match = PUBLIC_SECTION_RE.match(line)
+        if match:
+            depth = len(match.group(1))
+            current = []
+            continue
+        if current is not None:
+            current.append(line)
+    if current is not None:
+        bodies.append("\n".join(current))
+    return bodies
+
+
 def parse_module_md_public_symbols(module_md: Path) -> set[str]:
     if not module_md.exists():
         return set()
     text = module_md.read_text(encoding="utf-8")
-    section = PUBLIC_SECTION_RE.search(text)
-    body = section.group(1) if section else text
+    bodies = public_interface_sections(text)
+    if not bodies:
+        bodies = [text]
     symbols: set[str] = set()
-    for match in BACKTICK_SYMBOL_RE.finditer(body):
-        symbols.add(match.group(1))
+    for body in bodies:
+        for match in BACKTICK_SYMBOL_RE.finditer(strip_markdown_parentheticals(body)):
+            name = match.group(1)
+            if name in NEVER_A_SYMBOL:
+                continue
+            symbols.add(name)
     return symbols
 
 
@@ -453,7 +574,7 @@ def ast_public_symbols(py_file: Path) -> set[str]:
 
 
 def module_public_symbols_from_code(module_path: str) -> set[str]:
-    root = REPO_ROOT / module_path
+    root = backend_module_root(module_path)
     if not root.exists():
         return set()
     symbols: set[str] = set()
