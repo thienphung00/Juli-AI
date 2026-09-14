@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { ConnectShopView } from "../components/connect-shop-view";
+import { readActiveShop } from "../lib/shop-session";
 import { ShopsFetchError } from "../lib/shops-client";
 
 const VALID_JWT =
@@ -96,6 +97,55 @@ describe("ConnectShopView", () => {
     expect(document.querySelector(".connect-shop__active-shop")).toHaveTextContent(
       "Bạn đang thao tác trên: Shop Minh Anh",
     );
+  });
+
+  it("persists the default (first) shop as the acting shop the moment the list loads (issue #1909)", async () => {
+    const loadShops = vi.fn().mockResolvedValue([
+      { id: "shop-1", shop_name: "Cửa hàng của Lan", tiktok_shop_id: "tt-1", is_active: true },
+      { id: "shop-2", shop_name: "Shop Minh Anh", tiktok_shop_id: "tt-2", is_active: true },
+    ]);
+
+    render(<ConnectShopView loadShops={loadShops} session={session} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Shop Minh Anh")).toBeInTheDocument();
+    });
+
+    expect(readActiveShop()).toEqual({ id: "shop-1", name: "Cửa hàng của Lan" });
+  });
+
+  it("persists the newly selected shop so signed-in surfaces send its id as X-Shop-Id (issue #1909)", async () => {
+    const user = userEvent.setup();
+    const loadShops = vi.fn().mockResolvedValue([
+      { id: "shop-1", shop_name: "Cửa hàng của Lan", tiktok_shop_id: "tt-1", is_active: true },
+      { id: "shop-2", shop_name: "Shop Minh Anh", tiktok_shop_id: "tt-2", is_active: true },
+    ]);
+
+    render(<ConnectShopView loadShops={loadShops} session={session} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Shop Minh Anh")).toBeInTheDocument();
+    });
+
+    const picker = screen.getByRole("radiogroup", { name: /shop/i });
+    await user.click(within(picker).getAllByRole("radio")[1]);
+
+    expect(readActiveShop()).toEqual({ id: "shop-2", name: "Shop Minh Anh" });
+  });
+
+  it("offers a real path onward to Decisions once a shop is selected (issue #1909)", async () => {
+    const loadShops = vi.fn().mockResolvedValue([
+      { id: "shop-1", shop_name: "Cửa hàng của Lan", tiktok_shop_id: "tt-1", is_active: true },
+    ]);
+
+    render(<ConnectShopView loadShops={loadShops} session={session} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "Đi tới Quyết định" })).toHaveAttribute(
+        "href",
+        "/decisions",
+      );
+    });
   });
 
   it("renders the documented 401 known gap honestly, never a silent fixture fallback", async () => {

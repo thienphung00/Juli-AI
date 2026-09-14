@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { ExecutionRecord } from "@juli/contracts";
 import {
   Badge,
@@ -27,6 +27,8 @@ import { useDemoState } from "../../../../components/demo-state";
 import { RepeatConsentBlock } from "../../../../components/repeat-consent-block";
 import { RunDetailRoute } from "../../../../components/run-detail-route";
 import { getWorkflowReviewStages } from "../../../../lib/reviews";
+import { readActiveShop } from "../../../../lib/shop-session";
+import { readAuthSession, type AuthSession } from "../../../../lib/supabase-auth";
 import { selectRepeatConsentSurfaces } from "../../../../lib/repeat-consent";
 import { sanitizeSellerReviewText } from "../../../../lib/review-seller-copy";
 import { looksLikeRunId } from "../../../../lib/run-surface/run-id";
@@ -70,6 +72,53 @@ function ApprovedInputsSummary({ record }: { record: ExecutionRecord }) {
   );
 }
 
+/**
+ * Which ADR-094 door a real run id opens (issue #1909). Before this slice
+ * no call site anywhere passed `token`, so every visitor — signed in or
+ * not — got `ReplayRunDetail` and the live-backed signed-in path was
+ * unreachable. The stored session (`lib/supabase-auth.ts`) is the same
+ * absence-as-signal `RunDetailRoute` itself dispatches on: present → the
+ * signed-in door, with the acting shop (`lib/shop-session.ts`) alongside;
+ * absent → the replay door, exactly as before.
+ *
+ * Resolved in an effect (`undefined | null | session`, the
+ * `auth/connect-shop/page.tsx` pattern) because `sessionStorage` does not
+ * exist during SSR and a render-time read would desync hydration.
+ */
+function RunDetailDoor({ runId }: { readonly runId: string }) {
+  const [session, setSession] = useState<AuthSession | null | undefined>(
+    undefined,
+  );
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSession(readAuthSession());
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  if (session === undefined) {
+    return (
+      <p role="status" aria-live="polite">
+        Đang mở luồng thực hiện…
+      </p>
+    );
+  }
+
+  if (!session) {
+    return <RunDetailRoute runId={runId} />;
+  }
+
+  return (
+    <RunDetailRoute
+      runId={runId}
+      shopId={readActiveShop()?.id}
+      token={session.accessToken}
+    />
+  );
+}
+
 export function InProgressDetailView({ executionId }: { executionId: string }) {
   const [expanded, setExpanded] = useState(false);
   const reactId = useId();
@@ -85,7 +134,7 @@ export function InProgressDetailView({ executionId }: { executionId: string }) {
     // link here (`/decisions/in-progress/{run.id}`); this is the correct
     // navigation contract into the staged view, not a duplicate renderer.
     if (looksLikeRunId(executionId)) {
-      return <RunDetailRoute runId={executionId} />;
+      return <RunDetailDoor runId={executionId} />;
     }
 
     return (

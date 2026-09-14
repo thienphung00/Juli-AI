@@ -53,6 +53,10 @@ export interface RunDetailRouteProps {
   /** Injectable bearer token. Absent means the replay door (ADR-094
    *  decision 1); present means the signed-in door. */
   readonly token?: string;
+  /** The acting shop (issue #1909) -- forwarded as `X-Shop-Id` on the run
+   *  lookup, the SSE stream, and the confirmation POST; the backend's
+   *  `get_active_shop` rejects all three without it. Signed-in door only. */
+  readonly shopId?: string;
 }
 
 const NOT_FOUND_PLACEHOLDER = (
@@ -70,6 +74,8 @@ type RunLookupStatus = "loading" | "found" | "not_found" | "error";
 function useRunLookup(
   runId: string,
   fetchRuns: typeof fetchDemoRuns,
+  token: string,
+  shopId: string | undefined,
 ): { status: RunLookupStatus; run: WorkflowRunListItem | null } {
   const [status, setStatus] = useState<RunLookupStatus>("loading");
   const [run, setRun] = useState<WorkflowRunListItem | null>(null);
@@ -79,7 +85,7 @@ function useRunLookup(
 
     async function load() {
       try {
-        const runs = await fetchRuns();
+        const runs = await fetchRuns({ token, shopId });
         if (cancelled) return;
         const match = runs.find((r) => r.id === runId) ?? null;
         setRun(match);
@@ -93,7 +99,7 @@ function useRunLookup(
     return () => {
       cancelled = true;
     };
-  }, [runId, fetchRuns]);
+  }, [runId, fetchRuns, token, shopId]);
 
   return { status, run };
 }
@@ -103,15 +109,32 @@ function SignedInRunDetail({
   fetchRuns,
   requestedStageId,
   runId,
+  shopId,
   token,
 }: {
   readonly fetchRuns: typeof fetchDemoRuns;
   readonly requestedStageId: string | null;
   readonly runId: string;
+  readonly shopId: string | undefined;
   readonly token: string;
 }) {
-  const { status, run } = useRunLookup(runId, fetchRuns);
-  const { events, streamStatus } = useRunStream(runId, { enabled: true, token });
+  const { status, run } = useRunLookup(runId, fetchRuns, token, shopId);
+  const { events, streamStatus } = useRunStream(runId, { enabled: true, token, shopId });
+
+  // The confirm handler the option picker receives -- the real network
+  // client with the acting shop bound in, so the confirmation POST carries
+  // the same X-Shop-Id as every other call this door makes (#1909).
+  const confirm: typeof submitConfirmationDecision = (
+    confirmRunId,
+    toolCallId,
+    decision,
+    optionId,
+    options = {},
+  ) =>
+    submitConfirmationDecision(confirmRunId, toolCallId, decision, optionId, {
+      ...options,
+      shopId,
+    });
 
   if (status === "loading") {
     return (
@@ -127,7 +150,7 @@ function SignedInRunDetail({
 
   return (
     <RunStagedView
-      confirm={submitConfirmationDecision}
+      confirm={confirm}
       confirmationToken={token}
       events={events}
       isReconnecting={streamStatus === "reconnecting"}
@@ -138,7 +161,12 @@ function SignedInRunDetail({
   );
 }
 
-export function RunDetailRoute({ runId, fetchRuns = fetchDemoRuns, token }: RunDetailRouteProps) {
+export function RunDetailRoute({
+  runId,
+  fetchRuns = fetchDemoRuns,
+  shopId,
+  token,
+}: RunDetailRouteProps) {
   const searchParams = useSearchParams();
   const requestedStageId = searchParams.get("stage");
 
@@ -151,6 +179,7 @@ export function RunDetailRoute({ runId, fetchRuns = fetchDemoRuns, token }: RunD
       fetchRuns={fetchRuns}
       requestedStageId={requestedStageId}
       runId={runId}
+      shopId={shopId}
       token={token}
     />
   );
