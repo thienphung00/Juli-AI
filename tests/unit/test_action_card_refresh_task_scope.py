@@ -29,67 +29,25 @@ import inspect
 import os
 import textwrap
 import uuid
-from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import create_engine, event, text
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy import create_engine, text
 
-from juli_backend.core.config.runtime import async_database_url, sync_database_url
+from juli_backend.core.config.runtime import sync_database_url
 from juli_backend.database.exceptions import NotFound
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.services.action_cards.refresh import run_action_card_refresh
 from juli_backend.workers.tasks import action_card_refresh
-from tests.integration.two_tenant import RUNTIME_ROLE, juli_app_session
+from tests.integration.two_tenant import juli_app_session
+from tests.support.postgres import juli_app_async_sessionmaker
 
 requires_postgres = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL", "").strip().startswith("postgresql"),
     reason="DATABASE_URL is not set to a Postgres instance",
 )
-
-
-@asynccontextmanager
-async def _juli_app_engine_session_factory():
-    """A real ``async_sessionmaker`` bound to an ENGINE, running as `juli_app`.
-
-    `tests.integration.two_tenant.juli_app_session` binds one `AsyncSession`
-    to a single, already-open `AsyncConnection` (`session = AsyncSession(bind=conn)`
-    over a connection that already has an implicit transaction started by its
-    own `SET ROLE` statement). Verified empirically against real Postgres:
-    under that shape, `session.commit()` does NOT end the underlying
-    transaction -- SQLAlchemy joins an externally-supplied, already-active
-    connection as a SAVEPOINT, so `SET LOCAL` state SURVIVES the "commit".
-    That fixture is exactly right for proving initial-state RLS behaviour
-    (the existing two tests above), but reusing it here would make these two
-    new tests pass whether or not the reapply fix is applied -- the
-    fake-collaborator trap this reopen exists to close.
-
-    Here each session gets its OWN connection lifecycle from the engine, the
-    same shape as production's `_ensure_session_factory` ->
-    `ensure_worker_session_factory`: `session.commit()` issues a real
-    Postgres COMMIT, discarding `app.current_shop_id` -- confirmed
-    empirically against this same database (`before commit: <value>`,
-    `after commit: <empty>`). `SET ROLE` is applied on the driver's
-    `connect` event so every physical connection the pool opens runs as
-    `juli_app`, mirroring `juli_app_session`'s own `SET ROLE {RUNTIME_ROLE}`.
-    """
-    url = os.environ.get("DATABASE_URL", "").strip()
-    engine = create_async_engine(async_database_url(url))
-
-    @event.listens_for(engine.sync_engine, "connect")
-    def _set_runtime_role(dbapi_connection: Any, connection_record: Any) -> None:
-        cursor = dbapi_connection.cursor()
-        cursor.execute(f"SET ROLE {RUNTIME_ROLE}")
-        cursor.close()
-
-    try:
-        yield async_sessionmaker(engine, expire_on_commit=False)
-    finally:
-        await engine.dispose()
 
 
 @pytest.fixture
@@ -330,7 +288,7 @@ async def test_refresh_task_survives_a_commit_inside_the_sandbox_sync(owner_engi
         action_card_refresh, "run_action_card_refresh", _spy_run_action_card_refresh
     )
 
-    async with _juli_app_engine_session_factory() as factory:
+    async with juli_app_async_sessionmaker() as factory:
         monkeypatch.setattr(action_card_refresh, "_ensure_session_factory", lambda: factory)
 
         # No NotFound: the scope must survive the sandbox-sync's commit.
@@ -371,7 +329,7 @@ async def test_refresh_survives_a_commit_inside_the_poll_step(owner_engine):
         # for the production-read shop's poll (`credential_refresh.py:352`).
         await session.commit()
 
-    async with _juli_app_engine_session_factory() as factory, factory() as session:
+    async with juli_app_async_sessionmaker() as factory, factory() as session:
         async with with_shop_scope(session, shop_id):
             persisted_cards = await run_action_card_refresh(
                 session, shop_id, poll=True, poll_hook=_poll_hook_that_commits
@@ -416,7 +374,7 @@ async def test_refresh_survives_a_commit_before_the_emission_budget(owner_engine
     """
     shop_id = _seed_shop_with_scoreable_commerce_data(owner_engine, label="refresh-emission-commit")
 
-    async with _juli_app_engine_session_factory() as factory, factory() as session:
+    async with juli_app_async_sessionmaker() as factory, factory() as session:
         async with with_shop_scope(session, shop_id):
             persisted_cards = await run_action_card_refresh(session, shop_id, poll=False)
             # `run_action_card_refresh` only flushes the emission-budget's
