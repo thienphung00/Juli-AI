@@ -95,7 +95,26 @@
       "type": "string",
       "description": "Path to review-artifact for this run."
     },
-    "phaseRunId": { "type": "string" },
+    "phaseRunId": {
+      "description": "#1881: derived by the single owning helper (issue number + git HEAD sha) so two separate agent-phase sessions agree without either editing the other's artifact. A measured run carries a non-empty string; a run where the HEAD sha could not be resolved carries {available: false, reason}.",
+      "oneOf": [
+        {
+          "title": "measured",
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "title": "unavailable",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["available", "reason"],
+          "properties": {
+            "available": { "const": false },
+            "reason": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
     "testsExecuted": { "type": "integer", "minimum": 0 },
     "testsPassed": { "type": "integer", "minimum": 0 },
     "testsFailed": { "type": "integer", "minimum": 0 },

@@ -224,6 +224,7 @@ def build_review_artifact(
     overrides: dict[str, Any] | None = None,
     fresh: bool = False,
     update_timestamp: bool = True,
+    phase_run_id: str | None = None,
 ) -> dict[str, Any]:
     """Assemble a review artifact without clobbering existing review content."""
     artifact = review_artifact_template(issue)
@@ -237,7 +238,7 @@ def build_review_artifact(
         artifact["timestamp"] = utc_now_iso()
     elif existing and existing.get("timestamp"):
         artifact["timestamp"] = existing["timestamp"]
-    return finalize_review_artifact(artifact)
+    return finalize_review_artifact(artifact, phase_run_id=phase_run_id)
 
 
 def parse_args(description: str) -> argparse.Namespace:
@@ -594,6 +595,7 @@ def build_intent_review_artifact(
     overrides: dict[str, Any] | None = None,
     fresh: bool = False,
     update_timestamp: bool = True,
+    phase_run_id: str | None = None,
 ) -> dict[str, Any]:
     """Assemble an intent-review artifact."""
     artifact = intent_review_artifact_template(issue)
@@ -612,6 +614,14 @@ def build_intent_review_artifact(
         artifact["spec_fidelity"] = "fail"
     artifact.setdefault("smells", [])
     artifact.setdefault("convention_notes", [])
+    if phase_run_id:
+        artifact["phaseRunId"] = phase_run_id
+    elif not artifact.get("phaseRunId"):
+        # #1881: same single-helper rule as the review artifact -- no
+        # explicit override and nothing already recorded means derive fresh,
+        # never leave the template's placeholder ``None`` (schema-invalid) on
+        # disk.
+        artifact["phaseRunId"] = derive_phase_run_id(issue)
     return artifact
 
 
@@ -627,14 +637,6 @@ EXECUTOR_DOMAINS = frozenset(
 )
 
 
-def default_phase_run_id() -> str:
-    env = os.environ.get("PHASE_RUN_ID")
-    if env:
-        return env
-    now = datetime.now(timezone.utc)
-    return now.strftime("%Y-%m-%dT%H%MZ")
-
-
 #: Why the template says "unavailable" rather than 0 (#1441, #1505). No
 #: instrumented token reading is exposed to an executor, so the previous default
 #: of ``{"input": 0, "output": 0, "total": 0}`` handed every unmeasured run a
@@ -647,18 +649,63 @@ TOKEN_USAGE_UNAVAILABLE_REASON = (
 )
 
 
-def unavailable_measurement(field: str) -> dict[str, Any]:
+def unavailable_measurement(field: str, *, reason: str | None = None) -> dict[str, Any]:
     """The unmeasured shape for a scalar measurement (#1732).
 
     Mirrors :func:`unavailable_token_usage`. A freshly templated artifact has
     measured nothing, so defaulting these to ``0`` made every template
     schema-invalid the moment #1732 gave them a two-shape contract -- and worse,
     a ``0`` that survived was indistinguishable from a real reading.
+
+    ``reason`` overrides the generic "not instrumented" wording for callers
+    (e.g. :func:`derive_phase_run_id`) whose unavailable case is not about
+    instrumentation at all -- the shape is shared, the sentence should not be.
     """
     return {
         "available": False,
-        "reason": f"{field} was not instrumented for this run",
+        "reason": reason or f"{field} was not instrumented for this run",
     }
+
+
+def derive_phase_run_id(issue: int, *, repo_root: Path | None = None) -> str | dict[str, Any]:
+    """The single source of ``phaseRunId`` for every artifact template (#1881).
+
+    Before this, each generator invented its own convention (an issue-prefixed
+    compact ISO stamp, a bare ``review-issue-<n>`` id, a plain ISO stamp) and
+    none of the three ever matched, because the phases genuinely run in
+    separate agent sessions with nothing shared between them. Picking *any*
+    self-generated value — a timestamp, a random suffix — cannot fix that: the
+    two sessions would still need to agree on which value to invent, and they
+    have no channel to negotiate one.
+
+    What both sessions *can* independently observe is the git state they are
+    each checked out on: the issue number (from the branch or ``--issue``) and
+    the HEAD commit under review. An Executor/Meta session writing the
+    implementation artifact and a later Review session writing
+    intent-review/review/validation read the same on-disk HEAD as long as no
+    new commit has landed between them — which is exactly the case the gate
+    should treat as one correlated run. A genuinely different HEAD (new
+    commits landed, or a different checkout entirely) yields a different id by
+    construction, so the gate still fails closed on a real mismatch (#1881 AC2)
+    instead of being relaxed.
+
+    Returns the plain ``"<issue>-<short-sha>"`` string, or the repo's
+    ``unavailable`` shape (mirroring :func:`unavailable_measurement`) when the
+    HEAD sha cannot be resolved at all — never an invented value that would
+    silently disagree with the other phase's.
+    """
+    env = os.environ.get("PHASE_RUN_ID")
+    if env:
+        return env
+    root = repo_root or REPO_ROOT
+    ok, out, err = _git_capture(["rev-parse", "--short=12", "HEAD"], root)
+    sha = out.strip() if ok else ""
+    if not sha:
+        return unavailable_measurement(
+            "phaseRunId",
+            reason=f"git HEAD sha could not be resolved for issue {issue}: {err or 'no output'}",
+        )
+    return f"{issue}-{sha}"
 
 
 def unavailable_token_usage(
@@ -705,7 +752,7 @@ def implementation_artifact_template(
         "artifactType": "implementation",
         "issueId": issue,
         "executorDomain": executor_domain,
-        "phaseRunId": phase_run_id or default_phase_run_id(),
+        "phaseRunId": phase_run_id or derive_phase_run_id(issue),
         "startedAt": now,
         "completedAt": now,
         "executionDurationMs": unavailable_measurement("executionDurationMs"),
@@ -1185,6 +1232,12 @@ def enrich_review_artifact(
     artifact.setdefault("dynamicTestsExecuted", bool(unit.get("passed") or unit.get("failed")))
     if phase_run_id:
         artifact["phaseRunId"] = phase_run_id
+    elif not artifact.get("phaseRunId"):
+        # #1881: no explicit id and nothing already recorded (a fresh build,
+        # not a refresh) -- derive from the single owning helper rather than
+        # leaving the field unset, which is how the three competing
+        # conventions this issue fixes each got invented independently.
+        artifact["phaseRunId"] = derive_phase_run_id(artifact.get("issue", 0))
     if source_implementation:
         artifact["sourceImplementationArtifact"] = source_implementation
     impl_path = implementation_artifact_path(artifact.get("issue", 0))

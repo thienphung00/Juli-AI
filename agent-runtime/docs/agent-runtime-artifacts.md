@@ -267,13 +267,37 @@ architecture improvement.
 
 ## phaseRunId convention
 
-Correlates artifacts from one complete agent-phase execution:
+Correlates artifacts from one complete agent-phase execution -- across *separate agent
+sessions* (Executor/Meta writes the implementation artifact, a later Review session
+writes intent-review/review/validation), not one process run. Because the two sessions
+share no channel, the id cannot be a wall-clock timestamp or any value one side invents:
+two independent sessions asked "pick a value" will not pick the same one (#1881, which
+found three incompatible conventions doing exactly that across two slices).
+
+Single owning helper: `derive_phase_run_id(issue, repo_root=...)` in
+[`common.py`](../scripts/ci/common.py). Every template calls it — an implementation,
+review, or intent-review artifact never invents its own id.
 
 ```
-<issueId>-<ISO8601-date>-<short-hash>
+<issueId>-<git-HEAD-short-sha>
 ```
 
-Example: `42-2026-06-23-a1b2c3`
+Example: `1881-c26cfec12662`
+
+Both sessions independently read the same on-disk git HEAD, so they agree without
+either editing the other's artifact, as long as no new commit has landed between them
+— which is exactly the case the gate should treat as one correlated run. A genuinely
+different HEAD (new commits, or a different checkout) yields a different id by
+construction, so `check_phase_run_correlation.py` still fails closed and names both
+ids; that is a real signal, not the id scheme.
+
+When the HEAD sha cannot be resolved at all (no git, detached/corrupt repo), the helper
+records the shape `{"available": false, "reason": "..."}` — mirroring
+`unavailable_measurement`/`unavailable_token_usage` — rather than falling back to an
+invented value that would silently disagree with the other session's.
+
+An explicit `PHASE_RUN_ID` env var, or a generator's `--phase-run-id` flag, still wins
+over derivation.
 
 All artifacts from the same run share `phaseRunId`. Harness optimization artifacts
 append it to the filename for uniqueness when multiple runs exist per issue.
