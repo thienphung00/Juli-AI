@@ -320,6 +320,7 @@ async def load_control_candidates(
 
 def build_reading_row(
     *,
+    run_id: uuid.UUID | None,
     tool_execution_id: uuid.UUID,
     metric: str,
     kind: str,
@@ -337,6 +338,19 @@ def build_reading_row(
     owns the session lifecycle so it can batch every metric for one
     ``(execution, kind)`` into a single flush.
 
+    ``run_id`` is required, with no default, for the same structural reason
+    ``series_source`` has none (ADR-099 d.2, #1766): a value that can be
+    forgotten will be forgotten, and the forgotten value here is the exact
+    defect this parameter exists to close — every reading this reader ever
+    wrote carried ``run_id=None`` until #1858. Unlike ``series_source``,
+    ``None`` IS a legitimate value here: a legacy ``ToolExecution`` whose
+    ``workflow_run_id`` predates the ADR-073 d.3 ledger columns must still
+    persist ``run_id=NULL`` and must never raise. The requirement is "the
+    caller must state its answer", never "the answer must be non-null" — so
+    a future second caller cannot silently inherit today's answer by
+    omission, the same way a synthetic reading must never silently inherit
+    ``series_source='measured'``.
+
     ``series_source`` is required, with no default, for the same reason the
     column has none (ADR-099 d.2, #1766): the value you get by forgetting must
     not be the one that reads as a real measurement. A synthetic reading
@@ -345,7 +359,7 @@ def build_reading_row(
     """
     return ImpactReading(
         id=uuid.uuid4(),
-        run_id=None,
+        run_id=run_id,
         tool_execution_id=tool_execution_id,
         metric=metric,
         kind=kind,
