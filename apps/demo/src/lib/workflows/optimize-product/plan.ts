@@ -1,9 +1,11 @@
 import { buildAnalyticsMetricHref } from "../../analytics/main-kpis";
 import {
   buildPlanImpact,
+  type PlanComparisonContent,
   type PlanDecisionOptionGroup,
   type PlanReviewContent,
 } from "../../plan-reviews";
+import { describeOptionField } from "../../run-surface/option-diff";
 
 import { getPlanCaveats } from "../../plan-caveats";
 import { recommendationFixtures } from "../../recommendations";
@@ -58,6 +60,61 @@ function buildRecommendedOptionGroups(): PlanDecisionOptionGroup[] {
   });
 }
 
+function requireInputField(fieldKey: string) {
+  const inputsStage = getOptimizeProductReviewStages().find(
+    (stage) => stage.stage === "inputs",
+  );
+  const field = inputsStage?.inputFields?.find(
+    (candidate) => candidate.key === fieldKey,
+  );
+
+  if (!field) {
+    throw new Error(
+      `Missing optimize_product_2 field descriptor for ${fieldKey}`,
+    );
+  }
+
+  return field;
+}
+
+/**
+ * The review page's before/after (issue #1916): current values are the
+ * listing facts the Situation already states ("Son môi số 12" at
+ * 159.000 ₫); proposed values are the same prefills Juli pre-committed to
+ * in the field descriptors — read from them here, so the comparison can
+ * never drift from what approval actually submits. Field names resolve
+ * through `describeOptionField`. Nothing is invented: the one field
+ * without a known current value says so, and price states an explicit
+ * keep rather than implying a change.
+ */
+function buildComparison(): PlanComparisonContent {
+  const seoTitle = requireInputField("seo_title");
+  const seoDescription = requireInputField("seo_description");
+  const price = requireInputField("price");
+
+  return {
+    reason:
+      "Tiêu đề hiện tại chưa đạt điểm chất lượng tối thiểu — tiêu đề và mô tả chuẩn SEO giúp sản phẩm được tìm thấy và nhấp xem nhiều hơn.",
+    rows: [
+      {
+        fieldLabel: describeOptionField("seo_title"),
+        current: "Son môi số 12",
+        proposed: seoTitle.prefillValue ?? "",
+      },
+      {
+        fieldLabel: describeOptionField("seo_description"),
+        current: "Mô tả đang hiển thị trên tin đăng",
+        proposed: seoDescription.prefillValue ?? "",
+      },
+      {
+        fieldLabel: describeOptionField("price"),
+        current: price.prefillValue ?? "",
+        proposed: `Giữ nguyên ${price.prefillValue ?? ""}`,
+      },
+    ],
+  };
+}
+
 /**
  * Situation → Decision → Details plan review for `optimize_product_2`
  * (ADR-055 items 1, 8, 13; scope cuts per item 14 — no risks display, no
@@ -102,6 +159,8 @@ export function getOptimizeProductPlanReview(): PlanReviewContent {
         groups: buildRecommendedOptionGroups(),
       },
     },
+    // Before/after with the reason beside it (issue #1916).
+    comparison: buildComparison(),
     // No `details` key: optimize_product_2 has no branch discriminator, so
     // the Details section renders as nothing — never an empty stub.
   };

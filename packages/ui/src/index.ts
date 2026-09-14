@@ -30,7 +30,10 @@ export type {
   RealEstimatedProgressBarProps,
 } from "./progress-bar";
 export { RecommendationCard } from "./recommendation-card";
-export type { RecommendationCardProps } from "./recommendation-card";
+export type {
+  RecommendationCardPreviewRow,
+  RecommendationCardProps,
+} from "./recommendation-card";
 
 /* #413-A — Card, Dialog, Popover surface compositions */
 export {

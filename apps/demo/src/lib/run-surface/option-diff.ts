@@ -56,6 +56,8 @@ function isFromToShape(value: unknown): value is { from: unknown; to: unknown } 
  *  raw key itself, not a fabricated translation. */
 const OPTION_FIELD_LABELS: Readonly<Record<string, string>> = Object.freeze({
   price: "Giá",
+  seo_description: "Mô tả SEO",
+  seo_title: "Tiêu đề SEO",
   title: "Tiêu đề",
 });
 

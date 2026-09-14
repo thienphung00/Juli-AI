@@ -410,6 +410,57 @@ a {
   border-radius: 0.25rem;
 }
 
+/* Issue #1916 — the review page's before/after. Explicit column labels;
+   the proposed side leans on the brand accent, tokens only. */
+.demo-plan__comparison {
+  overflow-x: auto;
+}
+
+.demo-plan__comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.demo-plan__comparison-table th,
+.demo-plan__comparison-table td {
+  border-bottom: 1px solid var(--juli-border);
+  padding: var(--juli-space-3);
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.55;
+}
+
+.demo-plan__comparison-table thead th {
+  color: var(--juli-muted-foreground);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.demo-plan__comparison-table thead th.demo-plan__comparison-proposed {
+  color: var(--juli-primary-text);
+}
+
+.demo-plan__comparison-table tbody th {
+  color: var(--juli-muted-foreground);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.demo-plan__comparison-table td.demo-plan__comparison-proposed {
+  background: var(--juli-primary-soft);
+  color: var(--juli-foreground);
+  font-weight: 600;
+}
+
+.demo-plan__comparison-reason {
+  margin: var(--juli-space-3) 0 0;
+  color: var(--juli-muted-foreground);
+  line-height: 1.6;
+}
+
 .demo-plan__decision {
   display: grid;
   gap: var(--juli-space-3);
@@ -638,6 +689,100 @@ a {
   margin: var(--juli-space-6) 0 0;
   padding: 0;
   list-style: none;
+}
+
+/* Issue #1916 — "Xem thêm" opens the detail BESIDE the list: the list
+   narrows, the detail takes the remainder. Same region, side by side —
+   never an overlay or a modal (owner direction, stated twice). */
+.demo-decisions__split {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--juli-space-4);
+  align-items: start;
+}
+
+@media (min-width: 60rem) {
+  .demo-decisions__split[data-detail-open="true"] {
+    grid-template-columns: 376px minmax(0, 1fr);
+  }
+
+  /* Keep the open detail in view while the narrowed list scrolls —
+     sticky positioning, not an overlay: it never leaves its grid cell. */
+  .demo-decisions__detail {
+    position: sticky;
+    top: var(--juli-space-4);
+    max-height: calc(100vh - var(--juli-space-8));
+    overflow-y: auto;
+  }
+}
+
+.demo-decisions__detail {
+  margin-top: var(--juli-space-6);
+  border: 1px solid var(--juli-border-accent);
+  border-radius: var(--juli-radius-large);
+  background: var(--juli-surface);
+  padding: clamp(1.25rem, 4vw, 2rem);
+  box-shadow: var(--juli-shadow-small);
+}
+
+.demo-decisions__detail:focus-visible {
+  outline: var(--juli-focus-width) solid var(--juli-focus-ring);
+  outline-offset: 3px;
+}
+
+.demo-decisions__detail-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--juli-space-2);
+  min-height: var(--juli-touch-target);
+  min-width: var(--juli-touch-target);
+  margin-bottom: var(--juli-space-3);
+  border: 0;
+  background: transparent;
+  color: var(--juli-primary-text);
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.demo-decisions__detail-back:focus-visible {
+  outline: var(--juli-focus-width) solid var(--juli-focus-ring);
+  outline-offset: 3px;
+  border-radius: var(--juli-radius);
+}
+
+.demo-decisions__detail-title {
+  margin: 0 0 var(--juli-space-3);
+  font-size: clamp(1.35rem, 4vw, 1.75rem);
+  letter-spacing: -0.02em;
+}
+
+.demo-decisions__detail-signal {
+  margin: 0 0 var(--juli-space-4);
+  color: var(--juli-foreground);
+  line-height: 1.6;
+}
+
+.demo-decisions__detail-facts {
+  display: grid;
+  gap: var(--juli-space-3);
+  margin: 0;
+}
+
+.demo-decisions__detail-facts dt {
+  margin: 0 0 0.2rem;
+  color: var(--juli-primary-text);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.demo-decisions__detail-facts dd {
+  margin: 0;
+  color: var(--juli-foreground);
+  line-height: 1.6;
 }
 
 .demo-decisions__empty {

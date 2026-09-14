@@ -1,0 +1,76 @@
+{
+  "planId": "rep-1916-decisions-card-design",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com /decisions — the recommendation card and its review page"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the demo candidate unit on its own port, before the nginx upstream cutover",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "a-card-says-what-will-change",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/decisions",
+        "assertions": [
+          "each card carries a preview block naming the fields that will change, so approving is an informed click",
+          "the review page labels current and proposed explicitly, in Vietnamese, so a seller never infers which is their live listing",
+          "the two-step consent gate is intact: the first Phê duyệt reaches the review route, a second arms a dialog, and only the dialog's confirm authorises"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "js",
+      "css"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change and no backend change. Client rendering only."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "repoint the nginx demo upstream to the retained previous release; the surface reverts whole, never half-applied",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test",
+    "pnpm --filter @juli/demo exec playwright test",
+    "pnpm -w turbo run build"
+  ],
+  "doNotInfer": [
+    "Implement the v3 draft: https://claude.ai/code/artifact/0b588630-321b-4db4-9ac1-5d91e7952f9c — NOT the v4 draft with the Mega Sale band and one-line triage cards. Owner decision 2026-09-14.",
+    "Do NOT use useSearchParams in a route that must prerender — it fails the build with missing-suspense-with-csr-bailout and jsdom cannot see it (#1907 shipped a green suite with a broken build on this).",
+    "Renaming any user-visible string cascades three ways: the component, the e2e spec's assertions, AND tests/unit/test_phase_2_6_demo_exit_gate.py, which greps spec SOURCE TEXT for prose titles. Grep all three before renaming.",
+    "apps/demo/src/__tests__/replay-module-graph.test.ts must stay green — ADR-094 decision 1. If it goes red, stop and report; do not adjust it.",
+    "Colour comes only from packages/theme tokens. #1912's token-only-theming test fails any rule declaring a literal colour, blur or shadow on a run-surface selector.",
+    "Do not manipulate process.env.NEXT_PUBLIC_SUPABASE_* in tests — CI has real values. Mock the seam.",
+    "THE TWO-STEP CONSENT GATE IS NON-NEGOTIABLE (ADR-055 item 8 / #1317). No single click authorises anything. Its existing test must stay green and unedited.",
+    "Horizontal cards per the v3 draft: subject left, workflow category right, Ưu tiên on the first only, preview block, then Phê duyệt / Từ chối / Xem thêm.",
+    "Xem thêm opens the detail BESIDE the list — the list narrows, the detail takes the rest. Never an overlay or a modal. Xem thêm hides itself while open; Phê duyệt and Từ chối stay on the card.",
+    "Do not touch apps/demo/src/components/run-*.tsx — those belong to #1908/#1914/#1915."
+  ]
+}

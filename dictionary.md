@@ -33,6 +33,36 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - _Avoid_: Xem xét, Chi tiết AI
 - Definition: Reveals a recommendation's reasoning and details in place.
 
+**`decisions.card.see_more`**
+- EN: See more
+- VI: Xem thêm
+- _Avoid_: Mở rộng, Chi tiết AI, Xem chi tiết
+- Definition: The list card's third action (issue #1916, v3 draft) — opens the recommendation's detail beside the list (the list narrows, the detail takes the remainder; never an overlay or a modal). Hides itself while its card's detail is open; Phê duyệt and Từ chối stay on the card.
+
+**`decisions.detail.title`**
+- EN: Recommendation detail
+- VI: Chi tiết đề xuất
+- _Avoid_: Thông tin thêm, Chi tiết AI
+- Definition: Accessible name of the region "Xem thêm" opens beside the list (issue #1916) — carries the recommendation's signal, reasoning, evidence, eligibility, known limits, and risks.
+
+**`decisions.detail.back`**
+- EN: Back
+- VI: Quay lại
+- _Avoid_: Trở về, Đóng, Thoát
+- Definition: Restores the full-width recommendation grid from the beside-the-list detail (issue #1916, rendered "← Quay lại") and returns focus to the card that opened it. Distinct from any review-page control: the plan review deliberately has no "Quay lại" button.
+
+**`review.compare.current`**
+- EN: Live on your shop
+- VI: Đang bán trên shop của bạn
+- _Avoid_: Phiên bản cũ, Hiện trạng, Bản gốc
+- Definition: Column label over the current-listing side of the review page's before/after (issue #1916, ADR-055 item 8 surface) — names the seller's live listing explicitly so they never infer which column is theirs.
+
+**`review.compare.proposed`**
+- EN: Juli proposes
+- VI: Juli đề xuất
+- _Avoid_: Phiên bản mới, Bản nháp, Sau khi thay đổi
+- Definition: Column label over the proposed side of the review page's before/after (issue #1916). What approval — through the two-step consent gate — would submit; nothing changes until the gate's own confirm.
+
 **`nav.home`**
 - EN: Home
 - VI: Trang chủ

@@ -428,6 +428,64 @@
   outline-offset: 2px;
 }
 
+/* Issue #1916 (v3 draft) — subject left, workflow category right. */
+.juli-recommendation-card__category {
+  margin: 0;
+  color: var(--juli-muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Issue #1916 (v3 draft) — the change in miniature, boxed inside the card
+   so "Phê duyệt" is an informed click. Colours are theme tokens only. */
+.juli-recommendation-card__preview {
+  display: grid;
+  gap: var(--juli-space-2);
+  margin: 0;
+  border: 1px solid var(--juli-border);
+  border-radius: calc(var(--juli-radius) - 0.375rem);
+  background: var(--juli-primary-soft);
+  padding: var(--juli-space-3) var(--juli-space-4);
+}
+
+.juli-recommendation-card__preview-row {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, auto) 1fr;
+  gap: var(--juli-space-3);
+  align-items: baseline;
+}
+
+.juli-recommendation-card__preview-label {
+  margin: 0;
+  color: var(--juli-primary-text);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.juli-recommendation-card__preview-change {
+  margin: 0;
+  color: var(--juli-foreground);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.juli-recommendation-card__preview-row[data-kind="keep"]
+  .juli-recommendation-card__preview-change {
+  color: var(--juli-muted-foreground);
+}
+
+@media (max-width: 42rem) {
+  .juli-recommendation-card__preview-row {
+    grid-template-columns: 1fr;
+    gap: var(--juli-space-1);
+  }
+}
+
 .juli-recommendation-card__signal,
 .juli-recommendation-card__reasoning {
   margin: 0;

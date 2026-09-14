@@ -1,5 +1,17 @@
 import { formatVND } from "@juli/utils";
 
+/**
+ * One line of the list card's preview block (issue #1916, v3 draft): the
+ * field or aspect the workflow will touch and the change in miniature —
+ * authored from the fixture's own signal/eligibility copy, never an
+ * invented number. `kind: "keep"` rows state what Juli will NOT touch.
+ */
+export interface RecommendationPreviewRow {
+  label: string;
+  change: string;
+  kind: "change" | "keep";
+}
+
 export interface RecommendationFixture {
   capabilityLabel: string;
   confidenceLabel: string;
@@ -9,10 +21,17 @@ export interface RecommendationFixture {
   expectedImpactLabel: string;
   isPriority: boolean;
   knownLimits: string;
+  /** The change in miniature, rendered on the list card (issue #1916). */
+  previewRows: readonly RecommendationPreviewRow[];
   reasoning: string;
   risks: string;
   sellerReason: string;
   signal: string;
+  /**
+   * What the decision is about — product, order group, or campaign. The
+   * card's heading (subject left, workflow category right — issue #1916).
+   */
+  subject: string;
   title: string;
   toolName: string;
   workflowKey: string;
@@ -54,6 +73,20 @@ const FBS_EXECUTABLE = "Có thể thực thi qua FBS";
 export const recommendationFixtures = [
   {
     workflowKey: "create_hero_product_1",
+    subject: "Danh mục chăm sóc da",
+    previewRows: [
+      {
+        label: "Sản phẩm mới",
+        change:
+          "Chưa có sản phẩm đáp ứng → thêm một sản phẩm nổi bật cho nhu cầu đang tăng",
+        kind: "change",
+      },
+      {
+        label: "Ảnh chính",
+        change: "Bạn cung cấp ảnh — Juli không tự chọn ảnh thay bạn",
+        kind: "keep",
+      },
+    ],
     toolName: "listing.create_hero_product",
     title: "Tạo sản phẩm nổi bật",
     isPriority: true,
@@ -78,6 +111,25 @@ export const recommendationFixtures = [
   },
   {
     workflowKey: "optimize_product_2",
+    subject: "Son môi số 12",
+    previewRows: [
+      {
+        label: "Tiêu đề SEO",
+        change:
+          "“Son môi số 12” → “Son môi lì cao cấp số 12 — màu đỏ ruby”",
+        kind: "change",
+      },
+      {
+        label: "Mô tả SEO",
+        change: "Thêm mô tả chuẩn SEO để sản phẩm được tìm thấy nhiều hơn",
+        kind: "change",
+      },
+      {
+        label: "Giá bán",
+        change: "Giữ nguyên 159.000 ₫ — trong giới hạn lợi nhuận của bạn",
+        kind: "keep",
+      },
+    ],
     toolName: "listing.optimize_product",
     title: "Tối ưu sản phẩm",
     isPriority: false,
@@ -101,6 +153,19 @@ export const recommendationFixtures = [
   },
   {
     workflowKey: "replenish_inventory_3", // gitleaks:allow — documented mock workflow key
+    subject: "Kem chống nắng SPF50",
+    previewRows: [
+      {
+        label: "Tồn kho",
+        change: "Còn đủ 4 ngày bán → nhập thêm theo số lượng đã duyệt",
+        kind: "change",
+      },
+      {
+        label: "Giá bán",
+        change: "Giữ nguyên — chỉ nhập thêm hàng",
+        kind: "keep",
+      },
+    ],
     toolName: "inventory.replenish",
     title: "Nhập thêm hàng",
     isPriority: false,
@@ -124,6 +189,19 @@ export const recommendationFixtures = [
   },
   {
     workflowKey: "clear_excess_4",
+    subject: "Áo khoác gió mùa hè",
+    previewRows: [
+      {
+        label: "Khuyến mãi",
+        change: "Tồn quá 60 ngày → chạy giảm giá để xả lô hàng",
+        kind: "change",
+      },
+      {
+        label: "Tồn kho",
+        change: "Chỉ ghi nhận sau khi bạn xác nhận số thực tế",
+        kind: "keep",
+      },
+    ],
     toolName: "inventory.clear_excess",
     title: "Xả hàng tồn",
     isPriority: false,
@@ -148,6 +226,19 @@ export const recommendationFixtures = [
   },
   {
     workflowKey: "process_order_5",
+    subject: "6 đơn hàng chờ xử lý",
+    previewRows: [
+      {
+        label: "Đơn hàng",
+        change: "Đang chờ xử lý → xử lý trước hạn giao vận",
+        kind: "change",
+      },
+      {
+        label: "Thông tin khách",
+        change: "Chỉ hiển thị ở mức tối thiểu cần thiết",
+        kind: "keep",
+      },
+    ],
     toolName: "fulfillment.process_order",
     title: "Xử lý đơn hàng có rủi ro trễ hạn",
     isPriority: false,
@@ -172,6 +263,19 @@ export const recommendationFixtures = [
   },
   {
     workflowKey: "create_activity_7a",
+    subject: "Nhóm chăm sóc da",
+    previewRows: [
+      {
+        label: "Khuyến mãi",
+        change: "Chưa có chương trình → tạo chương trình mới trong tuần này",
+        kind: "change",
+      },
+      {
+        label: "Mức giảm giá",
+        change: "Bạn quyết định — Juli không tự điền số tiền giảm",
+        kind: "keep",
+      },
+    ],
     toolName: "promotion.create_activity",
     title: "Tạo chương trình khuyến mãi",
     isPriority: false,
@@ -196,6 +300,14 @@ export const recommendationFixtures = [
   },
   {
     workflowKey: "update_activity_7c",
+    subject: "Flash Sale chăm sóc da",
+    previewRows: [
+      {
+        label: "Khuyến mãi",
+        change: "Cấu hình hiện tại → điều chỉnh SKU hoặc cửa sổ khuyến mãi",
+        kind: "change",
+      },
+    ],
     toolName: "promotion.update_activity",
     title: "Cập nhật chương trình khuyến mãi",
     isPriority: false,
@@ -220,6 +332,15 @@ export const recommendationFixtures = [
   },
   {
     workflowKey: "delete_activity_7b",
+    subject: "Giảm giá trực tiếp mùa hè",
+    previewRows: [
+      {
+        label: "Khuyến mãi",
+        change:
+          "Đang hiển thị hoạt động → kết thúc để tránh giảm giá ngoài ý muốn",
+        kind: "change",
+      },
+    ],
     toolName: "promotion.delete_activity",
     title: "Kết thúc chương trình khuyến mãi",
     isPriority: false,
@@ -244,6 +365,14 @@ export const recommendationFixtures = [
   },
   {
     workflowKey: "prevent_cancellation_8a",
+    subject: "1 yêu cầu huỷ đơn",
+    previewRows: [
+      {
+        label: "Yêu cầu huỷ đơn",
+        change: "Đang chờ → bạn quyết định giữ đơn hoặc chấp nhận huỷ",
+        kind: "change",
+      },
+    ],
     toolName: "returns.prevent_cancellation",
     title: "Xử lý yêu cầu huỷ đơn",
     isPriority: false,
@@ -267,6 +396,14 @@ export const recommendationFixtures = [
   },
   {
     workflowKey: "prevent_return_8b",
+    subject: "1 yêu cầu trả hàng",
+    previewRows: [
+      {
+        label: "Yêu cầu trả hàng",
+        change: "Đang chờ xác minh → quyết định sau khi kiểm tra thực tế",
+        kind: "change",
+      },
+    ],
     toolName: "returns.prevent_return",
     title: "Xử lý yêu cầu trả hàng",
     isPriority: false,
@@ -290,6 +427,14 @@ export const recommendationFixtures = [
   },
   {
     workflowKey: "prevent_refund_8c",
+    subject: "1 yêu cầu hoàn tiền",
+    previewRows: [
+      {
+        label: "Yêu cầu hoàn tiền",
+        change: "Đang chờ quyết định → xử lý theo số tiền đã tính hợp lệ",
+        kind: "change",
+      },
+    ],
     toolName: "returns.prevent_refund",
     title: "Xử lý yêu cầu hoàn tiền",
     isPriority: false,

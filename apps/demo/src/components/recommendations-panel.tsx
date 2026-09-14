@@ -36,8 +36,14 @@ export function RecommendationsPanel({
   } = useDemoState();
   const highlightedCardRef = useRef<HTMLElement | null>(null);
   const recommendationsPanelRef = useRef<HTMLDivElement | null>(null);
+  const detailRef = useRef<HTMLElement | null>(null);
+  const splitRef = useRef<HTMLDivElement | null>(null);
   const [loadState, setLoadState] = useState(initialLoadState);
   const [statusMessage, setStatusMessage] = useState("");
+  // Issue #1916 (v3 draft): "Xem thêm" opens this recommendation's detail
+  // BESIDE the list — the list narrows, the detail takes the remainder,
+  // never an overlay or a modal (owner direction, stated twice).
+  const [detailKey, setDetailKey] = useState<string | null>(null);
 
   // Issue #1836 / ADR-084 decision 6: a decided replay run consumes its
   // card the same way an approved or rejected one does, just via a
@@ -91,6 +97,10 @@ export function RecommendationsPanel({
     visibleFixtures[0] ??
     null;
 
+  const detailFixture =
+    visibleFixtures.find((fixture) => fixture.workflowKey === detailKey) ??
+    null;
+
   useEffect(() => {
     setRecommendationContext(
       activeFixture
@@ -128,10 +138,40 @@ export function RecommendationsPanel({
     node.focus();
   }, [highlightKey]);
 
+  // Focus travels with the detail: into the region when it opens (card →
+  // detail), back to the card when "Quay lại" restores the grid.
+  useEffect(() => {
+    if (detailKey) {
+      detailRef.current?.focus();
+    }
+  }, [detailKey]);
+
+  const focusCard = (workflowKey: string) => {
+    window.setTimeout(() => {
+      splitRef.current
+        ?.querySelector<HTMLElement>(
+          `article[data-workflow-key="${workflowKey}"]`,
+        )
+        ?.focus();
+    }, 0);
+  };
+
+  const handleCloseDetail = () => {
+    const closingKey = detailKey;
+    setDetailKey(null);
+    if (closingKey) {
+      focusCard(closingKey);
+    }
+  };
+
   const handleReject = (workflowKey: string) => {
     const rejectedFixture = recommendationFixtures.find(
       (fixture) => fixture.workflowKey === workflowKey,
     );
+
+    if (detailKey === workflowKey) {
+      setDetailKey(null);
+    }
 
     updateMutableState((current) => ({
       ...current,
@@ -197,43 +237,99 @@ export function RecommendationsPanel({
           </Link>
         </section>
       ) : (
-        <ul className="demo-decisions__list">
-          {visibleFixtures.map((fixture) => {
-            const isHighlighted = fixture.workflowKey === highlightKey;
-            const approveEnabled = APPROVABLE_WORKFLOW_KEYS.includes(
-              fixture.workflowKey as (typeof APPROVABLE_WORKFLOW_KEYS)[number],
-            );
+        <div
+          ref={splitRef}
+          className="demo-decisions__split"
+          data-detail-open={detailFixture ? "true" : "false"}
+          data-testid="decisions-split"
+        >
+          <ul className="demo-decisions__list">
+            {visibleFixtures.map((fixture) => {
+              const isHighlighted = fixture.workflowKey === highlightKey;
+              const approveEnabled = APPROVABLE_WORKFLOW_KEYS.includes(
+                fixture.workflowKey as (typeof APPROVABLE_WORKFLOW_KEYS)[number],
+              );
 
-            return (
-              <li key={fixture.workflowKey}>
-                <RecommendationCard
-                  ref={isHighlighted ? highlightedCardRef : undefined}
-                  approveDisabledReason={
-                    approveEnabled ? undefined : APPROVE_DISABLED_REASON
-                  }
-                  detailHref={buildRecommendationDetailHref(fixture.workflowKey)}
-                  eligibility={fixture.eligibility}
-                  evidence={fixture.evidence}
-                  isHighlighted={isHighlighted}
-                  isPriority={fixture.isPriority}
-                  knownLimits={fixture.knownLimits}
-                  onApprove={
-                    approveEnabled
-                      ? () => handleApprove(fixture.workflowKey)
-                      : undefined
-                  }
-                  onReject={() => handleReject(fixture.workflowKey)}
-                  reasoning={fixture.reasoning}
-                  risks={fixture.risks}
-                  sellerReason={fixture.sellerReason}
-                  signal={fixture.signal}
-                  title={fixture.title}
-                  workflowKey={fixture.workflowKey}
-                />
-              </li>
-            );
-          })}
-        </ul>
+              return (
+                <li key={fixture.workflowKey}>
+                  <RecommendationCard
+                    ref={isHighlighted ? highlightedCardRef : undefined}
+                    approveDisabledReason={
+                      approveEnabled ? undefined : APPROVE_DISABLED_REASON
+                    }
+                    categoryLabel={fixture.title}
+                    detailHref={buildRecommendationDetailHref(fixture.workflowKey)}
+                    eligibility={fixture.eligibility}
+                    evidence={fixture.evidence}
+                    isHighlighted={isHighlighted}
+                    isPriority={fixture.isPriority}
+                    knownLimits={fixture.knownLimits}
+                    onApprove={
+                      approveEnabled
+                        ? () => handleApprove(fixture.workflowKey)
+                        : undefined
+                    }
+                    onReject={() => handleReject(fixture.workflowKey)}
+                    onSeeMore={() => setDetailKey(fixture.workflowKey)}
+                    previewRows={fixture.previewRows}
+                    reasoning={fixture.reasoning}
+                    risks={fixture.risks}
+                    seeMoreOpen={fixture.workflowKey === detailKey}
+                    sellerReason={fixture.sellerReason}
+                    signal={fixture.signal}
+                    title={fixture.subject}
+                    workflowKey={fixture.workflowKey}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+          {detailFixture ? (
+            <section
+              ref={detailRef}
+              aria-label="Chi tiết đề xuất"
+              className="demo-decisions__detail"
+              tabIndex={-1}
+            >
+              <button
+                className="demo-decisions__detail-back"
+                onClick={handleCloseDetail}
+                type="button"
+              >
+                <span aria-hidden="true">←</span> Quay lại
+              </button>
+              <p className="demo-kicker">{detailFixture.title}</p>
+              <h2 className="demo-decisions__detail-title">
+                {detailFixture.subject}
+              </h2>
+              <p className="demo-decisions__detail-signal">
+                {detailFixture.signal}
+              </p>
+              <dl className="demo-decisions__detail-facts">
+                <div>
+                  <dt>Lý do đề xuất</dt>
+                  <dd>{detailFixture.reasoning}</dd>
+                </div>
+                <div>
+                  <dt>Bằng chứng</dt>
+                  <dd>{detailFixture.evidence}</dd>
+                </div>
+                <div>
+                  <dt>Điều kiện áp dụng</dt>
+                  <dd>{detailFixture.eligibility}</dd>
+                </div>
+                <div>
+                  <dt>Giới hạn hiện tại</dt>
+                  <dd>{detailFixture.knownLimits}</dd>
+                </div>
+                <div>
+                  <dt>Rủi ro</dt>
+                  <dd>{detailFixture.risks}</dd>
+                </div>
+              </dl>
+            </section>
+          ) : null}
+        </div>
       )}
     </div>
   );

@@ -22,8 +22,10 @@ test.describe("Phase 2.6 exit gate — responsive IA parity", () => {
 
     const desktop = await collectLabels();
     await expectFourDestinationShell(page);
+    // Issue #1916: the card h3 carries the subject; the workflow title
+    // renders as the category label on the right of the header.
     expect(desktop.cardTitles).toEqual(
-      RECOMMENDATION_WORKFLOWS.map((fixture) => fixture.title),
+      RECOMMENDATION_WORKFLOWS.map((fixture) => fixture.subject),
     );
 
     await page.setViewportSize({ width: 390, height: 844 });

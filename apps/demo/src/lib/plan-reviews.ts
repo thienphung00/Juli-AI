@@ -218,6 +218,39 @@ export interface PlanNeedsYouContent {
   approvalBlockedText: string;
 }
 
+/**
+ * One row of the review page's before/after comparison (issue #1916):
+ * the field in seller Vietnamese (`describeOptionField` supplies known
+ * keys), what is live on the shop today, and what Juli proposes. Values
+ * come from the workflow's own field descriptors — never invented here.
+ */
+export interface PlanComparisonRow {
+  fieldLabel: string;
+  current: string;
+  proposed: string;
+}
+
+/**
+ * The review page's before/after (issue #1916, ElevenLabs/Mistral
+ * references): current listing on one side, proposal on the other, each
+ * explicitly labelled, with the reason travelling alongside the change
+ * (Shopify reference) — visible, never behind hover or a tooltip.
+ */
+export interface PlanComparisonContent {
+  /** Why Juli proposes this change — rendered visibly beside the diff. */
+  reason: string;
+  rows: PlanComparisonRow[];
+}
+
+/**
+ * Column labels for the comparison — shared constants so two workflows
+ * can never label the seller's live listing differently. Explicit enough
+ * that a seller never infers which column is theirs (dictionary.md keys
+ * `review.compare.current` / `review.compare.proposed`).
+ */
+export const PLAN_COMPARISON_CURRENT_LABEL = "Đang bán trên shop của bạn";
+export const PLAN_COMPARISON_PROPOSED_LABEL = "Juli đề xuất";
+
 export interface PlanReviewContent {
   workflowKey: string;
   title: string;
@@ -242,6 +275,14 @@ export interface PlanReviewContent {
    * and blocks approval until every required upload is supplied.
    */
   needsYou?: PlanNeedsYouContent;
+  /**
+   * Absent (undefined) for workflows without an authored before/after —
+   * the review then keeps its existing shape unchanged. Present on
+   * Optimize Product (issue #1916): the card renders a labelled
+   * current-vs-proposed table between the impact block and the Decision
+   * section, plus the visible reason.
+   */
+  comparison?: PlanComparisonContent;
 }
 
 export function getWorkflowPlanReview(
