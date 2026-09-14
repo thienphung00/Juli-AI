@@ -25,17 +25,28 @@ Invariants below.
   `prevent_refund_8c`); FBT return intake key stays non-executable.
 - `RecommendationsPanel` / `InProgressPanel` — Decisions tab panels composed by
   `RecommendationsView`.
-- `lib/recommendations.ts` — `fetchRecommendations()`'s route constant now
-  matches the server-side route that actually exists (`GET /v1/demo/decisions`,
-  `backend/src/juli_backend/api/routes/demo_decisions.py`), and the function
-  itself never falls back to `recommendationFixtures` on a failed or malformed
-  fetch (#1320, partial — see Invariants). It is not yet called from
-  `RecommendationsPanel`/`RecommendationsView`: those still render
-  `recommendationFixtures` directly and unconditionally, as before this
-  change. Wiring the live call into that shared component is **not** done in
-  this diff (see Invariants for why).
+- `lib/recommendations.ts` — network-free fixtures and href builders for the
+  ANONYMOUS branch only. The authenticated clients live in
+  `lib/recommendations-api-client.ts` (#1772): `fetchRecommendations()`
+  reads the real `GET /v1/demo/decisions` (parsing its actual
+  `DemoDecisionListResponse` envelope from `@juli/contracts`) and
+  `approveDemoDecision()` performs the real
+  `POST /v1/demo/decisions/{id}/approve` — both bearer-authenticated with
+  `X-Shop-Id`, both called from `SignedInDecisions` (issue #1909), and
+  neither ever falls back to `recommendationFixtures` on a failed or
+  malformed fetch (#1320).
+- `SignedInDecisions` (`components/signed-in-decisions.tsx`, issue #1909) —
+  the signed-in Decisions branch's OWN module, mirroring
+  `replay-run-detail.tsx`'s split in the opposite direction: it alone
+  imports the authenticated Decisions clients, renders the acting shop
+  (`lib/shop-session.ts`, written by the connect-shop screen), and on a
+  consented approve navigates to `/decisions/in-progress/{run_id}` using
+  the `run_id` from the approve response — never a client-constructed id.
+  `DecisionsPageClient` selects it when `readAuthSession()` finds a stored
+  session; with none, the anonymous `RecommendationsView` renders
+  unchanged.
 - `AnalyticsDataProvider` / `fetchDemoAnalytics` — Phase 2.10-A live Analytics read via `GET /v1/demo/analytics` (Home/Settings/Decisions remain mock).
-- **The staged run view (issues #1316/#1317/#1319/#1752, ADR-076 decision 3/4, ADR-094).** `RunDetailRoute` (`components/run-detail-route.tsx`) dispatches on whether a bearer `token` is present — the same absence-as-signal `useRunStream` itself gates on:
+- **The staged run view (issues #1316/#1317/#1319/#1752/#1909, ADR-076 decision 3/4, ADR-094).** `RunDetailRoute` (`components/run-detail-route.tsx`) dispatches on whether a bearer `token` is present — the same absence-as-signal `useRunStream` itself gates on. Since issue #1909 that token is actually supplied: the `[executionId]` page's `RunDetailDoor` reads `readAuthSession()` and passes `token` (plus the acting shop's `shopId`) when a session is stored — before #1909 no caller passed one, so the signed-in door below was unreachable from any browser:
   - **Signed-in (token present):** `SignedInRunDetail` calls `fetchDemoRuns` (`lib/run-ledger/api-client.ts`, real `GET /v1/demo/runs`) to resolve the run, then `useRunStream(runId)` (`lib/run-surface/use-run-stream.ts`) opens the real SSE transport (`lib/agent-event-stream.ts`) with reconnect/backoff via `Last-Event-ID`. `RunStagedView` renders the live event fold; `OptionPicker`'s confirm/decline calls `submitConfirmationDecision` (`lib/run-surface/confirmation-client.ts`), a real bearer-authenticated `POST /v1/demo/runs/{id}/confirmations/{tool_call_id}`. This path is live-backed end to end.
   - **Replay/anonymous (no token):** `ReplayRunDetail` seeds `RunStagedView` from `useReplayEvents` (`lib/run-surface/use-replay-events.ts`), which reveals the one bundled, tool-captured golden scenario (`lib/run-surface/golden-scenarios/optimize_product_confirm_pause.json`, imported statically — never fetched, verified absent-from-build-fails-loudly by `scripts/verify-replay-scenario-in-build.mjs`) paced by its own captured inter-event deltas, rebased to now. Reaching and viewing this run issues zero `/v1/*` requests — matches `RunDetailRoute`'s own test, `run-detail-route.test.tsx`'s "replay path ... zero /v1/* requests" case.
 - `RunStagedView` / `RunStepper` / `RunStageCanvas` / `OptionPicker` — the one-stage-at-a-time canvas, top stepper, and consent-grade option picker (PUI-DESIGN.md §2/§3); shared verbatim by both doors above, so replay and signed-in render identically by construction.
@@ -67,30 +78,31 @@ Invariants below.
   bearer-authenticated `GET /v1/shops` call. When not, the disabled state
   now also renders visible Vietnamese copy (`dictionary.md`
   `auth.google.unavailable`), not only an `aria-label`.
-- `RecommendationsPanel`/`RecommendationsView` make no backend request or
-  real write anywhere in the recommendations flow (asserted in
-  `decisions-recommendations.test.tsx`) — this is deliberately **not**
-  changed by #1320's path fix. `fetchRecommendations()` targeting the real
-  `GET /v1/demo/decisions` route no longer masks a failure with
-  `recommendationFixtures` (issue #1320's defects 2 and 3, at the function
-  level), but the function is not called from this component: doing so today
-  would (a) break the "no backend request" invariant just above, since this
-  single component tree still serves both the anonymous replay and a
-  signed-in visitor identically — #1319 split the *entry points*, not this
-  component tree — and (b) make the anonymous "Dùng thử Demo" replay issue a
-  live `/v1/*` request, which ADR-094 forbids outright. Wiring the live call
-  in belongs with the component-level anonymous/signed-in split, not before
-  it — the same "delete before the replacement exists" risk the issue's own
-  dependency ordering warns about.
+- `RecommendationsPanel`/`RecommendationsView` — the ANONYMOUS Decisions
+  branch — make no backend request or real write anywhere in the
+  recommendations flow (asserted in `decisions-recommendations.test.tsx`,
+  and structurally by `replay-module-graph.test.ts`). Issue #1909 delivered
+  the component-level anonymous/signed-in split this invariant was waiting
+  for: `DecisionsPageClient` resolves the stored session and renders EITHER
+  this fixture branch (no session — unchanged, still fixture-only) OR
+  `SignedInDecisions` (session present), which is the only Decisions module
+  that calls `fetchRecommendations()`/`approveDemoDecision()`. The claim
+  is therefore scoped: the signed-in branch DOES issue bearer-authenticated
+  `/v1/*` requests, by design; the anonymous branch still issues none, and
+  a failed signed-in fetch renders an honest error — never
+  `recommendationFixtures` standing in (#1320).
 - Manual Refresh re-fetches Analytics envelopes, resets mutable mock-state, and returns to
   `/decisions`, whose default view is Recommendations.
 - **The staged run view's no-backend invariant is retired for the SIGNED-IN
-  door only (issue #1321).** The signed-in path is live-backed: real run
-  lookup (`GET /v1/demo/runs`), a real SSE connection, and a real
-  bearer-authenticated confirmation POST — see Public interface above. The
-  REPLAY/anonymous door stays request-free for *reaching and viewing* a run,
-  exactly as ADR-094 decision 1 requires — verified directly against a
-  running build, not inferred.
+  door only (issue #1321), and that door is REACHABLE since issue #1909.**
+  The signed-in path is live-backed AND wired: the `[executionId]` page
+  passes the stored session's token (no caller did before #1909), and the
+  run lookup (`GET /v1/demo/runs`), the SSE connection, and the
+  confirmation POST all carry the bearer token plus the acting shop's
+  `X-Shop-Id` — the pre-#1909 clients sent no credentials on the lookup and
+  no shop id anywhere, which the authenticated routes reject. The
+  REPLAY/anonymous door stays request-free for *reaching and viewing* a
+  run, exactly as ADR-094 decision 1 requires.
 - **Approving "Tối ưu sản phẩm" from Decisions reaches this captured run's
   staged view (issue #1320 part 2 / #1762).** The list card's "Phê duyệt"
   navigates to the review page; a second "Phê duyệt" in
