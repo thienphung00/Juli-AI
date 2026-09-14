@@ -88,12 +88,16 @@ export async function confirmApproveThroughGate(page: Page) {
 export async function approveFromRecommendations(
   page: Page,
   workflowKey: string,
-  title: string,
+  subject: string,
 ) {
   await page.goto("/decisions");
   const card = page.locator(`article[data-workflow-key="${workflowKey}"]`);
   await expect(card).toBeVisible();
-  await expect(card.getByRole("heading", { level: 3, name: title })).toBeVisible();
+  // Issue #1916 (v3 draft): the card heading is the subject — what the
+  // decision is about — with the workflow category on the right.
+  await expect(
+    card.getByRole("heading", { level: 3, name: subject }),
+  ).toBeVisible();
   await card.scrollIntoViewIfNeeded();
   await Promise.all([
     page.waitForURL(new RegExp(`/decisions/recommendations/${workflowKey}$`)),

@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { RecommendationCard } from "../recommendation-card";
 
@@ -67,5 +67,88 @@ describe("RecommendationCard", () => {
       "href",
       "/decisions/recommendations/create_hero_product_1",
     );
+  });
+});
+
+describe("RecommendationCard — v3 anatomy (issue #1916)", () => {
+  const previewRows = [
+    {
+      label: "Tiêu đề SEO",
+      change: "“Cũ” → “Mới”",
+      kind: "change",
+    },
+    {
+      label: "Giá bán",
+      change: "Giữ nguyên",
+      kind: "keep",
+    },
+  ] as const;
+
+  it("renders subject-left/category-right header and the preview block instead of the raw signal", () => {
+    render(
+      <RecommendationCard
+        {...baseProps}
+        categoryLabel="Tối ưu sản phẩm"
+        onSeeMore={() => {}}
+        previewRows={previewRows}
+      />,
+    );
+
+    const card = screen.getByRole("article");
+    expect(within(card).getByText("Tối ưu sản phẩm")).toBeInTheDocument();
+
+    const preview = within(card).getByTestId("recommendation-preview");
+    expect(within(preview).getByText("Tiêu đề SEO")).toBeInTheDocument();
+    expect(within(preview).getByText("“Cũ” → “Mới”")).toBeInTheDocument();
+    expect(within(preview).getByText("Giữ nguyên")).toBeInTheDocument();
+    expect(within(card).queryByText(baseProps.signal)).not.toBeInTheDocument();
+  });
+
+  it("renders Xem thêm when the caller owns the detail, and hides it while open", async () => {
+    const user = userEvent.setup();
+    const onSeeMore = vi.fn();
+    const { rerender } = render(
+      <RecommendationCard
+        {...baseProps}
+        onSeeMore={onSeeMore}
+        previewRows={previewRows}
+      />,
+    );
+
+    const card = screen.getByRole("article");
+    expect(
+      within(card).queryByRole("button", { name: "Mở rộng" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(within(card).getByRole("button", { name: "Xem thêm" }));
+    expect(onSeeMore).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <RecommendationCard
+        {...baseProps}
+        onSeeMore={onSeeMore}
+        previewRows={previewRows}
+        seeMoreOpen
+      />,
+    );
+
+    expect(
+      within(card).queryByRole("button", { name: "Xem thêm" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(card).getByRole("button", { name: "Phê duyệt" }),
+    ).toBeInTheDocument();
+    expect(
+      within(card).getByRole("button", { name: "Từ chối" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the legacy in-card accordion when no beside-list detail is wired", async () => {
+    const user = userEvent.setup();
+    render(<RecommendationCard {...baseProps} />);
+
+    const card = screen.getByRole("article");
+    await user.click(within(card).getByRole("button", { name: "Mở rộng" }));
+    expect(within(card).getByText(baseProps.evidence)).toBeInTheDocument();
   });
 });

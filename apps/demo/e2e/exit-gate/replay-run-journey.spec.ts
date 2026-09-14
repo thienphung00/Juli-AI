@@ -7,6 +7,7 @@ import {
   REPLAY_SCENARIO_PROPOSED_TITLE,
   REPLAY_SCENARIO_RUN_ID,
   REPLAY_SCENARIO_WORKFLOW_KEY,
+  REPLAY_SCENARIO_WORKFLOW_SUBJECT,
   REPLAY_SCENARIO_WORKFLOW_TITLE,
 } from "../fixtures/replay-scenario";
 
@@ -148,8 +149,16 @@ test.describe("Replay journey — issue #1321 (ADR-076 decision 7)", () => {
         `article[data-workflow-key="${REPLAY_SCENARIO_WORKFLOW_KEY}"]`,
       );
       await expect(card).toBeVisible();
+      // Issue #1916 (v3 draft): subject on the left of the header, the
+      // workflow category ("Tối ưu sản phẩm") on the right.
       await expect(
-        card.getByRole("heading", { level: 3, name: REPLAY_SCENARIO_WORKFLOW_TITLE }),
+        card.getByRole("heading", {
+          level: 3,
+          name: REPLAY_SCENARIO_WORKFLOW_SUBJECT,
+        }),
+      ).toBeVisible();
+      await expect(
+        card.getByText(REPLAY_SCENARIO_WORKFLOW_TITLE),
       ).toBeVisible();
       await card.scrollIntoViewIfNeeded();
       await Promise.all([

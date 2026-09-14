@@ -31,7 +31,12 @@ test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
     await expect(page.getByRole("button", { name: "Đề xuất" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Đang thực hiện" })).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Tạo sản phẩm nổi bật", level: 3 }),
+      page.getByRole("heading", { name: "Danh mục chăm sóc da", level: 3 }),
+    ).toBeVisible();
+    await expect(
+      page
+        .locator('article[data-workflow-key="create_hero_product_1"]')
+        .getByText("Tạo sản phẩm nổi bật"),
     ).toBeVisible();
   });
 
@@ -90,7 +95,12 @@ test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
     ).toContainText("Không thể tải đề xuất mẫu");
     await page.getByRole("button", { name: "Thử lại" }).click();
     await expect(
-      page.getByRole("heading", { name: "Tạo sản phẩm nổi bật", level: 3 }),
+      page.getByRole("heading", { name: "Danh mục chăm sóc da", level: 3 }),
+    ).toBeVisible();
+    await expect(
+      page
+        .locator('article[data-workflow-key="create_hero_product_1"]')
+        .getByText("Tạo sản phẩm nổi bật"),
     ).toBeVisible();
   });
 });

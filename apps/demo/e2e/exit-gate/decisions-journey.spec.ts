@@ -100,7 +100,7 @@ test.describe("Phase 2.6 exit gate — Decisions journey", () => {
     await approveFromRecommendations(
       page,
       PRIORITY_WORKFLOW.workflowKey,
-      PRIORITY_WORKFLOW.title,
+      PRIORITY_WORKFLOW.subject,
     );
     await expect(
       page.getByRole("heading", { name: PRIORITY_WORKFLOW.title, level: 1 }),

@@ -86,6 +86,10 @@ describe("Recommendations — copy guard", () => {
         sellerReason: fixture.sellerReason,
         evidence: fixture.evidence,
         eligibility: fixture.eligibility,
+        subject: fixture.subject,
+        previewRows: fixture.previewRows
+          .map((row) => `${row.label} ${row.change}`)
+          .join(" "),
       };
 
       for (const [fieldName, fieldValue] of Object.entries(fieldsToCheck)) {
@@ -140,16 +144,20 @@ describe("Recommendations — copy guard", () => {
     }
   });
 
-  it("shows signal and one concise benefit-led reason per card without confidence or capability badges", () => {
+  it("shows subject, change preview, and one concise benefit-led reason per card without confidence or capability badges", () => {
     renderView();
 
     recommendationFixtures.forEach((fixture) => {
       const card = findCard(fixture.workflowKey) as HTMLElement;
 
+      // Issue #1916 (v3 draft): the heading is the subject; the preview
+      // block carries the change; signal moved to the beside-list detail.
       expect(
-        within(card).getByRole("heading", { level: 3, name: fixture.title }),
+        within(card).getByRole("heading", { level: 3, name: fixture.subject }),
       ).toBeInTheDocument();
-      expect(within(card).getByText(fixture.signal)).toBeInTheDocument();
+      expect(
+        within(card).getByTestId("recommendation-preview"),
+      ).toBeInTheDocument();
       expect(within(card).getByText(fixture.sellerReason)).toBeInTheDocument();
       expect(
         within(card).queryByText(fixture.confidenceLabel),

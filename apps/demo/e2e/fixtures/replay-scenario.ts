@@ -10,6 +10,8 @@
  */
 export const REPLAY_SCENARIO_WORKFLOW_KEY = "optimize_product_2" as const;
 export const REPLAY_SCENARIO_WORKFLOW_TITLE = "Tối ưu sản phẩm" as const;
+/** Issue #1916 (v3 draft): the list card heading is the subject. */
+export const REPLAY_SCENARIO_WORKFLOW_SUBJECT = "Son môi số 12" as const;
 
 /** The scenario's own captured `workflow_run_id` — the well-known replay
  *  run id `RunDetailRoute`'s replay branch matches against. */

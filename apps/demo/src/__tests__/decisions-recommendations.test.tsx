@@ -96,16 +96,21 @@ describe("Decisions — Recommendations", () => {
     expect(replenishment?.expectedImpactLabel).toBe("—");
   });
 
-  it("shows title, signal, and one concise benefit-led reason on every card", () => {
+  it("shows subject, workflow category, change preview, and one concise benefit-led reason on every card", () => {
     renderView();
 
     recommendationFixtures.forEach((fixture) => {
       const card = findCard(fixture.workflowKey) as HTMLElement;
 
+      // Issue #1916 (v3 draft): subject left, workflow category right,
+      // the change itself previewed on the card.
       expect(
-        within(card).getByRole("heading", { level: 3, name: fixture.title }),
+        within(card).getByRole("heading", { level: 3, name: fixture.subject }),
       ).toBeInTheDocument();
-      expect(card).toHaveTextContent(fixture.signal);
+      expect(card).toHaveTextContent(fixture.title);
+      expect(
+        within(card).getByTestId("recommendation-preview"),
+      ).toBeInTheDocument();
       expect(card).toHaveTextContent(fixture.sellerReason);
       expect(card).not.toHaveTextContent(fixture.confidenceLabel);
       expect(card).not.toHaveTextContent(fixture.capabilityLabel);
@@ -118,7 +123,9 @@ describe("Decisions — Recommendations", () => {
 
     const fixture = recommendationFixtures[0];
     const card = findCard(fixture.workflowKey) as HTMLElement;
-    const titleLink = within(card).getByRole("link", { name: fixture.title });
+    const titleLink = within(card).getByRole("link", {
+      name: fixture.subject,
+    });
 
     expect(titleLink).toHaveAttribute(
       "href",
@@ -126,31 +133,31 @@ describe("Decisions — Recommendations", () => {
     );
   });
 
-  it("Expand reveals evidence, eligibility, known limits, and risks; collapsing hides them again", async () => {
+  it("Xem thêm reveals evidence, eligibility, known limits, and risks beside the list; Quay lại hides them again", async () => {
     const user = userEvent.setup();
     renderView();
 
     const fixture = recommendationFixtures[0];
     const card = findCard(fixture.workflowKey) as HTMLElement;
-    const disclosure = within(card).getByRole("button", { name: "Mở rộng" });
 
-    expect(disclosure).toHaveAttribute("aria-expanded", "false");
-    expect(within(card).queryByText(fixture.evidence)).not.toBeInTheDocument();
+    expect(screen.queryByText(fixture.evidence)).not.toBeInTheDocument();
 
-    await user.click(disclosure);
+    await user.click(within(card).getByRole("button", { name: "Xem thêm" }));
 
-    expect(disclosure).toHaveAttribute("aria-expanded", "true");
-    expect(within(card).getByText(fixture.evidence)).toBeInTheDocument();
-    expect(within(card).getByText(fixture.eligibility)).toBeInTheDocument();
-    expect(within(card).getByText(fixture.knownLimits)).toBeInTheDocument();
-    expect(within(card).getByText(fixture.risks)).toBeInTheDocument();
+    const detail = screen.getByRole("region", { name: "Chi tiết đề xuất" });
+    expect(within(detail).getByText(fixture.evidence)).toBeInTheDocument();
+    expect(within(detail).getByText(fixture.eligibility)).toBeInTheDocument();
+    expect(within(detail).getByText(fixture.knownLimits)).toBeInTheDocument();
+    expect(within(detail).getByText(fixture.risks)).toBeInTheDocument();
 
-    await user.click(within(card).getByRole("button", { name: "Thu gọn" }));
+    await user.click(
+      within(detail).getByRole("button", { name: "Quay lại" }),
+    );
 
     expect(
-      within(card).getByRole("button", { name: "Mở rộng" }),
-    ).toHaveAttribute("aria-expanded", "false");
-    expect(within(card).queryByText(fixture.evidence)).not.toBeInTheDocument();
+      screen.queryByRole("region", { name: "Chi tiết đề xuất" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(fixture.evidence)).not.toBeInTheDocument();
   });
 
   it("reject and expand interactions behave with improved seller copy", async () => {
@@ -160,8 +167,8 @@ describe("Decisions — Recommendations", () => {
     const fixture = recommendationFixtures[1];
     const card = findCard(fixture.workflowKey) as HTMLElement;
 
-    await user.click(within(card).getByRole("button", { name: "Mở rộng" }));
-    expect(within(card).getByText(fixture.evidence)).toBeInTheDocument();
+    await user.click(within(card).getByRole("button", { name: "Xem thêm" }));
+    expect(screen.getByText(fixture.evidence)).toBeInTheDocument();
 
     await user.click(within(card).getByRole("button", { name: "Từ chối" }));
 
@@ -417,19 +424,23 @@ describe("Decisions — Recommendations", () => {
     expect(findCard(target.workflowKey)).toBeUndefined();
   });
 
-  it("supports touch pointer interaction for Expand", async () => {
+  it("supports touch pointer interaction for Xem thêm", async () => {
     const user = userEvent.setup();
     renderView();
 
     const firstCard = screen.getAllByRole("article")[0];
-    const expand = within(firstCard).getByRole("button", { name: "Mở rộng" });
+    const seeMore = within(firstCard).getByRole("button", {
+      name: "Xem thêm",
+    });
 
     await user.pointer([
-      { keys: "[TouchA>]", target: expand },
+      { keys: "[TouchA>]", target: seeMore },
       { keys: "[/TouchA]" },
     ]);
 
-    expect(expand).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("region", { name: "Chi tiết đề xuất" }),
+    ).toBeInTheDocument();
   });
 
   it("makes no backend request or real write anywhere in the recommendations flow", async () => {
@@ -438,7 +449,9 @@ describe("Decisions — Recommendations", () => {
     renderView();
 
     const firstCard = screen.getAllByRole("article")[0];
-    await user.click(within(firstCard).getByRole("button", { name: "Mở rộng" }));
+    await user.click(
+      within(firstCard).getByRole("button", { name: "Xem thêm" }),
+    );
     await user.click(within(firstCard).getByRole("button", { name: "Từ chối" }));
 
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -457,12 +470,16 @@ describe("Decisions — Recommendations", () => {
     await user.keyboard("{Enter}");
 
     const touchCard = screen.getAllByRole("article")[0];
-    const expand = within(touchCard).getByRole("button", { name: "Mở rộng" });
+    const seeMore = within(touchCard).getByRole("button", {
+      name: "Xem thêm",
+    });
     await user.pointer([
-      { keys: "[TouchA>]", target: expand },
+      { keys: "[TouchA>]", target: seeMore },
       { keys: "[/TouchA]" },
     ]);
-    expect(expand).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("region", { name: "Chi tiết đề xuất" }),
+    ).toBeInTheDocument();
 
     for (const card of screen.getAllByRole("article")) {
       await user.click(within(card).getByRole("button", { name: "Từ chối" }));
