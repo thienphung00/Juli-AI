@@ -286,6 +286,7 @@ export function SignedInDecisions({
         <InProgressPanel
           active={view === "in-progress"}
           panelId={inProgressPanelId}
+          shopId={activeShop.id}
           token={token}
         />
       </div>

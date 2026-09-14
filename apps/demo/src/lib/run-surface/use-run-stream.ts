@@ -41,6 +41,8 @@ export type RunStreamStatus =
 export interface UseRunStreamOptions {
   /** Bearer token for the stream. Absent means "do not connect yet". */
   token?: string;
+  /** The acting shop, forwarded to the stream client as `X-Shop-Id` (#1909). */
+  shopId?: string;
   baseUrl?: string;
   fetchImpl?: typeof fetch;
   /** Seeds the view without connecting -- used by tests and by a finished run
@@ -77,7 +79,7 @@ export function useRunStream(
   runId: string,
   options: UseRunStreamOptions = {},
 ): UseRunStreamResult {
-  const { token, baseUrl, fetchImpl, initialEvents, enabled = true } = options;
+  const { token, shopId, baseUrl, fetchImpl, initialEvents, enabled = true } = options;
 
   const [events, setEvents] = useState<readonly AgentEvent[]>(
     () => initialEvents ?? [],
@@ -88,7 +90,7 @@ export function useRunStream(
   // because it cascades renders. So the phase is stamped with the connection it
   // belongs to, and a phase from a previous connection is simply ignored during
   // render rather than cleared by a setState on mount. Same effect, no cascade.
-  const connectionKey = `${runId}|${token ?? ""}|${baseUrl ?? ""}|${enabled}`;
+  const connectionKey = `${runId}|${token ?? ""}|${shopId ?? ""}|${baseUrl ?? ""}|${enabled}`;
   const [phase, setPhase] = useState<{
     key: string;
     status: RunStreamStatus;
@@ -108,7 +110,7 @@ export function useRunStream(
     if (!enabled || !token || !runId) return;
 
     const stream = openAgentEventStream(
-      { runId, token, baseUrl, fetchImpl },
+      { runId, token, shopId, baseUrl, fetchImpl },
       {
         onEvent: (event) => {
           setPhase({ key: connectionKey, status: "open" });
@@ -137,7 +139,7 @@ export function useRunStream(
     );
 
     return () => stream.abort();
-  }, [runId, token, baseUrl, fetchImpl, enabled, appendEvent, connectionKey]);
+  }, [runId, token, shopId, baseUrl, fetchImpl, enabled, appendEvent, connectionKey]);
 
   const view = useMemo(() => reduceRunView(events), [events]);
 

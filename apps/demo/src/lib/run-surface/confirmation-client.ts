@@ -106,7 +106,7 @@ export async function submitConfirmationDecision(
   optionId: string | null,
   options: SubmitConfirmationDecisionOptions = {},
 ): Promise<ConfirmationDecisionResult> {
-  const { token, baseUrl, fetchImpl = fetch } = options;
+  const { token, shopId, baseUrl, fetchImpl = fetch } = options;
 
   if (decision === "approve" && !optionId) {
     throw new ConfirmationRejectedError(
@@ -118,6 +118,7 @@ export async function submitConfirmationDecision(
 
   const headers = new Headers({ "Content-Type": "application/json", Accept: "application/json" });
   if (token) headers.set("Authorization", `Bearer ${token}`);
+  if (shopId) headers.set("X-Shop-Id", shopId);
 
   const response = await fetchImpl(buildConfirmationDecisionUrl(runId, toolCallId, baseUrl), {
     method: "POST",

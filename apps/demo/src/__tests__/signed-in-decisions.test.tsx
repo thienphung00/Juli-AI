@@ -5,7 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DemoStateProvider } from "../components/demo-state";
 import { SignedInDecisions } from "../components/signed-in-decisions";
-import { DemoDecisionApproveError, DemoRecommendationsFetchError } from "../lib/recommendations-api-client";
+import {
+  DemoDecisionApproveError,
+  DemoRecommendationsFetchError,
+  type approveDemoDecision,
+  type fetchRecommendations,
+} from "../lib/recommendations-api-client";
 import { storeActiveShop } from "../lib/shop-session";
 
 const push = vi.fn();
@@ -36,7 +41,11 @@ function renderSignedIn({
 } = {}) {
   render(
     <DemoStateProvider>
-      <SignedInDecisions approve={approve} loadDecisions={loadDecisions} token={TOKEN} />
+      <SignedInDecisions
+        approve={approve as unknown as typeof approveDemoDecision}
+        loadDecisions={loadDecisions as unknown as typeof fetchRecommendations}
+        token={TOKEN}
+      />
     </DemoStateProvider>,
   );
   return { loadDecisions, approve };

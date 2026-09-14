@@ -4,7 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 import type { WorkflowRunListItem } from "@juli/contracts";
 
 import { RunDetailRoute } from "../run-detail-route";
+import { InProgressDetailView } from "../../app/decisions/in-progress/[executionId]/page";
+import { DemoStateProvider } from "../demo-state";
+import { DEMO_RUNS_API_PATH } from "../../lib/run-ledger/api-client";
 import { REPLAY_SCENARIO_RUN_ID } from "../../lib/run-surface/replay-scenario";
+import { storeActiveShop } from "../../lib/shop-session";
+import { storeAuthSession } from "../../lib/supabase-auth";
 
 vi.mock("next/navigation", () => ({
   useSearchParams: vi.fn(() => new URLSearchParams()),
@@ -79,6 +84,91 @@ describe("RunDetailRoute — signed-in path (a token is present)", () => {
         screen.getByRole("status", { name: "Không tìm thấy luồng thực hiện" }),
       ).toBeInTheDocument();
     });
+  });
+});
+
+describe("RunDetailRoute — the signed-in lookup carries the session's credentials (#1909)", () => {
+  it("passes the bearer token and the acting shop's id to fetchRuns", async () => {
+    const fetchRuns = vi.fn().mockResolvedValue([buildRun()]);
+
+    render(
+      <RunDetailRoute
+        fetchRuns={fetchRuns}
+        runId={RUN_ID}
+        shopId="shop-1"
+        token={TOKEN}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(fetchRuns).toHaveBeenCalledTimes(1);
+    });
+    expect(fetchRuns.mock.calls[0][0]).toMatchObject({
+      token: TOKEN,
+      shopId: "shop-1",
+    });
+  });
+});
+
+describe("the [executionId] page door — a stored auth session selects the signed-in door (#1909)", () => {
+  function renderPage(runId: string) {
+    return render(
+      <DemoStateProvider>
+        <InProgressDetailView executionId={runId} />
+      </DemoStateProvider>,
+    );
+  }
+
+  it("with a stored auth session, the signed-in door renders and the run lookup is issued with its credentials", async () => {
+    storeAuthSession({
+      accessToken: TOKEN,
+      refreshToken: null,
+      expiresIn: 3600,
+      tokenType: "bearer",
+    });
+    storeActiveShop({ id: "shop-1", name: "Shop Minh Anh" });
+    const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [buildRun()] }),
+    } as Response);
+
+    try {
+      renderPage(RUN_ID);
+
+      await waitFor(() => {
+        const lookupCalls = fetchSpy.mock.calls.filter(
+          ([input]) => String(input) === DEMO_RUNS_API_PATH,
+        );
+        expect(lookupCalls).toHaveLength(1);
+      });
+
+      const [, init] = fetchSpy.mock.calls.find(
+        ([input]) => String(input) === DEMO_RUNS_API_PATH,
+      ) as [string, RequestInit];
+      const headers = new Headers(init.headers);
+      expect(headers.get("Authorization")).toBe(`Bearer ${TOKEN}`);
+      expect(headers.get("X-Shop-Id")).toBe("shop-1");
+    } finally {
+      window.sessionStorage.clear();
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("without a stored session, the replay door renders and the run lookup is never issued", async () => {
+    window.sessionStorage.clear();
+    const fetchSpy = vi.spyOn(global, "fetch");
+
+    try {
+      renderPage(REPLAY_SCENARIO_RUN_ID);
+
+      await waitFor(() => {
+        expect(screen.getByRole("tablist")).toBeInTheDocument();
+      });
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 });
 
