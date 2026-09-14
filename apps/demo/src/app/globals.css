@@ -1738,6 +1738,71 @@ a {
 /* Staged run view (issue #1316, ADR-076 decision 3, PUI-DESIGN.md §2/§6).
    Scoped to [data-juli-surface="run"] (packages/theme/run-surface-tokens.css,
    issue #1314) via the same data attribute the run ledger uses. */
+/* Run route framing (#1910): the run route sheds the header, feedback
+   strip and assistance aside, and the run surface owns the entire region
+   to the RIGHT of the nav rail (owner amendment 2026-09-14 -- the rail
+   itself stays). Layout only; every colour stays in the token layers. */
+.demo-shell--run {
+  /* Stay clear of the fixed bottom-bar nav on narrow viewports. */
+  padding-bottom: 6rem;
+}
+
+.demo-main--run {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: clamp(1rem, 3vw, 2.5rem) clamp(1rem, 3vw, 2.5rem) 0;
+}
+
+@media (min-width: 56rem) {
+  .demo-shell--run {
+    padding-bottom: 0;
+  }
+
+  .demo-main--run {
+    /* Clear the fixed rail: its left offset + its 11.5rem width + a gutter. */
+    padding-left: calc(max(2rem, (100vw - 76rem) / 2) + 11.5rem + 2rem);
+    padding-right: max(2rem, (100vw - 76rem) / 2);
+  }
+}
+
+/* The §2 header row (#1910): back control, workflow title, status chip.
+   Chip colour comes from the .run-ledger__chip--* family (token layer,
+   #1912) -- nothing here declares a colour outside a token reference. */
+.run-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--juli-space-2) var(--juli-space-4);
+}
+
+.run-header__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--juli-space-2);
+  min-height: var(--juli-touch-target);
+  color: var(--juli-run-foreground-muted);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.run-header__back:hover {
+  color: var(--juli-run-foreground);
+  text-decoration: underline;
+}
+
+.run-header__title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: clamp(1.15rem, 2.2vw, 1.45rem);
+  font-weight: 700;
+  text-align: center;
+}
+
+.run-header__status {
+  margin-left: auto;
+}
+
 .run-staged-view {
   display: grid;
   gap: var(--juli-space-6);

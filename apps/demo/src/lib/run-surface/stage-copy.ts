@@ -28,6 +28,17 @@ export const RUN_STAGE_STATUS_COPY = {
 /** `run.product_binding.label` */
 export const RUN_PRODUCT_BINDING_LABEL = "Sản phẩm đang xử lý";
 
+/** `run.workflow.optimize_product` -- the run header's workflow title
+ *  (PUI-DESIGN.md §2 header row, #1910). The seller-facing workflow name,
+ *  never the internal `workflow_key`. */
+export const RUN_WORKFLOW_TITLE = "Tối ưu sản phẩm";
+
+/** `run.back_to_actions` -- the run header's back control, returning to the
+ *  Hành động tab (`/decisions`). Owner amendment on #1910 (2026-09-14): the
+ *  destination tab's name is Hành động, and the back control reads the
+ *  same -- never "Quay lại" or a route path. */
+export const RUN_HEADER_BACK_LABEL = "Hành động";
+
 /** `run.reconnecting` */
 export const RUN_STREAM_RECONNECTING_COPY = "Đang kết nối lại";
 

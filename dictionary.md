@@ -423,6 +423,18 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - VI: Hoàn tất
 - Definition: Run ledger section heading for the four terminal `status` values, labelled per their honest `stop_reason`.
 
+**`run.workflow.optimize_product`**
+- EN: Optimize product
+- VI: Tối ưu sản phẩm
+- _Avoid_: optimize_product (the internal `workflow_key`), Tối ưu hóa, Chạy quy trình
+- Definition: The run page header's workflow title (PUI-DESIGN.md §2 header row, issue #1910) — the seller-facing name of the workflow the run is executing, shown above the stepper. Runtime constant `RUN_WORKFLOW_TITLE` in `apps/demo/src/lib/run-surface/stage-copy.ts`; keep them byte-identical.
+
+**`run.back_to_actions`**
+- EN: Actions
+- VI: Hành động
+- _Avoid_: Quay lại, Trở về, /decisions (a route, not a word for you)
+- Definition: The run page header's back control (issue #1910, owner amendment 2026-09-14), returning you to the Hành động tab. Reads the destination tab's owner-decided name — the control tells you where you land, never a bare "back". Runtime constant `RUN_HEADER_BACK_LABEL` in `apps/demo/src/lib/run-surface/stage-copy.ts`; keep them byte-identical.
+
 **`run.expiry`**
 - EN: Offer valid for {time}
 - VI: Đề xuất còn hiệu lực {time}

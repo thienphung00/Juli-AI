@@ -327,6 +327,9 @@ describe("RunStagedView -- run header (#1910, PUI-DESIGN.md §2 header row)", ()
     expect(screen.getByRole("link", { name: RUN_HEADER_BACK_LABEL })).toHaveFocus();
 
     await user.tab();
-    expect(screen.getByRole("tab", { selected: true })).toHaveFocus();
+    // The very next tab stop is the stepper (whichever node carries the
+    // roving tabindex) -- nothing focusable sits between the back control
+    // and the stepper.
+    expect(document.activeElement?.getAttribute("role")).toBe("tab");
   });
 });

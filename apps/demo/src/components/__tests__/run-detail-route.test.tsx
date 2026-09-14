@@ -163,7 +163,11 @@ describe("RunDetailRoute — replay path (no token, issue #1752)", () => {
     await user.click(screen.getByRole("button", { name: "Không thực hiện" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Hoàn tất — không đổi")).toBeInTheDocument();
+      // Since #1910 the declined label renders on TWO honest surfaces: the
+      // run header's status chip and the Hoàn tất stage card -- at least
+      // one occurrence is the assertion (same idiom as the §3 title check
+      // in run-staged-view.test.tsx).
+      expect(screen.getAllByText("Hoàn tất — không đổi").length).toBeGreaterThan(0);
     });
 
     expect(fetchRuns).not.toHaveBeenCalled();
