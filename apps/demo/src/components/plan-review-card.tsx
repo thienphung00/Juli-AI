@@ -15,6 +15,8 @@ import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 
 import {
+  PLAN_COMPARISON_CURRENT_LABEL,
+  PLAN_COMPARISON_PROPOSED_LABEL,
   PLAN_REASONING_DISCLOSURE_QUESTION,
   type PlanReviewContent,
 } from "../lib/plan-reviews";
@@ -173,6 +175,52 @@ export function PlanReviewCard({ plan, onApproveConfirm }: PlanReviewCardProps) 
           ) : null}
         </CardHeader>
         <PlanImpactBlock impact={plan.impact} />
+        {plan.comparison ? (
+          /* Issue #1916: the before/after a seller can read. Current
+             listing on one side, proposal on the other, each explicitly
+             labelled (ElevenLabs/Mistral references), with the reason
+             visible beside the change (Shopify reference) — never behind
+             hover, a tooltip, or a disclosure. Additive: plans without a
+             comparison keep the existing shape byte-for-byte. */
+          <CardBody
+            className="demo-plan__comparison"
+            data-testid="plan-comparison"
+          >
+            <table className="demo-plan__comparison-table">
+              <thead>
+                <tr>
+                  <th className="demo-plan__comparison-field" scope="col">
+                    Thông tin
+                  </th>
+                  <th scope="col">{PLAN_COMPARISON_CURRENT_LABEL}</th>
+                  <th
+                    className="demo-plan__comparison-proposed"
+                    scope="col"
+                  >
+                    {PLAN_COMPARISON_PROPOSED_LABEL}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {plan.comparison.rows.map((row) => (
+                  <tr key={row.fieldLabel}>
+                    <th scope="row">{row.fieldLabel}</th>
+                    <td>{sanitizeSellerReviewText(row.current)}</td>
+                    <td className="demo-plan__comparison-proposed">
+                      {sanitizeSellerReviewText(row.proposed)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p
+              className="demo-plan__comparison-reason"
+              data-testid="plan-comparison-reason"
+            >
+              {sanitizeSellerReviewText(plan.comparison.reason)}
+            </p>
+          </CardBody>
+        ) : null}
         <CardBody className="demo-plan__decision" data-testid="plan-decision">
           <p>{plan.decision.proposal}</p>
           {trustLineCaveats.length > 0 ? (

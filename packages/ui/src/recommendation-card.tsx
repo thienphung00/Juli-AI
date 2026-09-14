@@ -5,8 +5,25 @@ import { forwardRef, useId, useState } from "react";
 import { Badge } from "./badge";
 import { Button } from "./button";
 
+/**
+ * One line of the card's preview block (issue #1916, v3 draft): the field
+ * being changed and the change in miniature, so approving is an informed
+ * click rather than a navigation. `kind: "keep"` rows state explicitly
+ * what Juli will NOT touch — rendered muted, never omitted.
+ */
+export interface RecommendationCardPreviewRow {
+  label: string;
+  change: string;
+  kind: "change" | "keep";
+}
+
 export interface RecommendationCardProps {
   approveDisabledReason?: string;
+  /**
+   * Right-hand header label naming the workflow category (issue #1916,
+   * v3 draft: subject on the left, workflow category on the right).
+   */
+  categoryLabel?: string;
   detailHref?: string;
   eligibility: string;
   evidence: string;
@@ -15,9 +32,21 @@ export interface RecommendationCardProps {
   knownLimits: string;
   onApprove?: () => void;
   onReject: () => void;
+  /**
+   * When provided, the card renders "Xem thêm" instead of its legacy
+   * in-card "Mở rộng" accordion: the caller opens the detail beside the
+   * list (issue #1916 — never an overlay or a modal).
+   */
+  onSeeMore?: () => void;
+  previewRows?: readonly RecommendationCardPreviewRow[];
   reasoning: string;
   rejectLabel?: string;
   risks: string;
+  /**
+   * True while this card's beside-the-list detail is open: "Xem thêm"
+   * hides itself; Phê duyệt and Từ chối stay on the card (issue #1916).
+   */
+  seeMoreOpen?: boolean;
   sellerReason?: string;
   signal: string;
   title: string;
@@ -30,6 +59,7 @@ export const RecommendationCard = forwardRef<
 >(function RecommendationCard(
   {
     approveDisabledReason,
+    categoryLabel,
     detailHref,
     eligibility,
     evidence,
@@ -38,9 +68,12 @@ export const RecommendationCard = forwardRef<
     knownLimits,
     onApprove,
     onReject,
+    onSeeMore,
+    previewRows,
     reasoning,
     rejectLabel = "Từ chối",
     risks,
+    seeMoreOpen = false,
     sellerReason,
     signal,
     title,
@@ -55,6 +88,7 @@ export const RecommendationCard = forwardRef<
   const approveNoteId = `${reactId}-approve-note`;
   const approveEnabled = Boolean(onApprove);
   const cardReason = sellerReason ?? reasoning;
+  const hasPreview = Boolean(previewRows?.length);
 
   const classNames = [
     "juli-recommendation-card",
@@ -91,9 +125,34 @@ export const RecommendationCard = forwardRef<
             )}
           </h3>
         </div>
+        {categoryLabel ? (
+          <p className="juli-recommendation-card__category">{categoryLabel}</p>
+        ) : null}
       </header>
 
-      <p className="juli-recommendation-card__signal">{signal}</p>
+      {hasPreview ? (
+        <dl
+          className="juli-recommendation-card__preview"
+          data-testid="recommendation-preview"
+        >
+          {previewRows!.map((row) => (
+            <div
+              className="juli-recommendation-card__preview-row"
+              data-kind={row.kind}
+              key={row.label}
+            >
+              <dt className="juli-recommendation-card__preview-label">
+                {row.label}
+              </dt>
+              <dd className="juli-recommendation-card__preview-change">
+                {row.change}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p className="juli-recommendation-card__signal">{signal}</p>
+      )}
       <p className="juli-recommendation-card__reasoning">{cardReason}</p>
 
       <div className="juli-recommendation-card__actions">
@@ -108,14 +167,22 @@ export const RecommendationCard = forwardRef<
         <Button onClick={onReject} variant="secondary">
           {rejectLabel}
         </Button>
-        <Button
-          aria-controls={panelId}
-          aria-expanded={expanded}
-          onClick={() => setExpanded((current) => !current)}
-          variant="ghost"
-        >
-          {expanded ? "Thu gọn" : "Mở rộng"}
-        </Button>
+        {onSeeMore ? (
+          seeMoreOpen ? null : (
+            <Button onClick={onSeeMore} variant="ghost">
+              Xem thêm
+            </Button>
+          )
+        ) : (
+          <Button
+            aria-controls={panelId}
+            aria-expanded={expanded}
+            onClick={() => setExpanded((current) => !current)}
+            variant="ghost"
+          >
+            {expanded ? "Thu gọn" : "Mở rộng"}
+          </Button>
+        )}
       </div>
 
       {!approveEnabled && approveDisabledReason ? (
@@ -124,7 +191,7 @@ export const RecommendationCard = forwardRef<
         </p>
       ) : null}
 
-      {expanded ? (
+      {!onSeeMore && expanded ? (
         <div className="juli-recommendation-card__panel" id={panelId}>
           <dl>
             <div>
