@@ -6,7 +6,7 @@ AGT-W8F-BE:
     - "{handoffPath}"
     - CONTEXT.md
     - docs/adr/073-agent-execution-loop-and-write-path-hardening.md
-    - docs/adr/086-tenant-isolation-at-the-database.md
+    - docs/adr/086-runtime-database-role-and-tenant-isolation.md
     - docs/adr/089-fleet-scoped-work-under-tenant-isolation.md
   requiredModules:
     - backend/src/juli_backend/services/agent/runner/ledger.py
