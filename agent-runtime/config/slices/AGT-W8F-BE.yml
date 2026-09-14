@@ -1,0 +1,32 @@
+# AGT-W8F-BE — W8-F follow-up lane; see agent-runtime.config.yml epicRegistry 1652
+# and the gate record on #1658. Six slices, disjoint write paths, one backend lane.
+AGT-W8F-BE:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/073-agent-execution-loop-and-write-path-hardening.md
+    - docs/adr/086-tenant-isolation-at-the-database.md
+    - docs/adr/089-fleet-scoped-work-under-tenant-isolation.md
+  requiredModules:
+    - backend/src/juli_backend/services/agent/runner/ledger.py
+    - backend/src/juli_backend/services/operations/outcome_tracking.py
+    - backend/src/juli_backend/services/operations/outcome_chain.py
+    - backend/src/juli_backend/workers/impact_reader/queries.py
+    - backend/src/juli_backend/database/tenant_context.py
+    - tests/support/postgres.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/agent/events/persisting_sink.py
+    - backend/src/juli_backend/workers/tasks/cdp_batch_reconcile.py
+    - backend/src/juli_backend/workers/tasks/mock_analytics_reconcile.py
+    - backend/src/juli_backend/workers/impact_reader/pipeline.py
+    - agent-runtime/scripts/ci/common.py
+    - agent-runtime/scripts/validate/check_module_drift.py
+    - tests/unit/test_juli_app_grants_cover_mutations.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - packages/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
