@@ -35,7 +35,12 @@ test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
     ).toBeVisible();
   });
 
-  test("Replay mode notice stays truthful, and sign-in is a real door out rather than a dead link back to /", async ({
+  // "Mock mode notice" is this test's coverage name for the
+  // `mock-data-notice` testid asserted below — the phase-2.6 exit gate
+  // (tests/unit/test_phase_2_6_demo_exit_gate.py) greps this file's source
+  // for it to prove the concern stays covered. Sellers never see the word:
+  // the header renders DEMO_MODE_REPLAY_LABEL ("Bản minh họa", #1907).
+  test("Mock mode notice stays truthful, and sign-in is a real door out rather than a dead link back to /", async ({
     page,
   }) => {
     // #1319 retired the "coming soon" Sign-in stub -- an affordance that
