@@ -59,7 +59,7 @@ class TestLifecycle:
         user, shop = await seed_shop(pg_session_factory)
         run = await seed_run(pg_session_factory, shop, status="running")
         bus = FakeRedisBus()
-        sink = PersistingEventSink(pg_session_factory, bus)
+        sink = PersistingEventSink(pg_session_factory, bus, shop_id=None)
         channel = run_events_channel(run.id)
 
         async def _emit_once_subscribed() -> None:
@@ -92,7 +92,7 @@ class TestLifecycle:
         user, shop = await seed_shop(pg_session_factory)
         run = await seed_run(pg_session_factory, shop, status="running")
         bus = FakeRedisBus()
-        sink = PersistingEventSink(pg_session_factory, bus)
+        sink = PersistingEventSink(pg_session_factory, bus, shop_id=None)
         runner = ScriptedFakeRunner(
             session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
         )
@@ -123,7 +123,7 @@ class TestLifecycle:
         user, shop = await seed_shop(pg_session_factory)
         run = await seed_run(pg_session_factory, shop, status="running")
         bus = FakeRedisBus()
-        sink = PersistingEventSink(pg_session_factory, bus)
+        sink = PersistingEventSink(pg_session_factory, bus, shop_id=None)
         channel = run_events_channel(run.id)
 
         app = build_app(pg_session_factory, subscriber=bus)
@@ -181,7 +181,7 @@ class TestCrashResume:
         user, shop = await seed_shop(pg_session_factory)
         run = await seed_run(pg_session_factory, shop, status="running")
         bus = FakeRedisBus()
-        sink = PersistingEventSink(pg_session_factory, bus)
+        sink = PersistingEventSink(pg_session_factory, bus, shop_id=None)
         script = standard_script("crash-resume-ref")
 
         # Attempt 1: the task runs to completion and persists the advanced blob.
@@ -231,7 +231,7 @@ class TestCrashResume:
         user, shop = await seed_shop(pg_session_factory)
         run = await seed_run(pg_session_factory, shop, status="running")
         bus = FakeRedisBus()
-        sink = PersistingEventSink(pg_session_factory, bus)
+        sink = PersistingEventSink(pg_session_factory, bus, shop_id=None)
         runner = ScriptedFakeRunner(
             session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
         )

@@ -210,3 +210,34 @@ async def test_the_scope_does_not_leak_after_a_failed_emit():
         f"a failed emit left app.current_user_id={gucs[1]!r} set for the next session "
         "drawn from the same pool"
     )
+
+
+def _construct_sink_with_only(*args, **kwargs) -> PersistingEventSink:
+    """A thin, deliberately untyped forwarding shim. `shop_id` is a required
+    keyword-only argument now, so a literal `PersistingEventSink(factory,
+    publisher)` call at this test's own call site would be a *static* mypy
+    error, caught before the test ever ran -- which would prove nothing about
+    the runtime `TypeError` this test exists to observe. Routing the call
+    through `*args, **kwargs` defers the check to here, where it belongs: at
+    the constructor mypy cannot see through, exactly where a real caller who
+    forgot the argument would also be caught."""
+    return PersistingEventSink(*args, **kwargs)
+
+
+def test_constructing_without_shop_id_is_a_type_error():
+    """`shop_id` is keyword-only with NO default: the fix's whole point is
+    that omission is impossible, not merely unwise. Constructing the sink
+    without it must fail immediately, before the session factory is ever
+    called -- there must be no way to end up with a `PersistingEventSink`
+    that silently carries no tenancy decision at all."""
+
+    class _UncallableFactory:
+        def __call__(self):  # pragma: no cover - must never be reached
+            raise AssertionError("construction must fail before the factory is ever called")
+
+    with pytest.raises(TypeError) as excinfo:
+        _construct_sink_with_only(_UncallableFactory(), _NoopPublisher())
+
+    assert "shop_id" in str(excinfo.value), (
+        f"the TypeError must name the missing keyword-only argument, got: {excinfo.value!r}"
+    )

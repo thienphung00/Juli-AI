@@ -188,7 +188,9 @@ async def _assert_ordering_commit_before_publish(
         run_id = run.id
 
     publisher = _VisibilityCheckingPublisher(session_factory)
-    sink = PersistingEventSink(session_factory, publisher)
+    # shop_id=None: this suite proves sink *behavior* on an owner-role
+    # connection RLS never applies to, so there is no tenant to scope to.
+    sink = PersistingEventSink(session_factory, publisher, shop_id=None)
 
     await sink.emit(_status_event(run_id, 0, "ordering proof"))
 
@@ -206,7 +208,7 @@ async def _assert_replayed_emit_is_a_noop(
         run_id = run.id
 
     publisher = _RecordingPublisher()
-    sink = PersistingEventSink(session_factory, publisher)
+    sink = PersistingEventSink(session_factory, publisher, shop_id=None)
 
     first = _status_event(run_id, 7, "first attempt")
     await sink.emit(first)
@@ -242,7 +244,7 @@ async def _assert_publish_failure_is_swallowed_and_row_stays_committed(
         run_id = run.id
 
     publisher = _RaisingPublisher()
-    sink = PersistingEventSink(session_factory, publisher)
+    sink = PersistingEventSink(session_factory, publisher, shop_id=None)
     event = _status_event(run_id, 3, "publish will fail")
 
     with caplog.at_level(logging.WARNING):
@@ -277,7 +279,7 @@ async def test_persisting_event_sink_satisfies_event_sink_protocol(engine):
     the same `isinstance` proof `InMemoryEventSink` gets in
     `test_workflow_run_event_sink.py` -- no shared base class required."""
     factory = async_sessionmaker(engine, expire_on_commit=False)
-    sink = PersistingEventSink(factory, _NoopPublisher())
+    sink = PersistingEventSink(factory, _NoopPublisher(), shop_id=None)
     assert isinstance(sink, EventSink)
 
 

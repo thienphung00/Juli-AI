@@ -487,7 +487,7 @@ class TestReplay:
         user, shop = await seed_shop(pg_session_factory)
         run = await seed_run(pg_session_factory, shop, status="completed")
         bus = FakeRedisBus()
-        sink = PersistingEventSink(pg_session_factory, bus)
+        sink = PersistingEventSink(pg_session_factory, bus, shop_id=None)
         runner = ScriptedFakeRunner(
             session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
         )
@@ -527,7 +527,7 @@ class TestHandoffOverlap:
         user, shop = await seed_shop(pg_session_factory)
         run = await seed_run(pg_session_factory, shop, status="running")
         bus = FakeRedisBus()
-        sink = PersistingEventSink(pg_session_factory, bus)
+        sink = PersistingEventSink(pg_session_factory, bus, shop_id=None)
         opening = ScriptedFakeRunner(
             session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
         )
@@ -597,7 +597,7 @@ class TestRedisLoss:
         user, shop = await seed_shop(pg_session_factory)
         run = await seed_run(pg_session_factory, shop, status="running")
         bus = FakeRedisBus()
-        sink = PersistingEventSink(pg_session_factory, bus)
+        sink = PersistingEventSink(pg_session_factory, bus, shop_id=None)
         subscriber = SignalingFailingSubscriber()
 
         async def _emit_after_subscribe_attempted() -> None:
@@ -628,7 +628,7 @@ class TestRedisLoss:
         user, shop = await seed_shop(pg_session_factory)
         run = await seed_run(pg_session_factory, shop, status="running")
         bus = FakeRedisBus()
-        sink = PersistingEventSink(pg_session_factory, bus)
+        sink = PersistingEventSink(pg_session_factory, bus, shop_id=None)
         runner = ScriptedFakeRunner(
             session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
         )
@@ -689,7 +689,7 @@ class TestCursorResolution:
         user, shop = await seed_shop(pg_session_factory)
         run = await seed_run(pg_session_factory, shop, status="completed")
         bus = FakeRedisBus()
-        sink = PersistingEventSink(pg_session_factory, bus)
+        sink = PersistingEventSink(pg_session_factory, bus, shop_id=None)
         runner = ScriptedFakeRunner(
             session_factory=pg_session_factory, sink=sink, run_id=run.id, starting_sequence=1
         )

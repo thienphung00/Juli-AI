@@ -83,26 +83,30 @@ class PersistingEventSink:
         self,
         session_factory: async_sessionmaker[AsyncSession],
         publisher: EventPublisher,
-        shop_id: uuid.UUID | None = None,
+        *,
+        shop_id: uuid.UUID | None,
     ) -> None:
-        """`shop_id` is the fix for #1890: safe by construction rather than
-        by the caller's diligence. When given, `emit` enters `with_shop_scope`
-        (never the sticky variant -- `emit` opens one fresh session and
-        commits it exactly once, ADR-074 decision 3's own contract, so there
-        is no second transaction for a sticky listener to survive into)
-        around its own insert, and a bare `session_factory` under `juli_app`
-        passes RLS with no wrapping required from the caller (retiring
-        #1889's `_shop_scoped_session_factory` workaround for this call
-        site -- `workers/tasks/agent_workflow.py`).
+        """`shop_id` is the fix for #1890: safe by construction, not by the
+        caller's diligence. Keyword-only and with NO default -- omission is
+        a `TypeError` at construction, not a silent unscoped insert refused
+        later by RLS. Every caller must state its tenancy one way or the
+        other: a real shop id, or an explicit `None` declaring "this
+        connection is genuinely not tenant-scoped" (the owner-role suites --
+        `test_persisting_event_sink.py` and its siblings -- pass `None`
+        because an owner connection is RLS-exempt by construction, not
+        because nobody thought about it).
 
-        Optional, defaulting to `None`, so the pre-existing suite
-        (`test_persisting_event_sink.py`), which proves sink *behavior* on
-        an owner-role connection RLS never applies to and constructs this
-        sink with exactly these first two arguments, keeps working
-        unmodified. On a `juli_app`-bound factory, omitting `shop_id` is
-        exactly as unsafe as it always was -- RLS still refuses the insert,
-        loudly, which is the pre-#1890 behaviour this default preserves
-        rather than a new bypass.
+        When given a real id, `emit` enters `with_shop_scope` (never the
+        sticky variant -- `emit` opens one fresh session and commits it
+        exactly once, ADR-074 decision 3's own contract, so there is no
+        second transaction for a sticky listener to survive into) around its
+        own insert, and a bare `session_factory` under `juli_app` passes RLS
+        with no wrapping required from the caller (retiring #1889's
+        `_shop_scoped_session_factory` workaround for this call site --
+        `workers/tasks/agent_workflow.py`). When `None`, `emit` enters
+        `_null_scope()` instead -- no GUC read, no GUC write, no listener --
+        which is exactly this sink's pre-#1890 behaviour, now reached by an
+        explicit declaration rather than a forgotten parameter.
         """
         self._session_factory = session_factory
         self._publisher = publisher
