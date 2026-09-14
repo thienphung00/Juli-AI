@@ -81,13 +81,17 @@ class _GhResult:
 
 
 def _spy_run_returning(stdout: str) -> callable:
-    calls: list[list[str]] = []
+    """A `subprocess.run` stand-in that returns a fixed stdout.
 
-    def _run(cmd: list[str], **_kwargs: object) -> _GhResult:
-        calls.append(cmd)
+    The recorded-calls list this used to attach to the function object was
+    never read by any test, and attaching it required a
+    `# type: ignore[attr-defined]` -- a new suppression identity, which the
+    debt ratchet counts. Dropped rather than suppressed.
+    """
+
+    def _run(_cmd: list[str], **_kwargs: object) -> _GhResult:
         return _GhResult(stdout)
 
-    _run.calls = calls  # type: ignore[attr-defined]
     return _run
 
 
