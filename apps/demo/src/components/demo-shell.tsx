@@ -9,6 +9,7 @@ import { DEMO_MODE_REPLAY_LABEL } from "../lib/demo-mode-copy";
 import { demoDestinations } from "../lib/mock-data";
 import { sanitizeSellerReviewText } from "../lib/review-seller-copy";
 import { looksLikeRunId } from "../lib/run-surface/run-id";
+import { ACTIONS_DESTINATION_LABEL } from "../lib/destination-copy";
 import { AnalyticsDataProvider, useAnalyticsData } from "../lib/analytics/analytics-data-context";
 import {
   GOOGLE_SIGN_IN_UNAVAILABLE_COPY,
@@ -23,7 +24,7 @@ const assistanceByPath = {
       "Juli là trợ lý phân tích và tự động hóa của bạn, giúp bạn hiểu rõ dữ liệu cửa hàng và đưa ra quyết định tối ưu.",
   },
   "/decisions": {
-    destination: "Quyết định",
+    destination: ACTIONS_DESTINATION_LABEL,
     message:
       "Juli sẽ giải thích lý do, bằng chứng và tác động của từng đề xuất để bạn tự đưa ra quyết định.",
   },

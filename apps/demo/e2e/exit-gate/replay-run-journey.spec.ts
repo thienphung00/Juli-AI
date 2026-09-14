@@ -138,7 +138,7 @@ test.describe("Replay journey — issue #1321 (ADR-076 decision 7)", () => {
     await test.step("Home → Decisions", async () => {
       await page
         .getByRole("region", { name: "Điểm đến chính" })
-        .getByRole("link", { name: /Quyết định/ })
+        .getByRole("link", { name: /Hành động/ })
         .click();
       await expect(page).toHaveURL(/\/decisions$/);
     });

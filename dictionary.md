@@ -40,10 +40,10 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - Definition: The sparse two-card launchpad.
 
 **`nav.decisions`**
-- EN: Decisions
-- VI: Quyết định
-- _Avoid_: Hành động, Khuyến nghị
-- Definition: The recommendation and execution hub.
+- EN: Actions
+- VI: Hành động
+- _Avoid_: Quyết định (the tab's former name — owner decision on #1910, 2026-09-14), Khuyến nghị, Gợi ý
+- Definition: The recommendation and execution hub — where you review Juli's proposals, approve or decline them, and watch them run. Runtime constant `ACTIONS_DESTINATION_LABEL` in `apps/demo/src/lib/destination-copy.ts` (shared by the nav rail and the run header's back control); keep them byte-identical.
 
 **`decisions.tab.recommendations`**
 - EN: Recommendations (sub-tab)

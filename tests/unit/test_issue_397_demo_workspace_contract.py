@@ -214,6 +214,7 @@ def test_home_responsive_focus_touch_vietnamese_and_reduced_motion_contract() ->
     tokens_css = (ROOT / "packages/theme/tokens.css").read_text(encoding="utf-8")
     home = _home_surface()
     fixtures = (ROOT / "apps/demo/src/lib/mock-data.ts").read_text(encoding="utf-8")
+    destination_copy = (ROOT / "apps/demo/src/lib/destination-copy.ts").read_text(encoding="utf-8")
 
     assert "@media (min-width: 42rem)" in globals_css
     assert "@media (min-width: 56rem)" in globals_css
@@ -222,7 +223,7 @@ def test_home_responsive_focus_touch_vietnamese_and_reduced_motion_contract() ->
     assert "--juli-touch-target: 44px" in tokens_css
     assert "@media (prefers-reduced-motion: reduce)" in globals_css
     assert "Quyết định nhanh, hiểu rõ shop." in home
-    assert "Quyết định" in fixtures and "Phân tích" in fixtures
+    assert "Hành động" in destination_copy and "Phân tích" in fixtures
 
 
 def test_workspace_import_boundaries_are_acyclic_and_app_isolated() -> None:

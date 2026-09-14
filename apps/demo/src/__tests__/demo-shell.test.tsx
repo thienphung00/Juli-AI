@@ -249,7 +249,7 @@ describe("Demo shell controls", () => {
         name: "Gợi ý từ Juli",
       });
 
-      expect(assistance).toHaveTextContent("Quyết định");
+      expect(assistance).toHaveTextContent("Hành động");
       expect(assistance).toHaveTextContent("Juli sẽ giải thích lý do");
     });
 
@@ -262,7 +262,7 @@ describe("Demo shell controls", () => {
         name: "Gợi ý từ Juli",
       });
 
-      expect(assistance).toHaveTextContent("Quyết định");
+      expect(assistance).toHaveTextContent("Hành động");
       expect(assistance).not.toHaveTextContent("Trang chủ");
     });
 
@@ -275,7 +275,7 @@ describe("Demo shell controls", () => {
         name: "Gợi ý từ Juli",
       });
 
-      expect(assistance).toHaveTextContent("Quyết định");
+      expect(assistance).toHaveTextContent("Hành động");
       expect(assistance).not.toHaveTextContent("Trang chủ");
     });
 
@@ -341,7 +341,7 @@ describe("Demo shell controls", () => {
       });
 
       expect(assistance).toHaveTextContent("Trang chủ");
-      expect(assistance).not.toHaveTextContent(/Quyết định|Phân tích|Cài đặt/);
+      expect(assistance).not.toHaveTextContent(/Hành động|Phân tích|Cài đặt/);
     });
 
     it("does not crash on empty path", () => {

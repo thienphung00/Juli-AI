@@ -81,7 +81,7 @@ def test_static_asset_render_playwright_spec_exists() -> None:
     assert STATIC_ASSET_SPEC.is_file(), f"missing Playwright spec: {STATIC_ASSET_SPEC}"
     text = _read(STATIC_ASSET_SPEC)
     assert "expectBrandedComputedStyles" in text
-    assert "Home → Decisions" in text or 'navigatePrimaryDestination(page, "Quyết định")' in text
+    assert "Home → Decisions" in text or 'navigatePrimaryDestination(page, "Hành động")' in text
 
 
 def test_release_evidence_plan_documents_rollback_and_static_checks() -> None:

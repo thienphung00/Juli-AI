@@ -11,7 +11,7 @@ Invariants below.
 
 ## Public interface
 
-- `/` — sparse Home launcher with exactly two cards: Quyết định and Phân tích.
+- `/` — sparse Home launcher with exactly two cards: Hành động and Phân tích.
 - `/decisions`, `/analytics`, `/settings` — discoverable shell destinations;
   content is delivered by later vertical slices.
 - `DemoShell` — responsive four-destination application frame. **Exception
