@@ -705,6 +705,15 @@ a {
   .demo-decisions__split[data-detail-open="true"] {
     grid-template-columns: 376px minmax(0, 1fr);
   }
+
+  /* Keep the open detail in view while the narrowed list scrolls —
+     sticky positioning, not an overlay: it never leaves its grid cell. */
+  .demo-decisions__detail {
+    position: sticky;
+    top: var(--juli-space-4);
+    max-height: calc(100vh - var(--juli-space-8));
+    overflow-y: auto;
+  }
 }
 
 .demo-decisions__detail {
