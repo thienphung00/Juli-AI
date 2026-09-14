@@ -395,6 +395,14 @@ async def test_two_write_executions_one_run_chain_reports_readings_once_not_mult
     assert direct_rows, "the due execution must have produced readings"
     direct_reading_count = len(direct_rows)
 
+    # Without this, the test cannot tell "fixed" from "regressed to run_id=None":
+    # with a NULL run_id the OR-join never attaches a sibling's readings, so the
+    # dedup assertions below would pass vacuously on the very defect #1858 fixes.
+    assert {row[1] for row in direct_rows} == {run_id}, (
+        "every persisted reading must carry this run's id, or the multiplication "
+        "this test exists to check never happens and the dedup proof is vacuous"
+    )
+
     owner_async_engine = create_async_engine(async_database_url(database_url()))
     try:
         session_factory = async_sessionmaker(owner_async_engine, expire_on_commit=False)
