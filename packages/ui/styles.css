@@ -151,7 +151,18 @@
 }
 
 .juli-primary-nav__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 1rem;
+}
+
+/* Inside the nav, destination icons follow the link's own color states and
+   nav scale — not the launcher-card treatment (#1903). */
+.juli-primary-nav__icon .juli-destination-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: currentColor;
 }
 
 @media (min-width: 56rem) {

@@ -82,6 +82,11 @@ CONCLUDE_WITHOUT_CHANGES_SPEC = ToolSpec(
         "is already well-optimized, or when you need more information to make "
         "a recommendation. Provide a brief, honest reason for your conclusion."
     ),
+    # dictionary.md `run.option_rationale.conclude_without_changes` (issue
+    # #1904, W6-FIX). This tool is READ/AUTO and never reaches the option
+    # picker today, but every registered ToolSpec carries a rationale so a
+    # future policy change cannot silently re-open the English-leak defect.
+    seller_rationale_vi="Kết thúc phiên xử lý này mà không thay đổi gì.",
     input_model=ConcludeWithoutChangesInput,
     output_model=ConcludeWithoutChangesOutput,
     classification=ToolClassification.READ,

@@ -53,8 +53,20 @@ Invariants below.
 - User-visible copy is Vietnamese with correct diacritics.
 - Analytics (`/analytics`) performs read-only `GET /v1/demo/analytics` (no force-recompute); Home, Settings, and Decisions remain mock fixtures.
 - Dùng thử Demo stays sessionless and issues no request; Đăng nhập với Google
-  (issue #1319) is real — it routes to Supabase Auth and, from the
-  connect-shop screen, makes a real bearer-authenticated `GET /v1/shops` call.
+  (issue #1319) is real code, but only a real LINK when
+  `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` were present at
+  `next build` time (Next inlines `NEXT_PUBLIC_*` at build, never at
+  runtime) — issue #1905 found that nothing in the release lane ever set
+  them, so every artifact CI had built rendered the honest-disabled `<span
+  role="link">` branch instead. `scripts/verify-supabase-env-in-build.mjs`
+  (wired into `pnpm build`, same discipline as the replay-scenario check
+  above) now fails the build non-zero when they're absent, and
+  `.github/workflows/release.yml`'s `app-release-artifact` job sources both
+  from repository secrets for `matrix.app == 'demo'`. When configured, it
+  routes to Supabase Auth and, from the connect-shop screen, makes a real
+  bearer-authenticated `GET /v1/shops` call. When not, the disabled state
+  now also renders visible Vietnamese copy (`dictionary.md`
+  `auth.google.unavailable`), not only an `aria-label`.
 - `RecommendationsPanel`/`RecommendationsView` make no backend request or
   real write anywhere in the recommendations flow (asserted in
   `decisions-recommendations.test.tsx`) — this is deliberately **not**

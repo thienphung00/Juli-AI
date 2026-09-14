@@ -1,0 +1,83 @@
+{
+  "planId": "rep-1912-run-surface-light-layer-tokens",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com run view — every element under data-juli-surface=\"run\" changes ground from #121214 to the white Juli canvas",
+    "demo.app-juli.com In-Progress ledger — carries the same surface attribute and moves with it, ending a dark panel inside the light Decisions page"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the demo candidate unit on its own port, before the nginx upstream cutover",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "the-run-surface-is-light-and-the-accent-is-legible",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/decisions/in-progress/<replay run id>",
+        "assertions": [
+          "the run surface renders on the white Juli canvas, not #121214",
+          "the active stepper node is filled with #b0386a and its label is legible white on it",
+          "no element on the surface computes to #6d9bff, #ff5fa8, #ff8dc0 or #ff6b70",
+          "the reconnecting and expiry lines are legible amber-on-white, not the 2.15:1 base warning"
+        ]
+      },
+      {
+        "name": "the-ledger-moves-with-it",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/decisions",
+        "assertions": [
+          "the In-Progress ledger sits on the light canvas rather than as a dark panel inside a light page"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions",
+      "/decisions/in-progress/<replay run id>"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. A stylesheet token layer only; nothing is persisted and no API contract moves."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "repoint the nginx demo upstream to the retained previous release; the surface returns to the dark ground as a whole, never a half-applied mix",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/theme test",
+    "pnpm --filter @juli/demo test",
+    "pnpm -w turbo run build"
+  ],
+  "doNotInfer": [
+    "Do NOT edit any file under apps/demo/src/components/. This is a token-layer-only diff; if a consumer looks like it needs changing, that is #1913 or #1914's job — stop and report rather than reaching across.",
+    "Do NOT rename --juli-run-live-edge. The name carries the 'reserved for the live edge only' rule, and redefining a ground and an accent with zero consumer edits is the proof the architecture works.",
+    "Do NOT retain the dark values behind a selector or a media query. ADR-102 decision 5: what makes a future re-theme cheap is the layer shape, not an unused mode nothing tests.",
+    "Do NOT declare a blur token without consuming it. Every --juli-run-*-blur is read by a backdrop-filter in this same file at 0px, because a glass pass that must ADD a property to every panel rule is a consumer change.",
+    "Do NOT write an rgba() literal. Every derived value is color-mix(in srgb, ...) so tints track their base.",
+    "Do NOT adjust the existing contrast ratios in the file docstring. They measure grounds that no longer exist — delete and re-derive against the new layer fills.",
+    "Do NOT touch packages/theme/tokens.css. Its byte-identity is asserted and is the #1314 criterion that still holds.",
+    "Do NOT weaken the scoping contract: every property stays under [data-juli-surface=\"run\"], never :root, and this file never writes an app-wide --juli-* name."
+  ]
+}

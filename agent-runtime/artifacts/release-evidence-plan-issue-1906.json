@@ -1,0 +1,82 @@
+{
+  "planId": "rep-1906-google-identity-users-row",
+  "affectedPublicSurfaces": [
+    "every authenticated /v1/* route's auth dependency (get_current_user) — behaviour changes for one previously-failing case: a validly-signed Supabase JWT whose sub has no public.users row",
+    "GET /v1/shops, the first route a newly signed-in seller reaches from the connect-shop screen"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the API candidate unit on its idle blue/green port, before the nginx upstream cutover",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": true,
+    "journeys": [
+      {
+        "name": "first-time-identity-is-provisioned-once",
+        "entryUrl": "GET /v1/shops on the candidate port, bearer = a validly-signed JWT for a sub with no users row",
+        "assertions": [
+          "200 with an empty list, not 401 'User not found'",
+          "exactly one public.users row exists for that sub afterwards",
+          "a second identical request creates no further row"
+        ]
+      },
+      {
+        "name": "an-unverified-token-provisions-nothing",
+        "entryUrl": "GET /v1/shops on the candidate port with a malformed, expired, and wrongly-signed token",
+        "assertions": [
+          "401 in all three cases",
+          "the response detail is the generic 'Invalid or expired credentials' and never echoes the parser's reason (ADR-061 / #902)",
+          "the public.users row count is unchanged"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: backend auth dependency, no HTML route"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration. This writes a row through the existing model. Rows provisioned by the candidate are readable by the stable release, and vice versa."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "roll back to the retained previous release; already-provisioned rows stay valid and orphan nothing, and new identities simply return to 401",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest -q tests/integration/test_google_identity_provisioning.py",
+    "pytest -q tests/unit/test_repositories_base.py",
+    "ruff check backend tests scripts && mypy backend/src/juli_backend --ignore-missing-imports --disable-error-code=valid-type"
+  ],
+  "doNotInfer": [
+    "Do NOT verify this through the shared `session` fixture. It is SQLite even when DATABASE_URL names Postgres — a DB-level claim made through it is untested. `users` is policy-gated, so build a real engine the way tests/integration/test_series_source_enforced.py does.",
+    "Do NOT provision before verify_supabase_jwt succeeds. A malformed or unsigned token must create no row and still 401.",
+    "Do NOT echo the JWT parser's reason in the 401 detail — ADR-061 / #902 require the generic message.",
+    "Do NOT write a second provisioning path. UsersRepo.get_or_create already exists and is used by four services/tiktok/* stores; reuse it.",
+    "Do NOT grant the provisioned user a shop, a capability, or a credential. Zero shops is the correct, honest state and the connect-shop screen already renders it.",
+    "Do NOT treat the concurrency case as theoretical — two first requests for the same sub must yield exactly one row, with the loser's IntegrityError handled rather than surfaced.",
+    "Do NOT bind the sandbox shop to the new user in code. That is a one-off owner DB act after this lands, not a migration and not part of this slice."
+  ]
+}

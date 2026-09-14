@@ -12,6 +12,7 @@ import builtins
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from juli_backend.database.exceptions import NotFound
 from juli_backend.database.tenant_context import with_user_scope
@@ -54,8 +55,53 @@ class UsersRepo(SessionRepo):
 
         A separate method rather than a flag on `get`, so that every caller of the
         scoped read is greppable and the exception cannot spread silently.
+
+        WHAT HAPPENS WHEN THE ROW DOES NOT EXIST YET (#1906). A first-time
+        Google sign-in has a verified `sub` with no `users` row at all --
+        not an RLS visibility problem, an absence. `self.get` below still
+        raises `NotFound` for that case, and `get_current_user` used to let
+        it become a 401 (`"User not found"`) for every such caller, forever.
+        `_provision_first_sighting` is the fix: it inserts the row under
+        this SAME scope, so `users_insert_public`'s `WITH CHECK (id =
+        app_current_user_id())` sees exactly the caller's own verified id,
+        never anyone else's.
         """
         async with with_user_scope(self._session, user_id):
+            try:
+                return await self.get(user_id)
+            except NotFound:
+                return await self._provision_first_sighting(user_id)
+
+    async def _provision_first_sighting(self, user_id: uuid.UUID) -> User:
+        """Insert the first-sighting row for `user_id` (#1906), racing safely.
+
+        NOT A SECOND PROVISIONING PATH. The write is `get_or_create` --  the
+        same method four `services/tiktok/*` stores already call -- run
+        inside a `SAVEPOINT` (`begin_nested`) so a losing concurrent caller's
+        `IntegrityError` unwinds only the savepoint, not the whole
+        transaction, matching `_base.py::ShopScopedRepo.upsert`'s own
+        concurrent-insert handling one file over.
+
+        THE RACE. Two first requests for the same `sub` both see `NotFound`
+        above and both reach here. Postgres's unique index on `users.id`
+        blocks the second INSERT behind the first's row lock until the first
+        either commits or rolls back; `get_current_user` commits right after
+        this call returns, so by the time the loser's blocked INSERT
+        unblocks, the winner's row is already visible. The loser's `except
+        IntegrityError` branch re-reads it under the SAME `with_user_scope`
+        this method was called from -- one row survives, both callers
+        succeed.
+
+        The placeholder phone is derived from `user_id` exactly the way
+        `business_account_holder_store.py` derives one: deterministic per
+        caller (so a retry for the same `sub` is a no-op, not a second
+        collision) and distinct across callers (`users.phone` is UNIQUE).
+        """
+        placeholder_phone = f"+849{user_id.int % 10_000_000_000:010d}"
+        try:
+            async with self._session.begin_nested():
+                return await self.get_or_create(user_id, placeholder_phone)
+        except IntegrityError:
             return await self.get(user_id)
 
     async def get_or_create(self, user_id: uuid.UUID, phone: str) -> User:

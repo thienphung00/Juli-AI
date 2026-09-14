@@ -312,6 +312,7 @@ class TestReverseDirectionDrift:
             name="archive_stale_listing",
             description="A seventh tool with no playbook step (test-only, never registered "
             "in production code).",
+            seller_rationale_vi="Công cụ kiểm thử thứ bảy, không dùng trong sản phẩm thật.",
             input_model=_SeventhToolInput,
             output_model=_SeventhToolOutput,
             classification=ToolClassification.WRITE,
@@ -374,6 +375,7 @@ class TestReverseDirectionDrift:
             ToolSpec(
                 name="merge_duplicate_listings",
                 description="An eighth tool with no playbook step (test-only).",
+                seller_rationale_vi="Công cụ kiểm thử thứ tám, không dùng trong sản phẩm thật.",
                 input_model=_EighthToolInput,
                 output_model=_EighthToolOutput,
                 classification=ToolClassification.WRITE,
