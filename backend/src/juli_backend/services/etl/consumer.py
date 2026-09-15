@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import time
@@ -30,6 +31,7 @@ from juli_backend.repositories.repos import (
 from juli_backend.services.etl.channels import DLQ_CHANNEL
 from juli_backend.services.etl.event_id import extract_event_id
 from juli_backend.services.etl.persistence.ingest import ProcessedEventsRepo
+from juli_backend.services.etl.persistence.ingest.repo import IngestDedupEpochsRepo
 from juli_backend.services.etl.record import IngestRecord
 from juli_backend.services.etl.transform import TransformError, transform_for_channel
 
@@ -81,6 +83,7 @@ class EtlConsumer:
         self._before_persist = before_persist
         self._shops = ShopsRepo(session)
         self._processed = ProcessedEventsRepo(session)
+        self._epochs = IngestDedupEpochsRepo(session)
         self._orders = OrdersRepo(session)
         self._order_items = OrderItemsRepo(session)
         self._returns = ReturnsRepo(session)
@@ -153,25 +156,51 @@ class EtlConsumer:
             )
             return ProcessOutcome.DLQ
 
-        claimed = await self._processed.claim(event_id=event_id, shop_id=shop.id)
-        if not claimed:
-            logger.info(
-                "etl_duplicate_skipped",
-                extra={"event_id": event_id, "shop_id": str(shop.id)},
-            )
-            return ProcessOutcome.DUPLICATE
+        # The epoch is read, never created: a channel nobody has recovered stays
+        # at INITIAL_EPOCH, which is the pre-#1968 behaviour bit for bit.
+        epoch = await self._epochs.current(shop_id=shop.id, channel=record.channel)
 
-        if self._before_persist is not None:
-            await self._before_persist(record)
-
+        # One savepoint spans the claim *and* the destination write, so the two
+        # can only survive together. Before #1968 the claim was committed even
+        # when the transform or upsert failed, which marked an id processed that
+        # was never persisted — the shape that made 3,581 orders unrecoverable.
+        claim_and_persist = await self._session.begin_nested()
         try:
+            claimed = await self._processed.claim(event_id=event_id, shop_id=shop.id, epoch=epoch)
+            if not claimed:
+                await claim_and_persist.rollback()
+                logger.info(
+                    "etl_duplicate_skipped",
+                    extra={
+                        "event_id": event_id,
+                        "shop_id": str(shop.id),
+                        "epoch": epoch,
+                    },
+                )
+                return ProcessOutcome.DUPLICATE
+
+            if self._before_persist is not None:
+                await self._before_persist(record)
+
             entity_kind, kwargs = transform_for_channel(record.channel, payload)
             await self._upsert(entity_kind, shop_id=shop.id, kwargs=kwargs)
         except (TransformError, TypeError, ValueError) as exc:
+            # Roll the claim back first, then hand the failure to the DLQ: the
+            # envelope leaves over `_dlq_handoff`, not the session, so undoing
+            # the claim cannot also discard the record of why it failed.
+            await claim_and_persist.rollback()
             await self._send_dlq(record, error=str(exc), payload=payload)
             await self._session.commit()
             return ProcessOutcome.DLQ
+        except BaseException:
+            # Cancellation or an unforeseen error must not leave the id claimed
+            # either. Suppress only a secondary rollback failure, never the
+            # original exception.
+            with contextlib.suppress(Exception):
+                await claim_and_persist.rollback()
+            raise
 
+        await claim_and_persist.commit()
         await self._session.commit()
         logger.info(
             "etl_event_processed",
@@ -180,6 +209,7 @@ class EtlConsumer:
                 "channel": record.channel,
                 "shop_id": str(shop.id),
                 "entity_kind": entity_kind,
+                "epoch": epoch,
             },
         )
         return ProcessOutcome.PROCESSED
