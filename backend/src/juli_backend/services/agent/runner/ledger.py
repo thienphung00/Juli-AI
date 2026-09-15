@@ -227,6 +227,13 @@ class ToolExecutionLedger:
     block on Postgres row-lock contention — see the module docstring's
     "Bounded lock wait" section for why these live here (session-scoped)
     rather than on the Celery task.
+
+    `workflow_id` (#1939 / W8-F), when supplied, is stamped into every fresh
+    dispatch's `payload_json` so the outcome recorder
+    (`runner/outcome_recording.py`) can read it back through
+    `extract_workflow_id`. Optional, and `None` by default, so every
+    pre-existing construction site records byte-identical payloads — see
+    `_payload_json`.
     """
 
     def __init__(
@@ -235,6 +242,7 @@ class ToolExecutionLedger:
         *,
         shop_id: uuid.UUID,
         approval_id_prefix: str = "agent-ledger",
+        workflow_id: str | None = None,
         lock_timeout_ms: int = _DEFAULT_LOCK_TIMEOUT_MS,
         statement_timeout_ms: int = _DEFAULT_STATEMENT_TIMEOUT_MS,
     ) -> None:
@@ -245,6 +253,7 @@ class ToolExecutionLedger:
         self._session = session
         self._shop_id = shop_id
         self._approval_id_prefix = approval_id_prefix
+        self._workflow_id = workflow_id
         self._lock_timeout_ms = lock_timeout_ms
         self._statement_timeout_ms = statement_timeout_ms
 
@@ -346,9 +355,10 @@ class ToolExecutionLedger:
         `request_payload` (#1215 / AGT-W4B): recorded as `payload_json` when
         supplied, so the impact-reader consumers (`classify.py`,
         `pipeline.py`) can classify and attribute this row later — left at
-        the model's own `"{}"` default when `None`, exactly as before this
-        parameter existed.
+        the model's own `"{}"` default when `None` **and** no `workflow_id`
+        is configured, exactly as before either parameter existed.
         """
+        payload = self._payload_json(request_payload)
         row = ToolExecution(
             shop_id=self._shop_id,
             approval_id=f"{self._approval_id_prefix}:{tool_call_id}"[:255],
@@ -357,16 +367,44 @@ class ToolExecutionLedger:
             workflow_run_id=workflow_run_id,
             tool_call_id=tool_call_id,
             operation=operation,
-            **(
-                {"payload_json": request_payload.model_dump_json()}
-                if request_payload is not None
-                else {}
-            ),
+            **({"payload_json": payload} if payload is not None else {}),
         )
         self._session.add(row)
         self._session.flush()
         self._session.commit()
         return row
+
+    def _payload_json(self, request_payload: ToolExecutionRequestPayload | None) -> str | None:
+        """The `payload_json` this dispatch records, or `None` to leave the
+        `ToolExecution` model's own `"{}"` default untouched.
+
+        `workflow_id` (#1939 / W8-F) rides the payload when this ledger was
+        constructed with one — the run's playbook `workflow_key`, which is the
+        same namespace as `services/operations/outcome_tracking.py`'s
+        `VALIDATED_WORKFLOW_IDS`. `record_workflow_outcome` reads the workflow
+        id off exactly this blob (`extract_workflow_id`), and without it every
+        agent write raises `ValueError("execution payload must include
+        workflow_id")` instead of recording an outcome. This is a JSON SHAPE
+        change and not a schema change: `tool_executions.payload_json` is a
+        `Text` column, and the impact reader's two consumers are inert to an
+        extra key (`classify.py` reads per-field truthy heuristics over
+        `price_update`/`image_uri`/`title`/`description`; `pipeline.py` and
+        `queries.py` read `product_id`).
+
+        It is stamped here rather than added to `ToolExecutionRequestPayload`
+        deliberately: that model's field names are pinned to what those two
+        consumers read (its own docstring), and a workflow key is not one of
+        them. Stamping at this layer also covers a WRITE whose
+        `request_payload` is `None` — `ProductToolExecutor._build_request_payload`
+        returns `None` for every WRITE the impact reader does not classify —
+        so an outcome is recorded for those too.
+        """
+        fields = request_payload.model_dump(mode="json") if request_payload is not None else {}
+        if self._workflow_id is not None:
+            fields["workflow_id"] = self._workflow_id
+        if not fields:
+            return None
+        return json.dumps(fields)
 
     def _mark_succeeded(
         self, row: ToolExecution, *, result: Mapping[str, Any]

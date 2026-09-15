@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import ImpactReading, ToolExecution
+from juli_backend.repositories import utc_now_naive
 from juli_backend.repositories.repos import WorkflowOutcomeRecordsRepo
 
 logger = logging.getLogger(__name__)
@@ -218,7 +219,16 @@ async def record_workflow_outcome(
     """Persist workflow outcome metrics after terminal tool execution (idempotent)."""
     payload = json.loads(execution.payload_json or "{}")
     workflow_id = extract_workflow_id(payload)
-    executed_at = datetime.now(UTC)
+    # `workflow_outcome_records.executed_at` is TIMESTAMP WITHOUT TIME ZONE, and
+    # asyncpg REFUSES an aware value on it -- "invalid input for query argument"
+    # (#1138, #1675; `repositories._base.utc_now_naive` documents the failure).
+    # Every caller of this function runs on an `AsyncSession`, so the aware
+    # `datetime.now(UTC)` that used to be here could not insert a row on real
+    # Postgres at all; SQLite, which the pre-#1939 suites used, accepts both and
+    # hid it. The envelope is unchanged either way:
+    # `build_workflow_outcome_metrics` re-stamps `tzinfo=UTC` before rendering,
+    # so `executed_at` serialises to the identical "...Z" string (#1939).
+    executed_at = utc_now_naive()
     metrics = build_workflow_outcome_metrics(
         workflow_id=workflow_id,
         execution_status=execution_status,

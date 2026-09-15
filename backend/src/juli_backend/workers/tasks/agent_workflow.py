@@ -604,7 +604,16 @@ async def _construct_runner(
     from juli_backend.services.agent import runner as runner_module
 
     registry = _default_tool_registry()
-    ledger = runner_module.ToolExecutionLedger(sync_session, shop_id=run.shop_id)
+    playbook = _default_playbook()
+    # #1939: the ledger stamps this run's workflow key into every fresh
+    # dispatch's `payload_json`, which is where `record_workflow_outcome` reads
+    # it back from (`extract_workflow_id`). Referenced off the playbook, never
+    # retyped: the value is `playbooks/optimize_product.py::WORKFLOW_KEY`, the
+    # same namespace as `VALIDATED_WORKFLOW_IDS` -- not the prompt-directory
+    # name, and not parsed out of `workflow_runs.prompt_version`.
+    ledger = runner_module.ToolExecutionLedger(
+        sync_session, shop_id=run.shop_id, workflow_id=playbook.workflow_key
+    )
     concurrency_guard = runner_module.ConcurrencyGuard(
         basis_snapshot=run.state.get("basis_snapshots", {})
     )
@@ -638,6 +647,16 @@ async def _construct_runner(
     event_sink = events_module.PersistingEventSink(
         _ensure_session_factory(), _resolve_event_publisher(), shop_id=run.shop_id
     )
+    # #1939: the async seam where a terminal WRITE records its outcome. Built
+    # on the same shop-scoped factory as the sink, and for the same two
+    # reasons: `workflow_outcome_records` is a direct `shop_id` tenant table
+    # whose INSERT policy refuses an unscoped row (#1883), and a fresh
+    # session committed on its own keeps the record durable independently of
+    # whatever the run's own transaction does next -- including the crash
+    # handler's rollback.
+    outcome_recorder = runner_module.LedgerWriteOutcomeRecorder(
+        _shop_scoped_session_factory(run.shop_id), shop_id=run.shop_id
+    )
 
     return runner_module.WorkflowRunner(
         llm_service=_default_llm_service(),
@@ -645,8 +664,9 @@ async def _construct_runner(
         event_sink=event_sink,
         conversation_store=conversation_store,
         registry=registry,
-        playbook=_default_playbook(),
+        playbook=playbook,
         cancel_check=_make_cancel_check(sync_session, run.id),
+        outcome_recorder=outcome_recorder,
         # #1382: the SAME guard instance the ToolExecutor got above. The
         # executor updates its basis; the runner mirrors that into
         # RunState.basis_snapshots so it survives the pause and is read back

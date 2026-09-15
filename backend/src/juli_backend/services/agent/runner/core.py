@@ -267,7 +267,11 @@ from juli_backend.services.agent.runner.conversation_store import (
     ConversationStore,
     PendingConfirmationWrite,
 )
-from juli_backend.services.agent.runner.ledger import ToolExecutionUnrecoverableError
+from juli_backend.services.agent.runner.ledger import (
+    LedgerStatus,
+    ToolExecutionUnrecoverableError,
+)
+from juli_backend.services.agent.runner.outcome_recording import WriteOutcomeRecorder
 from juli_backend.services.agent.runner.seller_facing_copy import (
     SellerFacingCompletionReason,
     SellerFacingDeclinedReason,
@@ -401,6 +405,7 @@ class WorkflowRunner:
         clock: Callable[[], float] | None = None,
         cancel_check: Callable[[], bool] | None = None,
         concurrency_guard: ConcurrencyGuard | None = None,
+        outcome_recorder: WriteOutcomeRecorder | None = None,
     ) -> None:
         self._llm_service = llm_service
         self._tool_executor = tool_executor
@@ -415,6 +420,15 @@ class WorkflowRunner:
         # runner without a guard keep working; when absent, `_sync_basis` is
         # a no-op and behaviour is unchanged.
         self._concurrency_guard = concurrency_guard
+        # Issue #1939 (W8-F). The async seam where a WRITE that reached its
+        # terminal state records an outcome row. It lives here, and not inside
+        # `ToolExecutionLedger`, because the ledger is synchronous by
+        # construction (a psycopg2 `Session` called from inside a live event
+        # loop) while `record_workflow_outcome` is `async def` over an
+        # `AsyncSession` -- see `outcome_recording.py`'s module docstring.
+        # Optional so every existing construction site behaves byte-for-byte
+        # as before; when absent, `_record_write_outcome` is a no-op.
+        self._outcome_recorder = outcome_recorder
         self._event_sink = event_sink
         self._conversation_store = conversation_store
         self._registry = registry
@@ -1055,6 +1069,27 @@ class WorkflowRunner:
                 rows_affected=rollup.rows_affected,
             )
             return stop
+        except Exception as exc:
+            # The resume leg's twin of `_dispatch_tool_call`'s failure branch
+            # (issue #1939): the ledger has marked its row `failed` and is
+            # re-raising, so the failure is recorded and the exception is
+            # re-raised untouched.
+            await self._record_write_outcome(
+                workflow_run_id,
+                spec=spec,
+                tool_call_id=call_id,
+                tool_name=tool_name,
+                execution_status=LedgerStatus.FAILED.value,
+                error_message=str(exc),
+            )
+            raise
+        await self._record_write_outcome(
+            workflow_run_id,
+            spec=spec,
+            tool_call_id=call_id,
+            tool_name=tool_name,
+            execution_status=LedgerStatus.SUCCEEDED.value,
+        )
         sanitized = guard_inbound_tool_result(raw_result, tool_name=tool_name)
         ok = sanitized is raw_result
         await self._emit(
@@ -1571,8 +1606,37 @@ class WorkflowRunner:
         except ToolExecutionUnrecoverableError:
             # A ledger row this run's fail-closed verify-then-decide could
             # not resolve (ADR-073 decision 3) — same terminal treatment as
-            # above, distinct stop_reason (issue #1172).
+            # above, distinct stop_reason (issue #1172). No outcome is
+            # recorded here: see `_record_write_outcome`.
             return _ToolCallOutcome.UNRECOVERABLE_TOOL_ERROR
+        except Exception as exc:
+            # A vendor call that raised. The ledger has already marked its own
+            # row `failed` and is re-raising; this records that failure
+            # (issue #1939) and re-raises the original exception untouched —
+            # never a new control-flow branch, never a swallowed error. It is
+            # `Exception` and not a narrower type because the vendor SDK's
+            # failure surface is not this module's to enumerate, and it is
+            # safe to be broad only because every path through it re-raises:
+            # nothing is absorbed, the `stop_reason` vocabulary is unchanged,
+            # and `asyncio.CancelledError` (a `BaseException`) is not caught
+            # at all. The two collaborator exceptions above keep their own
+            # handlers, which is why those clauses come first.
+            await self._record_write_outcome(
+                workflow_run_id,
+                spec=spec,
+                tool_call_id=block.call_id,
+                tool_name=block.tool_name,
+                execution_status=LedgerStatus.FAILED.value,
+                error_message=str(exc),
+            )
+            raise
+        await self._record_write_outcome(
+            workflow_run_id,
+            spec=spec,
+            tool_call_id=block.call_id,
+            tool_name=block.tool_name,
+            execution_status=LedgerStatus.SUCCEEDED.value,
+        )
         sanitized = guard_inbound_tool_result(raw_result, tool_name=block.tool_name)
         ok = sanitized is raw_result
 
@@ -1600,6 +1664,47 @@ class WorkflowRunner:
             }
         )
         return _ToolCallOutcome.SUCCESS
+
+    async def _record_write_outcome(
+        self,
+        workflow_run_id: uuid.UUID,
+        *,
+        spec: ToolSpec,
+        tool_call_id: str,
+        tool_name: str,
+        execution_status: str,
+        error_message: str | None = None,
+    ) -> None:
+        """Record the outcome of a WRITE that just reached its terminal state
+        (issue #1939, W8-F / P10-8).
+
+        Called from both `ToolExecutor.execute` sites — `_dispatch_tool_call`
+        for an AUTO write and `resume` for a CONFIRM'd one — on success and on
+        a vendor failure alike, mirroring the legacy caller
+        (`services/execution/worker.py`), which records both with the same
+        `execution_status`/`error_message` pair. READ calls record nothing:
+        there is no state change to record, and no ledger row to join one to.
+
+        NOT called on the fail-closed `ToolExecutionUnrecoverableError` branch.
+        That raise means the ledger could not establish whether the prior
+        attempt's mutation landed (ADR-073 decision 3, "never a maybe-duplicate
+        write"); an outcome row there would claim a certainty nobody has.
+
+        Recording is best effort by the recorder's own contract: it never
+        raises, so accounting can never undo or fail a mutation TikTok has
+        already applied.
+        """
+        if self._outcome_recorder is None:
+            return
+        if spec.classification is not ToolClassification.WRITE:
+            return
+        await self._outcome_recorder.record(
+            workflow_run_id=workflow_run_id,
+            tool_call_id=tool_call_id,
+            operation=tool_name,
+            execution_status=execution_status,
+            error_message=error_message,
+        )
 
     async def _refuse(
         self,
