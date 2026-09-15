@@ -29,13 +29,14 @@ from __future__ import annotations
 
 import importlib
 import json
+import logging
 import sys
 import uuid
 from pathlib import Path
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 
 from juli_backend.models.models import Order, OrderItem, Shop, User
 from juli_backend.services.etl.consumer import EtlConsumer, ProcessOutcome
@@ -46,6 +47,7 @@ from juli_backend.services.etl.persistence.ingest import (
     ProcessedEventsRepo,
 )
 from juli_backend.services.etl.record import IngestRecord
+from tests.support.postgres import owner_sync_engine, requires_postgres
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_SRC = REPO_ROOT / "backend" / "src" / "juli_backend"
@@ -425,3 +427,188 @@ async def test_the_id_a_failed_persist_released_is_ingestable_afterwards(
     await session.commit()
 
     assert await _count(session, OrderItem, shop.id) == 1
+
+
+# ---------------------------------------------------------------------------
+# GR-1968-01 — an advance on a channel nobody ingests is a silent success
+# ---------------------------------------------------------------------------
+
+
+async def test_advance_refuses_a_channel_the_consumer_never_reads(session, shop):
+    """A typo must raise, not return an epoch.
+
+    `tiktok.order.raw` is singular and plausible; the consumer reads
+    `tiktok.orders.raw`. Accepting it hands the operator a successful-looking
+    advance, an audit row, and a recovery that silently recovers nothing --
+    the very failure mode this issue exists to remove.
+    """
+    epochs = IngestDedupEpochsRepo(session)
+
+    for bad_channel in ("tiktok.order.raw", "", "   ", "orders", "tiktok.events.dlq"):
+        with pytest.raises(ValueError, match="channel"):
+            await epochs.advance(
+                shop_id=shop.id, channel=bad_channel, operator=OPERATOR, reason=REASON
+            )
+
+    rows = await session.execute(select(func.count()).select_from(IngestDedupEpoch))
+    assert int(rows.scalar_one()) == 0, "a refused advance must leave no audit row"
+
+
+async def test_advance_names_the_rejected_channel(session, shop):
+    """The error has to be actionable: an operator mid-recovery needs the typo named."""
+    epochs = IngestDedupEpochsRepo(session)
+
+    with pytest.raises(ValueError) as excinfo:
+        await epochs.advance(
+            shop_id=shop.id, channel="tiktok.order.raw", operator=OPERATOR, reason=REASON
+        )
+
+    assert "tiktok.order.raw" in str(excinfo.value)
+
+
+async def test_advance_accepts_every_channel_the_consumer_can_ingest(session, shop):
+    """Anti-rot in the other direction: the guard must not be narrower than the pipeline.
+
+    A validator that drifts tighter than `RAW_CHANNELS` would block a genuine
+    recovery, which is the same outage in a different costume.
+    """
+    from juli_backend.services.etl.channels import RAW_CHANNELS
+
+    epochs = IngestDedupEpochsRepo(session)
+    for channel in sorted(RAW_CHANNELS):
+        assert (
+            await epochs.advance(shop_id=shop.id, channel=channel, operator=OPERATOR, reason=REASON)
+            == 1
+        )
+
+    assert ORDERS_CHANNEL in RAW_CHANNELS and ORDER_ITEMS_CHANNEL in RAW_CHANNELS
+
+
+# ---------------------------------------------------------------------------
+# GR-1968-03 — the highest-blast-radius action must reach the journal
+# ---------------------------------------------------------------------------
+
+
+async def test_advance_logs_who_moved_which_channel_and_why(session, shop, caplog):
+    """An audit row nobody greps is not an audit trail."""
+    epochs = IngestDedupEpochsRepo(session)
+
+    with caplog.at_level(logging.INFO, logger="juli_backend.services.etl.persistence.ingest.repo"):
+        await epochs.advance(
+            shop_id=shop.id, channel=ORDERS_CHANNEL, operator=OPERATOR, reason=REASON
+        )
+
+    records = [r for r in caplog.records if r.message == "etl_dedup_epoch_advanced"]
+    assert len(records) == 1, [r.message for r in caplog.records]
+
+    record = records[0]
+    assert record.levelno == logging.WARNING
+    assert record.channel == ORDERS_CHANNEL
+    assert record.shop_id == str(shop.id)
+    assert record.operator == OPERATOR
+    assert record.reason == REASON
+    assert record.previous_epoch == 0
+    assert record.epoch == 1
+
+
+async def test_a_refused_advance_logs_nothing(session, shop, caplog):
+    """Only a real epoch move may appear in the journal."""
+    epochs = IngestDedupEpochsRepo(session)
+
+    with caplog.at_level(logging.INFO, logger="juli_backend.services.etl.persistence.ingest.repo"):
+        with pytest.raises(ValueError):
+            await epochs.advance(
+                shop_id=shop.id, channel="tiktok.order.raw", operator=OPERATOR, reason=REASON
+            )
+
+    assert [r for r in caplog.records if r.message == "etl_dedup_epoch_advanced"] == []
+
+
+# ---------------------------------------------------------------------------
+# GR-1968-02 — AC5 against the migration, not the ORM default
+# ---------------------------------------------------------------------------
+
+
+@requires_postgres
+def test_migration_060_leaves_a_server_side_default_that_governs_a_stable_release_insert():
+    """AC5 on the real column, not on SQLAlchemy's Python-side default.
+
+    `test_a_pre_epoch_ledger_row_still_counts_as_processed` runs on the SQLite
+    unit fixture through the ORM, so it proves `ProcessedEvent.epoch`'s Python
+    default and nothing about the shipped column. The claim that matters during
+    a release is a *database* one: the stable release does not know the column
+    exists, so its INSERT omits it, and the row must still land on epoch 0 —
+    the same DDL default that backfilled every row that predates the migration.
+
+    Asserted on the catalog after `alembic upgrade head` and on a real INSERT
+    that names no epoch, inside a transaction that is rolled back. Nothing is
+    migrated, stamped or left behind: a test that moves this database's alembic
+    state is how #1968 broke `test_migration_058_...` in the first place.
+
+    This test cannot be falsified by dropping the default *before* pytest runs.
+    `tests/conftest.py::_shared_database_at_head` resets and re-upgrades the
+    shared database to head at session start, so it puts the default straight
+    back. The predicate was verified to discriminate by dropping the default in
+    a separate process and re-running the same two assertions: they fail with
+    `column_default=None` and pass with `'0'`.
+    """
+    with owner_sync_engine() as engine, engine.connect() as conn:
+        column = conn.execute(
+            text("""
+                SELECT column_default, is_nullable
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'processed_events'
+                  AND column_name = 'epoch'
+            """)
+        ).one()
+        assert column.column_default == "0", (
+            f"processed_events.epoch has no server-side default ({column.column_default!r}); "
+            "rows written before migration 060 would not resolve to the current epoch"
+        )
+        assert column.is_nullable == "NO"
+
+        # No explicit `conn.begin()`: SQLAlchemy 2 autobegins on the first
+        # execute above, so opening one here raises. The rollback in `finally`
+        # discards that same autobegun transaction.
+        try:
+            shop_id = conn.execute(text("SELECT id FROM shops LIMIT 1")).scalar()
+            if shop_id is None:
+                user_id = uuid.uuid4()
+                shop_id = uuid.uuid4()
+                conn.execute(
+                    text("INSERT INTO users (id, phone) VALUES (:id, :phone)"),
+                    {"id": str(user_id), "phone": "+84901968001"},
+                )
+                conn.execute(
+                    text("""
+                        INSERT INTO shops (id, user_id, shop_name, tiktok_shop_id)
+                        VALUES (:id, :user_id, :name, :tiktok_shop_id)
+                    """),
+                    {
+                        "id": str(shop_id),
+                        "user_id": str(user_id),
+                        "name": "Epoch Default Shop",
+                        "tiktok_shop_id": "7000000000001968",
+                    },
+                )
+
+            # Exactly the shape of the stable release's insert: no epoch column.
+            conn.execute(
+                text("""
+                    INSERT INTO processed_events (event_id, shop_id, processed_at)
+                    VALUES (:event_id, :shop_id, now())
+                """),
+                {"event_id": "evt-stable-release-insert", "shop_id": str(shop_id)},
+            )
+            stored = conn.execute(
+                text("SELECT epoch FROM processed_events WHERE event_id = :event_id"),
+                {"event_id": "evt-stable-release-insert"},
+            ).scalar_one()
+
+            assert stored == 0, (
+                f"an insert that omits epoch landed on {stored}, not INITIAL_EPOCH; the "
+                "stable release's rows would not be treated as processed"
+            )
+        finally:
+            conn.rollback()
