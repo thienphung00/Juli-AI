@@ -394,7 +394,7 @@ class TestPollStepProductIdRequirement:
         rate_limiter = MagicMock()
         rate_limiter.is_exhausted.return_value = False
 
-        with pytest.raises(ValueError, match="requires list_product_ids"):
+        with pytest.raises(ValueError, match="requires list_product_ids") as excinfo:
             await _run_poll_step(
                 step,
                 resources=MagicMock(),
@@ -406,5 +406,9 @@ class TestPollStepProductIdRequirement:
                 sleep=AsyncMock(),
             )
 
+        # The message names which step went unsupplied. A cycle runs four steps
+        # and only one wants ids; an error that did not say which would send the
+        # reader back through all four.
+        assert INVENTORY_SEARCH_PATH in str(excinfo.value)
         # Raised before the worker ran -- not after a partial sync.
         sync_fn.assert_not_awaited()
