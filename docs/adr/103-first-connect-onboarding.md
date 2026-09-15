@@ -178,6 +178,39 @@ is therefore outside that prohibition.
     so the run-completion framing belongs later. Today neither channel is captured and a **fabricated
     `+849` number** is written instead (#1972), so this is a correction, not an addition.
 
+19. **Two thresholds, a count-up, and a recorded-not-integrated phone number.** Settling ADR-103's
+    three open questions (owner, 2026-09-15).
+
+    **a. The thin-data floor is two thresholds, not one.** "No insights" has two causes that must
+    never share a screen: a **healthy shop** (enough evaluated, nothing wrong — a good outcome) and a
+    **thin shop** (Juli cannot see enough to say). Therefore: **insights render whenever at least one
+    exists** — structural, because Next Steps must have a card to hand off to; **the score renders at
+    three or more evaluated launch-backed KPIs**; below three, **no number at all** and a distinct
+    state naming what is still missing. That state depends on #1961's `awaiting_data` (temporary,
+    disclosed — "4 chỉ số nữa sẽ có khi shop có thêm đơn hàng") versus `no_source` (permanent,
+    silent). *Rejected:* a single floor, which cannot distinguish the two causes; always revealing,
+    which prints a score computed from one KPI on the one screen that must be credible.
+
+    **b. The score counts up, and lands under reduced motion.** ~700–900 ms, with the three insights
+    staggering in behind it. A count-up animates a **known final value** — a transition, like a fade.
+    That is categorically different from the fake progress ADR-098 rejected, which lies about
+    *state*. Every entry needs its `prefers-reduced-motion` alternative asserted, per W6's motion
+    table.
+
+    **c. Contact: email is the channel, phone is a record, and no transport ships at launch.**
+    Google's ID token carries `email`, `email_verified` **and `name`**, so `users.email` and
+    `users.display_name` both populate silently at first sighting and **the form asks exactly one
+    field: phone** — once, at layer 0, skippable (d.18). Phone is **recorded for human 1:1 outreach,
+    never integrated**: no Zalo OA, no SMS, no adapter. **No email transport ships at launch** —
+    `services/alerts/` is dormant (nothing outside it calls the engine), its `ChannelAdapter`
+    Protocol is push-shaped (`send(alert, *, device_token)`), and W9-A already defers push/email/Zalo
+    transports. This is affordable because **the fifth stage closes on the in-app act record**
+    (d.16, W9-D notification centre), never on a message: email is re-engagement, not the mechanism.
+    With five trial sellers a hand-written email *is* the 1:1 support being offered.
+    *Consequence, accepted:* a seller who closes the tab learns nothing until they return. The first
+    transport is an `EmailAdapter` against the existing Protocol, with `device_token` widened to
+    `destination`, when seller count outgrows hand-sending.
+
 ## Corrections to this ADR's own analysis (2026-09-15)
 
 - **`METRIC_MAP` covering only product mutations is by design, not a gap.** ADR-091 reuses ADR-077's
