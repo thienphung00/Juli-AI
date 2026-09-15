@@ -10,13 +10,25 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (
+    KNOWN_CYCLE_EDGES,
     VALIDATION_DIR,
     collect_import_graph,
+    graph_without_allowlisted_edges,
     parse_architecture_map,
     tarjan_scc,
     utc_now_iso,
     write_json,
 )
+
+
+def _find_cycles(graph: dict[str, set[str]]) -> list[list[str]]:
+    cycles: list[list[str]] = []
+    for component in tarjan_scc(graph):
+        if len(component) > 1:
+            cycles.append(sorted(component))
+        elif component[0] in graph.get(component[0], set()):
+            cycles.append(component)
+    return cycles
 
 
 def main() -> int:
@@ -30,13 +42,20 @@ def main() -> int:
     args = parser.parse_args()
 
     modules = parse_architecture_map()
-    graph = collect_import_graph(modules)
-    cycles: list[list[str]] = []
-    for component in tarjan_scc(graph):
-        if len(component) > 1:
-            cycles.append(sorted(component))
-        elif component[0] in graph.get(component[0], set()) and component[0] in graph[component[0]]:
-            cycles.append(component)
+    full_graph = collect_import_graph(modules)
+    # Same allowlist the `module_boundaries` validate gate applies, imported
+    # from `common` rather than restated -- when #1859 taught the parser to
+    # read the real tree, this script and that gate disagreed about the one
+    # pre-existing TikTok/auth cycle, and only a shared definition keeps them
+    # from drifting again.
+    graph = graph_without_allowlisted_edges(full_graph, KNOWN_CYCLE_EDGES)
+    cycles = _find_cycles(graph)
+    known_cycles = [c for c in _find_cycles(full_graph) if c not in cycles]
+
+    # Printed on both paths: an excused cycle stays visible in the log rather
+    # than vanishing because it is allowlisted.
+    for idx, cycle in enumerate(known_cycles, start=1):
+        print(f"known-cycle={idx} modules={' -> '.join(cycle)}", file=sys.stderr)
 
     if args.ci:
         if cycles:
@@ -45,7 +64,7 @@ def main() -> int:
                 print(f"cycle={idx} modules={modules_in_cycle}", file=sys.stderr)
             print(f"dependency_cycles: FAIL — {len(cycles)} cycle(s)", file=sys.stderr)
             return 1
-        print("dependency_cycles: PASS — no import cycles")
+        print(f"dependency_cycles: PASS — no import cycles ({len(known_cycles)} allowlisted)")
         return 0
 
     payload = {
@@ -53,6 +72,10 @@ def main() -> int:
         "timestamp": utc_now_iso(),
         "cycleCount": len(cycles),
         "cycles": cycles,
+        # The nightly artifact records the excused cycles too, so the debt is
+        # counted somewhere even while the PR gate stays green on it.
+        "knownCycleCount": len(known_cycles),
+        "knownCycles": known_cycles,
         "severity": "CRITICAL" if cycles else "OK",
     }
     out = VALIDATION_DIR / f"audit-cycles-{args.date}.json"

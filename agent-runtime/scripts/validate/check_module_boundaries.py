@@ -22,17 +22,18 @@ from __future__ import annotations
 
 import ast
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ci"))
 from common import (  # noqa: E402
+    KNOWN_CYCLE_EDGES,
     REPO_ROOT,
     ChangedFilesUnresolved,
     backend_module_root,
     collect_import_graph,
     git_changed_files,
+    graph_without_allowlisted_edges,
     module_for_file,
     parse_architecture_map,
     parse_args,
@@ -42,60 +43,6 @@ from common import (  # noqa: E402
     resolve_issue_number,
     tarjan_scc,
 )
-
-
-@dataclass(frozen=True)
-class AllowedCycleEdge:
-    """One import edge excused from cycle detection, with its evidence."""
-
-    reason: str
-    importSites: tuple[str, ...]
-
-
-_TIKTOK_AUTH_INVERSION = (
-    "Real runtime edge, not a TYPE_CHECKING artifact — verified as a top-level "
-    "import at each site below. `core/security` owns the TikTok OAuth lifecycle "
-    "(credential refresh, token expiry), and the TikTok client and service layers "
-    "call back up into it, while `core/security` imports the client to perform the "
-    "refresh. That mutual reach is the architectural fact; it predates this gate "
-    "being able to see anything at all, and breaking it means moving the refresh "
-    "seam, which is an owner decision for another lane, not a harness change. "
-    "Named here so the cycle is recorded rather than tolerated in silence."
-)
-
-# The MINIMUM feedback arc set: removing exactly these two edges dissolves the
-# five-module SCC (`services/etl`, `services/ingestion`, `services/tiktok`,
-# `core/security`, `integrations/tiktok`). Enumerating all nine edges inside the
-# SCC instead would have hidden any genuinely NEW cycle among those modules, so
-# only the back-edges are excused and the rest of the graph stays live.
-KNOWN_CYCLE_EDGES: dict[tuple[str, str], AllowedCycleEdge] = {
-    ("backend/integrations/tiktok", "backend/core/security"): AllowedCycleEdge(
-        reason=_TIKTOK_AUTH_INVERSION,
-        importSites=(
-            "backend/src/juli_backend/integrations/tiktok/reactive_refresh.py:50 "
-            "from juli_backend.core.security import credential_refresh",
-        ),
-    ),
-    ("backend/services/tiktok", "backend/core/security"): AllowedCycleEdge(
-        reason=_TIKTOK_AUTH_INVERSION,
-        importSites=(
-            "backend/src/juli_backend/services/tiktok/app_review_store.py:10 "
-            "from juli_backend.core.security.tiktok_oauth",
-            "backend/src/juli_backend/services/tiktok/business_advertiser_oauth.py:15 "
-            "from juli_backend.core.security.exceptions",
-            "backend/src/juli_backend/services/tiktok/credential_binding.py:63 "
-            "from juli_backend.core.security",
-        ),
-    ),
-}
-
-
-def graph_without_allowlisted_edges(graph: dict[str, set[str]]) -> dict[str, set[str]]:
-    """Drop only the named back-edges; every other edge stays in the graph."""
-    return {
-        owner: {target for target in targets if (owner, target) not in KNOWN_CYCLE_EDGES}
-        for owner, targets in graph.items()
-    }
 
 
 def violations_in_files(py_files: list[Path], modules: dict) -> list[dict]:
@@ -142,7 +89,11 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:  # noqa: ARG001
         for importer, imported in KNOWN_CYCLE_EDGES
         if imported in graph.get(importer, set())
     )
-    cycles = [c for c in tarjan_scc(graph_without_allowlisted_edges(graph)) if len(c) > 1]
+    cycles = [
+        c
+        for c in tarjan_scc(graph_without_allowlisted_edges(graph, KNOWN_CYCLE_EDGES))
+        if len(c) > 1
+    ]
 
     try:
         changed = git_changed_files()

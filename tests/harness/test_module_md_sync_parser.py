@@ -154,6 +154,100 @@ class TestPublicInterfaceParsing:
         assert "load_outcome_chain" in symbols
         assert "recommendation_quality" in symbols
 
+    def test_prose_after_the_em_dash_does_not_declare_a_symbol(self, tmp_path: Path) -> None:
+        """A bullet declares before the dash and explains after it.
+
+        Counting the explanation made database table names and result
+        attributes into "documented symbols", which the gate then reported as
+        documented-but-nonexistent. Three of the thirteen orphans it claimed
+        for services/operations were exactly this.
+        """
+        module_md = tmp_path / "MODULE.md"
+        module_md.write_text(
+            "## Public Interface\n\n"
+            "- `record_outcome(session, execution) -> Result` —\n"
+            "  persist the `workflow_outcome_metrics` envelope\n"
+            "- `NoData` — the value returned by every result's `ratio`\n",
+            encoding="utf-8",
+        )
+
+        symbols = common.parse_module_md_public_symbols(module_md)
+
+        assert symbols == {"record_outcome", "NoData"}
+        assert "workflow_outcome_metrics" not in symbols
+        assert "ratio" not in symbols
+
+    def test_several_names_before_the_dash_all_declare(self, tmp_path: Path) -> None:
+        module_md = tmp_path / "MODULE.md"
+        module_md.write_text(
+            "## Public Interface\n\n"
+            "- `APPROVED_STATUSES` / `DISMISSED_STATUSES` /\n"
+            "  `PENDING_STATUSES` — the seller-decision mapping, declared once\n",
+            encoding="utf-8",
+        )
+
+        symbols = common.parse_module_md_public_symbols(module_md)
+
+        assert symbols == {"APPROVED_STATUSES", "DISMISSED_STATUSES", "PENDING_STATUSES"}
+
+
+class TestCodeSideSymbolExtraction:
+    """`ast_public_symbols` has to see a module-level constant.
+
+    It previously admitted a name only when the value was a call or a def, so
+    `CARDS_SURFACED = "cards surfaced"` and `APPROVED_STATUSES: frozenset[str]
+    = frozenset({...})` were both invisible and the gate called them orphans.
+    """
+
+    def _symbols(self, tmp_path: Path, source: str) -> set[str]:
+        py = tmp_path / "impl.py"
+        py.write_text(source, encoding="utf-8")
+        return common.ast_public_symbols(py)
+
+    def test_a_plain_string_constant_is_an_export(self, tmp_path: Path) -> None:
+        assert "CARDS_SURFACED" in self._symbols(tmp_path, 'CARDS_SURFACED = "cards surfaced"\n')
+
+    def test_an_annotated_constant_is_an_export(self, tmp_path: Path) -> None:
+        symbols = self._symbols(
+            tmp_path,
+            "APPROVED_STATUSES: frozenset[str] = frozenset({'approved'})\n"
+            "KIND_PRECEDENCE: tuple[str, ...] = ('a', 'b')\n",
+        )
+
+        assert {"APPROVED_STATUSES", "KIND_PRECEDENCE"} <= symbols
+
+    def test_a_private_name_is_still_not_an_export(self, tmp_path: Path) -> None:
+        symbols = self._symbols(tmp_path, "_HIDDEN = 1\n_ANNOTATED: int = 2\nVISIBLE = 3\n")
+
+        assert symbols == {"VISIBLE"}
+
+    def test_a_conventional_logger_binding_is_not_an_export(self, tmp_path: Path) -> None:
+        """Documenting a module logger would be noise, not information."""
+        symbols = self._symbols(
+            tmp_path,
+            "import logging\nlogger = logging.getLogger(__name__)\nREAL = 1\n",
+        )
+
+        assert symbols == {"REAL"}
+
+    def test_a_local_assignment_inside_a_function_is_not_an_export(self, tmp_path: Path) -> None:
+        symbols = self._symbols(tmp_path, "def fn() -> int:\n    INNER = 1\n    return INNER\n")
+
+        assert symbols == {"fn"}
+
+
+class TestOperationsIsTheWorkedExample:
+    """#1859 AC5: services/operations reaches zero drift, not an allowlist entry."""
+
+    def test_operations_has_no_drift_in_either_direction(self) -> None:
+        documented, actual = check_module_drift.module_symbols(OPERATIONS)
+
+        assert sorted(documented - actual) == [], "MODULE.md names symbols that do not exist"
+        assert sorted(actual - documented) == [], "module exports symbols MODULE.md omits"
+
+    def test_operations_is_absent_from_the_allowlist(self) -> None:
+        assert OPERATIONS not in check_module_drift.KNOWN_DRIFT_ALLOWLIST
+
 
 def _write_synthetic_repo(
     root: Path,

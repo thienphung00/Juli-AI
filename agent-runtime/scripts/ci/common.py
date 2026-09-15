@@ -61,6 +61,10 @@ HEADING_RE = re.compile(r"^(#{1,6})\s+\S")
 # ("a `None` stop reason stays `None`"). They are language keywords and can
 # never be a module's public symbol, so they are never documented entries.
 NEVER_A_SYMBOL = frozenset(keyword.kwlist) | {"self", "cls"}
+# Module-level bindings that exist in every module by convention and are not
+# part of anything's public interface. Documenting them in a MODULE.md would
+# add noise, not information, so the gate does not ask for it.
+NEVER_AN_EXPORT = frozenset({"logger", "log"})
 HANDOFF_FILE_RE = re.compile(r"^[a-z0-9][a-z0-9-]*-\d{2}\.md$", re.IGNORECASE)
 ADR_FILE_RE = re.compile(r"^(\d{3})-([a-z0-9-]+)\.md$")
 REQUIRED_ADR_SECTIONS = ("## Context", "## Decision", "## Rationale", "## Consequences")
@@ -544,12 +548,49 @@ def parse_module_md_public_symbols(module_md: Path) -> set[str]:
         bodies = [text]
     symbols: set[str] = set()
     for body in bodies:
-        for match in BACKTICK_SYMBOL_RE.finditer(strip_markdown_parentheticals(body)):
-            name = match.group(1)
-            if name in NEVER_A_SYMBOL:
-                continue
-            symbols.add(name)
+        for declaration in _declaration_spans(body):
+            for match in BACKTICK_SYMBOL_RE.finditer(strip_markdown_parentheticals(declaration)):
+                name = match.group(1)
+                if name in NEVER_A_SYMBOL:
+                    continue
+                symbols.add(name)
     return symbols
+
+
+_BULLET_RE = re.compile(r"^\s*[-*]\s")
+
+
+def _declaration_spans(body: str) -> list[str]:
+    """The parts of a Public Interface section that DECLARE a symbol.
+
+    These sections are written as a bullet whose leading backticked span
+    names the export and whose trailing clause explains it, and that
+    explanation after the em dash is prose: it names database tables, result
+    attributes and sibling modules that are not this module's exports. Scanning
+    the whole bullet made every such mention a "documented symbol", so the gate
+    reported table names like `workflow_outcome_metrics` and attribute names
+    like `ratio` as documented-but-nonexistent (#1859). Only the span before
+    the first em dash declares.
+    """
+    spans: list[str] = []
+    current: list[str] | None = None
+    for line in body.splitlines():
+        if _BULLET_RE.match(line):
+            if current is not None:
+                spans.append("\n".join(current))
+            current = [line]
+        elif current is not None and line.strip():
+            current.append(line)
+        else:
+            if current is not None:
+                spans.append("\n".join(current))
+                current = None
+            # A non-bullet line (a table row, a prose paragraph) carries no
+            # explanation dash to split on, so it is scanned whole as before.
+            spans.append(line)
+    if current is not None:
+        spans.append("\n".join(current))
+    return [span.split("\u2014", 1)[0] for span in spans]
 
 
 def ast_public_symbols(py_file: Path) -> set[str]:
@@ -559,18 +600,26 @@ def ast_public_symbols(py_file: Path) -> set[str]:
         return set()
     symbols: set[str] = set()
     for node in tree.body:
-        if isinstance(node, ast.FunctionDef) and not node.name.startswith("_"):
-            symbols.add(node.name)
-        elif isinstance(node, ast.AsyncFunctionDef) and not node.name.startswith("_"):
-            symbols.add(node.name)
-        elif isinstance(node, ast.ClassDef) and not node.name.startswith("_"):
-            symbols.add(node.name)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if not node.name.startswith("_"):
+                symbols.add(node.name)
         elif isinstance(node, ast.Assign):
+            # Any module-level binding, whatever it is bound to. The earlier
+            # rule counted a name only when the value was a call or a def,
+            # so `CARDS_SURFACED = "cards surfaced"` was invisible and the
+            # gate reported it as documented-but-nonexistent -- 10 of the 13
+            # "orphans" it flagged for services/operations were real, exported
+            # constants (#1859).
             for target in node.targets:
                 if isinstance(target, ast.Name) and not target.id.startswith("_"):
-                    if isinstance(node.value, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Call)):
-                        symbols.add(target.id)
-    return symbols
+                    symbols.add(target.id)
+        elif isinstance(node, ast.AnnAssign):
+            # `APPROVED_STATUSES: frozenset[str] = frozenset({...})` is an
+            # AnnAssign, not an Assign; annotating a constant used to delete
+            # it from the module's public interface as far as this gate knew.
+            if isinstance(node.target, ast.Name) and not node.target.id.startswith("_"):
+                symbols.add(node.target.id)
+    return symbols - NEVER_AN_EXPORT
 
 
 def module_public_symbols_from_code(module_path: str) -> set[str]:
@@ -1570,3 +1619,65 @@ def print_check_result(name: str, passed: bool, detail: str = "") -> int:
         line += f" — {detail}"
     print(line)
     return 0 if passed else 1
+
+
+@dataclass(frozen=True)
+class AllowedCycleEdge:
+    """One import edge excused from cycle detection, with its evidence."""
+
+    reason: str
+    importSites: tuple[str, ...]
+
+
+_TIKTOK_AUTH_INVERSION = (
+    "Real runtime edge, not a TYPE_CHECKING artifact — verified as a top-level "
+    "import at each site below. `core/security` owns the TikTok OAuth lifecycle "
+    "(credential refresh, token expiry), and the TikTok client and service layers "
+    "call back up into it, while `core/security` imports the client to perform the "
+    "refresh. That mutual reach is the architectural fact; it predates this gate "
+    "being able to see anything at all, and breaking it means moving the refresh "
+    "seam, which is an owner decision for another lane, not a harness change. "
+    "Named here so the cycle is recorded rather than tolerated in silence."
+)
+
+# The MINIMUM feedback arc set: removing exactly these two edges dissolves the
+# five-module SCC (`services/etl`, `services/ingestion`, `services/tiktok`,
+# `core/security`, `integrations/tiktok`). Enumerating all nine edges inside the
+# SCC instead would have hidden any genuinely NEW cycle among those modules, so
+# only the back-edges are excused and the rest of the graph stays live.
+KNOWN_CYCLE_EDGES: dict[tuple[str, str], AllowedCycleEdge] = {
+    ("backend/integrations/tiktok", "backend/core/security"): AllowedCycleEdge(
+        reason=_TIKTOK_AUTH_INVERSION,
+        importSites=(
+            "backend/src/juli_backend/integrations/tiktok/reactive_refresh.py:50 "
+            "from juli_backend.core.security import credential_refresh",
+        ),
+    ),
+    ("backend/services/tiktok", "backend/core/security"): AllowedCycleEdge(
+        reason=_TIKTOK_AUTH_INVERSION,
+        importSites=(
+            "backend/src/juli_backend/services/tiktok/app_review_store.py:10 "
+            "from juli_backend.core.security.tiktok_oauth",
+            "backend/src/juli_backend/services/tiktok/business_advertiser_oauth.py:15 "
+            "from juli_backend.core.security.exceptions",
+            "backend/src/juli_backend/services/tiktok/credential_binding.py:63 "
+            "from juli_backend.core.security",
+        ),
+    ),
+}
+
+
+def graph_without_allowlisted_edges(
+    graph: dict[str, set[str]],
+    allowlist: dict[tuple[str, str], AllowedCycleEdge],
+) -> dict[str, set[str]]:
+    """Drop only the named back-edges; every other edge stays in the graph.
+
+    The allowlist is a parameter, not a module global, so each caller keeps
+    its own patchable reference and the two consumers of this graph cannot
+    drift apart silently.
+    """
+    return {
+        owner: {target for target in targets if (owner, target) not in allowlist}
+        for owner, targets in graph.items()
+    }
