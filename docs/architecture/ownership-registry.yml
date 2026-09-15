@@ -116,7 +116,16 @@ databaseTables:
   processed_events:
     owner: Data Pipeline
     access: write
-    notes: Idempotency ledger — ETL exclusive.
+    notes: >
+      Idempotency ledger — ETL exclusive. Keyed on (event_id, epoch) since #1968;
+      rows are never deleted, so the record of what was ingested survives a recovery.
+  ingest_dedup_epochs:
+    owner: Data Pipeline
+    access: write
+    notes: >
+      Current dedup epoch per (shop, channel) plus who advanced it and why (#1968).
+      Written only by IngestDedupEpochsRepo.advance, an explicit operator action —
+      never on import, startup, migration or deploy. EtlConsumer reads it only.
   order_raw_payloads:
     owner: Data Pipeline
     access: read+append
