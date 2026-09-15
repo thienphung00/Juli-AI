@@ -267,7 +267,7 @@ export function RunStageCanvas({
   return (
     <section
       aria-labelledby={`run-stage-tab-${stageId}`}
-      className={RUN_SURFACE_PANEL_CLASS_NAMES.panelRaised}
+      className={`run-stage-canvas ${RUN_SURFACE_PANEL_CLASS_NAMES.panel} ${RUN_SURFACE_PANEL_CLASS_NAMES.panelRaised}`}
       id={`run-stage-panel-${stageId}`}
       role="tabpanel"
       tabIndex={-1}

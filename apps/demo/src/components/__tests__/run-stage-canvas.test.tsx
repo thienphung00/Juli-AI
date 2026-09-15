@@ -235,3 +235,30 @@ describe("RunStageCanvas -- no leaked internals, across every stage", () => {
     expect(text).not.toMatch(/tool_call_id/);
   });
 });
+
+describe("RunStageCanvas -- panel composition (issue #1914)", () => {
+  it("the tabpanel composes juli-run-panel WITH juli-run-panel--raised -- raised alone sets only fill", () => {
+    // `.juli-run-panel--raised` (packages/theme/run-surface-tokens.css)
+    // declares fill facets only; the border, radius, shadow and colour
+    // live on `.juli-run-panel`. Applying the modifier without the base
+    // is how the stage canvas shipped borderless -- exactly what
+    // in-progress-panel.tsx already composes correctly at its three call
+    // sites.
+    const view = reduceRunView(scenario.events);
+    render(
+      <RunStageCanvas
+        events={scenario.events}
+        isTerminal={false}
+        nowMs={1000}
+        productName={PRODUCT_NAME}
+        runId="run-1914"
+        stageId="phan-tich"
+        view={view}
+      />,
+    );
+
+    const panel = screen.getByRole("tabpanel");
+    expect(panel.classList.contains("juli-run-panel--raised")).toBe(true);
+    expect(panel.classList.contains("juli-run-panel")).toBe(true);
+  });
+});

@@ -73,8 +73,11 @@ describe("the live-edge accent cannot be out-competed by the cascade (issue #191
   const representatives: Array<{ liveEdgeClass: string; classList: string }> = [
     {
       liveEdgeClass: RUN_SURFACE_LIVE_EDGE_CLASS_NAMES.stepperNodeActive,
-      // The active node is usually also the viewed node.
-      classList: `run-stepper__node run-stepper__node--active ${RUN_SURFACE_LIVE_EDGE_CLASS_NAMES.stepperNodeActive} run-stepper__node--viewing`,
+      // Since issue #1914 the accent lives on the circular marker inside
+      // the node button (the rail composition), so the representative is
+      // the marker's real class list, exactly as run-stepper.tsx composes
+      // it.
+      classList: `run-stepper__node-marker ${RUN_SURFACE_LIVE_EDGE_CLASS_NAMES.stepperNodeActive}`,
     },
     {
       liveEdgeClass: RUN_SURFACE_LIVE_EDGE_CLASS_NAMES.streamingCaret,
@@ -92,7 +95,9 @@ describe("the live-edge accent cannot be out-competed by the cascade (issue #191
     const offenders: string[] = [];
 
     for (const { liveEdgeClass, classList } of representatives) {
-      const element = document.createElement(liveEdgeClass === "juli-run-streaming-caret" ? "span" : "button");
+      const element = document.createElement(
+        liveEdgeClass === RUN_SURFACE_LIVE_EDGE_CLASS_NAMES.ctaArmed ? "button" : "span",
+      );
       element.className = classList;
 
       for (const block of blocks) {

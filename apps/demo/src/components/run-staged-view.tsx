@@ -249,10 +249,16 @@ export function RunStagedView({
       </div>
 
       <div className="run-staged-view__nav">
-        <button disabled={viewingIndex === 0} onClick={handleBack} type="button">
+        <button
+          className="run-staged-view__nav-back"
+          disabled={viewingIndex === 0}
+          onClick={handleBack}
+          type="button"
+        >
           ← {RUN_STAGE_NAV_COPY.back}
         </button>
         <button
+          className="run-staged-view__nav-forward"
           disabled={viewingIndex === liveEdgeIndex}
           onClick={handleReturnToLiveEdge}
           type="button"
