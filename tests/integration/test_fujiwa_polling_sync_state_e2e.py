@@ -70,6 +70,17 @@ async def fujiwa_shop(session, user):
 
 
 @pytest_asyncio.fixture
+async def fujiwa_product(session, fujiwa_shop):
+    """A synced product so sync_inventory's product-id source (#1948) has
+    something to page: run_fujiwa_poll_cycle now reads product ids off the
+    products table (via ProductsRepo, through the cycle's own session)
+    rather than calling Search Inventory with none."""
+    from tests.support.builders import make_product
+
+    return await make_product(session, fujiwa_shop, tiktok_product_id="fujiwa-replay-product-1")
+
+
+@pytest_asyncio.fixture
 async def fujiwa_credential(session, fujiwa_shop):
     expires_at = datetime.now(UTC).replace(tzinfo=None) + timedelta(days=7)
     return await TikTokCredentialRepo(session).create(
@@ -164,6 +175,7 @@ class TestFujiwaPollingSyncStateE2E:
         session,
         fujiwa_shop,
         fujiwa_credential,
+        fujiwa_product,
         run_replay_poll,
     ):
         """Full poll cycle writes per-endpoint cursors readable after completion."""
@@ -184,6 +196,7 @@ class TestFujiwaPollingSyncStateE2E:
         session,
         fujiwa_shop,
         fujiwa_credential,
+        fujiwa_product,
         run_replay_poll,
     ):
         """Second poll with the same replay fixtures keeps stable checkpoint values."""
