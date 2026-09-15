@@ -1,7 +1,11 @@
 # ONB-DP — first-connect onboarding, data lane; epic #1951, design ADR-103.
-# BLOCKED BY #1948 and #1949. The cold-start read this slice owns has no orders
-# and no inventory to read until both land — do not report it complete against an
-# empty `orders` / `inventory_items` table.
+# BLOCKED BY the data chain: #1966 (webhook grant -- 310 events/day dropped on a
+# missing SELECT), #1948 (inventory sends sku_ids, endpoint needs product_ids),
+# #1949 (poll never in beat_schedule), #1967 (poll loses the shop GUC across the
+# ETL's commits, so the cycle cannot finish), #1968 (dedup ledger permanently
+# blocks re-ingesting lost orders), #1969 (20-page cap, no progress, hangs).
+# Measured 2026-09-15: orders 0 against 3,581 available; inventory_items 0 ever.
+# Do not report this slice complete against an empty orders/inventory_items table.
 ONB-DP:
   executorDomain: data-platform
   requiredDocs:

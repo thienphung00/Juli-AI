@@ -1908,8 +1908,39 @@ none; trigger first connect, then the first render of each surface; deterministi
 Connect Score, a severity share over the launch-backed KPIs that returned a real signal; write none;
 suspended no; guards the per-shop onboarding record only; measure the five stage-met timestamps per
 seller (an execution-quality fact, not an impact reading). The four launch workflows above are the
-eligibility gate — an onboarding insight **is** one of their cards, so the layer adds no surface and
-stays correct as workflows are added.
+eligibility gate — an onboarding insight **is** one of their cards, so the layer stays correct as
+workflows are added. It **does** have a surface of its own, `/onboarding` (ADR-103 d.14): S-FR-1
+binds *workflows* ("No **workflow** adds a surface beyond these seven"), and onboarding is not one.
+What it must never add is a *workflow* surface — a second card list, plan review, or approval path
+(S-FR-2, ADR-103 d.15). Its fifth stage closes on whichever measure the workflow produces, because
+Replenish produces no impact reading at all (ADR-093 d.4, ADR-103 d.16).
+
+#### First-connect onboarding — wave placement and dependency chain (2026-09-15)
+
+Epic **#1951**, design [ADR-103](../../adr/103-first-connect-onboarding.md). The owner's launch
+scope is **four workflows across three areas**, so the onboarding's three insights depend on the
+whole v1 workflow family being executable — not on the onboarding slices alone.
+
+| Layer | Work | Issues | Wave |
+|---|---|---|---|
+| **Data** | webhook grant; inventory parameter; schedule the poll; sticky shop scope; dedup epoch; backfill budget; per-shop credentials | #1966, #1948, #1949, #1967, #1968, #1969, #1365 | **before W9** — nothing downstream is verifiable without it |
+| **Entry** | OAuth-start route + `/v1` proxy; consent-screen pages; contact capture; stop fabricating phones | #1970, #1971, #1973, #1972 | **W9** |
+| **Runtime** | the runtime hosts more than one workflow | #1620 (W9-A) | **W9** |
+| **Scoring** | `orders_at_sla_risk` guard; healthy-card policy | #1960, #1961 | **W9** |
+| **Execution** | Clear Excess, Process Order, Replenish playbooks | #1624, #1625, #1626 | **W10** |
+| **Surface** | the seller surface for the four v1 workflows | #1623 (W9-D) | **W9-D** |
+| **Onboarding** | `ONB-DP` → `ONB-BE` → `ONB-UI` | #1951 | **follows W9-D, gated on W10** |
+
+**The ordering constraint that matters.** ADR-103 d.2 forbids surfacing an insight whose workflow
+cannot execute, and `services/agent/playbooks/` today registers exactly one playbook
+(`optimize_product_2`). So **`ONB-UI` cannot honestly render three areas until W10-A/B/C land**.
+Until then the flow renders one insight in one area — correct behaviour, not a bug, and the reason
+the thin-data floor (ADR-103 open questions) is on the critical path rather than an edge case.
+
+**Measured state, 2026-09-15** (Fujiwa, read-only): `analytics_performance_intervals` 8,468 rows and
+healthy; `products` 116; `orders` **0** against 3,581 available from the vendor; `inventory_items`
+**0** ever; 310 webhooks/day arriving and being dropped on a missing `SELECT` grant. The data layer
+is the launch's first constraint, and every item in it is small.
 
 
 #### Automation vs monitoring — non-functional-requirement reference

@@ -370,12 +370,20 @@ workflow_prompt_cache:
         - docs/product/design/
         - docs/integrations/tiktok_corpora/
     # 1951 — First-connect onboarding (ADR-103, supersedes ADR-098); registered
-    # 2026-09-14. THE DATA BENEATH THIS EPIC IS BLOCKED: #1948 (inventory search
-    # sends sku_ids where the endpoint demands product_ids -- zero rows ever) and
-    # #1949 (orders sync advances its watermark while persisting nothing -- 3,581
-    # orders fetched and dropped). Until both land, this epic's flow renders ONE
-    # insight, not three, and no ONB-UI slice can be verified end to end. Meta must
-    # not route an ONB-UI slice as "done" against a one-insight surface.
+    # 2026-09-14, blocker list corrected 2026-09-15 after a read-only production
+    # walk. THREE LAYERS BENEATH THIS EPIC ARE BLOCKED:
+    #   DATA    #1966 webhook grant (310 events/day dropped), #1948 inventory
+    #           parameter, #1949 poll never scheduled, #1967 poll loses the shop
+    #           GUC, #1968 dedup ledger blocks re-ingest, #1969 backfill cap and
+    #           hang, #1365 per-shop credentials
+    #   ENTRY   #1970 OAuth-start route and /v1 proxy, #1971 consent screen,
+    #           #1972/#1973 contact capture
+    #   EXECUTE W10-A/B/C (#1624 #1625 #1626) -- services/agent/playbooks/ holds
+    #           exactly ONE registered playbook (optimize_product_2), and ADR-103
+    #           d.2 forbids surfacing an insight whose workflow cannot execute
+    # Until W10 lands the flow renders ONE insight in ONE area -- correct per d.2,
+    # not a bug. Meta must not route ONB-UI as "done" against a three-area claim,
+    # and must not treat a one-insight surface as a failure.
     1951:
       defaultSliceId: ONB-DP
       handoffPath: docs/adr/103-first-connect-onboarding.md

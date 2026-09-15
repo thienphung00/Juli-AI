@@ -15,7 +15,7 @@ state to the onboarding's opening act; its d.8 (browser-storage seen-state) is r
 `PLAN.md` §14 (identical UX, per-case internals), `v1-workflow-spec.md` S-FR-1.
 **Does not decide:** sign-in and the OAuth entry surface (still open, see ADR-098's list, unchanged);
 the landing-page update; the copy itself (lands in `dictionary.md` per ADR-028 before implementation).
-**Blocked by:** #1948, #1949 — see decision 10.
+**Blocked by (full chain, corrected 2026-09-15):** data — #1966 (webhook grant), #1948 (inventory parameter), #1949 (poll never scheduled), #1967 (poll loses the shop GUC), #1968 (dedup ledger blocks re-ingest), #1969 (backfill cap / hang / no progress), #1365 (per-shop credentials); entry — #1970 (OAuth-start route, `/v1` proxy), #1971 (consent screen pages), #1972/#1973 (contact capture); execution — **W10-A/B/C (#1624, #1625, #1626)**, without which three of the four launch workflows have no playbook; scoring — #1960, #1961.
 
 ## Context
 
@@ -106,7 +106,7 @@ is therefore outside that prohibition.
    ADR-098** (its d.2, d.3, d.4) unchanged, and remain the walk from the third insight to the first
    approval. The impact moment remains an act record, not a screen (ADR-098 d.5).
 
-9. **The waiting surface is a live three-step list driven by real job completion** — đọc sản phẩm →
+9. **The waiting surface is layer 0 of `/onboarding` — a live three-step list driven by real job completion** — đọc sản phẩm →
    đọc đơn hàng → tính điểm — over a dimmed preview. A step turns done only when its job finishes;
    never a timer, never a percentage. This is ADR-098 d.6's component, promoted from a seven-day
    wait to the cold-start's opening act, and it is honest at forty seconds as well as at six
@@ -136,6 +136,58 @@ is therefore outside that prohibition.
 
 13. **Same layer, both doors** (ADR-098 d.7, unchanged). The demo visitor's replayed scenario and
     the connected seller's own shop are two data sources under identical code.
+
+## Decisions added 2026-09-15 (owner grill)
+
+14. **Onboarding has its own route, `/onboarding`, with three layers over the read.** Layer 0 is the
+    three-step cold-start read (d.9); then **Big Reveal** (the First Connect Score), **3 Insights**,
+    and **Next Steps**. *This reverses ADR-098's "adds no surface of its own", which ADR-103
+    originally inherited.* That constraint was never required: **S-FR-1 binds workflows** — "No
+    **workflow** adds a surface beyond these seven" — and onboarding is not a workflow. What it must
+    not add is a *workflow* surface: a second card list, a second plan review, a second approval.
+
+15. **Next Steps is a tutorial that hands off to the real plan review, and `/onboarding` never
+    renders an approve control.** The button opens the **top insight**'s actual card at
+    `/decisions/recommendations/[id]`, where ADR-098's stage explainer anchors. An embedded live card
+    would create a second path to run creation, which **S-FR-2** forbids ("Approve is run creation.
+    No other path creates a run."). *Rejected:* a static illustrated walkthrough — ADR-098 already
+    rejected teaching from pictures. **`/onboarding` is reachable once per shop**; a return visit
+    lands on `/decisions`, enforced by the onboarding record (d.12).
+
+16. **The fifth stage closes on the workflow's own measure, whatever kind it is.** The four launch
+    workflows measure differently by design — Optimize Product and Clear Excess produce ADR-077
+    impact readings; Process Order produces `shipped ÷ due`; **Replenish produces no impact reading
+    at all** (ADR-093 d.4: "ADR-077's reader is not invoked for it"). Closing the stage only on an
+    impact reading would mean a seller whose first card is Replenish never completes onboarding. The
+    act record carries whichever measure the workflow produces, which keeps the layer
+    workflow-agnostic. *Consequence:* time-to-close varies — immediate for Process Order, ~7 days for
+    the other three.
+
+17. **Entry is Google first, then TikTok** (ADR-094 d.2 confirmed). Sign-in provisions the `users`
+    row (#1906, already landed); an authenticated OAuth-start route mints a state carrying the
+    seller's id so the callback binds the shop to the real user rather than falling back to
+    `_app_review_user_id()`. The demo host reaches the API through a **same-origin `/v1` proxy**, not
+    cross-origin CORS. *Rejected:* TikTok as the identity (discards the Supabase JWT substrate and
+    #1906); TikTok-first with a later Google claim (needs a claim mechanism that does not exist, and
+    mis-binding a shop is hard to unwind once real sellers exist).
+
+18. **Contact is captured on two channels at two moments.** The verified Google **email** is read
+    from the JWT at first sighting — silent, no screen. **Zalo/phone is asked once during layer 0**,
+    while the read runs, before the Big Reveal: the seller is already waiting, so the ask spends dead
+    time rather than gating the value moment. Copy must be true at that moment — no run exists yet,
+    so the run-completion framing belongs later. Today neither channel is captured and a **fabricated
+    `+849` number** is written instead (#1972), so this is a correction, not an addition.
+
+## Corrections to this ADR's own analysis (2026-09-15)
+
+- **`METRIC_MAP` covering only product mutations is by design, not a gap.** ADR-091 reuses ADR-077's
+  reader through the price family; ADR-092 and ADR-093 define their own non-revenue measures. The
+  real gap was d.8's assumption that every workflow yields an impact reading — corrected by d.16.
+- **The launch set's true blocker is the playbook registry, not the data.** `services/agent/playbooks/`
+  contains exactly one registered playbook, `optimize_product_2`. d.2 forbids surfacing an insight
+  whose workflow cannot execute, so the three-area structure depends on W10-A/B/C landing. The
+  original *Blocked by* line named only #1948/#1949 and was wrong.
+- **A1 (users-row provisioning) was never missing** — #1906 landed it.
 
 ## Rationale
 

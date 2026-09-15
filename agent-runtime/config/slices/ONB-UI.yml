@@ -1,13 +1,22 @@
 # ONB-UI — first-connect onboarding, interface lane; epic #1951, design ADR-103.
 #
-# NOT READY TO CUT. The UI design has not been grilled: the three-step read list,
-# the score reveal, the insight-card presentation and the stage-explainer
-# placement are undesigned as of 2026-09-14. This file exists so the dependency is
-# visible in the workflow, not so an executor can be routed onto it. Meta must
-# halt on this slice until the UI grill lands and this comment is removed.
+# Design settled 2026-09-15 (owner grill), ADR-103 d.14-d.18:
+#   route /onboarding, reachable ONCE per shop; a return visit lands on /decisions
+#   layer 0  the three-step cold-start read + the Zalo/phone ask (#1973)
+#   layer 1  Big Reveal -- the First Connect Score with its denominator disclosed
+#   layer 2  3 Insights -- each IS an ActionCard, headlined by its KPI area
+#   layer 3  Next Steps -- a tutorial that HANDS OFF to the real plan review
+# HARD CONSTRAINT: /onboarding never renders an approve control. The handoff opens
+# the TOP insight at /decisions/recommendations/[id]. A second path to run creation
+# violates S-FR-2; this is the one thing this slice must not do.
+# S-FR-1 is NOT violated by the new route -- it binds workflows, not onboarding.
+#
+# STILL OPEN, settle before cutting issues: the thin-data floor (what renders when
+# fewer than one insight is real) and whether the score counts up or lands.
 #
 # Depends on ONB-BE (score + launch gate) and ONB-DP (onboarding record).
-# Blocked by #1948 / #1949 for any end-to-end verification.
+# Blocked for three-area verification by W10-A/B/C (#1624 #1625 #1626): only
+# optimize_product_2 has a registered playbook today.
 ONB-UI:
   executorDomain: ui-ux
   requiredDocs:
