@@ -21,6 +21,7 @@ from juli_backend.integrations.tiktok.exceptions import (
     TikTokSystemError,
 )
 from juli_backend.workers.services.polling.sync import (
+    DEFAULT_INVENTORY_PAGE_SIZE,
     backfill_shop,
     sync_creators,
     sync_inventory,
@@ -550,6 +551,82 @@ class TestSyncInventory:
         sku_ids = {json.loads(call["value"])["sku_id"] for call in handoff_calls}
         assert sku_ids == {"sku-1", "sku-2", "sku-3"}
         assert "inventory_last_sync_at" in sync_state
+
+    @pytest.mark.asyncio
+    async def test_pages_a_partial_final_page_at_the_default_page_size(
+        self,
+        mock_rate_limiter,
+        handoff_fn,
+        sync_state,
+    ):
+        """A catalogue that is not a whole multiple of the page size loses no id.
+
+        Fujiwa has 116 products and ``DEFAULT_INVENTORY_PAGE_SIZE`` is 30, so
+        the real shape is three full pages and a 26-id remainder. The sibling
+        paging test runs at ``page_size=1`` over 3 ids, which is three exact
+        pages -- it can never reach the partial final page, and it pins no
+        page size, so the constant could change to 1000 without failing it.
+        """
+        resource = _FakeInventoryResource([_inventory_page_response("prod-1", "sku-1", 10)])
+
+        async def list_product_ids() -> list[str]:
+            return [f"prod-{n}" for n in range(116)]
+
+        await sync_inventory(
+            resource=resource,
+            rate_limiter=mock_rate_limiter,
+            handoff_fn=handoff_fn,
+            app_id="app1",
+            shop_id="shop1",
+            sync_state=sync_state,
+            list_product_ids=list_product_ids,
+        )
+
+        assert DEFAULT_INVENTORY_PAGE_SIZE == 30
+        assert [len(call) for call in resource.calls] == [30, 30, 30, 26]
+        # Every id exactly once and in order: no page-boundary drop or repeat.
+        assert [pid for call in resource.calls for pid in call] == [f"prod-{n}" for n in range(116)]
+
+    @pytest.mark.asyncio
+    async def test_raises_instead_of_discarding_a_non_dict_response(
+        self,
+        mock_rate_limiter,
+        handoff_fn,
+        handoff_calls,
+        sync_state,
+    ):
+        """The other half of fail-loud, and the one that had no test.
+
+        A non-dict response used to be logged at WARNING and dropped, which
+        reads identically to a sync with nothing to hand off -- the same
+        indistinguishability that let #1948 hide for the lifetime of the
+        production database.
+        """
+
+        class _NonDictInventoryResource:
+            def __init__(self) -> None:
+                self.calls: list[list[str]] = []
+
+            def search(self, *, product_ids: list[str], sku_ids: list[str] | None = None):
+                self.calls.append(list(product_ids))
+                return ["not", "a", "dict"]
+
+        resource = _NonDictInventoryResource()
+
+        with pytest.raises(ValueError, match="non-dict"):
+            await sync_inventory(
+                resource=resource,
+                rate_limiter=mock_rate_limiter,
+                handoff_fn=handoff_fn,
+                app_id="app1",
+                shop_id="shop1",
+                sync_state=sync_state,
+                list_product_ids=self._one_product_id,
+            )
+
+        assert resource.calls == [["prod-1"]]
+        assert handoff_calls == []
+        assert sync_state == {}
 
     @pytest.mark.asyncio
     async def test_inventory_event_id_stable_for_identical_snapshot(
