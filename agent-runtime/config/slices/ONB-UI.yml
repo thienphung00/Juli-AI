@@ -15,8 +15,14 @@
 # fewer than one insight is real) and whether the score counts up or lands.
 #
 # Depends on ONB-BE (score + launch gate) and ONB-DP (onboarding record).
-# Blocked for three-area verification by W10-A/B/C (#1624 #1625 #1626): only
-# optimize_product_2 has a registered playbook today.
+# THREE INSIGHTS need #1701 (W9-A subject-scoped cards), NOT W10. ADR-087 d.2 is
+# one live card per SUBJECT per workflow -- a concurrency rule, not a supply cap.
+# Today cards key on (shop, workflow_key) with no subject, so one workflow gives
+# one card; #1701 re-keys to (shop_id, workflow_key, subject_type, subject_ref)
+# and Optimize Product alone then yields one card per product.
+# THREE AREAS need W10-A/B/C (#1624 #1625 #1626), since an area is a workflow.
+# Pre-W10 the three insights usually share one area; the headline is per card, so
+# the render does not change.
 ONB-UI:
   executorDomain: ui-ux
   requiredDocs:
