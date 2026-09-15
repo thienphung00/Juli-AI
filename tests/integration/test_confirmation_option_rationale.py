@@ -175,7 +175,7 @@ async def _seed_run(factory, shop_id: uuid.UUID, product_id: uuid.UUID) -> uuid.
         return run.id
 
 
-async def _run_to_confirm_pause(factory, run_id: uuid.UUID) -> None:
+async def _run_to_confirm_pause(factory, run_id: uuid.UUID, shop_id: uuid.UUID) -> None:
     """Drives the REAL `OPTIMIZE_PRODUCT_PLAYBOOK` + REAL `WorkflowRunner`
     through the model calling `update_product_listing`, persisting through
     the REAL `PersistingEventSink` into REAL `workflow_run_events` /
@@ -194,7 +194,7 @@ async def _run_to_confirm_pause(factory, run_id: uuid.UUID) -> None:
                 ]
             ),
             tool_executor=_SpyToolExecutor(),  # never reached: CONFIRM pauses before dispatch
-            event_sink=PersistingEventSink(factory, _NullPublisher()),
+            event_sink=PersistingEventSink(factory, _NullPublisher(), shop_id=shop_id),
             conversation_store=JsonbConversationStore(session),
             registry=build_product_tool_registry(),
             playbook=OPTIMIZE_PRODUCT_PLAYBOOK,
@@ -214,7 +214,7 @@ class TestConfirmPauseCarriesVietnameseSellerCopyNotTheEnglishToolDescription:
         shop_id, product_id = await _seed_shop_and_product(factory)
         run_id = await _seed_run(factory, shop_id, product_id)
 
-        await _run_to_confirm_pause(factory, run_id)
+        await _run_to_confirm_pause(factory, run_id, shop_id)
 
         async with factory() as session:
             rows = (
@@ -247,7 +247,7 @@ class TestConfirmPauseCarriesVietnameseSellerCopyNotTheEnglishToolDescription:
         shop_id, product_id = await _seed_shop_and_product(factory)
         run_id = await _seed_run(factory, shop_id, product_id)
 
-        await _run_to_confirm_pause(factory, run_id)
+        await _run_to_confirm_pause(factory, run_id, shop_id)
 
         async with factory() as session:
             rows = (
@@ -283,7 +283,7 @@ class TestConfirmPauseCarriesVietnameseSellerCopyNotTheEnglishToolDescription:
         shop_id, product_id = await _seed_shop_and_product(factory)
         run_id = await _seed_run(factory, shop_id, product_id)
 
-        await _run_to_confirm_pause(factory, run_id)
+        await _run_to_confirm_pause(factory, run_id, shop_id)
 
         async with factory() as session:
             row = (
