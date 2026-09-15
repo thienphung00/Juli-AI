@@ -1023,8 +1023,6 @@ KNOWN_DRIFT_ALLOWLIST: dict[str, dict[str, AllowedDrift]] = {
                 "DLQ_TOPIC",
                 "DlqHandoffFn",
                 "LATENCY_BUDGET_SECONDS",
-                "ProcessedEvent",
-                "ProcessedEventsRepo",
                 "RAW_TOPICS",
                 "SilverAnalyticsPromoter",
                 "SilverOrdersReturnsPromoter",
