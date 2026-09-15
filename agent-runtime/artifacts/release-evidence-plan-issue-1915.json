@@ -1,0 +1,94 @@
+{
+  "planId": "rep-1915-four-orphaned-motion-primitives-get-consumers",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com run view — narration typewriter and its streaming caret",
+    "demo.app-juli.com run view — option card confirm-to-update, tool chips, terminal completion",
+    "demo.app-juli.com run view — dimmed sibling option cards"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the demo candidate unit on its own port, before the nginx demo upstream cutover",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "narration-streams-with-a-visible-caret",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/decisions/in-progress/<replay run id>",
+        "assertions": [
+          "narration reveals progressively rather than appearing whole, capped near 30ms per character",
+          "an element carrying juli-run-streaming-caret is present while a line reveals and absent once complete",
+          "the caret clears 3:1 against both --juli-run-panel-fill and --juli-run-raised-fill, asserted not assumed",
+          "the terminal stage completes in sequence and the summary rises after it"
+        ]
+      },
+      {
+        "name": "dimmed-siblings-stay-readable-on-the-light-ground",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/decisions/in-progress/<replay run id>",
+        "assertions": [
+          "every text colour inside a dimmed option card clears 4.5:1 at whatever opacity ships",
+          "if 0.6 cannot clear it, the shipped dim is the smallest value that does, and the deviation from PUI-DESIGN section 5's stated 60% is recorded in the diff",
+          "under prefers-reduced-motion: reduce each of the four new consumers renders its stated section 5 alternative"
+        ]
+      },
+      {
+        "name": "no-animation-fires-without-its-trigger",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/decisions/in-progress/<replay run id>",
+        "assertions": [
+          "a component given an empty event list starts no animation",
+          "replay pacing is unchanged — use-replay-events.ts still paces by captured deltas and no second clock exists",
+          "all eight primitives in RUN_SURFACE_MOTION_PRIMITIVE_IDS are passed to resolveRunSurfaceMotion by at least one component module"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions/in-progress/<replay run id>"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Motion and presentation only. No schema change, no API contract movement, no payload shape change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "repoint the nginx demo upstream to the retained previous release; the run view reverts whole, never half-applied",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test",
+    "pnpm --filter @juli/theme test",
+    "pnpm -w turbo run build"
+  ],
+  "doNotInfer": [
+    "The eight-primitive coverage test is exactly the shape that goes vacuous — five guards in this wave have already passed while inspecting nothing. Print the primitives it actually resolved and their count, then orphan one on purpose and watch the test go RED before calling it done. Report both.",
+    "resolveRunSurfaceMotion rejects a call without a real trigger by construction. Do NOT weaken it to make a consumer fit. Never drive a reveal from a timer.",
+    "This issue adds no second clock. Replay pacing belongs to use-replay-events.ts and stays there.",
+    "The caret contrast must be ASSERTED against both panel fills, not reasoned from the token's 5.80:1 on white — the caret is the one live-edge element sitting directly on a panel fill rather than being a filled swatch.",
+    "If 60% dim cannot clear 4.5:1, do not ship unreadable cards and do not silently rewrite the spec. Reduce to the smallest clearing value and record the deviation in the diff.",
+    "Use color-mix, never rgba(). #1912's token-only-theming test fails on a literal colour, blur or shadow in any rule added here.",
+    "Do NOT edit packages/theme/run-surface-tokens.css. juli-run-streaming-caret is already defined there and named in tokens.ts; this issue applies it, it does not redefine it.",
+    "Pin PYTHONPATH=\"$PWD/backend/src:$PWD\" for any pytest run inside the worktree, or the green is fake."
+  ]
+}
