@@ -48,8 +48,15 @@ none is added here -- ADR-085 decision 3's "no tenant lineage" holds; only its
 "no read grant" half is reversed. `webhook_raw_events` remains a read-only
 audit shim with no RLS policy, exactly as 045/046 left it.
 
-Follows 054's GRANT_MAP + `_grant_table_privileges` / `_revoke_table_privileges`
-shape and its `pg_tables` IF EXISTS guard.
+Follows 054's GRANT_MAP shape, guarded like 058: `pg_roles` covers a database
+in this cluster that has not yet run 043 (the role is cluster-global, the
+migration is not), `pg_tables` covers a database migrated only part way.
+`054` alone guards on `pg_tables` only, which is fine on a database that has
+already run 043 -- but leaving `pg_roles` off means an unguarded `GRANT ...
+TO juli_app` against a sibling database in the same cluster that has not yet
+run 043 raises `role "juli_app" does not exist` instead of skipping cleanly,
+same failure 058's docstring calls out. This migration is not first past 043
+either, so it takes 058's belt-and-suspenders shape rather than 054's.
 
 `downgrade` revokes exactly the SELECT this migration granted; 043's INSERT
 survives it, and the incident reproduces -- the honest consequence of reverting.
@@ -78,42 +85,42 @@ GRANT_MAP: GrantMap = {
 }
 
 
-def _grant_table_privileges(grant_map: GrantMap = GRANT_MAP) -> None:
-    """Grant table-level privileges to juli_app from the explicit map."""
+def _apply_table_privileges(keyword: str, grant_map: GrantMap = GRANT_MAP) -> None:
+    """GRANT or REVOKE the mapped privileges, guarded on the role and the table.
+
+    Two guards, for two different absences. `pg_roles` covers a database in this
+    cluster that has not yet run 043 (the role is cluster-global, the migration
+    is not); `pg_tables` covers a database migrated only part way. Either way the
+    statement is skipped rather than failed, which is what makes this idempotent.
+    Mirrors 058's `_apply_table_privileges` exactly.
+    """
+    preposition = "TO" if keyword == "GRANT" else "FROM"
     for schema, tables in grant_map.items():
         for table, verbs in tables.items():
             verb_str = ", ".join(verbs)
             sql = f"""
-DO $grant_table$
+DO $apply_select_grant$
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = '{schema}' AND tablename = '{table}') THEN
-    GRANT {verb_str} ON {schema}.{table} TO {ROLE_NAME};
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{ROLE_NAME}')
+     AND EXISTS (
+       SELECT 1 FROM pg_tables WHERE schemaname = '{schema}' AND tablename = '{table}'
+     ) THEN
+    EXECUTE '{keyword} {verb_str} ON {schema}.{table} {preposition} {ROLE_NAME}';
   END IF;
 END
-$grant_table$;
+$apply_select_grant$;
 """  # nosec B608 — schema/table/role/verbs are fixed module constants
             op.execute(sql)
+
+
+def _grant_table_privileges(grant_map: GrantMap = GRANT_MAP) -> None:
+    """Grant the mapped SELECT privilege to juli_app."""
+    _apply_table_privileges("GRANT", grant_map)
 
 
 def _revoke_table_privileges(grant_map: GrantMap = GRANT_MAP) -> None:
-    """Revoke specified privileges from juli_app on all tables (downgrade path).
-
-    Revokes only the privileges this migration granted (SELECT), leaving 043's
-    INSERT intact.
-    """
-    for schema, tables in grant_map.items():
-        for table, verbs in tables.items():
-            verb_str = ", ".join(verbs)
-            sql = f"""
-DO $revoke_table$
-BEGIN
-  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = '{schema}' AND tablename = '{table}') THEN
-    REVOKE {verb_str} ON {schema}.{table} FROM {ROLE_NAME};
-  END IF;
-END
-$revoke_table$;
-"""  # nosec B608 — schema/table/role/verbs are fixed module constants
-            op.execute(sql)
+    """Revoke only the SELECT this migration granted; 043's INSERT remains."""
+    _apply_table_privileges("REVOKE", grant_map)
 
 
 def upgrade() -> None:
@@ -130,6 +137,6 @@ def downgrade() -> None:
     """Revoke SELECT from juli_app on webhook_raw_events.
 
     Migration 043's INSERT grant remains intact. Mirrors the specific-revoke
-    pattern of 043/054's downgrades (revoke what was granted, nothing more).
+    pattern of 043/054/058's downgrades (revoke what was granted, nothing more).
     """
     _revoke_table_privileges()
