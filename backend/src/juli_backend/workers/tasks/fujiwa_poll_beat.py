@@ -112,13 +112,9 @@ async def run_fujiwa_poll_beat_cycle(
     substitute a recording double bound to that function's actual keyword
     signature instead of exercising the vendor-facing internals it owns.
     """
-    import redis
-
-    from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
-    from juli_backend.integrations.tiktok import RateLimiter, TikTokAuth
-    from juli_backend.services.etl.consumer import EtlConsumer
+    from juli_backend.services.etl import EtlConsumer
     from juli_backend.services.ingestion import make_etl_handoff
-    from juli_backend.services.tiktok.credential_binding import make_binding_verifier
+    from juli_backend.services.tiktok import build_fujiwa_poll_vendor_resources
     from juli_backend.workers.services.polling import FujiwaPollConfig, run_fujiwa_poll_cycle
 
     poll = poll_cycle_fn if poll_cycle_fn is not None else run_fujiwa_poll_cycle
@@ -132,21 +128,18 @@ async def run_fujiwa_poll_beat_cycle(
     consumer = EtlConsumer(session=session, dlq_handoff=_dlq_handoff)
     handoff = make_etl_handoff(consumer)
 
-    tiktok_auth = TikTokAuth(
+    # `TikTokOAuthService`/`RateLimiter` construction lives in
+    # `services.tiktok.poll_resources` -- `workers -> integrations` is a
+    # forbidden edge (`.importlinter.toml`), not just depth-capped, so this
+    # task file may not build `TikTokAuth`/`RateLimiter` itself. See that
+    # module's docstring.
+    oauth_service, rate_limiter = build_fujiwa_poll_vendor_resources(
+        session,
         app_key=env["app_key"],
         app_secret=env["app_secret"],
-        base_url=os.getenv("TIKTOK_API_BASE_URL", "https://open-api.tiktokglobalshop.com"),
-    )
-    oauth_service = TikTokOAuthService(
-        tiktok_auth=tiktok_auth,
-        session=session,
         redirect_uri=env["redirect_uri"],
-        app_secret=env["app_secret"],
-        binding_verifier=make_binding_verifier(
-            app_key=env["app_key"], app_secret=env["app_secret"]
-        ),
+        redis_url=env["redis_url"],
     )
-    rate_limiter = RateLimiter(redis.from_url(env["redis_url"]))
 
     await poll(
         session=session,
