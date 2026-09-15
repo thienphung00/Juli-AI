@@ -38,7 +38,7 @@ test.describe("Phase 2.6 exit gate — Decisions journey", () => {
     await expect(launchers).toHaveCount(2);
     const launcherRegion = page.getByRole("region", { name: "Điểm đến chính" });
     await expect(
-      launcherRegion.getByRole("link", { name: /Quyết định/ }),
+      launcherRegion.getByRole("link", { name: /Hành động/ }),
     ).toHaveAttribute("href", "/decisions");
     await expect(
       launcherRegion.getByRole("link", { name: /Phân tích/ }),
@@ -53,7 +53,7 @@ test.describe("Phase 2.6 exit gate — Decisions journey", () => {
   }) => {
     await page
       .getByRole("region", { name: "Điểm đến chính" })
-      .getByRole("link", { name: /Quyết định/ })
+      .getByRole("link", { name: /Hành động/ })
       .click();
     await expect(page).toHaveURL(/\/decisions$/);
     await expectFourDestinationShell(page);
@@ -116,7 +116,7 @@ test.describe("Phase 2.6 exit gate — Decisions journey", () => {
     // landing gate with no entry choice recorded.
     await page
       .getByRole("region", { name: "Điểm đến chính" })
-      .getByRole("link", { name: /Quyết định/ })
+      .getByRole("link", { name: /Hành động/ })
       .click();
     await expect(page).toHaveURL(/\/decisions$/);
 

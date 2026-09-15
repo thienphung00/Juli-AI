@@ -40,6 +40,7 @@ import {
 import { RUN_STAGE_NAV_COPY, RUN_STREAM_RECONNECTING_COPY } from "../lib/run-surface/stage-copy";
 import { prefersReducedMotion, resolveRunSurfaceMotion } from "../lib/run-surface/motion";
 import { RUN_SURFACE_DATA_ATTRIBUTE, RUN_SURFACE_DATA_VALUE } from "../lib/run-surface/tokens";
+import { RunHeader } from "./run-header";
 import { RunStageCanvas, type RunStageCanvasProps } from "./run-stage-canvas";
 import { RunStepper, type RunStepperNode } from "./run-stepper";
 
@@ -205,6 +206,11 @@ export function RunStagedView({
 
   return (
     <div {...{ [RUN_SURFACE_DATA_ATTRIBUTE]: RUN_SURFACE_DATA_VALUE }} className="run-staged-view">
+      {/* §2 header row (#1910) -- reads the LIVE view's terminal state, so
+          the chip stays honest even while the seller browses a frozen
+          stage. First tab stop on the surface, before the stepper. */}
+      <RunHeader terminal={liveView.terminal} />
+
       {isReconnecting ? (
         <p className="run-staged-view__reconnecting" role="status">
           {RUN_STREAM_RECONNECTING_COPY}…

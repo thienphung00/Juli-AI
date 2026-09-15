@@ -70,10 +70,10 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - Definition: The sparse two-card launchpad.
 
 **`nav.decisions`**
-- EN: Decisions
-- VI: Quyết định
-- _Avoid_: Hành động, Khuyến nghị
-- Definition: The recommendation and execution hub.
+- EN: Actions
+- VI: Hành động
+- _Avoid_: Quyết định, Khuyến nghị
+- Definition: The recommendation and execution hub — where you review Juli's proposals, approve or decline them, and watch them run. "Quyết định" is the tab's former name, retired by owner decision on #1910 (2026-09-14). Runtime constant `ACTIONS_DESTINATION_LABEL` in `apps/demo/src/lib/destination-copy.ts` (shared by the nav rail and the run header's back control); keep them byte-identical.
 
 **`decisions.tab.recommendations`**
 - EN: Recommendations (sub-tab)
@@ -454,6 +454,18 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - EN: Finished
 - VI: Hoàn tất
 - Definition: Run ledger section heading for the four terminal `status` values, labelled per their honest `stop_reason`.
+
+**`run.workflow.optimize_product`**
+- EN: Optimize product
+- VI: Tối ưu sản phẩm
+- _Avoid_: optimize_product (the internal `workflow_key`), Tối ưu hóa, Chạy quy trình
+- Definition: The run page header's workflow title (PUI-DESIGN.md §2 header row, issue #1910) — the seller-facing name of the workflow the run is executing, shown above the stepper. Runtime constant `RUN_WORKFLOW_TITLE` in `apps/demo/src/lib/run-surface/stage-copy.ts`; keep them byte-identical.
+
+**`run.back_to_actions`**
+- EN: Actions
+- VI: Hành động
+- _Avoid_: Quay lại, Trở về
+- Definition: The run page header's back control (issue #1910, owner amendment 2026-09-14), returning you to the Hành động tab. Reads the destination tab's owner-decided name — the control tells you where you land, never a bare "back" and never a raw route path like /decisions. Runtime constant `RUN_HEADER_BACK_LABEL` in `apps/demo/src/lib/run-surface/stage-copy.ts`; keep them byte-identical.
 
 **`run.expiry`**
 - EN: Offer valid for {time}

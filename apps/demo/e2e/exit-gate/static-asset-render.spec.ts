@@ -46,7 +46,7 @@ test.describe("Phase 2.6 exit gate — static asset render (ADR-035)", () => {
   }) => {
     await expectBrandedComputedStyles(page);
 
-    await navigatePrimaryDestination(page, "Quyết định");
+    await navigatePrimaryDestination(page, "Hành động");
     await expect(page).toHaveURL(/\/decisions$/);
     await expectFourDestinationShell(page);
     await expect(

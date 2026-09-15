@@ -8,6 +8,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { DEMO_MODE_REPLAY_LABEL } from "../lib/demo-mode-copy";
 import { demoDestinations } from "../lib/mock-data";
 import { sanitizeSellerReviewText } from "../lib/review-seller-copy";
+import { looksLikeRunId } from "../lib/run-surface/run-id";
+import { ACTIONS_DESTINATION_LABEL } from "../lib/destination-copy";
 import { AnalyticsDataProvider, useAnalyticsData } from "../lib/analytics/analytics-data-context";
 import {
   GOOGLE_SIGN_IN_UNAVAILABLE_COPY,
@@ -22,7 +24,7 @@ const assistanceByPath = {
       "Juli là trợ lý phân tích và tự động hóa của bạn, giúp bạn hiểu rõ dữ liệu cửa hàng và đưa ra quyết định tối ưu.",
   },
   "/decisions": {
-    destination: "Quyết định",
+    destination: ACTIONS_DESTINATION_LABEL,
     message:
       "Juli sẽ giải thích lý do, bằng chứng và tác động của từng đề xuất để bạn tự đưa ra quyết định.",
   },
@@ -37,6 +39,20 @@ const assistanceByPath = {
       "Juli sẽ làm rõ cách mẫu quy trình và ngưỡng ảnh hưởng đến các đề xuất trong tương lai.",
   },
 } as const;
+
+/**
+ * True only for a REAL run's detail route (issue #1910): the path shape is
+ * `/decisions/in-progress/<id>` AND the id is a run id (`looksLikeRunId`,
+ * the ONE id matcher -- never a second UUID pattern here to drift). The
+ * legacy mock execution detail (`exec-*` ids, #1320's mock layer) keeps
+ * the full shell.
+ */
+const RUN_DETAIL_PATH_PATTERN = /^\/decisions\/in-progress\/([^/]+)\/?$/;
+
+function isRunFocusRoute(pathname: string): boolean {
+  const match = RUN_DETAIL_PATH_PATTERN.exec(pathname);
+  return match !== null && looksLikeRunId(match[1]);
+}
 
 function DemoShellContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -108,6 +124,23 @@ function DemoShellContent({ children }: { children: ReactNode }) {
     resetMockState();
     router.replace("/decisions");
   };
+
+  // The run route is a FOCUS surface (issue #1910, PUI-DESIGN.md §2): the
+  // header, feedback strip, mode toggle and assistance aside all go, and
+  // the run owns the whole region right of the rail. The nav rail STAYS
+  // (owner amendment 2026-09-14) -- removing it would strand the seller.
+  if (isRunFocusRoute(pathname)) {
+    return (
+      <div className="demo-shell demo-shell--run">
+        <PrimaryNavigation
+          activePath={pathname}
+          destinations={demoDestinations}
+          label="Điều hướng chính"
+        />
+        <main className="demo-main demo-main--run">{children}</main>
+      </div>
+    );
+  }
 
   return (
     <div className="demo-shell">

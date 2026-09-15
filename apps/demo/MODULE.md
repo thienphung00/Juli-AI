@@ -11,10 +11,20 @@ Invariants below.
 
 ## Public interface
 
-- `/` — sparse Home launcher with exactly two cards: Quyết định and Phân tích.
+- `/` — sparse Home launcher with exactly two cards: Hành động and Phân tích.
 - `/decisions`, `/analytics`, `/settings` — discoverable shell destinations;
   content is delivered by later vertical slices.
-- `DemoShell` — responsive four-destination application frame.
+- `DemoShell` — responsive four-destination application frame. **Exception
+  (#1910, PUI-DESIGN.md §2, owner amendment 2026-09-14):** the real run route
+  (`/decisions/in-progress/<id>` where `looksLikeRunId(id)`, the one matcher in
+  `lib/run-surface/run-id.ts`) renders WITHOUT the shell chrome — no
+  `demo-header`, no `demo-feedback` strip, no `demo-assistance` aside, no mode
+  toggle — while the `PrimaryNavigation` rail STAYS; the run surface owns the
+  whole region to the rail's right. `RunStagedView` supplies the §2 header row
+  itself (`RunHeader`: `← Hành động` back control to `/decisions`, the
+  `RUN_WORKFLOW_TITLE` heading, and a dictionary-governed status chip — never
+  a raw `stop_reason`). Legacy mock `exec-*` execution details keep the full
+  shell.
 - `DemoStateProvider` / `useDemoState` — single owner for mutable mock state,
   persisted Mock mode, disabled Sign-in feedback, deterministic reset, and
   `startExecution(workflowKey)` for approved workflow records.

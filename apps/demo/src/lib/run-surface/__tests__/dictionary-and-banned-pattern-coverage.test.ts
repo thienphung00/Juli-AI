@@ -6,8 +6,10 @@ import { describe, expect, it } from "vitest";
 
 import { RUN_STAGE_LABELS } from "../reduce-run-view";
 import {
+  RUN_HEADER_BACK_LABEL,
   RUN_STAGE_ANALYZING_FALLBACK,
   RUN_STAGE_EMPTY_COPY,
+  RUN_WORKFLOW_TITLE,
 } from "../stage-copy";
 import {
   OPTION_PICKER_CONFIRM_LABEL,
@@ -107,6 +109,13 @@ describe("run-surface copy — every Vietnamese string resolves through dictiona
   it("the shared run.running_body_fallback string is present in dictionary.md", () => {
     expect(dictionary).toContain(RUN_LEDGER_BODY_COPY.runningFallback);
   });
+
+  it.each([RUN_WORKFLOW_TITLE, RUN_HEADER_BACK_LABEL])(
+    "run header copy %s (#1910) is present in dictionary.md",
+    (value) => {
+      expect(dictionary).toContain(value);
+    },
+  );
 });
 
 describe("run-surface copy — banned-pattern guard via the shared source (issue #1321)", () => {
@@ -124,6 +133,8 @@ describe("run-surface copy — banned-pattern guard via the shared source (issue
     RUN_TERMINAL_STATE_UNKNOWN_COPY.label,
     RUN_TERMINAL_STATE_UNKNOWN_COPY.body,
     RUN_LEDGER_BODY_COPY.runningFallback,
+    RUN_WORKFLOW_TITLE,
+    RUN_HEADER_BACK_LABEL,
   ];
 
   it("SELLER_COPY_BANNED_PATTERNS resolved from @juli/contracts is non-empty (guard against an accidental empty import)", () => {

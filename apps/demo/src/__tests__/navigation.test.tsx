@@ -22,7 +22,7 @@ describe("four-destination shell navigation", () => {
     expect(links).toHaveLength(4);
     expect(Array.from(links, (link) => link.textContent)).toEqual([
       "⌂Trang chủ",
-      "Quyết định",
+      "Hành động",
       "Phân tích",
       "⚙Cài đặt",
     ]);
@@ -48,7 +48,7 @@ describe("four-destination shell navigation", () => {
     expect(navigation.textContent).not.toMatch(/\bdecisions\b/);
     expect(navigation.textContent).not.toMatch(/\banalytics\b/);
     expect(
-      screen.getByRole("link", { name: "Quyết định" }).querySelector("svg"),
+      screen.getByRole("link", { name: "Hành động" }).querySelector("svg"),
     ).not.toBeNull();
     expect(
       screen.getByRole("link", { name: "Phân tích" }).querySelector("svg"),

@@ -1,3 +1,5 @@
+import { ACTIONS_DESTINATION_LABEL } from "./destination-copy";
+
 export interface HomeDestinationFixture {
   /** Per-card CTA verb phrase (dictionary `home.cta.*`) — never the same label twice. */
   actionLabel: string;
@@ -5,7 +7,7 @@ export interface HomeDestinationFixture {
   eyebrow: string;
   href: "/decisions" | "/analytics";
   icon: "decisions" | "analytics";
-  label: "Quyết định" | "Phân tích";
+  label: typeof ACTIONS_DESTINATION_LABEL | "Phân tích";
 }
 
 export interface DemoSnapshotFixture {
@@ -21,7 +23,7 @@ const homeDestination = {
 } as const;
 const decisionsDestination = {
   href: "/decisions",
-  label: "Quyết định",
+  label: ACTIONS_DESTINATION_LABEL,
   icon: "decisions",
 } as const;
 const analyticsDestination = {

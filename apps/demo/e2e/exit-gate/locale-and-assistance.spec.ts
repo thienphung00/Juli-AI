@@ -10,7 +10,7 @@ import {
 
 const DESTINATION_PATHS = [
   { path: "/", assistanceEyebrow: "Trang chủ" },
-  { path: "/decisions", assistanceEyebrow: "Quyết định" },
+  { path: "/decisions", assistanceEyebrow: "Hành động" },
   { path: "/analytics", assistanceEyebrow: "Phân tích" },
   { path: "/settings", assistanceEyebrow: "Cài đặt" },
 ] as const;
@@ -20,7 +20,7 @@ test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
     await enterReplayDemo(page);
     const launchers = page.getByRole("region", { name: "Điểm đến chính" });
     await expect(
-      launchers.getByRole("link", { name: /Quyết định/ }),
+      launchers.getByRole("link", { name: /Hành động/ }),
     ).toBeVisible();
     await expect(
       launchers.getByRole("link", { name: /Phân tích/ }),

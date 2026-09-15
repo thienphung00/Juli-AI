@@ -13,6 +13,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentEvent } from "@juli/contracts";
 
 import { RunStagedView } from "../run-staged-view";
+import {
+  RUN_LEDGER_STATUS_LABELS,
+  RUN_TERMINAL_STATE_COPY,
+} from "../../lib/run-ledger/copy";
+import {
+  RUN_HEADER_BACK_LABEL,
+  RUN_WORKFLOW_TITLE,
+} from "../../lib/run-surface/stage-copy";
 
 const SCENARIO_PATH = path.resolve(
   __dirname,
@@ -248,5 +256,80 @@ describe("RunStagedView -- no leaked internals", () => {
     expect(text).not.toMatch(/update_product_listing/);
     expect(text).not.toMatch(/optimize_product_2/);
     expect(text).not.toMatch(/final_response/);
+  });
+});
+
+describe("RunStagedView -- run header (#1910, PUI-DESIGN.md §2 header row)", () => {
+  const declined: AgentEvent[] = [...scenario.events, ...scenario.continuations.decline];
+  // No captured worker_lost continuation exists (the capture tool cannot
+  // crash the worker on demand), so this terminal event is the approve
+  // continuation's own captured terminal envelope with the one field under
+  // test changed -- shape stays the server's, never hand-built from scratch.
+  const approveTerminal = scenario.continuations.approve[scenario.continuations.approve.length - 1];
+  const workerLost: AgentEvent[] = [
+    ...scenario.events,
+    {
+      ...approveTerminal,
+      event_type: "workflow.failed",
+      payload: { status: "failed", stop_reason: "worker_lost" },
+    } as AgentEvent,
+  ];
+
+  it("renders the back control to /decisions, the workflow title, and a status chip above the stepper", () => {
+    render(<RunStagedView events={scenario.events} productName={PRODUCT_NAME} runId="run-1" />);
+
+    const back = screen.getByRole("link", { name: RUN_HEADER_BACK_LABEL });
+    expect(back).toHaveAttribute("href", "/decisions");
+    expect(
+      screen.getByRole("heading", { level: 1, name: RUN_WORKFLOW_TITLE }),
+    ).toBeInTheDocument();
+
+    const chip = document.querySelector(".run-header [data-run-status]");
+    expect(chip).not.toBeNull();
+    expect(chip?.textContent).toBe(RUN_LEDGER_STATUS_LABELS.running);
+  });
+
+  it("chip text is four DISTINCT dictionary-sourced strings for running / completed / declined / worker_lost (#1322: no state dressed as another)", () => {
+    const cases: ReadonlyArray<{ events: readonly AgentEvent[]; expected: string }> = [
+      { events: scenario.events, expected: RUN_LEDGER_STATUS_LABELS.running },
+      { events: approved, expected: RUN_TERMINAL_STATE_COPY.completed.label },
+      { events: declined, expected: RUN_TERMINAL_STATE_COPY.completed_after_decline.label },
+      { events: workerLost, expected: RUN_TERMINAL_STATE_COPY.worker_lost.label },
+    ];
+
+    const seen: string[] = [];
+    for (const { events, expected } of cases) {
+      const { unmount } = render(
+        <RunStagedView events={events} productName={PRODUCT_NAME} runId="run-1" />,
+      );
+      const chip = document.querySelector(".run-header [data-run-status]");
+      expect(chip?.textContent).toBe(expected);
+      seen.push(chip?.textContent ?? "");
+      unmount();
+    }
+    expect(new Set(seen).size).toBe(4);
+  });
+
+  it("a worker_lost run reads as a failure (destructive chip), never dressed as a success", () => {
+    render(<RunStagedView events={workerLost} productName={PRODUCT_NAME} runId="run-1" />);
+
+    const chip = document.querySelector(".run-header [data-run-status]");
+    expect(chip?.getAttribute("data-run-status")).toBe("worker_lost");
+    expect(chip?.className).toContain("run-ledger__chip--destructive");
+    expect(chip?.textContent).not.toBe(RUN_TERMINAL_STATE_COPY.completed.label);
+  });
+
+  it("the back control is the first tab stop, before the stepper", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<RunStagedView events={scenario.events} productName={PRODUCT_NAME} runId="run-1" />);
+
+    await user.tab();
+    expect(screen.getByRole("link", { name: RUN_HEADER_BACK_LABEL })).toHaveFocus();
+
+    await user.tab();
+    // The very next tab stop is the stepper (whichever node carries the
+    // roving tabindex) -- nothing focusable sits between the back control
+    // and the stepper.
+    expect(document.activeElement?.getAttribute("role")).toBe("tab");
   });
 });

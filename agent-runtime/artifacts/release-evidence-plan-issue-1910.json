@@ -1,0 +1,76 @@
+{
+  "planId": "rep-1910-run-page-framing",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com /decisions/in-progress/<runId> — the run route's framing and header"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the demo candidate unit on its own port, before the nginx upstream cutover",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "the-run-owns-the-page",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/decisions/in-progress/<replay run id>",
+        "assertions": [
+          "the run route renders with no demo-feedback strip, no demo-assistance aside and no mode toggle beside it",
+          "the LEFT NAV RAIL REMAINS — owner direction; removing it would strand the seller",
+          "a back control labelled Hành động returns to the decisions list",
+          "the run title and a status chip render, and the chip's text differs for running / completed / declined / worker_lost"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions/in-progress/<runId>"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "js",
+      "css"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change and no backend change. Client rendering only."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "repoint the nginx demo upstream to the retained previous release; the surface reverts whole, never half-applied",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test",
+    "pnpm --filter @juli/demo exec playwright test",
+    "pnpm -w turbo run build"
+  ],
+  "doNotInfer": [
+    "Implement the v3 draft: https://claude.ai/code/artifact/0b588630-321b-4db4-9ac1-5d91e7952f9c — NOT the v4 draft with the Mega Sale band and one-line triage cards. Owner decision 2026-09-14.",
+    "Do NOT use useSearchParams in a route that must prerender — it fails the build with missing-suspense-with-csr-bailout and jsdom cannot see it (#1907 shipped a green suite with a broken build on this).",
+    "Renaming any user-visible string cascades three ways: the component, the e2e spec's assertions, AND tests/unit/test_phase_2_6_demo_exit_gate.py, which greps spec SOURCE TEXT for prose titles. Grep all three before renaming.",
+    "apps/demo/src/__tests__/replay-module-graph.test.ts must stay green — ADR-094 decision 1. If it goes red, stop and report; do not adjust it.",
+    "Colour comes only from packages/theme tokens. #1912's token-only-theming test fails any rule declaring a literal colour, blur or shadow on a run-surface selector.",
+    "Do not manipulate process.env.NEXT_PUBLIC_SUPABASE_* in tests — CI has real values. Mock the seam.",
+    "THE NAV RAIL STAYS. The issue body originally said to remove all chrome including PrimaryNavigation; the owner corrected that on 2026-09-14 — read the amendment comment on the issue. The run fills the region to the RIGHT of the rail.",
+    "Vocabulary is Hành động / Đề xuất / Đang thực hiện / Kết quả. Not 'Gợi ý', not 'Đang chạy', not 'Done'.",
+    "Never render a raw stop_reason. Every terminal state resolves through dictionary.md, and a failed run must read as failed — #1322 forbids a state dressed as another."
+  ]
+}

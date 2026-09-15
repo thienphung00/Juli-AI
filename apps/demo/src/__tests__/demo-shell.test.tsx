@@ -249,7 +249,7 @@ describe("Demo shell controls", () => {
         name: "Gợi ý từ Juli",
       });
 
-      expect(assistance).toHaveTextContent("Quyết định");
+      expect(assistance).toHaveTextContent("Hành động");
       expect(assistance).toHaveTextContent("Juli sẽ giải thích lý do");
     });
 
@@ -262,7 +262,7 @@ describe("Demo shell controls", () => {
         name: "Gợi ý từ Juli",
       });
 
-      expect(assistance).toHaveTextContent("Quyết định");
+      expect(assistance).toHaveTextContent("Hành động");
       expect(assistance).not.toHaveTextContent("Trang chủ");
     });
 
@@ -275,7 +275,7 @@ describe("Demo shell controls", () => {
         name: "Gợi ý từ Juli",
       });
 
-      expect(assistance).toHaveTextContent("Quyết định");
+      expect(assistance).toHaveTextContent("Hành động");
       expect(assistance).not.toHaveTextContent("Trang chủ");
     });
 
@@ -341,7 +341,7 @@ describe("Demo shell controls", () => {
       });
 
       expect(assistance).toHaveTextContent("Trang chủ");
-      expect(assistance).not.toHaveTextContent(/Quyết định|Phân tích|Cài đặt/);
+      expect(assistance).not.toHaveTextContent(/Hành động|Phân tích|Cài đặt/);
     });
 
     it("does not crash on empty path", () => {
@@ -444,5 +444,75 @@ describe("Demo shell controls", () => {
     expect(css).toContain("@media (max-width: 35rem)");
     expect(css).toContain("@media (min-width: 56rem)");
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
+  });
+});
+
+describe("Run route framing (#1910) — the run owns the region right of the rail", () => {
+  // A UUID run id (`looksLikeRunId`), i.e. a real backend run — the same id
+  // shape the replay scenario uses. Legacy mock `exec-*` ids keep the shell.
+  const RUN_PATH = "/decisions/in-progress/00000000-0000-0000-0000-00000000b453";
+  const CHROME_SELECTORS = [
+    ".demo-header",
+    ".demo-feedback",
+    ".juli-primary-nav",
+    ".demo-assistance",
+  ] as const;
+
+  beforeEach(() => {
+    vi.mocked(useRouter).mockReturnValue({
+      back: vi.fn(),
+      forward: vi.fn(),
+      prefetch: vi.fn(),
+      push,
+      refresh: vi.fn(),
+      replace,
+    });
+    mockedBuildGoogleAuthorizeUrl.mockReturnValue(SUPABASE_ORIGIN_AUTHORIZE_URL);
+  });
+
+  it("sheds the header, feedback strip and assistance aside on the run route", () => {
+    vi.mocked(usePathname).mockReturnValue(RUN_PATH);
+    const { container } = render(<DemoShell>Nội dung luồng</DemoShell>);
+
+    expect(container.querySelector(".demo-header")).toBeNull();
+    expect(container.querySelector(".demo-feedback")).toBeNull();
+    expect(container.querySelector(".demo-assistance")).toBeNull();
+    expect(screen.getByText("Nội dung luồng")).toBeInTheDocument();
+  });
+
+  it("KEEPS the left nav rail on the run route — owner amendment 2026-09-14; removing it would strand the seller", () => {
+    vi.mocked(usePathname).mockReturnValue(RUN_PATH);
+    const { container } = render(<DemoShell>Nội dung luồng</DemoShell>);
+
+    expect(container.querySelector(".juli-primary-nav")).not.toBeNull();
+    expect(
+      screen.getByRole("navigation", { name: "Điều hướng chính" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the full shell on a legacy mock execution detail — the id is not a run id", () => {
+    vi.mocked(usePathname).mockReturnValue(
+      "/decisions/in-progress/exec-optimize-1",
+    );
+    const { container } = render(<DemoShell>Nội dung</DemoShell>);
+
+    for (const selector of CHROME_SELECTORS) {
+      expect(container.querySelector(selector), `${selector} missing`).not.toBeNull();
+    }
+  });
+
+  it("keeps all four chrome elements on /, /decisions, /analytics and /settings — the suppression is route-scoped, not global", () => {
+    for (const pathname of ["/", "/decisions", "/analytics", "/settings"]) {
+      vi.mocked(usePathname).mockReturnValue(pathname);
+      const { container, unmount } = render(<DemoShell>Nội dung</DemoShell>);
+
+      for (const selector of CHROME_SELECTORS) {
+        expect(
+          container.querySelector(selector),
+          `${selector} missing on ${pathname}`,
+        ).not.toBeNull();
+      }
+      unmount();
+    }
   });
 });
