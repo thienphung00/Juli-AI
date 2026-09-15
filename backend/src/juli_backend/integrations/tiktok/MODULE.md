@@ -40,7 +40,12 @@ Matches ``__all__`` — re-exports only:
 - **Client factories** — ``ClientFactoryConfig``, ``ProductionReadClientFactory``,
   ``ProductionReadResources``, ``SandboxWriteClientFactory``, ``SandboxWriteResources``
 - **Merchant isolation** — ``PRODUCTION_AUTH_ID``, ``SANDBOX_AUTH_ID``,
-  ``TikTokCapability``, ``resolve_merchant_context``, ``is_cross_merchant_lookup``
+  ``TikTokCapability``, ``resolve_merchant_context``, ``is_cross_merchant_lookup``,
+  ``READ_CAPABILITIES`` / ``is_read_capability`` — which capabilities may serve a
+  read (#1365). ``SELLER_CONNECT`` is read-capable **for its own shop only**;
+  being read-capable is not a promotion to ``PRODUCTION_READ``, and
+  ``SANDBOX_WRITE`` is deliberately excluded so the sandbox write credential
+  stays unreachable from any read path
 - **Vendor → ingest mapping** — ``analytics_snapshot_key``,
   ``expand_analytics_live_session``, ``expand_analytics_product_detail``,
   ``expand_analytics_product_list_item``, ``expand_analytics_shop_performance``,
