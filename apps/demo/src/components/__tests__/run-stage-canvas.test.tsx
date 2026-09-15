@@ -10,6 +10,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { AgentEvent } from "@juli/contracts";
 
+import { RUN_OPTION_FIELD_FALLBACK } from "../../lib/run-surface/option-diff";
 import { reduceRunView } from "../../lib/run-surface/reduce-run-view";
 import { RunStageCanvas } from "../run-stage-canvas";
 
@@ -162,6 +163,52 @@ describe("RunStageCanvas -- Cập nhật stage", () => {
     );
 
     expect(screen.getByText("Tiêu đề đã tối ưu")).toBeInTheDocument();
+  });
+});
+
+describe("RunStageCanvas -- Cập nhật stage renders no raw payload key (issue #1908)", () => {
+  // The captured scenario's proposed_change carries only `title`. The
+  // production defect (#1908) leaked `attach_staged_image` and
+  // `description` -- so the approval event is SHALLOW-MUTATED (never
+  // invented from scratch, same discipline as option-picker.test.tsx's
+  // N=1 mutations) to carry the production payload shape.
+  const productionShapedEvents: AgentEvent[] = approved.map((event) =>
+    event.event_type === "workflow.approval_required"
+      ? ({
+          ...event,
+          payload: {
+            ...event.payload,
+            proposed_change: {
+              title: "Tiêu đề đã tối ưu",
+              description: "Mô tả đã tối ưu cho sản phẩm này.",
+              attach_staged_image: true,
+            },
+          },
+        } as AgentEvent)
+      : event,
+  );
+
+  it("renders every proposed-change key through describeOptionField -- attach_staged_image appears nowhere", () => {
+    const view = reduceRunView(productionShapedEvents);
+    render(
+      <RunStageCanvas
+        events={productionShapedEvents}
+        isTerminal={true}
+        nowMs={1000}
+        productName={PRODUCT_NAME}
+        runId="run-1908"
+        stageId="cap-nhat"
+        view={view}
+      />,
+    );
+
+    const text = document.body.textContent ?? "";
+    expect(text).not.toContain("attach_staged_image");
+    // The known key renders its seller label; the unknown keys render the
+    // generic fallback -- one <dt> per proposed field, none of them raw.
+    expect(screen.getByText("Tiêu đề")).toBeInTheDocument();
+    expect(screen.getAllByText(RUN_OPTION_FIELD_FALLBACK).length).toBe(2);
+    expect(text).not.toMatch(/[a-z]+_[a-z]+/);
   });
 });
 

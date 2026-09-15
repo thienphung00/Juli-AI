@@ -622,10 +622,22 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - VI: Tiêu đề
 - Definition: Seller-facing label for a `proposed_change.title` field on an option card's diff (issue #1317).
 
+**`run.option_field.fallback`**
+- EN: Proposed change
+- VI: Thay đổi được đề xuất
+- _Avoid_: raw proposed_change JSON keys
+- Definition: Generic seller-facing label for a `proposed_change` key that `run.option_field.*` has no dedicated entry for yet (issue #1908, W6-FIX). Replaces `describeOptionField`'s previous raw-key fallback (`apps/demo/src/lib/run-surface/option-diff.ts`) — an English snake_case identifier such as `attach_staged_image` reached a Vietnamese seller on both the Đề xuất option cards and the Cập nhật proposed-change list. Same precedent as `run.tool_action.fallback`: generic and still honest, never the internal identifier.
+
 **`run.option_picker.submitting`**
 - EN: Sending your choice…
 - VI: Đang gửi lựa chọn của bạn…
 - Definition: Transient status while the confirmation POST is in flight (issue #1317) -- cards and both CTAs disable to prevent a double submission.
+
+**`run.option_picker.rationale_fallback`**
+- EN: Juli proposes this change for your product.
+- VI: Juli đề xuất thay đổi này cho sản phẩm của bạn.
+- _Avoid_: rendering an English rationale verbatim
+- Definition: Rendered in place of an option's payload `rationale` when the option picker's guard rejects it (issue #1908, W6-FIX) — a rationale carrying a snake_case identifier or carrying no Vietnamese diacritic is a leaked internal string, not seller Vietnamese. Defence in depth at the last surface before a seller reads the text, deliberately independent of the source-side `ToolSpec.seller_rationale_vi` fix (#1904). Claims only that Juli proposes the change — never a reason the UI cannot know.
 
 **`run.running_body_fallback`**
 - EN: Juli is working on this product.

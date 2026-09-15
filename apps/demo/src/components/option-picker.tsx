@@ -50,6 +50,7 @@ import {
   OPTION_PICKER_NO_RETRY_COPY,
   OPTION_PICKER_SUBMITTING_COPY,
   describeConfirmationRejection,
+  describeOptionRationale,
   formatOptionPickerHeading,
 } from "../lib/run-surface/option-picker-copy";
 import { prefersReducedMotion, resolveRunSurfaceMotion } from "../lib/run-surface/motion";
@@ -288,7 +289,14 @@ export function OptionPicker({
                 </dl>
               ) : null}
               {option.rationale ? (
-                <p className="option-picker__rationale">{option.rationale}</p>
+                <p className="option-picker__rationale">
+                  {/* Guarded, never verbatim (issue #1908): a rationale
+                      carrying a snake_case identifier or no Vietnamese
+                      diacritic renders the dictionary fallback instead --
+                      this holds even if the payload was never fixed
+                      upstream. */}
+                  {describeOptionRationale(option.rationale)}
+                </p>
               ) : null}
             </button>
           );

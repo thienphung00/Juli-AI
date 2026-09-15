@@ -52,8 +52,7 @@ function isFromToShape(value: unknown): value is { from: unknown; to: unknown } 
 
 /** `run.option_field.*` -- seller-facing labels for known `proposed_change`
  *  keys, never the raw JSON key (same discipline as `describeToolAction`
- *  in `stage-copy.ts`). An unrecognized field still renders honestly: the
- *  raw key itself, not a fabricated translation. */
+ *  in `stage-copy.ts`). */
 const OPTION_FIELD_LABELS: Readonly<Record<string, string>> = Object.freeze({
   price: "Giá",
   seo_description: "Mô tả SEO",
@@ -61,8 +60,17 @@ const OPTION_FIELD_LABELS: Readonly<Record<string, string>> = Object.freeze({
   title: "Tiêu đề",
 });
 
+/** `run.option_field.fallback` -- the generic label an unrecognized
+ *  `proposed_change` key renders as (issue #1908). The previous fallback
+ *  was the raw key itself ("renders honestly"), but on this surface an
+ *  English snake_case identifier in front of a Vietnamese seller is not
+ *  honest -- it is a leak. Matches `describeToolAction`'s own
+ *  `RUN_TOOL_ACTION_FALLBACK` precedent in `stage-copy.ts`: generic and
+ *  still true, never the internal identifier. */
+export const RUN_OPTION_FIELD_FALLBACK = "Thay đổi được đề xuất";
+
 export function describeOptionField(field: string): string {
-  return OPTION_FIELD_LABELS[field] ?? field;
+  return OPTION_FIELD_LABELS[field] ?? RUN_OPTION_FIELD_FALLBACK;
 }
 
 export function buildOptionDiffRows(

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildOptionDiffRows } from "../option-diff";
+import {
+  RUN_OPTION_FIELD_FALLBACK,
+  buildOptionDiffRows,
+  describeOptionField,
+} from "../option-diff";
 
 describe("buildOptionDiffRows", () => {
   it("renders a {from,to}-shaped field as struck-before/highlighted-after, both verbatim from the payload", () => {
@@ -42,5 +46,23 @@ describe("buildOptionDiffRows", () => {
     );
 
     expect(rows.map((r) => r.field)).toEqual(["title", "stock"]);
+  });
+});
+
+describe("describeOptionField (issue #1908)", () => {
+  it("maps a known field to its seller-facing Vietnamese label", () => {
+    expect(describeOptionField("title")).toBe("Tiêu đề");
+    expect(describeOptionField("price")).toBe("Giá");
+  });
+
+  it("returns the generic Vietnamese fallback for an unknown field -- never the raw key", () => {
+    expect(describeOptionField("attach_staged_image")).toBe(RUN_OPTION_FIELD_FALLBACK);
+    expect(describeOptionField("description")).toBe(RUN_OPTION_FIELD_FALLBACK);
+    expect(describeOptionField("attach_staged_image")).not.toBe("attach_staged_image");
+  });
+
+  it("the fallback is the dictionary's run.option_field.fallback string and carries no raw identifier", () => {
+    expect(RUN_OPTION_FIELD_FALLBACK).toBe("Thay đổi được đề xuất");
+    expect(RUN_OPTION_FIELD_FALLBACK).not.toMatch(/[a-z]+_[a-z]+/);
   });
 });

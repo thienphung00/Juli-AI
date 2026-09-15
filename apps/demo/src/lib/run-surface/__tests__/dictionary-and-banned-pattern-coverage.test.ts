@@ -1,10 +1,17 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { SELLER_COPY_BANNED_PATTERNS } from "@juli/contracts";
-import { describe, expect, it } from "vitest";
+import type { AgentEvent } from "@juli/contracts";
+import { cleanup, render } from "@testing-library/react";
+import { createElement } from "react";
+import { afterEach, describe, expect, it } from "vitest";
 
-import { RUN_STAGE_LABELS } from "../reduce-run-view";
+import { RunStageCanvas } from "../../../components/run-stage-canvas";
+import { RUN_OPTION_FIELD_FALLBACK } from "../option-diff";
+import { OPTION_PICKER_RATIONALE_FALLBACK } from "../option-picker-copy";
+import { RUN_STAGE_LABELS, reduceRunView } from "../reduce-run-view";
 import {
   RUN_HEADER_BACK_LABEL,
   RUN_STAGE_ANALYZING_FALLBACK,
@@ -74,7 +81,9 @@ describe("run-surface copy — every Vietnamese string resolves through dictiona
     OPTION_PICKER_DECLINE_OUTCOME,
     OPTION_PICKER_EXPIRED_COPY,
     OPTION_PICKER_NO_RETRY_COPY,
+    OPTION_PICKER_RATIONALE_FALLBACK,
     OPTION_PICKER_SUBMITTING_COPY,
+    RUN_OPTION_FIELD_FALLBACK,
   ];
   const terminalStrings = [
     ...Object.values(RUN_TERMINAL_STATE_COPY).flatMap((entry) => [entry.label, entry.body]),
@@ -128,7 +137,9 @@ describe("run-surface copy — banned-pattern guard via the shared source (issue
     OPTION_PICKER_DECLINE_OUTCOME,
     OPTION_PICKER_EXPIRED_COPY,
     OPTION_PICKER_NO_RETRY_COPY,
+    OPTION_PICKER_RATIONALE_FALLBACK,
     OPTION_PICKER_SUBMITTING_COPY,
+    RUN_OPTION_FIELD_FALLBACK,
     ...Object.values(RUN_TERMINAL_STATE_COPY).flatMap((entry) => [entry.label, entry.body]),
     RUN_TERMINAL_STATE_UNKNOWN_COPY.label,
     RUN_TERMINAL_STATE_UNKNOWN_COPY.body,
@@ -145,5 +156,161 @@ describe("run-surface copy — banned-pattern guard via the shared source (issue
     for (const pattern of SELLER_COPY_BANNED_PATTERNS) {
       expect(value, `matched banned pattern ${pattern}`).not.toMatch(pattern);
     }
+  });
+});
+
+/**
+ * Issue #1908 -- the guard that would have caught the raw-identifier leak.
+ *
+ * WALKS THE FULL REPLAY JOURNEY: all six stages, rendered under each of the
+ * three event sets a replay visitor can reach -- paused at the decision
+ * (the captured events), the confirm continuation, and the decline
+ * continuation -- and asserts NO rendered text node matches a snake_case
+ * identifier (`/[a-z]+_[a-z]+/`). This is deliberately a rendered-DOM walk,
+ * not a constant-list audit like the suites above: the leak that motivated
+ * it (`attach_staged_image`, `title`, `description` as <dt>s; an English
+ * tool description as a rationale) came from PAYLOAD data flowing straight
+ * into the tree, which no list of copy constants can see.
+ *
+ * SURFACE-LOCAL BY DESIGN: `packages/contracts/seller-copy-banned-patterns
+ * .json` is shared with the Python agent guard, where a Latin-script
+ * snake_case heuristic would false-positive on brand names -- all 33 shared
+ * patterns matched ZERO against the production leak string. The pinned-hash
+ * test below keeps this guard from ever drifting into the shared contract.
+ */
+const SCENARIO_FIXTURE_PATH = join(
+  process.cwd(),
+  "..",
+  "..",
+  "tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json",
+);
+
+const BANNED_PATTERNS_PATH = join(
+  process.cwd(),
+  "..",
+  "..",
+  "packages/contracts/seller-copy-banned-patterns.json",
+);
+
+/** sha256 of the shared banned-pattern source at the time #1908 landed --
+ *  this issue's guard is surface-local and must NOT touch the shared list. */
+const BANNED_PATTERNS_SHA256_AT_1908 =
+  "1d5c4982dd38de41df9efae0f0ac22d68660abd3c6b1f0f07281776cf6ae5de6";
+
+const SNAKE_CASE_IDENTIFIER = /[a-z]+_[a-z]+/;
+
+const RUN_STAGE_IDS = [
+  "phan-tich",
+  "thong-tin-san-pham",
+  "seo",
+  "de-xuat",
+  "cap-nhat",
+  "hoan-tat",
+] as const;
+
+interface ScenarioFile {
+  readonly events: AgentEvent[];
+  readonly continuations: Record<string, AgentEvent[]>;
+}
+
+function loadScenarioFixture(): ScenarioFile {
+  return JSON.parse(readFileSync(SCENARIO_FIXTURE_PATH, "utf8")) as ScenarioFile;
+}
+
+function collectTextNodes(root: HTMLElement): string[] {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const texts: string[] = [];
+  while (walker.nextNode()) {
+    const value = walker.currentNode.nodeValue ?? "";
+    if (value.trim().length > 0) texts.push(value);
+  }
+  return texts;
+}
+
+describe("run surface -- no snake_case identifier in any rendered text node, across the full replay journey (issue #1908)", () => {
+  afterEach(cleanup);
+
+  const scenario = loadScenarioFixture();
+  const approval = scenario.events.find((e) => e.event_type === "workflow.approval_required");
+  const expiresAt = (approval?.payload as { expires_at?: string } | undefined)?.expires_at;
+  if (!expiresAt) throw new Error("fixture has no workflow.approval_required expires_at");
+  const NOW_BEFORE_EXPIRY = new Date(expiresAt).getTime() - 60 * 60 * 1000;
+
+  const journeys: ReadonlyArray<{
+    name: string;
+    events: AgentEvent[];
+    isTerminal: boolean;
+    nowMs: number;
+  }> = [
+    {
+      name: "paused at the decision",
+      events: scenario.events,
+      isTerminal: false,
+      nowMs: NOW_BEFORE_EXPIRY,
+    },
+    {
+      name: "confirm continuation",
+      events: [...scenario.events, ...scenario.continuations.approve],
+      isTerminal: true,
+      nowMs: NOW_BEFORE_EXPIRY,
+    },
+    {
+      name: "decline continuation",
+      events: [...scenario.events, ...scenario.continuations.decline],
+      isTerminal: true,
+      nowMs: NOW_BEFORE_EXPIRY,
+    },
+  ];
+
+  it("walks every stage of every continuation and finds no snake_case identifier", () => {
+    let walkedTextNodes = 0;
+    const offenders: Array<{ journey: string; stage: string; text: string }> = [];
+
+    for (const journey of journeys) {
+      const view = reduceRunView(journey.events);
+      for (const stageId of RUN_STAGE_IDS) {
+        const { container, unmount } = render(
+          createElement(RunStageCanvas, {
+            stageId,
+            view,
+            events: journey.events,
+            productName: "Áo thun cotton nam",
+            nowMs: journey.nowMs,
+            isTerminal: journey.isTerminal,
+            runId: "replay-guard-1908",
+          }),
+        );
+        const texts = collectTextNodes(container);
+        walkedTextNodes += texts.length;
+        for (const text of texts) {
+          if (SNAKE_CASE_IDENTIFIER.test(text)) {
+            offenders.push({ journey: journey.name, stage: stageId, text });
+          }
+        }
+        unmount();
+      }
+    }
+
+    // A silent no-op walk is the guard's own failure mode (six guards in
+    // this wave passed while inspecting nothing) -- 18 stage renders of a
+    // six-stage journey must yield a substantial node count, and the count
+    // is printed so a reviewer can judge plausibility, not just trust green.
+    process.stdout.write(
+      `[#1908 journey guard] walked ${walkedTextNodes} rendered text nodes\n`,
+    );
+    expect(walkedTextNodes).toBeGreaterThanOrEqual(50);
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe("the shared banned-pattern contract is untouched by #1908 (surface-local guard only)", () => {
+  it("packages/contracts/seller-copy-banned-patterns.json is byte-identical to its pre-#1908 state", () => {
+    const raw = readFileSync(BANNED_PATTERNS_PATH);
+    const sha256 = createHash("sha256").update(raw).digest("hex");
+    expect(sha256).toBe(BANNED_PATTERNS_SHA256_AT_1908);
+  });
+
+  it("still carries exactly the 33 patterns that matched zero against the production leak string", () => {
+    expect(SELLER_COPY_BANNED_PATTERNS).toHaveLength(33);
   });
 });

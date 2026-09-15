@@ -1,0 +1,82 @@
+{
+  "planId": "rep-1908-no-raw-identifiers-for-a-vietnamese-seller",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com run view — the Cap nhat stage's proposed-change list",
+    "demo.app-juli.com run view — the De xuat stage's option cards and their rationale lines"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the demo candidate unit on its own port, before the nginx demo upstream cutover",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "no-raw-identifier-reaches-a-seller",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/decisions/in-progress/<replay run id>",
+        "assertions": [
+          "walking all six stages, no rendered text node matches /[a-z]+_[a-z]+/",
+          "the string 'attach_staged_image' appears nowhere in the rendered tree for a scenario whose payload contains it",
+          "every proposed-change key renders through describeOptionField, not as the raw JSON key",
+          "an unknown field renders the generic Vietnamese fallback, never the raw key"
+        ]
+      },
+      {
+        "name": "the-rationale-guard-holds-independently-of-the-payload",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/decisions/in-progress/<replay run id>",
+        "assertions": [
+          "the exact production string 'Apply agent-authored title/description (and, if attach_staged_image is true, the run's staged image) to the bound product's listing.' does not render",
+          "a rationale containing no Vietnamese diacritic is suppressed in favour of the dictionary fallback",
+          "both the confirm and the decline continuation are walked, not just the happy path"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "/decisions/in-progress/<replay run id>"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "css"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Presentation and copy only. No schema change, no API contract movement. This is the last-mile defence and is deliberately independent of the source-side fix; the two can land in either order."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "repoint the nginx demo upstream to the retained previous release; the run view reverts whole, never half-applied",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test",
+    "pnpm -w turbo run build"
+  ],
+  "doNotInfer": [
+    "dictionary.md's _Avoid_ field is SPLIT ON COMMAS. A comma inside a parenthetical produces inert fragments that match nothing and silently disable the guard — this cost #1956 a red CI round, twice in one file. Put rationale in Definition, never in _Avoid_. Then PRINT the parsed aliases and confirm each is a clean standalone string; do not infer correctness from the file text.",
+    "Do NOT edit packages/contracts/seller-copy-banned-patterns.json. It is shared with the Python agent guard and a Latin-script heuristic there would false-positive on brand names. A test asserts it is unchanged.",
+    "All 33 existing banned patterns were run against the offending string and matched ZERO. Do not assume the shared list gives any coverage here; this guard must be surface-local to apps/demo.",
+    "describeOptionField's raw-key fallback is deliberate elsewhere. Changing it is in scope for THIS surface only — do not alter callers outside the run surface.",
+    "The rationale guard must not depend on the payload having been fixed upstream. It is defence in depth at the last place before a seller reads the text.",
+    "New dictionary entries need all four of EN, VI, _Avoid_ and Definition.",
+    "Pin PYTHONPATH=\"$PWD/backend/src:$PWD\" for any pytest run inside the worktree, or the green is fake."
+  ]
+}
