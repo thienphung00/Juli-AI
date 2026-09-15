@@ -465,7 +465,7 @@ async def test_live_write_path_pauses_resumes_and_executes_exactly_once():
             await session.commit()
             await session.refresh(run)
 
-            event_sink = PersistingEventSink(async_session_factory, _NullPublisher())
+            event_sink = PersistingEventSink(async_session_factory, _NullPublisher(), shop_id=None)
 
             # --- leg 1: run to the CONFIRM pause ------------------------------
             sync_session_1 = SyncSession()

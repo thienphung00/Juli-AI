@@ -358,7 +358,7 @@ async def test_live_readonly_run_reaches_final_response():
             assert tool_executor._write_resources is None
             assert isinstance(tool_executor._read_resources, ProductionReadResources)
 
-            event_sink = PersistingEventSink(async_session_factory, _NullPublisher())
+            event_sink = PersistingEventSink(async_session_factory, _NullPublisher(), shop_id=None)
             conversation_store = JsonbConversationStore(session)
 
             runner = WorkflowRunner(

@@ -628,12 +628,15 @@ async def _construct_runner(
         product_detail=run.state.get("product_detail"),
     )
     conversation_store = runner_module.JsonbConversationStore(session)
-    # #1883: a shop-scoped factory, not the bare one. The sink opens a fresh
-    # session per emit by contract, so it cannot inherit the caller's scope —
-    # and `workflow_run_events`'s INSERT policy refuses every row written
-    # without one. See `_shop_scoped_session_factory`.
+    # #1890: PersistingEventSink now scopes its own per-emit session from a
+    # `shop_id` given at construction (`with_shop_scope` -- the sink commits
+    # once per emit, so the non-sticky scope is enough), retiring #1883's
+    # `_shop_scoped_session_factory` wrapping for this call site. The bare
+    # `_ensure_session_factory()` is safe here precisely because the sink
+    # itself, not this caller, now owns keeping `workflow_run_events`'s
+    # INSERT policy satisfied.
     event_sink = events_module.PersistingEventSink(
-        _shop_scoped_session_factory(run.shop_id), _resolve_event_publisher()
+        _ensure_session_factory(), _resolve_event_publisher(), shop_id=run.shop_id
     )
 
     return runner_module.WorkflowRunner(

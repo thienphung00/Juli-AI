@@ -193,7 +193,7 @@ async def _run_to_confirm_pause(
         runner = WorkflowRunner(
             llm_service=FakeLLMService(script=_script()),
             tool_executor=_SpyToolExecutor(result={"title": "unused"}),
-            event_sink=PersistingEventSink(factory, _NullPublisher()),
+            event_sink=PersistingEventSink(factory, _NullPublisher(), shop_id=None),
             conversation_store=JsonbConversationStore(session),
             registry=_full_registry(),
             playbook=_pause_resume_playbook(),
@@ -212,7 +212,7 @@ async def _resume(factory: async_sessionmaker, run_id: uuid.UUID, *, approved: b
         runner = WorkflowRunner(
             llm_service=FakeLLMService(script=_script()[2:]),
             tool_executor=_SpyToolExecutor(result={"title": "unused"}),
-            event_sink=PersistingEventSink(factory, _NullPublisher()),
+            event_sink=PersistingEventSink(factory, _NullPublisher(), shop_id=None),
             conversation_store=JsonbConversationStore(session),
             registry=_full_registry(),
             playbook=_pause_resume_playbook(),
