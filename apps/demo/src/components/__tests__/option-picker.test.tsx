@@ -30,6 +30,7 @@ import {
 import {
   OPTION_PICKER_DECLINE_OUTCOME,
   OPTION_PICKER_EXPIRED_COPY,
+  OPTION_PICKER_RATIONALE_FALLBACK,
   describeConfirmationRejection,
 } from "../../lib/run-surface/option-picker-copy";
 
@@ -222,6 +223,60 @@ describe("OptionPicker -- decline is quiet and first class", () => {
     expect(decline).not.toBeDisabled();
     expect(confirm.contains(decline)).toBe(false);
     expect(decline.contains(confirm)).toBe(false);
+  });
+});
+
+describe("OptionPicker -- rationale guard, defence in depth (issue #1908)", () => {
+  // The EXACT string observed in production (run 4e00d60e's
+  // `run_confirmations` record): the tool's English, model-facing
+  // description rendered verbatim to a Vietnamese seller. The guard must
+  // suppress it REGARDLESS of whether the source-side ToolSpec fix has
+  // landed -- this component is the last place before a seller reads it.
+  const PRODUCTION_ENGLISH_RATIONALE =
+    "Apply agent-authored title/description (and, if attach_staged_image is true, " +
+    "the run's staged image) to the bound product's listing.";
+
+  function renderWithRationale(rationale: string) {
+    render(
+      <OptionPicker
+        expiresAt={CAPTURED_EXPIRES_AT}
+        nowMs={NOW_BEFORE_EXPIRY}
+        options={[{ ...CAPTURED_OPTION, rationale }]}
+        productName={PRODUCT_NAME}
+        runId="run-1908"
+        toolCallId={CAPTURED_TOOL_CALL_ID}
+      />,
+    );
+  }
+
+  it("suppresses the exact production English rationale, rendering the dictionary fallback", () => {
+    renderWithRationale(PRODUCTION_ENGLISH_RATIONALE);
+
+    expect(screen.queryByText(PRODUCTION_ENGLISH_RATIONALE)).not.toBeInTheDocument();
+    expect(document.body.textContent ?? "").not.toContain("attach_staged_image");
+    expect(screen.getByText(OPTION_PICKER_RATIONALE_FALLBACK)).toBeInTheDocument();
+  });
+
+  it("suppresses a rationale matching a snake_case identifier even when it carries diacritics", () => {
+    renderWithRationale("Áp dụng update_product_listing cho sản phẩm này.");
+
+    expect(document.body.textContent ?? "").not.toContain("update_product_listing");
+    expect(screen.getByText(OPTION_PICKER_RATIONALE_FALLBACK)).toBeInTheDocument();
+  });
+
+  it("suppresses a rationale containing no Vietnamese diacritic", () => {
+    const noDiacritics = "Ap dung tieu de moi cho san pham nay.";
+    renderWithRationale(noDiacritics);
+
+    expect(screen.queryByText(noDiacritics)).not.toBeInTheDocument();
+    expect(screen.getByText(OPTION_PICKER_RATIONALE_FALLBACK)).toBeInTheDocument();
+  });
+
+  it("renders the captured scenario's Vietnamese rationale verbatim -- the guard never rewrites good copy", () => {
+    renderWithRationale(CAPTURED_OPTION.rationale);
+
+    expect(screen.getByText(CAPTURED_OPTION.rationale)).toBeInTheDocument();
+    expect(screen.queryByText(OPTION_PICKER_RATIONALE_FALLBACK)).not.toBeInTheDocument();
   });
 });
 

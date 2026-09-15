@@ -31,6 +31,7 @@ import {
   toolActivityForStage,
   type StageToolActivityItem,
 } from "../lib/run-surface/stage-events";
+import { describeOptionField } from "../lib/run-surface/option-diff";
 import {
   RUN_PRODUCT_BINDING_LABEL,
   RUN_STAGE_EMPTY_COPY,
@@ -206,7 +207,12 @@ function UpdateContent({ events, view }: { events: readonly AgentEvent[]; view: 
           <dl className="run-stage__proposed-change">
             {proposedChangeEntries(approval.payload.proposed_change).map(([key, value]) => (
               <div className="run-stage__proposed-change-row" key={key}>
-                <dt>{key}</dt>
+                {/* The seller-facing label, NEVER the raw proposed_change
+                    JSON key (issue #1908) -- same describeOptionField the
+                    Đề xuất option cards already use, so the two consumers
+                    of this fact cannot diverge again. `key` (the raw key)
+                    stays as the React key only; it is never rendered. */}
+                <dt>{describeOptionField(key)}</dt>
                 <dd>{value}</dd>
               </div>
             ))}

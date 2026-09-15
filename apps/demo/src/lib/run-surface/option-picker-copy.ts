@@ -23,6 +23,45 @@ export const OPTION_PICKER_SUBMITTING_COPY = "Đang gửi lựa chọn của b�
 export const OPTION_PICKER_NO_RETRY_COPY =
   "Muốn thực hiện thay đổi mới? Hãy quay lại Quyết định để phê duyệt đề xuất mới.";
 
+/** `run.option_rationale.fallback` -- rendered in place of a payload
+ *  rationale the guard below rejects (issue #1908). Generic and still
+ *  honest: it claims only that Juli proposes the change, never a reason
+ *  it cannot know. */
+export const OPTION_PICKER_RATIONALE_FALLBACK =
+  "Juli đề xuất thay đổi này cho sản phẩm của bạn.";
+
+/** A backend/AI identifier shape: two lowercase runs joined by an
+ *  underscore (`attach_staged_image`, `update_product_listing`, ...).
+ *  Deliberately the same pattern the surface-local journey guard test
+ *  walks the rendered tree with. */
+const SNAKE_CASE_IDENTIFIER_PATTERN = /[a-z]+_[a-z]+/;
+
+/** At least one Vietnamese diacritic (or đ/Đ). A real Vietnamese sentence
+ *  of rationale length always carries one; an English tool description
+ *  carries none. `u` + `i` so the uppercase forms fold too. */
+const VIETNAMESE_DIACRITIC_PATTERN =
+  /[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/iu;
+
+/**
+ * The rationale guard (issue #1908) -- defence in depth at the LAST place
+ * before a seller reads the text, deliberately independent of whether the
+ * source-side `ToolSpec.seller_rationale_vi` fix (#1904) produced the
+ * string. A rationale that carries a snake_case identifier, or carries no
+ * Vietnamese diacritic at all, is not seller Vietnamese -- it is a leaked
+ * internal string, and the generic dictionary fallback renders instead.
+ * The observed production leak ("Apply agent-authored title/description
+ * (and, if attach_staged_image is true, ...)") fails BOTH checks.
+ */
+export function describeOptionRationale(rationale: string): string {
+  if (SNAKE_CASE_IDENTIFIER_PATTERN.test(rationale)) {
+    return OPTION_PICKER_RATIONALE_FALLBACK;
+  }
+  if (!VIETNAMESE_DIACRITIC_PATTERN.test(rationale)) {
+    return OPTION_PICKER_RATIONALE_FALLBACK;
+  }
+  return rationale;
+}
+
 /** `run.option_picker.heading`, `{count}` substituted -- never a literal. */
 export function formatOptionPickerHeading(count: number): string {
   return `Juli đề xuất ${count} phương án:`;
