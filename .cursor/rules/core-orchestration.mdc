@@ -96,6 +96,15 @@ Parallel orchestration is how this repo accumulated 73 worktrees, 61 unmerged br
 [`git-baseline.mdc`](git-baseline.mdc)) and does not delegate out of a `FAIL` tree. A stale
 parent hands every child the same stale base.
 
+## Reading CI
+
+Never call a PR ready before its checks settle — open a watch when the executor reports
+done, and report only a settled verdict (checks exist, none pending, none failed). When one
+is red, read that job's log (`gh run view --log-failed --job <id>`) **before** theorising: a
+local repro that produces *a* red is not evidence it is *the* red. Traps behind a false
+green — cached turbo tasks, CI running a different command, timing races — are in
+[`code-quality.mdc`](code-quality.mdc).
+
 ## Skills governance
 
 - **Never** add skill files under `.cursor/skills/` unless the user explicitly asks in this conversation.

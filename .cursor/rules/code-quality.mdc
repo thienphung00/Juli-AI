@@ -79,6 +79,44 @@ something of the same kind, open the exemplar first and match it.
   `error` (nullable on success), `metadata` (pagination when listing). Error details from a
   service carry `{"message", "error_code"}`.
 
+## A guard must be seen failing
+
+A test whose job is to make a class of defect impossible — a coverage sweep, a
+banned-pattern scan, a drift check — is worthless if it inspects nothing, and a
+passing run cannot tell the two apart. Six such guards have been found in this repo:
+`module_md_sync` parsed 0 modules; a `packages/ui` typecheck excluded `__tests__` so
+`const n: number = "x"` passed; `check_adr` read a gitignored artifact; two
+`dictionary.md` aliases parsed into inert fragments because the field splits on commas.
+Each one reported green for months.
+
+So, before claiming any new guard works:
+
+1. **Print what it actually collected** — the list and its count. A collector that
+   silently returns three items where the source has thirty is the whole failure mode.
+2. **Make it go red on purpose.** Inject the defect it exists to catch, watch it fail
+   *naming that defect*, then remove the injection and confirm the tree is clean.
+3. **Report both** in the implementation artifact. "The suite passes" is not evidence
+   that the guard inspected anything.
+
+Never infer a guard's reach from the fact that it is green. Green is the state it is in
+when it is broken.
+
+## A green that is not green
+
+Before treating a passing run as evidence:
+
+- **A cached turbo task prints a full pass having run nothing.** The only tell is
+  `Cached: 3 cached, 4 total` against CI's `Cached: 0 cached, 4 total`. Use
+  `npx turbo run test --filter=<pkg> --force` and report the `Cached:` line beside the pass
+  count.
+- **CI's invocation differs from the local one.** `release.yml` runs `pytest tests/` in one
+  invocation while `pr.yml` splits unit and integration; `demo-frontend` runs
+  `pnpm check:demo`, not `pnpm --filter @juli/demo test`. Run the command CI runs.
+- **A test asserting on an intermediate state that is also true transiently is a race, not a
+  flake.** Retry on the final-state signal. On #1975 a disabled control rendered without its
+  explanation for one tick; the test waited on the disabled attribute — true in that tick too
+  — then queried the copy synchronously. It won on a warm machine and lost on a cold runner.
+
 ## Automation (Cursor Hooks)
 
 - Prefer explicit, reviewable automation over "magic."

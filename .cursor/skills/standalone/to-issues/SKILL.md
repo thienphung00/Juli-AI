@@ -88,9 +88,16 @@ Use this body template.
 <!-- Describe end-to-end behavior, not layer-by-layer implementation -->
 
 ## Acceptance criteria
-- Criterion 1
-- Criterion 2
-- Criterion 3
+<!-- MUST be `- GIVEN ... WHEN ... THEN` bullets or a `1.` numbered list. A plain
+     `- ` bullet is DELIBERATELY never counted by check_acceptance_mapping.py, so an
+     issue written with plain bullets fails `acceptance_criteria_mapped` closed and
+     cannot produce a PASS status record. See the worked examples below. -->
+- GIVEN <precondition>
+  WHEN <the seller-visible action>
+  THEN <the observable outcome>
+  Observable at: <file::symbol where the behavior surfaces>
+  Verified by:   <test path::test name>
+- GIVEN ...
 <!-- Integration slice example: one new pytest with minimal webhook/API fixture; single public-behavior assertion; no unrelated module churn. -->
 
 ## Blocked by
