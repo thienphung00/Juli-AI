@@ -121,6 +121,37 @@ def _seed_fujiwa_shop_and_credential(engine, *, label: str) -> tuple[uuid.UUID, 
     return shop_id, credential_id
 
 
+def _seed_product(engine, shop_id: uuid.UUID, *, label: str) -> str:
+    """Seed one synced product so sync_inventory's product-id source (#1948)
+    -- orchestrate.py's ``_synced_product_ids_fn``, reading through
+    ``ProductsRepo.list`` -- has something to page. Returns the TikTok
+    product id.
+    """
+    now = datetime.now(UTC).replace(tzinfo=None)
+    product_id = uuid.uuid4()
+    tiktok_product_id = f"tt-product-{product_id.hex[:10]}"
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO public.products "
+                "(id, shop_id, tiktok_product_id, name, status, revenue, units_sold, "
+                " update_time, created_at, updated_at) "
+                "VALUES (:id, :shop_id, :tiktok_product_id, :name, 'ACTIVE', 0, 0, "
+                " :now, :now, :now)"
+            ),
+            {
+                "id": str(product_id),
+                "shop_id": str(shop_id),
+                "tiktok_product_id": tiktok_product_id,
+                "name": f"{label} product",
+                "now": now,
+            },
+        )
+
+    return tiktok_product_id
+
+
 def _mock_resources() -> MagicMock:
     """Mirrors ``test_fujiwa_polling_orchestration.py``'s ``mock_resources``
     fixture -- every collaborator every ``_FUJIWA_POLL_STEPS`` entry plus
@@ -152,6 +183,7 @@ async def test_poll_cycle_survives_the_resolvers_own_commit_under_shop_scope(own
     ``ValueError('Fujiwa polling requires a shop with tiktok_shop_id...')``.
     """
     shop_id, credential_id = _seed_fujiwa_shop_and_credential(owner_engine, label="poll-scope")
+    _seed_product(owner_engine, shop_id, label="poll-scope")
 
     async def _resolve_that_commits(session) -> TikTokCredential:
         # Real signature, real session, real commit -- mirrors what
