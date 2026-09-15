@@ -670,6 +670,18 @@ async def sync_inventory(
 
     Search Inventory has no ``update_time`` filter — this is a full-snapshot
     reconciliation backstop. Incremental changes arrive via webhook #68.
+
+    MERGE NOTE (#1948). That branch rewrites this body with the opposite error
+    philosophy: it RAISES on a ``TikTokAPIError`` and on a non-dict response,
+    where this one reports a failed outcome and returns. On the merge, #1948's
+    raise wins and this step keeps only the ``_StepRun`` wrapper around it, so
+    the triple is reported on the way out and the exception still propagates —
+    the shape the ``TikTokPaginationError`` arm below already uses. Reasoning is
+    in #1969's branch history; the short version is that a Celery task which
+    exits zero after dropping every inventory row does not meet "scheduled,
+    unattended", and the cost that argued against raising here — losing steps
+    1-3's watermarks — no longer exists now that ``orchestrate.py`` saves partial
+    state before re-raising any exception.
     """
     if not rate_limiter.acquire(
         app_id, shop_id, INVENTORY_SEARCH_PATH, max_requests=10, window_seconds=60
