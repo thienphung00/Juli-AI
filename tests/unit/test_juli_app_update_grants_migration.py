@@ -137,10 +137,20 @@ def test_migration_058_is_guarded_on_the_role_and_the_table():
 def test_migration_058_still_leaves_a_single_alembic_head():
     from alembic.script import ScriptDirectory
 
-    heads = ScriptDirectory.from_config(Config(str(ALEMBIC_INI))).get_heads()
+    script = ScriptDirectory.from_config(Config(str(ALEMBIC_INI)))
+    heads = script.get_heads()
 
     assert len(heads) == 1, f"058 branched the revision chain: heads={heads}"
-    assert heads[0] == "058_juli_app_update_grants"
+
+    # Deliberately not `heads[0] == "058_juli_app_update_grants"` (#1968). That
+    # literal asserts "058 is the newest migration", which is true only until
+    # the next one lands -- every later revision would then fail this test for
+    # a reason that has nothing to do with 058. The property 058 must keep is
+    # that it sits on the one chain, which is exactly what a branch destroys.
+    chain = {revision.revision for revision in script.walk_revisions("base", heads[0])}
+    assert "058_juli_app_update_grants" in chain, (
+        f"058 is no longer reachable from head {heads[0]}: the chain branched or 058 was dropped"
+    )
 
 
 def test_migration_058_satisfies_the_additive_gate():
@@ -218,5 +228,13 @@ def test_migration_058_upgrade_is_idempotent_over_grants_already_held():
         assert after == before, f"re-applying 058 changed the grant surface: {after} != {before}"
         assert all("UPDATE" in held for held in after.values())
     finally:
-        command.upgrade(cfg, "head")
+        # `stamp`, not `upgrade` (#1968). Nothing above changed the schema --
+        # 058 is grants-only, and the stamp moved a version marker rather than
+        # a table. `upgrade(head)` from the stamped 058 replays every revision
+        # *after* 058 against a database that already has them, which failed on
+        # 060 with DuplicateColumn the moment 058 stopped being head. Stamping
+        # puts the marker back where the schema actually is. The sibling
+        # round-trip test above keeps `upgrade`, and must: it performs a real
+        # `downgrade 057`, so the DDL genuinely has to be replayed.
+        command.stamp(cfg, "head")
         engine.dispose()
