@@ -17,8 +17,10 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, TypeVar
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,6 +40,7 @@ from juli_backend.integrations.tiktok import (
     PermissionDeniedError,
     RateLimiter,
     TikTokAPIError,
+    TikTokPaginationError,
     analytics_shop_performance_per_hour_path,
     analytics_shop_product_performance_path,
     analytics_shop_sku_performance_path,
@@ -56,12 +59,223 @@ from juli_backend.integrations.tiktok import (
     normalize_order,
     normalize_product,
     normalize_return,
+    pagination_scope,
     promotion_activity_path,
 )
 from juli_backend.models.models import TikTokCredential
 from juli_backend.services.ingestion.handoff import HandoffFn
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
+
+
+@dataclass(frozen=True)
+class SyncOutcome:
+    """What one poll step actually did (#1950's triple, #1969's instance of it).
+
+    Before this, every step returned ``None``. A step that fetched 3,581 rows
+    and persisted zero was byte-for-byte indistinguishable from a step with
+    nothing to do, and that is how two production data-loss bugs survived for
+    months.
+
+    ``persisted`` is counted at the boundary this module can actually see: a
+    row the ETL handoff accepted without raising. It is NOT proof of a committed
+    Postgres row -- ``HandoffFn`` is typed ``-> None`` and ``make_etl_handoff``
+    discards ``EtlConsumer.ingest``'s ``ProcessOutcome``, so a row routed to the
+    DLQ still counts as accepted here. Widening that contract belongs to #1950
+    in ``services/ingestion/handoff.py``, which this issue does not own. What
+    this number does catch -- and what was silently broken -- is the whole-step
+    failure: handoff raising for every row.
+    """
+
+    resource: str
+    shop_id: str
+    fetched: int = 0
+    persisted: int = 0
+    failed: int = 0
+    pages: int = 0
+    backfill: bool = False
+    skipped: bool = False
+    error: str | None = None
+
+    @property
+    def dropped_everything(self) -> bool:
+        """Rows came back from the vendor and not one of them landed."""
+        return self.fetched > 0 and self.persisted == 0
+
+    @property
+    def ok(self) -> bool:
+        return self.error is None and self.failed == 0 and not self.dropped_everything
+
+    def as_log_fields(self) -> dict[str, Any]:
+        return {
+            "resource": self.resource,
+            "shop_id": self.shop_id,
+            "fetched": self.fetched,
+            "persisted": self.persisted,
+            "failed": self.failed,
+            "pages": self.pages,
+            "backfill": self.backfill,
+            "skipped": self.skipped,
+            "error": self.error,
+            "ok": self.ok,
+        }
+
+
+class PollStepDroppedRowsError(RuntimeError):
+    """A poll step fetched rows from the vendor and persisted none of them."""
+
+    def __init__(self, outcome: SyncOutcome) -> None:
+        self.outcome = outcome
+        super().__init__(
+            f"{outcome.resource} sync fetched {outcome.fetched} rows for shop "
+            f"{outcome.shop_id} and persisted none ({outcome.failed} rejected)"
+        )
+
+
+class _CountingHandoff:
+    """A ``HandoffFn`` that counts what the ETL took and what it refused.
+
+    Signature-identical to ``HandoffFn`` on purpose -- it is substituted for the
+    real one inside a step, including in ``sync_analytics`` where fourteen call
+    sites reach for the same local name.
+
+    A rejected row is counted and logged rather than re-raised on the spot. That
+    is not a swallow: the step's verdict is computed from these counters right
+    after the loop and raises if nothing landed. Failing on row 1 would report
+    "one row failed" for what is usually "the ETL is down and all 3,581 failed",
+    and the second sentence is the one worth paging on.
+    """
+
+    def __init__(
+        self,
+        inner: HandoffFn,
+        *,
+        resource: str,
+        shop_id: str,
+        log_every: int = 200,
+    ) -> None:
+        self._inner = inner
+        self._resource = resource
+        self._shop_id = shop_id
+        self._log_every = log_every
+        self.offered = 0
+        self.persisted = 0
+        self.failed = 0
+        self.first_error: str | None = None
+
+    async def __call__(self, channel: str, shop_key: str, value: bytes) -> None:
+        self.offered += 1
+        try:
+            await self._inner(channel, shop_key, value)
+        except Exception as exc:  # noqa: BLE001 -- counted and reported, see class docstring
+            self.failed += 1
+            if self.first_error is None:
+                self.first_error = repr(exc)
+            logger.error(
+                "poll_step_handoff_failed",
+                extra={
+                    "resource": self._resource,
+                    "shop_id": self._shop_id,
+                    "channel": channel,
+                    "offered": self.offered,
+                    "failed": self.failed,
+                },
+                exc_info=True,
+            )
+            return
+        self.persisted += 1
+        if self.persisted % self._log_every == 0:
+            logger.info(
+                "poll_step_progress",
+                extra={
+                    "resource": self._resource,
+                    "shop_id": self._shop_id,
+                    "offered": self.offered,
+                    "persisted": self.persisted,
+                    "failed": self.failed,
+                },
+            )
+
+
+class _PollStep:
+    """One poll step's budget, counters, and its single outcome record.
+
+    Exists so all four search steps plus analytics report identically. Before
+    #1969 a cycle could run 47 minutes emitting nothing at all, so "is this
+    poll working" was unanswerable from outside; now every step emits
+    ``poll_step_started`` on entry and exactly one ``poll_step_outcome`` on
+    exit, whichever way it exits.
+    """
+
+    def __init__(
+        self,
+        resource: str,
+        shop_id: str,
+        *,
+        backfill: bool,
+        handoff_fn: HandoffFn,
+        update_time_from: int | None = None,
+    ) -> None:
+        self.resource = resource
+        self.shop_id = shop_id
+        self.backfill = backfill
+        self.handoff = _CountingHandoff(handoff_fn, resource=resource, shop_id=shop_id)
+        self.fetched = 0
+        self.pages = 0
+        logger.info(
+            "poll_step_started",
+            extra={
+                "resource": resource,
+                "shop_id": shop_id,
+                "backfill": backfill,
+                "update_time_from": update_time_from,
+            },
+        )
+
+    def fetch(self, call: Callable[[], T]) -> T:
+        """Run the synchronous vendor fetch under the right pagination budget.
+
+        A step with no watermark is the shop's first read, so it fetches under
+        the cold-start backfill budget, where exhausting the page budget raises
+        instead of warning (see ``integrations/tiktok/client.py``).
+        """
+        with pagination_scope(backfill=self.backfill) as scope:
+            try:
+                return call()
+            finally:
+                self.pages = scope.pages
+
+    def outcome(self, *, error: BaseException | None = None, skipped: bool = False) -> SyncOutcome:
+        return SyncOutcome(
+            resource=self.resource,
+            shop_id=self.shop_id,
+            fetched=self.fetched,
+            persisted=self.handoff.persisted,
+            failed=self.handoff.failed,
+            pages=self.pages,
+            backfill=self.backfill,
+            skipped=skipped,
+            error=repr(error) if error is not None else self.handoff.first_error,
+        )
+
+    def report(self, *, error: BaseException | None = None, skipped: bool = False) -> SyncOutcome:
+        """Log the triple, then fail the step if it dropped everything it fetched."""
+        outcome = self.outcome(error=error, skipped=skipped)
+        log = logger.info if outcome.ok else logger.error
+        log("poll_step_outcome", extra=outcome.as_log_fields())
+        if outcome.dropped_everything:
+            raise PollStepDroppedRowsError(outcome)
+        return outcome
+
+
+def _skipped(resource: str, shop_id: str) -> SyncOutcome:
+    """A step the rate limiter turned away still has to say so."""
+    outcome = SyncOutcome(resource=resource, shop_id=shop_id, skipped=True)
+    logger.info("poll_step_outcome", extra=outcome.as_log_fields())
+    return outcome
+
 
 # Logger for structured warnings about credential mismatches
 mismatch_logger = logging.getLogger(__name__ + ".sandbox_write_catalog_identity_mismatch")
@@ -124,40 +338,57 @@ async def sync_orders(
     app_id: str,
     shop_id: str,
     sync_state: dict[str, Any],
-) -> None:
-    """Fetch orders since last sync and hand off to ETL."""
+) -> SyncOutcome:
+    """Fetch orders since last sync, hand off to ETL, and report the triple."""
     if not rate_limiter.acquire(
         app_id, shop_id, ORDER_SEARCH_PATH, max_requests=10, window_seconds=60
     ):
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "orders"})
-        return
+        return _skipped("orders", shop_id)
 
     update_from = sync_state.get("orders_last_update_time")
+    step = _PollStep(
+        "orders",
+        shop_id,
+        backfill=update_from is None,
+        handoff_fn=handoff_fn,
+        update_time_from=update_from,
+    )
 
     try:
-        orders = resource.search_all(update_time_from=update_from)
-    except TikTokAPIError:
-        logger.warning("sync_orders_failed", extra={"shop_id": shop_id}, exc_info=True)
-        return
+        orders = step.fetch(lambda: resource.search_all(update_time_from=update_from))
+    except TikTokPaginationError:
+        # A truncated or timed-out backfill is a failed read, not a partial one.
+        step.report(error=None)
+        raise
+    except TikTokAPIError as exc:
+        logger.error("sync_orders_failed", extra={"shop_id": shop_id}, exc_info=True)
+        return step.report(error=exc)
 
+    step.fetched = len(orders)
     max_update_time = update_from or 0
     for order in orders:
         normalized = normalize_order(order)
-        await handoff_fn(
+        await step.handoff(
             "tiktok.orders.raw",
             shop_id,
             json.dumps(normalized).encode(),
         )
         for line_item in expand_order_line_items(normalized):
-            await handoff_fn(
+            await step.handoff(
                 "tiktok.order_items.raw",
                 shop_id,
                 json.dumps(line_item).encode(),
             )
         max_update_time = max(max_update_time, order.get("update_time", 0))
 
-    if orders:
+    outcome = step.report()
+    # The watermark follows the rows, never the fetch (#1950): advancing it over
+    # rows that never landed is how 3,581 orders were skipped with a healthy
+    # looking timestamp on every run.
+    if orders and outcome.persisted:
         sync_state["orders_last_update_time"] = max_update_time
+    return outcome
 
 
 async def sync_products(
@@ -168,25 +399,36 @@ async def sync_products(
     app_id: str,
     shop_id: str,
     sync_state: dict[str, Any],
-) -> None:
-    """Fetch products since last sync and hand off to ETL."""
+) -> SyncOutcome:
+    """Fetch products since last sync, hand off to ETL, and report the triple."""
     if not rate_limiter.acquire(
         app_id, shop_id, PRODUCT_SEARCH_PATH, max_requests=10, window_seconds=60
     ):
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "products"})
-        return
+        return _skipped("products", shop_id)
 
     update_from = sync_state.get("products_last_update_time")
+    step = _PollStep(
+        "products",
+        shop_id,
+        backfill=update_from is None,
+        handoff_fn=handoff_fn,
+        update_time_from=update_from,
+    )
 
     try:
-        products = resource.search_all(update_time_from=update_from)
-    except TikTokAPIError:
-        logger.warning("sync_products_failed", extra={"shop_id": shop_id}, exc_info=True)
-        return
+        products = step.fetch(lambda: resource.search_all(update_time_from=update_from))
+    except TikTokPaginationError:
+        step.report(error=None)
+        raise
+    except TikTokAPIError as exc:
+        logger.error("sync_products_failed", extra={"shop_id": shop_id}, exc_info=True)
+        return step.report(error=exc)
 
+    step.fetched = len(products)
     max_update_time = update_from or 0
     for product in products:
-        await handoff_fn(
+        await step.handoff(
             "tiktok.products.raw",
             shop_id,
             json.dumps(normalize_product(product)).encode(),
@@ -196,8 +438,10 @@ async def sync_products(
             product.get("update_time") or product.get("updated_at") or 0,
         )
 
-    if products:
+    outcome = step.report()
+    if products and outcome.persisted:
         sync_state["products_last_update_time"] = max_update_time
+    return outcome
 
 
 async def sync_products_with_local_upsert(
@@ -315,25 +559,36 @@ async def sync_returns(
     app_id: str,
     shop_id: str,
     sync_state: dict[str, Any],
-) -> None:
-    """Fetch returns since last sync and hand off to ETL."""
+) -> SyncOutcome:
+    """Fetch returns since last sync, hand off to ETL, and report the triple."""
     if not rate_limiter.acquire(
         app_id, shop_id, RETURN_SEARCH_PATH, max_requests=10, window_seconds=60
     ):
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "returns"})
-        return
+        return _skipped("returns", shop_id)
 
     update_from = sync_state.get("returns_last_update_time")
+    step = _PollStep(
+        "returns",
+        shop_id,
+        backfill=update_from is None,
+        handoff_fn=handoff_fn,
+        update_time_from=update_from,
+    )
 
     try:
-        returns = resource.search_returns_all(update_time_from=update_from)
-    except TikTokAPIError:
-        logger.warning("sync_returns_failed", extra={"shop_id": shop_id}, exc_info=True)
-        return
+        returns = step.fetch(lambda: resource.search_returns_all(update_time_from=update_from))
+    except TikTokPaginationError:
+        step.report(error=None)
+        raise
+    except TikTokAPIError as exc:
+        logger.error("sync_returns_failed", extra={"shop_id": shop_id}, exc_info=True)
+        return step.report(error=exc)
 
+    step.fetched = len(returns)
     max_update_time = update_from or 0
     for ret in returns:
-        await handoff_fn(
+        await step.handoff(
             "tiktok.returns.raw",
             shop_id,
             json.dumps(normalize_return(ret)).encode(),
@@ -343,8 +598,10 @@ async def sync_returns(
             ret.get("update_time") or ret.get("create_time") or 0,
         )
 
-    if returns:
+    outcome = step.report()
+    if returns and outcome.persisted:
         sync_state["returns_last_update_time"] = max_update_time
+    return outcome
 
 
 async def sync_inventory(
@@ -355,8 +612,8 @@ async def sync_inventory(
     app_id: str,
     shop_id: str,
     sync_state: dict[str, Any],
-) -> None:
-    """Fetch inventory snapshot, flatten SKUs, and hand off to ETL.
+) -> SyncOutcome:
+    """Fetch inventory snapshot, flatten SKUs, hand off to ETL, report the triple.
 
     Search Inventory has no ``update_time`` filter — this is a full-snapshot
     reconciliation backstop. Incremental changes arrive via webhook #68.
@@ -365,36 +622,53 @@ async def sync_inventory(
         app_id, shop_id, INVENTORY_SEARCH_PATH, max_requests=10, window_seconds=60
     ):
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "inventory"})
-        return
+        return _skipped("inventory", shop_id)
+
+    step = _PollStep(
+        "inventory",
+        shop_id,
+        # No watermark has ever been written for this shop, so this snapshot is
+        # the first one — the same cold-start condition as the other steps.
+        backfill=sync_state.get("inventory_last_sync_at") is None,
+        handoff_fn=handoff_fn,
+    )
 
     try:
-        response = resource.search()
-    except TikTokAPIError:
-        logger.warning("sync_inventory_failed", extra={"shop_id": shop_id}, exc_info=True)
-        return
+        response = step.fetch(resource.search)
+    except TikTokPaginationError:
+        step.report(error=None)
+        raise
+    except TikTokAPIError as exc:
+        logger.error("sync_inventory_failed", extra={"shop_id": shop_id}, exc_info=True)
+        return step.report(error=exc)
 
     if not isinstance(response, dict):
-        logger.warning(
+        logger.error(
             "sync_inventory_invalid_response",
             extra={"shop_id": shop_id, "type": type(response).__name__},
         )
-        return
+        return step.report(
+            error=ValueError(f"inventory search returned {type(response).__name__}, not a dict")
+        )
 
     rows = expand_inventory_search(response)
+    step.fetched = len(rows)
     synced_at = int(time.time())
 
     for row in rows:
         payload = normalize_inventory(row)
         payload["event_id"] = _inventory_snapshot_event_id(shop_id, payload)
         payload.setdefault("update_time", synced_at)
-        await handoff_fn(
+        await step.handoff(
             "tiktok.inventory.raw",
             shop_id,
             json.dumps(payload).encode(),
         )
 
-    if rows:
+    outcome = step.report()
+    if rows and outcome.persisted:
         sync_state["inventory_last_sync_at"] = synced_at
+    return outcome
 
 
 async def sync_creators(
@@ -501,7 +775,7 @@ async def sync_analytics(
     sync_state: dict[str, Any],
     promotion_resource: Any | None = None,
     now: datetime | None = None,
-) -> None:
+) -> SyncOutcome:
     """Fetch Analytics GET targets for the current date window (#424).
 
     Invokes A-31–A-34, A-36–A-39 with ``start_date_ge`` / ``end_date_lt`` (or
@@ -512,6 +786,14 @@ async def sync_analytics(
 
     Analytics ETL persistence hands normalized rows to ingest channels (#425).
     """
+    # Analytics reports the same triple as the four search steps, counted over
+    # every row it offers the ETL. `fetched` here is rows offered rather than a
+    # vendor row count: the step fans out across ~10 endpoints with per-endpoint
+    # rate-limit breaks, so there is no single number the vendor returned. It is
+    # never a cold-start backfill — the window is always one day (#424).
+    step = _PollStep("analytics", shop_id, backfill=False, handoff_fn=handoff_fn)
+    handoff_fn = step.handoff
+
     start_date_ge, end_date_lt, day = _analytics_date_window(now=now)
     synced_at = int((now or datetime.now(UTC)).timestamp())
 
@@ -795,6 +1077,9 @@ async def sync_analytics(
                 )
         if fetched_any:
             sync_state["promotion_activity_last_sync_at"] = synced_at
+
+    step.fetched = step.handoff.offered
+    return step.report()
 
 
 async def sync_sandbox_write_products(session: AsyncSession, shop_id: uuid.UUID) -> None:
