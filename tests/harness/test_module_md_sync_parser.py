@@ -11,6 +11,7 @@ drift, a second `###` Public Interface section).
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -176,6 +177,52 @@ class TestPublicInterfaceParsing:
         assert symbols == {"record_outcome", "NoData"}
         assert "workflow_outcome_metrics" not in symbols
         assert "ratio" not in symbols
+
+    def test_a_label_before_the_dash_leaves_the_declaration_in_the_tail(
+        self, tmp_path: Path
+    ) -> None:
+        """The mirror-image convention, used by four Tier 1/2 modules.
+
+        Splitting on the dash unconditionally kept the bold label and threw the
+        symbols away. It hid 96 genuinely documented, genuinely exported names
+        across integrations/tiktok, services/tiktok, ai/recommendations and
+        services/agent, which then landed in the drift allowlist as
+        "undocumented" -- the gate manufacturing its own findings again.
+        """
+        module_md = tmp_path / "MODULE.md"
+        module_md.write_text(
+            "## Public Interface\n\n"
+            "- **HTTP client** — `TikTokClient`, `TikTokAuth`\n"
+            "- **Rate limiting** — `RateLimiter`\n",
+            encoding="utf-8",
+        )
+
+        symbols = common.parse_module_md_public_symbols(module_md)
+
+        assert symbols == {"TikTokClient", "TikTokAuth", "RateLimiter"}
+
+    def test_the_real_tiktok_module_still_documents_its_client(self) -> None:
+        """Measured against the tree, not a fixture."""
+        module_md = common.REPO_ROOT / "backend/src/juli_backend/integrations/tiktok/MODULE.md"
+
+        symbols = common.parse_module_md_public_symbols(module_md)
+
+        assert {"TikTokClient", "TikTokAuth", "RateLimiter"} <= symbols
+
+    def test_a_table_row_is_never_split_on_its_dash(self, tmp_path: Path) -> None:
+        """A row carries no declare/explain boundary, so it is scanned whole."""
+        module_md = tmp_path / "MODULE.md"
+        module_md.write_text(
+            "## Public Interface\n\n"
+            "| name | what |\n"
+            "| --- | --- |\n"
+            "| `run_workflow` | starts a run — returns `RunHandle` |\n",
+            encoding="utf-8",
+        )
+
+        symbols = common.parse_module_md_public_symbols(module_md)
+
+        assert {"run_workflow", "RunHandle"} <= symbols
 
     def test_several_names_before_the_dash_all_declare(self, tmp_path: Path) -> None:
         module_md = tmp_path / "MODULE.md"
@@ -452,3 +499,58 @@ class TestTheRealTreePassesWithTheAllowlist:
 
         assert details["touchedModules"] == [OPERATIONS]
         assert passed is True, f"unallowlisted drift: {details['drift']}"
+
+
+class TestTheAllowlistCannotHideADocumentedSymbol:
+    """A parser that loses a declaration turns it into "undocumented" drift.
+
+    That is how 96 real exports were quietly allowlisted. The check below is
+    deliberately independent of the declare/explain rule the parser uses: it
+    looks at the FIRST backticked identifier on each bullet, which is a
+    declaration under either convention in this tree and is never a prose
+    mention. So a future parser regression cannot launder its mistakes through
+    the allowlist the way the last one did.
+    """
+
+    @staticmethod
+    def _leading_symbols(module_md) -> set[str]:
+        leading: set[str] = set()
+        for body in common.public_interface_sections(module_md.read_text(encoding="utf-8")):
+            for line in body.splitlines():
+                if not re.match(r"^\s*[-*]\s", line):
+                    continue
+                match = common.BACKTICK_SYMBOL_RE.search(line)
+                if match and match.group(1) not in common.NEVER_A_SYMBOL:
+                    leading.add(match.group(1))
+        return leading
+
+    def test_no_allowlisted_undocumented_symbol_leads_a_bullet(self) -> None:
+        laundered: list[str] = []
+        for module_path, kinds in check_module_drift.KNOWN_DRIFT_ALLOWLIST.items():
+            entry = kinds.get("undocumented")
+            if entry is None:
+                continue
+            module_md = common.backend_module_root(module_path) / "MODULE.md"
+            if not module_md.exists():
+                continue
+            leading = self._leading_symbols(module_md)
+            laundered += [f"{module_path}:{sym}" for sym in entry.symbols if sym in leading]
+
+        assert not laundered, (
+            "these symbols are excused as undocumented, but their MODULE.md "
+            "declares them at the head of a bullet -- the parser lost a "
+            f"declaration: {sorted(laundered)}"
+        )
+
+    def test_the_check_reads_real_declarations_in_all_four_broken_modules(self) -> None:
+        """Proof it is not vacuous: every module whose convention broke still
+        yields leading-bullet declarations for this check to compare against."""
+        for module_path, must_include in (
+            ("backend/integrations/tiktok", {"TikTokClient", "TikTokAuth"}),
+            ("backend/services/tiktok", set()),
+            ("backend/ai/recommendations", set()),
+            ("backend/services/agent", set()),
+        ):
+            leading = self._leading_symbols(common.backend_module_root(module_path) / "MODULE.md")
+            assert leading, f"{module_path} yields no leading-bullet declarations"
+            assert must_include <= leading, f"{module_path} lost {must_include - leading}"

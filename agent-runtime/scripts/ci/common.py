@@ -558,39 +558,64 @@ def parse_module_md_public_symbols(module_md: Path) -> set[str]:
 
 
 _BULLET_RE = re.compile(r"^\s*[-*]\s")
+_EM_DASH = "\u2014"
+
+
+def _names_a_symbol(text: str) -> bool:
+    stripped = strip_markdown_parentheticals(text)
+    return any(
+        match.group(1) not in NEVER_A_SYMBOL for match in BACKTICK_SYMBOL_RE.finditer(stripped)
+    )
+
+
+def _declaration_part(bullet: str) -> str:
+    """The part of one bullet that DECLARES, rather than explains.
+
+    Two conventions live in this tree and they are mirror images:
+
+        - `load_outcome_chain(session, run_id) -> OutcomeChain` — in ONE call
+        - **HTTP client** — `TikTokClient`
+
+    In the first the symbol precedes the em dash and the prose follows it; in
+    the second a bold label precedes it and the symbols follow. Splitting
+    unconditionally is right for one and silently deletes the other -- it hid
+    96 genuinely documented, genuinely exported symbols across four modules,
+    which then landed in the drift allowlist as "undocumented".
+
+    So the head only wins when it already names a symbol. When it does not,
+    the whole bullet is scanned, because the declaration must be in the tail.
+    """
+    head, separator, _ = bullet.partition(_EM_DASH)
+    if not separator:
+        return bullet
+    return head if _names_a_symbol(head) else bullet
 
 
 def _declaration_spans(body: str) -> list[str]:
-    """The parts of a Public Interface section that DECLARE a symbol.
+    """Split a Public Interface section into per-bullet declaration spans.
 
-    These sections are written as a bullet whose leading backticked span
-    names the export and whose trailing clause explains it, and that
-    explanation after the em dash is prose: it names database tables, result
-    attributes and sibling modules that are not this module's exports. Scanning
-    the whole bullet made every such mention a "documented symbol", so the gate
-    reported table names like `workflow_outcome_metrics` and attribute names
-    like `ratio` as documented-but-nonexistent (#1859). Only the span before
-    the first em dash declares.
+    Only bullets are split. A table row or a prose paragraph carries no
+    reliable declare/explain boundary, so it is scanned whole exactly as
+    before -- conservative in the direction that can only over-report a
+    documented symbol, never lose one.
     """
     spans: list[str] = []
-    current: list[str] | None = None
+    bullet: list[str] | None = None
     for line in body.splitlines():
         if _BULLET_RE.match(line):
-            if current is not None:
-                spans.append("\n".join(current))
-            current = [line]
-        elif current is not None and line.strip():
-            current.append(line)
+            if bullet is not None:
+                spans.append(_declaration_part("\n".join(bullet)))
+            bullet = [line]
+        elif bullet is not None and line.strip():
+            bullet.append(line)
         else:
-            if current is not None:
-                spans.append("\n".join(current))
-                current = None
-            # A non-bullet line (a table row, a prose paragraph) carries no
-            # explanation dash to split on, so it is scanned whole as before.
+            if bullet is not None:
+                spans.append(_declaration_part("\n".join(bullet)))
+                bullet = None
             spans.append(line)
-    if current is not None:
-        spans.append("\n".join(current))
-    return [span.split("\u2014", 1)[0] for span in spans]
+    if bullet is not None:
+        spans.append(_declaration_part("\n".join(bullet)))
+    return spans
 
 
 def ast_public_symbols(py_file: Path) -> set[str]:
@@ -629,6 +654,11 @@ def module_public_symbols_from_code(module_path: str) -> set[str]:
     symbols: set[str] = set()
     for py_file in root.rglob("*.py"):
         if py_file.name.startswith("_"):
+            continue
+        # Alembic revision scripts are bookkeeping, not a module's interface.
+        # Every one of them binds `revision`, `down_revision`, `branch_labels`
+        # and `depends_on`, and no MODULE.md should be asked to document them.
+        if "migrations/versions" in py_file.as_posix():
             continue
         symbols |= ast_public_symbols(py_file)
     return symbols

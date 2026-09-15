@@ -22,7 +22,8 @@ post-hoc chain over that instrumentation.
   the five-link post-hoc chain (#1655), in ONE database call
 - `LinkReason` (`pending` | `unavailable` | `missing`), `EmptyLink`, `OutcomeChain`
   and the five link payload types
-- `Link` — the union of the five link types `OutcomeChain` holds
+- `Link` — the union the chain's link slots hold: the five populated link
+  types below, plus `EmptyLink`
 - `RecommendationLink` / `ActionLink` / `StateChangeLink` / `ObservedOutcomeLink` /
   `IncrementalImpactLink` — the five links themselves, one per chain step
 - `ActionExecution` / `StateChangeRecord` / `ObservedMetric` / `CountableReading` /
@@ -58,7 +59,7 @@ post-hoc chain over that instrumentation.
 - `main(argv) -> int` and `build_parser() -> ArgumentParser` — the operator CLI
   entry point and its argument parser
 - `issue_authorization(args) -> int` / `revoke_authorization(args) -> int` — the
-  two CLI subcommand handlers
+  two CLI subcommand handlers, both `async`
 
 ## API
 
