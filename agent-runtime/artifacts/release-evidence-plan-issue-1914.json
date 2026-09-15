@@ -1,0 +1,96 @@
+{
+  "planId": "rep-1914-stepper-rail-and-classless-elements",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com run view — the six-node stepper, its connectors and its node glyphs",
+    "demo.app-juli.com run view — the stage canvas panel and the two nav buttons beneath it"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the demo candidate unit on its own port, before the nginx demo upstream cutover",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "the-stepper-reads-as-a-rail",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/decisions/in-progress/<replay run id>",
+        "assertions": [
+          "the six nodes sit on one row joined by connectors — no flex-wrap to a second line at desktop width",
+          "the connector behind the live edge and the connector ahead of it resolve to different tokens",
+          "no node renders the literal strings '(Da hoan tat)', '(Dang dien ra)' or '(Chua mo khoa)' as visible text",
+          "each node's accessible name still carries its status, via a visually-hidden span",
+          "frozen, active and locked nodes are told apart by glyph alone with colour suppressed"
+        ]
+      },
+      {
+        "name": "panels-and-nav-carry-their-shapes",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/decisions/in-progress/<replay run id>",
+        "assertions": [
+          "the stage canvas element carries juli-run-panel as well as juli-run-panel--raised, so border, radius and shadow apply",
+          "the back and forward nav buttons render the .btn-secondary shape rather than unstyled user-agent buttons",
+          "the locked node keeps its native disabled attribute — unreachable by pointer and by keyboard"
+        ]
+      },
+      {
+        "name": "no-classless-elements-remain-in-the-built-stylesheet",
+        "entryUrl": "the built stylesheet in the candidate artifact",
+        "assertions": [
+          "every className string literal emitted by apps/demo/src/components/run-*.tsx has at least one matching rule",
+          "run-stage__product-snapshot-label, run-stage__update-header, run-stage__terminal-label and run-stage__tool-label each resolve to a rule",
+          "no rule added by this issue declares a literal colour, blur or shadow — token references and color-mix only"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions",
+      "/decisions/in-progress/<replay run id>"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Presentation only — component markup and stylesheet rules. No schema change, no API contract movement, no payload shape change. RUN_STAGE_STATUS_COPY keeps its keys and values; only the place it is rendered moves."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "repoint the nginx demo upstream to the retained previous release; the run view reverts whole, never half-applied",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test",
+    "pnpm --filter @juli/theme test",
+    "pnpm -w turbo run build"
+  ],
+  "doNotInfer": [
+    "The class-coverage test is the whole point of this issue and is exactly the shape that goes vacuous. Four guards in this wave already passed while inspecting nothing. Print the collected class list, confirm the count is non-zero, and see the test go RED against a deliberately classless element before calling it done. Record both.",
+    "Do NOT edit packages/theme/run-surface-tokens.css. #1912 owns it and its content is settled. If a token you need is missing, report it rather than adding one.",
+    "Do NOT use !important, and do NOT weaken the token layer to win the cascade. Raise specificity at the consumer instead — #1913's .run-stepper__node:not(.juli-run-stepper-node--active) is the accepted shape.",
+    "Use color-mix, never rgba(). #1912's token-only-theming test fails on a literal colour, blur or shadow in any rule added here.",
+    "The status strings move OUT of the visible DOM but must stay IN the accessible name. Deleting them outright fails the acceptance criteria.",
+    "Colour is never the only cue. The glyph must differ between frozen, active and locked — this matters more on the light canvas, where the three panel fills sit closer together than the dark grounds did.",
+    "Existing navigation tests stay green AND unedited. If one needs editing to pass, the change is wrong — report it.",
+    "A rename cascades three ways: component, then the e2e spec's assertions, then tests/unit/test_phase_2_6_demo_exit_gate.py, which greps the spec SOURCE TEXT for prose titles.",
+    "Pin PYTHONPATH=\"$PWD/backend/src:$PWD\" for any pytest run inside the worktree, or the green is fake."
+  ]
+}
