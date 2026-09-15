@@ -25,6 +25,9 @@ Matches ``__all__`` — re-exports only:
 - **OAuth infrastructure** — ``TikTokOAuthInfrastructureService``
 - **Webhook assembly** — ``TikTokWebhookDispatcher``, ``TikTokWebhookService``,
   ``TikTokWebhookSignatureVerifier``
+- **Poll-cycle vendor resources (#1949)** — ``build_fujiwa_poll_vendor_resources``:
+  the seam the beat task calls at this package root instead of reaching across
+  a forbidden import-boundary edge itself (see poll_resources.py's docstring)
 
 ## Dependencies
 

@@ -33,7 +33,7 @@ from juli_backend.core.security import TikTokOAuthService
 from juli_backend.integrations.tiktok import RateLimiter, TikTokAuth
 from juli_backend.services.tiktok.credential_binding import make_binding_verifier
 
-DEFAULT_TIKTOK_API_BASE_URL = "https://open-api.tiktokglobalshop.com"
+_DEFAULT_TIKTOK_API_BASE_URL = "https://open-api.tiktokglobalshop.com"
 
 
 def build_fujiwa_poll_vendor_resources(
@@ -55,7 +55,7 @@ def build_fujiwa_poll_vendor_resources(
     tiktok_auth = TikTokAuth(
         app_key=app_key,
         app_secret=app_secret,
-        base_url=os.getenv("TIKTOK_API_BASE_URL", DEFAULT_TIKTOK_API_BASE_URL),
+        base_url=os.getenv("TIKTOK_API_BASE_URL", _DEFAULT_TIKTOK_API_BASE_URL),
     )
     oauth_service = TikTokOAuthService(
         tiktok_auth=tiktok_auth,

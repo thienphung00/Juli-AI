@@ -22,7 +22,7 @@ scoping, exactly as `credential_refresh_beat.py`'s wrapper defers to
 `run_credential_refresh_cycle`'s own per-row `with_shop_scope` rather than
 adding a second, competing scope entry at the task level.
 
-TENANT SCOPE (ADR-089). This task adds no `system_scope()`/`with_shop_scope()`
+TENANT SCOPE (ADR-089). This task adds no `system_scope`/`with_shop_scope` call
 of its own: `run_fujiwa_poll_cycle` resolves its own shop (the Fujiwa
 production-read credential's `shop_id`) and re-establishes that scope
 internally before any tenant read/write, immediately after resolving the
