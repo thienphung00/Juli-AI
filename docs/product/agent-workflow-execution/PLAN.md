@@ -1929,13 +1929,23 @@ whole v1 workflow family being executable — not on the onboarding slices alone
 | **Scoring** | `orders_at_sla_risk` guard; healthy-card policy | #1960, #1961 | **W9** |
 | **Execution** | Clear Excess, Process Order, Replenish playbooks | #1624, #1625, #1626 | **W10** |
 | **Surface** | the seller surface for the four v1 workflows | #1623 (W9-D) | **W9-D** |
-| **Onboarding** | `ONB-DP` → `ONB-BE` → `ONB-UI` | #1951 | **follows W9-D, gated on W10** |
+| **Onboarding** | `ONB-DP` → `ONB-BE` → `ONB-UI` | #1951 | **follows W9-D; three insights gated on W9-A #1701, three *areas* on W10** |
 
-**The ordering constraint that matters.** ADR-103 d.2 forbids surfacing an insight whose workflow
-cannot execute, and `services/agent/playbooks/` today registers exactly one playbook
-(`optimize_product_2`). So **`ONB-UI` cannot honestly render three areas until W10-A/B/C land**.
-Until then the flow renders one insight in one area — correct behaviour, not a bug, and the reason
-the thin-data floor (ADR-103 open questions) is on the critical path rather than an edge case.
+**The ordering constraint that matters — and what it is *not*.** Three **insights** and three
+**areas** have different prerequisites, and conflating them costs a whole wave.
+
+[ADR-087](../../adr/087-subject-scoped-action-cards-and-card-revisions.md) d.2 is *one live card per
+**subject** per workflow* — a concurrency rule that stops two runs writing the same product, **not a
+cap on how many cards a shop can hold**. Today's pre-P0-2 degradation keys cards on
+`(shop, workflow_key)` with no subject; **#1701** (W9-A/P-SHARED-1) re-keys the active index to
+`(shop_id, workflow_key, subject_type, subject_ref)`. After that, **Optimize Product alone yields one
+card per product** — three products, three insights, one workflow.
+
+So: **three insights need #1701 plus the data chain (W9-A)**; **three *areas* additionally need
+W10-A/B/C**, because an area is a workflow. ADR-103 d.2 still forbids surfacing an insight whose
+workflow cannot execute — that constraint is unchanged and is what makes the area count honest.
+Pre-W10 the three insights will usually share one area, all headlined Doanh thu; the headline is
+per card, so nothing in the render changes.
 
 **Measured state, 2026-09-15** (Fujiwa, read-only): `analytics_performance_intervals` 8,468 rows and
 healthy; `products` 116; `orders` **0** against 3,581 available from the vendor; `inventory_items`

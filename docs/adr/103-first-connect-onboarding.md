@@ -178,6 +178,71 @@ is therefore outside that prohibition.
     so the run-completion framing belongs later. Today neither channel is captured and a **fabricated
     `+849` number** is written instead (#1972), so this is a correction, not an addition.
 
+19. **Two thresholds, a count-up, and a recorded-not-integrated phone number.** Settling ADR-103's
+    three open questions (owner, 2026-09-15).
+
+    **a. The thin-data floor is two thresholds, not one.** "No insights" has two causes that must
+    never share a screen: a **healthy shop** (enough evaluated, nothing wrong — a good outcome) and a
+    **thin shop** (Juli cannot see enough to say). Therefore: **insights render whenever at least one
+    exists** — structural, because Next Steps must have a card to hand off to; **the score renders at
+    three or more evaluated launch-backed KPIs**; below three, **no number at all** and a distinct
+    state naming what is still missing. That state depends on #1961's `awaiting_data` (temporary,
+    disclosed — "4 chỉ số nữa sẽ có khi shop có thêm đơn hàng") versus `no_source` (permanent,
+    silent). *Rejected:* a single floor, which cannot distinguish the two causes; always revealing,
+    which prints a score computed from one KPI on the one screen that must be credible.
+
+    **b. The score counts up, and lands under reduced motion.** ~700–900 ms, with the three insights
+    staggering in behind it. A count-up animates a **known final value** — a transition, like a fade.
+    That is categorically different from the fake progress ADR-098 rejected, which lies about
+    *state*. Every entry needs its `prefers-reduced-motion` alternative asserted, per W6's motion
+    table.
+
+    **c. Contact: email is the channel, phone is a record, and no transport ships at launch.**
+    Google's ID token carries `email`, `email_verified` **and `name`**, so `users.email` and
+    `users.display_name` both populate silently at first sighting and **the form asks exactly one
+    field: phone** — once, at layer 0, skippable (d.18). Phone is **recorded for human 1:1 outreach,
+    never integrated**: no Zalo OA, no SMS, no adapter. **No email transport ships at launch** —
+    `services/alerts/` is dormant (nothing outside it calls the engine), its `ChannelAdapter`
+    Protocol is push-shaped (`send(alert, *, device_token)`), and W9-A already defers push/email/Zalo
+    transports. This is affordable because **the fifth stage closes on the in-app act record**
+    (d.16, W9-D notification centre), never on a message: email is re-engagement, not the mechanism.
+    With five trial sellers a hand-written email *is* the 1:1 support being offered.
+    *Consequence, accepted:* a seller who closes the tab learns nothing until they return. The first
+    transport is an `EmailAdapter` against the existing Protocol, with `device_token` widened to
+    `destination`, when seller count outgrows hand-sending.
+
+20. **One state, one gate: three insights or `/decisions`.** Owner decision, 2026-09-15.
+    **Supersedes d.19a in full** — the two thresholds are withdrawn.
+
+    **The gate.** `/onboarding` renders **only** when the shop has **three surfaced insights**.
+    Anything less and the seller goes to `/decisions`, which already has an empty state
+    (`recommendations-panel.tsx:185-196`), and **the onboarding record is left unspent** so the flow
+    fires on a later visit once the shop does have three. The gate is therefore evaluated on every
+    entry until it opens once, not once and discarded. Three is exact, not a floor: the emission
+    budget's `max_active` is the selector (d.9 of ADR-098's lineage; `apply_emission_budget`), set to
+    three, so the CTA's "3" is a literal the gate guarantees rather than a count rendered from data.
+
+    **What this deletes.** The thin-shop screen, the healthy-shop screen, and the
+    `awaiting_data` / `no_source` reason-kind split *from the UI critical path* — that split existed
+    only to write the thin screen's copy. Three designed, built and tested screens become one; two
+    thresholds become one condition. The denominator disclosure (d.6) is unaffected: it is a plain
+    count of evaluated KPIs and is accurate whatever they are.
+
+    **Why gating beats branching.** `/onboarding` is a once-per-shop reveal (d.15). A reveal that
+    cannot reveal anything worth revealing should not be spent — and a score computed from one or two
+    KPIs would be printed on the single screen that has to be credible. Branching solves that with
+    three degradations that each have to be designed and defended; gating solves it with one
+    comparison and an already-built fallback. *Rejected:* rendering a variable count ("Xem 1 việc cần
+    làm"), which keeps one screen but breaks the three-insight promise the landing page makes;
+    rendering a score with no insights, which leaves Next Steps with nothing to hand off to (d.15).
+
+    **What the gate waits on — and what it does not.** Three **insights** need
+    **#1701** (W9-A/P-SHARED-1, subject-scoped cards) plus the data chain. Three **areas** need
+    W10-A/B/C, because an area is a workflow. These are different waits, and this ADR conflated them
+    until 2026-09-15 — see the correction below. Pre-W10 the three insights will usually share one
+    area, all headlined Doanh thu; the headline is per card, so the render is unchanged and only the
+    landing copy differs ("3 việc cần làm" rather than "3 khu vực").
+
 ## Corrections to this ADR's own analysis (2026-09-15)
 
 - **`METRIC_MAP` covering only product mutations is by design, not a gap.** ADR-091 reuses ADR-077's
@@ -188,6 +253,13 @@ is therefore outside that prohibition.
   whose workflow cannot execute, so the three-area structure depends on W10-A/B/C landing. The
   original *Blocked by* line named only #1948/#1949 and was wrong.
 - **A1 (users-row provisioning) was never missing** — #1906 landed it.
+- **Three insights were said to require three playbooks. They do not.** ADR-087 d.2 is *one live card
+  per **subject** per workflow* — a concurrency rule that stops two runs writing the same product,
+  not a cap on card supply. What was mistaken for the rule is today's pre-P0-2 degradation, which
+  keys cards on `(shop, workflow_key)` with **no subject**; #1701 re-keys the active index to
+  `(shop_id, workflow_key, subject_type, subject_ref)`, after which Optimize Product alone yields one
+  card per product. Three insights therefore gate on **W9-A**, not W10 — a full wave earlier, and the
+  largest item that was on this layer's runway.
 
 ## Rationale
 
