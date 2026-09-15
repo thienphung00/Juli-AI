@@ -468,3 +468,81 @@ class TestATruncatedBackfillEscapesEveryStep:
 
         assert outcome.ok is False
         assert outcome.error is not None
+
+
+class TestAnOutcomeIsEmittedOnEveryExitPath:
+    """`_StepRun.__exit__` reports when no arm did (#1969 review).
+
+    A step used to emit `poll_step_started` and then nothing at all if an
+    exception escaped that no arm anticipated — a malformed row blowing up a
+    normalizer, say. From outside that is indistinguishable from a wedged poll,
+    which is the very thing defect 2 is about.
+    """
+
+    @pytest.mark.asyncio
+    async def test_an_unanticipated_exception_still_emits_an_outcome(
+        self, rate_limiter, caplog, monkeypatch
+    ):
+        def _explode(_order: dict) -> dict:
+            raise KeyError("malformed order payload")
+
+        monkeypatch.setattr(sync_module, "normalize_order", _explode)
+        resource = FakeOrdersResource([{"order_id": "o1", "update_time": 1700000100}])
+
+        with caplog.at_level(logging.INFO, logger=sync_module.__name__):
+            with pytest.raises(KeyError):
+                await sync_orders(
+                    resource=resource,
+                    rate_limiter=rate_limiter,
+                    handoff_fn=RecordingHandoff(),
+                    app_id="app1",
+                    shop_id=SHOP_ID,
+                    sync_state={},
+                )
+
+        (record,) = _outcome_records(caplog)
+        assert record.resource == "orders"
+        assert record.ok is False
+        assert record.fetched == 1
+        assert record.persisted == 0
+
+    @pytest.mark.asyncio
+    async def test_a_normal_step_still_emits_exactly_one_outcome(self, rate_limiter, caplog):
+        """`report` is idempotent — `__exit__` must not double-log."""
+        resource = FakeOrdersResource(
+            [{"order_id": "o1", "update_time": 1700000100, "line_items": []}]
+        )
+
+        with caplog.at_level(logging.INFO, logger=sync_module.__name__):
+            await sync_orders(
+                resource=resource,
+                rate_limiter=rate_limiter,
+                handoff_fn=RecordingHandoff(),
+                app_id="app1",
+                shop_id=SHOP_ID,
+                sync_state={},
+            )
+
+        assert len(_outcome_records(caplog)) == 1
+
+
+class TestErrorDetailIsBounded:
+    @pytest.mark.asyncio
+    async def test_a_huge_vendor_error_does_not_land_whole_in_the_record(
+        self, rate_limiter, caplog
+    ):
+        """`repr` of a vendor error can carry an entire response body."""
+        resource = FakeOrdersResource(error=TikTokSystemError(code=100006, message="x" * 5_000))
+
+        with caplog.at_level(logging.INFO, logger=sync_module.__name__):
+            outcome = await sync_orders(
+                resource=resource,
+                rate_limiter=rate_limiter,
+                handoff_fn=RecordingHandoff(),
+                app_id="app1",
+                shop_id=SHOP_ID,
+                sync_state={},
+            )
+
+        assert outcome.error is not None
+        assert len(outcome.error) <= sync_module._ERROR_DETAIL_LIMIT

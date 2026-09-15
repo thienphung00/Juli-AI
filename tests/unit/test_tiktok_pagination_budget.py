@@ -182,3 +182,44 @@ class TestFetchWallClockBudget:
             items = client.get_all_pages(path=ORDERS_PATH, body={}, items_key="orders")
 
         assert len(items) == 1
+
+
+class TestNestedScopesComposeByMinimum:
+    """#1969 review: the cycle budget and the fetch budget used to ADD.
+
+    `orchestrate.py` opens an outer scope carrying the cycle's remaining wall
+    clock. Without the cap below, a 1800s cycle could still start a 600s fetch
+    at 1799s — a ~40-minute composed worst case, which is the duration this
+    issue was filed for.
+    """
+
+    def test_an_inner_scope_cannot_outlive_its_enclosing_scope(self):
+        with pagination_scope(budget_seconds=30.0):
+            with pagination_scope(backfill=True) as inner:
+                assert inner.budget_seconds == 30.0
+
+    def test_an_inner_scope_may_be_stricter_than_its_enclosing_scope(self):
+        with pagination_scope(budget_seconds=300.0):
+            with pagination_scope(budget_seconds=5.0) as inner:
+                assert inner.budget_seconds == 5.0
+
+    def test_an_unnested_scope_takes_the_default_fetch_budget(self):
+        with pagination_scope() as scope:
+            assert scope.budget_seconds == client_module.default_fetch_budget_seconds()
+
+    def test_the_cap_is_enforced_at_fetch_time_not_just_recorded(self, client):
+        ticks = [0.0, 0.0, 1.0, 11.0]
+
+        def clock() -> float:
+            return ticks.pop(0) if len(ticks) > 1 else ticks[0]
+
+        client.post.side_effect = _endless_pages("orders")
+
+        # Enclosing budget 10s; the inner scope asks for the 600s default and
+        # must still be stopped at 10.
+        with pagination_scope(budget_seconds=10.0):
+            with pytest.raises(TikTokPaginationTimeoutError) as excinfo:
+                with pagination_scope(clock=clock):
+                    client.get_all_pages(path=ORDERS_PATH, body={}, items_key="orders")
+
+        assert excinfo.value.budget_seconds == 10.0

@@ -44,6 +44,7 @@ from juli_backend.integrations.tiktok import (
     ProductionReadResources,
     RateLimiter,
     TikTokCapability,
+    pagination_scope,
 )
 from juli_backend.models.models import Shop, TikTokCredential
 from juli_backend.repositories.repos import TikTokSyncStateRepo
@@ -167,8 +168,23 @@ async def _within_cycle_budget(
     real leak.
     """
     remaining = deadline.check(stage=stage)
+    # The cycle budget and the per-fetch pagination budget used to compose by
+    # ADDITION: a 1800s cycle could still start a 600s fetch at 1799s, for a
+    # ~40-minute worst case -- the duration this issue was filed for. Publishing
+    # the remaining cycle budget as the enclosing pagination scope caps every
+    # fetch inside this stage at what is left, so the two compose by `min`.
+    with pagination_scope(budget_seconds=remaining):
+        return await _await_stage(start(), deadline=deadline, stage=stage)
+
+
+async def _await_stage(
+    awaitable: Awaitable[Any],
+    *,
+    deadline: _CycleDeadline,
+    stage: str,
+) -> Any:
     try:
-        return await asyncio.wait_for(start(), timeout=remaining)
+        return await asyncio.wait_for(awaitable, timeout=deadline.remaining())
     except TimeoutError as exc:
         logger.error(
             "poll_cycle_stage_timed_out",
@@ -387,11 +403,30 @@ async def run_fujiwa_material_resource_fetch(
             deadline=deadline,
             stage="analytics",
         )
-    except PollCycleTimeoutError:
+    except Exception:
         # Save what completed before re-raising. The steps that did finish
         # advanced their watermarks in `sync_state`, and throwing those away
-        # would make the next cycle refetch rows that already landed.
-        await repo.save(credential.shop_id, sync_state)
+        # would make the next cycle refetch rows that already landed -- under
+        # the INCREMENTAL 20-page cap, where over-running truncates with only a
+        # warning. A loud failure that silently enlarges the next read is a bad
+        # trade.
+        #
+        # Widened from `PollCycleTimeoutError` (#1969 review): a timeout is not
+        # the only way a cycle dies partway. A `PollStepDroppedRowsError` or a
+        # truncated backfill from step 2 of 4 discards step 1's watermark just
+        # as thoroughly.
+        #
+        # The save is guarded and the re-raise is bare, so a failing save can
+        # never mask the failure that caused it -- losing the original exception
+        # here would be trading a diagnosable failure for an undiagnosable one.
+        try:
+            await repo.save(credential.shop_id, sync_state)
+        except Exception:
+            logger.error(
+                "poll_cycle_partial_state_save_failed",
+                extra={"shop_id": str(credential.shop_id)},
+                exc_info=True,
+            )
         raise
 
     await repo.save(credential.shop_id, sync_state)
@@ -478,11 +513,30 @@ async def run_fujiwa_poll_cycle(
             deadline=deadline,
             stage="analytics",
         )
-    except PollCycleTimeoutError:
+    except Exception:
         # Save what completed before re-raising. The steps that did finish
         # advanced their watermarks in `sync_state`, and throwing those away
-        # would make the next cycle refetch rows that already landed.
-        await repo.save(credential.shop_id, sync_state)
+        # would make the next cycle refetch rows that already landed -- under
+        # the INCREMENTAL 20-page cap, where over-running truncates with only a
+        # warning. A loud failure that silently enlarges the next read is a bad
+        # trade.
+        #
+        # Widened from `PollCycleTimeoutError` (#1969 review): a timeout is not
+        # the only way a cycle dies partway. A `PollStepDroppedRowsError` or a
+        # truncated backfill from step 2 of 4 discards step 1's watermark just
+        # as thoroughly.
+        #
+        # The save is guarded and the re-raise is bare, so a failing save can
+        # never mask the failure that caused it -- losing the original exception
+        # here would be trading a diagnosable failure for an undiagnosable one.
+        try:
+            await repo.save(credential.shop_id, sync_state)
+        except Exception:
+            logger.error(
+                "poll_cycle_partial_state_save_failed",
+                extra={"shop_id": str(credential.shop_id)},
+                exc_info=True,
+            )
         raise
 
     await repo.save(credential.shop_id, sync_state)

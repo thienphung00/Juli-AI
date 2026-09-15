@@ -181,6 +181,13 @@ def pagination_scope(
     warning. `budget_seconds` bounds the wall clock; it defaults to
     `TIKTOK_FETCH_BUDGET_SECONDS`.
 
+    Scopes nest, and an inner scope can never be more generous than the scope
+    enclosing it. `workers/services/polling/orchestrate.py` opens an outer scope
+    carrying the cycle's REMAINING wall clock, so a per-fetch budget is capped
+    by what is left of the cycle. Without that the two budgets composed by
+    addition -- a 1800s cycle could still start a 600s fetch at 1799s -- and the
+    worst case was ~40 minutes, which is the duration this issue was filed for.
+
     What the budget can interrupt: the gap between two pages. What it cannot:
     a page already in flight. `requests` blocks the thread, so nothing -- not
     this, not `asyncio.wait_for` one layer up -- can preempt it. The per-request
@@ -188,7 +195,11 @@ def pagination_scope(
     bound on a single call, so the real worst case is `budget_seconds` plus one
     socket timeout, not `budget_seconds`.
     """
-    scope = PaginationScope(backfill=backfill, budget_seconds=budget_seconds, clock=clock)
+    resolved = budget_seconds if budget_seconds is not None else default_fetch_budget_seconds()
+    enclosing = _PAGINATION_SCOPE.get()
+    if enclosing is not None and enclosing.budget_seconds is not None:
+        resolved = min(resolved, enclosing.budget_seconds)
+    scope = PaginationScope(backfill=backfill, budget_seconds=resolved, clock=clock)
     token = _PAGINATION_SCOPE.set(scope)
     try:
         yield scope
@@ -551,9 +562,13 @@ class TikTokClient:
         """
         scope = current_pagination_scope()
         backfill = scope.backfill if scope is not None else False
-        budget_seconds = scope.budget_seconds if scope is not None else None
-        if budget_seconds is None:
-            budget_seconds = default_fetch_budget_seconds()
+        # `pagination_scope` resolves the budget on entry, including the cap from
+        # any enclosing scope; a fetch with no scope at all falls back here.
+        budget_seconds = (
+            scope.budget_seconds
+            if scope is not None and scope.budget_seconds is not None
+            else default_fetch_budget_seconds()
+        )
         page_budget = backfill_max_pages() if backfill else max_pages()
         clock = scope.clock if scope is not None else _monotonic
 

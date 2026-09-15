@@ -441,3 +441,85 @@ class TestBothEntrypointsRunUnderTheCycleBudget:
         )
 
         assert "tiktok.orders.raw" in handed_off
+
+
+class TestPartialStateSurvivesAMidCycleFailure:
+    """#1969 review: widened from `PollCycleTimeoutError` to any failure.
+
+    A step that dies partway leaves earlier steps' watermarks in `sync_state`.
+    Discarding them makes the next cycle refetch a larger delta under the
+    INCREMENTAL 20-page cap, where over-running truncates with only a warning —
+    so a loud failure would silently enlarge the next read.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_failing_step_still_persists_earlier_watermarks(
+        self,
+        session,
+        budget_credential,
+        oauth_service_for_budget,
+        one_row_resources,
+    ):
+        saved: list[dict] = []
+
+        class RecordingSyncStateRepo:
+            async def load(self, shop_id) -> dict:
+                return {}
+
+            async def save(self, shop_id, state: dict) -> None:
+                saved.append(dict(state))
+
+        # Orders succeed; products blow up the way a malformed payload would.
+        one_row_resources.products.search_all.side_effect = RuntimeError("vendor payload is junk")
+
+        async def _handoff(channel: str, shop_key: str, value: bytes) -> None:
+            return None
+
+        with pytest.raises(RuntimeError):
+            await run_fujiwa_poll_cycle(
+                session=session,
+                config=FujiwaPollConfig(app_key=APP_KEY, app_secret=APP_SECRET),
+                oauth_service=oauth_service_for_budget,
+                rate_limiter=NeverExhaustedRateLimiter(),
+                handoff_fn=_handoff,
+                resolve_credential=AsyncMock(return_value=budget_credential),
+                create_resources=lambda _cfg: one_row_resources,
+                sync_state_repo=RecordingSyncStateRepo(),
+            )
+
+        assert saved, "a mid-cycle failure must still persist what completed"
+        assert saved[-1]["orders_last_update_time"] == 1700000100
+
+    @pytest.mark.asyncio
+    async def test_a_failing_save_does_not_mask_the_original_failure(
+        self,
+        session,
+        budget_credential,
+        oauth_service_for_budget,
+        one_row_resources,
+    ):
+        class PoisonedSyncStateRepo:
+            async def load(self, shop_id) -> dict:
+                return {}
+
+            async def save(self, shop_id, state: dict) -> None:
+                raise RuntimeError("session is poisoned")
+
+        one_row_resources.products.search_all.side_effect = ValueError("the real failure")
+
+        async def _handoff(channel: str, shop_key: str, value: bytes) -> None:
+            return None
+
+        # ValueError, not the save's RuntimeError: trading a diagnosable failure
+        # for an undiagnosable one is exactly what the guarded save prevents.
+        with pytest.raises(ValueError, match="the real failure"):
+            await run_fujiwa_poll_cycle(
+                session=session,
+                config=FujiwaPollConfig(app_key=APP_KEY, app_secret=APP_SECRET),
+                oauth_service=oauth_service_for_budget,
+                rate_limiter=NeverExhaustedRateLimiter(),
+                handoff_fn=_handoff,
+                resolve_credential=AsyncMock(return_value=budget_credential),
+                create_resources=lambda _cfg: one_row_resources,
+                sync_state_repo=PoisonedSyncStateRepo(),
+            )
