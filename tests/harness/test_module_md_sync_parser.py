@@ -639,14 +639,17 @@ class TestTheAllowlistIsADerivation:
         }
         derived = self._derive()
 
+        # Keyed by (module, kind): keying by module alone let a module with
+        # both kinds overwrite its own orphan diff, losing the guidance the
+        # message exists to give.
         missing = {
-            module_path: sorted(
-                set(kinds.get(kind, ())) - set(committed.get(module_path, {}).get(kind, ()))
+            f"{module_path}:{kind}": sorted(
+                set(symbols) - set(committed.get(module_path, {}).get(kind, ()))
             )
             for module_path, kinds in derived.items()
-            for kind in kinds
+            for kind, symbols in kinds.items()
         }
-        missing = {module_path: syms for module_path, syms in missing.items() if syms}
+        missing = {where: syms for where, syms in missing.items() if syms}
 
         assert not missing, (
             "drift exists in the tree that the allowlist does not cover, so the "

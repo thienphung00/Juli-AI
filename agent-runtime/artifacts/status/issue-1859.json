@@ -8,31 +8,34 @@
   "metrics": {
     "acceptanceMapped": 5,
     "acceptanceTotal": 5,
-    "criticalFindings": 2,
+    "criticalFindings": 0,
     "modulesTouched": [
       "agent-runtime/scripts/ci/common.py",
+      "agent-runtime/scripts/ci/audit_cycles.py",
       "agent-runtime/scripts/validate/check_module_drift.py",
       "agent-runtime/scripts/validate/check_module_boundaries.py",
+      "backend/src/juli_backend/services/operations/MODULE.md",
       "tests/harness/test_module_md_sync_parser.py",
-      "tests/harness/test_module_import_graph.py"
+      "tests/harness/test_module_import_graph.py",
+      "agent-runtime/artifacts/status/issue-1859.json"
     ]
   },
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1859.json",
-    "ownerSignoffPresent": false,
-    "sha256": "1144eef1b351a1f3ae667b1f4852ed54661746db0614ee5d153a58ca89d90029",
-    "signoffRequired": true,
-    "status": "PASS_WITH_WARNINGS",
-    "warningsAcknowledged": false
+    "ownerSignoffPresent": true,
+    "sha256": "990b7c4799dbf2f50bd080579b00c1c029d8dfaaf231e6f632a7dfaf1c619e2a",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 13117,
-      "validationBytes": 43215
+      "reviewBytes": 15690,
+      "validationBytes": 14793
     },
     "claimVsExecuted": {
       "citedCommandCount": 22,
-      "invokedCommandCount": 12002,
+      "invokedCommandCount": 12244,
       "matchedCommandCount": 0,
       "reason": "22 of 22 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
@@ -183,12 +186,60 @@
         }
       },
       "ciWorkflow": ".github/workflows/pr.yml",
-      "commandsCited": 0,
-      "invocations": [],
-      "invocationsScored": 0,
+      "commandsCited": 1,
+      "invocations": [
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "'PYTHONPATH=<worktree>/backend/src' python -m pytest tests/harness -q -o timeout=600",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/harness",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        }
+      ],
+      "invocationsScored": 1,
       "invocationsUnrecognised": 0,
-      "narrowerCount": 0,
-      "narrowerThanCI": [],
+      "narrowerCount": 1,
+      "narrowerThanCI": [
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "'PYTHONPATH=<worktree>/backend/src' python -m pytest tests/harness -q -o timeout=600",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/harness",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        }
+      ],
       "unit": "invocation",
       "unitRationale": "76 corpus commands chain 2-5 runs; scoring per command lets a broad first run launder a narrow second one, so each invocation is scored on its own selector."
     },
@@ -282,15 +333,15 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1859-module-md-sync",
-        "head": "2cd2698594d6eb9b18042b40e2cf82aefa99cf1e",
+        "head": "f795518fd1a7703d7250567cabe130625b87bfd4",
         "shallow": true
       },
       "moduleResolution": {
-        "error": "ModuleNotFoundError: No module named 'juli_backend'",
+        "error": null,
         "expectedPrefix": "/Users/macos/Juli-AI-v2/.worktrees/issue-1859/backend/src/juli_backend",
-        "insideRepo": false,
+        "insideRepo": true,
         "module": "juli_backend",
-        "resolved": null
+        "resolved": "/Users/macos/Juli-AI-v2/.worktrees/issue-1859/backend/src/juli_backend/__init__.py"
       },
       "python": "3.12.9",
       "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/issue-1859"
@@ -407,19 +458,27 @@
       },
       "executorDomain": "backend",
       "executorDomainSource": "implementation-artifact",
-      "gaps": [],
+      "gaps": [
+        {
+          "agents": [
+            "aaf7f05830441dfe0"
+          ],
+          "detail": "attributed agents whose transcript is still being written; a running agent has not yet spent what it will spend, so its reading is a lower bound and is not reported as a measurement",
+          "reason": "in-flight-transcript"
+        }
+      ],
       "schemaVersion": 1,
       "source": {
         "agentsAttributed": 2,
-        "agentsScanned": 461,
+        "agentsScanned": 464,
         "attributedBy": ".worktrees path naming issue-1859",
         "executorsIdentified": 1,
         "kind": "task-transcript",
         "roleSelectedAgentId": "a05bc52846fd4a031",
         "roleSelectedBy": "spawn-directive",
         "taskDirs": [
-          "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/b2d72967-c0ca-4106-9500-7fc4a9313e3d/tasks",
@@ -484,11 +543,11 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-14T07:37:17Z",
+  "timestamp": "2026-09-15T01:59:05Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1859.json",
-    "sha256": "8cf3fd1017e810244465b18db75410995d233d09817d8abe851e867b2ff95162",
-    "status": "FAIL"
+    "sha256": "4c22716cf3fda7d8c2f171c400ea2dc660b03cd1a4189dbf11435047b14ab1af",
+    "status": "PASS"
   },
   "wave": null
 }
