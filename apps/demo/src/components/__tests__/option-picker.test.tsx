@@ -17,11 +17,23 @@
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentEvent, ConfirmationOptionPayload } from "@juli/contracts";
 
+import {
+  computeWinningDeclaration,
+  contrastRatio,
+  extractDeclarations,
+  flattenOverBackground,
+  loadCascadeBlocks,
+  loadRunSurfaceTokenMaps,
+  readGlobalsCss,
+  resolveCssValue,
+  resolveToken,
+  extractRuleBlocks,
+} from "../../__tests__/run-surface-css-helpers";
 import { OptionPicker } from "../option-picker";
 import {
   ConfirmationRejectedError,
@@ -558,5 +570,244 @@ describe("OptionPicker -- staggered arrival motion, with a reduced-motion path",
     for (const radio of radios) {
       expect(radio.style.animationDelay).toBe("0ms");
     }
+  });
+});
+
+describe("OptionPicker -- confirm-to-update motion (issue #1915, AC 5)", () => {
+  const originalMatchMedia = window.matchMedia;
+
+  beforeEach(() => {
+    // The staggered-arrival describe above replaces window.matchMedia
+    // with a matches:true stub and never restores it -- pin this
+    // describe's own full-motion baseline so its tests are order-proof.
+    window.matchMedia = vi.fn().mockReturnValue({
+      matches: false,
+      media: "",
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }) as unknown as typeof window.matchMedia;
+  });
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
+  function stubReducedMotion() {
+    window.matchMedia = vi.fn().mockReturnValue({
+      matches: true,
+      media: "",
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }) as unknown as typeof window.matchMedia;
+  }
+
+  async function selectAndConfirm() {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({ decision: "approve", status: "approved", celery_task_id: "task-1" }),
+    );
+    render(
+      <OptionPicker
+        confirm={submitConfirmationDecision}
+        expiresAt={CAPTURED_EXPIRES_AT}
+        fetchImpl={fetchImpl as unknown as typeof fetch}
+        nowMs={NOW_BEFORE_EXPIRY}
+        options={threeOptions()}
+        productName={PRODUCT_NAME}
+        runId="run-1"
+        toolCallId="call-xyz"
+      />,
+    );
+
+    const radios = screen.getAllByRole("radio");
+    await user.click(radios[1]!);
+    await user.click(screen.getByRole("button", { name: "Xác nhận phương án này" }));
+    await waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1));
+    return radios;
+  }
+
+  it("the confirmed card animates forward into the next stage's header (400ms ease-in-out)", async () => {
+    const radios = await selectAndConfirm();
+
+    // Settled state: the confirm resolved (waitFor above), the selected
+    // card carries the §5 forward motion.
+    await waitFor(() => {
+      expect(radios[1]!.classList.contains("option-picker__card--confirm-forward")).toBe(true);
+    });
+    expect((radios[1] as HTMLElement).style.animationDuration).toBe("400ms");
+    expect((radios[1] as HTMLElement).style.animationTimingFunction).toBe("ease-in-out");
+    // Siblings do not animate forward -- only the confirmed selection.
+    expect(radios[0]!.classList.contains("option-picker__card--confirm-forward")).toBe(false);
+    expect(radios[2]!.classList.contains("option-picker__card--confirm-forward")).toBe(false);
+  });
+
+  it("prefers-reduced-motion renders the §5 alternative: a cut, with the header carry left to Cập nhật (AC 5)", async () => {
+    stubReducedMotion();
+    const radios = await selectAndConfirm();
+
+    // §5's reduced alternative is "Cut with header carry": no forward
+    // animation on the card (the cut) -- the carry itself is the Cập nhật
+    // header rendering the selected proposal, asserted by
+    // run-stage-canvas.test.tsx's "shows the selected option as a header"
+    // cases, which hold regardless of the motion preference. Settled
+    // state: the confirmed picker disables its cards.
+    await waitFor(() => {
+      expect(radios[1]!).toBeDisabled();
+    });
+    expect(radios[1]!.classList.contains("option-picker__card--confirm-forward")).toBe(false);
+  });
+});
+
+/**
+ * Issue #1915 AC 4 -- "siblings dim to 60%" behaves differently on the
+ * ADR-102 light ground: element opacity composites the card's TEXT toward
+ * the page as much as its fill. Every text colour inside a dimmed card
+ * must clear WCAG AA 4.5:1 at whatever opacity actually ships -- computed
+ * from the rendered DOM and the real cascade, at the opacity parsed from
+ * globals.css, over both fills the card can sit on. The shipped value
+ * deviates from §5's stated 0.6; the deviation is recorded in the
+ * stylesheet and proven forced (not stylistic) by the 0.6 case below.
+ */
+describe("dimmed sibling cards stay readable on the light ground (issue #1915, AC 4)", () => {
+  const maps = loadRunSurfaceTokenMaps();
+  const cascade = loadCascadeBlocks();
+
+  // The dim that ships: the smallest opacity globals.css declares on the
+  // dimmed selector (its reduced-motion re-declaration is `opacity: 1`).
+  const dimOpacities = extractRuleBlocks(readGlobalsCss())
+    .filter((ruleBlock) => ruleBlock.selector === ".option-picker__card--dimmed")
+    .map((ruleBlock) => Number(extractDeclarations(ruleBlock.body).opacity))
+    .filter((value) => !Number.isNaN(value));
+  const shippedDim = Math.min(...dimOpacities);
+
+  const GROUND_TOKENS = ["--juli-run-panel-fill", "--juli-run-raised-fill"] as const;
+
+  function toCssRgb(color: string): string {
+    // Normalises a resolved token (hex) into the rgba() form
+    // flattenOverBackground accepts alongside an explicit alpha.
+    const { r, g, b } = flattenOverBackground(color, color);
+    return `${r}, ${g}, ${b}`;
+  }
+
+  /** Text (or card fill) composited through the dim over a ground. */
+  function compositedThroughDim(color: string, ground: string): string {
+    const { r, g, b } = flattenOverBackground(
+      `rgba(${toCssRgb(color)}, ${shippedDim})`,
+      ground,
+    );
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+
+  /** The colour an element inside the card actually renders with, under
+   *  the real cascade (own winning rule, else nearest ancestor's). */
+  function effectiveColor(element: Element, card: Element): string {
+    let node: Element | null = element;
+    while (node !== null) {
+      const winner = computeWinningDeclaration(node, "color", cascade);
+      if (winner) return resolveCssValue(winner.value, maps);
+      if (node === card) break;
+      node = node.parentElement;
+    }
+    throw new Error(
+      `no colour resolves for element with class "${element.className}" inside the dimmed card`,
+    );
+  }
+
+  function renderWithDimmedSiblings(): HTMLElement[] {
+    render(
+      <OptionPicker
+        expiresAt={CAPTURED_EXPIRES_AT}
+        nowMs={NOW_BEFORE_EXPIRY}
+        options={threeOptions()}
+        productName={PRODUCT_NAME}
+        runId="run-1"
+        toolCallId="call-xyz"
+      />,
+    );
+    const radios = screen.getAllByRole("radio") as HTMLElement[];
+    // Selecting the first card dims its two siblings.
+    fireEvent.click(radios[0]!);
+    return radios.slice(1).filter((card) => card.classList.contains("option-picker__card--dimmed"));
+  }
+
+  it("ships a real dim -- the deviation never silently removes the recede", () => {
+    expect(dimOpacities.length).toBeGreaterThan(0);
+    expect(shippedDim).toBeGreaterThan(0);
+    expect(shippedDim).toBeLessThan(1);
+  });
+
+  it("every text colour inside a dimmed card clears 4.5:1 at the shipped opacity, over both fills", () => {
+    const dimmedCards = renderWithDimmedSiblings();
+    expect(dimmedCards.length, "selecting a card must dim its siblings").toBe(2);
+
+    let textNodesChecked = 0;
+    for (const card of dimmedCards) {
+      const cardFill = resolveCssValue(
+        computeWinningDeclaration(card, "background-color", cascade)!.value,
+        maps,
+      );
+      const textElements = [card, ...Array.from(card.querySelectorAll("*"))].filter(
+        (element) =>
+          // Only elements that directly carry a text node -- containers
+          // inherit but render no glyphs of their own.
+          Array.from(element.childNodes).some(
+            (node) => node.nodeType === 3 && node.textContent!.trim().length > 0,
+          ),
+      );
+      expect(textElements.length).toBeGreaterThan(0);
+
+      for (const element of textElements) {
+        const textColor = effectiveColor(element, card);
+        for (const groundToken of GROUND_TOKENS) {
+          const ground = resolveToken(groundToken, maps);
+          const effectiveBg = compositedThroughDim(cardFill, ground);
+          const effectiveText = compositedThroughDim(textColor, ground);
+          const ratio = contrastRatio(effectiveText, effectiveBg);
+          expect(
+            ratio,
+            `"${(element.textContent ?? "").slice(0, 30)}" (${textColor} at opacity ${shippedDim} ` +
+              `over ${groundToken}) = ${ratio.toFixed(2)}:1`,
+          ).toBeGreaterThanOrEqual(4.5);
+          textNodesChecked += 1;
+        }
+      }
+    }
+    // The guard inspected something -- printed so a silently-empty walk
+    // is visible, never inferred from the green (issue #1915).
+    console.info(`[dim-contrast] checked ${textNodesChecked} text/ground pairings at opacity ${shippedDim}`);
+    expect(textNodesChecked).toBeGreaterThanOrEqual(8);
+  });
+
+  it("§5's stated 60% cannot clear 4.5:1 for the muted foreground here -- the recorded deviation is forced, not stylistic", () => {
+    const muted = resolveToken("--juli-run-foreground-muted", maps);
+    const ground = resolveToken("--juli-run-raised-fill", maps);
+    const bgAt60 = flattenOverBackground(`rgba(${toCssRgb("#ffffff")}, 0.6)`, ground);
+    const textAt60 = flattenOverBackground(`rgba(${toCssRgb(muted)}, 0.6)`, ground);
+    const ratio = contrastRatio(
+      `rgb(${textAt60.r}, ${textAt60.g}, ${textAt60.b})`,
+      `rgb(${bgAt60.r}, ${bgAt60.g}, ${bgAt60.b})`,
+    );
+    expect(ratio).toBeLessThan(4.5);
+  });
+
+  it("the shipped dim is minimal within 0.02 -- two hundredths more dim already fails the muted foreground", () => {
+    const muted = resolveToken("--juli-run-foreground-muted", maps);
+    const ground = resolveToken("--juli-run-panel-fill", maps);
+    const moreDim = shippedDim - 0.02;
+    const bg = flattenOverBackground(`rgba(${toCssRgb("#ffffff")}, ${moreDim})`, ground);
+    const text = flattenOverBackground(`rgba(${toCssRgb(muted)}, ${moreDim})`, ground);
+    const ratio = contrastRatio(
+      `rgb(${text.r}, ${text.g}, ${text.b})`,
+      `rgb(${bg.r}, ${bg.g}, ${bg.b})`,
+    );
+    expect(ratio).toBeLessThan(4.5);
   });
 });

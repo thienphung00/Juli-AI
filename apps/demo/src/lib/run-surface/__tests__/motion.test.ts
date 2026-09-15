@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -186,4 +189,95 @@ describe("resolveRunSurfaceMotion requires a real trigger (AC 6)", () => {
     };
     expect(callWithMissingTrigger).toThrow();
   });
+});
+
+/**
+ * Issue #1915 AC 1 -- every one of the eight PUI-DESIGN.md §5 primitives
+ * is passed to `resolveRunSurfaceMotion` by at least one module under
+ * `apps/demo/src/components/`. This is the guard that makes a future
+ * orphaned primitive impossible.
+ *
+ * "A guard must be seen failing" (code-quality.mdc): this is exactly the
+ * shape that goes vacuous -- a scan that silently collects nothing still
+ * compares an empty set against itself. Three defences:
+ *  1. the collector is fed known-good and known-bad fixture source and
+ *     must extract the call from one and nothing from the other;
+ *  2. the resolved list and its count are printed, so a silently-short
+ *     list is visible in the runner output, never inferred from a green;
+ *  3. the assertion is an exact set equality against
+ *     `RUN_SURFACE_MOTION_PRIMITIVE_IDS`, plus one named test per
+ *     primitive so a RED names the orphan.
+ */
+
+/** Every primitive id passed as the first argument of a
+ *  `resolveRunSurfaceMotion(...)` call in `source`, in order. */
+export function extractResolvedPrimitiveIds(source: string): string[] {
+  const ids: string[] = [];
+  const call = /resolveRunSurfaceMotion\(\s*["']([a-z-]+)["']/g;
+  let match: RegExpExecArray | null;
+  while ((match = call.exec(source)) !== null) {
+    ids.push(match[1]!);
+  }
+  return ids;
+}
+
+describe("every §5 primitive has a component consumer (issue #1915 AC 1)", () => {
+  const componentsDir = path.resolve(__dirname, "../../../components");
+  const componentFiles = readdirSync(componentsDir).filter(
+    (name) =>
+      (name.endsWith(".tsx") || name.endsWith(".ts")) &&
+      statSync(path.join(componentsDir, name)).isFile(),
+  );
+
+  const resolvedByFile = new Map<string, string[]>();
+  for (const file of componentFiles) {
+    const ids = extractResolvedPrimitiveIds(
+      readFileSync(path.join(componentsDir, file), "utf8"),
+    );
+    if (ids.length > 0) resolvedByFile.set(file, ids);
+  }
+  const resolvedIds = new Set([...resolvedByFile.values()].flat());
+
+  it("the collector itself is not vacuous -- it sees a multi-line call and flags callless source", () => {
+    const fixtureWithCall = [
+      "const motion = resolveRunSurfaceMotion(",
+      '  "tool-chip-complete",',
+      '  { kind: "agent-event", eventType: "tool.completed" },',
+      "  false,",
+      ");",
+    ].join("\n");
+    expect(extractResolvedPrimitiveIds(fixtureWithCall)).toEqual(["tool-chip-complete"]);
+    expect(extractResolvedPrimitiveIds("const nothing = 1;")).toEqual([]);
+  });
+
+  it("the scan saw a real component corpus, not an empty directory", () => {
+    expect(componentFiles.length).toBeGreaterThan(10);
+    expect(componentFiles).toContain("option-picker.tsx");
+  });
+
+  it("resolves exactly the eight primitive ids -- the list and count are printed, never inferred", () => {
+    const sorted = [...resolvedIds].sort();
+    // Printed by design (issue #1915): a silently-short list must be
+    // visible in the runner output beside the green, not deduced from it.
+    console.info(
+      `[motion-coverage] resolved ${sorted.length}/8 primitives: ${sorted.join(", ")}`,
+    );
+    for (const [file, ids] of resolvedByFile) {
+      console.info(`[motion-coverage]   ${file}: ${[...new Set(ids)].sort().join(", ")}`);
+    }
+    expect(sorted).toEqual([...RUN_SURFACE_MOTION_PRIMITIVE_IDS].sort());
+  });
+
+  it.each([...RUN_SURFACE_MOTION_PRIMITIVE_IDS])(
+    "%s is passed to resolveRunSurfaceMotion by at least one component module",
+    (id) => {
+      const consumers = [...resolvedByFile.entries()]
+        .filter(([, ids]) => ids.includes(id))
+        .map(([file]) => file);
+      expect(
+        consumers.length,
+        `orphaned primitive: "${id}" is resolved by no module under apps/demo/src/components/`,
+      ).toBeGreaterThan(0);
+    },
+  );
 });

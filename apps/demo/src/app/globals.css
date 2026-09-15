@@ -2182,8 +2182,111 @@ a {
 
 .run-stage__tool-label {
   min-width: 0;
+  flex: 1;
   font-weight: 600;
   overflow-wrap: anywhere;
+}
+
+/* --- §5 motion consumers (issue #1915). Every rule below is layout,
+   opacity or transform only -- colour, shadow and blur stay in the token
+   layer (run-surface-token-only-theming.test.ts). Durations and easings
+   are NOT restated here: each consumer resolves them from
+   resolveRunSurfaceMotion and writes them inline, so the CSS cannot
+   drift from the PUI-DESIGN.md §5 table. --- */
+
+/* The streaming caret's SIZE. Its fill is the token layer's own
+   .juli-run-streaming-caret rule -- one of the three sanctioned
+   live-edge references; this rule paints nothing. */
+.juli-run-streaming-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-inline-start: 2px;
+  vertical-align: text-bottom;
+}
+
+/* The aria-hidden partial line under the typewriter. pre-wrap keeps a
+   revealed trailing space visible so the caret does not appear glued to
+   the previous word mid-reveal. */
+.run-stage__narration-reveal {
+  white-space: pre-wrap;
+}
+
+/* Reduced-motion alternative for assistant-text-reveal: the full line
+   fades in at once (§5 "Full text fade-in"). */
+.run-stage__narration-line--fade {
+  animation-name: run-narration-fade;
+  animation-fill-mode: backwards;
+}
+
+/* tool-chip-complete: the check itself... */
+.run-stage__tool-check {
+  display: inline-block;
+  color: var(--juli-run-success-text);
+  font-weight: 700;
+}
+
+/* ...and its §5 "check-in with subtle scale settle". */
+.run-stage__tool-check--settle {
+  animation-name: run-tool-check-settle;
+  animation-fill-mode: backwards;
+}
+
+/* terminal-complete: "then summary rises" (full motion) / "Fade"
+   (reduced) -- the component picks the class from the resolved motion. */
+.run-stage__terminal--rise {
+  animation-name: run-terminal-rise;
+  animation-fill-mode: backwards;
+}
+
+.run-stage__terminal--fade {
+  animation-name: run-narration-fade;
+  animation-fill-mode: backwards;
+}
+
+@keyframes run-narration-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes run-tool-check-settle {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  70% {
+    transform: scale(1.18);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes run-terminal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Belt-and-braces beneath the component-level gating: the components
+   never apply the settle/rise classes under reduced motion, and the
+   sheet drops them too. The two --fade classes ARE the stated
+   reduced-motion alternatives, so they stay. */
+@media (prefers-reduced-motion: reduce) {
+  .run-stage__tool-check--settle,
+  .run-stage__terminal--rise {
+    animation-name: none;
+  }
 }
 
 .run-ledger__loading {
@@ -2326,7 +2429,29 @@ a {
 }
 
 .option-picker__card--dimmed {
-  opacity: 0.6;
+  /* DEVIATION FROM PUI-DESIGN.md §5, recorded per issue #1915: the spec
+     says "siblings dim to 60%", but on the ADR-102 light ground a 0.6
+     element opacity composites --juli-run-foreground-muted inside the
+     card down to ~2.6:1 -- unreadable. 0.88 is the smallest dim (largest
+     dimming effect) at which EVERY text colour inside the card still
+     clears WCAG AA 4.5:1 over both the panel and raised fills
+     (option-picker.test.tsx asserts this against the value shipped
+     here; 0.87 still fails under un-rounded alpha compositing --
+     4.48:1 on white). The lost visual recede is made up by
+     dropping the dimmed card's elevation shadow -- a token-neutral cue
+     that costs no text contrast. */
+  opacity: 0.88;
+  box-shadow: none;
+}
+
+/* confirm-to-update (§5 row 6, issue #1915): the confirmed card
+   "animates forward into the next stage's header" -- up and slightly
+   toward the viewer, holding its final frame until the stage advances.
+   Reduced motion never gets this class (the stated alternative is a
+   cut; the Cập nhật header carries the selection). */
+.option-picker__card--confirm-forward {
+  animation-name: option-picker-card-confirm-forward;
+  animation-fill-mode: forwards;
 }
 
 .option-picker__headline {
@@ -2474,10 +2599,25 @@ a {
   }
 }
 
+@keyframes option-picker-card-confirm-forward {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1.02);
+  }
+  to {
+    opacity: 0.9;
+    transform: translateY(-14px) scale(1.04);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .option-picker__card {
     animation-name: option-picker-card-fade;
     transition-duration: 0ms;
+  }
+
+  .option-picker__card--confirm-forward {
+    animation-name: none;
   }
 
   .option-picker__card--dimmed {
