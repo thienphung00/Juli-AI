@@ -6,6 +6,23 @@ This is not global daily scoring and must not fan out to all shops.
 
 Issue #632: Route through SharedComputeOrchestrator with reconcile_hourly enqueue_reason
 and a bounded gap-targeted fetch plan, with quota guards applied.
+
+Issue #1857 (W8-F / P10-6): the task's own completion line used to report only
+``fetch_plan_size`` -- the size of the REQUESTED plan -- so a reader of this
+line alone could not tell a genuinely-empty cycle from a full one, even though
+``SharedComputeOrchestrator.run`` already returns a ``SharedComputeResult``
+carrying ``bronze_appended`` / ``silver_promoted``. ``fetch_plan_size`` is kept
+(it answers a different question: what was requested, not what was written);
+``bronze_appended`` and ``silver_promoted`` are added alongside it, together
+with a measured ``duration_ms``.
+
+``SharedComputeOrchestrator.run`` has NO try/except around its three medallion
+stages, so a silver-stage raise propagates and no ``SharedComputeResult`` ever
+reaches this caller -- the bronze/silver counts at crash time are genuinely
+UNKNOWN, not zero. This module records that honestly: on an exception from the
+orchestrator call, ``bronze_appended``/``silver_promoted`` are logged as
+``None`` (explicitly unknown) rather than defaulted to ``0``, which would be
+indistinguishable from a real no-op, and the exception is re-raised.
 """
 
 from __future__ import annotations
@@ -13,6 +30,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 import uuid
 from collections.abc import Callable
 
@@ -22,6 +40,7 @@ from juli_backend.models.models import Shop
 from juli_backend.services.cdp_speed import (
     FetchResource,
     SharedComputeJob,
+    TargetedFetchExecutor,
     TargetedFetchPlan,
     decision_rules_scoring_stage,
     is_quota_guarded,
@@ -138,12 +157,33 @@ async def run_mock_analytics_reconcile_orchestrated(
     shop_id: uuid.UUID,
     shop_key: str,
     orchestrator_run_fn: Callable | None = None,
+    fetch_executor: TargetedFetchExecutor | None = None,
+    clock: Callable[[], float] | None = None,
 ) -> None:
     """Route hourly reconciliation through SharedComputeOrchestrator with reconcile_hourly reason.
 
     Uses a bounded gap-targeted fetch plan (not the material matrix) and applies
     quota guards (#632).
+
+    ``fetch_executor`` is a test-only passthrough to ``run_shared_compute_job``
+    on the REAL (``orchestrator_run_fn is None``) path — it lets a test drive
+    the actual ``SharedComputeOrchestrator.run`` pipeline (bronze -> silver ->
+    gold) against real Postgres with a fake bronze source, instead of only
+    proving the ``orchestrator_run_fn`` seam. Production never passes it, so
+    this changes no deployed behaviour.
+
+    Issue #1857 (W8-F / P10-6): ``mock_analytics_reconcile_orchestrated_completed``
+    now also carries ``bronze_appended``, ``silver_promoted`` (the counts
+    ``SharedComputeResult`` already returns) and a measured ``duration_ms``,
+    alongside the pre-existing ``fetch_plan_size`` (the two answer different
+    questions: requested vs. written). ``SharedComputeOrchestrator.run`` has
+    no try/except around its three stages, so a silver-stage raise means no
+    ``SharedComputeResult`` ever reaches this caller — the event still fires
+    with ``bronze_appended``/``silver_promoted`` explicitly ``None`` (unknown,
+    never a fabricated ``0``) and the exception re-raises.
     """
+    clock = clock or time.monotonic
+    started_at = clock()
     fetch_plan = _make_hourly_gap_fetch_plan(shop_key)
 
     # Idempotency key: unique per hour per shop
@@ -161,20 +201,46 @@ async def run_mock_analytics_reconcile_orchestrated(
         idempotency_key=idempotency_key,
     )
 
-    if orchestrator_run_fn is not None:
-        # Test-only: allow custom orchestrator function
-        await orchestrator_run_fn(job)
-    else:
-        # Continuous-trigger scoring callable (#714 / B-2): hourly Mock reconcile
-        # is a continuous trigger too (PRD #599 user story 30) — gap reconciliation
-        # must heal Decision staleness the same way it heals KPI envelope staleness.
-        # Execution stays gated by CDP_DECISIONS_SCORING_ENABLED (default OFF).
-        await run_shared_compute_job(
-            session,
-            job,
-            scoring_stage=decision_rules_scoring_stage,
-        )
+    bronze_appended: int | None = None
+    silver_promoted: int | None = None
 
+    try:
+        if orchestrator_run_fn is not None:
+            # Test-only: allow custom orchestrator function
+            result = await orchestrator_run_fn(job)
+        else:
+            # Continuous-trigger scoring callable (#714 / B-2): hourly Mock reconcile
+            # is a continuous trigger too (PRD #599 user story 30) — gap reconciliation
+            # must heal Decision staleness the same way it heals KPI envelope staleness.
+            # Execution stays gated by CDP_DECISIONS_SCORING_ENABLED (default OFF).
+            result = await run_shared_compute_job(
+                session,
+                job,
+                fetch_executor=fetch_executor,
+                scoring_stage=decision_rules_scoring_stage,
+            )
+    except Exception:
+        duration_ms = int((clock() - started_at) * 1000)
+        logger.exception(
+            "mock_analytics_reconcile_orchestrated_completed",
+            extra={
+                "shop_id": str(shop_id),
+                "enqueue_reason": job.enqueue_reason,
+                "fetch_plan_size": len(job.fetch_plan.resources),
+                "idempotency_key": idempotency_key,
+                "bronze_appended": bronze_appended,
+                "silver_promoted": silver_promoted,
+                "duration_ms": duration_ms,
+                "status": "failed",
+            },
+        )
+        raise
+
+    if result is not None:
+        bronze_appended = result.bronze_appended
+        silver_promoted = result.silver_promoted
+
+    duration_ms = int((clock() - started_at) * 1000)
     logger.info(
         "mock_analytics_reconcile_orchestrated_completed",
         extra={
@@ -182,6 +248,10 @@ async def run_mock_analytics_reconcile_orchestrated(
             "enqueue_reason": job.enqueue_reason,
             "fetch_plan_size": len(job.fetch_plan.resources),
             "idempotency_key": idempotency_key,
+            "bronze_appended": bronze_appended,
+            "silver_promoted": silver_promoted,
+            "duration_ms": duration_ms,
+            "status": "succeeded",
         },
     )
 
