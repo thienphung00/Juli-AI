@@ -169,7 +169,7 @@ class _CountingHandoff:
         self.offered += 1
         try:
             await self._inner(channel, shop_key, value)
-        except Exception as exc:  # noqa: BLE001 -- counted and reported, see class docstring
+        except Exception as exc:
             self.failed += 1
             if self.first_error is None:
                 self.first_error = repr(exc)
