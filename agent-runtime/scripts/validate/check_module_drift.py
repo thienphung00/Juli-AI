@@ -44,28 +44,32 @@ class AllowedDrift:
 
 
 ORPHAN_REASON = (
-    "Pre-existing orphan drift, measured on 2026-09-15 after #1859 taught this "
-    "gate to read the tree it had been reporting on. 198 entries, down from the "
-    "322 the same measurement produced before three parser defects were fixed: "
-    "an annotated constant (`NAME: tuple[str, ...] = ...`) is an ast.AnnAssign "
-    "and was invisible to ast_public_symbols; a bullet's explanation counted as "
-    "a declaration, so prose mentions of table and attribute names were read as "
-    "documented symbols; and the first correction to that over-read inverted "
-    "the `- **Label** - `Symbol`` convention and hid 96 real, documented "
-    "exports. What remains is genuine: a name a MODULE.md documents that the "
-    "module no longer exports, usually because it moved or was renamed and the "
-    "doc was not followed. Each symbol is removable on its own, by deleting the "
-    "stale line or restoring the export. Burn-down is tracked in #1963."
+    "Pre-existing orphan drift, derived on 2026-09-15 after #1859 taught this "
+    "gate to read the tree it had been reporting on. 198 entries, against the "
+    "322 the same measurement produced before four parser defects were fixed: "
+    "an annotated constant was an ast.AnnAssign and invisible to "
+    "ast_public_symbols; a bullet's explanation counted as a declaration, so "
+    "prose named tables and attributes as symbols; the first correction to "
+    "that inverted the label-first convention and hid 96 real exports; and a "
+    "`from ... import (...)` fence, the most explicit form of all, was read by "
+    "no version of the parser. A deliberate over-read remains on this side: a "
+    "label-first bullet's tail is scanned whole, so a symbol another module "
+    "owns, named in dependency prose, lands here. That is the safe direction "
+    "-- it can only over-report an orphan, never lose a documented symbol. "
+    "What is left is a name a MODULE.md documents that the module no longer "
+    "exports. Each is removable on its own. Burn-down is tracked in #1963."
 )
 UNDOCUMENTED_REASON = (
-    "Pre-existing undocumented drift, measured on 2026-09-15. 820 entries. It "
+    "Pre-existing undocumented drift, derived on 2026-09-15. 809 entries. It "
     "grew when #1859 taught ast_public_symbols to see annotated and plain "
-    "module-level constants, which are real exports no MODULE.md had listed. "
-    "Excluded as never anyone's interface: `logger` and `log` (NEVER_AN_EXPORT) "
-    "and Alembic revision bookkeeping under migrations/versions. Everything "
-    "left is a public name the module really exports and its MODULE.md really "
-    "does not mention. backend/services/operations was burned to zero as the "
-    "worked example (#1859 AC5) and is absent from this list. Each symbol is "
+    "module-level constants, which are real exports no MODULE.md had listed, "
+    "and shrank again when the parser learned to read a `from ... import "
+    "(...)` fence as a declaration. Excluded as never anyone's interface: "
+    "`logger` and `log` (NEVER_AN_EXPORT), and Alembic revision bookkeeping "
+    "under migrations/versions. What is left is a public name the module "
+    "really exports and its MODULE.md really does not name, in a bullet or in "
+    "a fence. backend/services/operations was burned to zero as the worked "
+    "example (#1859 AC5) and is absent from this list. Each symbol is "
     "removable on its own, by documenting it. Burn-down is tracked in #1963."
 )
 
@@ -615,17 +619,11 @@ KNOWN_DRIFT_ALLOWLIST: dict[str, dict[str, AllowedDrift]] = {
                 "AssistantTextEvent",
                 "AssistantTextPayload",
                 "AssistantTurn",
-                "BannedPatternEntry",
-                "BannedPatternGuardFailure",
-                "BannedPatternHit",
-                "BannedPatternScanError",
+                "AsyncSessionFactory",
                 "Block",
                 "CHECK_PRODUCT_STATUS_SPEC",
                 "CONCLUDE_WITHOUT_CHANGES_SPEC",
                 "COPY_LAYER_SCOPE",
-                "CappedImages",
-                "CappedList",
-                "CappedText",
                 "CheckProductStatusInput",
                 "CheckProductStatusOutput",
                 "Clock",
@@ -653,7 +651,6 @@ KNOWN_DRIFT_ALLOWLIST: dict[str, dict[str, AllowedDrift]] = {
                 "EventSink",
                 "FAILURE_STOP_REASONS",
                 "FIELD_SCOPE_BY_OPERATION",
-                "FREE_TEXT_CHAR_CAP",
                 "FakeLLMService",
                 "FinalResponse",
                 "GET_PRODUCT_INFORMATION_SPEC",
@@ -664,7 +661,6 @@ KNOWN_DRIFT_ALLOWLIST: dict[str, dict[str, AllowedDrift]] = {
                 "GetSeoKeywordsOutput",
                 "GoldenScenario",
                 "INSPECT_PRODUCT_IMAGE_SPEC",
-                "ImageDimensions",
                 "ImageInspector",
                 "InMemoryAbuseLimitGate",
                 "InMemoryEventSink",
@@ -678,12 +674,12 @@ KNOWN_DRIFT_ALLOWLIST: dict[str, dict[str, AllowedDrift]] = {
                 "JULI_SOURCE",
                 "JsonbConversationStore",
                 "JuliText",
-                "LIST_ITEM_CAP",
                 "LLMConfig",
                 "LLMConfigOverride",
                 "LLMProviderError",
                 "LLMService",
                 "LedgerStatus",
+                "LedgerWriteOutcomeRecorder",
                 "MUTABLE_FIELD_NAMES",
                 "Message",
                 "ModelPrice",
@@ -699,8 +695,6 @@ KNOWN_DRIFT_ALLOWLIST: dict[str, dict[str, AllowedDrift]] = {
                 "OPTIMIZE_PRODUCT_PLAYBOOK",
                 "OPTIMIZE_PRODUCT_TERMINATION_POLICY",
                 "OpenAIResponsesAdapter",
-                "PER_RESULT_TOKEN_CEILING",
-                "PER_RESULT_TOKEN_TARGET",
                 "PRICE_TABLE_USD_PER_MILLION_TOKENS",
                 "PRODUCTION_PROMPT_VERSION",
                 "PRODUCT_READ_TOOL_HANDLERS",
@@ -716,7 +710,6 @@ KNOWN_DRIFT_ALLOWLIST: dict[str, dict[str, AllowedDrift]] = {
                 "ProductToolExecutor",
                 "ProvenanceEnvelope",
                 "ProvenanceSource",
-                "RETRYABLE_VENDOR_CODES",
                 "RecordedCall",
                 "RedisAbuseLimitGate",
                 "RollupValues",
@@ -751,7 +744,6 @@ KNOWN_DRIFT_ALLOWLIST: dict[str, dict[str, AllowedDrift]] = {
                 "ToolSpec",
                 "ToolStartedEvent",
                 "ToolStartedPayload",
-                "TranslatedError",
                 "UPDATE_PRODUCT_LISTING_SPEC",
                 "UPDATE_PRODUCT_PRICE_SPEC",
                 "UPLOAD_PRODUCT_IMAGE_SPEC",
@@ -790,6 +782,7 @@ KNOWN_DRIFT_ALLOWLIST: dict[str, dict[str, AllowedDrift]] = {
                 "WorkflowStartedPayload",
                 "WorkflowStatusEvent",
                 "WorkflowStatusPayload",
+                "WriteOutcomeRecorder",
                 "accumulate_running_seconds",
                 "append_continuation",
                 "approve_action_card",

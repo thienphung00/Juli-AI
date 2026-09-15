@@ -9,6 +9,7 @@ import keyword
 import os
 import re
 import subprocess
+import textwrap
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -548,6 +549,7 @@ def parse_module_md_public_symbols(module_md: Path) -> set[str]:
         bodies = [text]
     symbols: set[str] = set()
     for body in bodies:
+        symbols |= _fenced_import_symbols(body)
         for declaration in _declaration_spans(body):
             for match in BACKTICK_SYMBOL_RE.finditer(strip_markdown_parentheticals(declaration)):
                 name = match.group(1)
@@ -589,6 +591,34 @@ def _declaration_part(bullet: str) -> str:
     if not separator:
         return bullet
     return head if _names_a_symbol(head) else bullet
+
+
+_PYTHON_FENCE_RE = re.compile(r"```(?:python|py)\n(.*?)```", re.DOTALL)
+
+
+def _fenced_import_symbols(body: str) -> set[str]:
+    """Names declared by a ``from ... import (...)`` block in the section.
+
+    A third convention, and the most explicit of them: `services/agent` and
+    `backend/api` state their interface as the import a caller would write.
+    No version of this parser could read it, so 15 symbols that these files
+    declare plainly were recorded as undocumented drift. A fence that is not
+    valid Python (an elided `...` list, say) contributes nothing rather than
+    guessing.
+    """
+    symbols: set[str] = set()
+    for match in _PYTHON_FENCE_RE.finditer(body):
+        try:
+            tree = ast.parse(textwrap.dedent(match.group(1)))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                for alias in node.names:
+                    name = alias.asname or alias.name
+                    if name != "*" and not name.startswith("_"):
+                        symbols.add(name.split(".")[0])
+    return symbols
 
 
 def _declaration_spans(body: str) -> list[str]:
@@ -1675,7 +1705,32 @@ _TIKTOK_AUTH_INVERSION = (
 # `core/security`, `integrations/tiktok`). Enumerating all nine edges inside the
 # SCC instead would have hidden any genuinely NEW cycle among those modules, so
 # only the back-edges are excused and the rest of the graph stays live.
+_AGENT_STATUS_VOCABULARY = (
+    "Real runtime edge. `services/agent/status.py` is a leaf: it imports "
+    "nothing from juli_backend and defines only the run-status vocabulary "
+    "(`StopReason`, `WorkflowRunStatus`, `NON_TERMINAL_STATUSES`). "
+    "`services/operations` reads that vocabulary to classify runs it reports "
+    "on, while `services/agent/runner` calls operations to record an outcome "
+    "(#1939). So the cycle runs through a constants module, not through agent "
+    "behaviour. Excusing this one back-edge dissolves it; the other direction "
+    "stays live. The real fix is to move the status vocabulary into a shared "
+    "module both can depend on, which is an architectural call for another "
+    "lane, not a harness change. Recorded rather than tolerated in silence; "
+    "tracked with the other cycle in #1962."
+)
+
+
 KNOWN_CYCLE_EDGES: dict[tuple[str, str], AllowedCycleEdge] = {
+    ("backend/services/operations", "backend/services/agent"): AllowedCycleEdge(
+        reason=_AGENT_STATUS_VOCABULARY,
+        importSites=(
+            "backend/src/juli_backend/services/operations/quality_metrics.py:110 "
+            "from juli_backend.services.agent.status import StopReason",
+            "backend/src/juli_backend/services/operations/outcome_chain.py:82 "
+            "from juli_backend.services.agent.status import NON_TERMINAL_STATUSES, "
+            "WorkflowRunStatus",
+        ),
+    ),
     ("backend/integrations/tiktok", "backend/core/security"): AllowedCycleEdge(
         reason=_TIKTOK_AUTH_INVERSION,
         importSites=(

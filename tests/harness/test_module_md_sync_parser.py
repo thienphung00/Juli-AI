@@ -209,6 +209,57 @@ class TestPublicInterfaceParsing:
 
         assert {"TikTokClient", "TikTokAuth", "RateLimiter"} <= symbols
 
+    def test_an_import_fence_declares_its_names(self, tmp_path: Path) -> None:
+        """The third convention: state the interface as the caller's import."""
+        module_md = tmp_path / "MODULE.md"
+        module_md.write_text(
+            "## Public Interface\n\n"
+            "```python\n"
+            "from juli_backend.services.agent.sanitize import (\n"
+            "    PER_RESULT_TOKEN_CEILING,\n"
+            "    # a comment between entries\n"
+            "    BannedPatternGuardFailure,\n"
+            "    estimate_tokens,\n"
+            ")\n"
+            "```\n",
+            encoding="utf-8",
+        )
+
+        symbols = common.parse_module_md_public_symbols(module_md)
+
+        assert symbols == {
+            "PER_RESULT_TOKEN_CEILING",
+            "BannedPatternGuardFailure",
+            "estimate_tokens",
+        }
+
+    def test_an_unparseable_fence_declares_nothing(self, tmp_path: Path) -> None:
+        """An elided import list is not a licence to guess."""
+        module_md = tmp_path / "MODULE.md"
+        module_md.write_text(
+            "## Public Interface\n\n"
+            "```python\n"
+            "from juli_backend.integrations.tiktok import TikTokAuth, ...\n"
+            "```\n"
+            "- `RateLimiter`\n",
+            encoding="utf-8",
+        )
+
+        symbols = common.parse_module_md_public_symbols(module_md)
+
+        assert symbols == {"RateLimiter"}
+
+    def test_the_real_agent_module_declares_its_fenced_names(self) -> None:
+        module_md = common.REPO_ROOT / "backend/src/juli_backend/services/agent/MODULE.md"
+
+        symbols = common.parse_module_md_public_symbols(module_md)
+
+        assert {
+            "PER_RESULT_TOKEN_CEILING",
+            "RETRYABLE_VENDOR_CODES",
+            "BannedPatternGuardFailure",
+        } <= symbols
+
     def test_a_table_row_is_never_split_on_its_dash(self, tmp_path: Path) -> None:
         """A row carries no declare/explain boundary, so it is scanned whole."""
         module_md = tmp_path / "MODULE.md"
@@ -554,3 +605,55 @@ class TestTheAllowlistCannotHideADocumentedSymbol:
             leading = self._leading_symbols(common.backend_module_root(module_path) / "MODULE.md")
             assert leading, f"{module_path} yields no leading-bullet declarations"
             assert must_include <= leading, f"{module_path} lost {must_include - leading}"
+
+
+class TestTheAllowlistIsADerivation:
+    """The allowlist must equal what the tree measures, in BOTH directions.
+
+    `test_every_entry_still_names_real_drift` walks allowlist -> tree, so it
+    catches an entry that stopped being drift. Nothing walked tree ->
+    allowlist, so drift that appeared AFTER the list was generated -- a module
+    gaining an export on main while this branch was open -- silently escaped
+    it and would fail the gate on the next PR to touch that module. One
+    equality assertion closes the whole class.
+    """
+
+    @staticmethod
+    def _derive() -> dict[str, dict[str, tuple[str, ...]]]:
+        derived: dict[str, dict[str, tuple[str, ...]]] = {}
+        for module_path in sorted(common.parse_architecture_map()):
+            documented, actual = check_module_drift.module_symbols(module_path)
+            kinds = {
+                "orphan": tuple(sorted(documented - actual)),
+                "undocumented": tuple(sorted(actual - documented)),
+            }
+            present = {kind: syms for kind, syms in kinds.items() if syms}
+            if present:
+                derived[module_path] = present
+        return derived
+
+    def test_the_committed_allowlist_equals_a_fresh_derivation(self) -> None:
+        committed = {
+            module_path: {kind: entry.symbols for kind, entry in kinds.items()}
+            for module_path, kinds in check_module_drift.KNOWN_DRIFT_ALLOWLIST.items()
+        }
+        derived = self._derive()
+
+        missing = {
+            module_path: sorted(
+                set(kinds.get(kind, ())) - set(committed.get(module_path, {}).get(kind, ()))
+            )
+            for module_path, kinds in derived.items()
+            for kind in kinds
+        }
+        missing = {module_path: syms for module_path, syms in missing.items() if syms}
+
+        assert not missing, (
+            "drift exists in the tree that the allowlist does not cover, so the "
+            "next PR touching these modules fails a gate for something it did "
+            f"not do -- regenerate the allowlist: {missing}"
+        )
+        assert committed == derived, (
+            "the allowlist is not a faithful derivation of the tree; regenerate "
+            "it rather than editing entries by hand"
+        )
