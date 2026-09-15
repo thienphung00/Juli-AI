@@ -1786,11 +1786,15 @@ def test_juli_app_upsert_tables_have_update_grant(postgres_at_head: Engine):
 
 
 @requires_postgres
-def test_juli_app_webhook_raw_events_insert_only(postgres_at_head: Engine):
-    """webhook_raw_events grants INSERT only to juli_app (no SELECT).
+def test_juli_app_webhook_raw_events_insert_and_select(postgres_at_head: Engine):
+    """webhook_raw_events grants INSERT (043) and SELECT (059) to juli_app.
 
-    Per ADR-085 decision 3: webhook_raw_events has no tenant lineage,
-    so it gets no tenant-scoped read grant.
+    Migration 043 granted INSERT only, per ADR-085 decision 3's "no tenant
+    lineage, no read grant". Migration 059 (#1966) reverses the read-grant half:
+    `SessionRepo._add`'s flush issues `INSERT ... RETURNING received_at` (a
+    server-generated column), and RETURNING needs SELECT regardless of
+    tenancy. No RLS policy is added -- the "no tenant lineage" half of decision
+    3 still holds -- only the missing grant is.
     """
     with postgres_at_head.connect() as conn:
         result = conn.execute(
@@ -1802,28 +1806,30 @@ def test_juli_app_webhook_raw_events_insert_only(postgres_at_head: Engine):
             """)
         ).fetchall()
     granted_verbs = {row[0] for row in result}
-    assert granted_verbs == {"INSERT"}, (
-        f"webhook_raw_events: expected {{'INSERT'}}, got {granted_verbs}"
+    assert granted_verbs == {"INSERT", "SELECT"}, (
+        f"webhook_raw_events: expected {{'INSERT', 'SELECT'}}, got {granted_verbs}"
     )
 
 
 @requires_postgres
-def test_juli_app_select_on_webhook_raw_events_raises_error(postgres_at_head: Engine):
-    """Connecting as juli_app and trying SELECT on webhook_raw_events raises error."""
-    # This test requires the role to have a password or to be callable via a superuser
-    # For CI/testing, we verify the grant is absent instead of actually connecting
+def test_juli_app_cannot_update_or_delete_webhook_raw_events(postgres_at_head: Engine):
+    """juli_app holds no write-mutation verb beyond INSERT on webhook_raw_events.
+
+    Least privilege: the table is append-only from the application's
+    perspective (no `update(WebhookRawEvent)` / `session.delete` call site), so
+    UPDATE and DELETE stay ungranted even after 059 adds SELECT.
+    """
     with postgres_at_head.connect() as conn:
-        # Verify the grant does NOT exist
         result = conn.execute(
             text("""
-                SELECT COUNT(*) FROM information_schema.role_table_grants
+                SELECT privilege_type FROM information_schema.role_table_grants
                 WHERE grantee = 'juli_app'
                 AND table_schema = 'public'
                 AND table_name = 'webhook_raw_events'
-                AND privilege_type = 'SELECT'
+                AND privilege_type IN ('UPDATE', 'DELETE')
             """)
-        ).scalar_one()
-    assert result == 0, "SELECT privilege should not be granted on webhook_raw_events"
+        ).fetchall()
+    assert result == [], f"webhook_raw_events: unexpected write grants {result}"
 
 
 @requires_postgres
