@@ -34,7 +34,10 @@ import {
   type RuleBlock,
 } from "../../../../packages/theme/__tests__/css-utils";
 
-export { contrastRatio } from "../../../../packages/theme/__tests__/wcag-contrast";
+export {
+  contrastRatio,
+  flattenOverBackground,
+} from "../../../../packages/theme/__tests__/wcag-contrast";
 export { extractDeclarations, extractRuleBlocks, stripCssComments };
 export type { RuleBlock };
 

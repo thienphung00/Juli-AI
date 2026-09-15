@@ -18,7 +18,7 @@
 
 import type { AgentEvent } from "@juli/contracts";
 
-import type { RefObject } from "react";
+import { useState, type RefObject } from "react";
 
 import {
   RUN_TERMINAL_STATE_COPY,
@@ -37,9 +37,11 @@ import {
   RUN_STAGE_EMPTY_COPY,
   describeToolAction,
 } from "../lib/run-surface/stage-copy";
+import { prefersReducedMotion, resolveRunSurfaceMotion } from "../lib/run-surface/motion";
 import { RUN_SURFACE_PANEL_CLASS_NAMES } from "../lib/run-surface/tokens";
 import type { ConfirmDecisionFn } from "../lib/run-surface/confirmation-decision";
 import { OptionPicker } from "./option-picker";
+import { RunNarrationTypewriter } from "./run-narration-typewriter";
 
 export interface RunStageCanvasProps {
   readonly stageId: RunStageId;
@@ -64,6 +66,10 @@ export interface RunStageCanvasProps {
   readonly confirm?: ConfirmDecisionFn;
 }
 
+function joinClassNames(...names: Array<string | false | undefined>): string {
+  return names.filter(Boolean).join(" ");
+}
+
 function proposedChangeEntries(change: Record<string, unknown>): Array<[string, string]> {
   return Object.entries(change).map(([key, value]) => [
     key,
@@ -71,19 +77,70 @@ function proposedChangeEntries(change: Record<string, unknown>): Array<[string, 
   ]);
 }
 
-function ToolActivityList({ items }: { items: readonly StageToolActivityItem[] }) {
+function ToolActivityList({
+  items,
+  isTerminal,
+}: {
+  items: readonly StageToolActivityItem[];
+  isTerminal: boolean;
+}) {
+  // Completions already present at mount were not delivered by a
+  // tool.completed event in THIS session (a finished run opens fully
+  // frozen; a frozen-stage snapshot remounts with history) -- they render
+  // a static check, never a replayed settle (issue #1915).
+  const [initiallySettled] = useState(
+    () => new Set(items.filter((item) => item.status !== "running").map((item) => item.toolCallId)),
+  );
+  const reduced = prefersReducedMotion();
+
   return (
     <ul className="run-stage__tool-list">
-      {items.map((item) => (
-        <li className="run-stage__tool-item" data-tool-status={item.status} key={item.toolCallId}>
-          <span className="run-stage__tool-label">{describeToolAction(item.toolName)}</span>
-          {item.status === "running" ? (
-            <span className={RUN_SURFACE_PANEL_CLASS_NAMES.textMuted}>Đang thực hiện…</span>
-          ) : (
-            <span className={RUN_SURFACE_PANEL_CLASS_NAMES.textMuted}>{item.summary}</span>
-          )}
-        </li>
-      ))}
+      {items.map((item) => {
+        // §5 row 7 (tool-chip-complete): "Check-in with subtle scale
+        // settle", triggered by the real tool.completed event that
+        // flipped this item's status. Reduced motion renders the stated
+        // alternative -- an instant check, no settle animation.
+        const completedLive =
+          item.status === "completed" && !isTerminal && !initiallySettled.has(item.toolCallId);
+        const checkMotion = completedLive
+          ? resolveRunSurfaceMotion(
+              "tool-chip-complete",
+              { kind: "agent-event", eventType: "tool.completed" },
+              reduced,
+            )
+          : null;
+        const settles = checkMotion !== null && !checkMotion.reduced;
+
+        return (
+          <li className="run-stage__tool-item" data-tool-status={item.status} key={item.toolCallId}>
+            <span className="run-stage__tool-label">{describeToolAction(item.toolName)}</span>
+            {item.status === "running" ? (
+              <span className={RUN_SURFACE_PANEL_CLASS_NAMES.textMuted}>Đang thực hiện…</span>
+            ) : (
+              <span className={RUN_SURFACE_PANEL_CLASS_NAMES.textMuted}>{item.summary}</span>
+            )}
+            {item.status === "completed" ? (
+              <span
+                aria-hidden="true"
+                className={joinClassNames(
+                  "run-stage__tool-check",
+                  settles ? "run-stage__tool-check--settle" : undefined,
+                )}
+                style={
+                  settles
+                    ? {
+                        animationDuration: `${checkMotion.durationMs}ms`,
+                        animationTimingFunction: checkMotion.easing,
+                      }
+                    : undefined
+                }
+              >
+                ✓
+              </span>
+            ) : null}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -91,20 +148,12 @@ function ToolActivityList({ items }: { items: readonly StageToolActivityItem[] }
 function PhanTichContent({ view }: { view: RunViewState }) {
   // The thinking indicator lives on the active stepper node now
   // (PUI-DESIGN.md §5 "on the active stepper node"; issue #1913 item 4)
-  // -- this stage renders only its narration or its empty copy.
+  // -- this stage renders its narration through the §5 typewriter
+  // (issue #1915), which owns the empty copy too so it stays mounted
+  // from the stage's first render (see its module doc).
   return (
     <div>
-      {view.narration.length === 0 ? (
-        <p className={RUN_SURFACE_PANEL_CLASS_NAMES.narration}>
-          {RUN_STAGE_EMPTY_COPY["phan-tich"]}
-        </p>
-      ) : (
-        view.narration.map((line, index) => (
-          <p className={RUN_SURFACE_PANEL_CLASS_NAMES.narration} key={index}>
-            {line}
-          </p>
-        ))
-      )}
+      <RunNarrationTypewriter lines={view.narration} />
     </div>
   );
 }
@@ -113,10 +162,12 @@ function ProductSnapshotContent({
   events,
   view,
   productName,
+  isTerminal,
 }: {
   events: readonly AgentEvent[];
   view: RunViewState;
   productName: string;
+  isTerminal: boolean;
 }) {
   const stage = view.stages.find((s) => s.id === "thong-tin-san-pham")!;
   const activity = toolActivityForStage(events, stage);
@@ -131,20 +182,28 @@ function ProductSnapshotContent({
           {RUN_STAGE_EMPTY_COPY["thong-tin-san-pham"]}
         </p>
       ) : (
-        <ToolActivityList items={activity} />
+        <ToolActivityList isTerminal={isTerminal} items={activity} />
       )}
     </div>
   );
 }
 
-function SeoContent({ events, view }: { events: readonly AgentEvent[]; view: RunViewState }) {
+function SeoContent({
+  events,
+  view,
+  isTerminal,
+}: {
+  events: readonly AgentEvent[];
+  view: RunViewState;
+  isTerminal: boolean;
+}) {
   const stage = view.stages.find((s) => s.id === "seo")!;
   const activity = toolActivityForStage(events, stage);
 
   return activity.length === 0 ? (
     <p className={RUN_SURFACE_PANEL_CLASS_NAMES.textMuted}>{RUN_STAGE_EMPTY_COPY.seo}</p>
   ) : (
-    <ToolActivityList items={activity} />
+    <ToolActivityList isTerminal={isTerminal} items={activity} />
   );
 }
 
@@ -194,7 +253,15 @@ function DecisionContent({
   );
 }
 
-function UpdateContent({ events, view }: { events: readonly AgentEvent[]; view: RunViewState }) {
+function UpdateContent({
+  events,
+  view,
+  isTerminal,
+}: {
+  events: readonly AgentEvent[];
+  view: RunViewState;
+  isTerminal: boolean;
+}) {
   const approval = lastApprovalRequiredEvent(events);
   const stage = view.stages.find((s) => s.id === "cap-nhat")!;
   const activity = toolActivityForStage(events, stage);
@@ -224,13 +291,19 @@ function UpdateContent({ events, view }: { events: readonly AgentEvent[]; view: 
           {RUN_STAGE_EMPTY_COPY["cap-nhat"]}
         </p>
       ) : (
-        <ToolActivityList items={activity} />
+        <ToolActivityList isTerminal={isTerminal} items={activity} />
       )}
     </div>
   );
 }
 
 function TerminalContent({ view }: { view: RunViewState }) {
+  // A terminal state already present at mount means the seller opened a
+  // finished run -- it renders frozen (issue #1316's "finished run opens
+  // fully frozen"), never re-animated. Only a terminal event arriving in
+  // this session is a real trigger (issue #1915).
+  const [hadTerminalAtMount] = useState(() => view.terminal !== undefined);
+
   if (!view.terminal) {
     return (
       <p className={RUN_SURFACE_PANEL_CLASS_NAMES.textMuted}>{RUN_STAGE_EMPTY_COPY["hoan-tat"]}</p>
@@ -240,8 +313,40 @@ function TerminalContent({ view }: { view: RunViewState }) {
   const bucket = resolveRunTerminalState(view.terminal.stopReason);
   const copy = bucket ? RUN_TERMINAL_STATE_COPY[bucket] : RUN_TERMINAL_STATE_UNKNOWN_COPY;
 
+  // §5 row 8 (terminal-complete): "Stepper completes in sequence, then
+  // summary rises" -- the summary's rise, triggered by the run's own
+  // workflow.completed / workflow.failed. Reduced motion renders the
+  // stated alternative: a plain fade.
+  const terminalMotion = !hadTerminalAtMount
+    ? resolveRunSurfaceMotion(
+        "terminal-complete",
+        {
+          kind: "agent-event",
+          eventType: view.terminal.kind === "failed" ? "workflow.failed" : "workflow.completed",
+        },
+        prefersReducedMotion(),
+      )
+    : null;
+
   return (
-    <div data-terminal-state={bucket ?? "unknown"}>
+    <div
+      className={
+        terminalMotion
+          ? terminalMotion.reduced
+            ? "run-stage__terminal--fade"
+            : "run-stage__terminal--rise"
+          : undefined
+      }
+      data-terminal-state={bucket ?? "unknown"}
+      style={
+        terminalMotion
+          ? {
+              animationDuration: `${terminalMotion.durationMs}ms`,
+              animationTimingFunction: terminalMotion.easing,
+            }
+          : undefined
+      }
+    >
       <p className="run-stage__terminal-label">{copy.label}</p>
       <p>{copy.body}</p>
     </div>
@@ -263,6 +368,7 @@ export function RunStageCanvas({
   events,
   productName,
   nowMs,
+  isTerminal,
   headingRef,
   runId,
   confirmationToken,
@@ -285,9 +391,14 @@ export function RunStageCanvas({
         <PhanTichContent view={view} />
       ) : null}
       {stageId === "thong-tin-san-pham" ? (
-        <ProductSnapshotContent events={events} productName={productName} view={view} />
+        <ProductSnapshotContent
+          events={events}
+          isTerminal={isTerminal}
+          productName={productName}
+          view={view}
+        />
       ) : null}
-      {stageId === "seo" ? <SeoContent events={events} view={view} /> : null}
+      {stageId === "seo" ? <SeoContent events={events} isTerminal={isTerminal} view={view} /> : null}
       {stageId === "de-xuat" ? (
         <DecisionContent
           confirm={confirm}
@@ -300,7 +411,9 @@ export function RunStageCanvas({
           view={view}
         />
       ) : null}
-      {stageId === "cap-nhat" ? <UpdateContent events={events} view={view} /> : null}
+      {stageId === "cap-nhat" ? (
+        <UpdateContent events={events} isTerminal={isTerminal} view={view} />
+      ) : null}
       {stageId === "hoan-tat" ? <TerminalContent view={view} /> : null}
     </section>
   );

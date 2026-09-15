@@ -204,6 +204,19 @@ export function OptionPicker({
     { kind: "state-transition", from: "unselected", to: "selected" },
     reducedMotion,
   );
+  // §5 row 6 (confirm-to-update, issue #1915): once the seller's confirm
+  // succeeds, the selected card "animates forward into the next stage's
+  // header". The trigger is that real selected -> confirmed transition --
+  // never a timer. Reduced motion is the stated "cut with header carry":
+  // no animation here; the Cập nhật header itself carries the selection.
+  const confirmMotion =
+    status === "confirmed"
+      ? resolveRunSurfaceMotion(
+          "confirm-to-update",
+          { kind: "state-transition", from: "selected", to: "confirmed" },
+          reducedMotion,
+        )
+      : null;
 
   return (
     <div className="option-picker">
@@ -217,6 +230,7 @@ export function OptionPicker({
       >
         {options.map((option, index) => {
           const isSelected = option.option_id === selectedOptionId;
+          const animatesForward = isSelected && confirmMotion !== null && !confirmMotion.reduced;
           const diffRows = buildOptionDiffRows(option.proposed_change, productName);
           // The listing miniature's headline is the FIRST proposed field --
           // "the proposed value prominent" (PUI-DESIGN.md §3). Every real
@@ -238,6 +252,7 @@ export function OptionPicker({
                 selectedOptionId !== null && !isSelected
                   ? "option-picker__card--dimmed"
                   : undefined,
+                animatesForward ? "option-picker__card--confirm-forward" : undefined,
               )}
               disabled={interactionDisabled}
               onClick={() => {
@@ -247,9 +262,13 @@ export function OptionPicker({
               onFocus={() => setFocusedIndex(index)}
               role="radio"
               style={{
-                animationDelay: reducedMotion ? "0ms" : `${index * 150}ms`,
-                animationDuration: `${arriveMotion.durationMs}ms`,
-                animationTimingFunction: arriveMotion.easing,
+                animationDelay: reducedMotion || animatesForward ? "0ms" : `${index * 150}ms`,
+                animationDuration: animatesForward
+                  ? `${confirmMotion.durationMs}ms`
+                  : `${arriveMotion.durationMs}ms`,
+                animationTimingFunction: animatesForward
+                  ? confirmMotion.easing
+                  : arriveMotion.easing,
                 transitionDuration: `${selectMotion.durationMs}ms`,
                 transitionTimingFunction: selectMotion.easing,
               }}

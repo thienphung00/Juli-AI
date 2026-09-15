@@ -6,10 +6,19 @@
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-import type { AgentEvent } from "@juli/contracts";
+import { act, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { GOLDEN_AGENT_EVENTS, type AgentEvent } from "@juli/contracts";
 
+import {
+  contrastRatio,
+  extractDeclarations,
+  extractRuleBlocks,
+  loadRunSurfaceTokenMaps,
+  readRunTokensCss,
+  resolveCssValue,
+  resolveToken,
+} from "../../__tests__/run-surface-css-helpers";
 import { RUN_OPTION_FIELD_FALLBACK } from "../../lib/run-surface/option-diff";
 import { reduceRunView } from "../../lib/run-surface/reduce-run-view";
 import { RunStageCanvas } from "../run-stage-canvas";
@@ -308,4 +317,280 @@ describe("RunStageCanvas -- panel composition (issue #1914)", () => {
     expect(panel.classList.contains("juli-run-panel--raised")).toBe(true);
     expect(panel.classList.contains("juli-run-panel")).toBe(true);
   });
+});
+
+/**
+ * Issue #1915 -- the assistant-text-reveal consumer (PUI-DESIGN.md §5 row
+ * 2). The captured scenario carries NO assistant.text event
+ * (replay-ledger-item.test.ts states this fact directly), so the
+ * typewriter is proven against the contracts package's own
+ * compiler-checked canonical instance (`GOLDEN_AGENT_EVENTS`), never a
+ * hand-invented payload.
+ *
+ * TIMING NOTE (#1975): the mid-reveal assertion below is NOT a race --
+ * fake timers make the midpoint deterministic. The completion assertions
+ * are against the settled state.
+ */
+describe("RunStageCanvas -- Phân tích narration typewriter (issue #1915, AC 2/5/6)", () => {
+  const startedEvent = GOLDEN_AGENT_EVENTS["workflow.started"];
+  const narrationEvent = GOLDEN_AGENT_EVENTS["assistant.text"];
+  if (narrationEvent.event_type !== "assistant.text") {
+    throw new Error("GOLDEN_AGENT_EVENTS['assistant.text'] is not an assistant.text event");
+  }
+  const line = narrationEvent.payload.text;
+  const originalMatchMedia = window.matchMedia;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+    vi.useRealTimers();
+  });
+
+  function canvasProps(events: readonly AgentEvent[]) {
+    return {
+      events,
+      isTerminal: false,
+      nowMs: 1000,
+      productName: PRODUCT_NAME,
+      runId: "run-1",
+      stageId: "phan-tich" as const,
+      view: reduceRunView(events),
+    };
+  }
+
+  it("reveals a newly arrived assistant.text line progressively -- caret present while revealing, absent once settled", () => {
+    const { container, rerender } = render(<RunStageCanvas {...canvasProps([startedEvent])} />);
+    expect(container.querySelector(".juli-run-streaming-caret")).toBeNull();
+
+    rerender(<RunStageCanvas {...canvasProps([startedEvent, narrationEvent])} />);
+
+    // Mid-reveal, deterministically: 10 ticks of the §5 ~30ms/char cap.
+    act(() => {
+      vi.advanceTimersByTime(30 * 10);
+    });
+    const reveal = container.querySelector(".run-stage__narration-reveal");
+    expect(reveal).not.toBeNull();
+    expect(reveal!.textContent).toBe(line.slice(0, 10));
+    expect(
+      container.querySelector(".juli-run-streaming-caret"),
+      "the caret carries juli-run-streaming-caret while a line reveals",
+    ).not.toBeNull();
+
+    // Settled state (never a transient midpoint): the whole line, no caret.
+    act(() => {
+      vi.advanceTimersByTime(30 * (line.length + 5));
+    });
+    expect(screen.getByText(line)).toBeInTheDocument();
+    expect(container.querySelector(".juli-run-streaming-caret")).toBeNull();
+  });
+
+  it("narration already present at mount renders whole, with no caret and no timer -- history is not replayed as motion", () => {
+    const { container } = render(
+      <RunStageCanvas {...canvasProps([startedEvent, narrationEvent])} />,
+    );
+    expect(screen.getByText(line)).toBeInTheDocument();
+    expect(container.querySelector(".juli-run-streaming-caret")).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("prefers-reduced-motion renders the §5 alternative: the full line fades in at once, no caret (AC 5)", () => {
+    window.matchMedia = vi.fn().mockReturnValue({
+      matches: true,
+      media: "",
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }) as unknown as typeof window.matchMedia;
+
+    const { container, rerender } = render(<RunStageCanvas {...canvasProps([startedEvent])} />);
+    rerender(<RunStageCanvas {...canvasProps([startedEvent, narrationEvent])} />);
+
+    expect(screen.getByText(line)).toBeInTheDocument();
+    expect(container.querySelector(".juli-run-streaming-caret")).toBeNull();
+
+    const faded = container.querySelector<HTMLElement>(".run-stage__narration-line--fade");
+    expect(faded, "the new line carries the §5 full-text fade-in").not.toBeNull();
+    expect(faded!.style.animationDuration).toBe("150ms");
+    expect(faded!.style.animationTimingFunction).toBe("ease-out");
+  });
+
+  it("an empty event list starts no animation: no caret, no motion class, no pending timer (AC 6)", () => {
+    const { container } = render(<RunStageCanvas {...canvasProps([])} />);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(container.querySelector(".juli-run-streaming-caret")).toBeNull();
+    expect(
+      container.querySelector(
+        '[class*="--fade"], [class*="--rise"], [class*="--settle"], [class*="confirm-forward"]',
+      ),
+    ).toBeNull();
+  });
+});
+
+/** Issue #1915 -- shared reduced-motion stub for the motion describes below. */
+function stubReducedMotion() {
+  window.matchMedia = vi.fn().mockReturnValue({
+    matches: true,
+    media: "",
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }) as unknown as typeof window.matchMedia;
+}
+
+describe("RunStageCanvas -- tool-chip-complete consumer (issue #1915, AC 5)", () => {
+  const originalMatchMedia = window.matchMedia;
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
+  // The captured scenario's own walk: c1 running (events 1-2), then its
+  // real tool.completed (event 3) arrives.
+  const runningEvents = scenario.events.slice(0, 2);
+  const completedEvents = scenario.events.slice(0, 3);
+
+  function snapshotProps(events: readonly AgentEvent[]) {
+    return {
+      events,
+      isTerminal: false,
+      nowMs: 1000,
+      productName: PRODUCT_NAME,
+      runId: "run-1",
+      stageId: "thong-tin-san-pham" as const,
+      view: reduceRunView(events),
+    };
+  }
+
+  it("a tool.completed arriving live checks in with the §5 scale settle (200ms ease-out)", () => {
+    const { container, rerender } = render(<RunStageCanvas {...snapshotProps(runningEvents)} />);
+    expect(container.querySelector(".run-stage__tool-check")).toBeNull();
+
+    rerender(<RunStageCanvas {...snapshotProps(completedEvents)} />);
+
+    const check = container.querySelector<HTMLElement>(".run-stage__tool-check");
+    expect(check, "the completed chip renders a check").not.toBeNull();
+    expect(check!.classList.contains("run-stage__tool-check--settle")).toBe(true);
+    expect(check!.style.animationDuration).toBe("200ms");
+    expect(check!.style.animationTimingFunction).toBe("ease-out");
+  });
+
+  it("a completion already present at mount renders a static check -- history is not replayed as motion", () => {
+    const { container } = render(<RunStageCanvas {...snapshotProps(completedEvents)} />);
+    const check = container.querySelector<HTMLElement>(".run-stage__tool-check");
+    expect(check).not.toBeNull();
+    expect(check!.classList.contains("run-stage__tool-check--settle")).toBe(false);
+  });
+
+  it("prefers-reduced-motion renders the §5 alternative: an instant check, no settle (AC 5)", () => {
+    stubReducedMotion();
+    const { container, rerender } = render(<RunStageCanvas {...snapshotProps(runningEvents)} />);
+    rerender(<RunStageCanvas {...snapshotProps(completedEvents)} />);
+
+    const check = container.querySelector<HTMLElement>(".run-stage__tool-check");
+    expect(check, "the check still appears, instantly").not.toBeNull();
+    expect(check!.classList.contains("run-stage__tool-check--settle")).toBe(false);
+  });
+});
+
+describe("RunStageCanvas -- terminal-complete consumer (issue #1915, AC 5)", () => {
+  const originalMatchMedia = window.matchMedia;
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
+  // The captured approve continuation, walked to just before and then
+  // through its workflow.completed.
+  const beforeTerminal = approved.slice(0, approved.length - 1);
+  const atTerminal = approved;
+
+  function terminalProps(events: readonly AgentEvent[]) {
+    const view = reduceRunView(events);
+    return {
+      events,
+      isTerminal: view.terminal !== undefined,
+      nowMs: 1000,
+      productName: PRODUCT_NAME,
+      runId: "run-1",
+      stageId: "hoan-tat" as const,
+      view,
+    };
+  }
+
+  it("a workflow.completed arriving live rises the summary (600ms ease-in-out)", () => {
+    const { container, rerender } = render(<RunStageCanvas {...terminalProps(beforeTerminal)} />);
+    expect(container.querySelector("[data-terminal-state]")).toBeNull();
+
+    rerender(<RunStageCanvas {...terminalProps(atTerminal)} />);
+
+    const summary = container.querySelector<HTMLElement>("[data-terminal-state]");
+    expect(summary).not.toBeNull();
+    expect(summary!.classList.contains("run-stage__terminal--rise")).toBe(true);
+    expect(summary!.style.animationDuration).toBe("600ms");
+    expect(summary!.style.animationTimingFunction).toBe("ease-in-out");
+  });
+
+  it("prefers-reduced-motion renders the §5 alternative: a fade (150ms linear), never the rise (AC 5)", () => {
+    stubReducedMotion();
+    const { container, rerender } = render(<RunStageCanvas {...terminalProps(beforeTerminal)} />);
+    rerender(<RunStageCanvas {...terminalProps(atTerminal)} />);
+
+    const summary = container.querySelector<HTMLElement>("[data-terminal-state]");
+    expect(summary).not.toBeNull();
+    expect(summary!.classList.contains("run-stage__terminal--rise")).toBe(false);
+    expect(summary!.classList.contains("run-stage__terminal--fade")).toBe(true);
+    expect(summary!.style.animationDuration).toBe("150ms");
+  });
+
+  it("a finished run opened cold renders the summary frozen -- no rise, no fade", () => {
+    const { container } = render(<RunStageCanvas {...terminalProps(atTerminal)} />);
+    const summary = container.querySelector<HTMLElement>("[data-terminal-state]");
+    expect(summary).not.toBeNull();
+    expect(summary!.classList.contains("run-stage__terminal--rise")).toBe(false);
+    expect(summary!.classList.contains("run-stage__terminal--fade")).toBe(false);
+  });
+});
+
+/**
+ * Issue #1915 AC 3 -- the caret must be visible as a non-text indicator
+ * (WCAG 1.4.11, >= 3:1). ASSERTED against both fills the caret can sit
+ * on, never reasoned from the token's published 5.80:1 on white: the
+ * caret is the one live-edge element sitting directly ON a panel fill
+ * rather than being a filled swatch itself.
+ */
+describe("streaming caret contrast (issue #1915, AC 3)", () => {
+  const maps = loadRunSurfaceTokenMaps();
+  const caretBlocks = extractRuleBlocks(readRunTokensCss()).filter(
+    (blockEntry) => blockEntry.selector === ".juli-run-streaming-caret",
+  );
+
+  it("the caret's fill comes from the token layer's one sanctioned rule", () => {
+    expect(caretBlocks).toHaveLength(1);
+    expect(extractDeclarations(caretBlocks[0]!.body).background).toBeDefined();
+  });
+
+  it.each(["--juli-run-panel-fill", "--juli-run-raised-fill"])(
+    "the caret clears 3:1 against %s",
+    (groundToken) => {
+      const caretFill = resolveCssValue(
+        extractDeclarations(caretBlocks[0]!.body).background!,
+        maps,
+      );
+      const ground = resolveToken(groundToken, maps);
+      const ratio = contrastRatio(caretFill, ground);
+      expect(
+        ratio,
+        `caret ${caretFill} on ${groundToken} ${ground} = ${ratio.toFixed(2)}:1`,
+      ).toBeGreaterThanOrEqual(3.0);
+    },
+  );
 });
