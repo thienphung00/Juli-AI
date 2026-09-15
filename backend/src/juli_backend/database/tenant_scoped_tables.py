@@ -57,6 +57,7 @@ TABLE_CLASSIFICATION_MAP = {
     ("bronze", "ctor_performance_raw_payloads"): "tenant_direct",
     ("bronze", "live_hours_raw_payloads"): "tenant_direct",
     ("public", "processed_events"): "tenant_direct",
+    ("public", "ingest_dedup_epochs"): "tenant_direct",
     ("public", "production_write_authorizations"): "tenant_direct",
     ("public", "production_write_audit"): "tenant_direct",
     # Via-parent tenant-scoped tables
