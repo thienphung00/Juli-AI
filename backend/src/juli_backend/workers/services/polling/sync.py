@@ -77,6 +77,63 @@ ProductIdsFn = Callable[[], Awaitable[list[str]]]
 # call.
 DEFAULT_INVENTORY_PAGE_SIZE = 30
 
+
+async def _resolve_synced_product_ids(shop_id: str) -> list[str]:
+    """Default ``list_product_ids``: read a shop's already-synced product ids
+    off the ``products`` table through the existing repository layer (#1948).
+
+    ``sync_inventory`` is handed no session (only a TikTok shop key string),
+    so this opens its own -- the same process-wide worker-session-factory
+    pattern every session-less Celery entry point under ``workers/tasks/``
+    already uses (e.g. ``workers/tasks/reaper.py::_ensure_session_factory``).
+    That keeps ``orchestrate.py``'s existing call site (``resource=``,
+    ``rate_limiter=``, ``handoff_fn=``, ``app_id=``, ``shop_id=``,
+    ``sync_state=``, no ``list_product_ids``) working untouched.
+
+    Read-only and best-effort: any resolution miss (shop not yet synced, no
+    products yet, database unavailable) returns ``[]`` rather than raising.
+    This is a *source* of ids feeding the vendor call, not the vendor call
+    itself -- "nothing to sync yet" is not the loud vendor failure #1948 is
+    about, and must not be conflated with it.
+    """
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from juli_backend.database.database import ensure_worker_session_factory
+    from juli_backend.database.tenant_context import system_scope, with_shop_scope
+    from juli_backend.repositories import ProductsRepo, ShopsRepo
+    from juli_backend.workers.tasks.database import get_async_database_url
+
+    try:
+        factory = ensure_worker_session_factory(get_async_database_url())
+        async with factory() as session:
+            async with system_scope(session, caller="sync_inventory.default_list_product_ids"):
+                shop = await ShopsRepo(session).get_by_tiktok_id(shop_id)
+            if shop is None:
+                return []
+
+            product_ids: list[str] = []
+            cursor: uuid.UUID | None = None
+            page_limit = 200
+            async with with_shop_scope(session, shop.id):
+                repo = ProductsRepo(session)
+                while True:
+                    page = await repo.list(shop.id, limit=page_limit, after=cursor)
+                    if not page:
+                        break
+                    product_ids.extend(p.tiktok_product_id for p in page if p.tiktok_product_id)
+                    if len(page) < page_limit:
+                        break
+                    cursor = page[-1].id
+            return product_ids
+    except SQLAlchemyError:
+        logger.warning(
+            "sync_inventory_default_product_ids_unavailable",
+            extra={"shop_id": shop_id},
+            exc_info=True,
+        )
+        return []
+
+
 # Logger for structured warnings about credential mismatches
 mismatch_logger = logging.getLogger(__name__ + ".sandbox_write_catalog_identity_mismatch")
 
@@ -369,7 +426,7 @@ async def sync_inventory(
     app_id: str,
     shop_id: str,
     sync_state: dict[str, Any],
-    list_product_ids: ProductIdsFn,
+    list_product_ids: ProductIdsFn | None = None,
     page_size: int = DEFAULT_INVENTORY_PAGE_SIZE,
 ) -> None:
     """Fetch inventory snapshot, flatten SKUs, and hand off to ETL.
@@ -381,7 +438,12 @@ async def sync_inventory(
     calling it with none -- as this worker used to -- is a guaranteed
     ``TikTokAPIError``. ``list_product_ids`` supplies the shop's already-synced
     product ids, batched into ``page_size`` requests since the endpoint's true
-    per-call cap is not established.
+    per-call cap is not established. Defaults to
+    :func:`_resolve_synced_product_ids` (reads the ``products`` table itself
+    via the existing repository layer) so ``orchestrate.py``'s existing call
+    site -- which does not pass ``list_product_ids`` -- keeps working
+    unmodified; tests and any future caller that wants a different source
+    still inject their own.
 
     Any ``TikTokAPIError`` propagates instead of being logged-and-swallowed:
     a sync that silently drops every row must not look identical to one with
@@ -393,7 +455,8 @@ async def sync_inventory(
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "inventory"})
         return
 
-    product_ids = await list_product_ids()
+    resolve_product_ids = list_product_ids or (lambda: _resolve_synced_product_ids(shop_id))
+    product_ids = await resolve_product_ids()
     if not product_ids:
         logger.info("sync_inventory_no_products", extra={"shop_id": shop_id})
         return
