@@ -33,6 +33,21 @@ Matches ``__all__`` — re-exports only:
 Producer wiring: ``make_etl_handoff(consumer)`` lives in
 ``juli_backend.services.ingestion`` (not re-exported from this package).
 
+### Ingest persistence (`persistence.ingest`)
+
+The idempotency ledger and its epoch. Import from
+``juli_backend.services.etl.persistence.ingest``:
+
+- ``ProcessedEvent`` — the ledger row; the dedup key is ``(event_id, epoch)`` (#1968)
+- ``ProcessedEventsRepo`` — ``claim(*, event_id, shop_id, epoch=INITIAL_EPOCH) -> bool``;
+  ``False`` means the id was already processed *in that epoch*
+- ``IngestDedupEpoch`` — current epoch for one ``(shop_id, channel)`` plus
+  ``advanced_at`` / ``advanced_by`` / ``reason``
+- ``IngestDedupEpochsRepo`` — ``current(*, shop_id, channel) -> int`` (read-only; an
+  absent row means ``INITIAL_EPOCH``) and ``advance(*, shop_id, channel, operator,
+  reason) -> int``, the operator action described under *Recovering lost history*
+- ``INITIAL_EPOCH`` — ``0``; the epoch every row written before #1968 belongs to
+
 ## Dependencies
 
 - `juli_backend.database` — repos, `ProcessedEventsRepo`, shop resolution

@@ -50,18 +50,18 @@ LEDGER_PK = "processed_events_pkey"
 def _enable_rls_and_policies() -> None:
     """Tenant-scope the new table the same way migration 046 scoped the ledger."""
     op.execute(f"ALTER TABLE public.{EPOCH_TABLE} ENABLE ROW LEVEL SECURITY")
+    # Through `app_current_shop_id()`, never a raw `current_setting(...)::uuid`
+    # (#1467, migration 050): the raw cast raises on the empty string that
+    # `SET LOCAL` leaves behind at commit. Migration 046's policies predate the
+    # helper, so copying its shape verbatim would reintroduce that bug.
     for verb, clause in (
-        ("SELECT", "USING (shop_id = current_setting('app.current_shop_id', true)::uuid)"),
+        ("SELECT", "USING (shop_id = app_current_shop_id())"),
         (
             "UPDATE",
-            "USING (shop_id = current_setting('app.current_shop_id', true)::uuid) "
-            "WITH CHECK (shop_id = current_setting('app.current_shop_id', true)::uuid)",
+            "USING (shop_id = app_current_shop_id()) WITH CHECK (shop_id = app_current_shop_id())",
         ),
-        ("DELETE", "USING (shop_id = current_setting('app.current_shop_id', true)::uuid)"),
-        (
-            "INSERT",
-            "WITH CHECK (shop_id = current_setting('app.current_shop_id', true)::uuid)",
-        ),
+        ("DELETE", "USING (shop_id = app_current_shop_id())"),
+        ("INSERT", "WITH CHECK (shop_id = app_current_shop_id())"),
     ):
         # Policies cover every verb so a future grant cannot leak across tenants;
         # the grant below is what actually limits juli_app to reading.
