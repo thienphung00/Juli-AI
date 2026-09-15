@@ -1,0 +1,81 @@
+{
+  "planId": "per-shop-credential-read-path-2026-09-15",
+  "affectedPublicSurfaces": [
+    "`core/security/credential_resolver.py` — the single place the runtime decides which TikTok credential a read uses. Today `resolve_production_read_credential` resolves ONE globally configured merchant (`PRODUCTION_AUTH_ID` + `PRODUCTION_READ`) and its docstring says it never falls back. Widening this is the highest-risk edit in the pre-W9 batch: a mistake here reads one merchant's data under another merchant's shop.",
+    "Every caller of that resolver, including `services/action_cards/refresh.py::maybe_poll_tiktok_data`, which today compares `production_credential.shop_id != shop_id` and returns `None` for every other shop — silently. Any `/v1` route that reaches a poll or a vendor read inherits this change.",
+    "The credential table's capability semantics (`integrations/tiktok/merchant.py::resolve_merchant_context`): OAuth already stores a seller's own credential as `SELLER_CONNECT`. This slice makes that capability usable for reads scoped to its own shop, and must not turn it into `PRODUCTION_READ`."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest proves resolution is keyed on the shop AND its credential's capability — a shop resolves only its own `SELLER_CONNECT` credential, the configured merchant still resolves its `PRODUCTION_READ` one, and a shop with neither raises rather than returning None. Cross-shop resolution is asserted per case, never by generic error matching. Post-deploy: on the candidate port only, a read for the reference shop still succeeds through its existing credential, proving no regression for the one merchant that works today. NO read is performed against a second live merchant's shop as part of this journey — there is no second connected merchant, and manufacturing one is out of scope.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "syntheticShopRequired is true: cross-shop isolation must be proven against a synthetic second shop holding its own SELLER_CONNECT credential, because proving it against the single real merchant proves nothing about isolation. workersDisabledOnCandidate is false — the poll path on the worker is the main consumer. apiSideEffectsInScope is false: reads only, no approve/confirm/write, and TikTok is read-only throughout. THE HAZARD: `owner_id = callback_user_id or _app_review_user_id()` already means a shop can bind to a shared app-review user (#1970). This slice must not compound that by letting a shop resolve a credential it does not own.",
+    "journeys": [
+      {
+        "name": "a-shop-reads-with-its-own-credential-and-no-other",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1365",
+        "assertions": [
+          "pre-merge: a shop holding a `SELLER_CONNECT` credential resolves that credential for a read",
+          "pre-merge: two shops each holding their own `SELLER_CONNECT` credential resolve their own and never each other's — asserted per case against a synthetic second shop, not by error-code matching",
+          "pre-merge: a shop with no usable credential FAILS LOUDLY — raises a named error; it does not return None and it does not fall back to the configured merchant's credential. The current silent skip is the defect being fixed",
+          "pre-merge: the configured production-read merchant continues to resolve its `PRODUCTION_READ` credential through the same path, unchanged",
+          "pre-merge: no code path promotes a `SELLER_CONNECT` credential to `PRODUCTION_READ`, and a test asserts the capability value on a resolved seller credential",
+          "pre-merge: sandbox-write credentials remain unreachable from any read path",
+          "pre-merge: cross-tenant and nonexistent both surface as 404 at any route boundary reached, never 403 — no existence oracle",
+          "post-deploy (candidate port): a read for the reference shop succeeds through its existing credential — no regression for the only merchant currently connected",
+          "post-deploy: no vendor call is issued on behalf of a shop that does not own the credential used, asserted from the correlation-stamped logs of the candidate process"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset. The diff is backend credential resolution; `apps/` is on this slice's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "js",
+      "css"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false,
+    "notes": "required=false: the diff is backend-only and ships no HTML route, bundle or static asset, so there is nothing to discover or fetch. assetTypes is present to satisfy the schema, not because any asset is in scope."
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "NO MIGRATION IN THIS SLICE — 059 and 060 are assigned to ONB-DATA (#1966, #1968). The credential rows this slice reads already exist with the correct capability; OAuth has been writing them correctly all along. If a field genuinely requires a schema change, report it rather than adding one here."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false,
+    "notes": "PRE-CUTOVER: Do not merge. Without this slice only the single configured merchant can be polled, which is today's state — no new exposure. Newly connected sellers keep getting a silent no-op, as they do now. POST-CUTOVER: Redeploy the previous release and restart juli-api and the worker — no migration to reverse. Reverting must not leave any cached resolution that lets a shop keep reading through a credential it does not own; resolution is per-call and holds no cross-request state, and a test asserts that. Rows ingested while the candidate ran belong to the shop that owns the credential that fetched them and stay valid after rollback."
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest tests/unit -k 'credential or resolver or capability' -q",
+    "python agent-runtime/scripts/validate/check_handoff.py --issue 1365"
+  ],
+  "doNotInfer": [
+    "Never widen a SELLER_CONNECT credential to PRODUCTION_READ.",
+    "Never fall back to the configured merchant's credential for a shop that does not own it.",
+    "Do not preserve the silent None return — a shop with no usable credential must fail loudly.",
+    "Do not edit the polling package or the ETL — ONB-DATA owns those and its six issues run concurrently.",
+    "Do not add a migration."
+  ]
+}
