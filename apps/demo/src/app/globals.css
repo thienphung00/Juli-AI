@@ -1962,51 +1962,105 @@ a {
   font-weight: 600;
 }
 
+/* The rail (issue #1914, PUI-DESIGN.md §2). One row of circular markers
+   joined by connectors; the glyph inside the marker (✓ / index / ○)
+   carries each node's status visually, and the status STRING lives only
+   in the button's accessible name (the .juli-sr-only span in
+   run-stepper.tsx). Colour is never the only cue. No wrapping on web;
+   below 42rem the labels may truncate but the rail stays one row. */
 .run-stepper {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--juli-space-2);
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  /* Opt out of the grid column's min-content sizing: a nowrap label counts
+     its FULL text width in min-content even while visually truncated, which
+     stretched the whole column past the mobile viewport. With the item
+     allowed to shrink, the nodes (min-width: 0) divide the real width and
+     the labels truncate as designed. */
+  min-width: 0;
 }
 
 .run-stepper__node {
+  position: relative;
   display: flex;
+  flex: 1 1 0;
+  min-width: 0;
   flex-direction: column;
-  align-items: flex-start;
-  gap: var(--juli-space-1);
-  padding: var(--juli-space-2) var(--juli-space-3);
-  border-radius: var(--juli-radius);
-  border: 1px solid var(--juli-run-panel-border);
-  min-height: var(--juli-touch-target);
+  align-items: center;
+  gap: var(--juli-space-2);
+  padding: var(--juli-space-1);
+  border: 0;
+  background: none;
+  color: var(--juli-run-foreground);
+  font: inherit;
   cursor: pointer;
 }
 
-/* The cascade fix (#1913; ADR-102 context, finding 2). The token layer's
-   `.juli-run-stepper-node--active` accent rule is @imported EARLIER at
-   EQUAL specificity, so an unqualified `background` here silently
-   cancelled the surface's one brand-coloured element on every build ever
-   shipped. This sheet now paints only the nodes that are NOT the live
-   edge; the accent fill belongs to the token layer alone. */
-.run-stepper__node:not(.juli-run-stepper-node--active) {
+/* The connector: a 1px line on each node after the first, running from
+   the previous marker's edge to this one's. Behind the live edge (frozen
+   nodes and the active node itself) it fills to the accent, so "how far
+   has this run got" reads at a glance -- ahead of the edge it stays in
+   the panel border tone. */
+.run-stepper__node + .run-stepper__node::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--juli-touch-target) / 2);
+  right: calc(50% + var(--juli-touch-target) / 2 + var(--juli-space-1));
+  left: calc(-50% + var(--juli-touch-target) / 2 + var(--juli-space-1));
+  height: 1px;
+  background: var(--juli-run-panel-border);
+  transition: background-color 240ms ease;
+}
+
+.run-stepper__node + .run-stepper__node--frozen::before,
+.run-stepper__node + .run-stepper__node--active::before {
+  background: var(--juli-run-live-edge);
+}
+
+/* The circular marker (--juli-touch-target minimum, PUI-DESIGN.md §2).
+   `position: relative` keeps it painting above the connector without a
+   z-index. The #1913 cascade fix carries over: this sheet paints only
+   markers that are NOT the live edge; the accent fill belongs to the
+   token layer's `.juli-run-stepper-node--active` alone (@imported
+   EARLIER at EQUAL specificity, so an unqualified background here would
+   silently cancel it again). */
+.run-stepper__node-marker {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--juli-touch-target);
+  height: var(--juli-touch-target);
+  border-radius: 50%;
+  border: 1px solid var(--juli-run-panel-border);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.run-stepper__node-marker:not(.juli-run-stepper-node--active) {
   background: var(--juli-run-panel-fill);
   color: var(--juli-run-foreground);
   box-shadow: var(--juli-run-panel-shadow);
   backdrop-filter: blur(var(--juli-run-panel-blur));
 }
 
+.run-stepper__node--frozen .run-stepper__node-marker {
+  background: var(--juli-run-raised-fill);
+  box-shadow: var(--juli-run-raised-shadow);
+  backdrop-filter: blur(var(--juli-run-raised-blur));
+}
+
 /* PUI-DESIGN.md §5: "Soft breathing indicator on the active stepper
-   node (loop)". The label sits ON the accent fill (5.80:1, ADR-102
-   decision 3); the glow breathes through the derived `-soft` token;
-   duration/easing arrive inline from the thinking-state motion
-   primitive, never a bare timer. */
-.run-stepper__node.juli-run-stepper-node--active {
+   node (loop)" -- on the marker, where the accent fill lives. The glyph
+   sits ON the accent fill (5.80:1, ADR-102 decision 3); duration/easing
+   arrive inline from the thinking-state motion primitive, never a bare
+   timer. */
+.run-stepper__node-marker.juli-run-stepper-node--active {
   border-color: transparent;
   color: var(--juli-run-live-edge-foreground);
   animation-name: run-stepper-node-breathe;
   animation-iteration-count: infinite;
-}
-
-.run-stepper__node.juli-run-stepper-node--active .juli-run-text-muted {
-  color: var(--juli-run-live-edge-foreground);
 }
 
 .run-stepper__node:disabled {
@@ -2014,32 +2068,45 @@ a {
   opacity: 0.5;
 }
 
-.run-stepper__node.run-stepper__node--frozen {
-  background: var(--juli-run-raised-fill);
-  box-shadow: var(--juli-run-raised-shadow);
-  backdrop-filter: blur(var(--juli-run-raised-blur));
-}
-
-.run-stepper__node--viewing {
+.run-stepper__node--viewing .run-stepper__node-marker {
   border-color: var(--juli-run-focus-ring);
 }
 
-.run-stepper__node-index {
-  font-size: 0.75rem;
+.run-stepper__node-label {
+  max-width: 100%;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.run-stepper__node--viewing .run-stepper__node-label {
   font-weight: 700;
 }
 
-.run-stepper__node-label {
-  font-weight: 600;
-}
-
-.run-stepper__node-status {
-  font-size: 0.7rem;
+@media (max-width: 42rem) {
+  .run-stepper__node-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .run-staged-view__canvas-wrapper {
   animation-name: run-stage-advance;
   animation-fill-mode: backwards;
+}
+
+/* The stage canvas panel (issue #1914). Now that the panel's border is
+   actually visible (juli-run-panel composed with --raised), the content
+   needs breathing room inside it. */
+.run-stage-canvas {
+  padding: var(--juli-space-5) var(--juli-space-6);
+}
+
+.run-stage-canvas > h2 {
+  margin: 0 0 var(--juli-space-4);
+  font-size: 1.125rem;
 }
 
 .run-stage__tool-list {
@@ -2079,25 +2146,90 @@ a {
   color: var(--juli-run-warning-text);
 }
 
+/* Issue #1914: these classes were emitted with no rule anywhere -- the
+   four the issue names, plus .run-ledger__loading, which the new
+   class-coverage guard (run-surface-class-coverage.test.ts) found the
+   same way. */
+.run-stage__product-snapshot-label {
+  margin: 0 0 var(--juli-space-3);
+  font-size: 0.875rem;
+  color: var(--juli-run-foreground-muted);
+}
+
+.run-stage__product-snapshot-label strong {
+  color: var(--juli-run-foreground);
+  font-weight: 700;
+}
+
+.run-stage__update-header {
+  display: grid;
+  gap: var(--juli-space-2);
+  margin: 0 0 var(--juli-space-4);
+  padding-bottom: var(--juli-space-3);
+  border-bottom: 1px solid var(--juli-run-panel-border);
+}
+
+.run-stage__update-header > p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.run-stage__terminal-label {
+  margin: 0 0 var(--juli-space-2);
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+
+.run-stage__tool-label {
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.run-ledger__loading {
+  margin: var(--juli-space-6) 0;
+  color: var(--juli-run-foreground-muted);
+}
+
 .run-staged-view__nav {
   display: flex;
   justify-content: space-between;
   gap: var(--juli-space-3);
 }
 
-.run-staged-view__nav button {
+/* The .btn-secondary shape from colors_and_type.css (issue #1914),
+   expressed through run-layer tokens -- quiet outline buttons, so the
+   stage canvas keeps the visual weight. */
+.run-staged-view__nav-back,
+.run-staged-view__nav-forward {
   min-height: var(--juli-touch-target);
   padding: var(--juli-space-2) var(--juli-space-4);
   border-radius: var(--juli-radius);
   border: 1px solid var(--juli-run-panel-border);
-  background: var(--juli-run-panel-fill);
+  background: transparent;
   color: var(--juli-run-foreground);
-  box-shadow: var(--juli-run-panel-shadow);
-  backdrop-filter: blur(var(--juli-run-panel-blur));
+  font-size: 0.875rem;
+  font-weight: 600;
   cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
 }
 
-.run-staged-view__nav button:disabled {
+.run-staged-view__nav-back:hover:not(:disabled),
+.run-staged-view__nav-forward:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--juli-run-foreground) 5%, transparent);
+  box-shadow: var(--juli-run-panel-shadow);
+}
+
+.run-staged-view__nav-back:active:not(:disabled),
+.run-staged-view__nav-forward:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.run-staged-view__nav-back:disabled,
+.run-staged-view__nav-forward:disabled {
   cursor: not-allowed;
   opacity: 0.4;
 }
@@ -2128,8 +2260,17 @@ a {
     animation-name: run-stage-crossfade;
   }
 
-  .run-stepper__node.juli-run-stepper-node--active {
+  .run-stepper__node-marker.juli-run-stepper-node--active {
     animation-name: none;
+  }
+
+  .run-stepper__node + .run-stepper__node::before {
+    transition: none;
+  }
+
+  .run-staged-view__nav-back,
+  .run-staged-view__nav-forward {
+    transition: none;
   }
 }
 

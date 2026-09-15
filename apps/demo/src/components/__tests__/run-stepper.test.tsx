@@ -271,3 +271,165 @@ describe("RunStepper -- the live-edge accent actually paints (issue #1913, ADR-1
     expect(activeNode!.style.animationDuration).toBe("1600ms");
   });
 });
+
+/**
+ * Issue #1914 -- the stepper is a rail, not a row of boxes with literal
+ * status text. The parenthesised status strings leave the visible DOM
+ * (they were rendered as chrome on all six nodes at once, against
+ * stage-copy.ts's own "accessible status suffix" docstring) and live on
+ * in each button's accessible name via a visually-hidden span; the glyph
+ * (✓ / index / ○) carries the status visually, so colour is never the
+ * only cue; connectors between nodes read "how far has this run got" by
+ * resolving to different tokens behind and ahead of the live edge.
+ */
+describe("RunStepper -- rail, not boxes (issue #1914)", () => {
+  const cssHelpers = async () => import("../../__tests__/run-surface-css-helpers");
+
+  /** Contents of every `@media (prefers-reduced-motion: reduce)` block,
+   *  brace-matched (the flat block regex in css-utils cannot tell inside
+   *  from outside a media query). */
+  function reducedMotionCss(css: string): string {
+    let out = "";
+    const header = /@media[^{]*prefers-reduced-motion:\s*reduce[^{]*\{/g;
+    while (header.exec(css) !== null) {
+      let depth = 1;
+      let index = header.lastIndex;
+      while (index < css.length && depth > 0) {
+        if (css[index] === "{") depth += 1;
+        else if (css[index] === "}") depth -= 1;
+        index += 1;
+      }
+      out += css.slice(header.lastIndex, index - 1);
+    }
+    return out;
+  }
+
+  it("renders zero parenthesised status literals; each node's accessible name still carries its status", () => {
+    render(
+      <RunStepper
+        nodes={buildNodes(3)}
+        onNavigate={vi.fn()}
+        stagePanelId={stagePanelId}
+        viewingIndex={3}
+      />,
+    );
+
+    const tablist = screen.getByRole("tablist", { name: "Các bước xử lý" });
+    for (const literal of ["(Đã hoàn tất)", "(Đang diễn ra)", "(Chưa mở khoá)"]) {
+      expect(tablist.textContent).not.toContain(literal);
+    }
+
+    // The status still reaches assistive tech through the accessible name…
+    expect(screen.getByRole("tab", { name: /Phân tích.*Đã hoàn tất/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Đề xuất.*Đang diễn ra/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Hoàn tất.*Chưa mở khoá/ })).toBeInTheDocument();
+
+    // …carried by a visually-hidden span, not visible chrome.
+    const frozenTab = screen.getByRole("tab", { name: /Phân tích.*Đã hoàn tất/ });
+    const statusSpan = Array.from(frozenTab.querySelectorAll("span")).find(
+      (span) => span.textContent === "Đã hoàn tất",
+    );
+    expect(statusSpan, "the status must live in a dedicated span").toBeDefined();
+    expect(statusSpan!.className).toContain("juli-sr-only");
+  });
+
+  it("frozen / active / locked nodes are told apart by glyph alone -- text content, not colour", () => {
+    render(
+      <RunStepper
+        nodes={buildNodes(3)}
+        onNavigate={vi.fn()}
+        stagePanelId={stagePanelId}
+        viewingIndex={3}
+      />,
+    );
+
+    const tabs = screen.getAllByRole("tab");
+    // Frozen: ✓, never an index or the locked ring.
+    for (const frozen of tabs.slice(0, 3)) {
+      expect(frozen.textContent).toContain("✓");
+      expect(frozen.textContent).not.toContain("○");
+    }
+    // Active: its 1-based index, no ✓, no ○.
+    expect(tabs[3].textContent).toContain("4");
+    expect(tabs[3].textContent).not.toContain("✓");
+    expect(tabs[3].textContent).not.toContain("○");
+    // Locked: ○, never ✓.
+    for (const locked of tabs.slice(4)) {
+      expect(locked.textContent).toContain("○");
+      expect(locked.textContent).not.toContain("✓");
+    }
+  });
+
+  it("the rail stays one row -- .run-stepper never wraps", async () => {
+    const helpers = await cssHelpers();
+    const blocks = helpers.extractRuleBlocks(helpers.readGlobalsCss());
+    const stepper = blocks.find((block) => block.selector.trim() === ".run-stepper");
+    expect(stepper, ".run-stepper rule must exist in globals.css").toBeDefined();
+    expect(helpers.extractDeclarations(stepper!.body)["flex-wrap"]).toBe("nowrap");
+  });
+
+  it("the connector behind the live edge and the connector ahead of it resolve to different tokens", async () => {
+    const helpers = await cssHelpers();
+    const maps = helpers.loadRunSurfaceTokenMaps();
+    const blocks = helpers.extractRuleBlocks(helpers.readGlobalsCss());
+
+    const connectorBlocks = blocks.filter(
+      (block) =>
+        block.selector.includes("run-stepper__node") && block.selector.includes("::before"),
+    );
+    expect(connectorBlocks.length, "connector rules must exist").toBeGreaterThanOrEqual(2);
+
+    const ahead = connectorBlocks.find(
+      (block) =>
+        !/--frozen|--active/.test(block.selector) &&
+        helpers.extractDeclarations(block.body).background !== undefined,
+    );
+    const behind = connectorBlocks.find(
+      (block) =>
+        /--frozen/.test(block.selector) &&
+        /--active/.test(block.selector) &&
+        helpers.extractDeclarations(block.body).background !== undefined,
+    );
+    expect(ahead, "the ahead-of-edge connector must declare a fill").toBeDefined();
+    expect(behind, "the behind-the-edge connector must cover frozen AND active nodes").toBeDefined();
+
+    const aheadFill = helpers.resolveCssValue(
+      helpers.extractDeclarations(ahead!.body).background,
+      maps,
+    );
+    const behindFill = helpers.resolveCssValue(
+      helpers.extractDeclarations(behind!.body).background,
+      maps,
+    );
+    expect(behindFill).toBe(helpers.resolveToken("--juli-run-live-edge", maps));
+    expect(aheadFill).toBe(helpers.resolveToken("--juli-run-panel-border", maps));
+    expect(behindFill).not.toBe(aheadFill);
+  });
+
+  it("reduced motion is honoured on the connector fill transition", async () => {
+    const helpers = await cssHelpers();
+    const css = helpers.readGlobalsCss();
+    const blocks = helpers.extractRuleBlocks(css);
+
+    // The base connector animates its fill…
+    const base = blocks.find(
+      (block) =>
+        block.selector.includes("run-stepper__node") &&
+        block.selector.includes("::before") &&
+        !/--frozen|--active/.test(block.selector),
+    );
+    expect(base).toBeDefined();
+    expect(helpers.extractDeclarations(base!.body).transition).toMatch(/background/);
+
+    // …and the reduced-motion query drops that transition.
+    const reduced = reducedMotionCss(css);
+    const override = helpers
+      .extractRuleBlocks(reduced)
+      .find(
+        (block) =>
+          block.selector.includes("run-stepper__node") && block.selector.includes("::before"),
+      );
+    expect(override, "reduced-motion must override the connector transition").toBeDefined();
+    expect(helpers.extractDeclarations(override!.body).transition).toBe("none");
+  });
+});

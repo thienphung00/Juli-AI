@@ -66,6 +66,20 @@ export function RunStepper({ nodes, viewingIndex, onNavigate, stagePanelId }: Ru
             )
           : null;
 
+        // PUI-DESIGN.md §2 / issue #1914: the node is a circular marker on
+        // a connected rail. The glyph carries the status visually (✓ frozen,
+        // the 1-based index while active, ○ locked) so colour is never the
+        // only cue; the status STRING leaves the visible DOM and survives in
+        // the accessible name via the visually-hidden span below -- exactly
+        // what stage-copy.ts's docstring always said RUN_STAGE_STATUS_COPY
+        // was for.
+        const glyph =
+          node.displayStatus === "frozen"
+            ? "✓"
+            : node.displayStatus === "locked"
+              ? "○"
+              : String(index + 1);
+
         return (
           <button
             key={node.id}
@@ -75,30 +89,33 @@ export function RunStepper({ nodes, viewingIndex, onNavigate, stagePanelId }: Ru
             className={joinClassNames(
               "run-stepper__node",
               `run-stepper__node--${node.displayStatus}`,
-              isActive ? RUN_SURFACE_LIVE_EDGE_CLASS_NAMES.stepperNodeActive : undefined,
               isViewing ? "run-stepper__node--viewing" : undefined,
             )}
             disabled={isLocked}
             id={`run-stage-tab-${node.id}`}
             onClick={() => onNavigate(index)}
             role="tab"
-            style={
-              thinkingMotion
-                ? {
-                    animationDuration: `${thinkingMotion.durationMs}ms`,
-                    animationTimingFunction: thinkingMotion.easing,
-                  }
-                : undefined
-            }
             type="button"
           >
-            <span aria-hidden="true" className="run-stepper__node-index">
-              {index + 1}
+            <span
+              aria-hidden="true"
+              className={joinClassNames(
+                "run-stepper__node-marker",
+                isActive ? RUN_SURFACE_LIVE_EDGE_CLASS_NAMES.stepperNodeActive : undefined,
+              )}
+              style={
+                thinkingMotion
+                  ? {
+                      animationDuration: `${thinkingMotion.durationMs}ms`,
+                      animationTimingFunction: thinkingMotion.easing,
+                    }
+                  : undefined
+              }
+            >
+              {glyph}
             </span>
             <span className="run-stepper__node-label">{node.label}</span>
-            <span className="run-stepper__node-status juli-run-text-muted">
-              ({RUN_STAGE_STATUS_COPY[node.displayStatus]})
-            </span>
+            <span className="juli-sr-only">{RUN_STAGE_STATUS_COPY[node.displayStatus]}</span>
           </button>
         );
       })}
