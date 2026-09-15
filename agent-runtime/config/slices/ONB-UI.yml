@@ -5,14 +5,21 @@
 #   layer 0  the three-step cold-start read + the Zalo/phone ask (#1973)
 #   layer 1  Big Reveal -- the First Connect Score with its denominator disclosed
 #   layer 2  3 Insights -- each IS an ActionCard, headlined by its KPI area
+#            (layers 1 and 2 share ONE scroll; the score counts up ~700-900ms and
+#             lands under prefers-reduced-motion, insights stagger behind)
 #   layer 3  Next Steps -- a tutorial that HANDS OFF to the real plan review
 # HARD CONSTRAINT: /onboarding never renders an approve control. The handoff opens
 # the TOP insight at /decisions/recommendations/[id]. A second path to run creation
 # violates S-FR-2; this is the one thing this slice must not do.
 # S-FR-1 is NOT violated by the new route -- it binds workflows, not onboarding.
 #
-# STILL OPEN, settle before cutting issues: the thin-data floor (what renders when
-# fewer than one insight is real) and whether the score counts up or lands.
+# THE GATE (d.20, supersedes d.19a). /onboarding renders ONLY when the shop has
+# THREE surfaced insights. Fewer -> the seller goes to /decisions (its empty state
+# already exists at recommendations-panel.tsx:185-196) and the onboarding record is
+# left UNSPENT, so the flow fires on a later visit. The gate is re-evaluated on
+# every entry until it opens once. There is ONE state: no thin screen, no healthy
+# screen, and the awaiting_data/no_source split is OFF this slice's critical path.
+# "3" in the CTA is a literal the gate guarantees, not a count rendered from data.
 #
 # Depends on ONB-BE (score + launch gate) and ONB-DP (onboarding record).
 # THREE INSIGHTS need #1701 (W9-A subject-scoped cards), NOT W10. ADR-087 d.2 is
