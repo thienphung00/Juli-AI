@@ -209,15 +209,26 @@ describe("DemoLanding — the two doors", () => {
 
     render(<DemoLanding />);
 
-    await waitFor(() => {
-      expect(
-        screen.getByRole("link", { name: /Đăng nhập với Google/ }),
-      ).toHaveAttribute("aria-disabled", "true");
-    });
+    // Retry on the COPY, not on aria-disabled: the disabled span renders
+    // aria-disabled="true" in the transient pre-effect state too
+    // (googleHref === undefined), while the visible copy is deliberately
+    // deferred until the door's fate is decided (googleHref === null) --
+    // waiting on aria-disabled could therefore resolve BEFORE the
+    // component's setTimeout(0) committed, and the synchronous getByText
+    // that followed raced it. Lost on PR #1975's cold CI runner (job
+    // 104236594784): the DOM dump showed exactly the transient state.
+    // findByText retries until the final state renders; the assertions
+    // after it are then deterministic. Nothing formerly asserted was
+    // dropped: visibility AND the disabled state are both still checked.
+    expect(
+      await screen.findByText(
+        "Đăng nhập với Google chưa sẵn sàng trong môi trường này.",
+      ),
+    ).toBeVisible();
 
     expect(
-      screen.getByText("Đăng nhập với Google chưa sẵn sàng trong môi trường này."),
-    ).toBeVisible();
+      screen.getByRole("link", { name: /Đăng nhập với Google/ }),
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("never shows the unavailable copy once the Google door is actually configured", async () => {
