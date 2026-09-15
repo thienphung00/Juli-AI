@@ -1,5 +1,22 @@
 #!/usr/bin/env python3
-"""Gate: no illegal cross-module imports or dependency cycles."""
+"""Gate: no illegal cross-module imports or dependency cycles.
+
+This gate was vacuous for the same reason `check_module_drift.py` was: it shares
+`parse_architecture_map`, which resolved zero modules, so `collect_import_graph`
+returned an empty graph and `tarjan_scc` had nothing to find. #1859 fixed the map
+parser, and then taught `collect_import_graph` that a `TYPE_CHECKING` import is
+not a dependency — that alone dissolved `backend/database` out of the cycle the
+honest gate first reported, since its only outgoing edge was the type-only import
+its own module docstring explains.
+
+What remains is a real five-module SCC over genuine top-level runtime imports.
+`KNOWN_CYCLE_EDGES` names the minimum set of back-edges whose removal dissolves
+it — two, both the TikTok layer reaching back up into `core/security` — with the
+real import sites cited. Breaking the cycle is an architectural change owned by
+another lane; this records it precisely so it can be filed, and cannot rot:
+`tests/harness/test_module_import_graph.py` fails when an allowlisted edge stops
+existing, and proves the gate still reports the cycle with the allowlist emptied.
+"""
 
 from __future__ import annotations
 
@@ -10,11 +27,13 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ci"))
 from common import (  # noqa: E402
+    KNOWN_CYCLE_EDGES,
     REPO_ROOT,
     ChangedFilesUnresolved,
     backend_module_root,
     collect_import_graph,
     git_changed_files,
+    graph_without_allowlisted_edges,
     module_for_file,
     parse_architecture_map,
     parse_args,
@@ -65,7 +84,16 @@ def violations_in_files(py_files: list[Path], modules: dict) -> list[dict]:
 def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:  # noqa: ARG001
     modules = parse_architecture_map()
     graph = collect_import_graph(modules)
-    cycles = [c for c in tarjan_scc(graph) if len(c) > 1]
+    allowlisted_edges = sorted(
+        f"{importer} -> {imported}"
+        for importer, imported in KNOWN_CYCLE_EDGES
+        if imported in graph.get(importer, set())
+    )
+    cycles = [
+        c
+        for c in tarjan_scc(graph_without_allowlisted_edges(graph, KNOWN_CYCLE_EDGES))
+        if len(c) > 1
+    ]
 
     try:
         changed = git_changed_files()
@@ -79,6 +107,7 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:  # noqa: ARG001
             {
                 "violations": [],
                 "cycles": cycles,
+                "allowlistedCycleEdges": allowlisted_edges,
                 "modulesTouched": 0,
                 "warning": None,
                 "changedFilesUnresolved": exc.reason,
@@ -100,6 +129,7 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:  # noqa: ARG001
     details: dict[str, Any] = {
         "violations": violations,
         "cycles": cycles,
+        "allowlistedCycleEdges": allowlisted_edges,
         "modulesTouched": len(touched_modules),
         "warning": "More than 3 modules touched" if warn_many_modules else None,
     }

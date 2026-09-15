@@ -5,14 +5,16 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import keyword
 import os
 import re
 import subprocess
+import textwrap
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 AGENT_RUNTIME_ROOT = REPO_ROOT / "agent-runtime"
@@ -30,14 +32,40 @@ RUNTIME_SCHEMA_VERSION = "1.0.0"
 DONE_MD = REPO_ROOT / "done.md"
 
 ISSUE_BRANCH_RE = re.compile(r"(?:feat|fix)/issue-(\d+)", re.IGNORECASE)
+# Every row in docs/architecture/map.md writes its module path as a markdown
+# link — [`path`](../../path/MODULE.md) | 1 | … — so the link target has to be
+# consumed before the tier cell. The previous pattern stopped at the closing
+# backtick-bracket and then demanded `|` where the link's `(` actually sits, so
+# it matched no row at all and parse_architecture_map returned {} (#1859). The
+# regex is widened rather than map.md normalised: the map is the human-authored
+# as-built registry and its links are load-bearing for readers, so the parser
+# is what should learn the format the tree already uses.
 MODULE_ROW_RE = re.compile(
-    r"\[`([^`]+)`]([^)]*MODULE\.md)?\s*\|\s*(\d+)\s*\|",
+    r"\[`([^`]+)`\](?:\([^)]*\))?\s*\|\s*(\d+)\s*\|",
 )
-BACKTICK_SYMBOL_RE = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*)`")
+# A documented entry is either a bare identifier — `name` — or a call signature
+# — `name(args) -> T`. Dotted spans (`pkg.module`) stay unmatched on purpose:
+# they name a location, not a public symbol of this module.
+BACKTICK_SYMBOL_RE = re.compile(
+    r"`([A-Za-z_][A-Za-z0-9_]*)(?:\([^`]*\))?(?:\s*->[^`]*)?`",
+)
+# Heading-level aware: a `### Public interface` sub-section ends at the next
+# heading of the same or a shallower level, not at the next `## `. The previous
+# whole-section pattern was also applied with search(), so only the FIRST
+# Public Interface section in a MODULE.md was ever read (#1859).
 PUBLIC_SECTION_RE = re.compile(
-    r"##\s+Public\s+Interface[s]?\s*\n(.*?)(?=\n##\s+|\Z)",
-    re.DOTALL | re.IGNORECASE,
+    r"^(#{2,6})\s+Public\s+Interface[s]?\s*$",
+    re.IGNORECASE | re.MULTILINE,
 )
+HEADING_RE = re.compile(r"^(#{1,6})\s+\S")
+# `None`, `True` and `False` appear backticked in Public Interface prose
+# ("a `None` stop reason stays `None`"). They are language keywords and can
+# never be a module's public symbol, so they are never documented entries.
+NEVER_A_SYMBOL = frozenset(keyword.kwlist) | {"self", "cls"}
+# Module-level bindings that exist in every module by convention and are not
+# part of anything's public interface. Documenting them in a MODULE.md would
+# add noise, not information, so the gate does not ask for it.
+NEVER_AN_EXPORT = frozenset({"logger", "log"})
 HANDOFF_FILE_RE = re.compile(r"^[a-z0-9][a-z0-9-]*-\d{2}\.md$", re.IGNORECASE)
 ADR_FILE_RE = re.compile(r"^(\d{3})-([a-z0-9-]+)\.md$")
 REQUIRED_ADR_SECTIONS = ("## Context", "## Decision", "## Rationale", "## Consequences")
@@ -392,10 +420,16 @@ def parse_architecture_map(path: Path | None = None) -> dict[str, ModuleInfo]:
         match = MODULE_ROW_RE.search(line)
         if not match:
             continue
-        module_path, _, tier_str = match.groups()
+        module_path, tier_str = match.groups()
         module_path = module_path.strip().rstrip("/")
         if not _is_backend_module_path(module_path):
             continue
+        # map.md writes both forms — backend/src/juli_backend/services/x and
+        # backend/ai/x. Key on the logical backend/… form, which is what
+        # module_for_file, resolve_import_to_module and backend_module_root all
+        # already speak; keying on the raw form left module_for_file resolving
+        # nothing even when the row parsed (#1859).
+        module_path = normalize_backend_module_path(module_path)
         short = module_path.removeprefix("backend/").removeprefix("src/").split("/")[0]
         rel = module_path.removeprefix("backend/").removeprefix("src/")
         if "/" in rel:
@@ -419,16 +453,199 @@ def path_to_package(module_path: str) -> str:
     return module_path.replace("/", ".")
 
 
+def strip_markdown_parentheticals(text: str) -> str:
+    """Drop ``(…)`` groups that sit outside backticks.
+
+    A Public Interface bullet names its symbol and then, in parentheses, the
+    vocabulary that symbol ranges over — ``\u0060LinkReason\u0060 (\u0060pending\u0060 |
+    \u0060unavailable\u0060 | \u0060missing\u0060)``. Those parenthesised words are prose, not
+    documented symbols, and reading them as symbols manufactured three orphans
+    in services/operations alone (#1859). Parentheses *inside* a backtick span
+    are part of a call signature and are left untouched.
+    """
+    out: list[str] = []
+    i = 0
+    length = len(text)
+    while i < length:
+        char = text[i]
+        if char == "`":
+            end = text.find("`", i + 1)
+            if end == -1:
+                out.append(text[i:])
+                break
+            out.append(text[i : end + 1])
+            i = end + 1
+            continue
+        if char == "(":
+            close = _matching_paren(text, i)
+            if close is None:
+                out.append(char)
+                i += 1
+                continue
+            i = close + 1
+            continue
+        out.append(char)
+        i += 1
+    return "".join(out)
+
+
+def _matching_paren(text: str, start: int) -> int | None:
+    """Index of the ``)`` closing ``text[start]``, ignoring backtick spans."""
+    depth = 0
+    i = start
+    length = len(text)
+    while i < length:
+        char = text[i]
+        if char == "`":
+            end = text.find("`", i + 1)
+            if end == -1:
+                return None
+            i = end + 1
+            continue
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return None
+
+
+def public_interface_sections(text: str) -> list[str]:
+    """Bodies of EVERY Public Interface section, `##` or `###`, in order.
+
+    A MODULE.md acquires further sections as lanes land (services/operations
+    carries three today). Reading only the first — the previous behaviour —
+    made every symbol after it look undocumented (#1859).
+    """
+    lines = text.splitlines()
+    bodies: list[str] = []
+    current: list[str] | None = None
+    depth = 0
+    for line in lines:
+        heading = HEADING_RE.match(line)
+        if heading and current is not None and len(heading.group(1)) <= depth:
+            bodies.append("\n".join(current))
+            current = None
+        match = PUBLIC_SECTION_RE.match(line)
+        if match:
+            depth = len(match.group(1))
+            current = []
+            continue
+        if current is not None:
+            current.append(line)
+    if current is not None:
+        bodies.append("\n".join(current))
+    return bodies
+
+
 def parse_module_md_public_symbols(module_md: Path) -> set[str]:
     if not module_md.exists():
         return set()
     text = module_md.read_text(encoding="utf-8")
-    section = PUBLIC_SECTION_RE.search(text)
-    body = section.group(1) if section else text
+    bodies = public_interface_sections(text)
+    if not bodies:
+        bodies = [text]
     symbols: set[str] = set()
-    for match in BACKTICK_SYMBOL_RE.finditer(body):
-        symbols.add(match.group(1))
+    for body in bodies:
+        symbols |= _fenced_import_symbols(body)
+        for declaration in _declaration_spans(body):
+            for match in BACKTICK_SYMBOL_RE.finditer(strip_markdown_parentheticals(declaration)):
+                name = match.group(1)
+                if name in NEVER_A_SYMBOL:
+                    continue
+                symbols.add(name)
     return symbols
+
+
+_BULLET_RE = re.compile(r"^\s*[-*]\s")
+_EM_DASH = "\u2014"
+
+
+def _names_a_symbol(text: str) -> bool:
+    stripped = strip_markdown_parentheticals(text)
+    return any(
+        match.group(1) not in NEVER_A_SYMBOL for match in BACKTICK_SYMBOL_RE.finditer(stripped)
+    )
+
+
+def _declaration_part(bullet: str) -> str:
+    """The part of one bullet that DECLARES, rather than explains.
+
+    Two conventions live in this tree and they are mirror images:
+
+        - `load_outcome_chain(session, run_id) -> OutcomeChain` — in ONE call
+        - **HTTP client** — `TikTokClient`
+
+    In the first the symbol precedes the em dash and the prose follows it; in
+    the second a bold label precedes it and the symbols follow. Splitting
+    unconditionally is right for one and silently deletes the other -- it hid
+    96 genuinely documented, genuinely exported symbols across four modules,
+    which then landed in the drift allowlist as "undocumented".
+
+    So the head only wins when it already names a symbol. When it does not,
+    the whole bullet is scanned, because the declaration must be in the tail.
+    """
+    head, separator, _ = bullet.partition(_EM_DASH)
+    if not separator:
+        return bullet
+    return head if _names_a_symbol(head) else bullet
+
+
+_PYTHON_FENCE_RE = re.compile(r"```(?:python|py)\n(.*?)```", re.DOTALL)
+
+
+def _fenced_import_symbols(body: str) -> set[str]:
+    """Names declared by a ``from ... import (...)`` block in the section.
+
+    A third convention, and the most explicit of them: `services/agent` and
+    `backend/api` state their interface as the import a caller would write.
+    No version of this parser could read it, so 15 symbols that these files
+    declare plainly were recorded as undocumented drift. A fence that is not
+    valid Python (an elided `...` list, say) contributes nothing rather than
+    guessing.
+    """
+    symbols: set[str] = set()
+    for match in _PYTHON_FENCE_RE.finditer(body):
+        try:
+            tree = ast.parse(textwrap.dedent(match.group(1)))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                for alias in node.names:
+                    name = alias.asname or alias.name
+                    if name != "*" and not name.startswith("_"):
+                        symbols.add(name.split(".")[0])
+    return symbols
+
+
+def _declaration_spans(body: str) -> list[str]:
+    """Split a Public Interface section into per-bullet declaration spans.
+
+    Only bullets are split. A table row or a prose paragraph carries no
+    reliable declare/explain boundary, so it is scanned whole exactly as
+    before -- conservative in the direction that can only over-report a
+    documented symbol, never lose one.
+    """
+    spans: list[str] = []
+    bullet: list[str] | None = None
+    for line in body.splitlines():
+        if _BULLET_RE.match(line):
+            if bullet is not None:
+                spans.append(_declaration_part("\n".join(bullet)))
+            bullet = [line]
+        elif bullet is not None and line.strip():
+            bullet.append(line)
+        else:
+            if bullet is not None:
+                spans.append(_declaration_part("\n".join(bullet)))
+                bullet = None
+            spans.append(line)
+    if bullet is not None:
+        spans.append(_declaration_part("\n".join(bullet)))
+    return spans
 
 
 def ast_public_symbols(py_file: Path) -> set[str]:
@@ -438,27 +655,40 @@ def ast_public_symbols(py_file: Path) -> set[str]:
         return set()
     symbols: set[str] = set()
     for node in tree.body:
-        if isinstance(node, ast.FunctionDef) and not node.name.startswith("_"):
-            symbols.add(node.name)
-        elif isinstance(node, ast.AsyncFunctionDef) and not node.name.startswith("_"):
-            symbols.add(node.name)
-        elif isinstance(node, ast.ClassDef) and not node.name.startswith("_"):
-            symbols.add(node.name)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if not node.name.startswith("_"):
+                symbols.add(node.name)
         elif isinstance(node, ast.Assign):
+            # Any module-level binding, whatever it is bound to. The earlier
+            # rule counted a name only when the value was a call or a def,
+            # so `CARDS_SURFACED = "cards surfaced"` was invisible and the
+            # gate reported it as documented-but-nonexistent -- 10 of the 13
+            # "orphans" it flagged for services/operations were real, exported
+            # constants (#1859).
             for target in node.targets:
                 if isinstance(target, ast.Name) and not target.id.startswith("_"):
-                    if isinstance(node.value, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Call)):
-                        symbols.add(target.id)
-    return symbols
+                    symbols.add(target.id)
+        elif isinstance(node, ast.AnnAssign):
+            # `APPROVED_STATUSES: frozenset[str] = frozenset({...})` is an
+            # AnnAssign, not an Assign; annotating a constant used to delete
+            # it from the module's public interface as far as this gate knew.
+            if isinstance(node.target, ast.Name) and not node.target.id.startswith("_"):
+                symbols.add(node.target.id)
+    return symbols - NEVER_AN_EXPORT
 
 
 def module_public_symbols_from_code(module_path: str) -> set[str]:
-    root = REPO_ROOT / module_path
+    root = backend_module_root(module_path)
     if not root.exists():
         return set()
     symbols: set[str] = set()
     for py_file in root.rglob("*.py"):
         if py_file.name.startswith("_"):
+            continue
+        # Alembic revision scripts are bookkeeping, not a module's interface.
+        # Every one of them binds `revision`, `down_revision`, `branch_labels`
+        # and `depends_on`, and no MODULE.md should be asked to document them.
+        if "migrations/versions" in py_file.as_posix():
             continue
         symbols |= ast_public_symbols(py_file)
     return symbols
@@ -1324,6 +1554,53 @@ def tarjan_scc(graph: dict[str, set[str]]) -> list[list[str]]:
     return sccs
 
 
+def _is_type_checking_guard(test: ast.expr) -> bool:
+    """Whether an ``if`` test is the ``TYPE_CHECKING`` guard.
+
+    Both spellings in the tree are recognised — a bare ``TYPE_CHECKING`` name
+    and a qualified ``typing.TYPE_CHECKING`` attribute. A negated guard
+    (``if not TYPE_CHECKING:``) is deliberately NOT recognised: it is a
+    UnaryOp, so the branch is traversed normally and its imports are kept.
+    Failing conservatively here keeps an edge that might be real rather than
+    dropping one that is.
+    """
+    if isinstance(test, ast.Name):
+        return test.id == "TYPE_CHECKING"
+    if isinstance(test, ast.Attribute):
+        return test.attr == "TYPE_CHECKING"
+    return False
+
+
+def runtime_import_froms(tree: ast.AST) -> Iterator[ast.ImportFrom]:
+    """Every ``from X import …`` that actually executes.
+
+    A TYPE_CHECKING import is not a dependency: it never runs, and its whole
+    purpose is to express a type relationship WITHOUT creating a runtime one —
+    `database/__init__.py` says so in its own docstring, guarding its
+    `services.etl` import so `repositories` can finish loading. Counting those
+    as edges invented a six-module import cycle (`database` → `services/etl` →
+    `integrations/tiktok` → `core/security` → `database`) the moment #1859 made
+    `parse_architecture_map` honest enough for `collect_import_graph` to see
+    anything at all. Only the guard's ``else`` branch runs, so only that is
+    traversed.
+
+    The `from __future__ import annotations` case needs no handling: this
+    extractor reads ImportFrom nodes, never annotations, so a stringified
+    annotation cannot produce an edge either way — and `__future__` itself
+    resolves to no module.
+    """
+    stack: list[ast.AST] = [tree]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, ast.ImportFrom):
+            yield node
+            continue
+        if isinstance(node, ast.If) and _is_type_checking_guard(node.test):
+            stack.extend(node.orelse)
+            continue
+        stack.extend(ast.iter_child_nodes(node))
+
+
 def collect_import_graph(modules: dict[str, ModuleInfo]) -> dict[str, set[str]]:
     graph: dict[str, set[str]] = {m: set() for m in modules}
     for py_file in (REPO_ROOT / "backend").rglob("*.py"):
@@ -1335,11 +1612,12 @@ def collect_import_graph(modules: dict[str, ModuleInfo]) -> dict[str, set[str]]:
             tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
         except SyntaxError:
             continue
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module:
-                imported = resolve_import_to_module(node.module, modules)
-                if imported and imported != owner:
-                    graph[owner].add(imported)
+        for node in runtime_import_froms(tree):
+            if not node.module:
+                continue
+            imported = resolve_import_to_module(node.module, modules)
+            if imported and imported != owner:
+                graph[owner].add(imported)
     return graph
 
 
@@ -1401,3 +1679,90 @@ def print_check_result(name: str, passed: bool, detail: str = "") -> int:
         line += f" — {detail}"
     print(line)
     return 0 if passed else 1
+
+
+@dataclass(frozen=True)
+class AllowedCycleEdge:
+    """One import edge excused from cycle detection, with its evidence."""
+
+    reason: str
+    importSites: tuple[str, ...]
+
+
+_TIKTOK_AUTH_INVERSION = (
+    "Real runtime edge, not a TYPE_CHECKING artifact — verified as a top-level "
+    "import at each site below. `core/security` owns the TikTok OAuth lifecycle "
+    "(credential refresh, token expiry), and the TikTok client and service layers "
+    "call back up into it, while `core/security` imports the client to perform the "
+    "refresh. That mutual reach is the architectural fact; it predates this gate "
+    "being able to see anything at all, and breaking it means moving the refresh "
+    "seam, which is an owner decision for another lane, not a harness change. "
+    "Named here so the cycle is recorded rather than tolerated in silence."
+)
+
+# The MINIMUM feedback arc set: removing exactly these two edges dissolves the
+# five-module SCC (`services/etl`, `services/ingestion`, `services/tiktok`,
+# `core/security`, `integrations/tiktok`). Enumerating all nine edges inside the
+# SCC instead would have hidden any genuinely NEW cycle among those modules, so
+# only the back-edges are excused and the rest of the graph stays live.
+_AGENT_STATUS_VOCABULARY = (
+    "Real runtime edge. `services/agent/status.py` is a leaf: it imports "
+    "nothing from juli_backend and defines only the run-status vocabulary "
+    "(`StopReason`, `WorkflowRunStatus`, `NON_TERMINAL_STATUSES`). "
+    "`services/operations` reads that vocabulary to classify runs it reports "
+    "on, while `services/agent/runner` calls operations to record an outcome "
+    "(#1939). So the cycle runs through a constants module, not through agent "
+    "behaviour. Excusing this one back-edge dissolves it; the other direction "
+    "stays live. The real fix is to move the status vocabulary into a shared "
+    "module both can depend on, which is an architectural call for another "
+    "lane, not a harness change. Recorded rather than tolerated in silence; "
+    "tracked with the other cycle in #1962."
+)
+
+
+KNOWN_CYCLE_EDGES: dict[tuple[str, str], AllowedCycleEdge] = {
+    ("backend/services/operations", "backend/services/agent"): AllowedCycleEdge(
+        reason=_AGENT_STATUS_VOCABULARY,
+        importSites=(
+            "backend/src/juli_backend/services/operations/quality_metrics.py:110 "
+            "from juli_backend.services.agent.status import StopReason",
+            "backend/src/juli_backend/services/operations/outcome_chain.py:82 "
+            "from juli_backend.services.agent.status import NON_TERMINAL_STATUSES, "
+            "WorkflowRunStatus",
+        ),
+    ),
+    ("backend/integrations/tiktok", "backend/core/security"): AllowedCycleEdge(
+        reason=_TIKTOK_AUTH_INVERSION,
+        importSites=(
+            "backend/src/juli_backend/integrations/tiktok/reactive_refresh.py:50 "
+            "from juli_backend.core.security import credential_refresh",
+        ),
+    ),
+    ("backend/services/tiktok", "backend/core/security"): AllowedCycleEdge(
+        reason=_TIKTOK_AUTH_INVERSION,
+        importSites=(
+            "backend/src/juli_backend/services/tiktok/app_review_store.py:10 "
+            "from juli_backend.core.security.tiktok_oauth",
+            "backend/src/juli_backend/services/tiktok/business_advertiser_oauth.py:15 "
+            "from juli_backend.core.security.exceptions",
+            "backend/src/juli_backend/services/tiktok/credential_binding.py:63 "
+            "from juli_backend.core.security",
+        ),
+    ),
+}
+
+
+def graph_without_allowlisted_edges(
+    graph: dict[str, set[str]],
+    allowlist: dict[tuple[str, str], AllowedCycleEdge],
+) -> dict[str, set[str]]:
+    """Drop only the named back-edges; every other edge stays in the graph.
+
+    The allowlist is a parameter, not a module global, so each caller keeps
+    its own patchable reference and the two consumers of this graph cannot
+    drift apart silently.
+    """
+    return {
+        owner: {target for target in targets if (owner, target) not in allowlist}
+        for owner, targets in graph.items()
+    }

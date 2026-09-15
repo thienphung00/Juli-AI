@@ -22,6 +22,44 @@ post-hoc chain over that instrumentation.
   the five-link post-hoc chain (#1655), in ONE database call
 - `LinkReason` (`pending` | `unavailable` | `missing`), `EmptyLink`, `OutcomeChain`
   and the five link payload types
+- `Link` — the union the chain's link slots hold: the five populated link
+  types below, plus `EmptyLink`
+- `RecommendationLink` / `ActionLink` / `StateChangeLink` / `ObservedOutcomeLink` /
+  `IncrementalImpactLink` — the five links themselves, one per chain step
+- `ActionExecution` / `StateChangeRecord` / `ObservedMetric` / `CountableReading` /
+  `ExcludedReading` — the payload records the links above carry
+- `RunNotFoundError` — raised when the workflow run id has no row, so a missing
+  run is distinguishable from a run with an empty chain
+
+### Outcome tracking
+
+- `record_workflow_outcome` returns `WorkflowOutcomeRecordResult` — the envelope
+  write's outcome, including whether the call was the idempotent no-op
+- `TERMINAL_SUCCEEDED` / `TERMINAL_FAILED` — the two terminal execution statuses,
+  declared once rather than spelled as literals at each call site
+- `VALIDATED_WORKFLOW_IDS` — the workflow ids whose outcome envelope is trusted
+- `is_validated_workflow_id(workflow_id) -> bool` — the membership test for the above
+- `extract_workflow_id(payload) -> str` — pull the workflow id out of an execution payload
+- `WORKFLOW_DISPLAY_NAMES` — seller-facing name per workflow id
+- `WORKFLOW_OUTCOME_SUCCESS_CRITERIA` — what counts as success, per workflow id
+- `OUTCOME_CADENCE_IDS` (`realtime` | `daily` | `weekly` | `monthly`) and
+  `CADENCE_LABELS` — the measurement cadences and their seller-facing labels
+
+### Quality metrics and business impact types
+
+- `RecommendationQuality` / `ApprovalRate` / `ExecutionQuality` — the result type
+  returned by the three metric functions above
+- `BusinessImpactResult` — the `BusinessImpact | NoReadings` union `business_impact`
+  returns, named so callers can annotate it without restating the union
+
+### Production write authorizations (#1335)
+
+- `ProductionWriteAuthorizationService` — issue, revoke and query the
+  authorizations that gate a production write
+- `main(argv) -> int` and `build_parser() -> ArgumentParser` — the operator CLI
+  entry point and its argument parser
+- `issue_authorization(args) -> int` / `revoke_authorization(args) -> int` — the
+  two CLI subcommand handlers, both `async`
 
 ## API
 
