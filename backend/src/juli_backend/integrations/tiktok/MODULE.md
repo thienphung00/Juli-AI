@@ -22,6 +22,15 @@ Matches ``__all__`` — re-exports only:
 - **Authentication** — ``TikTokAuth``, ``TikTokBusinessAdvertiserAuth``,
   ``TikTokBusinessAccountHolderAuth``, ``DEFAULT_OPEN_API_BASE_URL``
 - **HTTP client** — ``TikTokClient``
+- **Pagination budgeting** (#1969) — ``pagination_scope``,
+  ``current_pagination_scope``, ``PaginationScope``, and the failures a budget
+  can raise: ``TikTokPaginationError``, ``TikTokPaginationTruncatedError``,
+  ``TikTokPaginationTimeoutError``. A cold-start backfill and a routine
+  incremental poll hit the same endpoints and need different page budgets and
+  different verdicts (truncating a first read is a failure; truncating a delta
+  is not). The caller that knows which job it is doing lives above
+  ``resources/``, so the mode travels in a ``ContextVar`` rather than on the
+  client or the endpoint
 - **Safe identifier rendering** — ``redact_shop_identifier`` (never log a full
   ``shop_cipher``; re-exported for ``services/tiktok/credential_binding.py``,
   which may only reach this package root under the depth-2 import cap)
