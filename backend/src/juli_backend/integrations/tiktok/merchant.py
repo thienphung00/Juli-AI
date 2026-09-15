@@ -96,6 +96,30 @@ def _capability_value(capability: TikTokCapability | str) -> str:
     return capability
 
 
+#: Capabilities a READ may be served from, most specific first (#1365).
+#:
+#: This is the one place that says which capability grants a read, so the
+#: capability -- not the shop id -- stays the authority. ``SELLER_CONNECT`` is
+#: here because a seller who has just finished OAuth holds exactly that, and it
+#: grants reads **for its own shop and nothing else**: membership in this tuple
+#: is not a promotion to ``PRODUCTION_READ``, and the ordering only decides
+#: which of a shop's own rows is preferred when it holds both.
+#:
+#: ``SANDBOX_WRITE`` is deliberately absent and must stay absent: the sandbox
+#: merchant's credential is a write-validation credential and is unreachable
+#: from any read path.
+READ_CAPABILITIES: tuple[TikTokCapability, ...] = (
+    TikTokCapability.PRODUCTION_READ,
+    TikTokCapability.SELLER_CONNECT,
+)
+
+
+def is_read_capability(capability: TikTokCapability | str) -> bool:
+    """Return True when a credential carrying ``capability`` may serve a read."""
+    value = _capability_value(capability)
+    return any(value == read.value for read in READ_CAPABILITIES)
+
+
 def is_cross_merchant_lookup(
     merchant_authorization_id: str,
     capability: TikTokCapability | str,
