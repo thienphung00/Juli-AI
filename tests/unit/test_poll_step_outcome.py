@@ -16,11 +16,13 @@ import logging
 
 import pytest
 
+from juli_backend.integrations.tiktok.client import TikTokPaginationTruncatedError
 from juli_backend.integrations.tiktok.exceptions import TikTokSystemError
 from juli_backend.workers.services.polling import sync as sync_module
 from juli_backend.workers.services.polling.sync import (
     PollStepDroppedRowsError,
     SyncOutcome,
+    sync_inventory,
     sync_orders,
     sync_products,
     sync_returns,
@@ -357,3 +359,112 @@ class TestColdStartUsesTheBackfillBudget:
 
         assert outcome.backfill is True
         assert outcome.pages == 0  # the fake never went through the paginator
+
+
+# --------------------------------------------------------------------------
+# Propagation coverage (#1969 review, mutation 5).
+#
+# Each step has an `except TikTokPaginationError: step.report(...); raise` arm.
+# Replacing all four with a quiet return left 66 tests green: nothing catches
+# that exception today, so the *type* claim held, but nothing stopped anyone
+# reinstating the silence either — which is exactly the #1948 defect shape.
+#
+# A truncated cold-start backfill is the whole point of this issue. If it can be
+# swallowed, a new seller's history is cut short and the cycle reports success.
+# --------------------------------------------------------------------------
+
+
+class _TruncatingResource:
+    """Raises what a cold-start backfill raises when it outruns its page budget."""
+
+    def __init__(self) -> None:
+        self.error = TikTokPaginationTruncatedError(
+            path="/order/202309/orders/search",
+            pages=400,
+            items=20_000,
+            max_pages=400,
+            total_count=100_000,
+        )
+
+    def search_all(
+        self,
+        *,
+        status: str | None = None,
+        update_time_from: int | None = None,
+        update_time_to: int | None = None,
+        page_size: int = 50,
+    ) -> list[dict]:
+        raise self.error
+
+    def search_returns_all(
+        self,
+        *,
+        return_status: str | None = None,
+        update_time_from: int | None = None,
+        update_time_to: int | None = None,
+        page_size: int = 50,
+    ) -> list[dict]:
+        raise self.error
+
+    def search(self) -> dict:
+        raise self.error
+
+
+class TestATruncatedBackfillEscapesEveryStep:
+    """Kills mutation 5: a quiet return in any of the four arms fails here."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("sync_fn", "resource_name"),
+        [
+            (sync_orders, "orders"),
+            (sync_products, "products"),
+            (sync_returns, "returns"),
+            (sync_inventory, "inventory"),
+        ],
+    )
+    async def test_pagination_failure_propagates_out_of_the_step(
+        self, sync_fn, resource_name, rate_limiter, caplog
+    ):
+        with caplog.at_level(logging.INFO, logger=sync_module.__name__):
+            with pytest.raises(TikTokPaginationTruncatedError):
+                await sync_fn(
+                    resource=_TruncatingResource(),
+                    rate_limiter=rate_limiter,
+                    handoff_fn=RecordingHandoff(),
+                    app_id="app1",
+                    shop_id=SHOP_ID,
+                    sync_state={},
+                )
+
+        # Reported on the way out, not only raised: the operator sees a verdict
+        # for the step even though the caller only gets a traceback.
+        (record,) = _outcome_records(caplog)
+        assert record.resource == resource_name
+        assert record.ok is False
+        assert record.backfill is True
+
+    @pytest.mark.asyncio
+    async def test_a_vendor_error_is_still_reported_rather_than_raised(self, rate_limiter, caplog):
+        """The two arms are deliberately different, so pin the contrast.
+
+        A `TikTokAPIError` on the fetch is reported and returned — that swallow
+        predates this branch and #1948 left it in place for orders on purpose.
+        A `TikTokPaginationError` is reported and re-raised. Without this test a
+        future edit could collapse the two arms into one and only one direction
+        would be caught.
+        """
+        resource = FakeOrdersResource(error=TikTokSystemError(code=100006, message="System error"))
+
+        with caplog.at_level(logging.INFO, logger=sync_module.__name__):
+            outcome = await sync_orders(
+                resource=resource,
+                rate_limiter=rate_limiter,
+                handoff_fn=RecordingHandoff(),
+                app_id="app1",
+                shop_id=SHOP_ID,
+                sync_state={},
+            )
+
+        assert outcome.ok is False
+        assert outcome.error is not None

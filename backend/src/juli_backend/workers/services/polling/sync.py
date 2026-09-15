@@ -357,9 +357,12 @@ async def sync_orders(
 
     try:
         orders = step.fetch(lambda: resource.search_all(update_time_from=update_from))
-    except TikTokPaginationError:
+    except TikTokPaginationError as exc:
         # A truncated or timed-out backfill is a failed read, not a partial one.
-        step.report(error=None)
+        # The exception must reach `report` too, or the step logs `ok=True` on
+        # its way out and only the traceback disagrees -- which is the same
+        # "reported success while dropping data" shape this issue exists to kill.
+        step.report(error=exc)
         raise
     except TikTokAPIError as exc:
         logger.error("sync_orders_failed", extra={"shop_id": shop_id}, exc_info=True)
@@ -418,8 +421,8 @@ async def sync_products(
 
     try:
         products = step.fetch(lambda: resource.search_all(update_time_from=update_from))
-    except TikTokPaginationError:
-        step.report(error=None)
+    except TikTokPaginationError as exc:
+        step.report(error=exc)
         raise
     except TikTokAPIError as exc:
         logger.error("sync_products_failed", extra={"shop_id": shop_id}, exc_info=True)
@@ -578,8 +581,8 @@ async def sync_returns(
 
     try:
         returns = step.fetch(lambda: resource.search_returns_all(update_time_from=update_from))
-    except TikTokPaginationError:
-        step.report(error=None)
+    except TikTokPaginationError as exc:
+        step.report(error=exc)
         raise
     except TikTokAPIError as exc:
         logger.error("sync_returns_failed", extra={"shop_id": shop_id}, exc_info=True)
@@ -635,8 +638,8 @@ async def sync_inventory(
 
     try:
         response = step.fetch(resource.search)
-    except TikTokPaginationError:
-        step.report(error=None)
+    except TikTokPaginationError as exc:
+        step.report(error=exc)
         raise
     except TikTokAPIError as exc:
         logger.error("sync_inventory_failed", extra={"shop_id": shop_id}, exc_info=True)

@@ -22,18 +22,32 @@ past a `**kwargs` stand-in.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import time
+import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import pytest_asyncio
 
+from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
 from juli_backend.integrations.tiktok import ORDER_SEARCH_PATH, PRODUCT_SEARCH_PATH, RateLimiter
+from juli_backend.integrations.tiktok.auth import TikTokAuth
+from juli_backend.integrations.tiktok.merchant import PRODUCTION_AUTH_ID, TikTokCapability
+from juli_backend.integrations.tiktok.rate_limiter import RateLimiter as RealRateLimiter
+from juli_backend.models.models import Shop, User
+from juli_backend.repositories.repos import TikTokCredentialRepo
 from juli_backend.workers.services.polling import orchestrate as orchestrate_module
 from juli_backend.workers.services.polling.orchestrate import (
+    FujiwaPollConfig,
     PollCycleTimeoutError,
     _CycleDeadline,
     _PollStep,
     _run_poll_step,
+    run_fujiwa_material_resource_fetch,
+    run_fujiwa_poll_cycle,
 )
 
 SHOP_KEY = "7494001234567890123"
@@ -46,15 +60,46 @@ class _Resources:
 
 
 class NeverExhaustedRateLimiter:
-    """Signature-bound stand-in for the `RateLimiter` calls orchestrate.py makes."""
+    """Stand-in bound to the real `RateLimiter` signatures.
+
+    Keyword-only parameters here would have been a fake contract: the real
+    methods take these positionally-or-by-keyword, so a caller switching to
+    positional arguments would break production and not these tests.
+    `test_rate_limiter_double_matches_the_real_signatures` pins that.
+    """
+
+    def acquire(
+        self,
+        app_id: str,
+        shop_id: str,
+        endpoint: str,
+        max_requests: int,
+        window_seconds: int,
+    ) -> bool:
+        return True
 
     def is_exhausted(
-        self, app_id: str, shop_id: str, endpoint: str, *, max_requests: int = 10
+        self,
+        app_id: str,
+        shop_id: str,
+        endpoint: str,
+        max_requests: int,
     ) -> bool:
         return False
 
     def time_until_reset(self, app_id: str, shop_id: str, endpoint: str) -> int:
         return 0
+
+
+def test_rate_limiter_double_matches_the_real_signatures():
+    """The double is only evidence if it cannot drift from what it stands in for."""
+    for name in ("acquire", "is_exhausted", "time_until_reset"):
+        real = inspect.signature(getattr(RealRateLimiter, name))
+        double = inspect.signature(getattr(NeverExhaustedRateLimiter, name))
+        assert list(real.parameters) == list(double.parameters), name
+        assert [p.kind for p in real.parameters.values()] == [
+            p.kind for p in double.parameters.values()
+        ], name
 
 
 async def _never_sleeps(seconds: float) -> None:
@@ -217,3 +262,182 @@ class TestBudgetConfiguration:
     def test_remaining_never_goes_negative(self):
         deadline = _CycleDeadline(budget_seconds=10.0, clock=_fixed_clock([0.0, 99.0]))
         assert deadline.remaining() == 0.0
+
+
+# --------------------------------------------------------------------------
+# Entrypoint-level coverage (#1969 review, mutation 7).
+#
+# Everything above exercises `_CycleDeadline` and `_run_poll_step` directly.
+# That left the budget's only two real callers untested: setting
+# `_CycleDeadline(budget_seconds=inf)` inside `run_fujiwa_poll_cycle` and
+# `run_fujiwa_material_resource_fetch` disabled the entire wall-clock budget --
+# all of defect 3 -- with every test still green.
+#
+# These tests reach the deadline the only way a caller can, through
+# `TIKTOK_POLL_CYCLE_BUDGET_SECONDS`, so a hardcoded budget at either entrypoint
+# fails them.
+# --------------------------------------------------------------------------
+
+APP_KEY = "test_app_key"
+APP_SECRET = "test_app_secret"
+
+# Long enough that a cancelled await is unambiguous, short enough that a run
+# with the budget mutated away fails in seconds rather than minutes.
+_HANDOFF_HANG_SECONDS = 10.0
+_CYCLE_BUDGET_SECONDS = "1"
+
+
+async def _stub_binding_verifier(session, *, capability, access_token) -> str:
+    return "ROW_stub_cipher"
+
+
+@pytest_asyncio.fixture
+async def budget_shop(session, user_id):
+    session.add(User(id=user_id, phone="+84901234599"))
+    await session.flush()
+    shop = Shop(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        shop_name="Budget Test Shop",
+        tiktok_shop_id=PRODUCTION_AUTH_ID,
+    )
+    session.add(shop)
+    await session.flush()
+    return shop
+
+
+@pytest_asyncio.fixture
+async def budget_credential(session, budget_shop):
+    return await TikTokCredentialRepo(session).create(
+        shop_id=budget_shop.id,
+        access_token="fujiwa_access",
+        refresh_token="fujiwa_refresh",
+        token_expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(days=7),
+        merchant_authorization_id=PRODUCTION_AUTH_ID,
+        capability=TikTokCapability.PRODUCTION_READ.value,
+        shop_cipher="ROW_test_cipher",
+    )
+
+
+@pytest.fixture
+def hanging_handoff():
+    """A handoff that parks on a real await — what the budget CAN interrupt."""
+
+    async def _handoff(channel: str, shop_key: str, value: bytes) -> None:
+        await asyncio.sleep(_HANDOFF_HANG_SECONDS)
+
+    return _handoff
+
+
+@pytest.fixture
+def one_row_resources():
+    resources = MagicMock()
+    resources.orders.search_all.return_value = [{"id": "o1", "update_time": 1700000100}]
+    resources.products.search_all.return_value = []
+    resources.returns.search_returns_all.return_value = []
+    resources.inventory.search.return_value = {"inventory": []}
+    resources.analytics.list_sku_performance_all.return_value = []
+    resources.analytics.list_product_performance_all.return_value = []
+    resources.analytics.get_shop_performance.return_value = {}
+    resources.analytics.get_shop_performance_per_hour.return_value = {}
+    resources.analytics.get_bestselling_products.return_value = {}
+    resources.analytics.get_bestselling_videos.return_value = {}
+    resources.promotion.get_activity.return_value = {}
+    return resources
+
+
+@pytest.fixture
+def oauth_service_for_budget(session):
+    return TikTokOAuthService(
+        tiktok_auth=TikTokAuth(
+            app_key=APP_KEY,
+            app_secret=APP_SECRET,
+            base_url="https://open-api.tiktokglobalshop.com",
+        ),
+        session=session,
+        redirect_uri="https://example.com/callback",
+        app_secret=APP_SECRET,
+        binding_verifier=_stub_binding_verifier,
+    )
+
+
+class TestBothEntrypointsRunUnderTheCycleBudget:
+    """Kills mutation 7: a hardcoded budget at either entrypoint fails here."""
+
+    @pytest.mark.asyncio
+    async def test_run_fujiwa_poll_cycle_honours_the_configured_budget(
+        self,
+        monkeypatch,
+        session,
+        budget_credential,
+        oauth_service_for_budget,
+        one_row_resources,
+        hanging_handoff,
+    ):
+        monkeypatch.setenv("TIKTOK_POLL_CYCLE_BUDGET_SECONDS", _CYCLE_BUDGET_SECONDS)
+
+        with pytest.raises(PollCycleTimeoutError) as excinfo:
+            await run_fujiwa_poll_cycle(
+                session=session,
+                config=FujiwaPollConfig(app_key=APP_KEY, app_secret=APP_SECRET),
+                oauth_service=oauth_service_for_budget,
+                rate_limiter=NeverExhaustedRateLimiter(),
+                handoff_fn=hanging_handoff,
+                resolve_credential=AsyncMock(return_value=budget_credential),
+                create_resources=lambda _cfg: one_row_resources,
+            )
+
+        assert excinfo.value.budget_seconds == float(_CYCLE_BUDGET_SECONDS)
+
+    @pytest.mark.asyncio
+    async def test_run_fujiwa_material_resource_fetch_honours_the_configured_budget(
+        self,
+        monkeypatch,
+        session,
+        budget_credential,
+        oauth_service_for_budget,
+        one_row_resources,
+        hanging_handoff,
+    ):
+        monkeypatch.setenv("TIKTOK_POLL_CYCLE_BUDGET_SECONDS", _CYCLE_BUDGET_SECONDS)
+
+        with pytest.raises(PollCycleTimeoutError) as excinfo:
+            await run_fujiwa_material_resource_fetch(
+                session=session,
+                config=FujiwaPollConfig(app_key=APP_KEY, app_secret=APP_SECRET),
+                oauth_service=oauth_service_for_budget,
+                rate_limiter=NeverExhaustedRateLimiter(),
+                handoff_fn=hanging_handoff,
+                resolve_credential=AsyncMock(return_value=budget_credential),
+                create_resources=lambda _cfg: one_row_resources,
+            )
+
+        assert excinfo.value.budget_seconds == float(_CYCLE_BUDGET_SECONDS)
+
+    @pytest.mark.asyncio
+    async def test_a_generous_budget_lets_the_same_cycle_complete(
+        self,
+        monkeypatch,
+        session,
+        budget_credential,
+        oauth_service_for_budget,
+        one_row_resources,
+    ):
+        """The budget is the reason the two tests above raise — not the fixtures."""
+        monkeypatch.setenv("TIKTOK_POLL_CYCLE_BUDGET_SECONDS", "600")
+        handed_off: list[str] = []
+
+        async def _handoff(channel: str, shop_key: str, value: bytes) -> None:
+            handed_off.append(channel)
+
+        await run_fujiwa_poll_cycle(
+            session=session,
+            config=FujiwaPollConfig(app_key=APP_KEY, app_secret=APP_SECRET),
+            oauth_service=oauth_service_for_budget,
+            rate_limiter=NeverExhaustedRateLimiter(),
+            handoff_fn=_handoff,
+            resolve_credential=AsyncMock(return_value=budget_credential),
+            create_resources=lambda _cfg: one_row_resources,
+        )
+
+        assert "tiktok.orders.raw" in handed_off
