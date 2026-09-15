@@ -45,7 +45,10 @@ The idempotency ledger and its epoch. Import from
   ``advanced_at`` / ``advanced_by`` / ``reason``
 - ``IngestDedupEpochsRepo`` — ``current(*, shop_id, channel) -> int`` (read-only; an
   absent row means ``INITIAL_EPOCH``) and ``advance(*, shop_id, channel, operator,
-  reason) -> int``, the operator action described under *Recovering lost history*
+  reason) -> int``, the operator action described under *Recovering lost history*.
+  ``advance`` raises ``ValueError`` on a blank operator, a blank reason, or a
+  ``channel`` outside ``RAW_CHANNELS``, and logs ``etl_dedup_epoch_advanced`` at
+  WARNING when it moves one
 - ``INITIAL_EPOCH`` — ``0``; the epoch every row written before #1968 belongs to
 
 ## Dependencies
@@ -90,8 +93,12 @@ epoch = await IngestDedupEpochsRepo(session).advance(
 await session.commit()
 ```
 
-Operator and reason are recorded on the row alongside `advanced_at`, so a re-ingest is
-explainable months later. **Do not clear or delete ledger rows.** A `DELETE` is
+Operator and reason are recorded on the row alongside `advanced_at`, and the move is
+logged as `etl_dedup_epoch_advanced` at WARNING, so a re-ingest is explainable months
+later. The `channel` must be one the consumer actually reads (`RAW_CHANNELS`) — a
+near-miss such as `tiktok.order.raw` for `tiktok.orders.raw` is refused rather than
+returning an epoch for a channel nobody ingests, which would look like a successful
+recovery and recover nothing. **Do not clear or delete ledger rows.** A `DELETE` is
 irreversible and destroys the only record of what was ingested and when; the epoch is
 additive and leaves that record standing.
 
