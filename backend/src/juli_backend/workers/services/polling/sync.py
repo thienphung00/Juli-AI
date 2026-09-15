@@ -67,7 +67,7 @@ from juli_backend.services.ingestion.handoff import HandoffFn
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar("T")
+_T = TypeVar("_T")
 
 
 @dataclass(frozen=True)
@@ -199,7 +199,7 @@ class _CountingHandoff:
             )
 
 
-class _PollStep:
+class _StepRun:
     """One poll step's budget, counters, and its single outcome record.
 
     Exists so all four search steps plus analytics report identically. Before
@@ -234,7 +234,7 @@ class _PollStep:
             },
         )
 
-    def fetch(self, call: Callable[[], T]) -> T:
+    def fetch(self, call: Callable[[], _T]) -> _T:
         """Run the synchronous vendor fetch under the right pagination budget.
 
         A step with no watermark is the shop's first read, so it fetches under
@@ -347,7 +347,7 @@ async def sync_orders(
         return _skipped("orders", shop_id)
 
     update_from = sync_state.get("orders_last_update_time")
-    step = _PollStep(
+    step = _StepRun(
         "orders",
         shop_id,
         backfill=update_from is None,
@@ -408,7 +408,7 @@ async def sync_products(
         return _skipped("products", shop_id)
 
     update_from = sync_state.get("products_last_update_time")
-    step = _PollStep(
+    step = _StepRun(
         "products",
         shop_id,
         backfill=update_from is None,
@@ -568,7 +568,7 @@ async def sync_returns(
         return _skipped("returns", shop_id)
 
     update_from = sync_state.get("returns_last_update_time")
-    step = _PollStep(
+    step = _StepRun(
         "returns",
         shop_id,
         backfill=update_from is None,
@@ -624,7 +624,7 @@ async def sync_inventory(
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "inventory"})
         return _skipped("inventory", shop_id)
 
-    step = _PollStep(
+    step = _StepRun(
         "inventory",
         shop_id,
         # No watermark has ever been written for this shop, so this snapshot is
@@ -791,7 +791,7 @@ async def sync_analytics(
     # vendor row count: the step fans out across ~10 endpoints with per-endpoint
     # rate-limit breaks, so there is no single number the vendor returned. It is
     # never a cold-start backfill — the window is always one day (#424).
-    step = _PollStep("analytics", shop_id, backfill=False, handoff_fn=handoff_fn)
+    step = _StepRun("analytics", shop_id, backfill=False, handoff_fn=handoff_fn)
     handoff_fn = step.handoff
 
     start_date_ge, end_date_lt, day = _analytics_date_window(now=now)

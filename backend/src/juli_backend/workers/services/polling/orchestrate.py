@@ -49,6 +49,7 @@ from juli_backend.models.models import Shop, TikTokCredential
 from juli_backend.repositories.repos import TikTokSyncStateRepo
 from juli_backend.services.ingestion.handoff import HandoffFn
 from juli_backend.workers.services.polling.sync import (
+    SyncOutcome,
     sync_analytics,
     sync_inventory,
     sync_orders,
@@ -187,7 +188,12 @@ async def _within_cycle_budget(
 ResolveCredentialFn = Callable[[AsyncSession], Awaitable[TikTokCredential]]
 CreateResourcesFn = Callable[[ClientFactoryConfig], ProductionReadResources]
 SleepFn = Callable[[float], Awaitable[None]]
-SyncWorkerFn = Callable[..., Awaitable[None]]
+# Every poll step returns its outcome triple (#1969/#1950); a step that returns
+# `None` is a step that cannot be asked whether it dropped anything. Typed
+# concretely rather than left as `Awaitable[None]` so mypy is the thing that
+# catches a step regressing to a silent return -- including on the #1948 rebase,
+# where `sync_inventory` has an early `return` on an empty product-id list.
+SyncWorkerFn = Callable[..., Awaitable[SyncOutcome]]
 
 
 @dataclass(frozen=True)
@@ -274,7 +280,7 @@ async def _run_poll_step(
     sync_state: dict[str, Any],
     sleep: SleepFn,
     deadline: _CycleDeadline,
-) -> None:
+) -> SyncOutcome:
     await _within_cycle_budget(
         lambda: _backoff_if_rate_limited(
             rate_limiter,
@@ -286,7 +292,7 @@ async def _run_poll_step(
         deadline=deadline,
         stage=step.resource_attr,
     )
-    await _within_cycle_budget(
+    return await _within_cycle_budget(
         lambda: step.sync_fn(
             resource=getattr(resources, step.resource_attr),
             rate_limiter=rate_limiter,

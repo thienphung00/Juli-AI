@@ -10,12 +10,17 @@ shop. Fujiwa production-read orchestration is the Phase 2 P2-A1 entry point.
 
 - `run_fujiwa_poll_cycle(*, session, config, oauth_service, rate_limiter, handoff_fn)` — Fujiwa-only scheduled poll for orders, products, returns, inventory, and analytics; refreshes tokens, persists sync state, backs off on rate limits (also the ADR-021 manual-refresh poll hook)
 - `FujiwaPollConfig(app_key, app_secret)` — app credentials for poll cycles
-- `sync_orders(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)`
-- `sync_products(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)`
-- `sync_returns(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)`
-- `sync_inventory(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)` — Search Inventory full-snapshot backstop; flattens nested SKUs before `tiktok.inventory.raw` handoff
-- `sync_analytics(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state, promotion_resource=None)` — Analytics GET wire set (A-31–A-39) + optional A-25; date-window + pagination; hands normalized rows to ETL (#425) and updates sync_state watermarks
-- `sync_creators(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)`
+- `SyncOutcome(resource, shop_id, fetched, persisted, failed, pages, backfill, skipped, error)` — what one step actually did (#1950's triple). `ok` is false when the fetch errored, any row was rejected, or the step dropped everything; `dropped_everything` is `fetched > 0 and persisted == 0`. `persisted` counts rows the ETL handoff accepted without raising, which is NOT proof of a committed row: `HandoffFn` is typed `-> None` and `make_etl_handoff` discards `EtlConsumer.ingest`'s verdict, so a DLQ'd row counts as accepted
+- `PollStepDroppedRowsError(outcome)` — raised by a step that fetched rows from the vendor and persisted none of them. Carries the `SyncOutcome`
+- `PollCycleTimeoutError(*, stage, budget_seconds, elapsed_seconds)` — raised when a cycle outruns its wall-clock budget, naming the stage it stopped at
+- `cycle_budget_seconds()` — the cycle's wall-clock budget, from `CYCLE_BUDGET_SECONDS_ENV` (`TIKTOK_POLL_CYCLE_BUDGET_SECONDS`, default 1800s). Bounds *scheduling*, not execution: it refuses a stage that has not begun and cancels one parked on an `await`, but cannot preempt a synchronous `requests` or redis-py call in flight
+- `CYCLE_BUDGET_SECONDS_ENV` — name of that environment variable
+- `sync_orders(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)` — returns a `SyncOutcome`
+- `sync_products(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)` — returns a `SyncOutcome`
+- `sync_returns(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)` — returns a `SyncOutcome`
+- `sync_inventory(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)` — returns a `SyncOutcome`; Search Inventory full-snapshot backstop; flattens nested SKUs before `tiktok.inventory.raw` handoff
+- `sync_analytics(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state, promotion_resource=None)` — returns a `SyncOutcome` whose `fetched` counts rows offered (the step fans out over ~10 endpoints, so no single vendor row count exists); Analytics GET wire set (A-31–A-39) + optional A-25; date-window + pagination; hands normalized rows to ETL (#425) and updates sync_state watermarks
+- `sync_creators(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)` — returns a `SyncOutcome`
 - `backfill_shop(*, creators_resource, rate_limiter, handoff_fn, app_id, shop_id)`
 
 Out-of-scope workers removed (Phase 2 cleanup): `sync_livestreams`,

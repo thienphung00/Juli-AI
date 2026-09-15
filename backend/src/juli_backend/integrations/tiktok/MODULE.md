@@ -23,14 +23,13 @@ Matches ``__all__`` — re-exports only:
   ``TikTokBusinessAccountHolderAuth``, ``DEFAULT_OPEN_API_BASE_URL``
 - **HTTP client** — ``TikTokClient``
 - **Pagination budgeting** (#1969) — ``pagination_scope``,
-  ``current_pagination_scope``, ``PaginationScope``, and the failures a budget
-  can raise: ``TikTokPaginationError``, ``TikTokPaginationTruncatedError``,
-  ``TikTokPaginationTimeoutError``. A cold-start backfill and a routine
-  incremental poll hit the same endpoints and need different page budgets and
-  different verdicts (truncating a first read is a failure; truncating a delta
-  is not). The caller that knows which job it is doing lives above
-  ``resources/``, so the mode travels in a ``ContextVar`` rather than on the
-  client or the endpoint
+  ``current_pagination_scope``, ``PaginationScope``, ``TikTokPaginationError``,
+  ``TikTokPaginationTruncatedError``, ``TikTokPaginationTimeoutError``
+  — a cold-start backfill and a routine incremental poll hit the same endpoints
+  and need different page budgets and different verdicts (truncating a first
+  read is a failure; truncating a delta is not). The caller that knows which job
+  it is doing lives above the resource wrappers, so the mode travels in a
+  context variable rather than on the client or the endpoint
 - **Safe identifier rendering** — ``redact_shop_identifier`` (never log a full
   ``shop_cipher``; re-exported for ``services/tiktok/credential_binding.py``,
   which may only reach this package root under the depth-2 import cap)
@@ -66,6 +65,27 @@ Matches ``__all__`` — re-exports only:
   ``PermissionDeniedError``, ``ResourceNotFoundError``, ``RateLimitError``,
   ``TikTokSystemError``, ``TransportGuardError``, ``error_from_response``
 - **Selective (OAuth verify slice)** — ``TikTokSchemaError``
+
+### Pagination budget knobs (`client.py`, #1969)
+
+Read by the shared paginator, not re-exported through ``__all__`` — they are operational
+dials, so they are documented here rather than widened into the facade. Each
+reader resolves its environment variable on every call, so a deploy can change
+a budget without a code change.
+
+- ``max_pages`` / ``MAX_PAGES_ENV`` — page cap for a routine INCREMENTAL fetch
+  (``TIKTOK_MAX_PAGES``, default 20). Exhausting it logs
+  ``tiktok_pagination_max_pages_reached`` and returns what landed; the next
+  cycle resumes from the same watermark
+- ``backfill_max_pages`` / ``BACKFILL_MAX_PAGES_ENV`` — page budget for a
+  COLD-START backfill (``TIKTOK_BACKFILL_MAX_PAGES``, default 400; 20,000 rows
+  at page_size 50). Exhausting it RAISES, because there is no next cycle that
+  repairs a half-read history
+- ``default_fetch_budget_seconds`` / ``FETCH_BUDGET_SECONDS_ENV`` — wall-clock
+  budget for one paginated fetch when the caller names none
+  (``TIKTOK_FETCH_BUDGET_SECONDS``, default 600s). Checked BETWEEN pages, which
+  is the only place this layer can check anything: ``requests`` is synchronous,
+  so a page already in flight is bounded only by the per-request socket timeout
 
 ## Dependencies
 - `requests` — HTTP transport (sync)
