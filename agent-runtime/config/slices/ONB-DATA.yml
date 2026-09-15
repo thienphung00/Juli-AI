@@ -1,0 +1,58 @@
+# ONB-DATA — pre-W9 data layer for epic #1951 (ADR-103 d.10, d.11).
+# Six issues that stand between a connected seller and any readable shop data:
+#   #1966 juli_app lacks SELECT on webhook_raw_events (310 events/day dropped)
+#   #1948 inventory search sends sku_ids; the endpoint requires product_ids
+#   #1949 run_fujiwa_poll_cycle is in no beat_schedule
+#   #1967 the poll loses its shop GUC across the ETL's internal commits
+#   #1968 processed_events has no epoch, so lost rows can never be re-ingested
+#   #1969 20-page backfill cap, no progress logging, observed 47-minute hang
+#
+# META LOCKS — read before touching anything:
+# - MIGRATION NUMBERS ARE ASSIGNED BY META, never read from head. #1966 takes
+#   059. #1968 takes 060. No other issue in this slice may add a migration.
+# - WRITE PATHS ARE DISJOINT BY ISSUE and must stay that way; concurrent agents
+#   share this slice. #1966 owns migrations/ + api/routes/webhook_tiktok.py.
+#   #1948 owns integrations/tiktok/resources/inventory.py + sync.py::sync_inventory.
+#   #1949 owns workers/celery_app.py + workers/tasks/. #1967 owns
+#   polling/orchestrate.py. #1968 owns services/etl/. #1969 owns
+#   integrations/tiktok/client.py + sync.py progress logging.
+#   If your fix needs a file another issue owns, STOP and report - do not edit it.
+# - EVERY TENANT READ OR WRITE IN A BEAT TASK RUNS UNDER A SHOP SCOPE (ADR-089).
+#   On the poll path that means with_sticky_shop_scope (#1883), NOT
+#   with_shop_scope: SET LOCAL dies at the ETL consumer's internal commits and
+#   the cycle then fails its own final write under RLS. This is #1967 and it is
+#   the reason the poll has never completed.
+# - A SYNC THAT DROPS ROWS MUST NOT REPORT SUCCESS (#1950). Never swallow a
+#   TikTokAPIError into a warning and return None; never advance a watermark
+#   when nothing persisted. Both defects in this slice hid for months that way.
+# - FAIL LOUDLY ON AN EMPTY READ. A seller who connected and got nothing is a
+#   bug, never a quiet zero.
+ONB-DATA:
+  executorDomain: data-platform
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/103-first-connect-onboarding.md
+    - docs/adr/086-runtime-database-role-and-tenant-isolation.md
+    - docs/adr/089-fleet-scoped-work-under-tenant-isolation.md
+    - docs/adr/048-cdp-webhook-first-spine-dual-credential.md
+  requiredModules:
+    - backend/src/juli_backend/workers/services/polling/orchestrate.py
+    - backend/src/juli_backend/workers/services/polling/sync.py
+    - backend/src/juli_backend/workers/celery_app.py
+    - backend/src/juli_backend/services/etl/consumer.py
+    - backend/src/juli_backend/integrations/tiktok/client.py
+    - backend/src/juli_backend/integrations/tiktok/resources/inventory.py
+    - backend/src/juli_backend/database/tenant_context.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/action_cards/refresh.py
+    - backend/src/juli_backend/services/etl/transform.py
+    - backend/src/juli_backend/integrations/tiktok/mapping.py
+    - backend/src/juli_backend/database/migrations/versions/
+    - backend/src/juli_backend/api/routes/webhook_tiktok.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - backend/src/juli_backend/ai/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
