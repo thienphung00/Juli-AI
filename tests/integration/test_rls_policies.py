@@ -278,8 +278,8 @@ def test_guc_unset_denial_via_parent_table(postgres_engine, alembic_cfg):
         conn.execute(
             text(
                 """INSERT INTO workflow_runs
-                (id, shop_id, product_id, status, prompt_version, prompt_sha256)
-                VALUES (:id, :sid, :pid, 'completed', 'v1', 'sha256')"""
+                (id, shop_id, product_id, status, prompt_version, prompt_sha256, subject_ref)
+                VALUES (:id, :sid, :pid, 'completed', 'v1', 'sha256', CAST(:pid AS text))"""
             ),
             {"id": run_id, "sid": shop_id, "pid": product_id},
         )
@@ -341,8 +341,8 @@ def test_via_parent_denial_workflow_run_events(postgres_engine, alembic_cfg):
             conn.execute(
                 text(
                     """INSERT INTO workflow_runs
-                    (id, shop_id, product_id, status, prompt_version, prompt_sha256)
-                    VALUES (:id, :sid, :pid, 'completed', 'v1', 'sha256')"""
+                    (id, shop_id, product_id, status, prompt_version, prompt_sha256, subject_ref)
+                    VALUES (:id, :sid, :pid, 'completed', 'v1', 'sha256', CAST(:pid AS text))"""
                 ),
                 {"id": rid, "sid": sid, "pid": pid},
             )
@@ -608,8 +608,8 @@ def test_explain_index_via_parent_exists(postgres_engine, alembic_cfg):
             conn.execute(
                 text(
                     """INSERT INTO workflow_runs
-                    (id, shop_id, product_id, status, prompt_version, prompt_sha256)
-                    VALUES (:id, :sid, :pid, 'completed', 'v1', 'sha256')"""
+                    (id, shop_id, product_id, status, prompt_version, prompt_sha256, subject_ref)
+                    VALUES (:id, :sid, :pid, 'completed', 'v1', 'sha256', CAST(:pid AS text))"""
                 ),
                 {"id": run_id, "sid": shop_id, "pid": product_id},
             )

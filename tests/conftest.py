@@ -181,6 +181,12 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         "test_run_confirmations_approvals_schema.py",
         "test_workflow_runs_schema.py",
         "test_workflow_run_rollup_migration.py",
+        # Downgrades to base too (via `_reset_to_revision`), for the same
+        # reason: migration 062's round trip needs rows seeded BEFORE the
+        # upgrade, at revision 061_credential_owner_enum's shape, which only a
+        # private database can guarantee (#1701). #1701's migration was
+        # renumbered 061->062 when #2019 merged first and took 061.
+        "test_migration_workflow_subject_roundtrip.py",
         "test_workflow_run_events_schema.py",
         "test_workflow_run_action_card_fk_schema.py",
         "test_juli_app_role_downgrade_cross_database.py",

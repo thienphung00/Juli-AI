@@ -114,9 +114,9 @@ def _seed_run(conn, *, status: str) -> tuple[uuid.UUID, uuid.UUID]:
         text(
             "INSERT INTO public.workflow_runs "
             "(id, shop_id, product_id, state, status, prompt_version, prompt_sha256, "
-            " created_at, updated_at) "
+            " subject_ref, created_at, updated_at) "
             "VALUES (:id, :shop_id, :product_id, '{}'::jsonb, :status, "
-            " 'optimize_product_2/v1', :sha, :now, :now)"
+            " 'optimize_product_2/v1', :sha, CAST(:product_id AS text), :now, :now)"
         ),
         {
             "id": str(run_id),
