@@ -108,6 +108,29 @@ celery_app.conf.update(
             "task": "juli_backend.credential_refresh_beat",
             "schedule": crontab(minute="*/30"),
         },
+        # #1949 (ONB-DATA) — the fleet's first scheduled *data* poll.
+        # `run_fujiwa_poll_cycle` (orders/products/returns/inventory +
+        # analytics) has never appeared in beat_schedule either — only
+        # `services/action_cards/refresh.py`'s manual hook ever called it, so
+        # `orders`/`inventory_items`/`returns` never ingested on a schedule
+        # while `analytics_performance_intervals` (via the hourly reconcile
+        # above) did.
+        #
+        # Minute slot chosen against #1659's own lesson, not by inspection:
+        # 7/22/37/52 are none of them multiples of 5, so this entry shares no
+        # fire minute, at any hour, with reap-abandoned-workflow-runs' */5 or
+        # credential-refresh-beat's */30 (both land only on multiples of 5),
+        # nor with mock-analytics-hourly-reconcile's :00. It also is not 17
+        # (analytics-backfill-topup, hour=2 only) or 23 (daily-impact-reader,
+        # hour=3 only) — the two collisions #1659 was filed over.
+        # cdp-batch-staggered-reconcile (every minute, flag defaults OFF) is
+        # the one entry every other beat already "collides" with by design
+        # and is excluded from this reasoning for the same reason it is
+        # excluded from #1659's own daily-beat check.
+        "fujiwa-poll-cycle": {
+            "task": "juli_backend.fujiwa_poll_cycle",
+            "schedule": crontab(minute="7,22,37,52"),
+        },
     },
 )
 

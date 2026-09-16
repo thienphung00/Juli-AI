@@ -1,7 +1,7 @@
 {
   "issue": 1462,
   "schema": "debt-ratchet-baseline/1",
-  "generatedAt": "2026-09-16T03:32:59Z",
+  "generatedAt": "2026-09-16T04:45:47Z",
   "generator": "python -m eval.ratchets measure --write",
   "classes": {
     "broken_doc_refs": {
@@ -363,9 +363,9 @@
     "mypy_statement_coverage": {
       "kind": "scalar",
       "stats": {
-        "files_scanned": 458,
-        "checked_statements": 22563,
-        "total_statements": 22563,
+        "files_scanned": 461,
+        "checked_statements": 22732,
+        "total_statements": 22732,
         "unchecked_modules": [],
         "exclude_patterns": [],
         "ignore_errors_patterns": [],
@@ -379,17 +379,17 @@
     "suppressions": {
       "kind": "identities",
       "stats": {
-        "files_scanned": 1137,
-        "lines": 410,
-        "occurrences": 412,
-        "distinct_identities": 213,
-        "lines_in_reported_roots": 406,
+        "files_scanned": 1142,
+        "lines": 401,
+        "occurrences": 403,
+        "distinct_identities": 212,
+        "lines_in_reported_roots": 397,
         "by_rule_code": {
           "noqa:ARG001": 5,
           "noqa:BLE001": 13,
           "noqa:E402": 213,
           "noqa:E712": 1,
-          "noqa:F401": 25,
+          "noqa:F401": 16,
           "noqa:F403": 2,
           "noqa:N802": 4,
           "noqa:PLC0415": 1,
@@ -490,7 +490,6 @@
         "suppressions\tbackend/src/juli_backend/services/tiktok/webhook_raw_log.py\t_event_id_for\tnoqa:BLE001": 1,
         "suppressions\tbackend/src/juli_backend/workers/agent_runtime_boot.py\t_assert_non_owner_role_rls_preconditions\ttype-ignore:IMPORT-UNTYPED": 2,
         "suppressions\tbackend/src/juli_backend/workers/celery_app.py\t<module>\tnoqa:E402": 2,
-        "suppressions\tbackend/src/juli_backend/workers/tasks/__init__.py\t<module>\tnoqa:F401": 9,
         "suppressions\teval/artifact_mutants.py\t<module>\tnoqa:E402": 1,
         "suppressions\teval/gate_scoring.py\t<module>\tnoqa:E402": 1,
         "suppressions\teval/run_gate_scoring.py\t<module>\tnoqa:E402": 2,
@@ -622,15 +621,15 @@
       },
       "reportedLineDivergence": {
         "reported": 394,
-        "measured": 406,
-        "delta": 12,
+        "measured": 397,
+        "delta": 3,
         "reportedRoots": [
           "backend",
           "tests",
           "scripts",
           "agent-runtime"
         ],
-        "measuredAllRoots": 410,
+        "measuredAllRoots": 401,
         "allRoots": [
           "backend",
           "tests",
@@ -833,5 +832,5 @@
       }
     }
   },
-  "tightenedFrom": "2026-09-07T01:25:40Z"
+  "tightenedFrom": "2026-09-16T03:32:59Z"
 }

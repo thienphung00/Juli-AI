@@ -363,6 +363,22 @@ celeryTasks:
       beat_schedule, so before this nothing refreshed TikTok tokens on a
       schedule at all. One bad credential never aborts the cycle: that is why
       refresh_credential returns an outcome instead of raising.
+  juli_backend.fujiwa_poll_cycle:
+    owner: Data Pipeline
+    wrapper: backend/src/juli_backend/workers/tasks/fujiwa_poll_beat.py
+    delegatesTo: workers.services.polling.run_fujiwa_poll_cycle
+    notes: >
+      #1949 (ONB-DATA). The fleet's FIRST scheduled *data* poll —
+      run_fujiwa_poll_cycle (orders/products/returns/inventory + analytics)
+      had also never appeared in beat_schedule, reachable only through
+      services.action_cards.refresh.maybe_poll_tiktok_data's manual hook.
+      Beat task every 15 minutes offset (minutes 7/22/37/52, chosen against
+      #1659 to share no fire slot with any other entry). Tenant scope is
+      established inside run_fujiwa_poll_cycle itself (ADR-089); this wrapper
+      adds none of its own. A first scheduled run only advances the
+      sync-state cursor forward from roughly "now" — it does not back-fill
+      the historical gap already missed (that needs #1968's ledger epoch plus
+      a deliberate watermark reset).
 
 redisNamespaces:
   - pattern: "ratelimit:*"
