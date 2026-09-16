@@ -2864,3 +2864,72 @@ a {
   font-size: 0.85rem;
   line-height: 1.6;
 }
+
+/* ---------------------------------------------------------------------------
+   Impact-reading provenance (issue #1958, ADR-099 decision 2).
+   A synthetic reading must be structurally incapable of being mistaken for
+   a measured one — the marker is part of the figure, never optional chrome.
+   Tokens only (ADR-102 discipline): every colour is a var() or a color-mix
+   over var()s; no literal colour, blur or shadow. */
+
+.impact-reading {
+  display: grid;
+  gap: var(--juli-space-1);
+}
+
+.impact-reading p {
+  margin: 0;
+}
+
+.impact-reading__label {
+  color: var(--juli-muted-foreground);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.impact-reading__value {
+  color: var(--juli-foreground);
+  font-size: clamp(1.5rem, 6vw, 2rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+/* The ◆ marker — a quiet, branded pill. Honest, not alarming: it states
+   what the figure is, in the same visual family as the Bản minh họa mode
+   chip. ADR-054: --juli-primary-text is the one pink allowed as text on
+   a light ground. */
+.impact-reading__marker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--juli-space-1);
+  width: fit-content;
+  padding: calc(var(--juli-space-1) / 2) var(--juli-space-2);
+  border-radius: calc(var(--juli-radius) / 2);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.impact-reading__marker--synthetic {
+  color: var(--juli-primary-text);
+  background: var(--juli-primary-soft);
+  border: 1px solid color-mix(in srgb, var(--juli-primary) 35%, transparent);
+}
+
+.impact-reading__marker-glyph {
+  font-size: 0.6875rem;
+  line-height: 1;
+}
+
+/* Fail-closed state: the figure is withheld, and this copy stands where
+   the number would have been — visibly a warning, never a quiet blank a
+   real-looking digit could survive next to. Same warning treatment as
+   .execution-card__recovery. */
+.impact-reading__marker--unprovenanced {
+  color: var(--juli-foreground);
+  background: var(--juli-warning-tint);
+  border: 1px solid color-mix(in srgb, var(--juli-warning) 45%, var(--juli-border));
+}
