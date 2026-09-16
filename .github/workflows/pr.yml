@@ -906,18 +906,26 @@ jobs:
   # committed JSON file, NOT the heavy meta_prepare_executor / check_*.py re-run
   # ADR-052 correctly deferred off this tier. Reuses classify-tier's tier == 'issue'
   # and resolve-issue's issue-([0-9]+) resolution rather than inventing a new branch
-  # convention: wave-tier pushes and wave->main PRs are unaffected because this job
-  # simply does not run for them (tier != 'issue'); a branch that reaches the issue
-  # tier without resolving an issue number (docs/hotfix) is handled *inside* the
-  # script as a logged SKIP -- never a silent pass. The check_*.py script never reads
-  # or writes the five gitignored artifact body directories and never `git add -f`s
-  # anything; agent-runtime/artifacts/status/ is the only artifact dir it touches.
-  # Not wired into required branch-protection checks by this change -- that is a
+  # convention. #1977: wave->main PRs are still unaffected -- resolve-issue never
+  # matches a wave branch's own head (e.g. feature/w7-wave), so issue_number is empty
+  # there and the tier == 'main' clause below stays false. What DOES now run is an
+  # issue PR whose head resolves to issue-N but whose base is main directly (the W6
+  # topology): tier is 'main' there, and before this change that alone skipped the
+  # job entirely -- indistinguishable from a pass (verified SKIPPED on #1945, #1954,
+  # #1956, #1965, #1975). A branch that reaches the issue tier without resolving an
+  # issue number (docs/hotfix) is still handled *inside* the script as a logged SKIP
+  # -- never a silent pass. The check_*.py script never reads or writes the five
+  # gitignored artifact body directories and never `git add -f`s anything;
+  # agent-runtime/artifacts/status/ is the only artifact dir it touches. Not wired
+  # into required branch-protection checks by this change -- that is a
   # repository-settings decision for the owner, called out in the PR body.
   artifact-retention-guard:
     runs-on: ubuntu-latest
     needs: [classify-tier, resolve-issue]
-    if: needs.classify-tier.outputs.tier == 'issue'
+    if: >-
+      needs.classify-tier.outputs.tier == 'issue'
+      || (needs.classify-tier.outputs.tier == 'main'
+          && needs.resolve-issue.outputs.issue_number != '')
     env:
       ISSUE_NUMBER: ${{ needs.resolve-issue.outputs.issue_number }}
     steps:
@@ -933,7 +941,10 @@ jobs:
   merge-status:
     runs-on: ubuntu-latest
     needs: [classify-tier, resolve-issue, artifact-retention-guard]
-    if: needs.classify-tier.outputs.tier == 'issue'
+    if: >-
+      needs.classify-tier.outputs.tier == 'issue'
+      || (needs.classify-tier.outputs.tier == 'main'
+          && needs.resolve-issue.outputs.issue_number != '')
     env:
       ISSUE_NUMBER: ${{ needs.resolve-issue.outputs.issue_number }}
     steps:
@@ -975,7 +986,10 @@ jobs:
   validate-gates:
     runs-on: ubuntu-latest
     needs: [classify-tier, resolve-issue]
-    if: needs.classify-tier.outputs.tier == 'issue'
+    if: >-
+      needs.classify-tier.outputs.tier == 'issue'
+      || (needs.classify-tier.outputs.tier == 'main'
+          && needs.resolve-issue.outputs.issue_number != '')
     env:
       ISSUE_NUMBER: ${{ needs.resolve-issue.outputs.issue_number }}
       BASE_REF: ${{ github.base_ref }}

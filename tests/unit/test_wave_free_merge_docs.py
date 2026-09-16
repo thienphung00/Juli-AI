@@ -369,3 +369,24 @@ def test_the_two_harnesses_agree_on_what_is_sanctioned() -> None:
             f"`{token}` is addressed in only one of git-baseline.mdc / CLAUDE.md; "
             f"the two harnesses would carry different policies"
         )
+
+
+# --- #1977: the dormancy caveat is removed because it is no longer true ----
+
+
+def test_artifact_retention_guard_paragraph_no_longer_claims_dormancy() -> None:
+    """AC5: #1976's dormancy caveat ("It is dormant whenever issue PRs target
+    `main` directly") is removed from CLAUDE.md — #1977 widened the three
+    jobs' trigger conditions, so the guard is no longer dormant on that path."""
+    text = CLAUDE_MD.read_text(encoding="utf-8")
+
+    assert "is dormant whenever issue PRs target" not in text
+    assert "verified 2026-09-15 on #1945," not in text
+
+    # The paragraph must still exist and now describe the widened, current
+    # behaviour rather than simply deleting the caveat with nothing in its
+    # place.
+    assert "Artifact retention guard" in text
+    assert "#1977" in text
+    assert "tier == 'issue'" in text
+    assert "tier == 'main'" in text
