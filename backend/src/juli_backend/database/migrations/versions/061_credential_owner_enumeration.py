@@ -68,6 +68,13 @@ compares a column to itself.
 EXPAND-ONLY AND REVERSIBLE (ADR-027). Creates one function and narrows its grants. No table, no
 column, no data and no policy is touched, so `downgrade()` is a `DROP FUNCTION` and the grants go
 with it -- nothing can be lost by running it.
+
+APPLY THIS BEFORE THE CODE DEPLOY, NOT AFTER. `_enumerate_owning_shop` branches on the DIALECT,
+not on whether this function exists, so the resolve raises `asyncpg.UndefinedFunctionError`
+against a Postgres that has not run this revision -- measured during #2019 review, not assumed.
+There is deliberately no existence probe and no silent fallback: falling back would restore the
+scope-less read this revision exists to remove, and would do it invisibly. Because the revision
+is expand-only and nothing calls the function until the code lands, applying it early is free.
 """
 
 from __future__ import annotations

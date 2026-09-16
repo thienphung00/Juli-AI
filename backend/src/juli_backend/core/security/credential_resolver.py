@@ -105,6 +105,16 @@ async def _enumerate_owning_shop(
     the dialect rather than probing for the function mirrors
     `workers/tasks/credential_refresh_beat.py`, which enumerates the same table
     the same way.
+
+    DEPLOY ORDER: MIGRATION 061 FIRST, THEN THIS CODE. The branch above is on
+    the DIALECT, not on whether the function exists, so against a Postgres that
+    has not run 061 this raises `asyncpg.UndefinedFunctionError` rather than
+    falling back to the old unscoped read. Measured, not assumed, during #2019
+    review. That is deliberate -- a silent fallback would re-introduce exactly
+    the scope-less read this exists to remove, and would do it invisibly. But it
+    means shipping the code ahead of the migration changes the outage's shape
+    instead of ending it. Expand-only migrations are safe to apply early; this
+    one creates a function nothing calls until this code lands.
     """
     if session.get_bind().dialect.name != "postgresql":
         return None
