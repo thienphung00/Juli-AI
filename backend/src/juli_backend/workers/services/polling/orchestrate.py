@@ -174,8 +174,8 @@ def _synced_product_ids_fn(session: AsyncSession, shop_id: uuid.UUID) -> Product
 
     Search Inventory has no unscoped listing and hard-requires `product_ids`
     in the request body -- `sync_inventory` cannot discover them on its own.
-    This cycle already holds a session scoped to `shop_id` (`reapply_shop_scope`
-    ran before either entrypoint's loop), so the source reads through it
+    This cycle already holds a session scoped to `shop_id` (`with_sticky_shop_scope`
+    wraps the whole cycle -- #1967), so the source reads through it
     directly rather than opening a second, unscoped one: a fresh session here
     could not see this transaction's own writes, could not be exercised by
     the orchestration test fixtures, and a construction failure would have to
@@ -326,32 +326,6 @@ async def run_fujiwa_material_resource_fetch(
     """Fetch orders/products/returns/inventory + incremental analytics for material precompute."""
     resolve = resolve_credential or resolve_production_read_credential
     credential = await resolve(session)
-    # See the matching comment in `run_fujiwa_material_resource_fetch` (#1880):
-    # the resolver's own `refresh_credential` commit discards the caller's
-    # shop scope, so it must be reapplied before any further tenant read.
-    await reapply_shop_scope(session, credential.shop_id)
-    _assert_fujiwa_credential(credential)
-
-    client_factory = factory or ProductionReadClientFactory()
-    build_resources = create_resources or client_factory.create_resources
-    resources = build_resources(_factory_config(config, credential))
-
-    repo = sync_state_repo or TikTokSyncStateRepo(session)
-    sync_state = await repo.load(credential.shop_id)
-
-    app_id = config.app_key
-    shop = await session.get(Shop, credential.shop_id)
-    if shop is None or not shop.tiktok_shop_id:
-        raise ValueError(
-            f"Fujiwa polling requires a shop with tiktok_shop_id; shop_id={credential.shop_id}"
-        )
-    shop_key = shop.tiktok_shop_id
-    list_product_ids = _synced_product_ids_fn(session, credential.shop_id)
-
-    for step in _FUJIWA_POLL_STEPS:
-        await _run_poll_step(
-            step,
-            resources=resources,
     async with with_sticky_shop_scope(session, credential.shop_id):
         await _poll(
             session=session,
@@ -363,7 +337,6 @@ async def run_fujiwa_material_resource_fetch(
             create_resources=create_resources,
             sync_state_repo=sync_state_repo,
             sleep=sleep,
-            list_product_ids=list_product_ids,
         )
 
 
