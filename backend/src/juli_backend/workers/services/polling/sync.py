@@ -18,7 +18,9 @@ import logging
 import time
 import uuid
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from functools import partial
 from typing import Any, TypeVar
 
 from sqlalchemy import select
@@ -327,6 +329,8 @@ def _skipped(resource: str, shop_id: str) -> SyncOutcome:
     outcome = SyncOutcome(resource=resource, shop_id=shop_id, skipped=True)
     logger.info("poll_step_outcome", extra=outcome.as_log_fields())
     return outcome
+
+
 # Callable[[], Awaitable[list[str]]] -- sources the shop's synced product ids
 # (#1948). Search Inventory has no unscoped listing and hard-requires
 # ``product_ids`` in the request body, so ``sync_inventory`` cannot discover
@@ -676,41 +680,46 @@ async def sync_inventory(
     app_id: str,
     shop_id: str,
     sync_state: dict[str, Any],
-) -> SyncOutcome:
-    """Fetch inventory snapshot, flatten SKUs, hand off to ETL, report the triple.
     list_product_ids: ProductIdsFn,
     page_size: int = DEFAULT_INVENTORY_PAGE_SIZE,
-) -> None:
-    """Fetch inventory snapshot, flatten SKUs, and hand off to ETL.
+) -> SyncOutcome:
+    """Fetch inventory snapshot, flatten SKUs, hand off to ETL, report the triple.
 
     Search Inventory has no ``update_time`` filter — this is a full-snapshot
-    reconciliation backstop. Incremental changes arrive via webhook #68.
+    reconciliation backstop. Incremental changes arrive via webhook #68. It also
+    *requires* ``product_ids`` in the request body (#1948); calling it with none
+    is a guaranteed ``TikTokAPIError``, so ``list_product_ids`` supplies the
+    shop's already-synced ids in ``page_size`` batches.
 
-    MERGE NOTE (#1948). That branch rewrites this body with the opposite error
-    philosophy: it RAISES on a ``TikTokAPIError`` and on a non-dict response,
-    where this one reports a failed outcome and returns. On the merge, #1948's
-    raise wins and this step keeps only the ``_StepRun`` wrapper around it, so
-    the triple is reported on the way out and the exception still propagates —
-    the shape the ``TikTokPaginationError`` arm below already uses. Reasoning is
-    in #1969's branch history; the short version is that a Celery task which
-    exits zero after dropping every inventory row does not meet "scheduled,
-    unattended", and the cost that argued against raising here — losing steps
-    1-3's watermarks — no longer exists now that ``orchestrate.py`` saves partial
-    state before re-raising any exception.
-    Search Inventory *requires* ``product_ids`` in the request body (#1948);
-    calling it with none -- as this worker used to -- is a guaranteed
-    ``TikTokAPIError``. ``list_product_ids`` supplies the shop's already-synced
-    product ids, batched into ``page_size`` requests since the endpoint's true
-    per-call cap is not established. Required, not defaulted: the caller
-    (``orchestrate.py``) already holds a session scoped to this shop and
-    builds this from it (``_synced_product_ids_fn``), so a silent
-    "resolve my own session, fall back to no ids on any failure" default here
-    would just move #1948's swallow-shaped failure one layer down instead of
-    removing it.
+    **This step raises where the other three report (#1948 + #1969).** That is
+    deliberate and it is the one place the two branches disagreed, so the
+    reasoning lives here rather than in a commit message:
 
-    Any ``TikTokAPIError`` propagates instead of being logged-and-swallowed:
-    a sync that silently drops every row must not look identical to one with
-    nothing new to sync (#1948).
+    - #1948 made a vendor failure here propagate, because an inventory sync that
+      drops every row must not be indistinguishable from one with nothing to do.
+      That was the defect: 100% failure, invisible for the lifetime of the table.
+    - #1969 gives every step an outcome triple, and an ``ok=False`` record is
+      loud *inside* the process. It is not loud outside it: the Celery task still
+      exits zero, and "the poll can be relied on without someone watching it" is
+      the bar, not "the poll ran".
+    - The usual argument against raising from this step is that inventory is
+      step 4 of 4, so an exception would discard steps 1-3's watermarks and make
+      the next cycle refetch a larger delta under the *incremental* 20-page cap,
+      where over-running only warns. That argument no longer applies: ``_poll``
+      now saves partial sync state before re-raising **any** exception, proven by
+      ``TestPartialStateSurvivesAMidCycleFailure``. The cost that justified
+      swallowing is gone, so the swallow is not justified either.
+
+    So both survive: ``_StepRun`` reports the triple on the way out, and the
+    exception still propagates — the shape the ``TikTokPaginationError`` arms in
+    the other steps already use. An empty ``product_ids`` list is NOT a failure;
+    it is the ordinary cold-start state before any product has synced, and it
+    returns a clean zero outcome.
+
+    Known cost, not hidden: a raise here means the analytics step, which runs
+    after all four search steps, does not run at all. Ordering analytics first,
+    or giving the cycle an end-of-cycle verdict so no step can block another, is
+    #1950's work and not done here.
     """
     if not rate_limiter.acquire(
         app_id, shop_id, INVENTORY_SEARCH_PATH, max_requests=10, window_seconds=60
@@ -726,56 +735,44 @@ async def sync_inventory(
         backfill=sync_state.get("inventory_last_sync_at") is None,
         handoff_fn=handoff_fn,
     ) as step:
-        try:
-            response = step.fetch(resource.search)
-        except TikTokPaginationError as exc:
-            step.report(error=exc)
-            raise
-        except TikTokAPIError as exc:
-            logger.error("sync_inventory_failed", extra={"shop_id": shop_id}, exc_info=True)
-            return step.report(error=exc)
+        product_ids = await list_product_ids()
+        if not product_ids:
+            logger.info("sync_inventory_no_products", extra={"shop_id": shop_id})
+            return step.report()
 
-        if not isinstance(response, dict):
-            logger.error(
-                "sync_inventory_invalid_response",
-                extra={"shop_id": shop_id, "type": type(response).__name__},
-            )
-            return step.report(
-                error=ValueError(f"inventory search returned {type(response).__name__}, not a dict")
-            )
+        rows: list[dict[str, Any]] = []
+        for batch_start in range(0, len(product_ids), page_size):
+            page = product_ids[batch_start : batch_start + page_size]
+            try:
+                response = step.fetch(partial(resource.search, product_ids=page))
+            except TikTokPaginationError as exc:
+                step.report(error=exc)
+                raise
+            except TikTokAPIError as exc:
+                logger.error(
+                    "sync_inventory_failed",
+                    extra={"shop_id": shop_id, "page_product_id_count": len(page)},
+                    exc_info=True,
+                )
+                step.report(error=exc)
+                raise
 
-        rows = expand_inventory_search(response)
+            if not isinstance(response, dict):
+                invalid = ValueError(
+                    "sync_inventory got a non-dict inventory search response for "
+                    f"shop_id={shop_id}: {type(response).__name__}"
+                )
+                logger.error(
+                    "sync_inventory_invalid_response",
+                    extra={"shop_id": shop_id, "type": type(response).__name__},
+                )
+                step.report(error=invalid)
+                raise invalid
+
+            rows.extend(expand_inventory_search(response))
+
         step.fetched = len(rows)
         synced_at = int(time.time())
-        return
-
-    product_ids = await list_product_ids()
-    if not product_ids:
-        logger.info("sync_inventory_no_products", extra={"shop_id": shop_id})
-        return
-
-    rows: list[dict[str, Any]] = []
-    for start in range(0, len(product_ids), page_size):
-        page = product_ids[start : start + page_size]
-        try:
-            response = resource.search(product_ids=page)
-        except TikTokAPIError:
-            logger.error(
-                "sync_inventory_failed",
-                extra={"shop_id": shop_id, "page_product_id_count": len(page)},
-                exc_info=True,
-            )
-            raise
-
-        if not isinstance(response, dict):
-            raise ValueError(
-                "sync_inventory got a non-dict inventory search response for "
-                f"shop_id={shop_id}: {type(response).__name__}"
-            )
-
-        rows.extend(expand_inventory_search(response))
-
-    synced_at = int(time.time())
 
         for row in rows:
             payload = normalize_inventory(row)

@@ -30,6 +30,7 @@ from juli_backend.models.models import Shop, TikTokSyncState, User
 from juli_backend.repositories.repos import TikTokCredentialRepo, TikTokSyncStateRepo
 from juli_backend.workers.services.polling.orchestrate import (
     FujiwaPollConfig,
+    _CycleDeadline,
     _PollStep,
     _run_poll_step,
     run_fujiwa_poll_cycle,
@@ -404,6 +405,9 @@ class TestPollStepProductIdRequirement:
                 shop_key="shop1",
                 sync_state={},
                 sleep=AsyncMock(),
+                # Required since #1969. Generous on purpose: this test is about
+                # the product-id guard, not the wall clock.
+                deadline=_CycleDeadline(budget_seconds=600.0),
             )
 
         # The message names which step went unsupplied. A cycle runs four steps

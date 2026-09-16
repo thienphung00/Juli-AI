@@ -50,6 +50,7 @@ import asyncio
 import logging
 import os
 import time
+import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -79,6 +80,7 @@ from juli_backend.models.models import Shop, TikTokCredential
 from juli_backend.repositories.repos import ProductsRepo, TikTokSyncStateRepo
 from juli_backend.services.ingestion.handoff import HandoffFn
 from juli_backend.workers.services.polling.sync import (
+    ProductIdsFn,
     SyncOutcome,
     sync_analytics,
     sync_inventory,
@@ -360,6 +362,7 @@ async def _run_poll_step(
     sync_state: dict[str, Any],
     sleep: SleepFn,
     deadline: _CycleDeadline,
+    list_product_ids: ProductIdsFn | None = None,
 ) -> SyncOutcome:
     await _within_cycle_budget(
         lambda: _backoff_if_rate_limited(
@@ -372,6 +375,15 @@ async def _run_poll_step(
         deadline=deadline,
         stage=step.resource_attr,
     )
+    # #1948: Search Inventory hard-requires `product_ids`, and only the caller
+    # holding a shop-scoped session can source them. Raising on a missing
+    # source rather than defaulting to "no ids" is deliberate -- a default
+    # would reintroduce exactly the silent empty fetch #1948 removed.
+    extra_kwargs: dict[str, Any] = {}
+    if step.wants_product_ids:
+        if list_product_ids is None:
+            raise ValueError(f"{step.endpoint_path} step requires list_product_ids")
+        extra_kwargs["list_product_ids"] = list_product_ids
     return await _within_cycle_budget(
         lambda: step.sync_fn(
             resource=getattr(resources, step.resource_attr),
@@ -380,6 +392,7 @@ async def _run_poll_step(
             app_id=app_id,
             shop_id=shop_key,
             sync_state=sync_state,
+            **extra_kwargs,
         ),
         deadline=deadline,
         stage=step.resource_attr,
@@ -445,6 +458,7 @@ async def _poll(
                 sync_state=sync_state,
                 sleep=sleep,
                 deadline=deadline,
+                list_product_ids=list_product_ids,
             )
 
         await _within_cycle_budget(

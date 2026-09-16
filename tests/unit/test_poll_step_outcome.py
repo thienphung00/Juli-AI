@@ -406,8 +406,22 @@ class _TruncatingResource:
     ) -> list[dict]:
         raise self.error
 
-    def search(self) -> dict:
+    def search(self, *, product_ids: list[str] | None = None) -> dict:
         raise self.error
+
+
+async def _one_product_id() -> list[str]:
+    """Signature-bound stand-in for `ProductIdsFn` (#1948).
+
+    Non-empty on purpose: an empty list is the ordinary cold-start state and
+    returns before the fetch, which would make the propagation test below pass
+    for the wrong reason.
+    """
+    return ["p-1"]
+
+
+def _extra_kwargs_for(sync_fn) -> dict:
+    return {"list_product_ids": _one_product_id} if sync_fn is sync_inventory else {}
 
 
 class TestATruncatedBackfillEscapesEveryStep:
@@ -435,6 +449,7 @@ class TestATruncatedBackfillEscapesEveryStep:
                     app_id="app1",
                     shop_id=SHOP_ID,
                     sync_state={},
+                    **_extra_kwargs_for(sync_fn),
                 )
 
         # Reported on the way out, not only raised: the operator sees a verdict
@@ -546,3 +561,117 @@ class TestErrorDetailIsBounded:
 
         assert outcome.error is not None
         assert len(outcome.error) <= sync_module._ERROR_DETAIL_LIMIT
+
+
+class TestInventoryRaisesWhereTheOthersReport:
+    """The #1948 / #1969 merge decision, pinned (#1969 review).
+
+    #1948 made a vendor failure in this step propagate; #1969 gave every step an
+    outcome triple. A textual merge cannot hold both, and the resolution is that
+    inventory reports the triple AND raises. Without these tests the next merge
+    would quietly pick one.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_vendor_error_propagates_and_is_reported_first(self, rate_limiter, caplog):
+        class FailingInventoryResource:
+            def search(self, *, product_ids: list[str] | None = None) -> dict:
+                raise TikTokSystemError(code=100006, message="System error")
+
+        with caplog.at_level(logging.INFO, logger=sync_module.__name__):
+            with pytest.raises(TikTokSystemError):
+                await sync_inventory(
+                    resource=FailingInventoryResource(),
+                    rate_limiter=rate_limiter,
+                    handoff_fn=RecordingHandoff(),
+                    app_id="app1",
+                    shop_id=SHOP_ID,
+                    sync_state={},
+                    list_product_ids=_one_product_id,
+                )
+
+        # #1969's half of the bargain: the verdict is logged on the way out.
+        (record,) = _outcome_records(caplog)
+        assert record.resource == "inventory"
+        assert record.ok is False
+        assert record.error
+
+    @pytest.mark.asyncio
+    async def test_a_non_dict_response_propagates_too(self, rate_limiter, caplog):
+        class WrongShapeInventoryResource:
+            def search(self, *, product_ids: list[str] | None = None) -> list:
+                return ["not", "a", "dict"]
+
+        with caplog.at_level(logging.INFO, logger=sync_module.__name__):
+            with pytest.raises(ValueError, match="non-dict"):
+                await sync_inventory(
+                    resource=WrongShapeInventoryResource(),
+                    rate_limiter=rate_limiter,
+                    handoff_fn=RecordingHandoff(),
+                    app_id="app1",
+                    shop_id=SHOP_ID,
+                    sync_state={},
+                    list_product_ids=_one_product_id,
+                )
+
+        (record,) = _outcome_records(caplog)
+        assert record.ok is False
+
+    @pytest.mark.asyncio
+    async def test_no_products_yet_is_a_clean_zero_not_a_failure(self, rate_limiter, caplog):
+        """The ordinary cold-start state: nothing has synced yet, so nothing to ask for."""
+
+        async def _no_products() -> list[str]:
+            return []
+
+        class UnusedInventoryResource:
+            def search(self, *, product_ids: list[str] | None = None) -> dict:
+                raise AssertionError("must not call the vendor with no product ids")
+
+        with caplog.at_level(logging.INFO, logger=sync_module.__name__):
+            outcome = await sync_inventory(
+                resource=UnusedInventoryResource(),
+                rate_limiter=rate_limiter,
+                handoff_fn=RecordingHandoff(),
+                app_id="app1",
+                shop_id=SHOP_ID,
+                sync_state={},
+                list_product_ids=_no_products,
+            )
+
+        assert outcome.ok is True
+        assert outcome.fetched == 0
+        assert len(_outcome_records(caplog)) == 1
+
+    @pytest.mark.asyncio
+    async def test_the_watermark_only_moves_when_rows_persisted(self, rate_limiter):
+        class OneRowInventoryResource:
+            def search(self, *, product_ids: list[str] | None = None) -> dict:
+                return {
+                    "inventory": [
+                        {
+                            "product_id": "p-1",
+                            "skus": [
+                                {
+                                    "id": "sku-1",
+                                    "total_available_quantity": 5,
+                                    "warehouse_inventory": [{"warehouse_id": "wh-1"}],
+                                }
+                            ],
+                        }
+                    ]
+                }
+
+        sync_state: dict = {}
+        outcome = await sync_inventory(
+            resource=OneRowInventoryResource(),
+            rate_limiter=rate_limiter,
+            handoff_fn=RecordingHandoff(),
+            app_id="app1",
+            shop_id=SHOP_ID,
+            sync_state=sync_state,
+            list_product_ids=_one_product_id,
+        )
+
+        assert outcome.persisted > 0
+        assert "inventory_last_sync_at" in sync_state
