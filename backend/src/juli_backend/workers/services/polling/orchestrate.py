@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
@@ -73,9 +74,10 @@ from juli_backend.integrations.tiktok import (
     TikTokCapability,
 )
 from juli_backend.models.models import Shop, TikTokCredential
-from juli_backend.repositories.repos import TikTokSyncStateRepo
+from juli_backend.repositories.repos import ProductsRepo, TikTokSyncStateRepo
 from juli_backend.services.ingestion.handoff import HandoffFn
 from juli_backend.workers.services.polling.sync import (
+    ProductIdsFn,
     sync_analytics,
     sync_inventory,
     sync_orders,
@@ -106,13 +108,14 @@ class _PollStep:
     endpoint_path: str
     resource_attr: str
     sync_fn: SyncWorkerFn
+    wants_product_ids: bool = False
 
 
 _FUJIWA_POLL_STEPS: tuple[_PollStep, ...] = (
     _PollStep(ORDER_SEARCH_PATH, "orders", sync_orders),
     _PollStep(PRODUCT_SEARCH_PATH, "products", sync_products),
     _PollStep(RETURN_SEARCH_PATH, "returns", sync_returns),
-    _PollStep(INVENTORY_SEARCH_PATH, "inventory", sync_inventory),
+    _PollStep(INVENTORY_SEARCH_PATH, "inventory", sync_inventory, wants_product_ids=True),
 )
 
 
@@ -166,6 +169,40 @@ async def _backoff_if_rate_limited(
         await sleep(float(ttl))
 
 
+def _synced_product_ids_fn(session: AsyncSession, shop_id: uuid.UUID) -> ProductIdsFn:
+    """Build the product-id source `sync_inventory` needs (#1948).
+
+    Search Inventory has no unscoped listing and hard-requires `product_ids`
+    in the request body -- `sync_inventory` cannot discover them on its own.
+    This cycle already holds a session scoped to `shop_id` (`with_sticky_shop_scope`
+    wraps the whole cycle -- #1967), so the source reads through it
+    directly rather than opening a second, unscoped one: a fresh session here
+    could not see this transaction's own writes, could not be exercised by
+    the orchestration test fixtures, and a construction failure would have to
+    swallow to `[]` to stay non-fatal -- the exact shape of silent failure
+    this issue exists to remove, just moved one layer down.
+    """
+
+    async def list_product_ids() -> list[str]:
+        repo = ProductsRepo(session)
+        product_ids: list[str] = []
+        cursor: uuid.UUID | None = None
+        page_limit = 200
+        while True:
+            page = await repo.list(shop_id, limit=page_limit, after=cursor)
+            if not page:
+                break
+            product_ids.extend(
+                product.tiktok_product_id for product in page if product.tiktok_product_id
+            )
+            if len(page) < page_limit:
+                break
+            cursor = page[-1].id
+        return product_ids
+
+    return list_product_ids
+
+
 async def _run_poll_step(
     step: _PollStep,
     *,
@@ -176,6 +213,7 @@ async def _run_poll_step(
     shop_key: str,
     sync_state: dict[str, Any],
     sleep: SleepFn,
+    list_product_ids: ProductIdsFn | None = None,
 ) -> None:
     await _backoff_if_rate_limited(
         rate_limiter,
@@ -184,6 +222,11 @@ async def _run_poll_step(
         endpoint=step.endpoint_path,
         sleep=sleep,
     )
+    extra_kwargs: dict[str, Any] = {}
+    if step.wants_product_ids:
+        if list_product_ids is None:
+            raise ValueError(f"{step.endpoint_path} step requires list_product_ids")
+        extra_kwargs["list_product_ids"] = list_product_ids
     await step.sync_fn(
         resource=getattr(resources, step.resource_attr),
         rate_limiter=rate_limiter,
@@ -191,6 +234,7 @@ async def _run_poll_step(
         app_id=app_id,
         shop_id=shop_key,
         sync_state=sync_state,
+        **extra_kwargs,
     )
 
 
@@ -231,6 +275,7 @@ async def _poll(
             f"Fujiwa polling requires a shop with tiktok_shop_id; shop_id={credential.shop_id}"
         )
     shop_key = shop.tiktok_shop_id
+    list_product_ids = _synced_product_ids_fn(session, credential.shop_id)
 
     for step in _FUJIWA_POLL_STEPS:
         await _run_poll_step(
@@ -242,6 +287,7 @@ async def _poll(
             shop_key=shop_key,
             sync_state=sync_state,
             sleep=sleep,
+            list_product_ids=list_product_ids,
         )
 
     await _backoff_if_rate_limited(

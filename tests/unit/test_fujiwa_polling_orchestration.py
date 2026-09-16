@@ -19,6 +19,7 @@ from sqlalchemy import select
 
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
 from juli_backend.integrations.tiktok.auth import TikTokAuth
+from juli_backend.integrations.tiktok.constants import INVENTORY_SEARCH_PATH
 from juli_backend.integrations.tiktok.factories import ProductionReadClientFactory
 from juli_backend.integrations.tiktok.merchant import (
     PRODUCTION_AUTH_ID,
@@ -29,6 +30,8 @@ from juli_backend.models.models import Shop, TikTokSyncState, User
 from juli_backend.repositories.repos import TikTokCredentialRepo, TikTokSyncStateRepo
 from juli_backend.workers.services.polling.orchestrate import (
     FujiwaPollConfig,
+    _PollStep,
+    _run_poll_step,
     run_fujiwa_poll_cycle,
 )
 
@@ -62,6 +65,17 @@ async def fujiwa_shop(session, user):
     session.add(shop)
     await session.flush()
     return shop
+
+
+@pytest_asyncio.fixture
+async def fujiwa_product(session, fujiwa_shop):
+    """A synced product row so sync_inventory's product-id source (#1948) has
+    something to page: run_fujiwa_poll_cycle now reads product ids off the
+    products table (via ProductsRepo, through the cycle's own session)
+    rather than calling Search Inventory with none."""
+    from tests.support.builders import make_product
+
+    return await make_product(session, fujiwa_shop, tiktok_product_id="fujiwa-product-1")
 
 
 @pytest_asyncio.fixture
@@ -260,6 +274,7 @@ class TestRunFujiwaPollCycle:
     async def test_does_not_refresh_via_oauth_service_anymore(
         self,
         fujiwa_credential,
+        fujiwa_product,
         oauth_service,
         mock_resources,
         run_poll,
@@ -289,6 +304,7 @@ class TestRunFujiwaPollCycle:
         session,
         fujiwa_shop,
         fujiwa_credential,
+        fujiwa_product,
         run_poll,
     ):
         await run_poll(fujiwa_credential=fujiwa_credential)
@@ -358,3 +374,41 @@ class TestRunFujiwaPollCycle:
         config_arg = create_resources.call_args[0][0]
         assert config_arg.merchant_auth_id == PRODUCTION_AUTH_ID
         assert config_arg.access_token == fujiwa_credential.access_token
+
+
+class TestPollStepProductIdRequirement:
+    """#1948: the step that needs product ids must never run without them."""
+
+    @pytest.mark.asyncio
+    async def test_a_step_wanting_product_ids_raises_when_none_supplied(self):
+        """The guard that stops an optional parameter becoming a silent skip.
+
+        ``_run_poll_step`` takes ``list_product_ids`` as optional because three
+        of the four steps do not want it. Without this raise, a caller that
+        forgot to thread the source would simply omit it, ``sync_inventory``
+        would never be reached, and the inventory step would go quiet again --
+        #1948's failure mode exactly, one layer up from where it was fixed.
+        """
+        sync_fn = AsyncMock()
+        step = _PollStep(INVENTORY_SEARCH_PATH, "inventory", sync_fn, wants_product_ids=True)
+        rate_limiter = MagicMock()
+        rate_limiter.is_exhausted.return_value = False
+
+        with pytest.raises(ValueError, match="requires list_product_ids") as excinfo:
+            await _run_poll_step(
+                step,
+                resources=MagicMock(),
+                rate_limiter=rate_limiter,
+                handoff_fn=AsyncMock(),
+                app_id=APP_KEY,
+                shop_key="shop1",
+                sync_state={},
+                sleep=AsyncMock(),
+            )
+
+        # The message names which step went unsupplied. A cycle runs four steps
+        # and only one wants ids; an error that did not say which would send the
+        # reader back through all four.
+        assert INVENTORY_SEARCH_PATH in str(excinfo.value)
+        # Raised before the worker ran -- not after a partial sync.
+        sync_fn.assert_not_awaited()

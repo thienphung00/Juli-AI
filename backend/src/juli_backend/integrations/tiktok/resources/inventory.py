@@ -26,11 +26,24 @@ class InventoryResource:
     def search(
         self,
         *,
+        product_ids: list[str] | None = None,
         sku_ids: list[str] | None = None,
     ) -> dict:
-        body = strip_nones({
-            "sku_ids": sku_ids,
-        })
+        """Search Inventory (Product API §A-8).
+
+        ``product_ids`` is required by the live endpoint (#1948) -- a call
+        without it fails vendor-side with ``[12019008] Invalid Parameter``.
+        Kept optional here (not enforced at this layer) only because
+        ``services/execution/inventory_leakage.py`` still calls this with
+        ``sku_ids`` alone; every caller that owns its own product-id list
+        (``sync_inventory``) always supplies ``product_ids``.
+        """
+        body = strip_nones(
+            {
+                "product_ids": product_ids,
+                "sku_ids": sku_ids,
+            }
+        )
         return self._client.post(INVENTORY_SEARCH_PATH, body=body)
 
     def update(

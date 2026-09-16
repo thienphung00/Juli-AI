@@ -93,6 +93,9 @@ async def test_second_poll_cycle_updates_inventory_item_not_duplicates(session, 
     resource = MagicMock()
     resource.search.side_effect = [SEARCH_RESPONSE_QTY, SEARCH_RESPONSE_UPDATED]
 
+    async def list_product_ids() -> list[str]:
+        return ["1729700293904403063"]
+
     handoffs: list[dict] = []
 
     async def capture_handoff(channel: str, shop_key: str, value: bytes) -> None:
@@ -106,6 +109,7 @@ async def test_second_poll_cycle_updates_inventory_item_not_duplicates(session, 
         app_id="app",
         shop_id=TIKTOK_SHOP_ID,
         sync_state=sync_state,
+        list_product_ids=list_product_ids,
     )
     # Force newer version on second cycle for update_time monotonicity
     first_synced_at = sync_state["inventory_last_sync_at"]
@@ -135,6 +139,7 @@ async def test_second_poll_cycle_updates_inventory_item_not_duplicates(session, 
         app_id="app",
         shop_id=TIKTOK_SHOP_ID,
         sync_state=sync_state,
+        list_product_ids=list_product_ids,
     )
     # Ensure second handoff carries a newer update_time than the first persist
     for call in handoffs:
