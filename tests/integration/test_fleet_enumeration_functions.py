@@ -1,8 +1,13 @@
 """The enumerations cross tenants; their callers still cannot (#1487 / ADR-089).
 
-Three `SECURITY DEFINER` functions, which is to say three deliberate RLS bypasses. Each exists
-so a fleet-scoped beat task can learn *which* items to act on without the runtime role being able
-to read across tenants itself.
+Four `SECURITY DEFINER` functions, which is to say four deliberate RLS bypasses. Each exists so
+a caller that genuinely cannot know its work list from inside one tenant can learn *which* items
+to act on, without the runtime role being able to read across tenants itself.
+
+Three serve fleet-scoped beat tasks (#1487, migration 051). The fourth,
+`enumerate_credential_owner_shop` (#2019, migration 061), serves the configured-merchant
+credential resolve, whose bind is tighter still: it cannot enter a tenant scope first because
+the shop id that scope needs is the answer it is asking for.
 
 That makes this module a check on a privilege boundary rather than on a query, and it asserts
 three separate things:
@@ -53,6 +58,11 @@ EXPECTED_COLUMNS: dict[str, set[str]] = {
         "out_created_at",
         "out_running_seconds_elapsed",
     },
+    # #2019. One column, and the narrowest row type of the four: its caller
+    # re-reads the credential itself through `TikTokCredentialRepo` under the
+    # shop scope this answers, so a credential id here would be a column nobody
+    # reads on a function that bypasses RLS.
+    "enumerate_credential_owner_shop": {"out_shop_id"},
 }
 
 # Substrings that must never appear in a returned column name. Crude on purpose:
@@ -78,7 +88,9 @@ def test_execute_is_not_granted_to_public(owner_engine) -> None:
             {"names": list(EXPECTED_COLUMNS)},
         ).all()
 
-    assert len(rows) == len(EXPECTED_COLUMNS), f"expected all three functions, found {rows}"
+    assert len(rows) == len(EXPECTED_COLUMNS), (
+        f"expected all {len(EXPECTED_COLUMNS)} functions, found {rows}"
+    )
     for name, public_can, app_can, is_definer in rows:
         assert is_definer, f"{name} is not SECURITY DEFINER, so it cannot enumerate at all"
         assert not public_can, (
