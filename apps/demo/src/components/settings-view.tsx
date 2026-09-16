@@ -1,6 +1,7 @@
 "use client";
 
 import { useDemoState } from "./demo-state";
+import { ACTIONS_DESTINATION_LABEL } from "../lib/destination-copy";
 
 export const SETTINGS_VISITOR_PLACEHOLDER =
   "Mẫu quy trình và ngưỡng yêu cầu Sign-in. Bạn vẫn có thể khám phá toàn bộ Demo bằng dữ liệu mẫu.";
@@ -19,7 +20,7 @@ export function SettingsView() {
       </h1>
       <p className="demo-intro">
         Mẫu quy trình và ngưỡng ảnh hưởng đến đề xuất trong tương lai — không
-        thay thế việc phê duyệt tại Quyết định.
+        thay thế việc phê duyệt tại {ACTIONS_DESTINATION_LABEL}.
       </p>
 
       <div

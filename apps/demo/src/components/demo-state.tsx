@@ -15,6 +15,7 @@ import {
 
 import { startExecution as createExecutionRecord } from "../lib/executions";
 import { clearReplayDecision } from "../lib/replay-decision";
+import { ACTIONS_DESTINATION_LABEL } from "../lib/destination-copy";
 import type { RepeatConsentGrants } from "../lib/repeat-consent";
 import { buildReviewInputDefaultsForWorkflow } from "../lib/reviews";
 import { buildReplenishInventoryExecutionPayload } from "../lib/workflows/replenish-inventory/execution-payload";
@@ -178,7 +179,7 @@ export function DemoStateProvider({ children }: { children: ReactNode }) {
     // exactly the failure this action exists to undo.
     clearReplayDecision();
     setFeedback(
-      "Demo đã trở về trạng thái ban đầu tại Quyết định — Đề xuất.",
+      `Demo đã trở về trạng thái ban đầu tại ${ACTIONS_DESTINATION_LABEL} — Đề xuất.`,
     );
   }, []);
 
