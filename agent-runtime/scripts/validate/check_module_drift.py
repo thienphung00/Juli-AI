@@ -360,7 +360,6 @@ KNOWN_DRIFT_ALLOWLIST: dict[str, dict[str, AllowedDrift]] = {
                 "build_refresh_auth_from_env",
                 "refresh_credential",
                 "resolve_production_read_credential",
-                "resolve_sandbox_write_credential",
             ),
         ),
     },
