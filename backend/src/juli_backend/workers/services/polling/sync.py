@@ -716,10 +716,19 @@ async def sync_inventory(
     it is the ordinary cold-start state before any product has synced, and it
     returns a clean zero outcome.
 
-    Known cost, not hidden: a raise here means the analytics step, which runs
-    after all four search steps, does not run at all. Ordering analytics first,
-    or giving the cycle an end-of-cycle verdict so no step can block another, is
-    #1950's work and not done here.
+    Known cost, and NOT one this branch introduces: a raise here means the
+    analytics step, which runs after all four search steps, does not run at all.
+    That is already ``origin/main``'s behaviour — ``sync_inventory`` raises
+    there, inventory is already step 4 of 4, ``sync_analytics`` already runs
+    after it, and ``_poll`` has no ``try``/``except`` at all. #1969 inherits the
+    cost; it does not create it, and it makes the same failure strictly cheaper,
+    because ``main`` discards steps 1-3's watermarks on that failure and this
+    branch saves them first. Reverting to report-don't-raise would therefore be a
+    regression against ``main``, not a neutral choice — it also turns two of
+    #1948's merged tests red (``test_raises_instead_of_swallowing_api_error``,
+    ``test_raises_instead_of_discarding_a_non_dict_response``). Ordering
+    analytics first, or giving the cycle an end-of-cycle verdict so no step can
+    block another, is #1950's work and not done here.
     """
     if not rate_limiter.acquire(
         app_id, shop_id, INVENTORY_SEARCH_PATH, max_requests=10, window_seconds=60

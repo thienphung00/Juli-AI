@@ -18,11 +18,11 @@ shop. Fujiwa production-read orchestration is the Phase 2 P2-A1 entry point.
 - `sync_orders(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)` — returns a `SyncOutcome`
 - `sync_products(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)` — returns a `SyncOutcome`
 - `sync_returns(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)` — returns a `SyncOutcome`
-- `sync_inventory(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)` — returns a `SyncOutcome`; Search Inventory full-snapshot backstop; flattens nested SKUs before `tiktok.inventory.raw` handoff
+- `sync_inventory(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state, list_product_ids, page_size=DEFAULT_INVENTORY_PAGE_SIZE)` — returns a `SyncOutcome`; Search Inventory full-snapshot backstop; flattens nested SKUs before `tiktok.inventory.raw` handoff. `list_product_ids` is required, not defaulted: the endpoint hard-requires `product_ids` (#1948), and a default would reintroduce the silent empty fetch. Raises `TikTokAPIError` and `ValueError` rather than swallowing them — an empty `list_product_ids` result is a clean zero, not a failure. `pages` is always 0 by construction: Search Inventory is a single POST per batch and never walks a cursor, so nothing increments the scope's page counter (#1969 review F6)
 - `sync_analytics(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state, promotion_resource=None)` — returns a `SyncOutcome` whose `fetched` counts rows offered (the step fans out over ~10 endpoints, so no single vendor row count exists); Analytics GET wire set (A-31–A-39) + optional A-25; date-window + pagination; hands normalized rows to ETL (#425) and updates sync_state watermarks
 - `sync_creators(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)` — returns a `SyncOutcome`
 - `backfill_shop(*, creators_resource, rate_limiter, handoff_fn, app_id, shop_id)`
-- `ProductIdsFn` — `Callable[[], Awaitable[list[str]]]`; the shop's already-synced TikTok product ids that `sync_inventory` pages through
+- `ProductIdsFn` — `Callable[[], Awaitable[list[str]]]`; the shop's already-synced TikTok product ids that `sync_inventory` batches through, `page_size` at a time
 - `DEFAULT_INVENTORY_PAGE_SIZE` — product ids per Search Inventory request (30; the only batch size confirmed against the live endpoint)
 
 Out-of-scope workers removed (Phase 2 cleanup): `sync_livestreams`,
@@ -45,7 +45,10 @@ Out-of-scope workers removed (Phase 2 cleanup): `sync_livestreams`,
 - Analytics uses `start_date_ge` / `end_date_lt` (YYYY-MM-DD) one-day UTC windows; LIVE A-26–A-29 not wired
 - Rate-limit backoff waits for Redis TTL via `RateLimiter.is_exhausted` / `time_until_reset`; the
   cycle completes without raising *except* on an inventory vendor error or a non-dict inventory
-  response, which abort the cycle before `sync_analytics` and before the sync-state save (#1948)
+  response, which abort the cycle before `sync_analytics` (#1948). Since #1969 the cycle still
+  persists whatever watermarks completed before re-raising (`orchestrate.py::_poll` saves partial
+  `sync_state`, then re-raises), so a step-4 failure no longer discards steps 1–3. Analytics not
+  running at all on an inventory failure is a known, accepted cost routed to #1950
 - `handoff_fn: Callable[[str, str, bytes], Awaitable[None]]` — invoked with
   `(channel, shop_key, payload_bytes)` per record
 - Rate limit denied → logs `rate_limited` and returns without handoff

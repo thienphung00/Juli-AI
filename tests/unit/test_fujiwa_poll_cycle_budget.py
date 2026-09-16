@@ -33,7 +33,14 @@ import pytest
 import pytest_asyncio
 
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
-from juli_backend.integrations.tiktok import ORDER_SEARCH_PATH, PRODUCT_SEARCH_PATH, RateLimiter
+from juli_backend.integrations.tiktok import (
+    ORDER_SEARCH_PATH,
+    PRODUCT_SEARCH_PATH,
+    RateLimiter,
+    current_pagination_scope,
+    pagination_scope,
+)
+from juli_backend.integrations.tiktok import client as client_module
 from juli_backend.integrations.tiktok.auth import TikTokAuth
 from juli_backend.integrations.tiktok.merchant import PRODUCTION_AUTH_ID, TikTokCapability
 from juli_backend.integrations.tiktok.rate_limiter import RateLimiter as RealRateLimiter
@@ -262,6 +269,79 @@ class TestBudgetConfiguration:
     def test_remaining_never_goes_negative(self):
         deadline = _CycleDeadline(budget_seconds=10.0, clock=_fixed_clock([0.0, 99.0]))
         assert deadline.remaining() == 0.0
+
+
+class TestTheStageRunsUnderTheRemainingCycleBudget:
+    """#1969 review, finding F3: the min-composition line was a mutation survivor.
+
+    `TestNestedScopesComposeByMinimum` in `test_tiktok_pagination_budget.py`
+    proves `pagination_scope` composes by `min` in ISOLATION. Nothing proved the
+    orchestrator ever publishes the cycle's remaining wall clock INTO that
+    scope -- so deleting `with pagination_scope(budget_seconds=remaining):`
+    from `_within_cycle_budget` left the entire unit suite green while removing
+    the whole fix for the defect this issue is named for: a 1800s cycle could
+    still start a 600s fetch at 1799s, a ~40-minute composed worst case.
+
+    These two tests are the seam. The first pins that a scope is published at
+    all and carries no more than `deadline.remaining()`. The second pins the
+    composition a real step actually performs: `sync_orders` and friends open
+    their own `pagination_scope`, and that inner scope must be capped by what
+    is left of the cycle even when it asks for the generous default.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_step_body_sees_a_scope_carrying_what_is_left_of_the_cycle(self):
+        seen: list[Any] = []
+
+        async def sync_orders(
+            *,
+            resource: Any,
+            rate_limiter: RateLimiter,
+            handoff_fn: Any,
+            app_id: str,
+            shop_id: str,
+            sync_state: dict[str, Any],
+        ) -> None:
+            seen.append(current_pagination_scope())
+
+        # 1800s budget, 1700s already burnt: 100s left, well inside the 600s
+        # default a fetch would otherwise help itself to.
+        deadline = _CycleDeadline(budget_seconds=1800.0, clock=_fixed_clock([0.0, 1700.0]))
+
+        await _run(_step("orders", ORDER_SEARCH_PATH, sync_orders), deadline)
+
+        assert len(seen) == 1
+        scope = seen[0]
+        assert scope is not None, "the orchestrator published no pagination scope at all"
+        assert scope.budget_seconds is not None
+        assert scope.budget_seconds <= deadline.remaining() == 100.0
+        assert scope.budget_seconds < client_module.default_fetch_budget_seconds()
+
+    @pytest.mark.asyncio
+    async def test_a_fetch_asking_for_the_default_budget_is_capped_by_the_cycle(self):
+        inner_budgets: list[float | None] = []
+
+        async def sync_orders(
+            *,
+            resource: Any,
+            rate_limiter: RateLimiter,
+            handoff_fn: Any,
+            app_id: str,
+            shop_id: str,
+            sync_state: dict[str, Any],
+        ) -> None:
+            # Exactly what every real `sync_*` does before calling the client.
+            with pagination_scope() as inner:
+                inner_budgets.append(inner.budget_seconds)
+
+        deadline = _CycleDeadline(budget_seconds=1800.0, clock=_fixed_clock([0.0, 1700.0]))
+
+        await _run(_step("orders", ORDER_SEARCH_PATH, sync_orders), deadline)
+
+        assert inner_budgets == [100.0]
+        # Without the outer scope this is the 600s default, and the two budgets
+        # compose by addition instead of by `min`.
+        assert inner_budgets[0] < client_module.default_fetch_budget_seconds()
 
 
 # --------------------------------------------------------------------------
