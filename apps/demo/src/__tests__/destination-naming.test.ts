@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -15,50 +15,115 @@ import {
   describeConfirmationRejection,
 } from "../lib/run-surface/option-picker-copy";
 
-const SRC_ROOT = resolve(__dirname, "..");
+const REPO_ROOT = resolve(__dirname, "../../../..");
 
 /**
  * Issue #1959. #1910 renamed the destination tab to `Hành động`, but the
  * governed body strings that *name that destination* still said `Quyết định`,
  * so one screen showed two names for one place.
  *
- * This guard is deliberately two-sided. A sweep that misses a destination use
- * fails the first test; a sweep that over-reaches and renames the ordinary
- * Vietnamese noun fails the second. `Quyết định` is a perfectly good word for
- * a decision — it is only wrong when it names the tab.
+ * This guard is DEFAULT-DENY. It does not hunt for known-bad phrasings —
+ * that was the first design, and review disproved it by injecting
+ * "Chuyển sang Quyết định", a destination use in wording no pattern list
+ * happened to carry, which sailed through green. A list of five literals
+ * cannot enumerate the ways Vietnamese can point at a tab.
+ *
+ * So instead: EVERY capitalised `Quyết định` in the scanned surface is a
+ * failure unless it appears below with a reason. The capitalised form is the
+ * tab's proper name; the ordinary noun `quyết định` is lowercase, ubiquitous,
+ * and deliberately not scanned. Adding a line here is a decision someone makes
+ * on purpose, which is the point — it cannot be reached by accident.
+ *
+ * The scan covers all three layers of the cascade #1937 learned about the hard
+ * way (three CI rounds, one layer at a time): demo source, the e2e spec
+ * source, and the Python contract tests that grep spec source text.
  */
 
-/** Phrases in which the retired label can only be naming the destination. */
-const RETIRED_DESTINATION_PHRASES = [
-  "Về Quyết định",
-  "tại Quyết định",
-  "quay lại Quyết định",
-  "Đi tới Quyết định",
-  ">Quyết định<",
-];
+const RETIRED_DESTINATION_NAME = "Quyết định";
 
 /**
- * The ordinary-noun uses AC2 names explicitly. Renaming any of these would be
- * a defect, so the guard pins them in place rather than merely tolerating them.
+ * Every legitimate capitalised use, with why it survives. Paths are relative
+ * to the repository root.
  */
-const PROTECTED_ORDINARY_NOUN_USES: ReadonlyArray<readonly [string, string]> = [
-  ["components/home-launcher.tsx", "Quyết định nhanh, hiểu rõ shop."],
-  ["lib/workflows/prevent-cancellation/plan.ts", "Quyết định cho yêu cầu huỷ"],
-  ["lib/workflows/prevent-refund/review.ts", "Quyết định của shop (Phê duyệt / Từ chối)"],
+const ALLOWED_USES: ReadonlyArray<{
+  readonly path: string;
+  readonly snippet: string;
+  readonly reason: string;
+}> = [
+  {
+    path: "apps/demo/src/components/home-launcher.tsx",
+    snippet: "Quyết định nhanh, hiểu rõ shop.",
+    reason: "AC2: the home tagline — the ordinary noun, sentence-initial.",
+  },
+  {
+    path: "apps/demo/src/lib/destination-copy.ts",
+    snippet: 'Hành động — superseding the earlier "Quyết định" label.',
+    reason: "The docblock that records the retirement; the one place it must survive.",
+  },
+  {
+    path: "apps/demo/src/lib/recommendations.ts",
+    snippet: "Quyết định sớm giúp giữ đơn hoặc giải phóng hàng đúng hạn.",
+    reason: "AC2: ordinary noun, sentence-initial.",
+  },
+  {
+    path: "apps/demo/src/lib/recommendations.ts",
+    snippet: "Quyết định hoàn tiền đúng hạn giúp tránh leo thang tranh chấp.",
+    reason: "AC2: ordinary noun, sentence-initial.",
+  },
+  {
+    path: "apps/demo/src/lib/workflows/prevent-cancellation/plan.ts",
+    snippet: "Quyết định cho yêu cầu huỷ",
+    reason: "AC2: a workflow field label — the shop's decision, not the tab.",
+  },
+  {
+    path: "apps/demo/src/lib/workflows/prevent-refund/plan.ts",
+    snippet: "Quyết định cho yêu cầu hoàn tiền",
+    reason: "AC2: a workflow field label.",
+  },
+  {
+    path: "apps/demo/src/lib/workflows/prevent-return/plan.ts",
+    snippet: "Quyết định cho yêu cầu trả hàng",
+    reason: "AC2: a workflow field label.",
+  },
+  {
+    path: "apps/demo/src/lib/workflows/prevent-cancellation/review.ts",
+    snippet: "Quyết định của shop (Phê duyệt / Từ chối)",
+    reason: "AC2: a workflow field label.",
+  },
+  {
+    path: "apps/demo/src/lib/workflows/prevent-refund/review.ts",
+    snippet: "Quyết định của shop (Phê duyệt / Từ chối)",
+    reason: "AC2: a workflow field label.",
+  },
+  {
+    path: "apps/demo/src/lib/workflows/prevent-return/review.ts",
+    snippet: "Quyết định của shop (Phê duyệt / Từ chối)",
+    reason: "AC2: a workflow field label.",
+  },
+  {
+    path: "tests/unit/test_issue_397_demo_workspace_contract.py",
+    snippet: "Quyết định nhanh, hiểu rõ shop.",
+    reason: "AC4: the contract test asserts the home tagline's source text; it tracks the allowed use above.",
+  },
 ];
 
-/**
- * `lib/destination-copy.ts` records the retirement in its own docblock, which
- * is the one place the retired label is supposed to survive.
- */
-const DOCUMENTS_THE_RETIREMENT = "lib/destination-copy.ts";
+/** AC4: the three cascade layers, scanned together rather than one CI round at a time. */
+const SCANNED_LAYERS: ReadonlyArray<{ readonly root: string; readonly label: string }> = [
+  { root: "apps/demo/src", label: "demo source" },
+  { root: "apps/demo/e2e", label: "e2e spec source" },
+];
 
-function collectSourceFiles(dir: string, found: string[] = []): string[] {
+const SCANNED_FILES: readonly string[] = [
+  "tests/unit/test_issue_397_demo_workspace_contract.py",
+  "tests/unit/test_phase_2_6_demo_exit_gate.py",
+];
+
+function collectFiles(dir: string, found: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) {
       if (entry === "__tests__" || entry === "node_modules") continue;
-      collectSourceFiles(full, found);
+      collectFiles(full, found);
       continue;
     }
     if (/\.tsx?$/.test(entry)) found.push(full);
@@ -66,28 +131,52 @@ function collectSourceFiles(dir: string, found: string[] = []): string[] {
   return found;
 }
 
+function isAllowed(relPath: string, line: string): boolean {
+  return ALLOWED_USES.some(
+    (allowed) => allowed.path === relPath && line.includes(allowed.snippet),
+  );
+}
+
 describe("the destination has one name", () => {
-  it("renders the retired tab name nowhere it means the destination", () => {
-    const files = collectSourceFiles(SRC_ROOT);
-    expect(files.length).toBeGreaterThan(50);
+  it("scans all three cascade layers, and is not scanning nothing", () => {
+    const scanned = SCANNED_LAYERS.flatMap(({ root }) =>
+      collectFiles(join(REPO_ROOT, root)),
+    );
+    // The collector's own size is asserted, because a guard that silently
+    // walks zero files reports the same green as a guard that passes. Seven
+    // guards in this wave were green over nothing.
+    expect(scanned.length).toBeGreaterThan(100);
+    for (const file of SCANNED_FILES) {
+      expect(existsSync(join(REPO_ROOT, file))).toBe(true);
+    }
+  });
+
+  it("names the retired tab nowhere it is not explicitly allowed", () => {
+    const files = [
+      ...SCANNED_LAYERS.flatMap(({ root }) => collectFiles(join(REPO_ROOT, root))),
+      ...SCANNED_FILES.map((file) => join(REPO_ROOT, file)),
+    ];
 
     const hits: string[] = [];
     for (const file of files) {
-      const rel = relative(SRC_ROOT, file);
-      if (rel === DOCUMENTS_THE_RETIREMENT) continue;
-      const lines = readFileSync(file, "utf8").split("\n");
-      lines.forEach((line, index) => {
-        for (const phrase of RETIRED_DESTINATION_PHRASES) {
-          if (line.includes(phrase)) hits.push(`${rel}:${index + 1}  ${phrase}`);
-        }
-      });
+      const rel = relative(REPO_ROOT, file);
+      readFileSync(file, "utf8")
+        .split("\n")
+        .forEach((line, index) => {
+          if (!line.includes(RETIRED_DESTINATION_NAME)) return;
+          if (isAllowed(rel, line)) return;
+          hits.push(`${rel}:${index + 1}  ${line.trim()}`);
+        });
     }
     expect(hits).toEqual([]);
   });
 
-  it("leaves the ordinary Vietnamese noun alone", () => {
-    for (const [rel, phrase] of PROTECTED_ORDINARY_NOUN_USES) {
-      expect(readFileSync(join(SRC_ROOT, rel), "utf8")).toContain(phrase);
+  it("leaves every allowed ordinary-noun use in place", () => {
+    // The other direction: an over-eager sweep that renames the ordinary noun
+    // must fail too. `Quyết định` is the Vietnamese for a decision, and is
+    // only wrong when it names the tab.
+    for (const { path, snippet } of ALLOWED_USES) {
+      expect(readFileSync(join(REPO_ROOT, path), "utf8")).toContain(snippet);
     }
   });
 
@@ -103,7 +192,7 @@ describe("the destination has one name", () => {
     expect(destinationStrings.length).toBe(6);
     for (const value of destinationStrings) {
       expect(value).toContain(ACTIONS_DESTINATION_LABEL);
-      expect(value).not.toContain("Quyết định");
+      expect(value).not.toContain(RETIRED_DESTINATION_NAME);
     }
   });
 });
