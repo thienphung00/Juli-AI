@@ -173,22 +173,22 @@ upload described a mechanism that never existed — verified by grep across
 review + validation pair. `tests/unit/test_status_record_gate.py` fails CI on any tracked
 `*.json` under those five directories.
 
-**Artifact retention guard (#1064).** Beside the Meta gate above: an issue-tier PR whose
-head branch resolves to issue `<N>` fails CI when `agent-runtime/artifacts/status/issue-<N>.json`
-is absent, or present but not a `PASS` record — the one artifact CI can actually see,
-since it is the only one of the six directories under `agent-runtime/artifacts/` that
-stays tracked. Job `artifact-retention-guard` in `pr.yml` (existence + status check only,
-via [`check_artifact_retention_guard.py`](agent-runtime/scripts/ci/check_artifact_retention_guard.py))
-reuses `classify-tier`'s `tier == 'issue'` and `resolve-issue`'s branch parsing — it is
-fail-closed (missing/malformed/unreadable/wrong-schema all fail, never a silent pass) and
-red until the status record lands, by design: that is the earliest point a Wave-2-style
-silent artifact loss (ADR-079) becomes visible instead of surfacing only at wave→main.
-**It is dormant whenever issue PRs target `main` directly (verified 2026-09-15 on #1945,
-#1954, #1956, #1965, #1975 — all SKIPPED).** `classify-tier` derives the tier from the
-**base ref**, not the head branch: `base == feature/*-wave` ⇒ `issue`, `base == main` ⇒
-`main`. So this guard, `validate-gates` and `merge-status` all skip on a direct-to-main
-issue PR, and the whole `agent-runtime/scripts/validate/` suite then executes nowhere but a
-Review agent's local run. Tests are unaffected — `full-regression` is the main-tier
+**Artifact retention guard (#1064, widened #1977).** Beside the Meta gate above: an
+issue-tier PR whose head branch resolves to issue `<N>` fails CI when
+`agent-runtime/artifacts/status/issue-<N>.json` is absent, or present but not a `PASS`
+record — the one artifact CI can actually see, since it is the only one of the six
+directories under `agent-runtime/artifacts/` that stays tracked. Job
+`artifact-retention-guard` in `pr.yml` (existence + status check only, via
+[`check_artifact_retention_guard.py`](agent-runtime/scripts/ci/check_artifact_retention_guard.py))
+is fail-closed (missing/malformed/unreadable/wrong-schema all fail, never a silent pass)
+and red until the status record lands — the earliest point a Wave-2-style silent artifact
+loss (ADR-079) becomes visible. `classify-tier` still derives tier from the **base ref**
+alone (`feature/*-wave` ⇒ `issue`, `main` ⇒ `main`), but this guard, `validate-gates` and
+`merge-status` run at `tier == 'issue'` *or* `tier == 'main'` whenever `resolve-issue`
+resolves an issue number — so a direct-to-main issue PR (the W6 topology; previously
+SKIPPED on #1945, #1954, #1956, #1965, #1975) runs them like a wave-based one. A
+wave→main merge PR still skips all three: its head is the wave branch itself, which
+resolves no issue number. Tests are unaffected — `full-regression` is the main-tier
 counterpart to issue-tier's split `test`/`integration-tests`.
 Not wired into required branch-protection checks — that is a repository-settings change
 for the owner, not a code change.

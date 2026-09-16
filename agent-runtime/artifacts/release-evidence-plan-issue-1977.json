@@ -1,0 +1,91 @@
+{
+  "planId": "rep-1977-issue-tier-gates-run-on-a-main-based-issue-pr",
+  "affectedPublicSurfaces": [
+    "NO PUBLIC PRODUCT SURFACE, stated plainly rather than invented. This slice touches `.github/workflows/pr.yml`, `tests/unit/test_three_tier_ci_contract.py` and one paragraph of `CLAUDE.md`. Nothing it changes is imported by `backend/src/juli_backend/**`, served by any `/v1` route, bundled into `apps/**`, deployed by `release.yml`, or present in any runtime image. There is no candidate process to point a browser at, no seller-visible behaviour, and no migration.",
+    "The surface it DOES have is CI's own verdict on every issue-tier PR. Today `classify-tier` derives the tier from the BASE ref, so an issue PR based on `main` classifies `tier=main` and `artifact-retention-guard`, `validate-gates` and `merge-status` all SKIP. Verified SKIPPED on #1945, #1954, #1956, #1965 and #1975 - every PR in the W6 wave. A gate that never executes is indistinguishable from a gate that passed, which is exactly the Wave-2 silent-artifact-loss condition (ADR-079) the guard was written to make visible."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "none - the verification surface is a CI run on this PR itself, not a deployed process",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "the-guard-executes-on-this-very-pr",
+        "entryUrl": "the Checks tab of this PR",
+        "assertions": [
+          "artifact-retention-guard reports a real conclusion rather than SKIPPED, on a PR whose head resolves to issue-1977 and whose base is main",
+          "validate-gates and merge-status likewise execute rather than skipping",
+          "the conclusion is reached by the job running, not by the tier condition being bypassed"
+        ]
+      },
+      {
+        "name": "a-missing-status-record-is-red-not-silent",
+        "entryUrl": "the Checks tab of this PR",
+        "assertions": [
+          "before the status record lands, artifact-retention-guard is RED and its log names the absent agent-runtime/artifacts/status/issue-1977.json",
+          "it is red because the record is absent, not because the job errored - the failure message is the guard's own, fail-closed"
+        ]
+      },
+      {
+        "name": "nothing-else-changes-its-verdict",
+        "entryUrl": "the Checks tab of this PR",
+        "assertions": [
+          "a PR with no resolvable issue number still skips the guard, with no false failure",
+          "a wave-based issue PR behaves exactly as it does today",
+          "full-regression, test and integration-tests are untouched - this slice moves no test coverage"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "none - this slice ships no HTML route; required is false"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "none"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration. CI configuration and one documentation paragraph."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "revert the pr.yml condition; the three jobs return to skipping on a main-based issue PR, which is today's behaviour, so nothing that merged under the old condition is invalidated",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest tests/unit/test_three_tier_ci_contract.py",
+    "pytest tests/unit/test_wave_free_merge_docs.py tests/unit/test_ratchets.py",
+    "python agent-runtime/scripts/ci/check_artifact_retention_guard.py --issue 1977"
+  ],
+  "doNotInfer": [
+    "THE SEQUENCING IS THE POINT AND IT IS ALREADY SATISFIED - do not re-litigate it, and do not widen anything further. Step 1 (PR #1976) merged; step 2 (ACs renumbered) done; step 3 (a genuine PASS status record) is satisfied by issue-1958.json. Widening any condition beyond the three jobs this issue names would red-line PRs that have no record and no way to get one.",
+    "pr.yml HAS ONE WRITER AT A TIME (CLAUDE.md). No other in-flight branch may edit it while this one is open.",
+    "EDITING pr.yml's `needs:` LISTS BY STRING REPLACEMENT IS A KNOWN TRAP: duplicate `- <job>` entries appear under several jobs, so a naive replace hits the wrong one. The silent symptom is an empty `needs.X.result`. Anchor every edit on the job header, and re-read the file after editing to confirm which block changed.",
+    "NEVER SATISFY A GATE BY EDITING GATE CONFIGURATION (ADR-095). This slice edits a trigger condition, which is legitimate; changing what the guard CHECKS, or adding an escape hatch so it passes without a record, is not.",
+    "This PR must go red on artifact-retention-guard before it goes green - that IS acceptance criterion 2 demonstrating itself. Do not try to avoid the red round; report it as the evidence it is.",
+    "A guard must be seen failing (.cursor/rules/code-quality.mdc): print what each new test collected, make it go red on purpose, report both.",
+    "AC5 removes the dormancy caveat from CLAUDE.md. CLAUDE.md is Tier-1 and tests/unit/test_ratchets.py pins tier1_always_on_tokens as must_not_rise - a removal lowers it, which is fine, but run the ratchet and report the number.",
+    "Pin PYTHONPATH=\"$PWD/backend/src:$PWD\" for any pytest run inside the worktree, or the green is fake."
+  ]
+}
