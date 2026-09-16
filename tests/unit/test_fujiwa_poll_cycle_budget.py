@@ -523,3 +523,55 @@ class TestPartialStateSurvivesAMidCycleFailure:
                 create_resources=lambda _cfg: one_row_resources,
                 sync_state_repo=PoisonedSyncStateRepo(),
             )
+
+
+class TestTheClockCoversTheCredentialResolve:
+    """The deadline starts BEFORE `resolve`, and that is easy to lose.
+
+    #1967 collapsed both entrypoints into one `_poll()` that receives an
+    already-resolved credential. Building the deadline inside `_poll` compiles,
+    passes every other test, and silently narrows what the budget measures:
+    `resolve_production_read_credential` does DB work and can refresh a token
+    over HTTP, and that time is held by the beat slot just the same.
+
+    So this test makes the resolve itself the slow thing. It fails if the
+    deadline is constructed anywhere after the resolve.
+    """
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "entrypoint", [run_fujiwa_poll_cycle, run_fujiwa_material_resource_fetch]
+    )
+    async def test_a_slow_resolve_alone_can_exhaust_the_budget(
+        self,
+        entrypoint,
+        monkeypatch,
+        session,
+        budget_credential,
+        oauth_service_for_budget,
+        one_row_resources,
+    ):
+        monkeypatch.setenv("TIKTOK_POLL_CYCLE_BUDGET_SECONDS", "0.5")
+
+        async def _slow_resolve(_session):
+            await asyncio.sleep(2.0)
+            return budget_credential
+
+        async def _handoff(channel: str, shop_key: str, value: bytes) -> None:
+            return None
+
+        # Every vendor call below is instant; the only expensive thing in the
+        # cycle is the resolve. If the clock did not cover it, nothing here
+        # would come close to a 0.5s budget.
+        with pytest.raises(PollCycleTimeoutError) as excinfo:
+            await entrypoint(
+                session=session,
+                config=FujiwaPollConfig(app_key=APP_KEY, app_secret=APP_SECRET),
+                oauth_service=oauth_service_for_budget,
+                rate_limiter=NeverExhaustedRateLimiter(),
+                handoff_fn=_handoff,
+                resolve_credential=_slow_resolve,
+                create_resources=lambda _cfg: one_row_resources,
+            )
+
+        assert excinfo.value.elapsed_seconds >= 2.0

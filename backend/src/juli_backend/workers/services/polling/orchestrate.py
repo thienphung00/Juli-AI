@@ -362,20 +362,8 @@ async def _poll(
     create_resources: CreateResourcesFn | None,
     sync_state_repo: TikTokSyncStateRepo | None,
     sleep: SleepFn,
+    deadline: _CycleDeadline,
 ) -> None:
-    """Fetch orders/products/returns/inventory + incremental analytics for material precompute."""
-    # Clock starts before `resolve`, which does DB work and may refresh a token
-    # over HTTP -- that is part of the cycle the beat slot is holding.
-    deadline = _CycleDeadline()
-
-    resolve = resolve_credential or resolve_production_read_credential
-    credential = await resolve(session)
-    # `resolve_production_read_credential` -> `_lazy_refresh` -> `refresh_credential`
-    # commits inside the caller's `with_shop_scope` (SET LOCAL), discarding
-    # `app.current_shop_id` (#1880). Reapplied immediately so the sync-state
-    # load and shop read just below still run under scope instead of a
-    # silent-empty-read / NotFound-shaped `shop is None`.
-    await reapply_shop_scope(session, credential.shop_id)
     """One poll cycle: the four search endpoints, then analytics, then the watermark.
 
     Runs entirely inside the caller's `with_sticky_shop_scope` and takes an
@@ -384,6 +372,13 @@ async def _poll(
     wire set (#424: A-25 + A-31–A-39) is reached identically by scheduled
     polling and by manual refresh (ADR-021), which arrives here via
     `maybe_poll_tiktok_data` → `run_fujiwa_poll_cycle`.
+
+    `deadline` is a PARAMETER, not built here (#1969 + #1967 merge). The clock
+    has to start before `resolve`, which does DB work and may refresh a token
+    over HTTP -- work the beat slot is holding and the budget must cover. This
+    function is only reachable with the credential already resolved, so a
+    deadline constructed here would silently exclude the resolve and the
+    budget would measure something narrower than it claims.
     """
     _assert_fujiwa_credential(credential)
 
@@ -482,100 +477,14 @@ async def run_fujiwa_material_resource_fetch(
     sync_state_repo: TikTokSyncStateRepo | None = None,
     sleep: SleepFn = asyncio.sleep,
 ) -> None:
-    """Run one Fujiwa poll cycle for orders, products, returns, and inventory."""
-    # Clock starts before `resolve`, which does DB work and may refresh a token
-    # over HTTP -- that is part of the cycle the beat slot is holding.
+    """Fetch orders/products/returns/inventory + incremental analytics for material precompute."""
+    # Before `resolve`, deliberately: the resolve does DB work and may refresh a
+    # token over HTTP, and that time is part of the cycle this beat slot holds.
+    # `_poll` takes the deadline rather than building one, because by the time
+    # it runs the resolve has already happened (#1967 collapsed both entrypoints
+    # into it) and a deadline built there would not cover it.
     deadline = _CycleDeadline()
 
-    resolve = resolve_credential or resolve_production_read_credential
-    credential = await resolve(session)
-    # See the matching comment in `run_fujiwa_material_resource_fetch` (#1880):
-    # the resolver's own `refresh_credential` commit discards the caller's
-    # shop scope, so it must be reapplied before any further tenant read.
-    await reapply_shop_scope(session, credential.shop_id)
-    _assert_fujiwa_credential(credential)
-
-    client_factory = factory or ProductionReadClientFactory()
-    build_resources = create_resources or client_factory.create_resources
-    resources = build_resources(_factory_config(config, credential))
-
-    repo = sync_state_repo or TikTokSyncStateRepo(session)
-    sync_state = await repo.load(credential.shop_id)
-
-    app_id = config.app_key
-    shop = await session.get(Shop, credential.shop_id)
-    if shop is None or not shop.tiktok_shop_id:
-        raise ValueError(
-            f"Fujiwa polling requires a shop with tiktok_shop_id; shop_id={credential.shop_id}"
-        )
-    shop_key = shop.tiktok_shop_id
-
-    try:
-        for step in _FUJIWA_POLL_STEPS:
-            await _run_poll_step(
-                step,
-                resources=resources,
-                rate_limiter=rate_limiter,
-                handoff_fn=handoff_fn,
-                app_id=app_id,
-                shop_key=shop_key,
-                sync_state=sync_state,
-                sleep=sleep,
-                deadline=deadline,
-            )
-
-        # Analytics wire set (#424): A-25 + A-31–A-39. Manual refresh (ADR-021) shares
-        # this entrypoint via maybe_poll_tiktok_data → run_fujiwa_poll_cycle.
-        await _within_cycle_budget(
-            lambda: _backoff_if_rate_limited(
-                rate_limiter,
-                app_id=app_id,
-                shop_id=shop_key,
-                endpoint=ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
-                sleep=sleep,
-            ),
-            deadline=deadline,
-            stage="analytics",
-        )
-        await _within_cycle_budget(
-            lambda: sync_analytics(
-                resource=resources.analytics,
-                promotion_resource=resources.promotion,
-                rate_limiter=rate_limiter,
-                handoff_fn=handoff_fn,
-                app_id=app_id,
-                shop_id=shop_key,
-                sync_state=sync_state,
-            ),
-            deadline=deadline,
-            stage="analytics",
-        )
-    except Exception:
-        # Save what completed before re-raising. The steps that did finish
-        # advanced their watermarks in `sync_state`, and throwing those away
-        # would make the next cycle refetch rows that already landed -- under
-        # the INCREMENTAL 20-page cap, where over-running truncates with only a
-        # warning. A loud failure that silently enlarges the next read is a bad
-        # trade.
-        #
-        # Widened from `PollCycleTimeoutError` (#1969 review): a timeout is not
-        # the only way a cycle dies partway. A `PollStepDroppedRowsError` or a
-        # truncated backfill from step 2 of 4 discards step 1's watermark just
-        # as thoroughly.
-        #
-        # The save is guarded and the re-raise is bare, so a failing save can
-        # never mask the failure that caused it -- losing the original exception
-        # here would be trading a diagnosable failure for an undiagnosable one.
-        try:
-            await repo.save(credential.shop_id, sync_state)
-        except Exception:
-            logger.error(
-                "poll_cycle_partial_state_save_failed",
-                extra={"shop_id": str(credential.shop_id)},
-                exc_info=True,
-            )
-        raise
-    """Fetch orders/products/returns/inventory + incremental analytics for material precompute."""
     resolve = resolve_credential or resolve_production_read_credential
     credential = await resolve(session)
     async with with_sticky_shop_scope(session, credential.shop_id):
@@ -589,6 +498,7 @@ async def run_fujiwa_material_resource_fetch(
             create_resources=create_resources,
             sync_state_repo=sync_state_repo,
             sleep=sleep,
+            deadline=deadline,
         )
 
 
@@ -606,6 +516,13 @@ async def run_fujiwa_poll_cycle(
     sleep: SleepFn = asyncio.sleep,
 ) -> None:
     """Run one Fujiwa poll cycle for orders, products, returns, and inventory."""
+    # Before `resolve`, deliberately: the resolve does DB work and may refresh a
+    # token over HTTP, and that time is part of the cycle this beat slot holds.
+    # `_poll` takes the deadline rather than building one, because by the time
+    # it runs the resolve has already happened (#1967 collapsed both entrypoints
+    # into it) and a deadline built there would not cover it.
+    deadline = _CycleDeadline()
+
     resolve = resolve_credential or resolve_production_read_credential
     credential = await resolve(session)
     async with with_sticky_shop_scope(session, credential.shop_id):
@@ -619,4 +536,5 @@ async def run_fujiwa_poll_cycle(
             create_resources=create_resources,
             sync_state_repo=sync_state_repo,
             sleep=sleep,
+            deadline=deadline,
         )
