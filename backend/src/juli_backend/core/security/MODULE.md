@@ -46,6 +46,13 @@ Matches ``__all__`` — re-exports only:
   nonexistent shop and a cross-tenant one indistinguishable (never 403, no existence
   oracle). It replaces the silent ``None`` the read path used to return, which let a newly
   connected seller be scored over an empty database with no error anywhere
+- ``resolve_sandbox_write_credential(session)`` — the ``SANDBOX_VN`` ``SANDBOX_WRITE``
+  credential used for write-path validation against the sandbox shop. Raises
+  ``database.exceptions.NotFound`` when none is configured; never falls back to a
+  production credential (#1969 — was reachable at this package root only through
+  ``credential_resolver``'s wildcard re-export, with no ``__all__`` entry of its own,
+  even though ``workers/services/polling/sync.py`` and
+  ``services/agent/composition.py`` already imported it from here)
 - ``JwksUnavailableError`` — raised when the JWKS key set cannot be fetched/parsed, or a
   `kid` is still absent after one refetch attempt; fails closed (401), logged under
   `jwt_jwks_unavailable`, distinguishable from a bad token's `jwt_invalid`/`jwt_expired`

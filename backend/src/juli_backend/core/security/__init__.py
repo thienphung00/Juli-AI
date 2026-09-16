@@ -5,6 +5,7 @@ from juli_backend.core.security.credential_resolver import (
     NoReadCredentialForShop,
     resolve_production_read_credential,
     resolve_read_credential_for_shop,
+    resolve_sandbox_write_credential,
 )
 from juli_backend.core.security.dependencies import get_current_user
 from juli_backend.core.security.exceptions import Unauthorized
@@ -34,6 +35,12 @@ __all__ = [
     # production-read shop before deciding whether to poll.
     "resolve_production_read_credential",
     "resolve_read_credential_for_shop",
+    # #1969: sandbox write-validation credential resolver, already imported at
+    # this package root by workers/services/polling/sync.py,
+    # services/agent/composition.py, and integration tests -- genuinely
+    # exported here rather than relying on the wildcard-import bleed-through
+    # `credential_resolver` had no `__all__` to stop.
+    "resolve_sandbox_write_credential",
     "supabase_jwks_url",
     "verify_supabase_jwt",
 ]
