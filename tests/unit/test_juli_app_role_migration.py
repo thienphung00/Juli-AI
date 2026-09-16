@@ -4,7 +4,8 @@ Verifies:
 - Role creation (NOLOGIN, not owning tables)
 - Idempotence (can run multiple times)
 - Grant surface exactly matches the explicit map
-- webhook_raw_events has INSERT only (no SELECT)
+- This migration's own text still grants webhook_raw_events INSERT only (SELECT
+  was added later, additively, by migration 059 -- see #1966)
 - No default privileges silently grant to future tables
 - Round-trip downgrade/upgrade preserves data
 """
@@ -102,8 +103,17 @@ def test_migration_includes_update_grants():
     assert '"tiktok_credentials": ("SELECT", "INSERT", "UPDATE")' in text
 
 
-def test_migration_webhook_raw_events_still_insert_only():
-    """webhook_raw_events must remain INSERT-only (no tenant lineage)."""
+def test_migration_043_grants_webhook_raw_events_insert_only():
+    """043's own grant map is INSERT-only for webhook_raw_events -- a fact about
+    this migration's source text, not a claim about the deployed head state.
+
+    Migration 059 (#1966) additively granted SELECT on top of this, because
+    `WebhookRawEventsRepo.insert`'s flush() issues `INSERT ... RETURNING
+    received_at`, which needs SELECT regardless of tenancy. 043 is not amended
+    to reflect that -- grants are additive across revisions -- so this
+    assertion still holds and is not evidence that webhook_raw_events is
+    INSERT-only at head.
+    """
     text = MIGRATION_PATH.read_text(encoding="utf-8")
     assert '"webhook_raw_events": ("INSERT",)' in text
 
