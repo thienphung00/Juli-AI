@@ -67,7 +67,7 @@ describe("Settings — visitor disabled placeholder", () => {
       screen.queryByRole("link", { name: /Chỉnh sửa mặc định/i }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByText(/không thay thế việc phê duyệt tại Quyết định/i),
+      screen.getByText(/không thay thế việc phê duyệt tại Hành động/i),
     ).toBeInTheDocument();
   });
 

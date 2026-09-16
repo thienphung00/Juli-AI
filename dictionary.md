@@ -479,6 +479,12 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - _Avoid_: Quay lại, Trở về
 - Definition: The run page header's back control (issue #1910, owner amendment 2026-09-14), returning you to the Hành động tab. Reads the destination tab's owner-decided name — the control tells you where you land, never a bare "back" and never a raw route path like /decisions. Runtime constant `RUN_HEADER_BACK_LABEL` in `apps/demo/src/lib/run-surface/stage-copy.ts`; keep them byte-identical.
 
+**`run.ledger.back_to_actions`**
+- EN: Back to Actions
+- VI: Về Hành động
+- _Avoid_: Về Quyết định
+- Definition: The recovery link on the run ledger's empty/not-found states and on the per-run not-found placeholder — one phrase shared by all four call sites. Distinct from `run.back_to_actions`, which is the run header's back control and carries the bare tab name. Runtime constant `RUN_LEDGER_BACK_TO_DECISIONS` in `apps/demo/src/lib/run-ledger/copy.ts`, composed from `ACTIONS_DESTINATION_LABEL`; keep them byte-identical. Added by issue #1959, which found the constant's docblock citing a `run.back_to_decisions` key this file never carried.
+
 **`run.expiry`**
 - EN: Offer valid for {time}
 - VI: Đề xuất còn hiệu lực {time}
@@ -515,9 +521,10 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - Definition: `failed` terminal-state label for the remaining failure-class `stop_reason` values, with a seller-terms explanation, never a raw internal reason.
 
 **`run.no_retry`**
-- EN: Want to make a new change? Go back to Decisions to approve a new recommendation.
-- VI: Muốn thực hiện thay đổi mới? Hãy quay lại Quyết định để phê duyệt đề xuất mới.
-- Definition: Explanation on every failed/cancelled/expired/timed-out/worker_lost run's card — no retry-in-place control exists; a new run needs a new approval.
+- EN: Want to make a new change? Go back to Actions to approve a new recommendation.
+- VI: Muốn thực hiện thay đổi mới? Hãy quay lại Hành động để phê duyệt đề xuất mới.
+- _Avoid_: Quyết định
+- Definition: Explanation on every failed/cancelled/expired/timed-out/worker_lost run's card — no retry-in-place control exists; a new run needs a new approval. Names the destination tab, so it resolves from `ACTIONS_DESTINATION_LABEL` rather than repeating the label (issue #1959); "Quyết định" is the tab's retired name, not the ordinary Vietnamese noun, which stays.
 
 **`run.reconnecting`**
 - EN: Reconnecting
@@ -615,9 +622,10 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - Definition: `run_not_awaiting_confirmation` rejection (issue #1317).
 
 **`run.confirmation_rejected.fingerprint_mismatch`**
-- EN: This offer changed since you last saw it; go back to Decisions to see the latest.
-- VI: Đề xuất đã thay đổi kể từ khi bạn xem; hãy quay lại Quyết định để xem đề xuất mới nhất.
-- Definition: `params_sha_mismatch` rejection (issue #1317) -- the change the seller saw is not the change that would run; refused rather than silently substituted.
+- EN: This offer changed since you last saw it; go back to Actions to see the latest.
+- VI: Đề xuất đã thay đổi kể từ khi bạn xem; hãy quay lại Hành động để xem đề xuất mới nhất.
+- _Avoid_: Quyết định
+- Definition: `params_sha_mismatch` rejection (issue #1317) -- the change the seller saw is not the change that would run; refused rather than silently substituted. Names the destination tab, so it resolves from `ACTIONS_DESTINATION_LABEL` (issue #1959).
 
 **`run.confirmation_rejected.generic`**
 - EN: This option could not be confirmed.
@@ -732,9 +740,10 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - Definition: `timed_out` terminal-state explanation, same shared table as above. Landed by issue #1321.
 
 **`run.terminal.failed.body`**
-- EN: Something went wrong while Juli was executing; see Decisions for details.
-- VI: Đã xảy ra lỗi khi Juli thực hiện; hãy xem lại tại Quyết định.
-- Definition: `failed` terminal-state explanation, same shared table as above. Landed by issue #1321.
+- EN: Something went wrong while Juli was executing; see Actions for details.
+- VI: Đã xảy ra lỗi khi Juli thực hiện; hãy xem lại tại Hành động.
+- _Avoid_: Quyết định
+- Definition: `failed` terminal-state explanation, same shared table as above. Landed by issue #1321; retargeted at the renamed tab by issue #1959, resolving from `ACTIONS_DESTINATION_LABEL`.
 
 **`run.terminal.completed_after_decline.label`**
 - EN: Complete — unchanged
@@ -749,7 +758,7 @@ turn done on real job completion. Kept here only so the key resolves until its l
 **`run.terminal.unknown`**
 - EN: Ended
 - VI: Đã kết thúc
-- Definition: Fallback label for a terminal `stop_reason` this table has no dedicated bucket for yet -- honest ("ended"), never one of the seven named outcomes it is not. Body: "Luồng đã kết thúc. Vui lòng xem lại tại Quyết định." ("The run has ended. Please review it in Decisions."). Landed by issue #1321.
+- Definition: Fallback label for a terminal `stop_reason` this table has no dedicated bucket for yet -- honest ("ended"), never one of the seven named outcomes it is not. Body: "Luồng đã kết thúc. Vui lòng xem lại tại Hành động." ("The run has ended. Please review it in Actions."). Landed by issue #1321.
 
 **`run.option_rationale.get_product_information`**
 - EN: View this product's current listing details.

@@ -1,0 +1,94 @@
+{
+  "planId": "rep-1959-governed-copy-names-one-destination",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com run view — the back control, the run-ledger terminal bodies and the no-retry line",
+    "demo.app-juli.com /decisions — the page kicker on both the anonymous replay and the signed-in list",
+    "demo.app-juli.com settings — the consent line naming where approval happens",
+    "demo.app-juli.com — the demo-state reset feedback string and the connect-shop hand-off control"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the demo candidate unit on its own port, before the nginx demo upstream cutover",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "one-screen-never-shows-two-names",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/decisions",
+        "assertions": [
+          "the nav rail and the page kicker name the same destination, byte-identical",
+          "opening a run and reading the header back control gives the same name again",
+          "no screen renders the rail name and the retired name together"
+        ]
+      },
+      {
+        "name": "terminal-and-no-retry-bodies-point-somewhere-that-exists",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/decisions",
+        "assertions": [
+          "the run-ledger failed body, the ended body and the no-retry line all name the current destination",
+          "the option-picker stale-proposal line names the current destination",
+          "each of those strings still resolves from dictionary.md, not from an inline literal"
+        ]
+      },
+      {
+        "name": "the-ordinary-vietnamese-word-is-untouched",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/",
+        "assertions": [
+          "the home tagline still reads as the ordinary noun and is not renamed",
+          "the settings consent sentence beginning 'Moi quyet dinh' still reads as the ordinary noun",
+          "workflow field labels naming a shop decision are unchanged"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "/decisions"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "css"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration. Seller-facing copy only; no persisted value carries either label."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "repoint the nginx demo upstream to the retained previous release; the whole naming reverts together, never one surface at a time",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "npx turbo run test --filter=@juli/demo --force",
+    "pnpm check:demo",
+    "pytest tests/unit/test_issue_397_demo_workspace_contract.py tests/unit/test_phase_2_6_demo_exit_gate.py"
+  ],
+  "doNotInfer": [
+    "A destination use is renamed; the ordinary Vietnamese noun is not. AC2 names three survivors explicitly - the home tagline, the workflow field labels, and the consent sentence. Renaming those is a defect, not thoroughness.",
+    "dictionary.md's _Avoid_ field is SPLIT ON COMMAS - a comma inside a parenthetical produces inert fragments that silently disable the guard. This went undetected twice and cost PR #1956 a red round. Put rationale in Definition, then PRINT the parsed aliases and confirm each is a clean standalone string.",
+    "Do not add avoid-aliases beyond this issue's scope. An unrequested addition broke an unrelated agent prompt's worked example on #1956.",
+    "Grep components, e2e spec source and the two Python contract tests BEFORE editing, not after a red. #1937 took three CI rounds by finding them one at a time.",
+    "A guard must be seen failing (.cursor/rules/code-quality.mdc, merged in #1976): print what the test collected, make it go red on purpose, report both.",
+    "Run the demo suite with `npx turbo run test --filter=@juli/demo --force` and report the `Cached:` line - a cached turbo task prints a full pass having run nothing.",
+    "Pin PYTHONPATH=\"$PWD/backend/src:$PWD\" for any pytest run inside the worktree, or the green is fake.",
+    "apps/dashboard is a different surface and is NOT in scope. #1910's rename and ACTIONS_DESTINATION_LABEL are apps/demo only."
+  ]
+}

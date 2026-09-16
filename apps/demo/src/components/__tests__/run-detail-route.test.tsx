@@ -68,7 +68,7 @@ describe("RunDetailRoute — signed-in path (a token is present)", () => {
         screen.getByRole("status", { name: "Không tìm thấy luồng thực hiện" }),
       ).toBeInTheDocument();
     });
-    expect(screen.getByRole("link", { name: "Về Quyết định" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Về Hành động" })).toHaveAttribute(
       "href",
       "/decisions",
     );

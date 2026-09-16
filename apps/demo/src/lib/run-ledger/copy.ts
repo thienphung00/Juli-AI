@@ -6,6 +6,7 @@
  */
 import type { RunTerminalStateKey } from "./terminal-state";
 import type { StatusChipVariant } from "@juli/ui";
+import { ACTIONS_DESTINATION_LABEL } from "../destination-copy";
 
 export const RUN_LEDGER_SECTION_TITLES = {
   /** `run.awaiting_you` */
@@ -72,7 +73,7 @@ export const RUN_TERMINAL_STATE_COPY: Readonly<
   failed: {
     label: "Thất bại",
     chipVariant: "destructive",
-    body: "Đã xảy ra lỗi khi Juli thực hiện; hãy xem lại tại Quyết định.",
+    body: `Đã xảy ra lỗi khi Juli thực hiện; hãy xem lại tại ${ACTIONS_DESTINATION_LABEL}.`,
   },
   worker_lost: {
     label: "Sự cố",
@@ -88,17 +89,18 @@ export const RUN_TERMINAL_STATE_COPY: Readonly<
 export const RUN_TERMINAL_STATE_UNKNOWN_COPY: RunTerminalStateCopy = {
   label: "Đã kết thúc",
   chipVariant: "neutral",
-  body: "Luồng đã kết thúc. Vui lòng xem lại tại Quyết định.",
+  body: `Luồng đã kết thúc. Vui lòng xem lại tại ${ACTIONS_DESTINATION_LABEL}.`,
 };
 
 /** `run.no_retry` -- every failed/cancelled/expired/timed-out/worker_lost
  *  card carries this instead of any retry-in-place control. */
-export const RUN_LEDGER_NO_RETRY_NOTE =
-  "Muốn thực hiện thay đổi mới? Hãy quay lại Quyết định để phê duyệt đề xuất mới.";
+export const RUN_LEDGER_NO_RETRY_NOTE = `Muốn thực hiện thay đổi mới? Hãy quay lại ${ACTIONS_DESTINATION_LABEL} để phê duyệt đề xuất mới.`;
 
-/** `run.back_to_decisions` -- reuses the exact link text the per-run
- *  not-found recovery state already uses, for one consistent phrase. */
-export const RUN_LEDGER_BACK_TO_DECISIONS = "Về Quyết định";
+/** `run.ledger.back_to_actions` -- reuses the exact link text the per-run
+ *  not-found recovery state already uses, for one consistent phrase. The key
+ *  read `run.back_to_decisions` until #1959; dictionary.md never carried that
+ *  key, so the reference had been dangling since #1318. */
+export const RUN_LEDGER_BACK_TO_DECISIONS = `Về ${ACTIONS_DESTINATION_LABEL}`;
 
 /** `run.loading` */
 export const RUN_LEDGER_LOADING = "Đang tải danh sách…";
