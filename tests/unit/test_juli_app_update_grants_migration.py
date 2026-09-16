@@ -228,5 +228,13 @@ def test_migration_058_upgrade_is_idempotent_over_grants_already_held():
         assert after == before, f"re-applying 058 changed the grant surface: {after} != {before}"
         assert all("UPDATE" in held for held in after.values())
     finally:
-        command.upgrade(cfg, "head")
+        # `stamp`, not `upgrade` (#1968). Nothing above changed the schema --
+        # 058 is grants-only, and the stamp moved a version marker rather than
+        # a table. `upgrade(head)` from the stamped 058 replays every revision
+        # *after* 058 against a database that already has them, which failed on
+        # 060 with DuplicateColumn the moment 058 stopped being head. Stamping
+        # puts the marker back where the schema actually is. The sibling
+        # round-trip test above keeps `upgrade`, and must: it performs a real
+        # `downgrade 057`, so the DDL genuinely has to be replayed.
+        command.stamp(cfg, "head")
         engine.dispose()

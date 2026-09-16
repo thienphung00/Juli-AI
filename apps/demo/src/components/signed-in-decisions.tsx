@@ -100,7 +100,7 @@ type LoadState =
   | { status: "error" }
   | { status: "ready"; items: readonly DemoDecisionItem[] };
 
-export interface SignedInDecisionsProps {
+interface SignedInDecisionsProps {
   readonly token: string;
   /** Injectable for tests; default to the real authenticated clients. */
   readonly loadDecisions?: typeof fetchRecommendations;

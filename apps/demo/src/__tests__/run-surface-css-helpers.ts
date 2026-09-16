@@ -43,9 +43,9 @@ export type { RuleBlock };
 
 const demoRoot = path.resolve(__dirname, "../..");
 
-export const GLOBALS_CSS_PATH = path.resolve(demoRoot, "src/app/globals.css");
-export const APP_TOKENS_CSS_PATH = path.resolve(demoRoot, "../../packages/theme/tokens.css");
-export const RUN_TOKENS_CSS_PATH = path.resolve(
+const GLOBALS_CSS_PATH = path.resolve(demoRoot, "src/app/globals.css");
+const APP_TOKENS_CSS_PATH = path.resolve(demoRoot, "../../packages/theme/tokens.css");
+const RUN_TOKENS_CSS_PATH = path.resolve(
   demoRoot,
   "../../packages/theme/run-surface-tokens.css",
 );
@@ -73,7 +73,7 @@ export function collectCustomPropertyDeclarations(css: string): Record<string, s
   return map;
 }
 
-export interface RunSurfaceTokenMaps {
+interface RunSurfaceTokenMaps {
   /** `run-surface-tokens.css` under `[data-juli-surface="run"]`. */
   scoped: Record<string, string>;
   /** `tokens.css` `:root` plus any custom property `globals.css` declares. */
@@ -137,7 +137,7 @@ function compareSpecificity(a: [number, number, number], b: [number, number, num
   return 0;
 }
 
-export interface WinningDeclaration {
+interface WinningDeclaration {
   selector: string;
   value: string;
 }

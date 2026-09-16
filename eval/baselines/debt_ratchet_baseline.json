@@ -1,16 +1,16 @@
 {
   "issue": 1462,
   "schema": "debt-ratchet-baseline/1",
-  "generatedAt": "2026-09-07T01:25:40Z",
+  "generatedAt": "2026-09-16T03:32:59Z",
   "generator": "python -m eval.ratchets measure --write",
   "classes": {
     "broken_doc_refs": {
       "kind": "identities",
       "stats": {
-        "docs_scanned": 661,
-        "relative_links_checked": 2211,
-        "occurrences": 467,
-        "docs_with_broken_refs": 110
+        "docs_scanned": 688,
+        "relative_links_checked": 2331,
+        "occurrences": 464,
+        "docs_with_broken_refs": 108
       },
       "occurrences": {
         "broken_doc_refs\t.cursor/skills/domain/backend/REFERENCE.md\t../../../docs/adr/031-integrations-executor-domain.md\tmissing_path": 1,
@@ -288,10 +288,8 @@
         "broken_doc_refs\tdocs/product/design/Components/empty-states.md\t../../adr/053-demo-home-activity-summary.md\tmissing_path": 1,
         "broken_doc_refs\tdocs/product/design/Components/home-activity-tracker.md\t../../adr/053-demo-home-activity-summary.md\tmissing_path": 3,
         "broken_doc_refs\tdocs/product/design/README.md\t../adr/053-demo-home-activity-summary.md\tmissing_path": 1,
-        "broken_doc_refs\tdocs/product/design/Screens/home.md\t../../adr/053-demo-home-activity-summary.md\tmissing_path": 2,
         "broken_doc_refs\tdocs/product/design/design.md\t../adr/028-vietnamese-copy-dictionary-and-design-context.md\tmissing_path": 1,
         "broken_doc_refs\tdocs/product/design/design.md\t../adr/053-demo-home-activity-summary.md\tmissing_path": 1,
-        "broken_doc_refs\tdocs/product/design/flows.md\t../adr/053-demo-home-activity-summary.md\tmissing_path": 1,
         "broken_doc_refs\tdocs/product/features/README.md\t../../EXECUTION.md\tmissing_path": 1,
         "broken_doc_refs\tdocs/product/features/README.md\t../README.md\tmissing_path": 1,
         "broken_doc_refs\tdocs/product/features/README.md\t../handoffs/archive/features/\tmissing_path": 1,
@@ -365,9 +363,9 @@
     "mypy_statement_coverage": {
       "kind": "scalar",
       "stats": {
-        "files_scanned": 440,
-        "checked_statements": 20922,
-        "total_statements": 20922,
+        "files_scanned": 458,
+        "checked_statements": 22563,
+        "total_statements": 22563,
         "unchecked_modules": [],
         "exclude_patterns": [],
         "ignore_errors_patterns": [],
@@ -381,7 +379,7 @@
     "suppressions": {
       "kind": "identities",
       "stats": {
-        "files_scanned": 1039,
+        "files_scanned": 1137,
         "lines": 410,
         "occurrences": 412,
         "distinct_identities": 213,
@@ -654,24 +652,24 @@
           "CLAUDE.md"
         ],
         "bytes_per_file": {
-          ".cursor/rules/core-orchestration.mdc": 6634,
+          ".cursor/rules/core-orchestration.mdc": 7139,
           ".cursor/rules/core-safety.mdc": 807,
-          ".cursor/rules/git-baseline.mdc": 11345,
+          ".cursor/rules/git-baseline.mdc": 10302,
           ".cursor/rules/mcp-usage.mdc": 1454,
-          "CLAUDE.md": 12978
+          "CLAUDE.md": 13213
         },
-        "total_bytes": 33218,
+        "total_bytes": 32915,
         "bytes_per_token": 4
       },
-      "scalar": 8304.0,
+      "scalar": 8228.0,
       "direction": "must_not_rise"
     },
     "unused_ts_exports": {
       "kind": "identities",
       "stats": {
-        "files_scanned": 585,
-        "exported_symbols": 1752,
-        "occurrences": 166
+        "files_scanned": 697,
+        "exported_symbols": 1930,
+        "occurrences": 158
       },
       "occurrences": {
         "unused_ts_exports\tapps/dashboard/src/components/DemoControlsDrawer.tsx\tDemoControlsDrawer\tunreferenced": 1,
@@ -784,7 +782,6 @@
         "unused_ts_exports\tapps/demo/src/components/settings-thresholds-panel.tsx\tSettingsThresholdsPanel\tunreferenced": 1,
         "unused_ts_exports\tapps/demo/src/components/settings-view.tsx\tSETTINGS_VISITOR_PLACEHOLDER\tunreferenced": 1,
         "unused_ts_exports\tapps/demo/src/components/settings-workflow-list.tsx\tSettingsWorkflowList\tunreferenced": 1,
-        "unused_ts_exports\tapps/demo/src/lib/agent-event-stream.ts\tAGENT_EVENT_STREAM_DEFAULT_BASE_URL\tunreferenced": 1,
         "unused_ts_exports\tapps/demo/src/lib/agent-event-stream.ts\tAGENT_EVENT_STREAM_LAST_EVENT_ID_HEADER\tunreferenced": 1,
         "unused_ts_exports\tapps/demo/src/lib/agent-event-stream.ts\tAgentEventStreamConfig\tunreferenced": 1,
         "unused_ts_exports\tapps/demo/src/lib/agent-event-stream.ts\tAgentEventStreamHttpErrorKind\tunreferenced": 1,
@@ -793,7 +790,6 @@
         "unused_ts_exports\tapps/demo/src/lib/analytics/api-client.ts\tDemoAnalyticsFetchError\tunreferenced": 1,
         "unused_ts_exports\tapps/demo/src/lib/analytics/api-client.ts\tbuildDemoAnalyticsUrl\tunreferenced": 1,
         "unused_ts_exports\tapps/demo/src/lib/analytics/api-client.ts\tisForbiddenDemoRefreshPath\tunreferenced": 1,
-        "unused_ts_exports\tapps/demo/src/lib/analytics/envelope-mapper.ts\tImpactMetricSnapshot\tunreferenced": 1,
         "unused_ts_exports\tapps/demo/src/lib/analytics/envelope-mapper.ts\tgetEnvelopeKpiEntry\tunreferenced": 1,
         "unused_ts_exports\tapps/demo/src/lib/analytics/envelope-mapper.ts\tisMetricLiveAvailable\tunreferenced": 1,
         "unused_ts_exports\tapps/demo/src/lib/analytics/main-kpis.ts\tBoundedRatioBounds\tunreferenced": 1,
@@ -807,12 +803,6 @@
         "unused_ts_exports\tapps/demo/src/lib/plan-reviews.ts\tPlanDecisionRecommendedOption\tunreferenced": 1,
         "unused_ts_exports\tapps/demo/src/lib/plan-reviews.ts\tPlanNeedsYouContent\tunreferenced": 1,
         "unused_ts_exports\tapps/demo/src/lib/plan-reviews.ts\tPlanSituationContent\tunreferenced": 1,
-        "unused_ts_exports\tapps/demo/src/lib/recommendations.ts\tACTION_CARD_INPUTS_API_PATH\tunreferenced": 1,
-        "unused_ts_exports\tapps/demo/src/lib/recommendations.ts\tActionCardInputsData\tunreferenced": 1,
-        "unused_ts_exports\tapps/demo/src/lib/recommendations.ts\tActionCardInputsFetchError\tunreferenced": 1,
-        "unused_ts_exports\tapps/demo/src/lib/recommendations.ts\tDEMO_RECOMMENDATIONS_API_PATH\tunreferenced": 1,
-        "unused_ts_exports\tapps/demo/src/lib/recommendations.ts\tDemoRecommendationsFetchError\tunreferenced": 1,
-        "unused_ts_exports\tapps/demo/src/lib/recommendations.ts\tfetchActionCardInputs\tunreferenced": 1,
         "unused_ts_exports\tapps/demo/src/lib/recommendations.ts\ttoSellerFacingRecommendation\tunreferenced": 1,
         "unused_ts_exports\tapps/demo/src/lib/repeat-consent.ts\tRepeatConsentGateInput\tunreferenced": 1,
         "unused_ts_exports\tapps/demo/src/lib/repeat-consent.ts\tRepeatConsentGrant\tunreferenced": 1,
@@ -843,5 +833,5 @@
       }
     }
   },
-  "tightenedFrom": "2026-09-07T01:21:46Z"
+  "tightenedFrom": "2026-09-07T01:25:40Z"
 }

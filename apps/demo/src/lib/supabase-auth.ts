@@ -17,7 +17,7 @@ export interface AuthSession {
   tokenType: string;
 }
 
-export type AuthCallbackResult =
+type AuthCallbackResult =
   | { status: "success"; session: AuthSession }
   | { status: "error"; message: string }
   | { status: "empty" };
@@ -33,12 +33,6 @@ function readSupabaseConfig(): { url: string; anonKey: string } | null {
   }
 
   return { url, anonKey };
-}
-
-/** Whether "Đăng nhập với Google" has anywhere to go — used to render an
- * honest disabled state instead of a link to nowhere when env is missing. */
-export function isGoogleSignInConfigured(): boolean {
-  return readSupabaseConfig() !== null;
 }
 
 /**

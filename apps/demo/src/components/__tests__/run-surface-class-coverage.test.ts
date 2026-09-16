@@ -42,14 +42,14 @@ const STYLE_SHEET_PATHS = [
   path.resolve(demoRoot, "../../packages/ui/styles.css"),
 ];
 
-export interface DynamicClassFragment {
+interface DynamicClassFragment {
   /** The static text adjacent to a `${...}` hole. */
   readonly fragment: string;
   /** Which side of the fragment the hole sits on. */
   readonly side: "left" | "right";
 }
 
-export interface EmittedClassNames {
+interface EmittedClassNames {
   readonly exact: Set<string>;
   readonly dynamicFragments: DynamicClassFragment[];
 }
@@ -57,7 +57,7 @@ export interface EmittedClassNames {
 /** Every `className=...` attribute value in a TSX source, as raw text:
  *  `"..."` string attributes verbatim, `{...}` expressions with balanced
  *  braces (so a multi-line `joinClassNames(...)` call is one entry). */
-export function extractClassAttributeExpressions(source: string): string[] {
+function extractClassAttributeExpressions(source: string): string[] {
   const expressions: string[] = [];
   const attribute = /className=/g;
   while (attribute.exec(source) !== null) {
@@ -106,7 +106,7 @@ function collectFromTemplateLiteral(template: string, out: {
 }
 
 /** The class names a TSX source emits through `className`. */
-export function collectEmittedClassNames(source: string): EmittedClassNames {
+function collectEmittedClassNames(source: string): EmittedClassNames {
   const exact = new Set<string>();
   const dynamicFragments: DynamicClassFragment[] = [];
   for (const expression of extractClassAttributeExpressions(source)) {
@@ -124,7 +124,7 @@ export function collectEmittedClassNames(source: string): EmittedClassNames {
 }
 
 /** Every class name any selector in the given CSS mentions. */
-export function collectDefinedClassNames(css: string): Set<string> {
+function collectDefinedClassNames(css: string): Set<string> {
   const defined = new Set<string>();
   for (const block of extractRuleBlocks(css)) {
     for (const m of block.selector.matchAll(/\.([A-Za-z0-9_-]+)/g)) {
@@ -134,7 +134,7 @@ export function collectDefinedClassNames(css: string): Set<string> {
   return defined;
 }
 
-export function findRulelessClassNames(
+function findRulelessClassNames(
   emitted: EmittedClassNames,
   defined: Set<string>,
 ): string[] {

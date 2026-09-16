@@ -29,7 +29,7 @@ export const REPLAY_DECISION_STORAGE_KEY = "juli_demo_replay_decision";
  *  this module stays as self-contained as `entry-mode.ts` is, per that
  *  file's own docstring. The two types are freely assignable to each other
  *  because both are exactly `"approve" | "decline"`. */
-export type ReplayDecisionOutcome = "approve" | "decline";
+type ReplayDecisionOutcome = "approve" | "decline";
 
 export interface ReplayDecisionRecord {
   readonly runId: string;
