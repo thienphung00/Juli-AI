@@ -143,7 +143,7 @@ describe("RecommendationReview routing (plan-review spine only since #910)", () 
     expect(
       screen.getByRole("status", { name: "Không tìm thấy quy trình" }),
     ).toHaveTextContent("Quy trình không được hỗ trợ");
-    expect(screen.getByRole("link", { name: "Về Quyết định" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Về Hành động" })).toHaveAttribute(
       "href",
       "/decisions",
     );

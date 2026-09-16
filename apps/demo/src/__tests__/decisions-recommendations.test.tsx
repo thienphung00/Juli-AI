@@ -611,7 +611,7 @@ describe("Decisions — Recommendations", () => {
     it("preserves kicker and title while removing intro", () => {
       renderView();
 
-      expect(screen.getByText("Quyết định")).toBeInTheDocument();
+      expect(screen.getByText("Hành động")).toBeInTheDocument();
       expect(
         screen.getByRole("heading", { name: "Việc cần bạn quyết định" }),
       ).toBeInTheDocument();

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { getWorkflowPlanReview } from "../lib/plan-reviews";
+import { ACTIONS_DESTINATION_LABEL } from "../lib/destination-copy";
 import { OPTIMIZE_PRODUCT_WORKFLOW_KEY } from "../lib/reviews";
 import { REPLAY_SCENARIO_RUN_ID } from "../lib/run-surface/replay-scenario";
 import { PlanReviewCard } from "./plan-review-card";
@@ -29,11 +30,11 @@ function RecommendationReviewNotFound() {
       <p className="demo-kicker">Không tìm thấy</p>
       <h1>Quy trình không được hỗ trợ</h1>
       <p>
-        Đề xuất hoặc quy trình này chưa có trong Demo. Hãy quay lại Quyết định
-        để chọn đề xuất khác.
+        Đề xuất hoặc quy trình này chưa có trong Demo. Hãy quay lại{" "}
+        {ACTIONS_DESTINATION_LABEL} để chọn đề xuất khác.
       </p>
       <Link className="demo-placeholder__recovery" href="/decisions">
-        Về Quyết định
+        Về {ACTIONS_DESTINATION_LABEL}
       </Link>
     </section>
   );

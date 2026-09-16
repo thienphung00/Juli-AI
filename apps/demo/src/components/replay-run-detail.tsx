@@ -30,6 +30,7 @@ import { RunStagedView } from "./run-staged-view";
 import { DestinationPlaceholder } from "./destination-placeholder";
 import { useReplayEvents } from "../lib/run-surface/use-replay-events";
 import { buildReplayConfirm } from "../lib/run-surface/replay-confirm";
+import { ACTIONS_DESTINATION_LABEL } from "../lib/destination-copy";
 import {
   REPLAY_SCENARIO_PRODUCT_NAME,
   REPLAY_SCENARIO_RUN_ID,
@@ -37,9 +38,9 @@ import {
 
 const NOT_FOUND_PLACEHOLDER = (
   <DestinationPlaceholder
-    description="Luồng thực hiện này không còn trong Demo hoặc chưa được tạo. Hãy quay lại Quyết định để xem các luồng đang chạy."
+    description={`Luồng thực hiện này không còn trong Demo hoặc chưa được tạo. Hãy quay lại ${ACTIONS_DESTINATION_LABEL} để xem các luồng đang chạy.`}
     recoveryHref="/decisions"
-    recoveryLabel="Về Quyết định"
+    recoveryLabel={`Về ${ACTIONS_DESTINATION_LABEL}`}
     state="empty"
     title="Không tìm thấy luồng thực hiện"
   />

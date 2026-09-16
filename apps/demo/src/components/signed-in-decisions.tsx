@@ -47,6 +47,7 @@ import {
 } from "../lib/recommendations-api-client";
 import { DemoDecisionApproveError } from "../lib/recommendations-api-client";
 import { readActiveShop } from "../lib/shop-session";
+import { ACTIONS_DESTINATION_LABEL } from "../lib/destination-copy";
 import { InProgressPanel } from "./in-progress-panel";
 
 /** dictionary.md `decisions.signed_in.no_shop` */
@@ -180,7 +181,7 @@ export function SignedInDecisions({
   if (!activeShop) {
     return (
       <section aria-labelledby="decisions-title" className="demo-decisions">
-        <p className="demo-kicker">Quyết định</p>
+        <p className="demo-kicker">{ACTIONS_DESTINATION_LABEL}</p>
         <h1 className="demo-title" id="decisions-title">
           Việc cần bạn quyết định
         </h1>
@@ -219,7 +220,7 @@ export function SignedInDecisions({
 
   return (
     <section aria-labelledby="decisions-title" className="demo-decisions">
-      <p className="demo-kicker">Quyết định</p>
+      <p className="demo-kicker">{ACTIONS_DESTINATION_LABEL}</p>
       <h1 className="demo-title" id="decisions-title">
         Việc cần bạn quyết định
       </h1>
