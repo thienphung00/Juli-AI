@@ -11,17 +11,36 @@ does not cover. `agent_workflow` was missing here, so `run_agent_workflow` and
 `resume_agent_workflow` were never registered and the worker answered
 `Received unregistered task ... KeyError` when the API enqueued one.
 `test_routed_tasks_are_registered` now pins every task in `task_routes` too.
+
+Every name below is declared in `__all__` rather than suppressed with
+`# noqa: F401` — the imports are for their side effect (Celery task
+registration), but the names themselves are this package's public surface,
+so declaring them exported is accurate, not a workaround, and ruff's F401
+does not fire against a name listed in `__all__`.
 """
 
 from juli_backend.workers.tasks import (
-    action_card_refresh,  # noqa: F401
-    agent_workflow,  # noqa: F401
-    analytics_backfill_topup,  # noqa: F401
-    cdp_batch_reconcile,  # noqa: F401
-    credential_refresh_beat,  # noqa: F401
-    fujiwa_poll_beat,  # noqa: F401
-    impact_reader,  # noqa: F401
-    mock_analytics_reconcile,  # noqa: F401
-    reaper,  # noqa: F401
-    tool_execution,  # noqa: F401
+    action_card_refresh,
+    agent_workflow,
+    analytics_backfill_topup,
+    cdp_batch_reconcile,
+    credential_refresh_beat,
+    fujiwa_poll_beat,
+    impact_reader,
+    mock_analytics_reconcile,
+    reaper,
+    tool_execution,
 )
+
+__all__ = [
+    "action_card_refresh",
+    "agent_workflow",
+    "analytics_backfill_topup",
+    "cdp_batch_reconcile",
+    "credential_refresh_beat",
+    "fujiwa_poll_beat",
+    "impact_reader",
+    "mock_analytics_reconcile",
+    "reaper",
+    "tool_execution",
+]
