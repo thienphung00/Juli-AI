@@ -38,7 +38,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "060_processed_events_epoch"
-down_revision: str | None = "058_juli_app_update_grants"
+down_revision: str | None = "059_webhook_raw_events_select"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
