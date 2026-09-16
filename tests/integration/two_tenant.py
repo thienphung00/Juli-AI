@@ -246,9 +246,10 @@ def seed_tenant(engine: Engine, *, label: str) -> Tenant:
                     "INSERT INTO public.workflow_runs "
                     "(id, shop_id, product_id, state, status, prompt_version, prompt_sha256, "
                     " running_seconds_elapsed, cancel_requested, waiting_approval_since, "
-                    " created_at, updated_at) "
+                    " subject_ref, created_at, updated_at) "
                     "VALUES (:id, :shop_id, :product_id, :state, :status, 'v1', :sha, "
-                    " :elapsed, false, :approval_since, :created, :created)"
+                    " :elapsed, false, :approval_since, CAST(:product_id AS text), "
+                    " :created, :created)"
                 ),
                 {
                     "id": str(run_id),

@@ -539,6 +539,30 @@ class WebhookRawEvent(Base):
     )
 
 
+def _default_workflow_run_subject_ref(context: Any) -> str:
+    """Client-side default for ``WorkflowRun.subject_ref`` (#1701, ADR-087 d.1).
+
+    Every current writer of a new row knows only a product, via ``product_id``
+    -- there is no repository wrapping this construction, so a Postgres
+    ``server_default`` cannot help (it cannot copy another column's value).
+    This mirrors that exact behaviour for a caller that omits ``subject_ref``:
+    the run's own ``product_id``, stringified, the same rule migration 061 uses
+    to backfill every pre-existing row.
+
+    Raises loudly, rather than writing the literal string ``"None"``, when a
+    caller also passes ``product_id=None`` without supplying ``subject_ref``
+    itself -- a non-product subject (e.g. a ``dispatch_window``) has no
+    product to fall back to and must name its own subject explicitly.
+    """
+    product_id = context.get_current_parameters().get("product_id")
+    if product_id is None:
+        raise ValueError(
+            "WorkflowRun.subject_ref has no default for a NULL product_id -- "
+            "pass subject_ref explicitly for a non-product subject"
+        )
+    return str(product_id)
+
+
 class WorkflowRun(Base):
     """Agent execution-loop run record — WorkflowRunner's persisted run, P1
     (ADR-073 decisions 1, 2 and 4; #1117 / AGT-W3A).
@@ -574,7 +598,42 @@ class WorkflowRun(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
-    product_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("products.id"), nullable=False)
+    #: Nullable as of migration 061 (#1701, ADR-087 d.1-d.2): a run's subject is no
+    #: longer necessarily a product -- ``subject_type``/``subject_ref`` below carry
+    #: that generally. Every CURRENT writer (``approval.py``'s
+    #: ``approve_action_card``, the only production constructor of a new row) still
+    #: always supplies it -- this widening changes nothing about who writes what.
+    product_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("products.id"))
+    #: Which playbook this run is executing (#1701, ADR-087 d.1). Defaulted, both
+    #: client- and server-side, to the one key ``playbooks/__init__.py::
+    #: get_registered_playbooks`` returns today (``optimize_product_2``) so every
+    #: existing call site -- none of which passes this column -- keeps compiling
+    #: and keeps inserting the value it always implicitly meant. Nothing reads
+    #: this column in this slice; #1702 is the first reader.
+    workflow_key: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="optimize_product_2",
+        server_default="optimize_product_2",
+    )
+    #: What kind of thing this run is about (#1701, ADR-087 d.1). Defaulted to
+    #: ``"product"`` -- the only subject kind any run has ever had -- for the same
+    #: compatibility reason as ``workflow_key``. A future non-product run (e.g. a
+    #: ``dispatch_window``) must pass this explicitly; nothing in this slice does.
+    subject_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="product", server_default="product"
+    )
+    #: The subject's own identifier, as text so a non-product subject (which may
+    #: carry no single UUID primary key) can be represented the same way a product
+    #: is (#1701, ADR-087 d.1). No server-side default is possible here -- the
+    #: correct value is per-row (this row's own ``product_id``), which a constant
+    #: ``DEFAULT`` clause cannot express. ``_default_workflow_run_subject_ref``
+    #: supplies it client-side for exactly the callers that still only know
+    #: ``product_id``; a caller binding a non-product subject must pass this
+    #: explicitly (see that function's docstring for the loud failure otherwise).
+    subject_ref: Mapped[str] = mapped_column(
+        String(64), nullable=False, default=_default_workflow_run_subject_ref
+    )
     state: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     stop_reason: Mapped[str | None] = mapped_column(String(32))
@@ -639,10 +698,20 @@ class WorkflowRun(Base):
     __table_args__ = (
         Index("ix_workflow_runs_shop", "shop_id"),
         Index("ix_workflow_runs_action_card", "action_card_id"),
+        # Re-keyed from (shop_id, product_id) by migration 061 (#1701,
+        # ADR-087 d.1-d.2): a run's subject is now (subject_type, subject_ref),
+        # and workflow_key joins the key so two DIFFERENT workflows on the SAME
+        # product do not collide here -- that cross-workflow lock is #1710's
+        # named refusal inside the approve transaction, deliberately not this
+        # index (ADR-087 decision 2). The index KEEPS its name: #1703 and #1706
+        # already refer to "uq_workflow_runs_active_shop_product (re-keyed by
+        # #1701)".
         Index(
             "uq_workflow_runs_active_shop_product",
             "shop_id",
-            "product_id",
+            "workflow_key",
+            "subject_type",
+            "subject_ref",
             unique=True,
             postgresql_where="status IN ('queued', 'running', 'waiting_approval')",
         ),
@@ -925,6 +994,40 @@ class ActionCard(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     workflow_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: What kind of thing this card is about (#1701, ADR-087 d.1-d.2). No card
+    #: has ever carried a subject before this column existed -- the product is
+    #: derived server-side at APPROVAL time (ADR-082 decision 1), not card-
+    #: generation time -- so there is no real value to backfill or default new
+    #: rows to. ``"unscoped"`` says exactly that: this card predates subject
+    #: scoping. Real values (``"product"``, ``"order"``, ...) are #1703's to
+    #: write; nothing reads this column in this slice.
+    subject_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="unscoped", server_default="unscoped"
+    )
+    #: The subject's own identifier (#1701, ADR-087 d.1-d.2). Empty string for
+    #: the same "no real value exists yet" reason as ``subject_type`` --
+    #: deliberately NOT a per-row invented value. Constant across every
+    #: existing writer (``ActionCardsRepo.upsert`` via
+    #: ``services/action_cards/persist.py``, which names neither column), which
+    #: is what keeps the coexistence hazard closed: the new partial unique
+    #: below reduces to exactly ``(shop_id, workflow_key)`` for every row an
+    #: unmodified writer produces, the same collision the dropped
+    #: ``uq_action_cards_shop_workflow`` gave it.
+    subject_id: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="", server_default=""
+    )
+    #: Chain position for a subject (#1701, ADR-087 d.1-d.3): revisions are
+    #: chained rows (``supersedes_card_id`` below), never an in-place edit, so
+    #: the prior revision's ``card_snapshot``-adjacent history is reached by
+    #: reference and cannot drift. Every existing row is revision 1 -- the
+    #: first and, until #1703 writes a chain, only revision any card has.
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    #: The card this row supersedes, if any (#1701, ADR-087 d.1-d.3). NULL for
+    #: every existing row and for a fresh (non-chained) card; #1703's
+    #: revision-chaining is the first writer. Self-referential FK, not a new
+    #: table, because a revision genuinely IS an ``ActionCard`` row -- ADR-087
+    #: decision 3 rejected copying the predecessor's fields forward.
+    supersedes_card_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("action_cards.id"))
     priority: Mapped[int] = mapped_column(nullable=False)
     severity: Mapped[str] = mapped_column(String(20), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -985,10 +1088,37 @@ class ActionCard(Base):
         # Surfacing state must be queryable separately from "all scored rows"
         # (#716, B-4).
         Index("ix_action_cards_shop_surfaced_at", "shop_id", "surfaced_at"),
+        # Migration 061 (#1701, ADR-087 d.1-d.2) drops the single-key
+        # ``uq_action_cards_shop_workflow`` unique in favour of two constraints
+        # keyed on the full subject: a full unique over the chain (this one),
+        # and a partial unique below covering only the live card per subject.
+        # ``workflow_key`` stays in both keys deliberately -- ADR-087 decision
+        # 2 permits two agents on the same subject under different
+        # ``workflow_key``s, and a key on subject alone would forbid that.
         UniqueConstraint(
             "shop_id",
             "workflow_key",
-            name="uq_action_cards_shop_workflow",
+            "subject_type",
+            "subject_id",
+            "revision",
+            name="uq_action_cards_shop_workflow_subject_revision",
+        ),
+        # At most one LIVE card per subject per workflow (ADR-087 decision 2):
+        # the same tuple as above, minus ``revision``, filtered to
+        # ``status = 'active'``. For every row an unmodified writer produces
+        # today, ``subject_type``/``subject_id`` are the same constant default
+        # for every row, so this reduces to exactly the collision
+        # ``uq_action_cards_shop_workflow`` used to give
+        # ``(shop_id, workflow_key)`` -- the coexistence hazard this migration
+        # would otherwise open stays closed.
+        Index(
+            "uq_action_cards_active_shop_workflow_subject",
+            "shop_id",
+            "workflow_key",
+            "subject_type",
+            "subject_id",
+            unique=True,
+            postgresql_where="status = 'active'",
         ),
     )
 

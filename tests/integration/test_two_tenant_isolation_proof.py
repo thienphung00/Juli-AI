@@ -305,9 +305,10 @@ def _seed_tenant_data(engine: Engine, user_id: uuid.UUID, shop_id: uuid.UUID) ->
             text("""
                 INSERT INTO public.workflow_runs
                 (id, shop_id, product_id, state, status, prompt_version,
-                 prompt_sha256, created_at, updated_at)
+                 prompt_sha256, subject_ref, created_at, updated_at)
                 VALUES (:id, :shop_id, :product_id, CAST(:state AS jsonb),
-                        :status, :prompt_version, :prompt_sha256, :created_at,
+                        :status, :prompt_version, :prompt_sha256,
+                        CAST(:product_id AS text), :created_at,
                         :updated_at)
                 ON CONFLICT DO NOTHING
             """),
