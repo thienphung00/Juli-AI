@@ -6,7 +6,7 @@ import { formatVND } from "@juli/utils";
  * authored from the fixture's own signal/eligibility copy, never an
  * invented number. `kind: "keep"` rows state what Juli will NOT touch.
  */
-export interface RecommendationPreviewRow {
+interface RecommendationPreviewRow {
   label: string;
   change: string;
   kind: "change" | "keep";

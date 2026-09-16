@@ -15,7 +15,7 @@
 import type { AgentEvent, WorkflowApprovalRequiredPayload } from "@juli/contracts";
 import type { RunStageState } from "./reduce-run-view";
 
-export type StageToolActivityStatus = "running" | "completed" | "failed";
+type StageToolActivityStatus = "running" | "completed" | "failed";
 
 export interface StageToolActivityItem {
   readonly toolCallId: string;

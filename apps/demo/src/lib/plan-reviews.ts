@@ -224,7 +224,7 @@ export interface PlanNeedsYouContent {
  * keys), what is live on the shop today, and what Juli proposes. Values
  * come from the workflow's own field descriptors — never invented here.
  */
-export interface PlanComparisonRow {
+interface PlanComparisonRow {
   fieldLabel: string;
   current: string;
   proposed: string;

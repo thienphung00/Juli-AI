@@ -177,7 +177,7 @@ export type RunSurfaceMotionTrigger =
   | { readonly kind: "agent-event"; readonly eventType: AgentEventType }
   | { readonly kind: "state-transition"; readonly from: string; readonly to: string };
 
-export interface ResolvedRunSurfaceMotion extends MotionTiming {
+interface ResolvedRunSurfaceMotion extends MotionTiming {
   id: RunSurfaceMotionPrimitiveId;
   trigger: RunSurfaceMotionTrigger;
   reduced: boolean;

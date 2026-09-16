@@ -16,7 +16,7 @@ import type { WorkflowRunListItem } from "@juli/contracts";
  * is a SECTION-level fact (waitingOnYou renders first), not a claim about
  * per-run ordering this module invents.
  */
-export interface RunLedgerSections {
+interface RunLedgerSections {
   waitingOnYou: WorkflowRunListItem[];
   running: WorkflowRunListItem[];
   finished: WorkflowRunListItem[];

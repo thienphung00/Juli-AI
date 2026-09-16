@@ -45,7 +45,7 @@ const NOT_FOUND_PLACEHOLDER = (
   />
 );
 
-export interface ReplayRunDetailProps {
+interface ReplayRunDetailProps {
   readonly requestedStageId: string | null;
   readonly runId: string;
 }

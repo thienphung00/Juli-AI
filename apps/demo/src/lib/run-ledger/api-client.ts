@@ -20,7 +20,7 @@ export class DemoRunsFetchError extends Error {
   }
 }
 
-export interface FetchDemoRunsOptions {
+interface FetchDemoRunsOptions {
   /** Bearer token — the route is authenticated (ADR-075 decision 3); the
    *  pre-#1909 client sent no credentials at all, which is why the
    *  "live-backed" signed-in door could never actually resolve a run. */

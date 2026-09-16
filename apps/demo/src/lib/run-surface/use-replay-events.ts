@@ -38,7 +38,7 @@ import {
   type ReplayDecisionKind,
 } from "./replay-scenario";
 
-export interface UseReplayEventsResult {
+interface UseReplayEventsResult {
   readonly events: readonly AgentEvent[];
   readonly resolveDecision: (decision: ReplayDecisionKind) => void;
 }
