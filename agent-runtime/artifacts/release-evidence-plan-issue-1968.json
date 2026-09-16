@@ -1,0 +1,79 @@
+{
+  "planId": "dedup-ledger-epoch-2026-09-15",
+  "affectedPublicSurfaces": [
+    "The ETL ingest path itself (`services/etl/consumer.py`, `services/etl/persistence/ingest.py::ProcessedEventsRepo`) — every inbound row from every channel passes the duplicate check this slice changes. A regression here does not corrupt data, it silently stops accepting it, which is the failure mode that produced this issue.",
+    "`processed_events` (migration 060, assigned by Meta) — a tenant-scoped table under RLS (migration 045). Any column added must carry a default that makes existing rows behave exactly as they do today, or every previously-ingested event changes meaning at deploy.",
+    "Indirectly, every consumer of `orders`, `order_items`, `inventory_items`, `returns` and `analytics_performance_intervals`: unblocking re-ingest is the point of this slice, so rows that have been absent since the 2026-07-30 wipe may begin appearing. No `/v1` route contract changes, but the data behind several of them does."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Pre-merge: pytest proves the epoch mechanism against a real session — an event id already in the ledger is skipped under the current epoch and accepted after the epoch advances, asserted on the destination table's row count, never on the return value of the dedup check alone. Post-deploy: on the candidate port only, advance the epoch for the reference shop's order channels, run one poll cycle, and assert `orders` row count rises from zero while `processed_events` grows by the same number of newly-accepted ids. No merchant write is exercised; TikTok is read-only throughout.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "notes": "syntheticShopRequired is false because the mechanism is shop-agnostic and the observable proof needs the reference shop's real backlog (3,581 orders available from the vendor against 0 stored, measured 2026-09-15). workersDisabledOnCandidate is false — the ETL consumer runs inside the poll path on the worker, so disabling workers would make the journey unobservable. apiSideEffectsInScope is false: no route is called as part of proving this slice. THE HAZARD THIS SLICE MUST NOT CREATE: an epoch that advances automatically, or on deploy, would re-ingest every historical event on every release. The epoch must move only on an explicit, recorded operator action.",
+    "journeys": [
+      {
+        "name": "a-lost-row-can-be-re-ingested-once-the-epoch-advances",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/issues/1968",
+        "assertions": [
+          "pre-merge: an event whose id is already in `processed_events` under the current epoch is skipped, and the destination table's row count is unchanged — asserted on the table, not on the dedup function's return value",
+          "pre-merge: after the epoch advances for that channel, the same event id is accepted and the destination row appears",
+          "pre-merge: advancing the epoch for one channel does not make another channel's processed ids re-ingestable",
+          "pre-merge: the epoch does not advance on import, on startup, or on migration — a test asserts a deploy-shaped sequence leaves it unchanged",
+          "pre-merge: migration 060 is expand-only; existing `processed_events` rows resolve to the current epoch and continue to be treated as processed",
+          "pre-merge: the ledger write and the destination write share a transaction boundary such that a failed persist cannot leave an id marked processed — the exact shape that lost the 3,581 orders",
+          "post-deploy (candidate port): with the epoch advanced for the reference shop's order channels, one poll cycle raises `orders` above zero and `processed_events` by the same count of newly-accepted ids",
+          "post-deploy: a second identical cycle with no further epoch change adds zero rows to both tables"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route, page, bundle or static asset. The diff is backend ETL and one additive migration; `apps/` is on this slice's doNotLoad list."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "js",
+      "css"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false,
+    "notes": "required=false: the diff is backend-only and ships no HTML route, bundle or static asset, so there is nothing to discover or fetch. assetTypes is present to satisfy the schema, not because any asset is in scope."
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Migration 060, assigned by Meta — never read from head. Additive only: the stable release must keep reading and writing `processed_events` unchanged while the candidate runs, so any new column carries a default that reproduces today's behaviour for every existing row. Deleting or rewriting ledger rows is NOT the mechanism this slice may ship; an epoch is additive, a DELETE is not reversible and would destroy the only record of what was ingested."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false,
+    "notes": "PRE-CUTOVER: Do not merge. Without this slice the ledger keeps blocking re-ingest, which is today's state — no new exposure. The 3,581 orders stay unrecoverable through the normal path, as they are now. POST-CUTOVER: Redeploy the previous release and restart the worker. The migration is expand-only and needs no reversal: the stable release ignores the epoch column and resumes its current dedup behaviour. Rows accepted while the candidate ran stay accepted, which is correct — they are real vendor rows that should have been there. Nothing this slice writes is destructive, so rollback loses no data."
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest tests/unit -k 'dedup or processed_events or epoch' -q",
+    "python agent-runtime/scripts/validate/check_handoff.py --issue 1968"
+  ],
+  "doNotInfer": [
+    "Do not advance the epoch as part of the migration, on startup, or on deploy — only an explicit recorded operator action moves it.",
+    "Do not clear or delete `processed_events` rows as the recovery mechanism.",
+    "Do not touch the polling package or `integrations/tiktok/` — #1967, #1969 and #1948 own those and run concurrently on this slice.",
+    "Do not change any `/v1` route contract."
+  ]
+}

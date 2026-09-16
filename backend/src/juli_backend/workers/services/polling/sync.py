@@ -17,8 +17,7 @@ import json
 import logging
 import time
 import uuid
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any, TypeVar
 
@@ -328,6 +327,18 @@ def _skipped(resource: str, shop_id: str) -> SyncOutcome:
     outcome = SyncOutcome(resource=resource, shop_id=shop_id, skipped=True)
     logger.info("poll_step_outcome", extra=outcome.as_log_fields())
     return outcome
+# Callable[[], Awaitable[list[str]]] -- sources the shop's synced product ids
+# (#1948). Search Inventory has no unscoped listing and hard-requires
+# ``product_ids`` in the request body, so ``sync_inventory`` cannot discover
+# them on its own; the caller supplies this, e.g. bound to a ``ProductsRepo``
+# query already scoped to the shop.
+ProductIdsFn = Callable[[], Awaitable[list[str]]]
+
+# Confirmed to return rows against the live endpoint (#1948); the endpoint's
+# actual per-request cap for ``product_ids`` is not established, so this is a
+# conservative batch size rather than an attempt to fit a whole catalog in one
+# call.
+DEFAULT_INVENTORY_PAGE_SIZE = 30
 
 
 # Logger for structured warnings about credential mismatches
@@ -667,6 +678,10 @@ async def sync_inventory(
     sync_state: dict[str, Any],
 ) -> SyncOutcome:
     """Fetch inventory snapshot, flatten SKUs, hand off to ETL, report the triple.
+    list_product_ids: ProductIdsFn,
+    page_size: int = DEFAULT_INVENTORY_PAGE_SIZE,
+) -> None:
+    """Fetch inventory snapshot, flatten SKUs, and hand off to ETL.
 
     Search Inventory has no ``update_time`` filter — this is a full-snapshot
     reconciliation backstop. Incremental changes arrive via webhook #68.
@@ -682,6 +697,20 @@ async def sync_inventory(
     unattended", and the cost that argued against raising here — losing steps
     1-3's watermarks — no longer exists now that ``orchestrate.py`` saves partial
     state before re-raising any exception.
+    Search Inventory *requires* ``product_ids`` in the request body (#1948);
+    calling it with none -- as this worker used to -- is a guaranteed
+    ``TikTokAPIError``. ``list_product_ids`` supplies the shop's already-synced
+    product ids, batched into ``page_size`` requests since the endpoint's true
+    per-call cap is not established. Required, not defaulted: the caller
+    (``orchestrate.py``) already holds a session scoped to this shop and
+    builds this from it (``_synced_product_ids_fn``), so a silent
+    "resolve my own session, fall back to no ids on any failure" default here
+    would just move #1948's swallow-shaped failure one layer down instead of
+    removing it.
+
+    Any ``TikTokAPIError`` propagates instead of being logged-and-swallowed:
+    a sync that silently drops every row must not look identical to one with
+    nothing new to sync (#1948).
     """
     if not rate_limiter.acquire(
         app_id, shop_id, INVENTORY_SEARCH_PATH, max_requests=10, window_seconds=60
@@ -718,6 +747,35 @@ async def sync_inventory(
         rows = expand_inventory_search(response)
         step.fetched = len(rows)
         synced_at = int(time.time())
+        return
+
+    product_ids = await list_product_ids()
+    if not product_ids:
+        logger.info("sync_inventory_no_products", extra={"shop_id": shop_id})
+        return
+
+    rows: list[dict[str, Any]] = []
+    for start in range(0, len(product_ids), page_size):
+        page = product_ids[start : start + page_size]
+        try:
+            response = resource.search(product_ids=page)
+        except TikTokAPIError:
+            logger.error(
+                "sync_inventory_failed",
+                extra={"shop_id": shop_id, "page_product_id_count": len(page)},
+                exc_info=True,
+            )
+            raise
+
+        if not isinstance(response, dict):
+            raise ValueError(
+                "sync_inventory got a non-dict inventory search response for "
+                f"shop_id={shop_id}: {type(response).__name__}"
+            )
+
+        rows.extend(expand_inventory_search(response))
+
+    synced_at = int(time.time())
 
         for row in rows:
             payload = normalize_inventory(row)

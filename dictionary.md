@@ -233,6 +233,18 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - EN: 90 days
 - VI: 90 ngày
 
+**`impact.provenance.synthetic`**
+- EN: Illustrative figure
+- VI: Số liệu minh hoạ
+- _Avoid_: Số liệu demo
+- Definition: Provenance marker rendered beside any impact figure whose `impact_readings.series_source` is `synthetic` (issue #1958; ADR-099 decision 2). Shown with a leading ◆ glyph. The marker follows the reading's own column value — never the entry mode or a client-side guess — so a real computation over invented series is structurally incapable of being mistaken for a measured one. "Số liệu demo" is avoided as developer vocabulary in front of a seller. The "minh hoạ" spelling follows the approved v3 draft verbatim.
+
+**`impact.provenance.unprovenanced`**
+- EN: Figure source not recorded — not shown as a real measurement
+- VI: Chưa rõ nguồn số liệu — không hiển thị như số đo thực
+- _Avoid_: Số liệu tạm thời
+- Definition: Fail-closed state for an impact reading that arrives without a valid `series_source` (issue #1958 AC3). The figure itself is withheld and this copy stands where the number would have been — the view layer never reintroduces the `measured` default the column deliberately refuses. "Số liệu tạm thời" is avoided because it implies the figure will firm up on its own; the honest state is that provenance was never declared.
+
 **`common.attention_needed`**
 - EN: Needs attention
 - VI: Cần chú ý
