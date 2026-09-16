@@ -33,6 +33,24 @@ Matches ``__all__`` — re-exports only:
 Producer wiring: ``make_etl_handoff(consumer)`` lives in
 ``juli_backend.services.ingestion`` (not re-exported from this package).
 
+### Ingest persistence (`persistence.ingest`)
+
+The idempotency ledger and its epoch. Import from
+``juli_backend.services.etl.persistence.ingest``:
+
+- ``ProcessedEvent`` — the ledger row; the dedup key is ``(event_id, epoch)`` (#1968)
+- ``ProcessedEventsRepo`` — ``claim(*, event_id, shop_id, epoch=INITIAL_EPOCH) -> bool``;
+  ``False`` means the id was already processed *in that epoch*
+- ``IngestDedupEpoch`` — current epoch for one ``(shop_id, channel)`` plus
+  ``advanced_at`` / ``advanced_by`` / ``reason``
+- ``IngestDedupEpochsRepo`` — ``current(*, shop_id, channel) -> int`` (read-only; an
+  absent row means ``INITIAL_EPOCH``) and ``advance(*, shop_id, channel, operator,
+  reason) -> int``, the operator action described under *Recovering lost history*.
+  ``advance`` raises ``ValueError`` on a blank operator, a blank reason, or a
+  ``channel`` outside ``RAW_CHANNELS``, and logs ``etl_dedup_epoch_advanced`` at
+  WARNING when it moves one
+- ``INITIAL_EPOCH`` — ``0``; the epoch every row written before #1968 belongs to
+
 ## Dependencies
 
 - `juli_backend.database` — repos, `ProcessedEventsRepo`, shop resolution
@@ -41,11 +59,52 @@ Producer wiring: ``make_etl_handoff(consumer)`` lives in
 
 ## Key Behaviors
 
-- Idempotency via `processed_events` table (`event_id` claim before write)
+- Idempotency via `processed_events` table — the claim key is `(event_id, epoch)` (#1968)
+- The claim and the destination write share **one savepoint**, so a failed transform or
+  upsert can never leave an id marked processed with nothing persisted (#1968)
 - Per-shop `asyncio.Lock` preserves ordering within a shop
 - Malformed or unknown-shop messages → DLQ via injected `dlq_handoff` (testable stub)
 - No broker client imported — callers inject handoff functions
 - **Silver cutover (#607):** domain order/return upserts write `silver.orders` / `silver.returns`; bronze promotion via `SilverOrdersReturnsPromoter`
+
+## Recovering lost history — advancing a dedup epoch (#1968)
+
+The ledger used to outlive the data it protected. When a destination table lost its rows,
+`processed_events` still claimed those events were processed, so the re-ingest appeared to
+succeed and wrote nothing: the reference shop held `orders` = 0 while the vendor API served
+3,581 orders. The watermark controls what is **fetched**; the ledger controls what is
+**persisted**. Both must move.
+
+`ingest_dedup_epochs` holds one epoch per `(shop_id, channel)`. A missing row means epoch
+`0`, so every row written before #1968 is still treated as processed and nothing changes
+for a channel nobody has recovered.
+
+**The epoch never moves on its own.** Not on import, not on startup, not on migration, not
+on deploy — an epoch that advanced on release would re-ingest all history every release.
+The only way to move it is:
+
+```python
+epoch = await IngestDedupEpochsRepo(session).advance(
+    shop_id=shop.id,
+    channel="tiktok.orders.raw",
+    operator="<who is doing this>",   # required — ValueError if blank
+    reason="<why, with the issue number>",  # required — ValueError if blank
+)
+await session.commit()
+```
+
+Operator and reason are recorded on the row alongside `advanced_at`, and the move is
+logged as `etl_dedup_epoch_advanced` at WARNING, so a re-ingest is explainable months
+later. The `channel` must be one the consumer actually reads (`RAW_CHANNELS`) — a
+near-miss such as `tiktok.order.raw` for `tiktok.orders.raw` is refused rather than
+returning an epoch for a channel nobody ingests, which would look like a successful
+recovery and recover nothing. **Do not clear or delete ledger rows.** A `DELETE` is
+irreversible and destroys the only record of what was ingested and when; the epoch is
+additive and leaves that record standing.
+
+Recovery procedure for one shop: reset the watermark for the affected channels (#1949),
+then `advance` the epoch for those same channels, then re-run the poll. Advancing one
+channel's epoch does not make another channel's ids re-ingestable.
 
 ## One-writer map (CDP medallion — #608)
 
