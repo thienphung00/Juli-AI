@@ -25,7 +25,7 @@
  *    the proposed value alone -- no fabricated "before".
  */
 
-export interface OptionDiffRow {
+interface OptionDiffRow {
   readonly field: string;
   /** `undefined` when the payload gives no prior value to compare against
    *  (never fabricated to fill the gap). */

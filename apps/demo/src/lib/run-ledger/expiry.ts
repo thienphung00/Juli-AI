@@ -8,7 +8,7 @@
  * `expires_at - now`, with no drift from the server's own value.
  */
 
-export interface ExpiryCountdown {
+interface ExpiryCountdown {
   /** e.g. "3 giờ 58 phút" or "42 phút" -- minute precision, no seconds (so a
    *  poll-driven re-render never has to tick every second). */
   label: string;

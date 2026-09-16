@@ -45,7 +45,7 @@ import { RUN_LEDGER_LOADING } from "../lib/run-ledger/copy";
 import { useRunStream } from "../lib/run-surface/use-run-stream";
 import { submitConfirmationDecision } from "../lib/run-surface/confirmation-client";
 
-export interface RunDetailRouteProps {
+interface RunDetailRouteProps {
   readonly runId: string;
   /** Injectable for tests; defaults to the real client. Never called on
    *  the replay path (no token) -- see the module docstring. */

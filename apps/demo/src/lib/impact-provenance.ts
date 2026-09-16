@@ -16,13 +16,13 @@
  */
 
 /** The two provenances ADR-099's column can actually carry. */
-export type ImpactSeriesSource = "measured" | "synthetic";
+type ImpactSeriesSource = "measured" | "synthetic";
 
 /**
  * What the view layer renders: the column's two members, plus the
  * fail-closed state for a reading that arrived without one.
  */
-export type ImpactProvenance = ImpactSeriesSource | "unprovenanced";
+type ImpactProvenance = ImpactSeriesSource | "unprovenanced";
 
 /**
  * The minimal shape a rendered reading must expose. `unknown` on purpose:

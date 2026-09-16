@@ -52,7 +52,7 @@ interface Violation {
   value: string;
 }
 
-export function findTokenOnlyThemingViolations(css: string, file: string): Violation[] {
+function findTokenOnlyThemingViolations(css: string, file: string): Violation[] {
   const violations: Violation[] = [];
   for (const { selector, body } of extractRuleBlocks(css)) {
     if (!RUN_SCOPED_SELECTOR.test(selector)) continue;

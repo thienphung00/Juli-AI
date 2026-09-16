@@ -17,7 +17,7 @@ import type { PlanImpactContent } from "../lib/plan-reviews";
 export const IMPACT_UNAVAILABLE_TEXT =
   "Chưa có số liệu cho chỉ số này trong Phân tích";
 
-export interface ImpactBlockShellProps {
+interface ImpactBlockShellProps {
   impact: PlanImpactContent;
   /**
    * `null` renders the same honest unavailable state whether the reason is

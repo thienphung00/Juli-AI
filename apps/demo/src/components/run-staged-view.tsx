@@ -44,7 +44,7 @@ import { RunHeader } from "./run-header";
 import { RunStageCanvas, type RunStageCanvasProps } from "./run-stage-canvas";
 import { RunStepper, type RunStepperNode } from "./run-stepper";
 
-export interface RunStagedViewProps {
+interface RunStagedViewProps {
   readonly runId: string;
   readonly productName: string;
   readonly events: readonly AgentEvent[];
