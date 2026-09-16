@@ -58,7 +58,10 @@ Matches ``__all__`` — re-exports only:
   `jwt_jwks_unavailable`, distinguishable from a bad token's `jwt_invalid`/`jwt_expired`
 
 ## Dependencies
-- `juli_backend.database` — `UsersRepo`, `User` model
+- `juli_backend.database` — `UsersRepo`, `User` model, and `tenant_context.with_shop_scope`
+  (#2019: `credential_resolver` enumerates the configured merchant's owning shop through
+  migration 061's `SECURITY DEFINER` function, then does every actual credential read and the
+  lazy refresh inside that shop's scope — ADR-089 decisions 2-4)
 - `juli_backend.integrations.tiktok` — `TikTokAuth`, merchant context helpers
 - Supabase JWT secret (env `SUPABASE_JWT_SECRET`) for the HS256 verification path
 - Supabase project API URL (env `SUPABASE_URL`, e.g. `https://<project-ref>.supabase.co`)

@@ -1,25 +1,38 @@
-"""RED->GREEN regression for #2019: the credential resolve runs outside any
-shop scope, so RLS hides the credential it needs.
+"""Regression for #2019: the credential resolve ran outside any shop scope, so
+RLS hid the credential it needed.
 
-Since 05:28 UTC 2026-09-16 the `fujiwa-poll-cycle` beat entry (#1949) fails
+From 05:28 UTC 2026-09-16 the `fujiwa-poll-cycle` beat entry (#1949) failed
 every fifteen minutes with
 
     NotFound('No credentials for merchant 7658073774813611784 with
              capability production_read')
 
 raised from `workers/services/polling/orchestrate.py::run_fujiwa_poll_cycle`.
-The credential is present, `active`, and unexpired. What is absent is the
-tenant GUC: `tiktok_credentials_select_public` carries qual
+`orders` and `inventory_items` held at zero for the whole window. The
+credential was present, `active`, and unexpired. What was absent was the tenant
+GUC: `tiktok_credentials_select_public` carries qual
 `(shop_id = app_current_shop_id())`, the worker connects as `juli_app`
-(`rolbypassrls = f`), and `resolve_production_read_credential` queries before
-any scope is entered -- it must, because the scope on the line below it needs
-`credential.shop_id`, and the credential is what supplies it.
+(`rolbypassrls = f`), and `resolve_production_read_credential` queried before
+any scope was entered -- it had to, because the scope on the line below it
+needs `credential.shop_id`, and the credential is what supplies it.
 
-WHY EVERY EXISTING TEST PASSES. The unit suites bind to a SQLite fixture where
-row-level security does not exist, so a scope-less read returns the row and the
-defect is invisible. These tests therefore run against real Postgres, under the
-real policies, as the real non-bypassing runtime role -- the session factory
-from `tests.support.postgres`, the same reasoning as
+THE FIX these tests now hold green. Migration 061 adds
+`enumerate_credential_owner_shop`, a `SECURITY DEFINER` function returning the
+owning shop id and nothing else (ADR-089 decisions 3-4, the shape migration 051
+already established for `credential_refresh_beat`). The resolve enumerates,
+enters `with_shop_scope(shop_id)`, and does the real read -- tokens, decrypt,
+lazy refresh -- inside it.
+
+Three of these tests were committed `xfail(strict=True)` while the fix was
+still an integrations-to-data-platform handoff, precisely so the suite would
+turn RED the moment it landed rather than going quietly green. It did; the
+marks came off in the same commit as the migration.
+
+WHY EVERY OTHER TEST PASSED THROUGHOUT. The unit suites bind to a SQLite
+fixture where row-level security does not exist, so a scope-less read returns
+the row and the defect is invisible. These tests therefore run against real
+Postgres, under the real policies, as the real non-bypassing runtime role --
+the session factory from `tests.support.postgres`, the same reasoning as
 `test_fujiwa_poll_cycle_scope_across_commits.py`.
 """
 
@@ -32,11 +45,18 @@ import pytest
 from sqlalchemy import text
 
 from juli_backend.core.security.credential_resolver import (
+    NoReadCredentialForShop,
     resolve_production_read_credential,
+    resolve_read_credential_for_shop,
+    resolve_sandbox_write_credential,
 )
 from juli_backend.database.exceptions import NotFound
-from juli_backend.database.tenant_context import system_scope
-from juli_backend.integrations.tiktok import PRODUCTION_AUTH_ID, TikTokCapability
+from juli_backend.database.tenant_context import system_scope, with_shop_scope
+from juli_backend.integrations.tiktok import (
+    PRODUCTION_AUTH_ID,
+    SANDBOX_AUTH_ID,
+    TikTokCapability,
+)
 from tests.support.postgres import (
     juli_app_async_sessionmaker,
     owner_sync_engine,
@@ -44,8 +64,19 @@ from tests.support.postgres import (
 )
 
 
-def _seed_fujiwa_credential(engine, *, label: str) -> tuple[uuid.UUID, uuid.UUID]:
-    """Seed one shop and the Fujiwa production-read credential it owns.
+def _seed_fujiwa_credential(
+    engine,
+    *,
+    label: str,
+    merchant_id: str = PRODUCTION_AUTH_ID,
+    capability: TikTokCapability = TikTokCapability.PRODUCTION_READ,
+) -> tuple[uuid.UUID, uuid.UUID]:
+    """Seed one shop and the configured-merchant credential it owns.
+
+    Defaults to the Fujiwa production-read pair -- the one in the outage --
+    and takes the pair as arguments so the sandbox-write twin, which carries
+    the identical defect, is proved against the same fixture rather than a
+    second near-copy of it that could drift.
 
     Seeded owner-side on purpose: set-up is not the thing under test, and
     seeding under RLS would make a fixture failure look like an isolation
@@ -92,8 +123,8 @@ def _seed_fujiwa_credential(engine, *, label: str) -> tuple[uuid.UUID, uuid.UUID
             {
                 "id": str(credential_id),
                 "shop_id": str(shop_id),
-                "merchant_id": PRODUCTION_AUTH_ID,
-                "capability": TikTokCapability.PRODUCTION_READ.value,
+                "merchant_id": merchant_id,
+                "capability": capability.value,
                 "cipher": "ROW_test_cipher",
                 "access": "fujiwa-access",
                 "refresh": "fujiwa-refresh",
@@ -109,18 +140,6 @@ def _seed_fujiwa_credential(engine, *, label: str) -> tuple[uuid.UUID, uuid.UUID
 
 
 @requires_postgres
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "#2019 OPEN: the resolve still runs outside any shop scope. The fix is "
-        "NOT `system_scope` -- proved inert by "
-        "`test_system_scope_confers_no_database_access` below and forbidden as a "
-        "database-layer claim by ADR-089 decision 1. ADR-089 decisions 3-4 require a "
-        "`SECURITY DEFINER` enumeration returning identifiers only, which is a "
-        "migration (data-platform), not an integrations change. Marked strict so "
-        "this turns RED the moment the real fix lands and the mark must be removed."
-    ),
-)
 @pytest.mark.asyncio
 async def test_production_read_resolve_finds_the_credential_without_a_prior_scope():
     """The resolve must find the credential it is pointed at, as `juli_app`,
@@ -133,7 +152,7 @@ async def test_production_read_resolve_finds_the_credential_without_a_prior_scop
         7658073774813611784 with capability production_read
 
     Not a fixture error, and not a missing row -- the seeding above is
-    owner-side and unconditional. The row is there; the transaction cannot
+    owner-side and unconditional. The row was there; the transaction could not
     see it.
     """
     with owner_sync_engine() as engine:
@@ -152,18 +171,6 @@ async def test_production_read_resolve_finds_the_credential_without_a_prior_scop
 
 
 @requires_postgres
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "#2019 OPEN: the resolve still runs outside any shop scope. The fix is "
-        "NOT `system_scope` -- proved inert by "
-        "`test_system_scope_confers_no_database_access` below and forbidden as a "
-        "database-layer claim by ADR-089 decision 1. ADR-089 decisions 3-4 require a "
-        "`SECURITY DEFINER` enumeration returning identifiers only, which is a "
-        "migration (data-platform), not an integrations change. Marked strict so "
-        "this turns RED the moment the real fix lands and the mark must be removed."
-    ),
-)
 @pytest.mark.asyncio
 async def test_the_resolve_leaves_no_tenant_context_behind_it():
     """Whatever the resolve does to see across tenants, it must not leak a
@@ -223,18 +230,6 @@ async def test_system_scope_confers_no_database_access():
 
 
 @requires_postgres
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "#2019 OPEN: the resolve still runs outside any shop scope. The fix is "
-        "NOT `system_scope` -- proved inert by "
-        "`test_system_scope_confers_no_database_access` below and forbidden as a "
-        "database-layer claim by ADR-089 decision 1. ADR-089 decisions 3-4 require a "
-        "`SECURITY DEFINER` enumeration returning identifiers only, which is a "
-        "migration (data-platform), not an integrations change. Marked strict so "
-        "this turns RED the moment the real fix lands and the mark must be removed."
-    ),
-)
 @pytest.mark.asyncio
 async def test_resolve_does_not_cross_into_another_shops_credential():
     """The cross-tenant read the resolve needs must stay the narrowest one that
@@ -305,8 +300,8 @@ async def test_resolve_still_raises_not_found_when_the_credential_is_absent():
     """The exemption must widen visibility, not soften the failure.
 
     With no Fujiwa credential seeded at all, the resolve must still raise
-    `NotFound` -- and after the fix that answer means what it says, rather than
-    being the ambiguous report of an RLS-hidden row that #2019 was.
+    `NotFound` -- and now that answer means what it says, rather than being the
+    ambiguous report of an RLS-hidden row that #2019 was.
     """
     with owner_sync_engine() as engine, engine.begin() as conn:
         conn.execute(
@@ -317,3 +312,87 @@ async def test_resolve_still_raises_not_found_when_the_credential_is_absent():
     async with juli_app_async_sessionmaker() as factory, factory() as session:
         with pytest.raises(NotFound):
             await resolve_production_read_credential(session)
+
+
+@requires_postgres
+@pytest.mark.asyncio
+async def test_sandbox_write_resolve_finds_the_credential_without_a_prior_scope():
+    """`resolve_sandbox_write_credential` carries the identical defect.
+
+    Same shape, line for line: a configured merchant id, no caller-supplied
+    shop, and a policy keyed on the shop the caller does not yet know. It never
+    showed up in an incident only because nothing calls it on a fifteen-minute
+    cadence -- `services/execution/sandbox_guard.py` and
+    `workers/services/polling/sync.py` reach it on demand.
+
+    Fixed in the same commit and proved here rather than left for the next
+    outage to find, because "the production twin is fixed" is not evidence
+    about this one.
+    """
+    with owner_sync_engine() as engine, engine.begin() as conn:
+        conn.execute(
+            text("DELETE FROM public.tiktok_credentials WHERE merchant_authorization_id = :m"),
+            {"m": SANDBOX_AUTH_ID},
+        )
+    with owner_sync_engine() as engine:
+        shop_id, credential_id = _seed_fujiwa_credential(
+            engine,
+            label="sandbox-scope",
+            merchant_id=SANDBOX_AUTH_ID,
+            capability=TikTokCapability.SANDBOX_WRITE,
+        )
+
+    async with juli_app_async_sessionmaker() as factory, factory() as session:
+        credential = await resolve_sandbox_write_credential(session)
+
+        assert credential.id == credential_id
+        assert credential.shop_id == shop_id
+        assert credential.access_token
+        assert credential.capability == TikTokCapability.SANDBOX_WRITE
+
+        leaked = await session.execute(text("SELECT app_current_shop_id()"))
+        assert leaked.scalar() is None, "the sandbox resolve left a tenant context behind it"
+
+
+@requires_postgres
+@pytest.mark.asyncio
+async def test_resolve_read_credential_for_shop_is_not_self_scoped():
+    """The third resolver must NOT get the same treatment, and this is why.
+
+    `resolve_read_credential_for_shop` already RECEIVES the shop id. Wrapping
+    it in a scope built from its own argument would mean the argument confers
+    the authority to read itself -- ask for another shop's id and get that
+    shop's credential back, tokens and all. That is privilege escalation, not
+    a fix, and it is a worse outcome than #2019: #2019 returns nothing.
+
+    Today the caller's scope decides, and RLS denies a shop the caller is not
+    scoped to. #1995's consumer enters the scope itself. This test pins that
+    property so a later reading of "apply the #2019 fix consistently to all
+    three resolvers" fails here instead of shipping.
+    """
+    with owner_sync_engine() as engine:
+        caller_shop, _caller_credential = _seed_fujiwa_credential(
+            engine,
+            label="selfscope-caller",
+            merchant_id="8888888888888888888",
+            capability=TikTokCapability.SELLER_CONNECT,
+        )
+        other_shop, _other_credential = _seed_fujiwa_credential(
+            engine,
+            label="selfscope-other",
+            merchant_id="7777777777777777777",
+            capability=TikTokCapability.SELLER_CONNECT,
+        )
+
+    async with juli_app_async_sessionmaker() as factory, factory() as session:
+        async with with_shop_scope(session, caller_shop):
+            # Its own shop, under its own scope: allowed, and the control that
+            # makes the refusal below mean something.
+            own = await resolve_read_credential_for_shop(session, caller_shop)
+            assert own.shop_id == caller_shop
+
+            # Another shop's id, under the same scope: refused by RLS. If this
+            # ever returns a credential, the resolver has become self-scoping
+            # and hands out another tenant's tokens for the asking.
+            with pytest.raises(NoReadCredentialForShop):
+                await resolve_read_credential_for_shop(session, other_shop)
