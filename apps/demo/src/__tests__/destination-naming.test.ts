@@ -39,6 +39,26 @@ const REPO_ROOT = resolve(__dirname, "../../../..");
  * source, and the Python contract tests that grep spec source text.
  */
 
+/**
+ * WHAT THIS GUARD CANNOT DO, stated rather than discovered in a fifth round.
+ *
+ * It reads source text. Three evasions were found against earlier drafts and
+ * are now closed — novel phrasing, a line split, JSX expression containers,
+ * and NFD decomposition — but the class itself has a floor: a value ASSEMBLED
+ * AT RUNTIME is invisible to any scan of the source that produces it. A name
+ * built from a variable, concatenated from fragments held in an array, or
+ * returned by an API cannot be seen here, because at rest the source contains
+ * no such string.
+ *
+ * Closing that last case needs an assertion on RENDERED OUTPUT, not on source
+ * — the fourth test below is the beginning of one, checking the six governed
+ * constants' resolved values. Extending it to every surface is a larger change
+ * than this issue, and is named here as a known limit rather than left for a
+ * reviewer to find.
+ *
+ * The practical scope this guard does cover is the one that actually recurs:
+ * somebody typing the retired name, in ordinary code, by hand.
+ */
 const RETIRED_DESTINATION_NAME = "Quyết định";
 
 /**
@@ -151,7 +171,23 @@ function isAllowed(relPath: string, text: string): boolean {
  * what closes the class rather than that one instance.
  */
 function normaliseWhitespace(text: string): string {
-  return text.replace(/\s+/g, " ");
+  return (
+    text
+      // NFC first: "Quyết định" decomposed (NFD) is visually identical and a
+      // different codepoint sequence, so `.includes` misses it. Vietnamese
+      // input defaults to NFC, but i18n exports and some paste paths do not.
+      .normalize("NFC")
+      // Unwrap JSX expression containers holding nothing but a string literal.
+      // `{"Quyết"} {"định"}` renders exactly like the retired name — React
+      // concatenates the two expressions around the literal space — but the
+      // source characters between the halves are `"} {"`, which is syntax
+      // rather than whitespace, so collapsing whitespace alone does not reach
+      // it. Such a container is always equivalent to its own literal, so
+      // unwrapping it changes nothing else.
+      .replace(/\{\s*"([^"\\]*)"\s*\}/g, "$1")
+      .replace(/\{\s*'([^'\\]*)'\s*\}/g, "$1")
+      .replace(/\s+/g, " ")
+  );
 }
 
 describe("the destination has one name", () => {
@@ -180,8 +216,9 @@ describe("the destination has one name", () => {
       const raw = readFileSync(file, "utf8");
 
       raw.split("\n").forEach((line, index) => {
-        if (!line.includes(RETIRED_DESTINATION_NAME)) return;
-        if (isAllowed(rel, line)) return;
+        const normalised = normaliseWhitespace(line);
+        if (!normalised.includes(RETIRED_DESTINATION_NAME)) return;
+        if (isAllowed(rel, normalised)) return;
         hits.push(`${rel}:${index + 1}  ${line.trim()}`);
       });
 
