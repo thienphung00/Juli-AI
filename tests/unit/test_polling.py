@@ -6,18 +6,22 @@ Behaviors under test:
 - Workers skip API call when rate limiter denies
 - Workers update sync state after successful fetch
 - Workers handle API errors gracefully without crashing
+- sync_inventory sends product_ids (required by the vendor endpoint, #1948),
+  pages a large product-id list, and fails loudly instead of swallowing errors
 """
 
 import json
+from unittest.mock import MagicMock
 
 import pytest
-from unittest.mock import MagicMock
 
 from juli_backend.integrations.tiktok.exceptions import (
     PermissionDeniedError,
+    TikTokAPIError,
     TikTokSystemError,
 )
 from juli_backend.workers.services.polling.sync import (
+    DEFAULT_INVENTORY_PAGE_SIZE,
     backfill_shop,
     sync_creators,
     sync_inventory,
@@ -395,7 +399,11 @@ class TestSyncCreators:
 class TestBackfillShop:
     @pytest.mark.asyncio
     async def test_backfill_calls_sync_creators(
-        self, mock_creators_resource, mock_rate_limiter, handoff_fn, handoff_calls,
+        self,
+        mock_creators_resource,
+        mock_rate_limiter,
+        handoff_fn,
+        handoff_calls,
     ):
         await backfill_shop(
             creators_resource=mock_creators_resource,
@@ -410,7 +418,10 @@ class TestBackfillShop:
 
     @pytest.mark.asyncio
     async def test_backfill_returns_sync_state(
-        self, mock_creators_resource, mock_rate_limiter, handoff_fn,
+        self,
+        mock_creators_resource,
+        mock_rate_limiter,
+        handoff_fn,
     ):
         result = await backfill_shop(
             creators_resource=mock_creators_resource,
@@ -423,33 +434,61 @@ class TestBackfillShop:
         assert result["creators_last_update_time"] == 1700000200
 
 
+def _inventory_page_response(product_id: str, sku_id: str, quantity: int) -> dict:
+    return {
+        "code": 0,
+        "data": {
+            "inventory": [
+                {
+                    "product_id": product_id,
+                    "skus": [
+                        {
+                            "id": sku_id,
+                            "total_available_quantity": quantity,
+                            "warehouse_inventory": [
+                                {"available_quantity": quantity, "warehouse_id": "wh-1"}
+                            ],
+                        }
+                    ],
+                }
+            ]
+        },
+    }
+
+
+class _FakeInventoryResource:
+    """Binds the real ``InventoryResource.search`` signature (#1948).
+
+    A call this endpoint would actually reject -- e.g. one made without
+    ``product_ids`` -- fails here too, instead of a ``MagicMock`` silently
+    absorbing whatever kwargs production code happens to pass.
+    """
+
+    def __init__(self, responses: list[dict] | None = None, *, error: Exception | None = None):
+        self._responses = list(responses or [])
+        self._error = error
+        self.calls: list[list[str]] = []
+
+    def search(self, *, product_ids: list[str], sku_ids: list[str] | None = None) -> dict:
+        if not product_ids:
+            raise ValueError("product_ids must be non-empty")
+        self.calls.append(list(product_ids))
+        if self._error is not None:
+            raise self._error
+        return self._responses[(len(self.calls) - 1) % len(self._responses)]
+
+
 class TestSyncInventory:
     @pytest.fixture
     def mock_inventory_resource(self):
-        resource = MagicMock()
-        resource.search.return_value = {
-            "code": 0,
-            "data": {
-                "inventory": [
-                    {
-                        "product_id": "prod-1",
-                        "skus": [
-                            {
-                                "id": "sku-1",
-                                "total_available_quantity": 42,
-                                "warehouse_inventory": [
-                                    {"available_quantity": 42, "warehouse_id": "wh-1"}
-                                ],
-                            }
-                        ],
-                    }
-                ]
-            },
-        }
-        return resource
+        return _FakeInventoryResource([_inventory_page_response("prod-1", "sku-1", 42)])
+
+    @staticmethod
+    async def _one_product_id():
+        return ["prod-1"]
 
     @pytest.mark.asyncio
-    async def test_flattens_search_and_hands_off_inventory(
+    async def test_sends_product_ids_and_flattens_inventory(
         self,
         mock_inventory_resource,
         mock_rate_limiter,
@@ -464,9 +503,10 @@ class TestSyncInventory:
             app_id="app1",
             shop_id="shop1",
             sync_state=sync_state,
+            list_product_ids=self._one_product_id,
         )
 
-        mock_inventory_resource.search.assert_called_once()
+        assert mock_inventory_resource.calls == [["prod-1"]]
         assert len(handoff_calls) == 1
         assert handoff_calls[0]["channel"] == "tiktok.inventory.raw"
         payload = json.loads(handoff_calls[0]["value"])
@@ -474,6 +514,119 @@ class TestSyncInventory:
         assert payload["available_quantity"] == 42
         assert payload["event_id"].startswith("poll-inventory:shop1:sku-1:")
         assert "inventory_last_sync_at" in sync_state
+
+    @pytest.mark.asyncio
+    async def test_pages_product_ids_across_multiple_search_calls(
+        self,
+        mock_rate_limiter,
+        handoff_fn,
+        handoff_calls,
+        sync_state,
+    ):
+        """30 confirmed to work in one call; page rather than assume a larger set fits (#1948)."""
+        resource = _FakeInventoryResource(
+            [
+                _inventory_page_response("prod-1", "sku-1", 10),
+                _inventory_page_response("prod-2", "sku-2", 20),
+                _inventory_page_response("prod-3", "sku-3", 30),
+            ]
+        )
+
+        async def list_product_ids() -> list[str]:
+            return ["prod-1", "prod-2", "prod-3"]
+
+        await sync_inventory(
+            resource=resource,
+            rate_limiter=mock_rate_limiter,
+            handoff_fn=handoff_fn,
+            app_id="app1",
+            shop_id="shop1",
+            sync_state=sync_state,
+            list_product_ids=list_product_ids,
+            page_size=1,
+        )
+
+        assert resource.calls == [["prod-1"], ["prod-2"], ["prod-3"]]
+        assert len(handoff_calls) == 3
+        sku_ids = {json.loads(call["value"])["sku_id"] for call in handoff_calls}
+        assert sku_ids == {"sku-1", "sku-2", "sku-3"}
+        assert "inventory_last_sync_at" in sync_state
+
+    @pytest.mark.asyncio
+    async def test_pages_a_partial_final_page_at_the_default_page_size(
+        self,
+        mock_rate_limiter,
+        handoff_fn,
+        sync_state,
+    ):
+        """A catalogue that is not a whole multiple of the page size loses no id.
+
+        Fujiwa has 116 products and ``DEFAULT_INVENTORY_PAGE_SIZE`` is 30, so
+        the real shape is three full pages and a 26-id remainder. The sibling
+        paging test runs at ``page_size=1`` over 3 ids, which is three exact
+        pages -- it can never reach the partial final page, and it pins no
+        page size, so the constant could change to 1000 without failing it.
+        """
+        resource = _FakeInventoryResource([_inventory_page_response("prod-1", "sku-1", 10)])
+
+        async def list_product_ids() -> list[str]:
+            return [f"prod-{n}" for n in range(116)]
+
+        await sync_inventory(
+            resource=resource,
+            rate_limiter=mock_rate_limiter,
+            handoff_fn=handoff_fn,
+            app_id="app1",
+            shop_id="shop1",
+            sync_state=sync_state,
+            list_product_ids=list_product_ids,
+        )
+
+        assert DEFAULT_INVENTORY_PAGE_SIZE == 30
+        assert [len(call) for call in resource.calls] == [30, 30, 30, 26]
+        # Every id exactly once and in order: no page-boundary drop or repeat.
+        assert [pid for call in resource.calls for pid in call] == [f"prod-{n}" for n in range(116)]
+
+    @pytest.mark.asyncio
+    async def test_raises_instead_of_discarding_a_non_dict_response(
+        self,
+        mock_rate_limiter,
+        handoff_fn,
+        handoff_calls,
+        sync_state,
+    ):
+        """The other half of fail-loud, and the one that had no test.
+
+        A non-dict response used to be logged at WARNING and dropped, which
+        reads identically to a sync with nothing to hand off -- the same
+        indistinguishability that let #1948 hide for the lifetime of the
+        production database.
+        """
+
+        class _NonDictInventoryResource:
+            def __init__(self) -> None:
+                self.calls: list[list[str]] = []
+
+            def search(self, *, product_ids: list[str], sku_ids: list[str] | None = None):
+                self.calls.append(list(product_ids))
+                return ["not", "a", "dict"]
+
+        resource = _NonDictInventoryResource()
+
+        with pytest.raises(ValueError, match="non-dict"):
+            await sync_inventory(
+                resource=resource,
+                rate_limiter=mock_rate_limiter,
+                handoff_fn=handoff_fn,
+                app_id="app1",
+                shop_id="shop1",
+                sync_state=sync_state,
+                list_product_ids=self._one_product_id,
+            )
+
+        assert resource.calls == [["prod-1"]]
+        assert handoff_calls == []
+        assert sync_state == {}
 
     @pytest.mark.asyncio
     async def test_inventory_event_id_stable_for_identical_snapshot(
@@ -491,6 +644,7 @@ class TestSyncInventory:
             app_id="app1",
             shop_id="shop1",
             sync_state=sync_state,
+            list_product_ids=self._one_product_id,
         )
         first_event_id = json.loads(handoff_calls[0]["value"])["event_id"]
         handoff_calls.clear()
@@ -502,6 +656,7 @@ class TestSyncInventory:
             app_id="app1",
             shop_id="shop1",
             sync_state=sync_state,
+            list_product_ids=self._one_product_id,
         )
         second_event_id = json.loads(handoff_calls[0]["value"])["event_id"]
         assert second_event_id == first_event_id
@@ -517,6 +672,9 @@ class TestSyncInventory:
     ):
         mock_rate_limiter.acquire.return_value = False
 
+        async def list_product_ids_should_not_be_called() -> list[str]:
+            raise AssertionError("list_product_ids must not run when rate-limited")
+
         await sync_inventory(
             resource=mock_inventory_resource,
             rate_limiter=mock_rate_limiter,
@@ -524,8 +682,61 @@ class TestSyncInventory:
             app_id="app1",
             shop_id="shop1",
             sync_state=sync_state,
+            list_product_ids=list_product_ids_should_not_be_called,
         )
 
-        mock_inventory_resource.search.assert_not_called()
+        assert mock_inventory_resource.calls == []
+        assert handoff_calls == []
+
+    @pytest.mark.asyncio
+    async def test_no_op_when_no_product_ids(
+        self,
+        mock_inventory_resource,
+        mock_rate_limiter,
+        handoff_fn,
+        handoff_calls,
+        sync_state,
+    ):
+        """A shop with no synced products yet is a legitimate no-op, not a failure."""
+
+        async def no_product_ids() -> list[str]:
+            return []
+
+        await sync_inventory(
+            resource=mock_inventory_resource,
+            rate_limiter=mock_rate_limiter,
+            handoff_fn=handoff_fn,
+            app_id="app1",
+            shop_id="shop1",
+            sync_state=sync_state,
+            list_product_ids=no_product_ids,
+        )
+
+        assert mock_inventory_resource.calls == []
+        assert handoff_calls == []
+        assert sync_state == {}
+
+    @pytest.mark.asyncio
+    async def test_raises_instead_of_swallowing_api_error(
+        self,
+        mock_rate_limiter,
+        handoff_fn,
+        handoff_calls,
+        sync_state,
+    ):
+        """The whole lesson of #1948: a dropped sync must surface as a failure."""
+        resource = _FakeInventoryResource(error=TikTokAPIError(12019008, "Invalid Parameter"))
+
+        with pytest.raises(TikTokAPIError):
+            await sync_inventory(
+                resource=resource,
+                rate_limiter=mock_rate_limiter,
+                handoff_fn=handoff_fn,
+                app_id="app1",
+                shop_id="shop1",
+                sync_state=sync_state,
+                list_product_ids=self._one_product_id,
+            )
+
         assert handoff_calls == []
         assert sync_state == {}

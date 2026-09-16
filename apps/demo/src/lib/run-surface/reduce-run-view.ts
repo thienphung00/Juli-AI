@@ -45,7 +45,7 @@ const STAGE_TOOL_PREFIXES: readonly (readonly [RunStageId, readonly string[]])[]
   ["cap-nhat", ["update_", "upload_"]],
 ];
 
-export type RunStageStatus = "locked" | "active" | "frozen";
+type RunStageStatus = "locked" | "active" | "frozen";
 
 export interface RunStageState {
   readonly id: RunStageId;
@@ -55,7 +55,7 @@ export interface RunStageState {
   readonly eventSequences: readonly number[];
 }
 
-export interface RunDecisionRequest {
+interface RunDecisionRequest {
   readonly toolCallId: string;
   readonly toolName: string;
   readonly proposedChange: Record<string, unknown>;
@@ -63,7 +63,7 @@ export interface RunDecisionRequest {
   readonly options: WorkflowApprovalRequiredPayload["options"];
 }
 
-export type RunTerminalKind = "completed" | "failed";
+type RunTerminalKind = "completed" | "failed";
 
 export interface RunTerminalState {
   readonly kind: RunTerminalKind;

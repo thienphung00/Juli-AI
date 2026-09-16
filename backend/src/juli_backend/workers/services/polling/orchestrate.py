@@ -13,12 +13,42 @@ stays a required parameter on both entrypoints purely so
 `services/action_cards/refresh.py::maybe_poll_tiktok_data` (out of this
 slice's write-path lock) keeps working unmodified; neither entrypoint's body
 calls it anymore.
+
+#1967: the cycle holds a STICKY shop scope, not a single `reapply_shop_scope`.
+
+`reapply_shop_scope` was right for the one commit this module could see -- the
+resolver's (#1880) -- and wrong for the ones it cannot. `handoff_fn` is
+`make_etl_handoff(consumer)`, and `EtlConsumer.ingest` commits per record so
+partial ingestion is durable; each of those commits discards `SET LOCAL
+app.current_shop_id`. The cycle's final write, `TikTokSyncStateRepo.save`, then
+met `app_current_shop_id() IS NULL` and Postgres refused it:
+
+    asyncpg.exceptions.InsufficientPrivilegeError:
+      new row violates row-level security policy for table "tiktok_sync_state"
+
+Observed against Fujiwa: `order_items` at 250 rows, `orders` at 0, and the
+watermark untouched -- rows landed while the bookkeeping that records them did
+not, so the next cycle would refetch from the same place forever. The poll had
+never completed a cycle.
+
+`with_sticky_shop_scope` (#1883) is the answer rather than more reapplies: the
+commits happen in a loop that lives in another module, so "immediately after
+the callee returns" is not a place this file can name. Authority is unchanged
+(ADR-089) -- one shop id, the same policies, the user GUC withheld, and still
+`SET LOCAL`, so a pooled connection cannot carry a shop id into its next
+checkout.
+
+The scope opens AFTER `resolve()`, because the shop id it requires is only
+knowable from the credential resolve returns. The resolver's own commit is
+therefore still outside it, and harmless: the scope is established after it,
+not discarded by it.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
@@ -29,7 +59,7 @@ from juli_backend.core.security.credential_resolver import (
     resolve_production_read_credential,
 )
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
-from juli_backend.database.tenant_context import reapply_shop_scope
+from juli_backend.database.tenant_context import with_sticky_shop_scope
 from juli_backend.integrations.tiktok import (
     ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
     INVENTORY_SEARCH_PATH,
@@ -44,9 +74,10 @@ from juli_backend.integrations.tiktok import (
     TikTokCapability,
 )
 from juli_backend.models.models import Shop, TikTokCredential
-from juli_backend.repositories.repos import TikTokSyncStateRepo
+from juli_backend.repositories.repos import ProductsRepo, TikTokSyncStateRepo
 from juli_backend.services.ingestion.handoff import HandoffFn
 from juli_backend.workers.services.polling.sync import (
+    ProductIdsFn,
     sync_analytics,
     sync_inventory,
     sync_orders,
@@ -77,13 +108,14 @@ class _PollStep:
     endpoint_path: str
     resource_attr: str
     sync_fn: SyncWorkerFn
+    wants_product_ids: bool = False
 
 
 _FUJIWA_POLL_STEPS: tuple[_PollStep, ...] = (
     _PollStep(ORDER_SEARCH_PATH, "orders", sync_orders),
     _PollStep(PRODUCT_SEARCH_PATH, "products", sync_products),
     _PollStep(RETURN_SEARCH_PATH, "returns", sync_returns),
-    _PollStep(INVENTORY_SEARCH_PATH, "inventory", sync_inventory),
+    _PollStep(INVENTORY_SEARCH_PATH, "inventory", sync_inventory, wants_product_ids=True),
 )
 
 
@@ -137,6 +169,40 @@ async def _backoff_if_rate_limited(
         await sleep(float(ttl))
 
 
+def _synced_product_ids_fn(session: AsyncSession, shop_id: uuid.UUID) -> ProductIdsFn:
+    """Build the product-id source `sync_inventory` needs (#1948).
+
+    Search Inventory has no unscoped listing and hard-requires `product_ids`
+    in the request body -- `sync_inventory` cannot discover them on its own.
+    This cycle already holds a session scoped to `shop_id` (`with_sticky_shop_scope`
+    wraps the whole cycle -- #1967), so the source reads through it
+    directly rather than opening a second, unscoped one: a fresh session here
+    could not see this transaction's own writes, could not be exercised by
+    the orchestration test fixtures, and a construction failure would have to
+    swallow to `[]` to stay non-fatal -- the exact shape of silent failure
+    this issue exists to remove, just moved one layer down.
+    """
+
+    async def list_product_ids() -> list[str]:
+        repo = ProductsRepo(session)
+        product_ids: list[str] = []
+        cursor: uuid.UUID | None = None
+        page_limit = 200
+        while True:
+            page = await repo.list(shop_id, limit=page_limit, after=cursor)
+            if not page:
+                break
+            product_ids.extend(
+                product.tiktok_product_id for product in page if product.tiktok_product_id
+            )
+            if len(page) < page_limit:
+                break
+            cursor = page[-1].id
+        return product_ids
+
+    return list_product_ids
+
+
 async def _run_poll_step(
     step: _PollStep,
     *,
@@ -147,6 +213,7 @@ async def _run_poll_step(
     shop_key: str,
     sync_state: dict[str, Any],
     sleep: SleepFn,
+    list_product_ids: ProductIdsFn | None = None,
 ) -> None:
     await _backoff_if_rate_limited(
         rate_limiter,
@@ -155,6 +222,11 @@ async def _run_poll_step(
         endpoint=step.endpoint_path,
         sleep=sleep,
     )
+    extra_kwargs: dict[str, Any] = {}
+    if step.wants_product_ids:
+        if list_product_ids is None:
+            raise ValueError(f"{step.endpoint_path} step requires list_product_ids")
+        extra_kwargs["list_product_ids"] = list_product_ids
     await step.sync_fn(
         resource=getattr(resources, step.resource_attr),
         rate_limiter=rate_limiter,
@@ -162,7 +234,80 @@ async def _run_poll_step(
         app_id=app_id,
         shop_id=shop_key,
         sync_state=sync_state,
+        **extra_kwargs,
     )
+
+
+async def _poll(
+    *,
+    session: AsyncSession,
+    config: FujiwaPollConfig,
+    credential: TikTokCredential,
+    rate_limiter: RateLimiter,
+    handoff_fn: HandoffFn,
+    factory: ProductionReadClientFactory | None,
+    create_resources: CreateResourcesFn | None,
+    sync_state_repo: TikTokSyncStateRepo | None,
+    sleep: SleepFn,
+) -> None:
+    """One poll cycle: the four search endpoints, then analytics, then the watermark.
+
+    Runs entirely inside the caller's `with_sticky_shop_scope` and takes an
+    already-resolved credential, because the shop id that scope needs is only
+    knowable after the resolve. Both entrypoints share this body — the analytics
+    wire set (#424: A-25 + A-31–A-39) is reached identically by scheduled
+    polling and by manual refresh (ADR-021), which arrives here via
+    `maybe_poll_tiktok_data` → `run_fujiwa_poll_cycle`.
+    """
+    _assert_fujiwa_credential(credential)
+
+    client_factory = factory or ProductionReadClientFactory()
+    build_resources = create_resources or client_factory.create_resources
+    resources = build_resources(_factory_config(config, credential))
+
+    repo = sync_state_repo or TikTokSyncStateRepo(session)
+    sync_state = await repo.load(credential.shop_id)
+
+    app_id = config.app_key
+    shop = await session.get(Shop, credential.shop_id)
+    if shop is None or not shop.tiktok_shop_id:
+        raise ValueError(
+            f"Fujiwa polling requires a shop with tiktok_shop_id; shop_id={credential.shop_id}"
+        )
+    shop_key = shop.tiktok_shop_id
+    list_product_ids = _synced_product_ids_fn(session, credential.shop_id)
+
+    for step in _FUJIWA_POLL_STEPS:
+        await _run_poll_step(
+            step,
+            resources=resources,
+            rate_limiter=rate_limiter,
+            handoff_fn=handoff_fn,
+            app_id=app_id,
+            shop_key=shop_key,
+            sync_state=sync_state,
+            sleep=sleep,
+            list_product_ids=list_product_ids,
+        )
+
+    await _backoff_if_rate_limited(
+        rate_limiter,
+        app_id=app_id,
+        shop_id=shop_key,
+        endpoint=ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
+        sleep=sleep,
+    )
+    await sync_analytics(
+        resource=resources.analytics,
+        promotion_resource=resources.promotion,
+        rate_limiter=rate_limiter,
+        handoff_fn=handoff_fn,
+        app_id=app_id,
+        shop_id=shop_key,
+        sync_state=sync_state,
+    )
+
+    await repo.save(credential.shop_id, sync_state)
 
 
 async def run_fujiwa_material_resource_fetch(
@@ -181,59 +326,18 @@ async def run_fujiwa_material_resource_fetch(
     """Fetch orders/products/returns/inventory + incremental analytics for material precompute."""
     resolve = resolve_credential or resolve_production_read_credential
     credential = await resolve(session)
-    # `resolve_production_read_credential` -> `_lazy_refresh` -> `refresh_credential`
-    # commits inside the caller's `with_shop_scope` (SET LOCAL), discarding
-    # `app.current_shop_id` (#1880). Reapplied immediately so the sync-state
-    # load and shop read just below still run under scope instead of a
-    # silent-empty-read / NotFound-shaped `shop is None`.
-    await reapply_shop_scope(session, credential.shop_id)
-    _assert_fujiwa_credential(credential)
-
-    client_factory = factory or ProductionReadClientFactory()
-    build_resources = create_resources or client_factory.create_resources
-    resources = build_resources(_factory_config(config, credential))
-
-    repo = sync_state_repo or TikTokSyncStateRepo(session)
-    sync_state = await repo.load(credential.shop_id)
-
-    app_id = config.app_key
-    shop = await session.get(Shop, credential.shop_id)
-    if shop is None or not shop.tiktok_shop_id:
-        raise ValueError(
-            f"Fujiwa polling requires a shop with tiktok_shop_id; shop_id={credential.shop_id}"
-        )
-    shop_key = shop.tiktok_shop_id
-
-    for step in _FUJIWA_POLL_STEPS:
-        await _run_poll_step(
-            step,
-            resources=resources,
+    async with with_sticky_shop_scope(session, credential.shop_id):
+        await _poll(
+            session=session,
+            config=config,
+            credential=credential,
             rate_limiter=rate_limiter,
             handoff_fn=handoff_fn,
-            app_id=app_id,
-            shop_key=shop_key,
-            sync_state=sync_state,
+            factory=factory,
+            create_resources=create_resources,
+            sync_state_repo=sync_state_repo,
             sleep=sleep,
         )
-
-    await _backoff_if_rate_limited(
-        rate_limiter,
-        app_id=app_id,
-        shop_id=shop_key,
-        endpoint=ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
-        sleep=sleep,
-    )
-    await sync_analytics(
-        resource=resources.analytics,
-        promotion_resource=resources.promotion,
-        rate_limiter=rate_limiter,
-        handoff_fn=handoff_fn,
-        app_id=app_id,
-        shop_id=shop_key,
-        sync_state=sync_state,
-    )
-
-    await repo.save(credential.shop_id, sync_state)
 
 
 async def run_fujiwa_poll_cycle(
@@ -252,56 +356,15 @@ async def run_fujiwa_poll_cycle(
     """Run one Fujiwa poll cycle for orders, products, returns, and inventory."""
     resolve = resolve_credential or resolve_production_read_credential
     credential = await resolve(session)
-    # See the matching comment in `run_fujiwa_material_resource_fetch` (#1880):
-    # the resolver's own `refresh_credential` commit discards the caller's
-    # shop scope, so it must be reapplied before any further tenant read.
-    await reapply_shop_scope(session, credential.shop_id)
-    _assert_fujiwa_credential(credential)
-
-    client_factory = factory or ProductionReadClientFactory()
-    build_resources = create_resources or client_factory.create_resources
-    resources = build_resources(_factory_config(config, credential))
-
-    repo = sync_state_repo or TikTokSyncStateRepo(session)
-    sync_state = await repo.load(credential.shop_id)
-
-    app_id = config.app_key
-    shop = await session.get(Shop, credential.shop_id)
-    if shop is None or not shop.tiktok_shop_id:
-        raise ValueError(
-            f"Fujiwa polling requires a shop with tiktok_shop_id; shop_id={credential.shop_id}"
-        )
-    shop_key = shop.tiktok_shop_id
-
-    for step in _FUJIWA_POLL_STEPS:
-        await _run_poll_step(
-            step,
-            resources=resources,
+    async with with_sticky_shop_scope(session, credential.shop_id):
+        await _poll(
+            session=session,
+            config=config,
+            credential=credential,
             rate_limiter=rate_limiter,
             handoff_fn=handoff_fn,
-            app_id=app_id,
-            shop_key=shop_key,
-            sync_state=sync_state,
+            factory=factory,
+            create_resources=create_resources,
+            sync_state_repo=sync_state_repo,
             sleep=sleep,
         )
-
-    # Analytics wire set (#424): A-25 + A-31–A-39. Manual refresh (ADR-021) shares
-    # this entrypoint via maybe_poll_tiktok_data → run_fujiwa_poll_cycle.
-    await _backoff_if_rate_limited(
-        rate_limiter,
-        app_id=app_id,
-        shop_id=shop_key,
-        endpoint=ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
-        sleep=sleep,
-    )
-    await sync_analytics(
-        resource=resources.analytics,
-        promotion_resource=resources.promotion,
-        rate_limiter=rate_limiter,
-        handoff_fn=handoff_fn,
-        app_id=app_id,
-        shop_id=shop_key,
-        sync_state=sync_state,
-    )
-
-    await repo.save(credential.shop_id, sync_state)

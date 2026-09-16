@@ -42,7 +42,7 @@ import {
   RUN_SURFACE_PANEL_CLASS_NAMES,
 } from "../lib/run-surface/tokens";
 
-export interface RunNarrationTypewriterProps {
+interface RunNarrationTypewriterProps {
   /** `view.narration` -- append-only, one entry per assistant.text event. */
   readonly lines: readonly string[];
 }

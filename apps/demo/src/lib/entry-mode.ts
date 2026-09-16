@@ -8,7 +8,7 @@
  */
 export const ENTRY_MODE_STORAGE_KEY = "juli_demo_entry_mode";
 
-export type EntryMode = "unset" | "replay";
+type EntryMode = "unset" | "replay";
 
 const VALID_ENTRY_MODES: readonly EntryMode[] = ["replay"];
 

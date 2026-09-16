@@ -56,7 +56,7 @@ import {
 import { prefersReducedMotion, resolveRunSurfaceMotion } from "../lib/run-surface/motion";
 import { RUN_SURFACE_LIVE_EDGE_CLASS_NAMES } from "../lib/run-surface/tokens";
 
-export interface OptionPickerProps {
+interface OptionPickerProps {
   readonly runId: string;
   readonly toolCallId: string;
   readonly options: readonly ConfirmationOptionPayload[];

@@ -15,7 +15,7 @@
 
 export const ACTIVE_SHOP_STORAGE_KEY = "juli_demo_active_shop";
 
-export interface ActiveShop {
+interface ActiveShop {
   id: string;
   name: string;
 }
