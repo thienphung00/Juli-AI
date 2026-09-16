@@ -126,15 +126,32 @@ function collectFiles(dir: string, found: string[] = []): string[] {
       collectFiles(full, found);
       continue;
     }
-    if (/\.tsx?$/.test(entry)) found.push(full);
+    if (/\.(tsx?|json|md)$/.test(entry)) found.push(full);
   }
   return found;
 }
 
-function isAllowed(relPath: string, line: string): boolean {
+function isAllowed(relPath: string, text: string): boolean {
   return ALLOWED_USES.some(
-    (allowed) => allowed.path === relPath && line.includes(allowed.snippet),
+    (allowed) => allowed.path === relPath && text.includes(allowed.snippet),
   );
+}
+
+/**
+ * Collapse every run of whitespace to one space. A line-based scan cannot see
+ * a destination use split across two source lines — and in JSX that split is
+ * invisible at runtime, because JSX collapses the newline to a single space
+ * and renders the phrase intact. Review demonstrated exactly that against the
+ * first default-deny draft: the retired name reintroduced as
+ *
+ *     Đi tới Quyết
+ *     định
+ *
+ * rendered identically and left all four tests green. Normalising first is
+ * what closes the class rather than that one instance.
+ */
+function normaliseWhitespace(text: string): string {
+  return text.replace(/\s+/g, " ");
 }
 
 describe("the destination has one name", () => {
@@ -160,13 +177,26 @@ describe("the destination has one name", () => {
     const hits: string[] = [];
     for (const file of files) {
       const rel = relative(REPO_ROOT, file);
-      readFileSync(file, "utf8")
-        .split("\n")
-        .forEach((line, index) => {
-          if (!line.includes(RETIRED_DESTINATION_NAME)) return;
-          if (isAllowed(rel, line)) return;
-          hits.push(`${rel}:${index + 1}  ${line.trim()}`);
-        });
+      const raw = readFileSync(file, "utf8");
+
+      raw.split("\n").forEach((line, index) => {
+        if (!line.includes(RETIRED_DESTINATION_NAME)) return;
+        if (isAllowed(rel, line)) return;
+        hits.push(`${rel}:${index + 1}  ${line.trim()}`);
+      });
+
+      // The same file again, with line breaks erased, so a use split across
+      // two lines cannot hide in the gap between them.
+      // NOTE: `continue`, never `return`. A `return` here exits the whole test
+      // callback at the first file that happens not to carry the token, so the
+      // assertion below never runs and the guard passes unconditionally. That
+      // bug was written into this very block and caught only by re-running the
+      // mutation — which is the entire argument for seeing a guard fail.
+      const flattened = normaliseWhitespace(raw);
+      if (!flattened.includes(RETIRED_DESTINATION_NAME)) continue;
+      if (isAllowed(rel, flattened)) continue;
+      if (hits.some((hit) => hit.startsWith(`${rel}:`))) continue;
+      hits.push(`${rel}  (split across lines) ${RETIRED_DESTINATION_NAME}`);
     }
     expect(hits).toEqual([]);
   });
