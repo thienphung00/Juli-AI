@@ -8,7 +8,7 @@
   "metrics": {
     "acceptanceMapped": 4,
     "acceptanceTotal": 4,
-    "criticalFindings": 2,
+    "criticalFindings": 3,
     "modulesTouched": [
       "backend/src/juli_backend/database/migrations",
       "backend/src/juli_backend/models",
@@ -18,21 +18,21 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1701.json",
     "ownerSignoffPresent": true,
-    "sha256": "c036588c44dd0042d437c3e726785d8bbb23b02588e055abc997981d8ef569c1",
+    "sha256": "499c1cb8760050b592e082d0f8041b0208f5369d5db045bde60c32b5af4ced98",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 9408,
-      "validationBytes": 36391
+      "reviewBytes": 10442,
+      "validationBytes": 36372
     },
     "claimVsExecuted": {
-      "citedCommandCount": 11,
-      "invokedCommandCount": 13056,
+      "citedCommandCount": 13,
+      "invokedCommandCount": 13100,
       "matchedCommandCount": 0,
-      "reason": "11 of 11 cited commands have no matching invocation in the session transcripts",
+      "reason": "13 of 13 cited commands have no matching invocation in the session transcripts",
       "recordPasses": false,
       "status": "FAIL",
       "transcriptSources": [
@@ -42,7 +42,7 @@
         "/Users/macos/.claude/projects/-Users-macos-Juli-AI-v2-remotion-video---claude-worktrees-juli-ai-launch-video-9ea478"
       ],
       "transcriptsScanned": 32,
-      "unmatchedCommandCount": 11,
+      "unmatchedCommandCount": 13,
       "unmatchedCommands": [
         {
           "command": "DATABASE_URL=\"postgresql://postgres:test@localhost:5432/test_db\" JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=\"$PWD/backend/src:$PWD\" python3 -m pytest tests/unit/test_migration_workflow_subject_roundtrip.py -q",
@@ -97,6 +97,16 @@
         {
           "command": "DATABASE_URL=\"postgresql://postgres:test@localhost:5432/test_db\" JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=\"$PWD/backend/src:$PWD\" python3 -m pytest tests/unit/test_quality_reconcile.py tests/unit/test_test_quality.py tests/unit/test_workflow_run_subject_index.py -q",
           "cycle": 9,
+          "exitCode": 0
+        },
+        {
+          "command": "DATABASE_URL=\"postgresql://postgres:test@localhost:5432/test_db\" JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=\"$PWD/backend/src:$PWD\" python3 -m pytest tests/unit/test_migration_workflow_subject_roundtrip.py tests/unit/test_workflow_run_subject_index.py tests/unit/test_action_card_subject_constraints.py tests/unit/test_quality_reconcile.py tests/unit/test_test_quality.py -q",
+          "cycle": 10,
+          "exitCode": 0
+        },
+        {
+          "command": "DATABASE_URL=\"postgresql://postgres:test@localhost:5432/test_db\" JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=\"$PWD/backend/src:$PWD\" python3 -m pytest \"tests/unit/test_migration_workflow_subject_roundtrip.py::test_upgrade_downgrade_upgrade_backfills_existing_runs\" -q -v",
+          "cycle": 10,
           "exitCode": 0
         }
       ],
@@ -235,7 +245,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1701-workflow-subject",
-        "head": "ed61c000259f8559f078e954bffb066187f971b8",
+        "head": "b1fa030cfce5f0922b4f8915f8f6f290c29a6c42",
         "shallow": true
       },
       "moduleResolution": {
@@ -249,7 +259,59 @@
       "repoRoot": "/Users/macos/Juli-AI-v2/.worktrees/issue-1701"
     },
     "metrics": {
-      "agents": [],
+      "agents": [
+        {
+          "agentId": "a13a6a97dff57bfcc",
+          "attributedBy": "worktreePath",
+          "branches": [
+            "feature/issue-1701-workflow-subject",
+            "feature/issue-1959-governed-copy-tab-rename",
+            "feature/issue-1959-guard-default-deny",
+            "main"
+          ],
+          "durationMs": 18544541,
+          "messageCount": 323,
+          "recordCount": 1025,
+          "role": "executor",
+          "roleSignal": "Implement",
+          "sessionIds": [
+            "b15fbf42-c853-405d-890f-cf7b65e56b33"
+          ],
+          "settled": true,
+          "sidechainRecordCount": 1025,
+          "spawnDirective": "Implement issue 1701 \u2014 W9-A/P-SHARED-1: Runs and cards",
+          "tokenUsage": {
+            "cacheCreation": 2150862,
+            "cacheRead": 101763963,
+            "input": 644,
+            "output": 30792,
+            "total": 103946261
+          },
+          "toolInvocationCount": 373,
+          "toolsUsed": [
+            {
+              "count": 365,
+              "toolName": "Bash"
+            },
+            {
+              "count": 6,
+              "toolName": "Read"
+            },
+            {
+              "count": 1,
+              "toolName": "Edit"
+            },
+            {
+              "count": 1,
+              "toolName": "Skill"
+            }
+          ],
+          "transcriptRef": "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks/a13a6a97dff57bfcc.output",
+          "workspaces": [
+            "issue-1701"
+          ]
+        }
+      ],
       "disagreements": [
         {
           "claimed": {
@@ -257,10 +319,9 @@
             "reason": "toolInvocationCount was not instrumented for this run"
           },
           "field": "toolInvocationCount",
-          "observed": null,
-          "observedFrom": "unavailable",
-          "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
-          "resolution": "unobservable"
+          "observed": 373,
+          "observedFrom": "task-transcript",
+          "resolution": "observed"
         },
         {
           "claimed": {
@@ -268,41 +329,35 @@
             "reason": "executionDurationMs was not instrumented for this run"
           },
           "field": "executionDurationMs",
-          "observed": null,
-          "observedFrom": "unavailable",
-          "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
-          "resolution": "unobservable"
+          "observed": 18544541,
+          "observedFrom": "task-transcript",
+          "resolution": "observed"
         }
       ],
       "executionDurationMs": {
-        "available": false,
-        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+        "available": true,
+        "observedFrom": "task-transcript",
+        "value": 18544541
       },
       "executorDomain": "data-platform",
       "executorDomainSource": "implementation-artifact",
       "gaps": [
         {
           "agents": [
-            "a13a6a97dff57bfcc",
             "a641a0dcd8104d92b"
           ],
           "detail": "attributed agents whose transcript is still being written; a running agent has not yet spent what it will spend, so its reading is a lower bound and is not reported as a measurement",
           "reason": "in-flight-transcript"
-        },
-        {
-          "agentsScanned": 501,
-          "detail": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
-          "reason": "no-transcript-for-issue"
         }
       ],
       "schemaVersion": 1,
       "source": {
-        "agentsAttributed": 0,
-        "agentsScanned": 501,
+        "agentsAttributed": 1,
+        "agentsScanned": 502,
         "attributedBy": ".worktrees path naming issue-1701",
-        "executorsIdentified": 0,
+        "executorsIdentified": 1,
         "kind": "task-transcript",
-        "roleSelectedAgentId": null,
+        "roleSelectedAgentId": "a13a6a97dff57bfcc",
         "roleSelectedBy": "spawn-directive",
         "taskDirs": [
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
@@ -317,16 +372,41 @@
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/03369828-07b8-46b9-8587-8b7e97d289c1/tasks"
         ]
       },
-      "status": "not-measured",
+      "status": "measured",
       "tokenUsage": {
-        "available": false,
-        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+        "available": true,
+        "observedFrom": "task-transcript",
+        "value": {
+          "cacheCreation": 2150862,
+          "cacheRead": 101763963,
+          "input": 644,
+          "output": 30792,
+          "total": 103946261
+        }
       },
       "toolInvocationCount": {
-        "available": false,
-        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+        "available": true,
+        "observedFrom": "task-transcript",
+        "value": 373
       },
-      "toolsUsed": []
+      "toolsUsed": [
+        {
+          "count": 365,
+          "toolName": "Bash"
+        },
+        {
+          "count": 6,
+          "toolName": "Read"
+        },
+        {
+          "count": 1,
+          "toolName": "Edit"
+        },
+        {
+          "count": 1,
+          "toolName": "Skill"
+        }
+      ]
     },
     "transcripts": {
       "commands": {
@@ -354,10 +434,10 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-16T12:31:44Z",
+  "timestamp": "2026-09-16T13:21:21Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1701.json",
-    "sha256": "cb73bc2806ee7c4732a66ec1b25120564f322e5eb37d31ec75e2a7172ccd6684",
+    "sha256": "16f2eae6108d4ba61a21d37c00b5592b49f0a39be67aa23bf36df992dec1bdbe",
     "status": "PASS"
   },
   "wave": null
