@@ -146,7 +146,7 @@ describe("In Progress detail view — shared shell for needs_input, executing, a
       screen.getByRole("status", { name: "Không tìm thấy luồng thực hiện" }),
     ).toHaveTextContent("Không tìm thấy luồng thực hiện");
     expect(
-      screen.getByRole("link", { name: "Về Quyết định" }),
+      screen.getByRole("link", { name: "Về Hành động" }),
     ).toHaveAttribute("href", "/decisions");
   });
 });
@@ -348,7 +348,7 @@ describe("Execution detail view (DUX-8) — seller-safe language", () => {
     renderInProgressDetail("exec-does-not-exist");
 
     await waitFor(() => {
-      const backLink = screen.getByRole("link", { name: "Về Quyết định" });
+      const backLink = screen.getByRole("link", { name: "Về Hành động" });
       expect(backLink).toHaveAttribute("href", "/decisions");
     });
   });

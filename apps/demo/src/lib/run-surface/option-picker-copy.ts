@@ -5,6 +5,7 @@
  * the governance record; keep them byte-identical.
  */
 import type { ConfirmationErrorCode } from "./confirmation-decision";
+import { ACTIONS_DESTINATION_LABEL } from "../destination-copy";
 
 /** `run.confirm_option` */
 export const OPTION_PICKER_CONFIRM_LABEL = "Xác nhận phương án này";
@@ -20,8 +21,7 @@ export const OPTION_PICKER_SUBMITTING_COPY = "Đang gửi lựa chọn của b�
 /** `run.no_retry` -- reused verbatim (ADR-084 decision 6: no retry-in-place
  *  control). Explains the expired/rejected state's dead end honestly rather
  *  than offering a control that cannot exist. */
-export const OPTION_PICKER_NO_RETRY_COPY =
-  "Muốn thực hiện thay đổi mới? Hãy quay lại Quyết định để phê duyệt đề xuất mới.";
+export const OPTION_PICKER_NO_RETRY_COPY = `Muốn thực hiện thay đổi mới? Hãy quay lại ${ACTIONS_DESTINATION_LABEL} để phê duyệt đề xuất mới.`;
 
 /** `run.option_rationale.fallback` -- rendered in place of a payload
  *  rationale the guard below rejects (issue #1908). Generic and still
@@ -77,8 +77,7 @@ export function formatOptionPickerHeading(count: number): string {
 const CONFIRMATION_REJECTED_COPY: Readonly<Record<string, string>> = Object.freeze({
   confirmation_already_decided: "Đề xuất này đã được quyết định trước đó.",
   run_not_awaiting_confirmation: "Luồng thực hiện này không còn chờ xác nhận.",
-  params_sha_mismatch:
-    "Đề xuất đã thay đổi kể từ khi bạn xem; hãy quay lại Quyết định để xem đề xuất mới nhất.",
+  params_sha_mismatch: `Đề xuất đã thay đổi kể từ khi bạn xem; hãy quay lại ${ACTIONS_DESTINATION_LABEL} để xem đề xuất mới nhất.`,
 });
 
 /** `run.confirmation_rejected.generic` */

@@ -42,6 +42,7 @@ import { RunStagedView } from "./run-staged-view";
 import { DestinationPlaceholder } from "./destination-placeholder";
 import { fetchDemoRuns } from "../lib/run-ledger/api-client";
 import { RUN_LEDGER_LOADING } from "../lib/run-ledger/copy";
+import { ACTIONS_DESTINATION_LABEL } from "../lib/destination-copy";
 import { useRunStream } from "../lib/run-surface/use-run-stream";
 import { submitConfirmationDecision } from "../lib/run-surface/confirmation-client";
 
@@ -61,9 +62,9 @@ interface RunDetailRouteProps {
 
 const NOT_FOUND_PLACEHOLDER = (
   <DestinationPlaceholder
-    description="Luồng thực hiện này không còn trong Demo hoặc chưa được tạo. Hãy quay lại Quyết định để xem các luồng đang chạy."
+    description={`Luồng thực hiện này không còn trong Demo hoặc chưa được tạo. Hãy quay lại ${ACTIONS_DESTINATION_LABEL} để xem các luồng đang chạy.`}
     recoveryHref="/decisions"
-    recoveryLabel="Về Quyết định"
+    recoveryLabel={`Về ${ACTIONS_DESTINATION_LABEL}`}
     state="empty"
     title="Không tìm thấy luồng thực hiện"
   />
