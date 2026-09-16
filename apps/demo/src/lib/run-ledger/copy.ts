@@ -96,8 +96,10 @@ export const RUN_TERMINAL_STATE_UNKNOWN_COPY: RunTerminalStateCopy = {
  *  card carries this instead of any retry-in-place control. */
 export const RUN_LEDGER_NO_RETRY_NOTE = `Muốn thực hiện thay đổi mới? Hãy quay lại ${ACTIONS_DESTINATION_LABEL} để phê duyệt đề xuất mới.`;
 
-/** `run.back_to_decisions` -- reuses the exact link text the per-run
- *  not-found recovery state already uses, for one consistent phrase. */
+/** `run.ledger.back_to_actions` -- reuses the exact link text the per-run
+ *  not-found recovery state already uses, for one consistent phrase. The key
+ *  read `run.back_to_decisions` until #1959; dictionary.md never carried that
+ *  key, so the reference had been dangling since #1318. */
 export const RUN_LEDGER_BACK_TO_DECISIONS = `Về ${ACTIONS_DESTINATION_LABEL}`;
 
 /** `run.loading` */
