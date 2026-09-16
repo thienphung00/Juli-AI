@@ -1,0 +1,43 @@
+# ONB-CRED — per-shop credential read path; epic #1951, issue #1365.
+# OAuth already stores a seller's credential correctly with capability
+# SELLER_CONNECT (services/tiktok/oauth.py -> provision_shop_and_credentials ->
+# resolve_merchant_context). Nothing on the READ path consumes one:
+# resolve_production_read_credential resolves ONE globally configured merchant
+# (PRODUCTION_AUTH_ID + PRODUCTION_READ) and maybe_poll_tiktok_data skips every
+# shop that is not it - silently, returning None.
+#
+# META LOCKS:
+# - NO MIGRATION IN THIS SLICE. 059 and 060 are assigned to ONB-DATA.
+# - DO NOT EDIT the polling package or the ETL - ONB-DATA owns those and its
+#   issues run concurrently with this one.
+# - CAPABILITY IS THE AUTHORITY, never the shop id. A SELLER_CONNECT credential
+#   grants reads for ITS OWN shop and nothing else; never widen it to
+#   PRODUCTION_READ and never fall back to the configured merchant's credential
+#   for a shop that does not own it (that is how a cross-merchant read happens).
+# - A SHOP WITH NO USABLE CREDENTIAL FAILS LOUDLY. The current silent skip is
+#   the defect; do not preserve it.
+# - Cross-tenant and nonexistent both return 404, never 403. No existence oracle.
+ONB-CRED:
+  executorDomain: integrations
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/103-first-connect-onboarding.md
+    - docs/adr/080-tiktok-credential-lifecycle.md
+    - docs/adr/081-refresh-token-rotation.md
+    - docs/adr/086-runtime-database-role-and-tenant-isolation.md
+  requiredModules:
+    - backend/src/juli_backend/core/security/credential_resolver.py
+    - backend/src/juli_backend/integrations/tiktok/merchant.py
+    - backend/src/juli_backend/core/security/tiktok_oauth.py
+    - backend/src/juli_backend/repositories/tiktok_credentials.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/tiktok/oauth.py
+    - backend/src/juli_backend/integrations/tiktok/factories.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - backend/src/juli_backend/workers/services/polling/
+    - backend/src/juli_backend/services/etl/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
