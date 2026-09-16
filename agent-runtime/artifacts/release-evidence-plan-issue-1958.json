@@ -1,0 +1,93 @@
+{
+  "planId": "rep-1958-synthetic-readings-carry-their-provenance",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com — any surface rendering an impact reading, in Thu nghiem (anonymous replay) and signed in",
+    "demo.app-juli.com Ket qua / results surfaces where an impact figure appears beside a decision"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the demo candidate unit on its own port, before the nginx demo upstream cutover",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "a-synthetic-reading-announces-itself",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/decisions",
+        "assertions": [
+          "a reading whose series_source is 'synthetic' renders the visible marker, and the marker text resolves from dictionary.md",
+          "the marker is read from the reading's own series_source, not from the entry mode or any client-side guess",
+          "no prop, flag or query parameter suppresses the marker on a synthetic reading",
+          "the marker's colour comes from packages/theme tokens; no literal colour is declared"
+        ]
+      },
+      {
+        "name": "a-measured-reading-carries-no-marker",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/decisions",
+        "assertions": [
+          "a reading whose series_source is 'measured' renders no marker at all",
+          "flipping the header between Thu nghiem and Dang nhap does not by itself add or remove the marker — only the reading's own provenance does"
+        ]
+      },
+      {
+        "name": "absent-provenance-fails-closed",
+        "entryUrl": "http://127.0.0.1:<demo candidate port>/decisions",
+        "assertions": [
+          "a reading arriving without series_source renders as unprovenanced and is never presented as measured",
+          "the unprovenanced state is visually distinct from the measured state, not merely the absence of a marker where a number still reads as real"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "/decisions"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "css"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration. impact_readings.series_source already exists as a NOT NULL enum with no default (ADR-099 decision 2). This slice only surfaces a column that is already written and enforced."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "repoint the nginx demo upstream to the retained previous release; readings revert whole, never half-marked",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test",
+    "pnpm --filter @juli/theme test",
+    "pnpm -w turbo run build"
+  ],
+  "doNotInfer": [
+    "The marker must read series_source from the reading itself. Deriving it from the entry mode, the demo/replay flag, or any client-side heuristic fails AC2 — a signed-in seller looking at genuinely synthetic data must still see it.",
+    "Fail closed. A reading with NO series_source renders as unprovenanced, never as measured. The column deliberately has no default so a writer that forgets provenance fails; do not reintroduce a default in the view layer.",
+    "The marker must not be suppressible by a prop or flag. AC6 exists because an optional honesty marker is not an honesty marker. Do not add an escape hatch 'for tests' — drive the tests through series_source.",
+    "Do NOT edit packages/theme/run-surface-tokens.css. If a token you need is missing, report it rather than adding one.",
+    "Use color-mix, never rgba(). #1912's token-only-theming test fails on a literal colour, blur or shadow in any rule added here.",
+    "dictionary.md's _Avoid_ field is SPLIT ON COMMAS — a comma inside a parenthetical produces inert fragments that silently disable the guard. This went undetected twice and cost PR #1956 a red round. Put rationale in Definition, then PRINT the parsed aliases and confirm each is a clean standalone string.",
+    "Do not add avoid-aliases beyond this issue's scope. An unrequested addition broke an unrelated agent prompt's worked example on #1956. Broader copy decisions belong to #1959.",
+    "A guard must be seen failing (.cursor/rules/code-quality.mdc, merged in #1976): print what the test collected, make it go red on purpose, report both.",
+    "Run the demo suite with `npx turbo run test --filter=@juli/demo --force` and report the `Cached:` line — a cached turbo task prints a full pass having run nothing.",
+    "Pin PYTHONPATH=\"$PWD/backend/src:$PWD\" for any pytest run inside the worktree, or the green is fake."
+  ]
+}
