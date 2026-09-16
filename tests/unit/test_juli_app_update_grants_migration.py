@@ -135,12 +135,22 @@ def test_migration_058_is_guarded_on_the_role_and_the_table():
 
 
 def test_migration_058_still_leaves_a_single_alembic_head():
+    """058 did not branch the chain.
+
+    Asserting `heads[0] == "058_juli_app_update_grants"` literally would make
+    this test fail the moment any later migration (e.g. 059, #1966) extends the
+    chain — a hardcoded head pointer is a promise this file cannot keep past
+    its own revision. What 058 actually needs to prove is narrower: exactly one
+    head exists, and 058 is reachable from it.
+    """
     from alembic.script import ScriptDirectory
 
-    heads = ScriptDirectory.from_config(Config(str(ALEMBIC_INI))).get_heads()
+    script = ScriptDirectory.from_config(Config(str(ALEMBIC_INI)))
+    heads = script.get_heads()
 
     assert len(heads) == 1, f"058 branched the revision chain: heads={heads}"
-    assert heads[0] == "058_juli_app_update_grants"
+    ancestry = {rev.revision for rev in script.walk_revisions(base="base", head="head")}
+    assert "058_juli_app_update_grants" in ancestry
 
 
 def test_migration_058_satisfies_the_additive_gate():

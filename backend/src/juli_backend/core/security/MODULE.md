@@ -34,6 +34,18 @@ Matches ``__all__`` — re-exports only:
   `db.*.supabase.co` host rather than the project API URL (issue #1282 — that exact
   misconfiguration is why the deployed host's auth broke while `SUPABASE_JWT_SECRET` was
   present and boot was green)
+- ``resolve_read_credential_for_shop(session, shop_id)`` — the credential **that shop
+  owns** which may serve a read (#1365). Keyed on the owning shop AND the row's
+  capability: a ``SELLER_CONNECT`` credential reads for its own shop and nothing else,
+  is returned exactly as stored (never promoted to ``PRODUCTION_READ``), and a
+  ``SANDBOX_WRITE`` row is unreachable through it. There is **no fallback** to the
+  configured production merchant — that fallback is how one merchant's data would be
+  read under another merchant's shop. Holds no state between calls
+- ``NoReadCredentialForShop`` — raised when the shop owns nothing read-capable. Subclasses
+  ``database.exceptions.NotFound`` so existing route boundaries answer 404, making a
+  nonexistent shop and a cross-tenant one indistinguishable (never 403, no existence
+  oracle). It replaces the silent ``None`` the read path used to return, which let a newly
+  connected seller be scored over an empty database with no error anywhere
 - ``JwksUnavailableError`` — raised when the JWKS key set cannot be fetched/parsed, or a
   `kid` is still absent after one refetch attempt; fails closed (401), logged under
   `jwt_jwks_unavailable`, distinguishable from a bad token's `jwt_invalid`/`jwt_expired`

@@ -58,7 +58,12 @@ EXPECTED_PUBLIC_EXPORTS = frozenset(
         "PRODUCTION_AUTH_ID",
         "SANDBOX_AUTH_ID",
         "TikTokCapability",
+        # #1365: which capabilities may serve a read. Exported because the read
+        # resolver lives in `core.security`, which is capped at cross-package
+        # depth 2 and so cannot deep-import `integrations.tiktok.merchant`.
+        "READ_CAPABILITIES",
         "is_cross_merchant_lookup",
+        "is_read_capability",
         "resolve_merchant_context",
         # Vendor → ingest mapping
         "analytics_snapshot_key",

@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import os
+import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.security.credential_refresh import refresh_credential
+from juli_backend.database.exceptions import NotFound
 from juli_backend.integrations.tiktok import (
     PRODUCTION_AUTH_ID,
+    READ_CAPABILITIES,
     SANDBOX_AUTH_ID,
     TikTokAuth,
     TikTokCapability,
+    is_read_capability,
 )
 from juli_backend.models.models import TikTokCredential
 from juli_backend.repositories.repos import TikTokCredentialRepo
@@ -81,6 +85,64 @@ async def resolve_production_read_credential(
         TikTokCapability.PRODUCTION_READ,
     )
     return await _lazy_refresh(session, credential)
+
+
+class NoReadCredentialForShop(NotFound):
+    """No credential this shop owns may serve a read (#1365).
+
+    Subclasses :class:`NotFound` on purpose: every route boundary that already
+    translates ``NotFound`` answers 404, so a shop that does not exist and a
+    shop that exists but is not the caller's are indistinguishable from the
+    outside -- never a 403, which would be an existence oracle.
+
+    This error replaces the silent ``None`` the read path used to hand back for
+    any shop other than the one configured merchant. A shop scored over an
+    empty database is a defect, and it must be loud.
+    """
+
+
+async def resolve_read_credential_for_shop(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+) -> TikTokCredential:
+    """Return the credential **this shop owns** that may serve a read.
+
+    Keyed on the pair that actually decides access -- the owning shop AND the
+    capability the row carries:
+
+    - only rows whose ``shop_id`` is ``shop_id`` are considered, so there is no
+      path by which one merchant's data is read under another merchant's shop;
+    - only ``READ_CAPABILITIES`` are considered, checked again on the way out,
+      so a ``SANDBOX_WRITE`` credential is unreachable from here;
+    - the capability is returned exactly as stored -- a ``SELLER_CONNECT``
+      credential is never rewritten or treated as ``PRODUCTION_READ``;
+    - there is **no fallback** to the configured production merchant. A shop
+      with nothing usable raises :class:`NoReadCredentialForShop`.
+
+    Holds no state between calls: every resolve is a fresh query, so a rollback
+    cannot leave a cached resolution behind that lets a shop keep reading
+    through a credential it does not own.
+    """
+    repo = TikTokCredentialRepo(session)
+    for capability in READ_CAPABILITIES:
+        try:
+            credential = await repo.get_by_shop_and_capability(shop_id, capability)
+        except NotFound:
+            continue
+        stored_capability = credential.capability
+        if (
+            credential.shop_id != shop_id
+            or stored_capability is None
+            or not is_read_capability(stored_capability)
+        ):
+            # Unreachable through the repo's own filters; kept as the invariant
+            # this function exists to hold, so a future change to either side
+            # fails closed instead of widening a read. A row carrying no
+            # capability at all is not read-capable either -- capability is the
+            # authority, and absent is not permission.
+            continue
+        return await _lazy_refresh(session, credential)
+    raise NoReadCredentialForShop(f"No read-capable TikTok credential for shop {shop_id}")
 
 
 async def resolve_sandbox_write_credential(

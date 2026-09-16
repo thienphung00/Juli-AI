@@ -224,3 +224,99 @@ async def test_poll_cycle_survives_the_resolvers_own_commit_under_shop_scope(own
     mock_resources.products.search_all.assert_called_once()
     mock_resources.returns.search_returns_all.assert_called_once()
     mock_resources.inventory.search.assert_called_once()
+
+
+@requires_postgres
+@pytest.mark.asyncio
+async def test_poll_cycle_final_write_survives_a_commit_inside_a_poll_step(owner_engine):
+    """The cycle's own bookkeeping write must survive the ETL's commits (#1967).
+
+    The test above proves the cycle survives ONE commit, at a point the call
+    site can see -- the resolver's. This proves the harder case, and the one
+    observed failing against Fujiwa: a commit *inside* a poll step, emitted by
+    `EtlConsumer.ingest` (`services/etl/consumer.py`, two `session.commit()`
+    calls) in a loop that lives in another module. `reapply_shop_scope` cannot
+    reach it, so on the pre-fix code `app.current_shop_id` is NULL by the time
+    `TikTokSyncStateRepo.save` flushes its INSERT and Postgres refuses it:
+
+        asyncpg.exceptions.InsufficientPrivilegeError:
+          new row violates row-level security policy for table "tiktok_sync_state"
+
+    Nothing about that refusal is mocked. The session is a real `juli_app`
+    connection under the real `tiktok_sync_state_insert_public` policy; the
+    handoff double carries the real `HandoffFn` signature and issues a real
+    COMMIT, exactly as `make_etl_handoff(consumer)` does in
+    `services/action_cards/refresh.py::maybe_poll_tiktok_data`.
+
+    The one order returned below does double duty: it is what makes
+    `sync_orders` reach `handoff_fn` at all, and it is what sets
+    `orders_last_update_time`, without which `save` writes no cursors and the
+    cycle never reaches the statement under test.
+    """
+    shop_id, credential_id = _seed_fujiwa_shop_and_credential(owner_engine, label="sticky-scope")
+    order_update_time = 1_726_000_000
+
+    async def _resolve_that_commits(session) -> TikTokCredential:
+        credential = await session.get(TikTokCredential, credential_id, populate_existing=True)
+        assert credential is not None
+        await session.commit()
+        return credential
+
+    mock_resources = _mock_resources()
+    mock_resources.orders.search_all.return_value = [
+        {
+            "order_id": "ORD-1967",
+            "order_status": "COMPLETED",
+            "update_time": order_update_time,
+            "line_items": [
+                {"id": "LI-1", "product_id": "P-1", "sku_id": "S-1", "sale_price": "10.00"}
+            ],
+        }
+    ]
+
+    mock_rate_limiter = MagicMock()
+    mock_rate_limiter.acquire.return_value = True
+    mock_rate_limiter.is_exhausted.return_value = False
+    mock_rate_limiter.time_until_reset.return_value = 0
+
+    async with juli_app_async_sessionmaker() as factory, factory() as session:
+        committed_channels: list[str] = []
+
+        async def _handoff_that_commits(channel: str, shop_key: str, payload: bytes) -> None:
+            # `HandoffFn`'s real signature, and `EtlConsumer.ingest`'s real
+            # durability boundary: ingestion commits so partial progress
+            # survives, which is precisely what discards SET LOCAL.
+            await session.commit()
+            committed_channels.append(channel)
+
+        async with with_shop_scope(session, shop_id):
+            await run_fujiwa_poll_cycle(
+                session=session,
+                config=FujiwaPollConfig(app_key=APP_KEY, app_secret=APP_SECRET),
+                oauth_service=MagicMock(spec=TikTokOAuthService),
+                rate_limiter=mock_rate_limiter,
+                handoff_fn=_handoff_that_commits,
+                resolve_credential=AsyncMock(side_effect=_resolve_that_commits),
+                create_resources=lambda _cfg: mock_resources,
+            )
+        await session.commit()
+
+    # Guard the test itself: a run where the handoff never fired would prove
+    # nothing, because no commit would have landed mid-cycle.
+    assert "tiktok.orders.raw" in committed_channels
+
+    # The cycle's final write, read back on the owner connection: the watermark
+    # advanced, rather than being refused while rows had already landed.
+    with owner_engine.begin() as conn:
+        persisted = conn.execute(
+            text(
+                "SELECT endpoint, last_update_time FROM public.tiktok_sync_state "
+                "WHERE shop_id = :shop_id"
+            ),
+            {"shop_id": str(shop_id)},
+        ).all()
+
+    # `"orders"` is the `endpoint` value `TikTokSyncStateRepo` stores for
+    # `orders_last_update_time`; the analytics cursors land in the same write,
+    # so this asserts on the one cursor the poll steps above produced.
+    assert dict(persisted)["orders"] == order_update_time
