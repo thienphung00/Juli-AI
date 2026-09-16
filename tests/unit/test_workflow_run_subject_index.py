@@ -185,20 +185,25 @@ class TestTwoWorkflowsOnOneProductDoNotCollide:
 
     def test_two_workflows_on_one_product_do_not_collide_on_the_index(self, session):
         shop_id, product_id = _seed_shop_and_product(session)
-        session.add(
-            _new_run(
-                shop_id, status="running", product_id=product_id, workflow_key="optimize_product_2"
-            )
+        first = _new_run(
+            shop_id, status="running", product_id=product_id, workflow_key="optimize_product_2"
         )
+        session.add(first)
         session.commit()
 
         # A second, DIFFERENT workflow on the SAME product, also active.
-        session.add(
-            _new_run(
-                shop_id, status="running", product_id=product_id, workflow_key="clear_excess_4"
-            )
+        second = _new_run(
+            shop_id, status="running", product_id=product_id, workflow_key="clear_excess_4"
         )
+        session.add(second)
         session.commit()  # must not raise
+
+        # Both rows genuinely persisted -- not merely "no exception was
+        # raised" -- one per workflow_key, both still active for this shop.
+        persisted = session.query(WorkflowRun).filter(WorkflowRun.shop_id == shop_id).all()
+        assert {r.id for r in persisted} == {first.id, second.id}
+        assert {r.workflow_key for r in persisted} == {"optimize_product_2", "clear_excess_4"}
+        assert {r.status for r in persisted} == {"running"}
 
     def test_same_workflow_and_subject_still_collides(self, session):
         """The widening claim above is not vacuous: two runs sharing the
@@ -286,19 +291,26 @@ class TestPartialIndexStillOnlyCoversActiveStatuses:
         self, session, terminal_status
     ):
         shop_id, product_id = _seed_shop_and_product(session)
-        session.add(
-            _new_run(
-                shop_id,
-                status=terminal_status,
-                product_id=product_id,
-                workflow_key="optimize_product_2",
-            )
+        terminal_run = _new_run(
+            shop_id,
+            status=terminal_status,
+            product_id=product_id,
+            workflow_key="optimize_product_2",
         )
+        session.add(terminal_run)
         session.commit()
 
-        session.add(
-            _new_run(
-                shop_id, status="queued", product_id=product_id, workflow_key="optimize_product_2"
-            )
+        active_run = _new_run(
+            shop_id, status="queued", product_id=product_id, workflow_key="optimize_product_2"
         )
+        session.add(active_run)
         session.commit()  # must not raise
+
+        # Both rows genuinely persisted, at their own distinct statuses --
+        # the new active run did not silently fail to insert, and the
+        # terminal row was not overwritten or removed to make room for it.
+        persisted = {
+            r.id: r.status
+            for r in session.query(WorkflowRun).filter(WorkflowRun.shop_id == shop_id).all()
+        }
+        assert persisted == {terminal_run.id: terminal_status, active_run.id: "queued"}
