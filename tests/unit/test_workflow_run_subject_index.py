@@ -1,5 +1,5 @@
 """``uq_workflow_runs_active_shop_product``, re-keyed by migration
-`061_workflow_and_subject` (#1701, ADR-087 d.1-d.2), from
+`062_workflow_and_subject` (#1701, ADR-087 d.1-d.2), from
 ``(shop_id, product_id)`` to
 ``(shop_id, workflow_key, subject_type, subject_ref)``.
 

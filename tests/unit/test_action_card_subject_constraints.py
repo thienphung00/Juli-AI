@@ -1,5 +1,5 @@
 """``action_cards`` subject-scoped identity, added by migration
-`061_workflow_and_subject` (#1701, ADR-087 d.1-d.3):
+`062_workflow_and_subject` (#1701, ADR-087 d.1-d.3):
 ``uq_action_cards_shop_workflow_subject_revision`` (full unique over the
 chain) and ``uq_action_cards_active_shop_workflow_subject`` (partial unique,
 one live card per subject per workflow).

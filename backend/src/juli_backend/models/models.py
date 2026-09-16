@@ -546,7 +546,7 @@ def _default_workflow_run_subject_ref(context: Any) -> str:
     -- there is no repository wrapping this construction, so a Postgres
     ``server_default`` cannot help (it cannot copy another column's value).
     This mirrors that exact behaviour for a caller that omits ``subject_ref``:
-    the run's own ``product_id``, stringified, the same rule migration 061 uses
+    the run's own ``product_id``, stringified, the same rule migration 062 uses
     to backfill every pre-existing row.
 
     Raises loudly, rather than writing the literal string ``"None"``, when a
@@ -598,7 +598,7 @@ class WorkflowRun(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
-    #: Nullable as of migration 061 (#1701, ADR-087 d.1-d.2): a run's subject is no
+    #: Nullable as of migration 062 (#1701, ADR-087 d.1-d.2): a run's subject is no
     #: longer necessarily a product -- ``subject_type``/``subject_ref`` below carry
     #: that generally. Every CURRENT writer (``approval.py``'s
     #: ``approve_action_card``, the only production constructor of a new row) still
@@ -698,7 +698,7 @@ class WorkflowRun(Base):
     __table_args__ = (
         Index("ix_workflow_runs_shop", "shop_id"),
         Index("ix_workflow_runs_action_card", "action_card_id"),
-        # Re-keyed from (shop_id, product_id) by migration 061 (#1701,
+        # Re-keyed from (shop_id, product_id) by migration 062 (#1701,
         # ADR-087 d.1-d.2): a run's subject is now (subject_type, subject_ref),
         # and workflow_key joins the key so two DIFFERENT workflows on the SAME
         # product do not collide here -- that cross-workflow lock is #1710's
@@ -1088,7 +1088,7 @@ class ActionCard(Base):
         # Surfacing state must be queryable separately from "all scored rows"
         # (#716, B-4).
         Index("ix_action_cards_shop_surfaced_at", "shop_id", "surfaced_at"),
-        # Migration 061 (#1701, ADR-087 d.1-d.2) drops the single-key
+        # Migration 062 (#1701, ADR-087 d.1-d.2) drops the single-key
         # ``uq_action_cards_shop_workflow`` unique in favour of two constraints
         # keyed on the full subject: a full unique over the chain (this one),
         # and a partial unique below covering only the live card per subject.

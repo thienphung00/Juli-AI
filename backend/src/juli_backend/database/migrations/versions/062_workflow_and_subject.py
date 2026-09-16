@@ -1,8 +1,13 @@
 """runs and cards carry their workflow and their subject (#1701, ADR-087 d.1-d.3)
 
-Revision ID: 061_workflow_and_subject
-Revises: 060_processed_events_epoch
+Revision ID: 062_workflow_and_subject
+Revises: 061_credential_owner_enum
 Create Date: 2026-09-16
+
+Renumbered from 061 to 062 (#1701): 061 was independently reserved by Meta
+for two concurrent slices -- this one and #2019's
+061_credential_owner_enumeration.py, which merged first as #2032. This
+revision now chains onto that migration instead of 060_processed_events_epoch.
 
 One additive, expand-only migration (ADR-027) touching two tables. Nothing in
 this revision is read by any application code -- #1702 and #1703 are the
@@ -88,8 +93,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "061_workflow_and_subject"
-down_revision: str | None = "060_processed_events_epoch"
+revision: str = "062_workflow_and_subject"
+down_revision: str | None = "061_credential_owner_enum"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -1,5 +1,5 @@
 """Migration round-trip checks for #1701 / ADR-087 d.1-d.3 (migration
-`061_workflow_and_subject`) -- `workflow_key`/`subject_type`/`subject_ref` on
+`062_workflow_and_subject`) -- `workflow_key`/`subject_type`/`subject_ref` on
 `workflow_runs` (plus `product_id` widening to nullable), and
 `subject_type`/`subject_id`/`revision`/`supersedes_card_id` on
 `action_cards`.
@@ -9,11 +9,14 @@ gated by `requires_postgres` (`tests/integration/test_migrations.py`, the
 same gate every other migration-shaped test in this repo already uses) and
 skips cleanly wherever `DATABASE_URL` is not a reachable local Postgres.
 
-The round trip seeds rows at revision `060_processed_events_epoch` -- BEFORE
-061 -- in the OLD shape (`workflow_runs.product_id` NOT NULL, no
+The round trip seeds rows at revision `061_credential_owner_enum` -- BEFORE
+062, and the migration immediately below 062 on `main` (#1701's migration was
+renumbered 061->062 when #2019's 061_credential_owner_enumeration.py merged
+first and took the reserved number -- see 062_workflow_and_subject.py's own
+docstring) -- in the OLD shape (`workflow_runs.product_id` NOT NULL, no
 `workflow_key`/`subject_type`/`subject_ref`; `action_cards` with no
 `subject_type`/`subject_id`/`revision`). Only rows that existed before the
-upgrade prove a backfill; a row created after 061 already has the new
+upgrade prove a backfill; a row created after 062 already has the new
 columns and would prove nothing (the issue's own warning). This module
 calls `command.downgrade(cfg, "base")` (via `_reset_to_revision`), so it is
 listed in `tests/conftest.py::_DESTRUCTIVE_MIGRATION_MODULES` and runs
@@ -43,11 +46,11 @@ __all__ = ["requires_postgres"]
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
 MIGRATIONS_DIR = REPO_ROOT / "backend/src/juli_backend/database/migrations/versions"
-MIGRATION_061_PATH = MIGRATIONS_DIR / "061_workflow_and_subject.py"
+MIGRATION_062_PATH = MIGRATIONS_DIR / "062_workflow_and_subject.py"
 
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
-_PRE_REVISION = "060_processed_events_epoch"
-_THIS_REVISION = "061_workflow_and_subject"
+_PRE_REVISION = "061_credential_owner_enum"
+_THIS_REVISION = "062_workflow_and_subject"
 
 
 def _database_url() -> str:
@@ -86,10 +89,11 @@ def _reset_to_revision(cfg: Config, revision: str) -> None:
     command.upgrade(cfg, revision)
 
 
-def _seed_pre_061_row(engine: Engine) -> dict:
-    """Seed one shop/product/action_card/workflow_run at revision 060's
-    OLD shape -- before workflow_key/subject_type/subject_ref/subject_id/
-    revision existed. Returns the ids the test asserts against."""
+def _seed_pre_062_row(engine: Engine) -> dict:
+    """Seed one shop/product/action_card/workflow_run at revision
+    061_credential_owner_enum's OLD shape -- before
+    workflow_key/subject_type/subject_ref/subject_id/revision existed.
+    Returns the ids the test asserts against."""
     user_id = uuid.uuid4()
     shop_id = uuid.uuid4()
     product_id = uuid.uuid4()
@@ -138,31 +142,34 @@ def _seed_pre_061_row(engine: Engine) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def test_migration_061_revision_equals_filename_stem():
-    assert MIGRATION_061_PATH.exists(), f"missing {MIGRATION_061_PATH}"
-    body = MIGRATION_061_PATH.read_text(encoding="utf-8")
+def test_migration_062_revision_equals_filename_stem():
+    assert MIGRATION_062_PATH.exists(), f"missing {MIGRATION_062_PATH}"
+    body = MIGRATION_062_PATH.read_text(encoding="utf-8")
     rev = re.search(r'^revision: str = "([^"]+)"', body, re.M)
-    assert rev is not None, "migration 061 has no `revision: str = ...` line"
+    assert rev is not None, "migration 062 has no `revision: str = ...` line"
     assert rev.group(1) == _THIS_REVISION
-    assert rev.group(1) == MIGRATION_061_PATH.stem
+    assert rev.group(1) == MIGRATION_062_PATH.stem
     assert len(rev.group(1)) <= 32, (
         f"revision id {rev.group(1)!r} is {len(rev.group(1))} chars -- "
         "alembic_version.version_num is VARCHAR(32)"
     )
 
 
-def test_migration_061_down_revision_is_060():
-    body = MIGRATION_061_PATH.read_text(encoding="utf-8")
+def test_migration_062_down_revision_is_061_credential_owner_enum():
+    body = MIGRATION_062_PATH.read_text(encoding="utf-8")
     down = re.search(r'^down_revision: str \| None = "([^"]+)"', body, re.M)
-    assert down is not None, "migration 061 has no string `down_revision`"
+    assert down is not None, "migration 062 has no string `down_revision`"
     assert down.group(1) == _PRE_REVISION
 
 
-def test_migration_061_is_the_single_head():
+def test_migration_062_is_the_single_head():
     """Confirms this issue's own instruction was honoured: the migration
     number was RESERVED, not computed from `alembic heads` -- there is
-    exactly one file whose down_revision is 061, and exactly one whose
-    down_revision is 060 (this one)."""
+    exactly one file whose down_revision is 062, and exactly one whose
+    down_revision is 061_credential_owner_enum (this one). 061 itself was
+    independently reserved twice (#1701 and #2019); #2019 merged first and
+    kept 061, so this migration is 062, chained onto 061_credential_owner_enum,
+    not the 060 it was originally reserved against."""
     revisions: dict[str, str | None] = {}
     for path in MIGRATIONS_DIR.glob("*.py"):
         body = path.read_text(encoding="utf-8")
@@ -195,7 +202,7 @@ def test_upgrade_downgrade_upgrade_backfills_existing_runs():
     engine = _sync_engine()
     try:
         _reset_to_revision(cfg, _PRE_REVISION)
-        ids = _seed_pre_061_row(engine)
+        ids = _seed_pre_062_row(engine)
 
         with engine.connect() as conn:
             pre_run_count = conn.execute(text("SELECT COUNT(*) FROM workflow_runs")).scalar_one()
