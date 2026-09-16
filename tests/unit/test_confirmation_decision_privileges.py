@@ -118,9 +118,9 @@ def _seed_pending_confirmation(engine) -> tuple[uuid.UUID, uuid.UUID]:
             text(
                 "INSERT INTO public.workflow_runs "
                 "(id, shop_id, product_id, state, status, prompt_version, prompt_sha256, "
-                " running_seconds_elapsed, cancel_requested, created_at) "
+                " running_seconds_elapsed, cancel_requested, subject_ref, created_at) "
                 "VALUES (:id, :shop_id, :product_id, '{}'::jsonb, 'waiting_approval', "
-                "        'v1', :sha, 0, false, :now)"
+                "        'v1', :sha, 0, false, CAST(:product_id AS text), :now)"
             ),
             {
                 "id": str(run_id),

@@ -282,9 +282,9 @@ def _seed_queued_run(engine) -> tuple[uuid.UUID, uuid.UUID, str]:
             text(
                 "INSERT INTO public.workflow_runs "
                 "(id, shop_id, product_id, state, status, prompt_version, prompt_sha256, "
-                " created_at, updated_at) "
+                " subject_ref, created_at, updated_at) "
                 "VALUES (:id, :shop_id, :product_id, CAST(:state AS jsonb), 'queued', "
-                " :prompt_version, :prompt_sha256, :now, :now)"
+                " :prompt_version, :prompt_sha256, CAST(:product_id AS text), :now, :now)"
             ),
             {
                 "id": str(run_id),
