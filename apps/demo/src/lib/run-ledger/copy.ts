@@ -32,7 +32,7 @@ export const RUN_LEDGER_BODY_COPY = {
   waitingOnYou: "Có một đề xuất đang chờ bạn xác nhận.",
 } as const;
 
-export interface RunTerminalStateCopy {
+interface RunTerminalStateCopy {
   /** The chip/label text -- distinct per bucket, never a generic "done". */
   label: string;
   chipVariant: StatusChipVariant;

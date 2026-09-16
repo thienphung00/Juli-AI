@@ -32,7 +32,7 @@ import {
  *   whose provenance was never declared must never read as real. This
  *   mirrors the column's own no-default discipline.
  */
-export interface ImpactReadingFigureProps {
+interface ImpactReadingFigureProps {
   /** The reading as it arrived — provenance is read from it, verbatim. */
   reading: ProvenancedReading;
   /** Seller-facing metric label, e.g. "Doanh thu". */

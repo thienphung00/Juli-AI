@@ -31,14 +31,14 @@ import {
 import { reduceRunView, type RunViewState } from "./reduce-run-view";
 
 /** The CONNECTION's state. Never the run's -- see the module docstring. */
-export type RunStreamStatus =
+type RunStreamStatus =
   | "idle"
   | "connecting"
   | "open"
   | "reconnecting"
   | "closed";
 
-export interface UseRunStreamOptions {
+interface UseRunStreamOptions {
   /** Bearer token for the stream. Absent means "do not connect yet". */
   token?: string;
   /** The acting shop, forwarded to the stream client as `X-Shop-Id` (#1909). */
@@ -51,7 +51,7 @@ export interface UseRunStreamOptions {
   enabled?: boolean;
 }
 
-export interface UseRunStreamResult {
+interface UseRunStreamResult {
   /** Derived purely from the events seen so far. */
   readonly view: RunViewState;
   /**
@@ -154,15 +154,4 @@ export function useRunStream(
     closeReason: current?.closeReason,
     lastSequence: view.lastSequence,
   };
-}
-
-/**
- * The same derivation without a connection, for a finished run.
- *
- * A completed run reopens with every stage frozen, and it gets that for free
- * because the replay endpoint serves a finished run's events the same way it
- * serves a live one's -- so the view is a fold over the same list either way.
- */
-export function runViewFromEvents(events: readonly AgentEvent[]): RunViewState {
-  return reduceRunView(events);
 }

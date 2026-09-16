@@ -9,7 +9,7 @@ import {
 } from "../lib/analytics/envelope-mapper";
 import type { PlanImpactContent } from "../lib/plan-reviews";
 
-export interface LiveImpactFetcherProps {
+interface LiveImpactFetcherProps {
   impact: PlanImpactContent;
   /** Stable — `impact-block.tsx` passes its `useState` setter directly. */
   onSnapshot: (snapshot: ImpactMetricSnapshot | null) => void;

@@ -35,7 +35,7 @@ import {
   RUN_WORKFLOW_TITLE,
 } from "../lib/run-surface/stage-copy";
 
-export interface RunHeaderProps {
+interface RunHeaderProps {
   /** The LIVE reducer's terminal state (`reduceRunView(events).terminal`)
    *  -- `undefined` while the run is still going. Always the live view,
    *  never a frozen-stage snapshot: the header reports the run's true,

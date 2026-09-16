@@ -211,7 +211,7 @@ describe("resolveRunSurfaceMotion requires a real trigger (AC 6)", () => {
 
 /** Every primitive id passed as the first argument of a
  *  `resolveRunSurfaceMotion(...)` call in `source`, in order. */
-export function extractResolvedPrimitiveIds(source: string): string[] {
+function extractResolvedPrimitiveIds(source: string): string[] {
   const ids: string[] = [];
   const call = /resolveRunSurfaceMotion\(\s*["']([a-z-]+)["']/g;
   let match: RegExpExecArray | null;

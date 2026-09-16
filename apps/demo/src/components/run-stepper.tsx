@@ -22,7 +22,7 @@ import { prefersReducedMotion, resolveRunSurfaceMotion } from "../lib/run-surfac
 import { RUN_STAGE_STATUS_COPY } from "../lib/run-surface/stage-copy";
 import { RUN_SURFACE_LIVE_EDGE_CLASS_NAMES } from "../lib/run-surface/tokens";
 
-export type RunStepperNodeDisplayStatus = "frozen" | "active" | "locked";
+type RunStepperNodeDisplayStatus = "frozen" | "active" | "locked";
 
 export interface RunStepperNode {
   readonly id: RunStageId;
@@ -30,7 +30,7 @@ export interface RunStepperNode {
   readonly displayStatus: RunStepperNodeDisplayStatus;
 }
 
-export interface RunStepperProps {
+interface RunStepperProps {
   readonly nodes: readonly RunStepperNode[];
   /** Index of the stage the seller is currently viewing -- may be behind
    *  the live edge; never ahead of it. */
