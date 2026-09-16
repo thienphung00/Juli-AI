@@ -86,9 +86,11 @@ from juli_backend.integrations.tiktok.mapping import (
 )
 from juli_backend.integrations.tiktok.merchant import (
     PRODUCTION_AUTH_ID,
+    READ_CAPABILITIES,
     SANDBOX_AUTH_ID,
     TikTokCapability,
     is_cross_merchant_lookup,
+    is_read_capability,
     resolve_merchant_context,
 )
 from juli_backend.integrations.tiktok.rate_limiter import RateLimiter
@@ -158,7 +160,9 @@ __all__ = [
     "PRODUCTION_AUTH_ID",
     "SANDBOX_AUTH_ID",
     "TikTokCapability",
+    "READ_CAPABILITIES",
     "is_cross_merchant_lookup",
+    "is_read_capability",
     "resolve_merchant_context",
     # Vendor → ingest mapping
     "analytics_snapshot_key",

@@ -13,6 +13,35 @@ stays a required parameter on both entrypoints purely so
 `services/action_cards/refresh.py::maybe_poll_tiktok_data` (out of this
 slice's write-path lock) keeps working unmodified; neither entrypoint's body
 calls it anymore.
+
+#1967: the cycle holds a STICKY shop scope, not a single `reapply_shop_scope`.
+
+`reapply_shop_scope` was right for the one commit this module could see -- the
+resolver's (#1880) -- and wrong for the ones it cannot. `handoff_fn` is
+`make_etl_handoff(consumer)`, and `EtlConsumer.ingest` commits per record so
+partial ingestion is durable; each of those commits discards `SET LOCAL
+app.current_shop_id`. The cycle's final write, `TikTokSyncStateRepo.save`, then
+met `app_current_shop_id() IS NULL` and Postgres refused it:
+
+    asyncpg.exceptions.InsufficientPrivilegeError:
+      new row violates row-level security policy for table "tiktok_sync_state"
+
+Observed against Fujiwa: `order_items` at 250 rows, `orders` at 0, and the
+watermark untouched -- rows landed while the bookkeeping that records them did
+not, so the next cycle would refetch from the same place forever. The poll had
+never completed a cycle.
+
+`with_sticky_shop_scope` (#1883) is the answer rather than more reapplies: the
+commits happen in a loop that lives in another module, so "immediately after
+the callee returns" is not a place this file can name. Authority is unchanged
+(ADR-089) -- one shop id, the same policies, the user GUC withheld, and still
+`SET LOCAL`, so a pooled connection cannot carry a shop id into its next
+checkout.
+
+The scope opens AFTER `resolve()`, because the shop id it requires is only
+knowable from the credential resolve returns. The resolver's own commit is
+therefore still outside it, and harmless: the scope is established after it,
+not discarded by it.
 """
 
 from __future__ import annotations
@@ -31,7 +60,7 @@ from juli_backend.core.security.credential_resolver import (
     resolve_production_read_credential,
 )
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
-from juli_backend.database.tenant_context import reapply_shop_scope
+from juli_backend.database.tenant_context import with_sticky_shop_scope
 from juli_backend.integrations.tiktok import (
     ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
     INVENTORY_SEARCH_PATH,
@@ -322,18 +351,17 @@ async def _run_poll_step(
     )
 
 
-async def run_fujiwa_material_resource_fetch(
+async def _poll(
     *,
     session: AsyncSession,
     config: FujiwaPollConfig,
-    oauth_service: TikTokOAuthService,
+    credential: TikTokCredential,
     rate_limiter: RateLimiter,
     handoff_fn: HandoffFn,
-    resolve_credential: ResolveCredentialFn | None = None,
-    factory: ProductionReadClientFactory | None = None,
-    create_resources: CreateResourcesFn | None = None,
-    sync_state_repo: TikTokSyncStateRepo | None = None,
-    sleep: SleepFn = asyncio.sleep,
+    factory: ProductionReadClientFactory | None,
+    create_resources: CreateResourcesFn | None,
+    sync_state_repo: TikTokSyncStateRepo | None,
+    sleep: SleepFn,
 ) -> None:
     """Fetch orders/products/returns/inventory + incremental analytics for material precompute."""
     # Clock starts before `resolve`, which does DB work and may refresh a token
@@ -348,6 +376,15 @@ async def run_fujiwa_material_resource_fetch(
     # load and shop read just below still run under scope instead of a
     # silent-empty-read / NotFound-shaped `shop is None`.
     await reapply_shop_scope(session, credential.shop_id)
+    """One poll cycle: the four search endpoints, then analytics, then the watermark.
+
+    Runs entirely inside the caller's `with_sticky_shop_scope` and takes an
+    already-resolved credential, because the shop id that scope needs is only
+    knowable after the resolve. Both entrypoints share this body — the analytics
+    wire set (#424: A-25 + A-31–A-39) is reached identically by scheduled
+    polling and by manual refresh (ADR-021), which arrives here via
+    `maybe_poll_tiktok_data` → `run_fujiwa_poll_cycle`.
+    """
     _assert_fujiwa_credential(credential)
 
     client_factory = factory or ProductionReadClientFactory()
@@ -432,7 +469,7 @@ async def run_fujiwa_material_resource_fetch(
     await repo.save(credential.shop_id, sync_state)
 
 
-async def run_fujiwa_poll_cycle(
+async def run_fujiwa_material_resource_fetch(
     *,
     session: AsyncSession,
     config: FujiwaPollConfig,
@@ -538,5 +575,48 @@ async def run_fujiwa_poll_cycle(
                 exc_info=True,
             )
         raise
+    """Fetch orders/products/returns/inventory + incremental analytics for material precompute."""
+    resolve = resolve_credential or resolve_production_read_credential
+    credential = await resolve(session)
+    async with with_sticky_shop_scope(session, credential.shop_id):
+        await _poll(
+            session=session,
+            config=config,
+            credential=credential,
+            rate_limiter=rate_limiter,
+            handoff_fn=handoff_fn,
+            factory=factory,
+            create_resources=create_resources,
+            sync_state_repo=sync_state_repo,
+            sleep=sleep,
+        )
 
-    await repo.save(credential.shop_id, sync_state)
+
+async def run_fujiwa_poll_cycle(
+    *,
+    session: AsyncSession,
+    config: FujiwaPollConfig,
+    oauth_service: TikTokOAuthService,
+    rate_limiter: RateLimiter,
+    handoff_fn: HandoffFn,
+    resolve_credential: ResolveCredentialFn | None = None,
+    factory: ProductionReadClientFactory | None = None,
+    create_resources: CreateResourcesFn | None = None,
+    sync_state_repo: TikTokSyncStateRepo | None = None,
+    sleep: SleepFn = asyncio.sleep,
+) -> None:
+    """Run one Fujiwa poll cycle for orders, products, returns, and inventory."""
+    resolve = resolve_credential or resolve_production_read_credential
+    credential = await resolve(session)
+    async with with_sticky_shop_scope(session, credential.shop_id):
+        await _poll(
+            session=session,
+            config=config,
+            credential=credential,
+            rate_limiter=rate_limiter,
+            handoff_fn=handoff_fn,
+            factory=factory,
+            create_resources=create_resources,
+            sync_state_repo=sync_state_repo,
+            sleep=sleep,
+        )

@@ -2,7 +2,9 @@
 
 from juli_backend.core.security.credential_resolver import *  # noqa: F403
 from juli_backend.core.security.credential_resolver import (
+    NoReadCredentialForShop,
     resolve_production_read_credential,
+    resolve_read_credential_for_shop,
 )
 from juli_backend.core.security.dependencies import get_current_user
 from juli_backend.core.security.exceptions import Unauthorized
@@ -19,6 +21,11 @@ __all__ = [
     # cross-package depth 2 by `.importlinter.toml` -- can reach it for the
     # extended boot check 5.
     "JwksUnavailableError",
+    # #1365: the per-shop read resolver and its named failure, exported at the
+    # package root so the read path (`services/action_cards/refresh.py`, capped
+    # at cross-package depth 2) can resolve the credential the REQUESTED shop
+    # owns instead of the one globally configured merchant's.
+    "NoReadCredentialForShop",
     "TikTokOAuthService",
     "Unauthorized",
     "get_current_user",
@@ -26,6 +33,7 @@ __all__ = [
     # capped at cross-package depth 2 by `.importlinter.toml` -- can resolve the
     # production-read shop before deciding whether to poll.
     "resolve_production_read_credential",
+    "resolve_read_credential_for_shop",
     "supabase_jwks_url",
     "verify_supabase_jwt",
 ]
