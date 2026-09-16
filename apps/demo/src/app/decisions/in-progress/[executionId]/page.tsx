@@ -28,6 +28,7 @@ import { RepeatConsentBlock } from "../../../../components/repeat-consent-block"
 import { RunDetailRoute } from "../../../../components/run-detail-route";
 import { getWorkflowReviewStages } from "../../../../lib/reviews";
 import { readActiveShop } from "../../../../lib/shop-session";
+import { ACTIONS_DESTINATION_LABEL } from "../../../../lib/destination-copy";
 import { readAuthSession, type AuthSession } from "../../../../lib/supabase-auth";
 import { selectRepeatConsentSurfaces } from "../../../../lib/repeat-consent";
 import { sanitizeSellerReviewText } from "../../../../lib/review-seller-copy";
@@ -139,9 +140,9 @@ export function InProgressDetailView({ executionId }: { executionId: string }) {
 
     return (
       <DestinationPlaceholder
-        description="Luồng thực hiện này không còn trong Demo hoặc chưa được tạo. Hãy quay lại Quyết định để xem các luồng đang chạy."
+        description={`Luồng thực hiện này không còn trong Demo hoặc chưa được tạo. Hãy quay lại ${ACTIONS_DESTINATION_LABEL} để xem các luồng đang chạy.`}
         recoveryHref="/decisions"
-        recoveryLabel="Về Quyết định"
+        recoveryLabel={`Về ${ACTIONS_DESTINATION_LABEL}`}
         state="empty"
         title="Không tìm thấy luồng thực hiện"
       />

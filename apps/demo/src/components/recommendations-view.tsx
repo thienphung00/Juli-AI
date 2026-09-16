@@ -9,6 +9,7 @@ import { InProgressPanel } from "./in-progress-panel";
 import { RecommendationsPanel } from "./recommendations-panel";
 import { recommendationFixtures } from "../lib/recommendations";
 import { readReplayDecision } from "../lib/replay-decision";
+import { ACTIONS_DESTINATION_LABEL } from "../lib/destination-copy";
 import { OPTIMIZE_PRODUCT_WORKFLOW_KEY } from "../lib/reviews";
 import { REPLAY_SCENARIO_RUN_ID } from "../lib/run-surface/replay-scenario";
 
@@ -93,7 +94,7 @@ export function RecommendationsView({
 
   return (
     <section aria-labelledby="decisions-title" className="demo-decisions">
-      <p className="demo-kicker">Quyết định</p>
+      <p className="demo-kicker">{ACTIONS_DESTINATION_LABEL}</p>
       <h1 className="demo-title" id="decisions-title">
         Việc cần bạn quyết định
       </h1>

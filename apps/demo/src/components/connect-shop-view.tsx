@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import type { AuthSession } from "../lib/supabase-auth";
 import { storeActiveShop } from "../lib/shop-session";
+import { ACTIONS_DESTINATION_LABEL } from "../lib/destination-copy";
 import { decodeJwtPayload } from "../lib/supabase-auth";
 import { ShopsFetchError, fetchShops, type Shop } from "../lib/shops-client";
 
@@ -178,7 +179,7 @@ function ConnectShopReady({
       </p>
 
       <Link className="juli-btn juli-btn--primary juli-btn--default" href="/decisions">
-        Đi tới Quyết định
+        Đi tới {ACTIONS_DESTINATION_LABEL}
       </Link>
     </div>
   );
