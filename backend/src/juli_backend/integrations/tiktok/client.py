@@ -10,7 +10,10 @@ import json
 import logging
 import os
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from typing import Any, TypeVar, overload
 
 import requests
@@ -25,11 +28,184 @@ T = TypeVar("T", bound=BaseModel)
 logger = logging.getLogger(__name__)
 
 _ACCESS_TOKEN_HEADER = "x-tts-access-token"
-# Maximum pages per paginated fetch. Prevents infinite loops if an API endpoint
-# echoes the page_token back in its response, creating an unbounded cursor.
-# Env-overridable via TIKTOK_MAX_PAGES. A low double-digit cap is appropriate
-# since real fetches (with page_size=50) rarely need more than a few pages.
+
+# Seam for tests; the wall-clock budget below must not move with the system clock.
+_monotonic = time.monotonic
+
+# Two page budgets, because there are two jobs (#1969).
+#
+# `_DEFAULT_MAX_PAGES` bounds a routine INCREMENTAL poll. It exists to stop an
+# infinite loop when an endpoint echoes `page_token` back, creating a cursor
+# that never advances, and a low double-digit cap is right for that: an
+# incremental fetch filtered by `update_time_ge` rarely needs more than a few
+# pages, and quietly dropping the 21st page of a five-minute delta is cheap.
+#
+# `_DEFAULT_BACKFILL_MAX_PAGES` bounds a COLD-START backfill -- the onboarding's
+# first read of a shop with no watermark (ADR-103 d.10). Applying the
+# incremental cap there truncated a new seller's entire history at 20 pages and
+# said so in a `logger.warning` nobody reads. The backfill budget is therefore
+# both far larger and, critically, *enforced by raising*: a truncated first read
+# is a failed first read, never a warning. It stays finite so an echoed cursor
+# still terminates -- 400 pages at page_size=50 is 20,000 rows.
 _DEFAULT_MAX_PAGES = 20
+_DEFAULT_BACKFILL_MAX_PAGES = 400
+
+# Wall-clock budget for one paginated fetch. Checked BETWEEN pages, which is the
+# only place this layer can check anything: `requests` is synchronous, so while a
+# page is in flight no other code in this process runs. See `pagination_scope`.
+_DEFAULT_FETCH_BUDGET_SECONDS = 600.0
+
+MAX_PAGES_ENV = "TIKTOK_MAX_PAGES"
+BACKFILL_MAX_PAGES_ENV = "TIKTOK_BACKFILL_MAX_PAGES"
+FETCH_BUDGET_SECONDS_ENV = "TIKTOK_FETCH_BUDGET_SECONDS"
+
+
+class TikTokPaginationError(RuntimeError):
+    """A paginated fetch could not be completed as asked.
+
+    Deliberately NOT a `TikTokAPIError`: the vendor answered every request
+    correctly. Subclassing `TikTokAPIError` would route these into the
+    `except TikTokAPIError` arms in `workers/services/polling/sync.py`, which
+    log a warning and return -- exactly the silence this class exists to break.
+    """
+
+
+class TikTokPaginationTruncatedError(TikTokPaginationError):
+    """A cold-start backfill hit its page budget before the cursor ran out."""
+
+    def __init__(
+        self,
+        *,
+        path: str,
+        pages: int,
+        items: int,
+        max_pages: int,
+        total_count: int | None = None,
+    ) -> None:
+        self.path = path
+        self.pages = pages
+        self.items = items
+        self.max_pages = max_pages
+        self.total_count = total_count
+        super().__init__(
+            f"backfill of {path} truncated at {pages} pages ({items} items) "
+            f"with the cursor still advancing; budget={max_pages} pages, "
+            f"vendor total_count={total_count}"
+        )
+
+
+class TikTokPaginationTimeoutError(TikTokPaginationError):
+    """A paginated fetch outran its wall-clock budget."""
+
+    def __init__(
+        self,
+        *,
+        path: str,
+        pages: int,
+        items: int,
+        budget_seconds: float,
+        elapsed_seconds: float,
+    ) -> None:
+        self.path = path
+        self.pages = pages
+        self.items = items
+        self.budget_seconds = budget_seconds
+        self.elapsed_seconds = elapsed_seconds
+        super().__init__(
+            f"fetch of {path} exceeded its {budget_seconds:.0f}s budget after "
+            f"{pages} pages ({items} items) in {elapsed_seconds:.1f}s"
+        )
+
+
+@dataclass
+class PaginationScope:
+    """Per-fetch pagination policy, and the progress counters it fills in.
+
+    The mode cannot live on the client: the client is built by
+    `ProductionReadClientFactory` several layers below the code that knows
+    whether this is a shop's first read, and the resource wrappers in
+    `resources/` take no such argument. It cannot live on the endpoint either --
+    the same endpoint serves both jobs. It is a property of the *call context*,
+    so it travels in a `ContextVar`, and the same object carries `pages` and
+    `items` back out so the caller can log what its fetch actually did without
+    reaching into the client.
+    """
+
+    backfill: bool = False
+    budget_seconds: float | None = None
+    # Injected rather than patched: a wall-clock assertion that reaches for the
+    # real clock is the flakiest kind of test there is.
+    clock: Callable[[], float] = _monotonic
+    pages: int = 0
+    items: int = 0
+    truncated: bool = False
+    paths: list[str] = field(default_factory=list)
+
+
+_PAGINATION_SCOPE: ContextVar[PaginationScope | None] = ContextVar(
+    "tiktok_pagination_scope", default=None
+)
+
+
+def max_pages() -> int:
+    """Page cap for a routine incremental fetch."""
+    return int(os.getenv(MAX_PAGES_ENV, str(_DEFAULT_MAX_PAGES)))
+
+
+def backfill_max_pages() -> int:
+    """Page budget for a cold-start backfill."""
+    return int(os.getenv(BACKFILL_MAX_PAGES_ENV, str(_DEFAULT_BACKFILL_MAX_PAGES)))
+
+
+def default_fetch_budget_seconds() -> float:
+    """Wall-clock budget applied to a fetch that does not name its own."""
+    return float(os.getenv(FETCH_BUDGET_SECONDS_ENV, str(_DEFAULT_FETCH_BUDGET_SECONDS)))
+
+
+def current_pagination_scope() -> PaginationScope | None:
+    """The scope the calling context opened, if any."""
+    return _PAGINATION_SCOPE.get()
+
+
+@contextmanager
+def pagination_scope(
+    *,
+    backfill: bool = False,
+    budget_seconds: float | None = None,
+    clock: Callable[[], float] = _monotonic,
+) -> Iterator[PaginationScope]:
+    """Declare how the fetches inside this block should be budgeted.
+
+    `backfill=True` swaps the incremental page cap for the backfill budget and
+    turns exhausting it into `TikTokPaginationTruncatedError` instead of a
+    warning. `budget_seconds` bounds the wall clock; it defaults to
+    `TIKTOK_FETCH_BUDGET_SECONDS`.
+
+    Scopes nest, and an inner scope can never be more generous than the scope
+    enclosing it. `workers/services/polling/orchestrate.py` opens an outer scope
+    carrying the cycle's REMAINING wall clock, so a per-fetch budget is capped
+    by what is left of the cycle. Without that the two budgets composed by
+    addition -- a 1800s cycle could still start a 600s fetch at 1799s -- and the
+    worst case was ~40 minutes, which is the duration this issue was filed for.
+
+    What the budget can interrupt: the gap between two pages. What it cannot:
+    a page already in flight. `requests` blocks the thread, so nothing -- not
+    this, not `asyncio.wait_for` one layer up -- can preempt it. The per-request
+    socket timeout (`TikTokClient(timeout=...)`, 15s by default) is the only
+    bound on a single call, so the real worst case is `budget_seconds` plus one
+    socket timeout, not `budget_seconds`.
+    """
+    resolved = budget_seconds if budget_seconds is not None else default_fetch_budget_seconds()
+    enclosing = _PAGINATION_SCOPE.get()
+    if enclosing is not None and enclosing.budget_seconds is not None:
+        resolved = min(resolved, enclosing.budget_seconds)
+    scope = PaginationScope(backfill=backfill, budget_seconds=resolved, clock=clock)
+    token = _PAGINATION_SCOPE.set(scope)
+    try:
+        yield scope
+    finally:
+        _PAGINATION_SCOPE.reset(token)
+
 
 # Enough to carry a Partner API error envelope without flooding logs on an HTML 5xx page.
 _ERROR_BODY_LIMIT = 800
@@ -312,86 +488,28 @@ class TikTokClient:
         page_size: int = 50,
         retry_transient: bool = False,
     ) -> list[dict]:
-        """Auto-paginate a POST endpoint using ``page_token`` query param.
+        """Auto-paginate a POST endpoint using the ``page_token`` query param.
 
         Official responses expose the next cursor as ``next_page_token``; legacy
         testing-tool aliases may return ``page_token`` instead.
 
-        Stops early if:
-        - Maximum page count is reached (prevents infinite loops on echoed cursors)
-        - The returned token equals the sent token (non-advancing cursor detection)
+        Budgeting and the truncation verdict come from the caller's
+        ``pagination_scope`` -- see ``_paginate``.
         """
-        all_items: list[dict] = []
-        query_params: dict[str, str] = {"page_size": str(page_size)}
         page_body = dict(body)
-        page_count = 0
-        last_token: str | None = None
-        total_count: int | None = None
-        truncated = False
 
-        max_pages = int(os.getenv("TIKTOK_MAX_PAGES", str(_DEFAULT_MAX_PAGES)))
-
-        while True:
-            page_count += 1
-
-            # Guard 1: Maximum page count
-            if page_count > max_pages:
-                truncated = True
-                logger.warning(
-                    "tiktok_pagination_max_pages_reached",
-                    extra={
-                        "path": path,
-                        "page_count": page_count - 1,
-                        "reason": "max_pages_exceeded",
-                    },
-                )
-                break
-
-            data = self.post(
+        def fetch_page(query_params: dict[str, str]) -> Any:
+            return self.post(
                 path, body=page_body, params=query_params, retry_transient=retry_transient
             )
-            if not isinstance(data, dict):
-                break
-            items = data.get(items_key, [])
-            all_items.extend(items)
-            if total_count is None and isinstance(data.get("total_count"), int):
-                total_count = data["total_count"]
 
-            next_token = data.get("next_page_token") or data.get("page_token")
-            if not next_token:
-                break
-
-            # Guard 2: Non-advancing cursor detection
-            if next_token == last_token:
-                logger.warning(
-                    "tiktok_pagination_non_advancing_cursor",
-                    extra={
-                        "path": path,
-                        "page_count": page_count,
-                        "reason": "cursor_not_advancing",
-                    },
-                )
-                break
-
-            last_token = next_token
-            query_params = {
-                "page_size": str(page_size),
-                "page_token": str(next_token),
-            }
-
-        # The vendor-side backlog is invisible without this: the fetch caps at
-        # max_pages, so "how far behind are we" is total_count minus what landed.
-        logger.info(
-            "tiktok_pagination_summary",
-            extra={
-                "path": path,
-                "pages": page_count - 1 if truncated else page_count,
-                "items": len(all_items),
-                "total_count": total_count,
-                "truncated": truncated,
-            },
+        return self._paginate(
+            path=path,
+            items_key=items_key,
+            page_size=page_size,
+            base_params={},
+            fetch_page=fetch_page,
         )
-        return all_items
 
     def get_all_pages_get(
         self,
@@ -400,59 +518,190 @@ class TikTokClient:
         items_key: str,
         page_size: int = 50,
     ) -> list[dict]:
-        """Auto-paginate a GET endpoint using ``page_token`` query param.
+        """Auto-paginate a GET endpoint using the ``page_token`` query param."""
 
-        Stops early if:
-        - Maximum page count is reached (prevents infinite loops on echoed cursors)
-        - The returned token equals the sent token (non-advancing cursor detection)
+        def fetch_page(query_params: dict[str, str]) -> Any:
+            return self.get(path, params=query_params)
+
+        return self._paginate(
+            path=path,
+            items_key=items_key,
+            page_size=page_size,
+            base_params=dict(params),
+            fetch_page=fetch_page,
+        )
+
+    def _paginate(
+        self,
+        *,
+        path: str,
+        items_key: str,
+        page_size: int,
+        base_params: dict[str, str],
+        fetch_page: Callable[[dict[str, str]], Any],
+    ) -> list[dict]:
+        """Walk a cursor to exhaustion, or to the budget the caller declared.
+
+        One loop for both verbs (#1969). The POST and GET paginators had drifted
+        apart -- only the POST one emitted a summary, so half the fetches in a
+        poll cycle were invisible -- and every rule below had to be stated twice
+        to change once.
+
+        Stops when: the cursor runs out; the cursor stops advancing (an endpoint
+        echoing the token back); the page budget is spent; or the wall-clock
+        budget is spent. The last two are the interesting ones:
+
+        - page budget spent during an INCREMENTAL fetch -> warn and return what
+          landed. Dropping the tail of a delta is survivable and the next cycle
+          picks it up from the same watermark.
+        - page budget spent during a BACKFILL -> raise. There is no next cycle
+          that fixes a half-read history; the seller would simply be missing
+          data forever, which is what happened.
+        - wall-clock budget spent -> raise, either way. A fetch that will not
+          finish must end loudly rather than hold a worker slot (#1969 defect 3).
         """
+        scope = current_pagination_scope()
+        backfill = scope.backfill if scope is not None else False
+        # `pagination_scope` resolves the budget on entry, including the cap from
+        # any enclosing scope; a fetch with no scope at all falls back here.
+        budget_seconds = (
+            scope.budget_seconds
+            if scope is not None and scope.budget_seconds is not None
+            else default_fetch_budget_seconds()
+        )
+        page_budget = backfill_max_pages() if backfill else max_pages()
+        clock = scope.clock if scope is not None else _monotonic
+
+        started_at = clock()
         all_items: list[dict] = []
-        query_params: dict[str, str] = {**params, "page_size": str(page_size)}
-        page_count = 0
+        query_params: dict[str, str] = {**base_params, "page_size": str(page_size)}
+        pages = 0
         last_token: str | None = None
+        total_count: int | None = None
+        truncated = False
 
-        max_pages = int(os.getenv("TIKTOK_MAX_PAGES", str(_DEFAULT_MAX_PAGES)))
+        try:
+            while True:
+                elapsed = clock() - started_at
+                if elapsed > budget_seconds:
+                    logger.error(
+                        "tiktok_pagination_budget_exceeded",
+                        extra={
+                            "path": path,
+                            "pages": pages,
+                            "items": len(all_items),
+                            "budget_seconds": budget_seconds,
+                            "elapsed_seconds": round(elapsed, 3),
+                            "backfill": backfill,
+                        },
+                    )
+                    raise TikTokPaginationTimeoutError(
+                        path=path,
+                        pages=pages,
+                        items=len(all_items),
+                        budget_seconds=budget_seconds,
+                        elapsed_seconds=elapsed,
+                    )
 
-        while True:
-            page_count += 1
+                if pages >= page_budget:
+                    if backfill:
+                        logger.error(
+                            "tiktok_backfill_truncated",
+                            extra={
+                                "path": path,
+                                "pages": pages,
+                                "items": len(all_items),
+                                "max_pages": page_budget,
+                                "total_count": total_count,
+                                "reason": "max_pages_exceeded",
+                            },
+                        )
+                        raise TikTokPaginationTruncatedError(
+                            path=path,
+                            pages=pages,
+                            items=len(all_items),
+                            max_pages=page_budget,
+                            total_count=total_count,
+                        )
+                    truncated = True
+                    logger.warning(
+                        "tiktok_pagination_max_pages_reached",
+                        extra={
+                            "path": path,
+                            "page_count": pages,
+                            "reason": "max_pages_exceeded",
+                        },
+                    )
+                    break
 
-            # Guard 1: Maximum page count
-            if page_count > max_pages:
-                logger.warning(
-                    "tiktok_pagination_max_pages_reached",
+                data = fetch_page(query_params)
+                pages += 1
+                if not isinstance(data, dict):
+                    break
+
+                items = data.get(items_key) or []
+                all_items.extend(items)
+                if total_count is None and isinstance(data.get("total_count"), int):
+                    total_count = data["total_count"]
+
+                # Defect 2 was a 47-minute cycle that emitted nothing between
+                # start and the truncation warning. One line per page is what
+                # makes a working fetch distinguishable from a wedged one.
+                logger.info(
+                    "tiktok_pagination_page",
                     extra={
                         "path": path,
-                        "page_count": page_count - 1,
-                        "reason": "max_pages_exceeded",
+                        "page": pages,
+                        "page_items": len(items),
+                        "items_total": len(all_items),
+                        "total_count": total_count,
+                        "elapsed_seconds": round(clock() - started_at, 3),
+                        "backfill": backfill,
                     },
                 )
-                break
 
-            data = self.get(path, params=query_params)
-            if not isinstance(data, dict):
-                break
-            items = data.get(items_key, [])
-            all_items.extend(items)
+                next_token = data.get("next_page_token") or data.get("page_token")
+                if not next_token:
+                    break
 
-            next_token = data.get("next_page_token") or data.get("page_token")
-            if not next_token:
-                break
+                if next_token == last_token:
+                    logger.warning(
+                        "tiktok_pagination_non_advancing_cursor",
+                        extra={
+                            "path": path,
+                            "page_count": pages,
+                            "reason": "cursor_not_advancing",
+                        },
+                    )
+                    break
 
-            # Guard 2: Non-advancing cursor detection
-            if next_token == last_token:
-                logger.warning(
-                    "tiktok_pagination_non_advancing_cursor",
-                    extra={
-                        "path": path,
-                        "page_count": page_count,
-                        "reason": "cursor_not_advancing",
-                    },
-                )
-                break
+                last_token = next_token
+                query_params = {
+                    **base_params,
+                    "page_size": str(page_size),
+                    "page_token": str(next_token),
+                }
+        finally:
+            if scope is not None:
+                scope.pages += pages
+                scope.items += len(all_items)
+                scope.truncated = scope.truncated or truncated
+                scope.paths.append(path)
 
-            last_token = next_token
-            query_params = {**params, "page_size": str(page_size), "page_token": str(next_token)}
-
+        # The vendor-side backlog is invisible without this: a truncated fetch
+        # leaves total_count minus what landed still sitting at the vendor.
+        logger.info(
+            "tiktok_pagination_summary",
+            extra={
+                "path": path,
+                "pages": pages,
+                "items": len(all_items),
+                "total_count": total_count,
+                "truncated": truncated,
+                "backfill": backfill,
+                "elapsed_seconds": round(clock() - started_at, 3),
+            },
+        )
         return all_items
 
     def _build_params(self, path: str, extra: dict[str, str] | None = None) -> dict[str, str]:

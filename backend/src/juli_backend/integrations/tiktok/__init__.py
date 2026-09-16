@@ -17,7 +17,15 @@ from juli_backend.integrations.tiktok.business_account_holder_auth import (
 from juli_backend.integrations.tiktok.business_advertiser_auth import (
     TikTokBusinessAdvertiserAuth,
 )
-from juli_backend.integrations.tiktok.client import TikTokClient
+from juli_backend.integrations.tiktok.client import (
+    PaginationScope,
+    TikTokClient,
+    TikTokPaginationError,
+    TikTokPaginationTimeoutError,
+    TikTokPaginationTruncatedError,
+    current_pagination_scope,
+    pagination_scope,
+)
 from juli_backend.integrations.tiktok.constants import (
     ANALYTICS_BESTSELLING_PRODUCTS_PATH,
     ANALYTICS_BESTSELLING_VIDEOS_PATH,
@@ -110,7 +118,13 @@ __all__ = [
     "TikTokBusinessAccountHolderAuth",
     "DEFAULT_OPEN_API_BASE_URL",
     # HTTP client
+    "PaginationScope",
     "TikTokClient",
+    "TikTokPaginationError",
+    "TikTokPaginationTimeoutError",
+    "TikTokPaginationTruncatedError",
+    "current_pagination_scope",
+    "pagination_scope",
     # Safe identifier rendering (never log a full shop cipher)
     "redact_shop_identifier",
     # Request signing

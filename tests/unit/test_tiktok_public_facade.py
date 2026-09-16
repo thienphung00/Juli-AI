@@ -22,6 +22,15 @@ EXPECTED_PUBLIC_EXPORTS = frozenset(
         "DEFAULT_OPEN_API_BASE_URL",
         # HTTP client
         "TikTokClient",
+        # #1969: pagination budgeting — a cold-start backfill and an incremental
+        # poll need different page budgets and different verdicts, and the caller
+        # that knows which it is sits above `resources/`, not inside the client.
+        "PaginationScope",
+        "pagination_scope",
+        "current_pagination_scope",
+        "TikTokPaginationError",
+        "TikTokPaginationTruncatedError",
+        "TikTokPaginationTimeoutError",
         # #1200: safe identifier rendering, needed by services/tiktok/
         # credential_binding.py, which may only reach the package root (depth-2 cap).
         "redact_shop_identifier",

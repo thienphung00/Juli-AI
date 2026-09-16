@@ -18,8 +18,10 @@ import logging
 import time
 import uuid
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from functools import partial
+from typing import Any, TypeVar
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,6 +41,7 @@ from juli_backend.integrations.tiktok import (
     PermissionDeniedError,
     RateLimiter,
     TikTokAPIError,
+    TikTokPaginationError,
     analytics_shop_performance_per_hour_path,
     analytics_shop_product_performance_path,
     analytics_shop_sku_performance_path,
@@ -57,12 +60,276 @@ from juli_backend.integrations.tiktok import (
     normalize_order,
     normalize_product,
     normalize_return,
+    pagination_scope,
     promotion_activity_path,
 )
 from juli_backend.models.models import TikTokCredential
 from juli_backend.services.ingestion.handoff import HandoffFn
 
 logger = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
+
+
+@dataclass(frozen=True)
+class SyncOutcome:
+    """What one poll step actually did (#1950's triple, #1969's instance of it).
+
+    Before this, every step returned ``None``. A step that fetched 3,581 rows
+    and persisted zero was byte-for-byte indistinguishable from a step with
+    nothing to do, and that is how two production data-loss bugs survived for
+    months.
+
+    ``persisted`` is counted at the boundary this module can actually see: a
+    row the ETL handoff accepted without raising. It is NOT proof of a committed
+    Postgres row -- ``HandoffFn`` is typed ``-> None`` and ``make_etl_handoff``
+    discards ``EtlConsumer.ingest``'s ``ProcessOutcome``, so a row routed to the
+    DLQ still counts as accepted here. Widening that contract belongs to #1950
+    in ``services/ingestion/handoff.py``, which this issue does not own. What
+    this number does catch -- and what was silently broken -- is the whole-step
+    failure: handoff raising for every row.
+    """
+
+    resource: str
+    shop_id: str
+    fetched: int = 0
+    persisted: int = 0
+    failed: int = 0
+    pages: int = 0
+    backfill: bool = False
+    skipped: bool = False
+    error: str | None = None
+
+    @property
+    def dropped_everything(self) -> bool:
+        """Rows came back from the vendor and not one of them landed."""
+        return self.fetched > 0 and self.persisted == 0
+
+    @property
+    def ok(self) -> bool:
+        return self.error is None and self.failed == 0 and not self.dropped_everything
+
+    def as_log_fields(self) -> dict[str, Any]:
+        return {
+            "resource": self.resource,
+            "shop_id": self.shop_id,
+            "fetched": self.fetched,
+            "persisted": self.persisted,
+            "failed": self.failed,
+            "pages": self.pages,
+            "backfill": self.backfill,
+            "skipped": self.skipped,
+            "error": self.error,
+            "ok": self.ok,
+        }
+
+
+class PollStepDroppedRowsError(RuntimeError):
+    """A poll step fetched rows from the vendor and persisted none of them."""
+
+    def __init__(self, outcome: SyncOutcome) -> None:
+        self.outcome = outcome
+        super().__init__(
+            f"{outcome.resource} sync fetched {outcome.fetched} rows for shop "
+            f"{outcome.shop_id} and persisted none ({outcome.failed} rejected)"
+        )
+
+
+_ERROR_DETAIL_LIMIT = 200
+
+
+def _describe(exc: BaseException) -> str:
+    """One bounded line for a log record.
+
+    A bare `repr` of a `TikTokAPIError` can carry a whole vendor response body,
+    and this string goes into every `poll_step_outcome`.
+    """
+    return repr(exc)[:_ERROR_DETAIL_LIMIT]
+
+
+class _CountingHandoff:
+    """A ``HandoffFn`` that counts what the ETL took and what it refused.
+
+    Signature-identical to ``HandoffFn`` on purpose -- it is substituted for the
+    real one inside a step, including in ``sync_analytics`` where fourteen call
+    sites reach for the same local name.
+
+    A rejected row is counted and logged rather than re-raised on the spot. That
+    is not a swallow: the step's verdict is computed from these counters right
+    after the loop and raises if nothing landed. Failing on row 1 would report
+    "one row failed" for what is usually "the ETL is down and all 3,581 failed",
+    and the second sentence is the one worth paging on.
+    """
+
+    def __init__(
+        self,
+        inner: HandoffFn,
+        *,
+        resource: str,
+        shop_id: str,
+        log_every: int = 200,
+    ) -> None:
+        self._inner = inner
+        self._resource = resource
+        self._shop_id = shop_id
+        self._log_every = log_every
+        self.offered = 0
+        self.persisted = 0
+        self.failed = 0
+        self.first_error: str | None = None
+
+    async def __call__(self, channel: str, shop_key: str, value: bytes) -> None:
+        self.offered += 1
+        try:
+            await self._inner(channel, shop_key, value)
+        except Exception as exc:
+            self.failed += 1
+            if self.first_error is None:
+                self.first_error = _describe(exc)
+            logger.error(
+                "poll_step_handoff_failed",
+                extra={
+                    "resource": self._resource,
+                    "shop_id": self._shop_id,
+                    "channel": channel,
+                    "offered": self.offered,
+                    "failed": self.failed,
+                },
+                exc_info=True,
+            )
+            return
+        self.persisted += 1
+        if self.persisted % self._log_every == 0:
+            logger.info(
+                "poll_step_progress",
+                extra={
+                    "resource": self._resource,
+                    "shop_id": self._shop_id,
+                    "offered": self.offered,
+                    "persisted": self.persisted,
+                    "failed": self.failed,
+                },
+            )
+
+
+class _StepRun:
+    """One poll step's budget, counters, and its single outcome record.
+
+    Use it as a context manager. It holds one `pagination_scope` open for the
+    step's whole life, which buys two things a per-fetch scope did not:
+
+    - `sync_analytics` fans out over ~10 endpoints and never called `fetch()`,
+      so its `pages` was structurally always 0. Now every page any of those
+      endpoints walks lands in the same scope.
+    - the outcome record is emitted on EVERY exit path. Before this it was
+      emitted only where a step remembered to call `report`, so a row that made
+      `normalize_order` raise produced a `poll_step_started` and then silence --
+      indistinguishable from a wedged poll, which is defect 2 all over again.
+
+    `report` is idempotent: the steps call it explicitly to get the outcome
+    back, and `__exit__` only reports when nothing has yet.
+    """
+
+    def __init__(
+        self,
+        resource: str,
+        shop_id: str,
+        *,
+        backfill: bool,
+        handoff_fn: HandoffFn,
+        update_time_from: int | None = None,
+    ) -> None:
+        self.resource = resource
+        self.shop_id = shop_id
+        self.backfill = backfill
+        self.handoff = _CountingHandoff(handoff_fn, resource=resource, shop_id=shop_id)
+        self.fetched = 0
+        self.reported = False
+        self._update_time_from = update_time_from
+        self._scope_cm: Any | None = None
+        self._scope: Any | None = None
+
+    @property
+    def pages(self) -> int:
+        return self._scope.pages if self._scope is not None else 0
+
+    def __enter__(self) -> _StepRun:
+        logger.info(
+            "poll_step_started",
+            extra={
+                "resource": self.resource,
+                "shop_id": self.shop_id,
+                "backfill": self.backfill,
+                "update_time_from": self._update_time_from,
+            },
+        )
+        # A step with no watermark is the shop's first read, so it fetches under
+        # the cold-start backfill budget, where exhausting the page budget raises
+        # instead of warning (see `integrations/tiktok/client.py`). The scope also
+        # inherits any wall-clock budget the orchestrator opened around this step,
+        # so a fetch cannot outlive the cycle budget.
+        self._scope_cm = pagination_scope(backfill=self.backfill)
+        self._scope = self._scope_cm.__enter__()
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        """Report if no arm did. Declared `-> None` so it can never swallow.
+
+        Typed `-> bool` this read to mypy as "may suppress the exception", which
+        made every caller's `return` inside the `with` look unreachable and
+        produced six `Missing return statement` errors. It also would have been
+        a lie: a step that hides the exception that killed it is the defect.
+        """
+        try:
+            if not self.reported:
+                # An exception no step arm anticipated -- a malformed row blowing
+                # up a normalizer, say. Still gets a verdict; `report` re-raises
+                # nothing, so the original exception continues to propagate.
+                self._report(error=exc)
+        finally:
+            if self._scope_cm is not None:
+                self._scope_cm.__exit__(exc_type, exc, tb)
+                self._scope_cm = None
+
+    def fetch(self, call: Callable[[], _T]) -> _T:
+        """Run the synchronous vendor fetch inside this step's pagination scope."""
+        return call()
+
+    def outcome(self, *, error: BaseException | None = None, skipped: bool = False) -> SyncOutcome:
+        return SyncOutcome(
+            resource=self.resource,
+            shop_id=self.shop_id,
+            fetched=self.fetched,
+            persisted=self.handoff.persisted,
+            failed=self.handoff.failed,
+            pages=self.pages,
+            backfill=self.backfill,
+            skipped=skipped,
+            error=_describe(error) if error is not None else self.handoff.first_error,
+        )
+
+    def _report(self, *, error: BaseException | None = None, skipped: bool = False) -> SyncOutcome:
+        """Log the triple exactly once. Never raises."""
+        self.reported = True
+        outcome = self.outcome(error=error, skipped=skipped)
+        log = logger.info if outcome.ok else logger.error
+        log("poll_step_outcome", extra=outcome.as_log_fields())
+        return outcome
+
+    def report(self, *, error: BaseException | None = None, skipped: bool = False) -> SyncOutcome:
+        """Log the triple, then fail the step if it dropped everything it fetched."""
+        outcome = self._report(error=error, skipped=skipped)
+        if outcome.dropped_everything:
+            raise PollStepDroppedRowsError(outcome)
+        return outcome
+
+
+def _skipped(resource: str, shop_id: str) -> SyncOutcome:
+    """A step the rate limiter turned away still has to say so."""
+    outcome = SyncOutcome(resource=resource, shop_id=shop_id, skipped=True)
+    logger.info("poll_step_outcome", extra=outcome.as_log_fields())
+    return outcome
+
 
 # Callable[[], Awaitable[list[str]]] -- sources the shop's synced product ids
 # (#1948). Search Inventory has no unscoped listing and hard-requires
@@ -139,40 +406,59 @@ async def sync_orders(
     app_id: str,
     shop_id: str,
     sync_state: dict[str, Any],
-) -> None:
-    """Fetch orders since last sync and hand off to ETL."""
+) -> SyncOutcome:
+    """Fetch orders since last sync, hand off to ETL, and report the triple."""
     if not rate_limiter.acquire(
         app_id, shop_id, ORDER_SEARCH_PATH, max_requests=10, window_seconds=60
     ):
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "orders"})
-        return
+        return _skipped("orders", shop_id)
 
     update_from = sync_state.get("orders_last_update_time")
+    with _StepRun(
+        "orders",
+        shop_id,
+        backfill=update_from is None,
+        handoff_fn=handoff_fn,
+        update_time_from=update_from,
+    ) as step:
+        try:
+            orders = step.fetch(lambda: resource.search_all(update_time_from=update_from))
+        except TikTokPaginationError as exc:
+            # A truncated or timed-out backfill is a failed read, not a partial one.
+            # The exception must reach `report` too, or the step logs `ok=True` on
+            # its way out and only the traceback disagrees -- which is the same
+            # "reported success while dropping data" shape this issue exists to kill.
+            step.report(error=exc)
+            raise
+        except TikTokAPIError as exc:
+            logger.error("sync_orders_failed", extra={"shop_id": shop_id}, exc_info=True)
+            return step.report(error=exc)
 
-    try:
-        orders = resource.search_all(update_time_from=update_from)
-    except TikTokAPIError:
-        logger.warning("sync_orders_failed", extra={"shop_id": shop_id}, exc_info=True)
-        return
-
-    max_update_time = update_from or 0
-    for order in orders:
-        normalized = normalize_order(order)
-        await handoff_fn(
-            "tiktok.orders.raw",
-            shop_id,
-            json.dumps(normalized).encode(),
-        )
-        for line_item in expand_order_line_items(normalized):
-            await handoff_fn(
-                "tiktok.order_items.raw",
+        step.fetched = len(orders)
+        max_update_time = update_from or 0
+        for order in orders:
+            normalized = normalize_order(order)
+            await step.handoff(
+                "tiktok.orders.raw",
                 shop_id,
-                json.dumps(line_item).encode(),
+                json.dumps(normalized).encode(),
             )
-        max_update_time = max(max_update_time, order.get("update_time", 0))
+            for line_item in expand_order_line_items(normalized):
+                await step.handoff(
+                    "tiktok.order_items.raw",
+                    shop_id,
+                    json.dumps(line_item).encode(),
+                )
+            max_update_time = max(max_update_time, order.get("update_time", 0))
 
-    if orders:
-        sync_state["orders_last_update_time"] = max_update_time
+        outcome = step.report()
+        # The watermark follows the rows, never the fetch (#1950): advancing it over
+        # rows that never landed is how 3,581 orders were skipped with a healthy
+        # looking timestamp on every run.
+        if orders and outcome.persisted:
+            sync_state["orders_last_update_time"] = max_update_time
+        return outcome
 
 
 async def sync_products(
@@ -183,36 +469,48 @@ async def sync_products(
     app_id: str,
     shop_id: str,
     sync_state: dict[str, Any],
-) -> None:
-    """Fetch products since last sync and hand off to ETL."""
+) -> SyncOutcome:
+    """Fetch products since last sync, hand off to ETL, and report the triple."""
     if not rate_limiter.acquire(
         app_id, shop_id, PRODUCT_SEARCH_PATH, max_requests=10, window_seconds=60
     ):
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "products"})
-        return
+        return _skipped("products", shop_id)
 
     update_from = sync_state.get("products_last_update_time")
+    with _StepRun(
+        "products",
+        shop_id,
+        backfill=update_from is None,
+        handoff_fn=handoff_fn,
+        update_time_from=update_from,
+    ) as step:
+        try:
+            products = step.fetch(lambda: resource.search_all(update_time_from=update_from))
+        except TikTokPaginationError as exc:
+            step.report(error=exc)
+            raise
+        except TikTokAPIError as exc:
+            logger.error("sync_products_failed", extra={"shop_id": shop_id}, exc_info=True)
+            return step.report(error=exc)
 
-    try:
-        products = resource.search_all(update_time_from=update_from)
-    except TikTokAPIError:
-        logger.warning("sync_products_failed", extra={"shop_id": shop_id}, exc_info=True)
-        return
+        step.fetched = len(products)
+        max_update_time = update_from or 0
+        for product in products:
+            await step.handoff(
+                "tiktok.products.raw",
+                shop_id,
+                json.dumps(normalize_product(product)).encode(),
+            )
+            max_update_time = max(
+                max_update_time,
+                product.get("update_time") or product.get("updated_at") or 0,
+            )
 
-    max_update_time = update_from or 0
-    for product in products:
-        await handoff_fn(
-            "tiktok.products.raw",
-            shop_id,
-            json.dumps(normalize_product(product)).encode(),
-        )
-        max_update_time = max(
-            max_update_time,
-            product.get("update_time") or product.get("updated_at") or 0,
-        )
-
-    if products:
-        sync_state["products_last_update_time"] = max_update_time
+        outcome = step.report()
+        if products and outcome.persisted:
+            sync_state["products_last_update_time"] = max_update_time
+        return outcome
 
 
 async def sync_products_with_local_upsert(
@@ -330,36 +628,48 @@ async def sync_returns(
     app_id: str,
     shop_id: str,
     sync_state: dict[str, Any],
-) -> None:
-    """Fetch returns since last sync and hand off to ETL."""
+) -> SyncOutcome:
+    """Fetch returns since last sync, hand off to ETL, and report the triple."""
     if not rate_limiter.acquire(
         app_id, shop_id, RETURN_SEARCH_PATH, max_requests=10, window_seconds=60
     ):
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "returns"})
-        return
+        return _skipped("returns", shop_id)
 
     update_from = sync_state.get("returns_last_update_time")
+    with _StepRun(
+        "returns",
+        shop_id,
+        backfill=update_from is None,
+        handoff_fn=handoff_fn,
+        update_time_from=update_from,
+    ) as step:
+        try:
+            returns = step.fetch(lambda: resource.search_returns_all(update_time_from=update_from))
+        except TikTokPaginationError as exc:
+            step.report(error=exc)
+            raise
+        except TikTokAPIError as exc:
+            logger.error("sync_returns_failed", extra={"shop_id": shop_id}, exc_info=True)
+            return step.report(error=exc)
 
-    try:
-        returns = resource.search_returns_all(update_time_from=update_from)
-    except TikTokAPIError:
-        logger.warning("sync_returns_failed", extra={"shop_id": shop_id}, exc_info=True)
-        return
+        step.fetched = len(returns)
+        max_update_time = update_from or 0
+        for ret in returns:
+            await step.handoff(
+                "tiktok.returns.raw",
+                shop_id,
+                json.dumps(normalize_return(ret)).encode(),
+            )
+            max_update_time = max(
+                max_update_time,
+                ret.get("update_time") or ret.get("create_time") or 0,
+            )
 
-    max_update_time = update_from or 0
-    for ret in returns:
-        await handoff_fn(
-            "tiktok.returns.raw",
-            shop_id,
-            json.dumps(normalize_return(ret)).encode(),
-        )
-        max_update_time = max(
-            max_update_time,
-            ret.get("update_time") or ret.get("create_time") or 0,
-        )
-
-    if returns:
-        sync_state["returns_last_update_time"] = max_update_time
+        outcome = step.report()
+        if returns and outcome.persisted:
+            sync_state["returns_last_update_time"] = max_update_time
+        return outcome
 
 
 async def sync_inventory(
@@ -372,73 +682,121 @@ async def sync_inventory(
     sync_state: dict[str, Any],
     list_product_ids: ProductIdsFn,
     page_size: int = DEFAULT_INVENTORY_PAGE_SIZE,
-) -> None:
-    """Fetch inventory snapshot, flatten SKUs, and hand off to ETL.
+) -> SyncOutcome:
+    """Fetch inventory snapshot, flatten SKUs, hand off to ETL, report the triple.
 
     Search Inventory has no ``update_time`` filter — this is a full-snapshot
-    reconciliation backstop. Incremental changes arrive via webhook #68.
+    reconciliation backstop. Incremental changes arrive via webhook #68. It also
+    *requires* ``product_ids`` in the request body (#1948); calling it with none
+    is a guaranteed ``TikTokAPIError``, so ``list_product_ids`` supplies the
+    shop's already-synced ids in ``page_size`` batches.
 
-    Search Inventory *requires* ``product_ids`` in the request body (#1948);
-    calling it with none -- as this worker used to -- is a guaranteed
-    ``TikTokAPIError``. ``list_product_ids`` supplies the shop's already-synced
-    product ids, batched into ``page_size`` requests since the endpoint's true
-    per-call cap is not established. Required, not defaulted: the caller
-    (``orchestrate.py``) already holds a session scoped to this shop and
-    builds this from it (``_synced_product_ids_fn``), so a silent
-    "resolve my own session, fall back to no ids on any failure" default here
-    would just move #1948's swallow-shaped failure one layer down instead of
-    removing it.
+    **This step raises where the other three report (#1948 + #1969).** That is
+    deliberate and it is the one place the two branches disagreed, so the
+    reasoning lives here rather than in a commit message:
 
-    Any ``TikTokAPIError`` propagates instead of being logged-and-swallowed:
-    a sync that silently drops every row must not look identical to one with
-    nothing new to sync (#1948).
+    - #1948 made a vendor failure here propagate, because an inventory sync that
+      drops every row must not be indistinguishable from one with nothing to do.
+      That was the defect: 100% failure, invisible for the lifetime of the table.
+    - #1969 gives every step an outcome triple, and an ``ok=False`` record is
+      loud *inside* the process. It is not loud outside it: the Celery task still
+      exits zero, and "the poll can be relied on without someone watching it" is
+      the bar, not "the poll ran".
+    - The usual argument against raising from this step is that inventory is
+      step 4 of 4, so an exception would discard steps 1-3's watermarks and make
+      the next cycle refetch a larger delta under the *incremental* 20-page cap,
+      where over-running only warns. That argument no longer applies: ``_poll``
+      now saves partial sync state before re-raising **any** exception, proven by
+      ``TestPartialStateSurvivesAMidCycleFailure``. The cost that justified
+      swallowing is gone, so the swallow is not justified either.
+
+    So both survive: ``_StepRun`` reports the triple on the way out, and the
+    exception still propagates — the shape the ``TikTokPaginationError`` arms in
+    the other steps already use. An empty ``product_ids`` list is NOT a failure;
+    it is the ordinary cold-start state before any product has synced, and it
+    returns a clean zero outcome.
+
+    Known cost, and NOT one this branch introduces: a raise here means the
+    analytics step, which runs after all four search steps, does not run at all.
+    That is already ``origin/main``'s behaviour — ``sync_inventory`` raises
+    there, inventory is already step 4 of 4, ``sync_analytics`` already runs
+    after it, and ``_poll`` has no ``try``/``except`` at all. #1969 inherits the
+    cost; it does not create it, and it makes the same failure strictly cheaper,
+    because ``main`` discards steps 1-3's watermarks on that failure and this
+    branch saves them first. Reverting to report-don't-raise would therefore be a
+    regression against ``main``, not a neutral choice — it also turns two of
+    #1948's merged tests red (``test_raises_instead_of_swallowing_api_error``,
+    ``test_raises_instead_of_discarding_a_non_dict_response``). Ordering
+    analytics first, or giving the cycle an end-of-cycle verdict so no step can
+    block another, is #1950's work and not done here.
     """
     if not rate_limiter.acquire(
         app_id, shop_id, INVENTORY_SEARCH_PATH, max_requests=10, window_seconds=60
     ):
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "inventory"})
-        return
+        return _skipped("inventory", shop_id)
 
-    product_ids = await list_product_ids()
-    if not product_ids:
-        logger.info("sync_inventory_no_products", extra={"shop_id": shop_id})
-        return
+    with _StepRun(
+        "inventory",
+        shop_id,
+        # No watermark has ever been written for this shop, so this snapshot is
+        # the first one — the same cold-start condition as the other steps.
+        backfill=sync_state.get("inventory_last_sync_at") is None,
+        handoff_fn=handoff_fn,
+    ) as step:
+        product_ids = await list_product_ids()
+        if not product_ids:
+            logger.info("sync_inventory_no_products", extra={"shop_id": shop_id})
+            return step.report()
 
-    rows: list[dict[str, Any]] = []
-    for start in range(0, len(product_ids), page_size):
-        page = product_ids[start : start + page_size]
-        try:
-            response = resource.search(product_ids=page)
-        except TikTokAPIError:
-            logger.error(
-                "sync_inventory_failed",
-                extra={"shop_id": shop_id, "page_product_id_count": len(page)},
-                exc_info=True,
+        rows: list[dict[str, Any]] = []
+        for batch_start in range(0, len(product_ids), page_size):
+            page = product_ids[batch_start : batch_start + page_size]
+            try:
+                response = step.fetch(partial(resource.search, product_ids=page))
+            except TikTokPaginationError as exc:
+                step.report(error=exc)
+                raise
+            except TikTokAPIError as exc:
+                logger.error(
+                    "sync_inventory_failed",
+                    extra={"shop_id": shop_id, "page_product_id_count": len(page)},
+                    exc_info=True,
+                )
+                step.report(error=exc)
+                raise
+
+            if not isinstance(response, dict):
+                invalid = ValueError(
+                    "sync_inventory got a non-dict inventory search response for "
+                    f"shop_id={shop_id}: {type(response).__name__}"
+                )
+                logger.error(
+                    "sync_inventory_invalid_response",
+                    extra={"shop_id": shop_id, "type": type(response).__name__},
+                )
+                step.report(error=invalid)
+                raise invalid
+
+            rows.extend(expand_inventory_search(response))
+
+        step.fetched = len(rows)
+        synced_at = int(time.time())
+
+        for row in rows:
+            payload = normalize_inventory(row)
+            payload["event_id"] = _inventory_snapshot_event_id(shop_id, payload)
+            payload.setdefault("update_time", synced_at)
+            await step.handoff(
+                "tiktok.inventory.raw",
+                shop_id,
+                json.dumps(payload).encode(),
             )
-            raise
 
-        if not isinstance(response, dict):
-            raise ValueError(
-                "sync_inventory got a non-dict inventory search response for "
-                f"shop_id={shop_id}: {type(response).__name__}"
-            )
-
-        rows.extend(expand_inventory_search(response))
-
-    synced_at = int(time.time())
-
-    for row in rows:
-        payload = normalize_inventory(row)
-        payload["event_id"] = _inventory_snapshot_event_id(shop_id, payload)
-        payload.setdefault("update_time", synced_at)
-        await handoff_fn(
-            "tiktok.inventory.raw",
-            shop_id,
-            json.dumps(payload).encode(),
-        )
-
-    if rows:
-        sync_state["inventory_last_sync_at"] = synced_at
+        outcome = step.report()
+        if rows and outcome.persisted:
+            sync_state["inventory_last_sync_at"] = synced_at
+        return outcome
 
 
 async def sync_creators(
@@ -545,7 +903,7 @@ async def sync_analytics(
     sync_state: dict[str, Any],
     promotion_resource: Any | None = None,
     now: datetime | None = None,
-) -> None:
+) -> SyncOutcome:
     """Fetch Analytics GET targets for the current date window (#424).
 
     Invokes A-31–A-34, A-36–A-39 with ``start_date_ge`` / ``end_date_lt`` (or
@@ -556,59 +914,47 @@ async def sync_analytics(
 
     Analytics ETL persistence hands normalized rows to ingest channels (#425).
     """
-    start_date_ge, end_date_lt, day = _analytics_date_window(now=now)
-    synced_at = int((now or datetime.now(UTC)).timestamp())
+    # Analytics reports the same triple as the four search steps, counted over
+    # every row it offers the ETL. `fetched` here is rows offered rather than a
+    # vendor row count: the step fans out across ~10 endpoints with per-endpoint
+    # rate-limit breaks, so there is no single number the vendor returned. It is
+    # never a cold-start backfill — the window is always one day (#424).
+    with _StepRun("analytics", shop_id, backfill=False, handoff_fn=handoff_fn) as step:
+        handoff_fn = step.handoff
 
-    if _acquire(
-        rate_limiter,
-        app_id=app_id,
-        shop_id=shop_id,
-        endpoint=ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
-    ):
-        try:
-            skus = resource.list_sku_performance_all(
-                start_date_ge=start_date_ge,
-                end_date_lt=end_date_lt,
-            )
-        except TikTokAPIError:
-            logger.warning(
-                "sync_analytics_sku_list_failed",
-                extra={"shop_id": shop_id},
-                exc_info=True,
-            )
-            skus = None
-        if isinstance(skus, list):
-            sync_state["shop_sku_performance_last_sync_at"] = synced_at
-            for sku in skus:
-                if not isinstance(sku, dict):
-                    continue
-                sku_id = sku.get("id")
-                if not sku_id:
-                    continue
-                detail_path = analytics_shop_sku_performance_path(str(sku_id))
-                if not _acquire(rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=detail_path):
-                    list_row = expand_analytics_sku_list_item(
-                        sku,
-                        start_date=start_date_ge,
-                        end_date=end_date_lt,
-                        synced_at=synced_at,
-                    )
-                    if list_row is not None:
-                        await _handoff_analytics_rows(handoff_fn, shop_id, [list_row])
-                    break
-                try:
-                    detail = resource.get_sku_performance(
-                        sku_id=str(sku_id),
-                        start_date_ge=start_date_ge,
-                        end_date_lt=end_date_lt,
-                    )
-                    if isinstance(detail, dict):
-                        await _handoff_analytics_rows(
-                            handoff_fn,
-                            shop_id,
-                            expand_analytics_sku_detail(detail, synced_at=synced_at),
-                        )
-                    else:
+        start_date_ge, end_date_lt, day = _analytics_date_window(now=now)
+        synced_at = int((now or datetime.now(UTC)).timestamp())
+
+        if _acquire(
+            rate_limiter,
+            app_id=app_id,
+            shop_id=shop_id,
+            endpoint=ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
+        ):
+            try:
+                skus = resource.list_sku_performance_all(
+                    start_date_ge=start_date_ge,
+                    end_date_lt=end_date_lt,
+                )
+            except TikTokAPIError:
+                logger.warning(
+                    "sync_analytics_sku_list_failed",
+                    extra={"shop_id": shop_id},
+                    exc_info=True,
+                )
+                skus = None
+            if isinstance(skus, list):
+                sync_state["shop_sku_performance_last_sync_at"] = synced_at
+                for sku in skus:
+                    if not isinstance(sku, dict):
+                        continue
+                    sku_id = sku.get("id")
+                    if not sku_id:
+                        continue
+                    detail_path = analytics_shop_sku_performance_path(str(sku_id))
+                    if not _acquire(
+                        rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=detail_path
+                    ):
                         list_row = expand_analytics_sku_list_item(
                             sku,
                             start_date=start_date_ge,
@@ -617,75 +963,73 @@ async def sync_analytics(
                         )
                         if list_row is not None:
                             await _handoff_analytics_rows(handoff_fn, shop_id, [list_row])
-                except TikTokAPIError:
-                    list_row = expand_analytics_sku_list_item(
-                        sku,
-                        start_date=start_date_ge,
-                        end_date=end_date_lt,
-                        synced_at=synced_at,
-                    )
-                    if list_row is not None:
-                        await _handoff_analytics_rows(handoff_fn, shop_id, [list_row])
-                    logger.warning(
-                        "sync_analytics_sku_detail_failed",
-                        extra={"shop_id": shop_id, "sku_id": sku_id},
-                        exc_info=True,
-                    )
-
-    if _acquire(
-        rate_limiter,
-        app_id=app_id,
-        shop_id=shop_id,
-        endpoint=ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
-    ):
-        try:
-            products = resource.list_product_performance_all(
-                start_date_ge=start_date_ge,
-                end_date_lt=end_date_lt,
-            )
-        except TikTokAPIError:
-            logger.warning(
-                "sync_analytics_product_list_failed",
-                extra={"shop_id": shop_id},
-                exc_info=True,
-            )
-            products = None
-        if isinstance(products, list):
-            sync_state["shop_product_performance_last_sync_at"] = synced_at
-            for product in products:
-                if not isinstance(product, dict):
-                    continue
-                product_id = product.get("id")
-                if not product_id:
-                    continue
-                detail_path = analytics_shop_product_performance_path(str(product_id))
-                if not _acquire(rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=detail_path):
-                    list_row = expand_analytics_product_list_item(
-                        product,
-                        start_date=start_date_ge,
-                        end_date=end_date_lt,
-                        synced_at=synced_at,
-                    )
-                    if list_row is not None:
-                        await _handoff_analytics_rows(handoff_fn, shop_id, [list_row])
-                    break
-                try:
-                    detail = resource.get_product_performance(
-                        product_id=str(product_id),
-                        start_date_ge=start_date_ge,
-                        end_date_lt=end_date_lt,
-                    )
-                    if isinstance(detail, dict):
-                        await _handoff_analytics_rows(
-                            handoff_fn,
-                            shop_id,
-                            expand_analytics_product_detail(
-                                detail,
-                                synced_at=synced_at,
-                                product_id=str(product_id),
-                            ),
+                        break
+                    try:
+                        detail = resource.get_sku_performance(
+                            sku_id=str(sku_id),
+                            start_date_ge=start_date_ge,
+                            end_date_lt=end_date_lt,
                         )
-                    else:
+                        if isinstance(detail, dict):
+                            await _handoff_analytics_rows(
+                                handoff_fn,
+                                shop_id,
+                                expand_analytics_sku_detail(detail, synced_at=synced_at),
+                            )
+                        else:
+                            list_row = expand_analytics_sku_list_item(
+                                sku,
+                                start_date=start_date_ge,
+                                end_date=end_date_lt,
+                                synced_at=synced_at,
+                            )
+                            if list_row is not None:
+                                await _handoff_analytics_rows(handoff_fn, shop_id, [list_row])
+                    except TikTokAPIError:
+                        list_row = expand_analytics_sku_list_item(
+                            sku,
+                            start_date=start_date_ge,
+                            end_date=end_date_lt,
+                            synced_at=synced_at,
+                        )
+                        if list_row is not None:
+                            await _handoff_analytics_rows(handoff_fn, shop_id, [list_row])
+                        logger.warning(
+                            "sync_analytics_sku_detail_failed",
+                            extra={"shop_id": shop_id, "sku_id": sku_id},
+                            exc_info=True,
+                        )
+
+        if _acquire(
+            rate_limiter,
+            app_id=app_id,
+            shop_id=shop_id,
+            endpoint=ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
+        ):
+            try:
+                products = resource.list_product_performance_all(
+                    start_date_ge=start_date_ge,
+                    end_date_lt=end_date_lt,
+                )
+            except TikTokAPIError:
+                logger.warning(
+                    "sync_analytics_product_list_failed",
+                    extra={"shop_id": shop_id},
+                    exc_info=True,
+                )
+                products = None
+            if isinstance(products, list):
+                sync_state["shop_product_performance_last_sync_at"] = synced_at
+                for product in products:
+                    if not isinstance(product, dict):
+                        continue
+                    product_id = product.get("id")
+                    if not product_id:
+                        continue
+                    detail_path = analytics_shop_product_performance_path(str(product_id))
+                    if not _acquire(
+                        rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=detail_path
+                    ):
                         list_row = expand_analytics_product_list_item(
                             product,
                             start_date=start_date_ge,
@@ -694,151 +1038,180 @@ async def sync_analytics(
                         )
                         if list_row is not None:
                             await _handoff_analytics_rows(handoff_fn, shop_id, [list_row])
-                except TikTokAPIError:
-                    list_row = expand_analytics_product_list_item(
-                        product,
+                        break
+                    try:
+                        detail = resource.get_product_performance(
+                            product_id=str(product_id),
+                            start_date_ge=start_date_ge,
+                            end_date_lt=end_date_lt,
+                        )
+                        if isinstance(detail, dict):
+                            await _handoff_analytics_rows(
+                                handoff_fn,
+                                shop_id,
+                                expand_analytics_product_detail(
+                                    detail,
+                                    synced_at=synced_at,
+                                    product_id=str(product_id),
+                                ),
+                            )
+                        else:
+                            list_row = expand_analytics_product_list_item(
+                                product,
+                                start_date=start_date_ge,
+                                end_date=end_date_lt,
+                                synced_at=synced_at,
+                            )
+                            if list_row is not None:
+                                await _handoff_analytics_rows(handoff_fn, shop_id, [list_row])
+                    except TikTokAPIError:
+                        list_row = expand_analytics_product_list_item(
+                            product,
+                            start_date=start_date_ge,
+                            end_date=end_date_lt,
+                            synced_at=synced_at,
+                        )
+                        if list_row is not None:
+                            await _handoff_analytics_rows(handoff_fn, shop_id, [list_row])
+                        logger.warning(
+                            "sync_analytics_product_detail_failed",
+                            extra={"shop_id": shop_id, "product_id": product_id},
+                            exc_info=True,
+                        )
+
+        if _acquire(
+            rate_limiter,
+            app_id=app_id,
+            shop_id=shop_id,
+            endpoint=ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,
+        ):
+            try:
+                live_sessions = resource.list_live_performance_all(
+                    start_date_ge=start_date_ge,
+                    end_date_lt=end_date_lt,
+                )
+            except TikTokAPIError:
+                logger.warning(
+                    "sync_analytics_live_list_failed",
+                    extra={"shop_id": shop_id},
+                    exc_info=True,
+                )
+                live_sessions = None
+            if isinstance(live_sessions, list):
+                live_rows: list[dict[str, Any]] = []
+                for session in live_sessions:
+                    if not isinstance(session, dict):
+                        continue
+                    row = expand_analytics_live_session(
+                        session,
                         start_date=start_date_ge,
                         end_date=end_date_lt,
                         synced_at=synced_at,
                     )
-                    if list_row is not None:
-                        await _handoff_analytics_rows(handoff_fn, shop_id, [list_row])
-                    logger.warning(
-                        "sync_analytics_product_detail_failed",
-                        extra={"shop_id": shop_id, "product_id": product_id},
-                        exc_info=True,
-                    )
+                    if row is not None:
+                        live_rows.append(row)
+                if live_rows:
+                    await _handoff_analytics_rows(handoff_fn, shop_id, live_rows)
+                    sync_state["shop_live_performance_last_sync_at"] = synced_at
 
-    if _acquire(
-        rate_limiter,
-        app_id=app_id,
-        shop_id=shop_id,
-        endpoint=ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,
-    ):
-        try:
-            live_sessions = resource.list_live_performance_all(
-                start_date_ge=start_date_ge,
-                end_date_lt=end_date_lt,
-            )
-        except TikTokAPIError:
-            logger.warning(
-                "sync_analytics_live_list_failed",
-                extra={"shop_id": shop_id},
-                exc_info=True,
-            )
-            live_sessions = None
-        if isinstance(live_sessions, list):
-            live_rows: list[dict[str, Any]] = []
-            for session in live_sessions:
-                if not isinstance(session, dict):
-                    continue
-                row = expand_analytics_live_session(
-                    session,
-                    start_date=start_date_ge,
-                    end_date=end_date_lt,
-                    synced_at=synced_at,
-                )
-                if row is not None:
-                    live_rows.append(row)
-            if live_rows:
-                await _handoff_analytics_rows(handoff_fn, shop_id, live_rows)
-                sync_state["shop_live_performance_last_sync_at"] = synced_at
-
-    if _acquire(
-        rate_limiter,
-        app_id=app_id,
-        shop_id=shop_id,
-        endpoint=ANALYTICS_SHOP_PERFORMANCE_PATH,
-    ):
-        try:
-            shop_performance = resource.get_shop_performance(
-                start_date_ge=start_date_ge,
-                end_date_lt=end_date_lt,
-            )
-            sync_state["shop_performance_last_sync_at"] = synced_at
-            if isinstance(shop_performance, dict):
-                await _handoff_analytics_rows(
-                    handoff_fn,
-                    shop_id,
-                    expand_analytics_shop_performance(shop_performance, synced_at=synced_at),
-                )
-        except TikTokAPIError:
-            logger.warning(
-                "sync_analytics_shop_performance_failed",
-                extra={"shop_id": shop_id},
-                exc_info=True,
-            )
-
-    per_hour_path = analytics_shop_performance_per_hour_path(day)
-    if _acquire(rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=per_hour_path):
-        try:
-            per_hour = resource.get_shop_performance_per_hour(date=day)
-            sync_state["shop_performance_per_hour_last_sync_at"] = synced_at
-            if isinstance(per_hour, dict):
-                await _handoff_analytics_rows(
-                    handoff_fn,
-                    shop_id,
-                    expand_analytics_shop_performance_per_hour(
-                        per_hour, date=day, synced_at=synced_at
-                    ),
-                )
-        except TikTokAPIError:
-            logger.warning(
-                "sync_analytics_shop_performance_per_hour_failed",
-                extra={"shop_id": shop_id},
-                exc_info=True,
-            )
-
-    if _acquire(
-        rate_limiter,
-        app_id=app_id,
-        shop_id=shop_id,
-        endpoint=ANALYTICS_BESTSELLING_PRODUCTS_PATH,
-    ):
-        try:
-            resource.get_bestselling_products(date=day, time_slot="1D")
-            sync_state["bestselling_products_last_sync_at"] = synced_at
-        except TikTokAPIError:
-            logger.warning(
-                "sync_analytics_bestselling_products_failed",
-                extra={"shop_id": shop_id},
-                exc_info=True,
-            )
-
-    if _acquire(
-        rate_limiter,
-        app_id=app_id,
-        shop_id=shop_id,
-        endpoint=ANALYTICS_BESTSELLING_VIDEOS_PATH,
-    ):
-        try:
-            resource.get_bestselling_videos(date=day, time_slot="1D")
-            sync_state["bestselling_videos_last_sync_at"] = synced_at
-        except TikTokAPIError:
-            logger.warning(
-                "sync_analytics_bestselling_videos_failed",
-                extra={"shop_id": shop_id},
-                exc_info=True,
-            )
-
-    activity_ids = sync_state.get("promotion_activity_ids") or []
-    if promotion_resource is not None and activity_ids:
-        fetched_any = False
-        for activity_id in activity_ids:
-            path = promotion_activity_path(str(activity_id))
-            if not _acquire(rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=path):
-                break
+        if _acquire(
+            rate_limiter,
+            app_id=app_id,
+            shop_id=shop_id,
+            endpoint=ANALYTICS_SHOP_PERFORMANCE_PATH,
+        ):
             try:
-                promotion_resource.get_activity(str(activity_id))
-                fetched_any = True
+                shop_performance = resource.get_shop_performance(
+                    start_date_ge=start_date_ge,
+                    end_date_lt=end_date_lt,
+                )
+                sync_state["shop_performance_last_sync_at"] = synced_at
+                if isinstance(shop_performance, dict):
+                    await _handoff_analytics_rows(
+                        handoff_fn,
+                        shop_id,
+                        expand_analytics_shop_performance(shop_performance, synced_at=synced_at),
+                    )
             except TikTokAPIError:
                 logger.warning(
-                    "sync_analytics_promotion_activity_failed",
-                    extra={"shop_id": shop_id, "activity_id": activity_id},
+                    "sync_analytics_shop_performance_failed",
+                    extra={"shop_id": shop_id},
                     exc_info=True,
                 )
-        if fetched_any:
-            sync_state["promotion_activity_last_sync_at"] = synced_at
+
+        per_hour_path = analytics_shop_performance_per_hour_path(day)
+        if _acquire(rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=per_hour_path):
+            try:
+                per_hour = resource.get_shop_performance_per_hour(date=day)
+                sync_state["shop_performance_per_hour_last_sync_at"] = synced_at
+                if isinstance(per_hour, dict):
+                    await _handoff_analytics_rows(
+                        handoff_fn,
+                        shop_id,
+                        expand_analytics_shop_performance_per_hour(
+                            per_hour, date=day, synced_at=synced_at
+                        ),
+                    )
+            except TikTokAPIError:
+                logger.warning(
+                    "sync_analytics_shop_performance_per_hour_failed",
+                    extra={"shop_id": shop_id},
+                    exc_info=True,
+                )
+
+        if _acquire(
+            rate_limiter,
+            app_id=app_id,
+            shop_id=shop_id,
+            endpoint=ANALYTICS_BESTSELLING_PRODUCTS_PATH,
+        ):
+            try:
+                resource.get_bestselling_products(date=day, time_slot="1D")
+                sync_state["bestselling_products_last_sync_at"] = synced_at
+            except TikTokAPIError:
+                logger.warning(
+                    "sync_analytics_bestselling_products_failed",
+                    extra={"shop_id": shop_id},
+                    exc_info=True,
+                )
+
+        if _acquire(
+            rate_limiter,
+            app_id=app_id,
+            shop_id=shop_id,
+            endpoint=ANALYTICS_BESTSELLING_VIDEOS_PATH,
+        ):
+            try:
+                resource.get_bestselling_videos(date=day, time_slot="1D")
+                sync_state["bestselling_videos_last_sync_at"] = synced_at
+            except TikTokAPIError:
+                logger.warning(
+                    "sync_analytics_bestselling_videos_failed",
+                    extra={"shop_id": shop_id},
+                    exc_info=True,
+                )
+
+        activity_ids = sync_state.get("promotion_activity_ids") or []
+        if promotion_resource is not None and activity_ids:
+            fetched_any = False
+            for activity_id in activity_ids:
+                path = promotion_activity_path(str(activity_id))
+                if not _acquire(rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=path):
+                    break
+                try:
+                    promotion_resource.get_activity(str(activity_id))
+                    fetched_any = True
+                except TikTokAPIError:
+                    logger.warning(
+                        "sync_analytics_promotion_activity_failed",
+                        extra={"shop_id": shop_id, "activity_id": activity_id},
+                        exc_info=True,
+                    )
+            if fetched_any:
+                sync_state["promotion_activity_last_sync_at"] = synced_at
+
+        step.fetched = step.handoff.offered
+        return step.report()
 
 
 async def sync_sandbox_write_products(session: AsyncSession, shop_id: uuid.UUID) -> None:
