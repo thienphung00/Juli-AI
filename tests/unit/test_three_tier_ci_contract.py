@@ -753,7 +753,14 @@ def _parsed_workflow() -> dict:
     return yaml.safe_load(_workflow())
 
 
-def _eval_job_if(condition: str, *, tier: str, main_via_wave: str, changes: dict) -> bool:
+def _eval_job_if(
+    condition: str,
+    *,
+    tier: str,
+    main_via_wave: str,
+    changes: dict,
+    issue_number: str = "",
+) -> bool:
     """Evaluate a job's GitHub `if:` expression for a concrete tier context.
 
     The frontend job conditions are pure boolean expressions over string
@@ -767,6 +774,8 @@ def _eval_job_if(condition: str, *, tier: str, main_via_wave: str, changes: dict
             return repr({"tier": tier, "main_via_wave": main_via_wave}[key])
         if job == "changes":
             return repr(changes.get(key, "false"))
+        if job == "resolve-issue":
+            return repr(issue_number)
         raise AssertionError(f"unhandled context reference: {match.group(0)}")
 
     # A folded `>-` scalar keeps real newlines for more-indented continuation
@@ -1335,3 +1344,115 @@ def test_budget_bound_jobs_install_pnpm_without_going_through_npm(job: str) -> N
         f"15-minute timeout; set `standalone: true` so the binary is fetched directly. "
         f"Raising timeout-minutes is not the fix: pytest is 7m23s and the wall is ample."
     )
+
+
+# --- #1977: issue-tier gates run on a main-based issue PR -------------------
+#
+# classify-tier derives tier purely from the BASE ref: `base == feature/*-wave`
+# -> tier=issue, `base == main|staging` -> tier=main. An issue PR whose head
+# branch resolves to issue-N but whose base is `main` directly (the W6
+# topology) therefore classified tier=main, and all three jobs gated
+# `if: needs.classify-tier.outputs.tier == 'issue'` skipped entirely — verified
+# SKIPPED on #1945, #1954, #1956, #1965, #1975. A gate that never executes is
+# indistinguishable from one that passed. The three jobs' `if:` conditions are
+# widened to also run at tier=='main' whenever resolve-issue found an issue
+# number, using resolve-issue's own resolution rather than a second branch
+# convention — a wave->main merge PR's head is the wave branch itself (e.g.
+# feature/w7-wave), which never matches `issue-([0-9]+)`, so it stays unaffected
+# without any extra check.
+
+RETENTION_GUARD_SCRIPT = CI_DIR / "check_artifact_retention_guard.py"
+WIDENED_TIER_JOBS = ("artifact-retention-guard", "merge-status", "validate-gates")
+NO_STATUS_RECORD_ISSUE = "999999"
+NO_STATUS_RECORD_PATH = ROOT / "agent-runtime" / "artifacts" / "status" / "issue-999999.json"
+
+
+def test_retention_guard_runs_for_issue_head_on_main_base() -> None:
+    """AC1: an issue PR whose head resolves to issue-N and whose base is main
+    (tier == 'main') must run artifact-retention-guard — and its sibling
+    merge-status/validate-gates — rather than skip. This is the exact W6
+    topology that skipped silently on #1945, #1954, #1956, #1965 and #1975."""
+    jobs = _parsed_workflow()["jobs"]
+
+    for job in WIDENED_TIER_JOBS:
+        condition = jobs[job]["if"]
+        assert (
+            _eval_job_if(
+                condition, tier="main", main_via_wave="false", changes={}, issue_number="1977"
+            )
+            is True
+        ), f"{job} still skips an issue PR classified tier=main"
+
+
+def test_retention_guard_is_red_without_a_status_record() -> None:
+    """AC2: once the guard runs (the widened condition above), a missing
+    status record must be a real, fail-closed red — proven by running the
+    actual script, not a reimplementation of its logic."""
+    assert not NO_STATUS_RECORD_PATH.exists(), (
+        f"fixture assumption broken: {NO_STATUS_RECORD_PATH} exists, so a FAIL "
+        "below would not demonstrate the guard, just this accident"
+    )
+
+    result = subprocess.run(
+        [sys.executable, str(RETENTION_GUARD_SCRIPT), "--issue", NO_STATUS_RECORD_ISSUE],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "artifact_retention_guard: FAIL" in result.stdout, result.stdout
+    assert "issue-999999.json" in result.stdout, result.stdout
+
+
+def test_non_issue_pr_still_skips_the_guard() -> None:
+    """AC3: a PR with no resolvable issue number (resolve-issue emits an empty
+    string) must still skip cleanly at every tier, with no false failure —
+    both at the workflow-condition level and in the script's own behaviour."""
+    jobs = _parsed_workflow()["jobs"]
+
+    for job in WIDENED_TIER_JOBS:
+        condition = jobs[job]["if"]
+        assert (
+            _eval_job_if(condition, tier="main", main_via_wave="false", changes={}, issue_number="")
+            is False
+        ), f"{job} runs on a main-tier PR with no resolvable issue number"
+
+    # The script itself, invoked the way the job invokes it with an empty
+    # ISSUE_NUMBER: a documented, logged SKIP — never a silent pass, never a
+    # failure.
+    result = subprocess.run(
+        [sys.executable, str(RETENTION_GUARD_SCRIPT), "--issue", ""],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "SKIP" in result.stdout, result.stdout
+
+
+def test_wave_based_issue_pr_behaviour_unchanged() -> None:
+    """AC4: a wave-based issue PR (base == feature/*-wave, tier == 'issue')
+    behaves exactly as it did before the widening — runs regardless of
+    whether resolve-issue found an issue number, same as today. A wave->main
+    merge PR (tier == 'main' via main_via_wave) is also unaffected: its head
+    is the wave branch itself, which resolves no issue number."""
+    jobs = _parsed_workflow()["jobs"]
+
+    for job in WIDENED_TIER_JOBS:
+        condition = jobs[job]["if"]
+        assert (
+            _eval_job_if(
+                condition, tier="issue", main_via_wave="false", changes={}, issue_number="1977"
+            )
+            is True
+        ), f"{job} no longer runs at issue tier for a resolvable issue number"
+        assert (
+            _eval_job_if(
+                condition, tier="issue", main_via_wave="false", changes={}, issue_number=""
+            )
+            is True
+        ), f"{job} no longer runs at issue tier for a branch with no resolved issue number"
+        assert (
+            _eval_job_if(condition, tier="main", main_via_wave="true", changes={}, issue_number="")
+            is False
+        ), f"{job} now runs on a wave->main merge PR — out of scope for #1977"
