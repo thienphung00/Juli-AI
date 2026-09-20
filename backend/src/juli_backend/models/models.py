@@ -27,7 +27,18 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    phone: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    # NULLABLE ON PURPOSE (#1972, migration 064). The column predates Google
+    # sign-in -- it was the identity field of a phone/OTP flow, so it was NOT
+    # NULL. When Google sign-in was layered on (#1906) nothing supplied a
+    # phone, and first-sighting provisioning satisfied the constraint by
+    # INVENTING one derived from the caller's UUID: a number that is not the
+    # seller's, is indistinguishable from a real one by shape, and occupies a
+    # UNIQUE slot a real number could later collide with. "No phone on file"
+    # is a real state and the column now says so. Every reader must treat NULL
+    # as "we do not have a way to call this seller" -- never as a value to dial,
+    # export, or match on. `tests/unit/test_users_phone_is_never_fabricated.py`
+    # holds that line.
+    phone: Mapped[str | None] = mapped_column(String(20), unique=True, nullable=True)
     display_name: Mapped[str | None] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
