@@ -49,6 +49,14 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/auth/tiktok/start",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/creators",
       "methods": [
         "GET"
