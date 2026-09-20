@@ -447,6 +447,36 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - VI: Trợ lý AI cho người bán TikTok Shop
 - Definition: Footer brand tagline under the logo lockup.
 
+**`landing.footer.privacy`**
+- EN: Privacy Policy
+- VI: Chính sách bảo mật
+- Definition: Footer legal link to `/privacy` (issue #1971), required before the Google OAuth consent screen can be published (ADR-094 decision 3).
+
+**`landing.footer.terms`**
+- EN: Terms of Service
+- VI: Điều khoản dịch vụ
+- Definition: Footer legal link to `/terms` (issue #1971), required before the Google OAuth consent screen can be published (ADR-094 decision 3).
+
+**`landing.hero.consent_note`**
+- EN: By signing in, you agree to Juli's Terms of Service and Privacy Policy.
+- VI: Bằng việc đăng nhập, bạn đồng ý với Điều khoản dịch vụ và Chính sách bảo mật của Juli.
+- Definition: Small print under the hero's "Đăng nhập / Đăng ký" CTA (issue #1971), linking `/terms` and `/privacy` from the landing's own sign-in surface. The Google door itself lives in `apps/demo` (`demo-landing.tsx`, out of scope for #1971); this is the linked pair the landing app owns.
+
+**`legal.privacy.title`**
+- EN: Privacy Policy
+- VI: Chính sách bảo mật
+- Definition: `/privacy` page H1 (issue #1971).
+
+**`legal.terms.title`**
+- EN: Terms of Service
+- VI: Điều khoản dịch vụ
+- Definition: `/terms` page H1 (issue #1971).
+
+**`legal.eyebrow`**
+- EN: Legal
+- VI: Pháp lý
+- Definition: Shared eyebrow label above the H1 on `/privacy` and `/terms` (issue #1971).
+
 **`run.awaiting_you`**
 - EN: Waiting for you
 - VI: Đang chờ bạn

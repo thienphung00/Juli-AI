@@ -1,0 +1,85 @@
+{
+  "planId": "rep-1971-privacy-and-terms",
+  "affectedPublicSurfaces": [
+    "app-juli.com — two new static routes: /privacy and /terms (apps/landing)",
+    "app-juli.com / — footer legal nav (Chính sách bảo mật, Điều khoản dịch vụ) and the hero's sign-in consent note, both new links to the two routes above"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the landing candidate build on its own local port, before any deploy cutover — no server-side state, so no synthetic shop or worker concern applies",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "privacy-and-terms-render-as-static-pages",
+        "entryUrl": "http://127.0.0.1:<landing candidate port>/privacy and /terms",
+        "assertions": [
+          "GET /privacy returns 200 with an H1 'Chính sách bảo mật'",
+          "GET /terms returns 200 with an H1 'Điều khoản dịch vụ'",
+          "next build's route table (`next build` output) lists both as ○ (Static) prerendered — verified locally: '/privacy' and '/terms' both print '○' in the build's Route (app) table",
+          "each page's owner-review notice and at least one [OWNER: ...] placeholder are visible in the rendered HTML, not only in source"
+        ]
+      },
+      {
+        "name": "the-legal-links-are-reachable-from-the-home-page",
+        "entryUrl": "http://127.0.0.1:<landing candidate port>/",
+        "assertions": [
+          "the footer (present on every page) contains a link labelled 'Chính sách bảo mật' with href=/privacy and a link labelled 'Điều khoản dịch vụ' with href=/terms",
+          "the hero's 'Đăng nhập / Đăng ký' CTA has an adjacent consent note linking the same two hrefs",
+          "the home page's existing header nav and Demo CTAs (header, hero, comparison, features, curiosity) are unchanged — regression, not new behavior"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/privacy",
+      "/terms"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "js",
+      "css"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No backend or database change. apps/landing is a static/mock Next.js marketing site (MODULE.md: 'no backend calls, no auth'); the two new pages are static server components with no data fetch."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "repoint the deploy to the retained previous landing release; the footer/hero links and the two routes revert to their pre-change state (links absent, routes 404) rather than erroring",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm lint:landing",
+    "pnpm type-check:landing",
+    "pnpm test:landing",
+    "pnpm build:landing"
+  ],
+  "doNotInfer": [
+    "Do NOT treat this PR's content as a finished, legally-reviewed privacy policy or terms of service. Issue #1971 is explicit: 'Content is owner-led — this issue tracks the requirement and the pages, not the wording.' Every legal-specific fact (entity details, retention period, jurisdiction, liability, warranty, termination, dispute resolution) is an explicit [OWNER: ...] placeholder (OwnerPlaceholder component), not drafted legal language.",
+    "Do NOT submit the Google OAuth consent screen to Google from this change. That console action, and confirming the verification requirements for the scopes in use, is the owner's per the issue and is explicitly out of scope here.",
+    "Do NOT add the Google sign-in button or touch apps/demo. The actual 'Đăng nhập với Google' control lives in apps/demo/src/components/demo-landing.tsx; the issue's hazards say not to touch apps/demo. The landing's own sign-in surface (the hero's 'Đăng nhập / Đăng ký' CTA into LOGIN_URL) is what carries the new consent-note links instead.",
+    "Do NOT infer that the data-handling sections describe a fully-shipped production-write feature. Section 4 of /privacy states production writes are default-off, sandbox-only today except a single-use, owner-authorized, per-listing path (ADR-085) — do not strengthen or weaken that claim without re-checking the code.",
+    "Do NOT key every paragraph of the legal body copy into dictionary.md. This app's existing convention (verified against apps/landing/src/components/*, dictionary.md) keys short reusable UI strings (nav/CTA labels, headings) but not long-form prose (hero body paragraphs, feature descriptions) — the legal pages follow the same split."
+  ]
+}

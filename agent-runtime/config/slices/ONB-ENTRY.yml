@@ -1,0 +1,28 @@
+# ONB-ENTRY — epic #1951's ENTRY layer (see agent-runtime.config.yml epicRegistry
+# 1951 comment: "ENTRY #1970 OAuth-start route and /v1 proxy, #1971 consent
+# screen, #1972/#1973 contact capture"). Registered for issue #1971: /privacy
+# and /terms are a prerequisite for publishing the Google OAuth consent screen
+# (ADR-094 decision 3) and share no scope with ONB-DP's backend/apps/demo
+# paths — this is apps/landing only.
+ONB-ENTRY:
+  executorDomain: ui-ux
+  requiredDocs:
+    - dictionary.md
+    - docs/adr/094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md
+    - docs/adr/028-vietnamese-copy-dictionary-and-design-context.md
+  requiredModules:
+    - apps/landing/src/app/page.tsx
+    - apps/landing/src/components/landing-header.tsx
+    - apps/landing/src/components/site-footer.tsx
+    - apps/landing/src/components/hero-section.tsx
+    - apps/landing/src/lib/site.ts
+  loadWhenNeeded:
+    - apps/landing/MODULE.md
+    - apps/demo/src/components/demo-landing.tsx
+  doNotLoad:
+    - apps/dashboard/
+    - ios/
+    - backend/src/juli_backend/ai/
+    - backend/src/juli_backend/workers/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

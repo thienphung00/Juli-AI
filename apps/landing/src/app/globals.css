@@ -186,6 +186,22 @@ a {
   margin-top: var(--juli-space-6);
 }
 
+.lp-hero__consent {
+  margin: var(--juli-space-3) 0 0;
+  color: var(--juli-muted-foreground);
+  font-size: 0.8rem;
+}
+
+.lp-hero__consent-link {
+  color: var(--juli-muted-foreground);
+  text-decoration: underline;
+}
+
+.lp-hero__consent-link:hover,
+.lp-hero__consent-link:focus-visible {
+  color: var(--juli-primary-text);
+}
+
 .lp-hero__reassurance {
   margin: var(--juli-space-4) 0 0;
   color: var(--juli-muted-foreground);
@@ -739,6 +755,10 @@ a {
   justify-items: start;
 }
 
+.lp-footer__nav--legal {
+  font-size: 0.85rem;
+}
+
 .lp-footer__link {
   display: inline-flex;
   min-height: var(--juli-touch-target);
@@ -762,4 +782,93 @@ a {
   .lp-footer__legal {
     grid-column: 1 / -1;
   }
+}
+
+/* ————— Legal pages (/privacy, /terms) ————— */
+
+.lp-legal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--juli-space-6);
+  max-width: 44rem;
+  margin-inline: auto;
+  padding-block: clamp(2rem, 6vw, 4rem);
+}
+
+.lp-legal__eyebrow {
+  margin: 0;
+  color: var(--juli-primary-text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.lp-legal__heading {
+  margin: 0;
+  color: var(--juli-foreground);
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  line-height: 1.2;
+}
+
+.lp-legal__updated {
+  margin: 0;
+  color: var(--juli-muted-foreground);
+  font-size: 0.9rem;
+}
+
+.lp-legal__notice {
+  margin: 0;
+  border: 1px solid var(--juli-border-accent);
+  border-radius: var(--juli-radius);
+  background: color-mix(in srgb, var(--juli-primary-text) 6%, transparent);
+  padding: var(--juli-space-4);
+  color: var(--juli-foreground);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.lp-legal__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--juli-space-3);
+}
+
+.lp-legal__section-heading {
+  margin: 0;
+  color: var(--juli-foreground);
+  font-size: 1.15rem;
+  line-height: 1.4;
+}
+
+.lp-legal__section p,
+.lp-legal__section li {
+  margin: 0;
+  color: var(--juli-foreground);
+  font-size: 0.98rem;
+  line-height: 1.7;
+}
+
+.lp-legal__section ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--juli-space-2);
+  margin: 0;
+  padding-inline-start: 1.25rem;
+}
+
+.lp-legal__placeholder {
+  margin: 0;
+  border: 1px dashed var(--juli-border-accent);
+  border-radius: var(--juli-radius);
+  background: color-mix(in srgb, var(--juli-muted-foreground) 8%, transparent);
+  padding: var(--juli-space-3);
+  color: var(--juli-muted-foreground);
+  font-size: 0.9rem;
+  font-style: italic;
+  line-height: 1.6;
+}
+
+.lp-legal__contact-link {
+  color: var(--juli-primary-text);
 }
