@@ -45,7 +45,7 @@ CONTRACT_REVISION = "063_workflow_subject_contract"
 
 def _gate():
     sys.path.insert(0, str(REPO_ROOT / "infra/scripts"))
-    from migration_additive_gate import evaluate_migration_paths  # noqa: PLC0415
+    from migration_additive_gate import evaluate_migration_paths
 
     return evaluate_migration_paths
 
@@ -144,8 +144,8 @@ def test_contract_step_063_is_not_in_the_versions_directory():
 def test_alembic_head_is_the_expand_step_and_the_deferred_file_is_not_in_the_chain():
     """The mechanical consequence of the file's location, asserted through
     Alembic itself rather than inferred from the directory listing."""
-    from alembic.config import Config  # noqa: PLC0415
-    from alembic.script import ScriptDirectory  # noqa: PLC0415
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
 
     script = ScriptDirectory.from_config(Config(str(REPO_ROOT / "alembic.ini")))
     assert list(script.get_heads()) == [EXPAND_REVISION], script.get_heads()
