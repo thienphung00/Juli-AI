@@ -28,6 +28,11 @@ Matches ``__all__`` — re-exports only:
 - **Poll-cycle vendor resources (#1949)** — ``build_fujiwa_poll_vendor_resources``:
   the seam the beat task calls at this package root instead of reaching across
   a forbidden import-boundary edge itself (see poll_resources.py's docstring)
+- **Credential binding (#1995)** — ``make_binding_verifier``: builds the binding
+  verifier the OAuth service checks a token's real shop identity with.
+  Re-exported here because services/action_cards/refresh.py consumes it and was
+  reaching the credential_binding leaf module by deep import. Lazy, like the
+  entry above: that leaf imports juli_backend.core.security at its own top level
 
 ## Dependencies
 

@@ -21,7 +21,7 @@ from juli_backend.models.models import ActionCard
 from juli_backend.services.action_cards.emission_budget import apply_emission_budget
 from juli_backend.services.action_cards.persist import persist_scoring_result
 from juli_backend.services.scoring.pipeline import run_daily_scoring_for_shop
-from juli_backend.services.tiktok.credential_binding import make_binding_verifier
+from juli_backend.services.tiktok import make_binding_verifier
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +40,33 @@ def _poll_env_ready() -> dict[str, str] | None:
 
 
 async def maybe_poll_tiktok_data(session: AsyncSession, shop_id: uuid.UUID) -> None:
-    """Run Fujiwa poll when TikTok + Redis credentials are configured AND the shop
-    owns the production-read credential; otherwise skip."""
+    """Poll THIS shop's own TikTok data when TikTok + Redis env is configured.
+
+    #1995. Before this, the function resolved one globally-configured merchant
+    and returned `None` for every other shop -- so a connecting seller was
+    scored over an empty database with no error anywhere. ADR-103 d.11: a seller
+    who connected and got nothing is a bug, never a quiet zero.
+
+    Two things it must not do, both of which it used to:
+
+    - it must not compare the resolved credential's `shop_id` against
+      `shop_id` and return on a mismatch. The resolver is keyed on the shop
+      now, so a mismatch is not a "this is someone else's shop, skip" -- it
+      cannot happen, and `_assert_pollable_read_credential` raises if it ever
+      does.
+    - it must not wrap the resolve in `except Exception`. That handler caught
+      `NoReadCredentialForShop` and turned it back into the silent skip #1365
+      exists to remove -- one line after the loud error was introduced, and
+      with every test still passing. **There is no try/except here on purpose.**
+      `tests/unit/test_per_shop_poll_consumer.py` pins both the behaviour
+      (the error reaches the caller) and the shape (no `except` handler in this
+      function's AST), because a behavioural test alone cannot see a handler
+      that is added back later one layer up.
+
+    The missing-env branch still returns, and still must: an unconfigured
+    deployment has no TikTok integration at all, which is a deployment state,
+    not a claim about this shop's data.
+    """
     env = _poll_env_ready()
     if env is None:
         logger.info(
@@ -53,33 +78,24 @@ async def maybe_poll_tiktok_data(session: AsyncSession, shop_id: uuid.UUID) -> N
         )
         return
 
-    # Resolve the production-read credential and check if this shop owns it.
-    # Only the production-read shop should poll; other refreshes skip polling.
-    from juli_backend.core.security import resolve_production_read_credential
+    from juli_backend.core.security import resolve_read_credential_for_shop
 
-    try:
-        production_credential = await resolve_production_read_credential(session)
-    except Exception:
-        # If resolution fails (e.g., no production credential exists), skip polling.
-        logger.info(
-            "action_card_refresh_poll_skipped",
-            extra={
-                "shop_id": str(shop_id),
-                "reason": "shop_has_no_pollable_credential",
-            },
-        )
-        return
-
-    # Only poll if the requested shop owns the production-read credential.
-    if production_credential.shop_id != shop_id:
-        logger.info(
-            "action_card_refresh_poll_skipped",
-            extra={
-                "shop_id": str(shop_id),
-                "reason": "not_production_read_shop",
-            },
-        )
-        return
+    # NO try/except. `NoReadCredentialForShop` propagates to the caller.
+    #
+    # Resolved here rather than left entirely to `run_fujiwa_poll_cycle` so the
+    # refusal lands BEFORE a Redis connection, an OAuth service and an ETL
+    # consumer are constructed for a poll that cannot happen. The cycle resolves
+    # again through the same shop-keyed resolver, so the two cannot disagree
+    # about whose credential is used, and `_lazy_refresh`'s freshness guard
+    # means the second resolve issues no extra vendor call.
+    credential = await resolve_read_credential_for_shop(session, shop_id)
+    logger.info(
+        "action_card_refresh_poll_credential_resolved",
+        extra={
+            "shop_id": str(shop_id),
+            "capability": credential.capability,
+        },
+    )
 
     import redis
 
@@ -127,6 +143,10 @@ async def maybe_poll_tiktok_data(session: AsyncSession, shop_id: uuid.UUID) -> N
         oauth_service=oauth_service,
         rate_limiter=rate_limiter,
         handoff_fn=handoff,
+        # #1995: name the shop. Without it the cycle falls back to the
+        # configured merchant and this shop's refresh would poll someone
+        # else's data.
+        shop_id=shop_id,
     )
 
 
@@ -153,8 +173,8 @@ async def run_action_card_refresh(
     if poll:
         runner = poll_hook or maybe_poll_tiktok_data
         await runner(session, shop_id)
-        # The poll path can commit internally for a production-read shop
-        # (maybe_poll_tiktok_data -> resolve_production_read_credential ->
+        # The poll path can commit internally for a shop holding a read
+        # credential (maybe_poll_tiktok_data -> resolve_read_credential_for_shop ->
         # _lazy_refresh -> refresh_credential), which discards the caller's
         # SET LOCAL shop GUC. Re-apply unconditionally rather than only on
         # the branches known to commit today -- the task must be correct

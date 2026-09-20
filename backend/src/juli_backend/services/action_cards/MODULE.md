@@ -29,7 +29,12 @@ slice — see "Out of scope".
   to resolve the dismiss-cooldown deadlock without narrowing this frozenset.
 - `persist_legacy_recommendations(session, shop_id)` → `None` — sole write owner
   for retained `recommendations` rows (legacy GET /v1/recommendations refresh path)
-- `maybe_poll_tiktok_data(session, shop_id)` — Fujiwa poll when `TIKTOK_APP_*` set
+- `maybe_poll_tiktok_data(session, shop_id)` — polls **that shop's own** TikTok data when
+  `TIKTOK_APP_*` / `REDIS_URL` are set. Resolves through `resolve_read_credential_for_shop`
+  (#1365) and lets `NoReadCredentialForShop` **propagate** — a shop with no read credential
+  raises rather than skipping silently (#1995, ADR-103 d.11). The only remaining skip is an
+  unconfigured deployment (missing TikTok/Redis env), which is a deployment state rather
+  than a claim about the shop's data
 - `enqueue_action_card_refresh(session, *, shop_id)` → Celery task id
 - `emission_budget.apply_emission_budget(session, shop_id, *, now=None, config=None)`
   → `EmissionBudgetOutcome` (#716, B-4) — throttles `status == "active"`

@@ -1,7 +1,17 @@
-"""Fujiwa-only scheduled polling orchestration (#298).
+"""Scheduled and manual polling orchestration (#298).
 
-Wires production-read credentials, token refresh, per-endpoint sync state,
+Wires read-capable credentials, token refresh, per-endpoint sync state,
 and rate-limit backoff into the existing sync workers.
+
+#1995: no longer Fujiwa-only. Both entrypoints take an optional `shop_id`; when
+given, the credential is resolved by `resolve_read_credential_for_shop` (#1365)
+and must be a read capability owned by that shop. `_assert_pollable_read_credential`
+replaced `_assert_fujiwa_credential`, and `_factory_config` signs with the
+credential's own `merchant_authorization_id` rather than the configured
+`PRODUCTION_AUTH_ID` constant -- the two guards that, between them, meant a
+connecting seller's correctly-resolved credential was refused one layer down and
+only Juli's configured merchant could be polled at all. `shop_id=None` keeps the
+fleet-wide beat behaviour unchanged.
 
 ADR-081 decision 4 / #1232: the two `oauth_service.refresh_merchant_tokens`
 calls this module used to make (one per entrypoint) are deleted. `resolve()`
@@ -59,6 +69,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.security.credential_resolver import (
     resolve_production_read_credential,
+    resolve_read_credential_for_shop,
 )
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
 from juli_backend.database.tenant_context import with_sticky_shop_scope
@@ -67,13 +78,13 @@ from juli_backend.integrations.tiktok import (
     INVENTORY_SEARCH_PATH,
     ORDER_SEARCH_PATH,
     PRODUCT_SEARCH_PATH,
-    PRODUCTION_AUTH_ID,
     RETURN_SEARCH_PATH,
+    SANDBOX_AUTH_ID,
     ClientFactoryConfig,
     ProductionReadClientFactory,
     ProductionReadResources,
     RateLimiter,
-    TikTokCapability,
+    is_read_capability,
     pagination_scope,
 )
 from juli_backend.models.models import Shop, TikTokCredential
@@ -232,7 +243,18 @@ async def _await_stage(
         ) from exc
 
 
-ResolveCredentialFn = Callable[[AsyncSession], Awaitable[TikTokCredential]]
+# WIDENED by #1995 to carry the shop, rather than binding it in a closure at
+# each call site. The poll IS per-shop: every other parameter of a cycle
+# (`sync_state`, the sticky scope, the `Shop` row read for `tiktok_shop_id`) is
+# already keyed on one shop, and the credential resolve was the last step that
+# pretended otherwise. A closure would have worked and would have left the
+# alias claiming the resolve needs nothing but a session -- which is exactly
+# the claim `resolve_read_credential_for_shop` disproves.
+#
+# `None` means "the fleet-wide entry named no shop": `workers/tasks/
+# fujiwa_poll_beat.py` polls whichever shop owns the configured merchant's
+# credential and cannot name it before resolving it.
+ResolveCredentialFn = Callable[[AsyncSession, uuid.UUID | None], Awaitable[TikTokCredential]]
 CreateResourcesFn = Callable[[ClientFactoryConfig], ProductionReadResources]
 SleepFn = Callable[[float], Awaitable[None]]
 # Every poll step returns its outcome triple (#1969/#1950); a step that returns
@@ -267,15 +289,71 @@ _FUJIWA_POLL_STEPS: tuple[_PollStep, ...] = (
 )
 
 
-def _assert_fujiwa_credential(credential: TikTokCredential) -> None:
-    if credential.merchant_authorization_id != PRODUCTION_AUTH_ID:
+def _assert_pollable_read_credential(
+    credential: TikTokCredential,
+    *,
+    shop_id: uuid.UUID | None,
+) -> None:
+    """Refuse any credential that may not serve this poll (#1995).
+
+    This used to be `_assert_fujiwa_credential`, and it asked one question:
+    "is this the single configured production merchant?" That made the whole
+    poll path structurally single-tenant -- #1365's resolver would hand back a
+    connecting seller's own `SELLER_CONNECT` credential and this guard threw it
+    away, so only Juli's own merchant could ever be polled.
+
+    The question it asks now is the one that actually decides access, and it is
+    two questions, not one:
+
+    1. **Is the capability read-capable?** `is_read_capability` is the single
+       place that answers this (`integrations/tiktok/merchant.py`), so
+       `SANDBOX_WRITE` -- and a row carrying no capability at all -- is refused
+       here for the same reason it is refused in the resolver. Capability is the
+       authority; a missing capability is not permission.
+    2. **Does the shop being polled own it?** When the caller named a shop, the
+       credential's `shop_id` must BE that shop. This is the check that makes
+       one shop polling under another shop's token impossible, and it is why
+       the caller's `shop_id` is threaded down here rather than inferred from
+       `credential.shop_id` (inferring it would make the guard tautological).
+
+    `shop_id=None` is the fleet-wide entry (`workers/tasks/fujiwa_poll_beat.py`),
+    which names no shop and polls whichever shop owns the configured merchant's
+    credential. There the ownership question has no second party to compare
+    against, so only the capability half applies -- stated plainly rather than
+    dressed up as a check.
+
+    The sandbox merchant id is refused by *identity* as well as by capability.
+    Belt and braces on purpose: capability is a stored column, and a mislabelled
+    row must not be able to reach the sandbox write merchant through a read.
+    """
+    capability = credential.capability
+    if capability is None or not is_read_capability(capability):
         raise ValueError(
-            "Fujiwa polling requires production-read credentials; "
-            f"got merchant {credential.merchant_authorization_id}"
+            f"polling requires a read-capable credential; got capability {capability!r}"
         )
-    if credential.capability != TikTokCapability.PRODUCTION_READ.value:
+    merchant = credential.merchant_authorization_id
+    if not merchant:
+        raise ValueError("polling requires a credential carrying a merchant authorization id")
+    # FAIL CLOSED -- see the identical note in
+    # `integrations/tiktok/factories.py`. `if SANDBOX_AUTH_ID and ...` would
+    # turn an empty `TIKTOK_SANDBOX_MERCHANT_ID` into permission to skip the
+    # exclusion, which is the inverse of what a guard is for. A constant this
+    # check cannot read is a deployment fault, and the poll refuses.
+    if not SANDBOX_AUTH_ID:
         raise ValueError(
-            f"Fujiwa polling requires production_read capability; got {credential.capability}"
+            "polling cannot enforce the SANDBOX_VN exclusion: SANDBOX_AUTH_ID is empty "
+            "(TIKTOK_SANDBOX_MERCHANT_ID is set to an empty value). Refusing to poll "
+            "rather than admitting a merchant this guard can no longer exclude."
+        )
+    if merchant == SANDBOX_AUTH_ID:
+        raise ValueError(
+            "polling refuses the SANDBOX_VN write-validation merchant "
+            f"({SANDBOX_AUTH_ID}); it is not read-capable"
+        )
+    if shop_id is not None and credential.shop_id != shop_id:
+        raise ValueError(
+            "polling requires a credential owned by the shop being polled; "
+            f"shop {shop_id} resolved a credential owned by {credential.shop_id}"
         )
 
 
@@ -283,11 +361,26 @@ def _factory_config(
     config: FujiwaPollConfig,
     credential: TikTokCredential,
 ) -> ClientFactoryConfig:
+    """Build the vendor client config from the credential's OWN merchant.
+
+    Was `merchant_auth_id=PRODUCTION_AUTH_ID` -- a constant, so every poll
+    signed as the configured merchant no matter whose credential it held. The
+    merchant id travels with the token now, which is the only way two shops can
+    each call the vendor under their own authorization.
+    """
+    merchant_auth_id = credential.merchant_authorization_id
+    if not merchant_auth_id:
+        # Unreachable through either entrypoint: `_assert_pollable_read_credential`
+        # refuses a credential with no merchant id before the tenant scope is
+        # entered. Restated here rather than silenced with a `cast` so the type
+        # is narrowed by a real check, and so a future caller that reaches this
+        # helper without the guard fails loudly instead of signing as "None".
+        raise ValueError("polling requires a credential carrying a merchant authorization id")
     return ClientFactoryConfig(
         app_key=config.app_key,
         app_secret=config.app_secret,
         access_token=credential.access_token,
-        merchant_auth_id=PRODUCTION_AUTH_ID,
+        merchant_auth_id=merchant_auth_id,
         shop_cipher=credential.shop_cipher,
     )
 
@@ -427,9 +520,13 @@ async def _poll(
     function is only reachable with the credential already resolved, so a
     deadline constructed here would silently exclude the resolve and the
     budget would measure something narrower than it claims.
-    """
-    _assert_fujiwa_credential(credential)
 
+    Takes no `shop_id`: `_assert_pollable_read_credential` runs in
+    `_resolve_and_poll` BEFORE `with_sticky_shop_scope` is entered, because a
+    scope built from an unverified credential would already have handed the
+    cycle another shop's authority by the time this body could object. By here,
+    `credential.shop_id` IS the shop being polled -- checked, not assumed.
+    """
     client_factory = factory or ProductionReadClientFactory()
     build_resources = create_resources or client_factory.create_resources
     resources = build_resources(_factory_config(config, credential))
@@ -514,20 +611,54 @@ async def _poll(
     await repo.save(credential.shop_id, sync_state)
 
 
-async def run_fujiwa_material_resource_fetch(
+async def _default_resolve_credential(
+    session: AsyncSession,
+    shop_id: uuid.UUID | None,
+) -> TikTokCredential:
+    """Which resolver a cycle uses when the caller injected none (#1995).
+
+    Two resolvers, because there are genuinely two callers and they ask
+    different questions:
+
+    - a caller that NAMES a shop asks `resolve_read_credential_for_shop`,
+      which considers only rows that shop owns and raises
+      `NoReadCredentialForShop` when it owns nothing read-capable. There is no
+      fallback to the configured merchant -- that fallback is the defect #1365
+      exists to remove, and re-adding it here would restore it.
+    - the fleet-wide beat names no shop and keeps
+      `resolve_production_read_credential`, unchanged.
+    """
+    if shop_id is None:
+        return await resolve_production_read_credential(session)
+    return await resolve_read_credential_for_shop(session, shop_id)
+
+
+async def _resolve_and_poll(
     *,
     session: AsyncSession,
     config: FujiwaPollConfig,
-    oauth_service: TikTokOAuthService,
+    shop_id: uuid.UUID | None,
     rate_limiter: RateLimiter,
     handoff_fn: HandoffFn,
-    resolve_credential: ResolveCredentialFn | None = None,
-    factory: ProductionReadClientFactory | None = None,
-    create_resources: CreateResourcesFn | None = None,
-    sync_state_repo: TikTokSyncStateRepo | None = None,
-    sleep: SleepFn = asyncio.sleep,
+    resolve_credential: ResolveCredentialFn | None,
+    factory: ProductionReadClientFactory | None,
+    create_resources: CreateResourcesFn | None,
+    sync_state_repo: TikTokSyncStateRepo | None,
+    sleep: SleepFn,
 ) -> None:
-    """Fetch orders/products/returns/inventory + incremental analytics for material precompute."""
+    """Resolve, verify, scope, poll -- the body both entrypoints share.
+
+    One body rather than two identical ones (#1995) so the ownership guard
+    cannot be added to one entrypoint and forgotten on the other. The order of
+    the three lines below is the safety property:
+
+        resolve -> ASSERT -> enter scope
+
+    `with_sticky_shop_scope(credential.shop_id)` grants the cycle that shop's
+    read/write authority for its whole duration. Asserting after entering it
+    would mean the authority was already handed over before anything checked
+    whose credential it came from.
+    """
     # Before `resolve`, deliberately: the resolve does DB work and may refresh a
     # token over HTTP, and that time is part of the cycle this beat slot holds.
     # `_poll` takes the deadline rather than building one, because by the time
@@ -535,8 +666,9 @@ async def run_fujiwa_material_resource_fetch(
     # into it) and a deadline built there would not cover it.
     deadline = _CycleDeadline()
 
-    resolve = resolve_credential or resolve_production_read_credential
-    credential = await resolve(session)
+    resolve = resolve_credential or _default_resolve_credential
+    credential = await resolve(session, shop_id)
+    _assert_pollable_read_credential(credential, shop_id=shop_id)
     async with with_sticky_shop_scope(session, credential.shop_id):
         await _poll(
             session=session,
@@ -550,6 +682,40 @@ async def run_fujiwa_material_resource_fetch(
             sleep=sleep,
             deadline=deadline,
         )
+
+
+async def run_fujiwa_material_resource_fetch(
+    *,
+    session: AsyncSession,
+    config: FujiwaPollConfig,
+    oauth_service: TikTokOAuthService,
+    rate_limiter: RateLimiter,
+    handoff_fn: HandoffFn,
+    shop_id: uuid.UUID | None = None,
+    resolve_credential: ResolveCredentialFn | None = None,
+    factory: ProductionReadClientFactory | None = None,
+    create_resources: CreateResourcesFn | None = None,
+    sync_state_repo: TikTokSyncStateRepo | None = None,
+    sleep: SleepFn = asyncio.sleep,
+) -> None:
+    """Fetch orders/products/returns/inventory + incremental analytics for material precompute.
+
+    `shop_id` names the shop being fetched for (#1995). Omitting it keeps the
+    pre-#1995 fleet-wide behaviour: resolve the configured production-read
+    merchant and fetch for whichever shop owns it.
+    """
+    await _resolve_and_poll(
+        session=session,
+        config=config,
+        shop_id=shop_id,
+        rate_limiter=rate_limiter,
+        handoff_fn=handoff_fn,
+        resolve_credential=resolve_credential,
+        factory=factory,
+        create_resources=create_resources,
+        sync_state_repo=sync_state_repo,
+        sleep=sleep,
+    )
 
 
 async def run_fujiwa_poll_cycle(
@@ -559,32 +725,30 @@ async def run_fujiwa_poll_cycle(
     oauth_service: TikTokOAuthService,
     rate_limiter: RateLimiter,
     handoff_fn: HandoffFn,
+    shop_id: uuid.UUID | None = None,
     resolve_credential: ResolveCredentialFn | None = None,
     factory: ProductionReadClientFactory | None = None,
     create_resources: CreateResourcesFn | None = None,
     sync_state_repo: TikTokSyncStateRepo | None = None,
     sleep: SleepFn = asyncio.sleep,
 ) -> None:
-    """Run one Fujiwa poll cycle for orders, products, returns, and inventory."""
-    # Before `resolve`, deliberately: the resolve does DB work and may refresh a
-    # token over HTTP, and that time is part of the cycle this beat slot holds.
-    # `_poll` takes the deadline rather than building one, because by the time
-    # it runs the resolve has already happened (#1967 collapsed both entrypoints
-    # into it) and a deadline built there would not cover it.
-    deadline = _CycleDeadline()
+    """Run one poll cycle for orders, products, returns, and inventory.
 
-    resolve = resolve_credential or resolve_production_read_credential
-    credential = await resolve(session)
-    async with with_sticky_shop_scope(session, credential.shop_id):
-        await _poll(
-            session=session,
-            config=config,
-            credential=credential,
-            rate_limiter=rate_limiter,
-            handoff_fn=handoff_fn,
-            factory=factory,
-            create_resources=create_resources,
-            sync_state_repo=sync_state_repo,
-            sleep=sleep,
-            deadline=deadline,
-        )
+    `shop_id` names the shop being polled (#1995). When given, the credential
+    is resolved through `resolve_read_credential_for_shop` and must be owned by
+    that shop -- which is what lets a connecting seller be polled under their
+    own token instead of being refused for not being Juli's merchant. Omitting
+    it keeps the fleet-wide behaviour the Celery beat relies on.
+    """
+    await _resolve_and_poll(
+        session=session,
+        config=config,
+        shop_id=shop_id,
+        rate_limiter=rate_limiter,
+        handoff_fn=handoff_fn,
+        resolve_credential=resolve_credential,
+        factory=factory,
+        create_resources=create_resources,
+        sync_state_repo=sync_state_repo,
+        sleep=sleep,
+    )

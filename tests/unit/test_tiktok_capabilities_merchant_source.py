@@ -190,7 +190,37 @@ class TestGuardStillFailsClosedAfterEnvReconfiguration:
     cross-merchant acceptance.
     """
 
-    def test_juli_old_id_is_rejected_once_another_merchant_is_configured(self):
+    def test_juli_old_id_is_no_longer_rejected_by_the_read_factory(self):
+        """#1995 retired this half of #1246's guard. Deliberately, and here is
+        the trade, stated rather than glossed.
+
+        #1246 made `ProductionReadClientFactory` reject Juli's *old* production
+        id once a deployment was reconfigured onto different merchant ids. That
+        check was merchant-identity equality, and #1995 had to remove it: a
+        connecting seller's own merchant id is, by construction, "not the
+        configured one", so identity can no longer tell a stale id from a
+        legitimate seller. Keeping it meant no seller could ever be polled --
+        the defect #1995 exists to close.
+
+        What still fails closed, and is asserted elsewhere:
+
+        - the **sandbox** merchant is refused by the read factory
+          (`test_cross_merchant_still_rejected_between_the_configured_ids`
+          below, and
+          `test_tiktok_capability_factories.py::test_rejects_the_sandbox_write_merchant_auth_id`);
+        - every client this factory returns still carries
+          `ReadOnlyTransportGuard`, so widening *who* may hold a read client
+          does not widen *what* it may do;
+        - which credential reaches the factory at all is now decided by
+          `resolve_read_credential_for_shop`, which only returns rows the shop
+          being read owns
+          (`test_per_shop_read_credential_resolution.py`,
+          `test_per_shop_poll_consumer.py`).
+
+        The sandbox-side assertion below is untouched: `SandboxWriteClientFactory`
+        keeps its identity equality, because there is exactly one sandbox
+        merchant and no per-seller analogue of it.
+        """
         out = _run_with_env(
             f"""
             import juli_backend.integrations.tiktok.factories as f
@@ -212,7 +242,7 @@ class TestGuardStillFailsClosedAfterEnvReconfiguration:
             TIKTOK_SANDBOX_MERCHANT_ID=_NEW_DEPLOYMENT_SANDBOX_ID,
         )
 
-        assert out == "REJECTED"
+        assert out == "ACCEPTED"
 
     def test_cross_merchant_still_rejected_between_the_configured_ids(self):
         out = _run_with_env(
@@ -237,6 +267,89 @@ class TestGuardStillFailsClosedAfterEnvReconfiguration:
         )
 
         assert out == "REJECTED"
+
+
+class TestEmptySandboxEnvFailsClosed:
+    """#1995 review, through the REAL env path rather than a monkeypatch.
+
+    `SANDBOX_AUTH_ID` binds at import from `TIKTOK_SANDBOX_MERCHANT_ID`. These
+    run a fresh interpreter with that variable set to the empty string -- the
+    exact misconfiguration a `if SANDBOX_AUTH_ID and ...` guard turns into
+    silent admission of the sandbox write-validation merchant.
+    """
+
+    def test_empty_sandbox_env_makes_the_constant_empty(self):
+        """The premise, measured rather than assumed: an empty env var really
+        does produce an empty constant (it is not coerced to the fallback)."""
+        out = _run_with_env(
+            """
+            import juli_backend.integrations.tiktok.capabilities as c
+            import juli_backend.integrations.tiktok.factories as f
+            print(repr(c.SANDBOX_AUTH_ID), repr(f.SANDBOX_AUTH_ID))
+            """,
+            TIKTOK_PRODUCTION_MERCHANT_ID=_NEW_DEPLOYMENT_PRODUCTION_ID,
+            TIKTOK_SANDBOX_MERCHANT_ID="",
+        )
+
+        assert out == "'' ''"
+
+    def test_the_sandbox_merchant_is_still_refused_when_the_constant_is_empty(self):
+        """The property. With `if SANDBOX_AUTH_ID and ...` restored this prints
+        ACCEPTED: the sandbox merchant gets a signed read client."""
+        out = _run_with_env(
+            f"""
+            import juli_backend.integrations.tiktok.factories as f
+            config = f.ClientFactoryConfig(
+                app_key="app-key",
+                app_secret="app-secret",
+                access_token="access-token",
+                merchant_auth_id="{_JULI_DEFAULT_SANDBOX_AUTH_ID}",
+                shop_cipher="ROW_cipher1234567890",
+            )
+            try:
+                f.ProductionReadClientFactory().create(config)
+            except ValueError:
+                print("REFUSED")
+            else:
+                print("ADMITTED")
+            """,
+            TIKTOK_PRODUCTION_MERCHANT_ID=_NEW_DEPLOYMENT_PRODUCTION_ID,
+            TIKTOK_SANDBOX_MERCHANT_ID="",
+        )
+
+        assert out == "REFUSED", (
+            "an empty TIKTOK_SANDBOX_MERCHANT_ID admitted the sandbox write-validation "
+            "merchant to the read factory -- the exclusion failed OPEN"
+        )
+
+    def test_the_poll_guard_also_refuses_when_the_constant_is_empty(self):
+        """The same misconfiguration, one layer up, where the poll decides
+        whether a stored credential may serve a read."""
+        out = _run_with_env(
+            f"""
+            import uuid
+            from unittest.mock import MagicMock
+            from juli_backend.integrations.tiktok import TikTokCapability
+            from juli_backend.workers.services.polling import orchestrate as o
+            credential = MagicMock()
+            credential.capability = TikTokCapability.PRODUCTION_READ.value
+            credential.merchant_authorization_id = "{_JULI_DEFAULT_SANDBOX_AUTH_ID}"
+            credential.shop_id = uuid.uuid4()
+            try:
+                o._assert_pollable_read_credential(credential, shop_id=credential.shop_id)
+            except ValueError:
+                print("REFUSED")
+            else:
+                print("ADMITTED")
+            """,
+            TIKTOK_PRODUCTION_MERCHANT_ID=_NEW_DEPLOYMENT_PRODUCTION_ID,
+            TIKTOK_SANDBOX_MERCHANT_ID="",
+        )
+
+        assert out == "REFUSED", (
+            "an empty TIKTOK_SANDBOX_MERCHANT_ID let a sandbox-merchant credential "
+            "through the poll guard -- the exclusion failed OPEN"
+        )
 
 
 class TestUnsetEnvKeepsJuliDefaults:
