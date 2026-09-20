@@ -743,10 +743,31 @@ jobs:
     # closed (scripts/verify-supabase-env-in-build.mjs) without these two
     # values -- Next inlines NEXT_PUBLIC_* at build time only. Same two
     # repository secrets release.yml's app-release-artifact job already
-    # uses for matrix.app == 'demo'; never a literal here.
+    # uses for matrix.app == 'demo'; the REAL values are never literals
+    # here.
+    #
+    # The `||` fallbacks exist for Dependabot. A `chore(deps)` PR's run
+    # resolves `secrets.*` against the repository's *Dependabot* secret
+    # store, not the Actions store, and that store does not carry these
+    # two names -- so both expressions come back EMPTY and the build
+    # fails closed on every Dependabot PR, over an env problem no
+    # dependency bump caused.
+    #
+    # A placeholder does NOT weaken the guard where it matters. The
+    # substantive assertion in verify-supabase-env-in-build.mjs is
+    # `buildOutputContainsHost`: that the configured host is actually
+    # INLINED into the `.next` output this very build produced. A
+    # placeholder exercises that whole mechanism, so the regression the
+    # script exists to catch -- Next silently not inlining
+    # NEXT_PUBLIC_* -- is still caught on every PR. What a placeholder
+    # cannot prove is that the values are the real project's, and that
+    # guarantee is not this job's to make: it lives in release.yml's
+    # app-release-artifact job, which builds the SHIPPED artifact with
+    # the real secrets and is deliberately left untouched here. No PR
+    # build is ever deployed.
     env:
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://project-ref.supabase.co' }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -831,10 +852,17 @@ jobs:
     # that the Google door is a real <a> to a Supabase-origin href would
     # otherwise be asserting against a door that can never be anything but
     # dead in this job. Same two repository secrets as demo-frontend and
-    # release.yml's app-release-artifact job.
+    # release.yml's app-release-artifact job, and the same Dependabot
+    # fallback for the same reason -- this job does not depend on
+    # demo-frontend (it rebuilds the demo through Playwright's
+    # webServer), so it fails on the empty Dependabot secrets
+    # independently rather than cascading. The placeholder host still
+    # satisfies landing-doors.spec.ts's `/\.supabase\.co$/` assertion,
+    # and nothing in this suite calls Supabase over the network --
+    # buildGoogleAuthorizeUrl only constructs a URL.
     env:
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://project-ref.supabase.co' }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
