@@ -9,6 +9,18 @@ gated by `requires_postgres` (`tests/integration/test_migrations.py`, the
 same gate every other migration-shaped test in this repo already uses) and
 skips cleanly wherever `DATABASE_URL` is not a reachable local Postgres.
 
+#2050 split 062 into an expand step and a contract step, so this module now
+asserts BOTH halves and the boundary between them. `subject_ref` arrives
+NULLABLE and un-backfilled in 062 (the additive-only release gate refuses a
+per-row `UPDATE` and a `SET NOT NULL` during a release, and refused every
+release from 2026-09-16 until the split); the backfill and the narrowing live
+in `063_workflow_subject_contract`, which is parked OUTSIDE `versions/` and run
+by hand. This module applies that deferred file directly -- its real
+`upgrade()`, against a real connection, through Alembic's own `Operations`
+context -- because it is the only way to prove the contract step still does
+what 062 used to do while keeping it out of the Alembic chain the release lane
+inspects.
+
 The round trip seeds rows at revision `061_credential_owner_enum` -- BEFORE
 062, and the migration immediately below 062 on `main` (#1701's migration was
 renumbered 061->062 when #2019's 061_credential_owner_enumeration.py merged
@@ -26,6 +38,7 @@ against a database of its own, never the shared one -- the same discipline
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import re
 import uuid
@@ -35,6 +48,8 @@ from urllib.parse import urlparse
 import pytest
 from alembic import command
 from alembic.config import Config
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
 
@@ -47,6 +62,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
 MIGRATIONS_DIR = REPO_ROOT / "backend/src/juli_backend/database/migrations/versions"
 MIGRATION_062_PATH = MIGRATIONS_DIR / "062_workflow_and_subject.py"
+DEFERRED_DIR = REPO_ROOT / "backend/src/juli_backend/database/migrations/deferred"
+CONTRACT_063_PATH = DEFERRED_DIR / "063_workflow_subject_contract.py"
 
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 _PRE_REVISION = "061_credential_owner_enum"
@@ -87,6 +104,41 @@ def _reset_to_revision(cfg: Config, revision: str) -> None:
     _assert_local_database_url(_database_url())
     command.downgrade(cfg, "base")
     command.upgrade(cfg, revision)
+
+
+def _run_deferred_contract(engine: Engine, direction: str = "upgrade") -> None:
+    """Execute `063_workflow_subject_contract`'s real `upgrade()`/`downgrade()`.
+
+    The contract step is deliberately absent from `versions/` (#2050), so
+    `command.upgrade` cannot reach it -- putting it in the chain would make it
+    pending on every release and deadlock the additive-only gate, which is the
+    whole reason for the split. Loading the module and driving it through
+    Alembic's own `Operations` context runs the SAME statements the operator
+    runs by hand, against a real connection, with no reimplementation of the
+    SQL here. `alembic_version` is intentionally NOT stamped: on the VPS the
+    file is copied into the serving release's `versions/` before it is run, so
+    the stamp comes from Alembic there, and leaving it unstamped here keeps the
+    later `command.downgrade(cfg, "-1")` pointed at 062 exactly as the chain
+    says.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "deferred_063_workflow_subject_contract", CONTRACT_063_PATH
+    )
+    assert spec is not None and spec.loader is not None, f"cannot load {CONTRACT_063_PATH}"
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    with engine.begin() as conn:
+        context = MigrationContext.configure(conn)
+        with Operations.context(context):
+            getattr(module, direction)()
+
+
+def _subject_ref_is_nullable(engine: Engine) -> bool:
+    column = next(
+        c for c in inspect(engine).get_columns("workflow_runs") if c["name"] == "subject_ref"
+    )
+    return bool(column["nullable"])
 
 
 def _seed_pre_062_row(engine: Engine) -> dict:
@@ -188,15 +240,27 @@ def test_migration_062_is_the_single_head():
 
 
 @requires_postgres
-def test_upgrade_downgrade_upgrade_backfills_existing_runs():
-    """AC1 (#1701): upgrade -> downgrade -1 -> upgrade round-trips cleanly,
-    and every `workflow_runs` row that existed BEFORE the upgrade carries
-    `workflow_key = 'optimize_product_2'`, `subject_type = 'product'` and
-    `subject_ref = product_id` afterward -- re-read from the rows, not
-    inferred from the migration's own source text. `action_cards` rows that
-    predate the migration land on `subject_type = 'unscoped'`,
-    `subject_id = ''`, `revision = 1`. Row counts are asserted identical
-    before and after: the backfill updates, it never drops a row.
+def test_expand_step_adds_the_columns_and_the_contract_step_backfills_them():
+    """AC1 (#1701) as re-split by #2050: upgrade -> downgrade -1 -> upgrade
+    round-trips cleanly, and the expand/contract boundary lands where the
+    additive-only gate requires it.
+
+    After the EXPAND step (062, the only revision in the Alembic chain), every
+    `workflow_runs` row that existed before it carries
+    `workflow_key = 'optimize_product_2'` and `subject_type = 'product'` from
+    their constant server defaults -- and `subject_ref` is NULL, on a NULLABLE
+    column. That NULL is asserted, not tolerated: it is the property that makes
+    062 additive, so a future edit that quietly re-adds the backfill fails here
+    as well as at the gate.
+
+    After the CONTRACT step (063, run by hand from `deferred/`), the same row's
+    `subject_ref` equals its own `product_id` and the column is NOT NULL --
+    re-read from the rows, not inferred from either migration's source text.
+
+    `action_cards` rows that predate the migration land on
+    `subject_type = 'unscoped'`, `subject_id = ''`, `revision = 1` at the
+    expand step; the contract step does not touch that table. Row counts are
+    asserted identical throughout: the backfill updates, it never drops a row.
     """
     cfg = _alembic_config()
     engine = _sync_engine()
@@ -210,7 +274,28 @@ def test_upgrade_downgrade_upgrade_backfills_existing_runs():
 
         command.upgrade(cfg, _THIS_REVISION)
 
-        def _assert_backfilled() -> None:
+        def _assert_row_counts_held(conn) -> None:
+            run_count = conn.execute(text("SELECT COUNT(*) FROM workflow_runs")).scalar_one()
+            card_count = conn.execute(text("SELECT COUNT(*) FROM action_cards")).scalar_one()
+            assert run_count == pre_run_count, "the migration must not drop a workflow_runs row"
+            assert card_count == pre_card_count, "the migration must not drop an action_cards row"
+
+        def _assert_expanded(*, subject_ref_still_unset: bool) -> None:
+            """The expand step's truth: columns present, constant defaults
+            applied, `subject_ref` on a NULLABLE column.
+
+            `subject_ref_still_unset` is False only when the contract step has
+            already run and been rolled back. 063's downgrade reopens the
+            column and deliberately does NOT un-backfill -- the backfilled
+            values are the correct ones and erasing them would destroy
+            information -- so the row keeps its subject there. Nullability is
+            the property that decides whether the release gate passes; the
+            value is not.
+            """
+            assert _subject_ref_is_nullable(engine), (
+                "062 is the EXPAND step -- subject_ref must stay nullable until the "
+                "contract step runs, or the additive-only gate refuses the release"
+            )
             with engine.connect() as conn:
                 run = conn.execute(
                     text(
@@ -221,7 +306,16 @@ def test_upgrade_downgrade_upgrade_backfills_existing_runs():
                 ).one()
                 assert run.workflow_key == "optimize_product_2"
                 assert run.subject_type == "product"
-                assert run.subject_ref == str(ids["product_id"])
+                if subject_ref_still_unset:
+                    assert run.subject_ref is None, (
+                        "the expand step must NOT backfill subject_ref -- a per-row "
+                        "UPDATE is exactly what the additive-only gate refuses"
+                    )
+                else:
+                    assert run.subject_ref == str(ids["product_id"]), (
+                        "063's downgrade must reopen the column without erasing the "
+                        "subject it backfilled"
+                    )
                 assert run.product_id == ids["product_id"]
 
                 card = conn.execute(
@@ -236,14 +330,32 @@ def test_upgrade_downgrade_upgrade_backfills_existing_runs():
                 assert card.revision == 1
                 assert card.supersedes_card_id is None
 
-                run_count = conn.execute(text("SELECT COUNT(*) FROM workflow_runs")).scalar_one()
-                card_count = conn.execute(text("SELECT COUNT(*) FROM action_cards")).scalar_one()
-                assert run_count == pre_run_count, "the backfill must not drop a workflow_runs row"
-                assert card_count == pre_card_count, (
-                    "the backfill must not drop an action_cards row"
-                )
+                _assert_row_counts_held(conn)
 
-        _assert_backfilled()
+        def _assert_contracted() -> None:
+            """The contract step's truth: the same pre-existing row now carries
+            its own product_id as its subject, and the column is closed."""
+            assert not _subject_ref_is_nullable(engine), (
+                "the contract step must narrow subject_ref to NOT NULL"
+            )
+            with engine.connect() as conn:
+                run = conn.execute(
+                    text("SELECT subject_ref, product_id FROM workflow_runs WHERE id = :id"),
+                    {"id": ids["run_id"]},
+                ).one()
+                assert run.subject_ref == str(ids["product_id"])
+                assert run.product_id == ids["product_id"]
+                _assert_row_counts_held(conn)
+
+        _assert_expanded(subject_ref_still_unset=True)
+        _run_deferred_contract(engine, "upgrade")
+        _assert_contracted()
+
+        # Back to the expand-step shape before exercising the chain's own
+        # downgrade: 062 is what `alembic_version` still records, and the
+        # operator's rollback of a hand-run contract step is 063's downgrade.
+        _run_deferred_contract(engine, "downgrade")
+        _assert_expanded(subject_ref_still_unset=False)
 
         # AC1's actual round trip: downgrade -1, then upgrade head again, and
         # re-assert on the SAME pre-existing rows.
@@ -272,7 +384,9 @@ def test_upgrade_downgrade_upgrade_backfills_existing_runs():
             assert card_count == pre_card_count, "downgrade -1 must not drop an action_cards row"
 
         command.upgrade(cfg, "head")
-        _assert_backfilled()
+        _assert_expanded(subject_ref_still_unset=True)
+        _run_deferred_contract(engine, "upgrade")
+        _assert_contracted()
     finally:
         engine.dispose()
 

@@ -688,7 +688,12 @@ def module_public_symbols_from_code(module_path: str) -> set[str]:
         # Alembic revision scripts are bookkeeping, not a module's interface.
         # Every one of them binds `revision`, `down_revision`, `branch_labels`
         # and `depends_on`, and no MODULE.md should be asked to document them.
-        if "migrations/versions" in py_file.as_posix():
+        # `migrations/deferred` holds the same kind of file (#2050): a contract
+        # step parked out of the Alembic chain until an operator runs it by
+        # hand. Its location is a release-lane decision, not a statement that
+        # it is suddenly part of a module's public interface.
+        posix = py_file.as_posix()
+        if "migrations/versions" in posix or "migrations/deferred" in posix:
             continue
         symbols |= ast_public_symbols(py_file)
     return symbols

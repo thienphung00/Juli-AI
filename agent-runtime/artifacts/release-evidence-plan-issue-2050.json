@@ -1,0 +1,88 @@
+{
+  "planId": "rep-2050-062split",
+  "affectedPublicSurfaces": [
+    "api.app-juli.com (the api deploy lane itself — this issue's whole subject is that the lane aborts at infra/scripts/migration_additive_gate.py before any candidate starts)",
+    "public.workflow_runs (schema: subject_ref, subject_type, workflow_key; the re-keyed partial unique uq_workflow_runs_active_shop_product)",
+    "public.action_cards (schema: subject_type, subject_id, revision, supersedes_card_id; the swapped identity constraints)"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "/health on the candidate port (the candidate is reached only over the restricted port; no public traffic is shifted)",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "The api lane gets past the additive-only gate",
+        "entryUrl": "deploy.sh::deploy_lane_api — migration_additive_gate.py --alembic-ini <release>/alembic.ini --from-revision <current>",
+        "assertions": [
+          "the gate prints ADDITIVE-ONLY: ACCEPTED and exits 0, naming 062_workflow_and_subject as the only pending revision",
+          "record_step api migrations reaches 'applied', not 'gate_refused'",
+          "a candidate instance starts — which it has not done since 2026-09-16"
+        ]
+      },
+      {
+        "name": "The candidate serves with subject_ref nullable",
+        "entryUrl": "http://127.0.0.1:<candidate_port>/health",
+        "assertions": [
+          "200 from the candidate after the expand migration applied",
+          "a workflow_runs INSERT made by the candidate carries a non-NULL subject_ref (models.py::_default_workflow_run_subject_ref supplies it client-side)",
+          "the still-serving stable release, which never names subject_ref, keeps inserting successfully — this is the property the expand/contract split exists to preserve"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "n/a — this change touches no frontend bundle, route or asset"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "n/a"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "This issue IS the expand/contract split. 062_workflow_and_subject is edited in place to be additive-only (subject_ref arrives nullable, no backfill, no SET NOT NULL); it had never been applied to any database, so nothing is rewritten. The backfill UPDATE and the NOT NULL narrowing move to 063_workflow_subject_contract, which is parked in backend/src/juli_backend/database/migrations/deferred/ — NOT in versions/, because in versions/ it would be pending on every release, the gate would refuse it, no candidate would start, and the expand code it depends on could never go live. 063 is operated by hand per docs/runbooks/backend-deploy-runbook.md and MUST NOT run while a release predating 062 is still serving: SET NOT NULL is exactly what stops that code inserting a workflow_runs row. Between the two steps the partial unique uq_workflow_runs_active_shop_product does not constrain a row whose subject_ref is NULL (Postgres never equates two NULLs); only a writer that omits the column produces one, i.e. only the older release during the rollout window.",
+    "expandStep": "062_workflow_and_subject (in the Alembic chain, ships with this release)",
+    "contractStep": "063_workflow_subject_contract (deferred/, operator-run, refused by the gate on purpose)"
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "The candidate is stopped and the stable release keeps serving. The expand migration has already applied, and that is safe by construction: every column it adds is nullable or constant-defaulted, so the stable code — which names none of them — is unaffected. No schema undo is required, which is precisely the property the additive-only gate defends.",
+    "postCutoverFailureBehavior": "Roll the code back to the retained previous release. The schema needs no undo while only the expand step has run. Once the contract step has been operated, a code rollback past 062 is NO LONGER safe without first running 063's downgrade (which reopens subject_ref to nullable and deliberately does not erase the backfilled values); the runbook states this and the operator must do it in that order.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python infra/scripts/migration_additive_gate.py --migration-file backend/src/juli_backend/database/migrations/versions/062_workflow_and_subject.py   # expect ADDITIVE-ONLY: ACCEPTED, exit 0",
+    "python infra/scripts/migration_additive_gate.py --migration-file backend/src/juli_backend/database/migrations/deferred/063_workflow_subject_contract.py   # expect ADDITIVE-ONLY: REFUSED, exit 3 — asserted, not incidental",
+    "PYTHONPATH=\"$PWD/backend/src:$PWD\" pytest tests/unit/test_workflow_subject_contract_migration.py -q",
+    "DATABASE_URL=postgresql://postgres:test@localhost:5432/postgres JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=\"$PWD/backend/src:$PWD\" pytest tests/unit/test_migration_workflow_subject_roundtrip.py -q",
+    "DATABASE_URL=postgresql://postgres:test@localhost:5432/postgres JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=\"$PWD/backend/src:$PWD\" pytest tests/unit/test_workflow_run_subject_index.py tests/unit/test_action_card_subject_constraints.py -q",
+    "DATABASE_URL=postgresql://postgres:test@localhost:5432/postgres JULI_TEST_DATABASE_DISPOSABLE=1 PYTHONPATH=\"$PWD/backend/src:$PWD\" pytest tests/integration/test_rls_policies.py tests/integration/test_two_tenant_isolation_proof.py -q",
+    "mypy backend/src/juli_backend --ignore-missing-imports --disable-error-code=valid-type"
+  ],
+  "doNotInfer": [
+    "Do NOT weaken, disable, allowlist or otherwise route around infra/scripts/migration_additive_gate.py. Its docstring states that safe-migrate-allowlist.txt is deliberately not consulted and that widening that file must never make this gate pass. The gate is correct; the migration is what changes.",
+    "Do NOT move 063_workflow_subject_contract into migrations/versions/ as tidying-up. That is the one edit that deadlocks the release lane, and tests/unit/test_workflow_subject_contract_migration.py fails if it happens. It may only move there in a follow-up PR, after it has been applied.",
+    "Do NOT run the contract step against production from this work. Whether and when to operate it is the owner's decision; this issue delivers code and a runbook, not a schema change on the live database.",
+    "Do NOT claim the Postgres-backed assertions hold for the unit `session` fixture: that fixture is SQLite in-memory, and nullability/RLS/DDL claims proven only through it are not proven for Postgres.",
+    "Do NOT read ADR-087 decision 3 ('a revision is a new chained ROW, never an in-place edit') as forbidding the in-place edit of migration 062. That decision governs action_cards revision rows, not Alembic migration files.",
+    "Do NOT assume 062 was ever applied anywhere. It first exists at d64e8c601 and the release that would have applied it aborted at the gate before safe-alembic-upgrade.sh ran."
+  ]
+}
