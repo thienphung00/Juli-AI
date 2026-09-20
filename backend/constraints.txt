@@ -144,7 +144,7 @@ pluggy==1.6.0
     #   pytest-cov
 prompt-toolkit==3.0.53
     # via click-repl
-psycopg2-binary==2.9.12
+psycopg2-binary==2.9.13
     # via juli-backend (pyproject.toml)
 pyarrow==25.0.1
     # via juli-backend (pyproject.toml)
