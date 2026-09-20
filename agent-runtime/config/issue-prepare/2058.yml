@@ -1,0 +1,10 @@
+# #2058 is a standalone, directly-filed flaky-test fix (not architect/PRD-derived):
+# no governing PRD exists for it. Self-parented per the documented pattern in
+# ensure_workflow_cache.py's resolve_parent_from_epic_registry docstring ("If
+# issue_id is itself a registered epic, treat it as its own parent (PRD
+# implemented as the work item, e.g. #499)"). handoffPath points at EXECUTION.md
+# per CLAUDE.md's Artifacts section: "cross-session continuity now lives in
+# EXECUTION.md" (docs/handoffs/ was removed in the seller-money rescope).
+parentIssueId: 2058
+sliceId: TEST-FLAKE-2058
+handoffPath: EXECUTION.md
