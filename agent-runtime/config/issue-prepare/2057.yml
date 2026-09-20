@@ -1,0 +1,14 @@
+# #2057 is a directly-filed deploy/migration-tooling fix with no PRD parent: it
+# was dispatched as an urgent standalone hotfix (the additive-only gate would
+# abort the next production deploy) rather than routed through
+# Focus -> Architect -> to-prd -> to-issues. Self-parented per the documented
+# pattern in ensure_workflow_cache.py's resolve_parent_from_epic_registry
+# docstring ("If issue_id is itself a registered epic, treat it as its own
+# parent (PRD implemented as the work item, e.g. #499)"). Same shape as #2058
+# (PR #2060). handoffPath points at the runbook section this issue's own fix
+# corrects (docs/runbooks/backend-deploy-runbook.md § "Separately-operated
+# contract migrations"), which is the actual operational document for this
+# slice of work.
+parentIssueId: 2057
+sliceId: MIG-PROMOTE-2057
+handoffPath: docs/runbooks/backend-deploy-runbook.md

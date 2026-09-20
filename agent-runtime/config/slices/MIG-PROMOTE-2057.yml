@@ -1,0 +1,33 @@
+# MIG-PROMOTE-2057 — #2057, a standalone deploy/migration-tooling fix filed
+# directly (no PRD parent). 063_workflow_subject_contract was applied to
+# production by hand but its file stayed in database/migrations/deferred/,
+# only copied into the serving release's versions/ on the VPS; the next
+# deploy's fresh release checkout has no such copy, so
+# infra/scripts/migration_additive_gate.py cannot resolve the database's
+# stamped revision and aborts the release before any candidate starts
+# (reproduced directly: ADDITIVE-ONLY: ERROR / No such revision or branch
+# '063_workflow_subject_contract', exit 1). Fix promotes the file into
+# versions/, fixes an offline-SQL runbook bug the same runbook shipped, and
+# updates the two test modules that had pinned the now-superseded "063 stays
+# in deferred/" invariant.
+MIG-PROMOTE-2057:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+  requiredModules:
+    - backend/src/juli_backend/database/migrations/versions/063_workflow_subject_contract.py
+    - backend/src/juli_backend/database/migrations/versions/062_workflow_and_subject.py
+    - infra/scripts/migration_additive_gate.py
+    - infra/scripts/safe_alembic_helpers.py
+    - tests/unit/test_workflow_subject_contract_migration.py
+    - tests/unit/test_migration_workflow_subject_roundtrip.py
+    - tests/unit/test_migration_additive_gate.py
+  loadWhenNeeded:
+    - infra/scripts/deploy.sh
+    - infra/scripts/safe-alembic-upgrade.sh
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

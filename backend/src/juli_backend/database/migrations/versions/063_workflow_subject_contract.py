@@ -4,46 +4,57 @@ Revision ID: 063_workflow_subject_contract
 Revises: 062_workflow_and_subject
 Create Date: 2026-09-20
 
-**This file is deliberately NOT in ``versions/``. Do not move it there until it
-has been applied to production.** Read the next two sections before touching it.
+**APPLIED to production by hand at 2026-09-20T12:06Z** (see #2057), per the
+procedure this docstring originally described. ``alembic_version`` is
+``063_workflow_subject_contract``, ``workflow_runs.subject_ref`` is ``NOT
+NULL``, and 37 of 37 rows were backfilled (0 NULL, row counts identical
+pre/post). This file was promoted from ``deferred/`` into ``versions/`` by
+#2057 now that it is no longer pending -- see that PR/issue for the promotion
+itself. The two sections below are kept as the historical record of *why* it
+was parked and how it was operated; they no longer describe this file's
+current location.
 
-Why it is parked here
----------------------
+Why it was parked outside ``versions/`` until applied
+-------------------------------------------------------
 ``062_workflow_and_subject`` originally carried these two statements. They are
 non-additive, so ``infra/scripts/migration_additive_gate.py`` refused every
 release from 2026-09-16 on and nothing deployed (#2050). #2050 split 062 into
 an additive expand step and this contract step.
 
-Putting this revision in ``versions/`` would not unblock anything -- it would
-deadlock the release lane instead. The gate inspects every revision *pending*
-between the database's current revision and head:
+Putting this revision in ``versions/`` before it had been applied would not
+have unblocked anything -- it would have deadlocked the release lane instead.
+The gate inspects every revision *pending* between the database's current
+revision and head:
 
-* with this file in ``versions/``, pending becomes ``[062, 063]``, the gate
-  refuses on 063, ``deploy_lane_api`` returns before any candidate starts, and
-  the expand code never reaches production;
-* but this step must not run until that expand code IS in production, because
-  making ``subject_ref`` NOT NULL is precisely what stops the older release
-  from inserting a ``workflow_runs`` row.
+* with this file in ``versions/`` before it was applied, pending would have
+  become ``[062, 063]``, the gate would refuse on 063, ``deploy_lane_api``
+  would return before any candidate starts, and the expand code would never
+  reach production;
+* but this step could not run until that expand code WAS in production,
+  because making ``subject_ref`` NOT NULL is precisely what stops the older
+  release from inserting a ``workflow_runs`` row.
 
-Each side waits on the other. Keeping the file out of ``versions/`` breaks the
-cycle: Alembic's head stays ``062_workflow_and_subject``, the release lane sees
-one additive pending revision and passes, and this step is operated by hand
-once the expand release is serving. That is the same shape as
+Each side waited on the other. Keeping the file out of ``versions/`` broke the
+cycle: Alembic's head stayed ``062_workflow_and_subject``, the release lane
+saw one additive pending revision and passed, and this step was operated by
+hand once the expand release was serving. That is the same shape as
 ``056_series_source_column``, run by hand on 2026-09-09 (see
-``docs/handoffs/2026-09-09-w6-wave-to-main-reconcile.md``) -- the difference is
-only that this file says so up front instead of being discovered at deploy
-time.
+``docs/handoffs/2026-09-09-w6-wave-to-main-reconcile.md``) -- the difference
+was only that this file said so up front instead of being discovered at
+deploy time.
 
-The gate REFUSES this file, and that is the correct verdict, not a defect:
-``tests/unit/test_workflow_subject_contract_migration.py`` asserts the refusal,
-because "the gate accepts it" would mean it had stopped being the contract
-step.
+The gate REFUSES this file's statements (data-moving ``UPDATE`` + destructive
+``alter_column(not null)``) regardless of which directory it lives in -- that
+is a static fact about the SQL, not about location, and
+``tests/unit/test_workflow_subject_contract_migration.py`` still asserts it.
+It is simply no longer *pending* once ``alembic_version`` is at or past it,
+so the release lane never inspects it again.
 
-How it is operated
-------------------
+How it was operated
+--------------------
 ``docs/runbooks/backend-deploy-runbook.md`` § "Separately-operated contract
 migrations" holds the procedure and the preconditions. In outline, on the VPS,
-against the release directory that is *currently serving*:
+against the release directory that was *currently serving*:
 
 1. Confirm the serving release contains ``062_workflow_and_subject`` and that
    ``alembic current`` reports it. If the database is still at 061, STOP: the
@@ -54,10 +65,11 @@ against the release directory that is *currently serving*:
 3. Copy this file into that release's ``versions/`` directory and leave it
    there -- removing it afterwards would leave Alembic at a revision with no
    file on disk.
-4. ``alembic upgrade head``.
-5. Land a follow-up PR moving this file from ``deferred/`` into ``versions/``.
-   At that point it is already applied, so it is no longer pending and the gate
-   accepts the next release.
+4. Apply it (through ``safe-alembic-upgrade.sh``, online -- see the runbook
+   for why an offline ``--sql`` preview cannot complete for this migration).
+5. Land a follow-up PR moving this file from ``deferred/`` into ``versions/``
+   in the repo itself (this file, via #2057). At that point it is already
+   applied, so it is no longer pending and the gate accepts the next release.
 
 What it does
 ------------

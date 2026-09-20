@@ -1,24 +1,38 @@
-"""The 062/063 expand-contract split that unblocked the release lane (#2050).
+"""The 062/063 expand-contract split that unblocked the release lane (#2050),
+and 063's promotion out of `deferred/` once it was applied (#2057).
 
 `062_workflow_and_subject` (#1701) shipped a per-row backfill `UPDATE` and a
 `SET NOT NULL` on `workflow_runs.subject_ref`. Both are non-additive, so
 `infra/scripts/migration_additive_gate.py` refused every release from
 2026-09-16 on and production sat at `6767bccc`. #2050 split the revision: 062
 keeps the additive half, and `063_workflow_subject_contract` carries the two
-refused statements.
+refused statements, parked in `deferred/` (outside the Alembic chain the
+release lane inspects) until an operator ran it by hand.
 
-These tests pin the three properties that make that split work, because each
-one is silently undoable by a plausible future edit:
+That happened on 2026-09-20T12:06Z: `alembic_version` is
+`063_workflow_subject_contract`, `workflow_runs.subject_ref` is `NOT NULL`,
+and all 37 pre-existing rows were backfilled. #2057 moved the file from
+`deferred/` into `versions/` to match -- it is no longer pending, so the
+additive gate never inspects it again, and leaving it in `deferred/` would
+have deadlocked the *next* release instead: a fresh release checkout has no
+copy of the file the VPS was hand-given, so Alembic could not resolve the
+database's own stamped revision.
 
-1. **062 passes the gate.** Re-adding the backfill "because the column should
-   be NOT NULL" re-blocks every release.
-2. **063 is REFUSED by the gate, and that is correct.** It is the contract
-   step; a version of it the gate accepted would have stopped being one.
-3. **063 is NOT in `versions/`.** Moving it there looks like tidying up and is
-   the one change that deadlocks the lane: pending becomes `[062, 063]`, the
-   gate refuses on 063, no candidate starts, so the expand code never reaches
-   production -- and 063 must not run until it has. The file may only move
-   into `versions/` in a follow-up PR, AFTER it has been applied by hand.
+These tests now pin what the promoted state must look like, because each
+property below is silently undoable by a plausible future edit:
+
+1. **062 still passes the gate.** Re-adding the backfill "because the column
+   should be NOT NULL" re-blocks every release.
+2. **063's statements are still refused by the gate, taken on their own.**
+   That is a static fact about the SQL (a data-moving `UPDATE` and a
+   destructive `NOT NULL`), independent of which directory the file lives in
+   or whether it is currently pending -- it is what proves the split was ever
+   necessary, and a version of the file the gate silently accepted would mean
+   those statements had gone missing.
+3. **063 is now IN `versions/`, and `deferred/` is gone.** The opposite of
+   #2050's invariant, because the precondition (applied in production) has
+   flipped. `deferred/` held nothing else, and an empty holding directory has
+   no purpose -- a future contract step recreates it when it exists.
 
 No database is needed: these are source-level and Alembic-metadata assertions,
 and they run everywhere. The behavioural round trip over both steps lives in
@@ -36,7 +50,7 @@ MIGRATIONS_ROOT = REPO_ROOT / "backend/src/juli_backend/database/migrations"
 VERSIONS_DIR = MIGRATIONS_ROOT / "versions"
 DEFERRED_DIR = MIGRATIONS_ROOT / "deferred"
 EXPAND_062_PATH = VERSIONS_DIR / "062_workflow_and_subject.py"
-CONTRACT_063_PATH = DEFERRED_DIR / "063_workflow_subject_contract.py"
+CONTRACT_063_PATH = VERSIONS_DIR / "063_workflow_subject_contract.py"
 RUNBOOK_PATH = REPO_ROOT / "docs/runbooks/backend-deploy-runbook.md"
 
 EXPAND_REVISION = "062_workflow_and_subject"
@@ -88,7 +102,7 @@ def test_expand_step_062_does_not_backfill_or_narrow_subject_ref():
 
 
 # ---------------------------------------------------------------------------
-# Property 2 -- the contract step is a contract step.
+# Property 2 -- 063's statements are still what made it a contract step.
 # ---------------------------------------------------------------------------
 
 
@@ -104,14 +118,13 @@ def test_contract_step_063_exists_and_chains_onto_the_expand_step():
     assert down_revision == EXPAND_REVISION
 
 
-def test_contract_step_063_is_refused_by_the_additive_gate():
-    """The refusal IS the contract step's signature, not a defect to fix.
-
-    Both findings that used to block 062 must now be here -- if only one had
-    moved, the split would be half done and 062 would still be refused (which
-    `test_expand_step_062_is_accepted_by_the_additive_gate` would catch) or
-    063 would no longer close the column.
-    """
+def test_contract_step_063_statements_are_still_refused_on_their_own():
+    """Taken as a standalone file, 063's statements are exactly what the
+    additive-only gate exists to refuse -- that fact does not change once the
+    migration is applied and out of the pending set. It is a regression guard
+    against a future edit quietly weakening the migration (e.g. dropping the
+    NOT NULL narrowing), not a statement about whether a release lane would
+    currently inspect this file."""
     result = _gate()([CONTRACT_063_PATH])
     assert not result.accepted, (
         "063 carries the backfill and the NOT NULL narrowing; a gate that "
@@ -126,45 +139,63 @@ def test_contract_step_063_is_refused_by_the_additive_gate():
 
 
 # ---------------------------------------------------------------------------
-# Property 3 -- the contract step is invisible to the release lane.
+# Property 3 -- promoted: 063 now lives in versions/, deferred/ is gone.
 # ---------------------------------------------------------------------------
 
 
-def test_contract_step_063_is_not_in_the_versions_directory():
-    """Moving it into `versions/` deadlocks the release lane -- see this
-    module's docstring and 063's own."""
-    stray = [p.name for p in VERSIONS_DIR.glob("063*")]
-    assert stray == [], (
-        f"{stray} is in versions/, so the additive gate will inspect it as pending "
-        "and refuse every release. The contract step stays in deferred/ until it "
-        "has been applied by hand."
+def test_contract_step_063_is_now_in_versions_not_deferred():
+    """#2057: the migration is applied in production, so it is no longer
+    pending and belongs in the normal chain like any other applied
+    revision."""
+    assert CONTRACT_063_PATH.parent == VERSIONS_DIR
+    stray_in_deferred = [p.name for p in DEFERRED_DIR.glob("063*")] if DEFERRED_DIR.exists() else []
+    assert stray_in_deferred == [], (
+        f"{stray_in_deferred} still present under deferred/ -- 063 should exist in "
+        "exactly one place after promotion"
     )
 
 
-def test_alembic_head_is_the_expand_step_and_the_deferred_file_is_not_in_the_chain():
-    """The mechanical consequence of the file's location, asserted through
-    Alembic itself rather than inferred from the directory listing."""
+def test_alembic_head_descends_from_the_contract_step():
+    """The mechanical consequence of the promotion, asserted through Alembic
+    itself. Deliberately does not assert a specific head revision: other
+    migrations may chain onto 063 after this one lands, and re-pinning the
+    exact head here would just make this test the next thing that goes stale
+    for an unrelated reason. What must hold is that Alembic can resolve 063,
+    that it still chains onto the expand step, and that it lies on the path
+    to whatever head currently is."""
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
     script = ScriptDirectory.from_config(Config(str(REPO_ROOT / "alembic.ini")))
-    assert list(script.get_heads()) == [EXPAND_REVISION], script.get_heads()
     known = {revision.revision for revision in script.walk_revisions()}
-    assert CONTRACT_REVISION not in known, (
-        "Alembic can see the contract step, so it is pending on every release"
+    assert CONTRACT_REVISION in known, (
+        "Alembic cannot resolve the contract step -- promoting the file into "
+        "versions/ should have put it back in the chain"
+    )
+    contract_script = script.get_revision(CONTRACT_REVISION)
+    assert contract_script.down_revision == EXPAND_REVISION
+
+    on_path_to_a_head = any(
+        CONTRACT_REVISION in {rev.revision for rev in script.iterate_revisions(head, "base")}
+        for head in script.get_heads()
+    )
+    assert on_path_to_a_head, (
+        f"{CONTRACT_REVISION} is known to Alembic but not an ancestor of any head "
+        f"({script.get_heads()}) -- it may have been orphaned onto a dead branch"
     )
 
 
-def test_deferred_directory_holds_only_migrations_that_the_gate_refuses():
-    """A file parked in `deferred/` that the gate would accept has no reason to
-    be out of the chain, and silently skipping a releasable migration is its own
-    defect. This keeps the directory from becoming a junk drawer."""
-    deferred = sorted(p for p in DEFERRED_DIR.glob("*.py") if p.name != "__init__.py")
-    assert deferred, "deferred/ is empty -- delete it rather than leaving it to rot"
-    for path in deferred:
-        assert not _gate()([path]).accepted, (
-            f"{path.name} is additive, so it belongs in versions/, not deferred/"
-        )
+def test_deferred_directory_no_longer_exists():
+    """063 was the only file `deferred/` ever held. An empty holding
+    directory has no purpose of its own -- git does not track empty
+    directories, and a future contract step recreates `deferred/` the moment
+    it needs it. #2057 deleted it rather than leaving it to rot with a
+    placeholder; this pins that decision so it is not silently reversed."""
+    assert not DEFERRED_DIR.exists(), (
+        f"{DEFERRED_DIR} exists but should have been removed once 063 was promoted "
+        "-- either it holds a new contract step (update this test to name it) or "
+        "it is stray and should be deleted again"
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -24,11 +24,12 @@ the still-serving stable instance share one database, and a NOT NULL
 ``subject_ref`` stops the stable release (which does not know the column) from
 inserting a ``workflow_runs`` row at all, so a code rollback would no longer
 recover. The backfill and the narrowing now live in the CONTRACT step,
-``063_workflow_subject_contract``, which is deliberately parked OUTSIDE
-``versions/`` and operated by hand after this expand release is serving --
-see that file and ``docs/runbooks/backend-deploy-runbook.md``. This revision
-had never been applied to any database when it was split, so editing it in
-place reconciles nothing and rewrites no applied history.
+``063_workflow_subject_contract``, which was operated by hand after this
+expand release was serving, then promoted from ``deferred/`` into
+``versions/`` (#2057) once applied -- see that file and
+``docs/runbooks/backend-deploy-runbook.md``. This revision had never been
+applied to any database when it was split, so editing it in place
+reconciles nothing and rewrites no applied history.
 
 ``workflow_runs`` gains three columns:
 

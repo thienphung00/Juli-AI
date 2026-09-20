@@ -422,3 +422,32 @@ def test_cli_with_no_pending_revisions_accepts(tmp_path: Path):
     result = _run_gate("--migrations-dir", str(tmp_path), "--revisions", "")
     assert result.returncode == GATE_EXIT_ACCEPTED
     assert "ADDITIVE-ONLY: ACCEPTED" in result.stdout
+
+
+def test_additive_gate_accepts_the_real_repo_at_the_promoted_063_revision():
+    """Regression test for #2057.
+
+    `063_workflow_subject_contract` was applied to production, then promoted
+    from `deferred/` into `versions/` in this repo. Before the promotion, a
+    database stamped at that revision broke every subsequent deploy: this is
+    exactly `--alembic-ini`/`--from-revision` resolution the way
+    `deploy_lane_api` in `infra/scripts/deploy.sh` invokes this gate, using
+    the real repo's `alembic.ini` and migrations tree (not a synthetic
+    `tmp_path` chain like the rest of this file) --
+    `safe_alembic_helpers.pending_revisions` could not resolve
+    `063_workflow_subject_contract` in `versions/` and raised
+    `alembic.util.exc.ResolutionError`, which this script's `main()` turns
+    into `ADDITIVE-ONLY: ERROR` and a non-zero exit -- indistinguishable from
+    a refusal to `deploy.sh`, which aborts the whole release before any
+    candidate starts. With the file promoted, the revision is no longer
+    pending and the gate must accept with zero findings.
+    """
+    result = _run_gate(
+        "--alembic-ini",
+        str(REPO_ROOT / "alembic.ini"),
+        "--from-revision",
+        "063_workflow_subject_contract",
+    )
+    assert result.returncode == GATE_EXIT_ACCEPTED, result.stdout + result.stderr
+    assert "ADDITIVE-ONLY: ACCEPTED" in result.stdout
+    assert "pending revisions inspected: (none)" in result.stdout
