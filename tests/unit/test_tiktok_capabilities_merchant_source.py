@@ -190,7 +190,37 @@ class TestGuardStillFailsClosedAfterEnvReconfiguration:
     cross-merchant acceptance.
     """
 
-    def test_juli_old_id_is_rejected_once_another_merchant_is_configured(self):
+    def test_juli_old_id_is_no_longer_rejected_by_the_read_factory(self):
+        """#1995 retired this half of #1246's guard. Deliberately, and here is
+        the trade, stated rather than glossed.
+
+        #1246 made `ProductionReadClientFactory` reject Juli's *old* production
+        id once a deployment was reconfigured onto different merchant ids. That
+        check was merchant-identity equality, and #1995 had to remove it: a
+        connecting seller's own merchant id is, by construction, "not the
+        configured one", so identity can no longer tell a stale id from a
+        legitimate seller. Keeping it meant no seller could ever be polled --
+        the defect #1995 exists to close.
+
+        What still fails closed, and is asserted elsewhere:
+
+        - the **sandbox** merchant is refused by the read factory
+          (`test_cross_merchant_still_rejected_between_the_configured_ids`
+          below, and
+          `test_tiktok_capability_factories.py::test_rejects_the_sandbox_write_merchant_auth_id`);
+        - every client this factory returns still carries
+          `ReadOnlyTransportGuard`, so widening *who* may hold a read client
+          does not widen *what* it may do;
+        - which credential reaches the factory at all is now decided by
+          `resolve_read_credential_for_shop`, which only returns rows the shop
+          being read owns
+          (`test_per_shop_read_credential_resolution.py`,
+          `test_per_shop_poll_consumer.py`).
+
+        The sandbox-side assertion below is untouched: `SandboxWriteClientFactory`
+        keeps its identity equality, because there is exactly one sandbox
+        merchant and no per-seller analogue of it.
+        """
         out = _run_with_env(
             f"""
             import juli_backend.integrations.tiktok.factories as f
@@ -212,7 +242,7 @@ class TestGuardStillFailsClosedAfterEnvReconfiguration:
             TIKTOK_SANDBOX_MERCHANT_ID=_NEW_DEPLOYMENT_SANDBOX_ID,
         )
 
-        assert out == "REJECTED"
+        assert out == "ACCEPTED"
 
     def test_cross_merchant_still_rejected_between_the_configured_ids(self):
         out = _run_with_env(

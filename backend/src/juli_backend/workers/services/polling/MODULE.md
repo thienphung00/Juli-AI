@@ -8,7 +8,9 @@ shop. Fujiwa production-read orchestration is the Phase 2 P2-A1 entry point.
 
 ## Public API
 
-- `run_fujiwa_poll_cycle(*, session, config, oauth_service, rate_limiter, handoff_fn)` — Fujiwa-only scheduled poll for orders, products, returns, inventory, and analytics; refreshes tokens, persists sync state, backs off on rate limits (also the ADR-021 manual-refresh poll hook)
+- `run_fujiwa_poll_cycle(*, session, config, oauth_service, rate_limiter, handoff_fn, shop_id=None, resolve_credential=None, factory=None, create_resources=None, sync_state_repo=None, sleep=asyncio.sleep)` — scheduled/manual poll for orders, products, returns, inventory, and analytics; refreshes tokens, persists sync state, backs off on rate limits (also the ADR-021 manual-refresh poll hook). the shop_id keyword names the shop being polled (#1995): given, the credential is resolved by core.security's per-shop read resolver and must be a read capability **owned by that shop**, so a connecting seller polls under their own token; omitted, the fleet-wide Celery beat behaviour is unchanged (resolve the configured production-read merchant)
+- `run_fujiwa_material_resource_fetch(...)` — same parameters and the same shop_id semantics; the material-precompute entry point
+- `ResolveCredentialFn` — `Callable[[AsyncSession, uuid.UUID | None], Awaitable[TikTokCredential]]`; the credential-resolution seam both entrypoints inject. Widened by #1995 to carry the shop, because the poll is per-shop and the one-parameter alias could not express `resolve_read_credential_for_shop`
 - `FujiwaPollConfig(app_key, app_secret)` — app credentials for poll cycles
 - `SyncOutcome(resource, shop_id, fetched, persisted, failed, pages, backfill, skipped, error)` — what one step actually did (#1950's triple). `ok` is false when the fetch errored, any row was rejected, or the step dropped everything; `dropped_everything` is `fetched > 0 and persisted == 0`. `persisted` counts rows the ETL handoff accepted without raising, which is NOT proof of a committed row: `HandoffFn` is typed `-> None` and `make_etl_handoff` discards `EtlConsumer.ingest`'s verdict, so a DLQ'd row counts as accepted
 - `PollStepDroppedRowsError(outcome)` — raised by a step that fetched rows from the vendor and persisted none of them. Carries the `SyncOutcome`
@@ -32,13 +34,14 @@ Out-of-scope workers removed (Phase 2 cleanup): `sync_livestreams`,
 ## Dependencies
 
 - `juli_backend.integrations.tiktok` — resource modules, `RateLimiter`, `ProductionReadClientFactory`, exceptions
-- `juli_backend.core.security` — `resolve_production_read_credential`, `TikTokOAuthService`
+- `juli_backend.core.security` — `resolve_production_read_credential` (fleet-wide entry only), `TikTokOAuthService`, and since #1995 the per-shop read resolver #1365 added beside them
 - `juli_backend.repositories.repos` — `TikTokSyncStateRepo`
 - `juli_backend.services.ingestion` — `HandoffFn` type
 
 ## Key Behaviors
 
-- `run_fujiwa_poll_cycle` resolves Fujiwa `production_read` credentials only; rejects SANDBOX_VN
+- `run_fujiwa_poll_cycle` accepts any **read-capable** credential (production_read or seller_connect) and, when a shop_id is given, only one owned by that shop; it rejects SANDBOX_VN by capability *and* by merchant id. The guard runs before the sticky shop scope is entered, so an unverified credential never confers a tenant scope (#1995)
+- The vendor client signs with the credential's own merchant authorization id, not the deployment-configured production merchant constant — the change that lets two shops call the vendor under their own authorizations
 - Token refresh via `refresh_merchant_tokens` before each cycle
 - Sync cursors persisted in `tiktok_sync_state` per shop + endpoint (`orders`, `products`, `returns`, `inventory`, analytics keys)
 - Inventory uses `inventory_last_sync_at` watermark only (Search Inventory has no `update_time` filter)

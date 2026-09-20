@@ -247,7 +247,7 @@ class TestTikTokSyncStateRepo:
 
 class TestRunFujiwaPollCycle:
     @pytest.mark.asyncio
-    async def test_fujiwa_only_rejects_sandbox_credential(
+    async def test_rejects_sandbox_write_credential(
         self,
         session,
         oauth_service,
@@ -256,11 +256,13 @@ class TestRunFujiwaPollCycle:
         poll_config,
         mock_resources,
     ):
+        """#1995 widened which credentials may poll; the sandbox one is still
+        refused, now by capability rather than by merchant identity."""
         sandbox_credential = MagicMock()
         sandbox_credential.merchant_authorization_id = SANDBOX_AUTH_ID
         sandbox_credential.capability = TikTokCapability.SANDBOX_WRITE.value
 
-        with pytest.raises(ValueError, match="Fujiwa"):
+        with pytest.raises(ValueError, match="read-capable"):
             await run_fujiwa_poll_cycle(
                 session=session,
                 config=poll_config,

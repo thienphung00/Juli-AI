@@ -185,7 +185,7 @@ async def test_poll_cycle_survives_the_resolvers_own_commit_under_shop_scope(own
     shop_id, credential_id = _seed_fujiwa_shop_and_credential(owner_engine, label="poll-scope")
     _seed_product(owner_engine, shop_id, label="poll-scope")
 
-    async def _resolve_that_commits(session) -> TikTokCredential:
+    async def _resolve_that_commits(session, _shop_id=None) -> TikTokCredential:
         # Real signature, real session, real commit -- mirrors what
         # `resolve_production_read_credential` -> `_lazy_refresh` ->
         # `refresh_credential` does in production (#1880).
@@ -256,7 +256,7 @@ async def test_poll_cycle_final_write_survives_a_commit_inside_a_poll_step(owner
     shop_id, credential_id = _seed_fujiwa_shop_and_credential(owner_engine, label="sticky-scope")
     order_update_time = 1_726_000_000
 
-    async def _resolve_that_commits(session) -> TikTokCredential:
+    async def _resolve_that_commits(session, _shop_id=None) -> TikTokCredential:
         credential = await session.get(TikTokCredential, credential_id, populate_existing=True)
         assert credential is not None
         await session.commit()

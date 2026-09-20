@@ -633,7 +633,8 @@ class TestTheClockCoversTheCredentialResolve:
     ):
         monkeypatch.setenv("TIKTOK_POLL_CYCLE_BUDGET_SECONDS", "0.5")
 
-        async def _slow_resolve(_session):
+        # Two parameters since #1995: `ResolveCredentialFn` carries the shop.
+        async def _slow_resolve(_session, _shop_id):
             await asyncio.sleep(2.0)
             return budget_credential
 

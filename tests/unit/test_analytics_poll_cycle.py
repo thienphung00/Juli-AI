@@ -225,7 +225,8 @@ class TestPollCyclePersistsAnalyticsCursors:
             )
         )
 
-        async def resolve_credential(_session):
+        # Two parameters since #1995: `ResolveCredentialFn` carries the shop.
+        async def resolve_credential(_session, _shop_id):
             return credential
 
         await run_fujiwa_poll_cycle(

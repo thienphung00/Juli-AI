@@ -46,7 +46,13 @@ Matches ``__all__`` — re-exports only:
   ``analytics_shop_performance_per_hour_path``, ``analytics_shop_product_performance_path``,
   ``analytics_shop_sku_performance_path``, ``promotion_activity_path``
 - **Client factories** — ``ClientFactoryConfig``, ``ProductionReadClientFactory``,
-  ``ProductionReadResources``, ``SandboxWriteClientFactory``, ``SandboxWriteResources``
+  ``ProductionReadResources``, ``SandboxWriteClientFactory``, ``SandboxWriteResources``.
+  Since #1995 ``ProductionReadClientFactory.create`` admits **any** merchant auth id
+  except the sandbox one (and rejects an empty one), so a connecting seller's own
+  read credential can build a client; every client it returns still carries
+  ``ReadOnlyTransportGuard``. ``SandboxWriteClientFactory`` keeps its identity
+  equality against ``SANDBOX_AUTH_ID`` — there is one sandbox merchant and no
+  per-seller analogue of it
 - **Merchant isolation** — ``PRODUCTION_AUTH_ID``, ``SANDBOX_AUTH_ID``,
   ``TikTokCapability`` (``PRODUCTION_READ`` | ``SANDBOX_WRITE`` | ``SELLER_CONNECT``),
   ``resolve_merchant_context``, ``is_cross_merchant_lookup``,

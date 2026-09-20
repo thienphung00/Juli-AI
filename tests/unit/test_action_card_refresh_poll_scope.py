@@ -1,33 +1,39 @@
-"""Poll scope in action card refresh — Issue #1293.
+"""Poll scope in action card refresh — Issue #1293, inverted by #1995.
 
-The refresh path should only poll for shops that own the production-read
-credential. A refresh for any other shop should skip polling (with a named
-log reason) and proceed straight to scoring.
+#1293's contract was: only the shop owning the single configured production-read
+credential polls; every other shop logs `shop_has_no_pollable_credential` and
+skips. That was right while one merchant was the only merchant Juli could reach.
+It is wrong now, and it is the exact silent no-op #1365/#1995 exist to remove —
+a connecting seller got scored over an empty database with nothing raised
+anywhere (ADR-103 d.11: "A seller who connected and got nothing is a bug, never
+a quiet zero").
 
-This ensures manual refreshes don't waste TikTok rate-limit budget on
-unscoped polling, and don't monopolize worker slots for ~25 minutes doing
-another shop's ingest.
+The contract this file now pins:
 
-Acceptance criteria:
-1. A refresh for a shop with NO pollable credential does NOT invoke
-   run_fujiwa_poll_cycle — it skips with reason 'shop_has_no_pollable_credential'
-   and still reaches run_daily_scoring_for_shop.
-2. A refresh for the shop that OWNS the production-read credential invokes
-   run_fujiwa_poll_cycle (preserves today's behavior).
-3. The poll decision is resolved from the DB (resolve_production_read_credential),
-   not hardcoded.
+1. A shop holding its own read credential polls, under its OWN credential —
+   whether that credential is `PRODUCTION_READ` (Juli's configured merchant) or
+   `SELLER_CONNECT` (a seller who has just finished OAuth).
+2. A shop holding NO read credential raises `NoReadCredentialForShop`. It does
+   not skip, does not log a skip reason, and does not return `None`.
+3. An unconfigured deployment (no TikTok/Redis env) still skips, and still
+   must: that is a deployment state, not a claim about this shop's data.
+
+Cross-shop isolation and the not-swallowed proof live in
+`tests/unit/test_per_shop_poll_consumer.py`.
 """
 
 from __future__ import annotations
 
 import logging
 import uuid
-from datetime import UTC
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
 
+from juli_backend.core.security.credential_resolver import NoReadCredentialForShop
+from juli_backend.integrations.tiktok import PRODUCTION_AUTH_ID, TikTokCapability
 from juli_backend.models.models import Shop, TikTokCredential, User
 from juli_backend.services.action_cards.refresh import maybe_poll_tiktok_data
 
@@ -42,7 +48,7 @@ async def local_user(session, user_id):
 
 @pytest_asyncio.fixture
 async def production_shop(session, local_user):
-    """The shop that owns the production-read credential."""
+    """The shop that owns the configured production-read credential."""
     s = Shop(
         id=uuid.uuid4(),
         user_id=local_user.id,
@@ -55,13 +61,13 @@ async def production_shop(session, local_user):
 
 
 @pytest_asyncio.fixture
-async def sandbox_shop(session, local_user):
-    """A different shop with no production-read credential."""
+async def seller_shop(session, local_user):
+    """A connecting seller's shop — its own merchant, its own credential."""
     s = Shop(
         id=uuid.uuid4(),
         user_id=local_user.id,
-        shop_name="Sandbox Shop",
-        tiktok_shop_id="tiktok_shop_sandbox",
+        shop_name="Seller Shop",
+        tiktok_shop_id="tiktok_shop_seller",
     )
     session.add(s)
     await session.flush()
@@ -69,20 +75,28 @@ async def sandbox_shop(session, local_user):
 
 
 @pytest_asyncio.fixture
-async def production_credential(session, production_shop):
-    """Production-read credential for the production shop."""
-    from datetime import datetime
+async def credential_free_shop(session, local_user):
+    """A shop holding nothing read-capable."""
+    s = Shop(
+        id=uuid.uuid4(),
+        user_id=local_user.id,
+        shop_name="No Credential Shop",
+        tiktok_shop_id="tiktok_shop_none",
+    )
+    session.add(s)
+    await session.flush()
+    return s
 
-    from juli_backend.integrations.tiktok import PRODUCTION_AUTH_ID, TikTokCapability
 
+async def _add_credential(session, shop, *, merchant, capability, token):
     cred = TikTokCredential(
         id=uuid.uuid4(),
-        shop_id=production_shop.id,
-        merchant_authorization_id=PRODUCTION_AUTH_ID,
-        capability=TikTokCapability.PRODUCTION_READ.value,
-        shop_cipher="test-cipher",
-        access_token="test-token",
-        refresh_token="test-refresh",
+        shop_id=shop.id,
+        merchant_authorization_id=merchant,
+        capability=capability,
+        shop_cipher=f"cipher-{token}",
+        access_token=token,
+        refresh_token=f"refresh-{token}",
         token_expires_at=datetime(2099, 12, 31, 23, 59, 59, tzinfo=UTC),
         scopes="shop.order:read product.product:read",
     )
@@ -91,117 +105,114 @@ async def production_credential(session, production_shop):
     return cred
 
 
-# --- AC1: refresh for a shop with no pollable credential skips polling -------
+@pytest_asyncio.fixture
+async def production_credential(session, production_shop):
+    return await _add_credential(
+        session,
+        production_shop,
+        merchant=PRODUCTION_AUTH_ID,
+        capability=TikTokCapability.PRODUCTION_READ.value,
+        token="production-token",
+    )
 
 
-@pytest.mark.asyncio
-async def test_refresh_for_non_production_shop_skips_poll(
-    session, sandbox_shop, caplog, monkeypatch
-):
-    """A refresh for a shop that doesn't own the production credential
-    should NOT invoke run_fujiwa_poll_cycle. It should log a skip reason
-    and return without raising.
+@pytest_asyncio.fixture
+async def seller_credential(session, seller_shop):
+    return await _add_credential(
+        session,
+        seller_shop,
+        merchant="seller_own_merchant_4242",
+        capability=TikTokCapability.SELLER_CONNECT.value,
+        token="seller-token",
+    )
 
-    RED: This test fails on pre-#1293 code because maybe_poll_tiktok_data
-    doesn't check shop_id and tries to run the poll even for non-production shops.
-    """
-    # Set up env vars so poll prerequisites look satisfied.
-    # The poll would run, EXCEPT the shop doesn't own the production credential.
+
+@pytest.fixture
+def poll_env(monkeypatch):
     monkeypatch.setenv("TIKTOK_APP_KEY", "test-key")
     monkeypatch.setenv("TIKTOK_APP_SECRET", "test-secret")
     monkeypatch.setenv("TIKTOK_REDIRECT_URI", "https://test.com/callback")
     monkeypatch.setenv("REDIS_URL", "redis://localhost/0")
 
-    # Mock run_fujiwa_poll_cycle so we can assert it wasn't called.
+
+@pytest.mark.asyncio
+async def test_shop_without_a_read_credential_raises_rather_than_skipping(
+    session, credential_free_shop, poll_env, caplog
+):
+    """AC2. The behaviour #1995 exists to install.
+
+    RED before #1995: `maybe_poll_tiktok_data` returned `None` and logged
+    `shop_has_no_pollable_credential`, so the refresh carried on and scored the
+    shop over an empty database.
+    """
     mock_poll_cycle = AsyncMock()
 
-    with patch(
-        "juli_backend.workers.services.polling.run_fujiwa_poll_cycle",
-        mock_poll_cycle,
-    ):
+    with patch("juli_backend.workers.services.polling.run_fujiwa_poll_cycle", mock_poll_cycle):
         with caplog.at_level(logging.INFO):
-            await maybe_poll_tiktok_data(session, sandbox_shop.id)
+            with pytest.raises(NoReadCredentialForShop):
+                await maybe_poll_tiktok_data(session, credential_free_shop.id)
 
-    # The poll runner should NOT have been called because sandbox_shop
-    # doesn't own the production-read credential.
     mock_poll_cycle.assert_not_called()
-
-    # A skip reason should be logged with the action_card_refresh_poll_skipped key.
-    log_records = [
-        r for r in caplog.records if r.name == "juli_backend.services.action_cards.refresh"
-    ]
     skip_logs = [
         r
-        for r in log_records
-        if hasattr(r, "msg") and "action_card_refresh_poll_skipped" in (r.msg or "")
+        for r in caplog.records
+        if r.name == "juli_backend.services.action_cards.refresh"
+        and "action_card_refresh_poll_skipped" in (r.msg or "")
     ]
-    assert len(skip_logs) > 0, (
-        f"Expected 'action_card_refresh_poll_skipped' log, got: {[r.msg for r in log_records]}"
+    assert skip_logs == [], (
+        "the refusal must not also be logged as a skip -- a skip line is what made "
+        f"this silent in the first place; got {[r.msg for r in skip_logs]}"
     )
 
 
 @pytest.mark.asyncio
-async def test_refresh_for_production_shop_invokes_poll(
-    session, production_shop, production_credential, monkeypatch
+async def test_configured_production_shop_still_polls(
+    session, production_shop, production_credential, poll_env
 ):
-    """A refresh for the shop that owns the production credential
-    should still invoke run_fujiwa_poll_cycle. This preserves today's
-    behavior for the intended polling shop."""
-    # Set up env vars for poll prerequisites.
-    monkeypatch.setenv("TIKTOK_APP_KEY", "test-key")
-    monkeypatch.setenv("TIKTOK_APP_SECRET", "test-secret")
-    monkeypatch.setenv("TIKTOK_REDIRECT_URI", "https://test.com/callback")
-    monkeypatch.setenv("REDIS_URL", "redis://localhost/0")
-
-    # Mock the dependencies that run_fujiwa_poll_cycle needs.
+    """AC1, unchanged half: Juli's own merchant keeps polling exactly as before."""
     mock_poll_cycle = AsyncMock()
 
-    with patch(
-        "juli_backend.workers.services.polling.run_fujiwa_poll_cycle",
-        mock_poll_cycle,
-    ):
+    with patch("juli_backend.workers.services.polling.run_fujiwa_poll_cycle", mock_poll_cycle):
         await maybe_poll_tiktok_data(session, production_shop.id)
 
-    # run_fujiwa_poll_cycle should have been called for the production shop.
     mock_poll_cycle.assert_called_once()
+    assert mock_poll_cycle.call_args.kwargs["shop_id"] == production_shop.id
 
 
 @pytest.mark.asyncio
-async def test_poll_credential_resolved_from_db(
-    session, production_shop, production_credential, local_user, monkeypatch
+async def test_a_connecting_seller_now_polls_too(session, seller_shop, seller_credential, poll_env):
+    """AC1, the half that was impossible before #1995.
+
+    RED before #1995: the shop-id comparison against the configured merchant's
+    credential returned `None` here, so no seller could ever poll.
+    """
+    mock_poll_cycle = AsyncMock()
+
+    with patch("juli_backend.workers.services.polling.run_fujiwa_poll_cycle", mock_poll_cycle):
+        await maybe_poll_tiktok_data(session, seller_shop.id)
+
+    mock_poll_cycle.assert_called_once()
+    assert mock_poll_cycle.call_args.kwargs["shop_id"] == seller_shop.id
+
+
+@pytest.mark.asyncio
+async def test_unconfigured_deployment_still_skips(
+    session, credential_free_shop, monkeypatch, caplog
 ):
-    """The poll decision is resolved from the DB, not hardcoded.
-
-    The function should call resolve_production_read_credential to get
-    the production-read credential and compare its shop_id to the
-    requested shop_id. This proves the decision is DB-driven, not
-    environment-driven. A shop with a different id should not poll,
-    even though the production credential exists."""
-    # Create another shop that definitely doesn't own the production credential.
-    other_shop = Shop(
-        id=uuid.uuid4(),
-        user_id=local_user.id,
-        shop_name="Other Shop",
-        tiktok_shop_id="tiktok_shop_other",
-    )
-    session.add(other_shop)
-    await session.flush()
-
-    # Set up env vars so poll prerequisites appear satisfied.
-    monkeypatch.setenv("TIKTOK_APP_KEY", "test-key")
-    monkeypatch.setenv("TIKTOK_APP_SECRET", "test-secret")
-    monkeypatch.setenv("TIKTOK_REDIRECT_URI", "https://test.com/callback")
-    monkeypatch.setenv("REDIS_URL", "redis://localhost/0")
+    """AC3. The one remaining skip, and the reason it is still a skip."""
+    for key in ("TIKTOK_APP_KEY", "TIKTOK_APP_SECRET", "TIKTOK_REDIRECT_URI", "REDIS_URL"):
+        monkeypatch.delenv(key, raising=False)
 
     mock_poll_cycle = AsyncMock()
 
-    with patch(
-        "juli_backend.workers.services.polling.run_fujiwa_poll_cycle",
-        mock_poll_cycle,
-    ):
-        # Call for the other_shop, not the production_shop.
-        await maybe_poll_tiktok_data(session, other_shop.id)
+    with patch("juli_backend.workers.services.polling.run_fujiwa_poll_cycle", mock_poll_cycle):
+        with caplog.at_level(logging.INFO):
+            assert await maybe_poll_tiktok_data(session, credential_free_shop.id) is None
 
-    # run_fujiwa_poll_cycle should NOT have been called because other_shop
-    # is not the shop that owns the production-read credential.
     mock_poll_cycle.assert_not_called()
+    reasons = [
+        getattr(r, "reason", None)
+        for r in caplog.records
+        if "action_card_refresh_poll_skipped" in (r.msg or "")
+    ]
+    assert "missing_tiktok_or_redis_env" in reasons
