@@ -1,0 +1,72 @@
+{
+  "planId": "rep-2057-db3648b",
+  "affectedPublicSurfaces": [
+    "api deploy lane (infra/scripts/deploy.sh::deploy_lane_api) -- specifically the additive-only migration gate step that must exit accepted before any candidate instance starts"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "http://127.0.0.1:<candidate_port>/health (deploy.sh's api-lane paired-slot candidate; live/candidate is 8000/8020, whichever is not currently live)",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "existing deploy.sh api candidate verification, unchanged by this fix -- this fix only unblocks the step that must pass BEFORE this journey can run at all",
+        "entryUrl": "http://127.0.0.1:<candidate_port>/health",
+        "assertions": [
+          "infra/scripts/migration_additive_gate.py, invoked by deploy_lane_api the same way deploy.sh calls it (--alembic-ini <release>/alembic.ini --from-revision <db current revision>), exits 0 (ADDITIVE-ONLY: ACCEPTED) before any candidate starts. This is the exact step #2057 fixes: verified directly in this PR against the real repo alembic.ini -- pre-fix: exit 1, 'ADDITIVE-ONLY: ERROR / No such revision or branch 063_workflow_subject_contract' (ResolutionError, because a fresh release checkout has no copy of the file the VPS was hand-given); post-fix: exit 0, 'ADDITIVE-ONLY: ACCEPTED / pending revisions inspected: (none)'. Pinned as a regression test: tests/unit/test_migration_additive_gate.py::test_additive_gate_accepts_the_real_repo_at_the_promoted_063_revision, witnessed red (file back in deferred/) then green (file in versions/).",
+          "candidate /health returns HTTP 2xx and JSON {\"status\": \"ok\"} (deploy.sh::verify_api_shape) -- unmodified by this PR",
+          "candidate /v1/demo/analytics carries computed_at and the five ADR-044 KPI keys (deploy.sh::verify_api_shape) -- unmodified by this PR",
+          "public_check against https://api.app-juli.com/health passes after cutover -- unmodified by this PR"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "n/a -- this fix touches only backend/src/juli_backend/database/migrations/, infra/scripts-adjacent tests, and docs/runbooks/; it does not touch the demo or landing lanes deploy.sh separately verifies with verify-release-assets.sh"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "n/a -- no static assets are affected"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No NEW migration ships with this PR. 063_workflow_subject_contract was already applied to production by hand on 2026-09-20T12:06Z, per the runbook's separately-operated contract procedure -- verified after: alembic_version = 063_workflow_subject_contract, workflow_runs.subject_ref is NOT NULL, 37 of 37 rows backfilled, 0 NULL, row counts identical pre/post. This PR only moves that already-applied migration's file from database/migrations/deferred/ into database/migrations/versions/, so a fresh release checkout can resolve the database's already-stamped revision through Alembic's ScriptDirectory. expandContractOnly=true describes the file's own content (it was the CONTRACT half of the 062/063 expand/contract split, #2050) -- that content is unchanged by this PR, only its location moved. stableAndCandidateCompatible=true because the schema change it represents is already live and both stable and candidate code already expect it."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "The additive-only gate now exits 0 (ADDITIVE-ONLY: ACCEPTED) since 063 is no longer pending once promoted. If the gate ever regressed to non-zero for an unrelated reason, deploy_lane_api returns before any candidate starts (unchanged deploy.sh ordering) and the stable release keeps serving, exactly as before this fix -- this PR does not change that ordering, it only removes the specific ResolutionError that was making the gate fail for a database correctly stamped past 062.",
+    "postCutoverFailureBehavior": "Unchanged by this PR: deploy.sh's automatic rollback_lane on a failed public_check restores traffic to the previous stable port.",
+    "retainedStableRequired": true,
+    "automatic": true
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": false,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python infra/scripts/migration_additive_gate.py --alembic-ini alembic.ini --from-revision 063_workflow_subject_contract",
+    "python -m pytest tests/unit/test_workflow_subject_contract_migration.py tests/unit/test_migration_workflow_subject_roundtrip.py tests/unit/test_migration_additive_gate.py -v",
+    "DATABASE_URL=<real local disposable Postgres 16> JULI_TEST_DATABASE_DISPOSABLE=1 python -m alembic upgrade head",
+    "ruff check backend/src/juli_backend/database/migrations/versions/062_workflow_and_subject.py backend/src/juli_backend/database/migrations/versions/063_workflow_subject_contract.py tests/unit/test_workflow_subject_contract_migration.py tests/unit/test_migration_workflow_subject_roundtrip.py tests/unit/test_migration_additive_gate.py",
+    "ruff format --check <same files>"
+  ],
+  "doNotInfer": [
+    "Do not infer that this PR applies a NEW migration to production -- 063 was already applied by hand on 2026-09-20T12:06Z; this PR only promotes the file's location in the repo so the next fresh release checkout can resolve it.",
+    "Do not infer that the demo or landing deploy lanes are affected -- this PR's changed paths (backend/src/juli_backend/database/migrations/, tests/unit/, docs/runbooks/) only match deploy.sh's api lane_path_filters (backend/), never demo's or landing's.",
+    "Do not infer that any further database write is needed in production from this PR -- none is needed or performed; this PR is a repository-only file move plus test/doc fixes.",
+    "Do not infer that deferred/ needs to be recreated -- it is deliberately deleted now that it is empty; a future contract step recreates it if and when it needs it."
+  ]
+}
