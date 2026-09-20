@@ -226,13 +226,28 @@ class TestNoUsableCredentialFailsLoudly:
         )
 
     async def test_never_returns_none(self, session, shop):
-        """The defect being fixed was a silent ``None``. Make it impossible for
-        the success path to hand one back."""
+        """The defect being fixed was a silent ``None``. Neither branch may
+        hand one back.
+
+        BOTH branches are exercised on purpose. Asserting only the success
+        path is not None proves nothing this file does not already prove --
+        ``test_shop_resolves_its_own_seller_connect_credential`` asserts a
+        token off that same object -- while the branch that actually returned
+        ``None`` in ``refresh.py`` was the one where nothing resolved. Mutating
+        the resolver's final ``raise`` to ``return None`` left an
+        assert-only-the-success-path version of this test green (#1365).
+        """
+        credential_less_shop = await make_second_shop(session)
         await issue_credential(
             session, shop, TikTokCapability.SELLER_CONNECT, access_token="seller-token"
         )
 
         assert await resolve_read_credential_for_shop(session, shop.id) is not None
+
+        # The branch that used to return None: nothing usable, so it raises --
+        # `pytest.raises` fails on a returned None, which is the point.
+        with pytest.raises(NoReadCredentialForShop):
+            await resolve_read_credential_for_shop(session, credential_less_shop.id)
 
 
 class TestCallSiteContract:
