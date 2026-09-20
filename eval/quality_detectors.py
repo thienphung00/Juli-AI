@@ -1241,7 +1241,7 @@ def build_report(
 #: rather than reconciled away. Regenerate with
 #: ``python -m eval.quality_detectors scan`` and update both numbers together.
 MEASURED_ZERO_ASSERTION_TESTS = 50
-MEASURED_TEST_FUNCTIONS = 5343
+MEASURED_TEST_FUNCTIONS = 5348
 #: Test modules the corpus figure is spread over. Like the corpus it is a
 #: denominator, not a claim, so it is held to a tolerance rather than pinned.
 MEASURED_TEST_MODULES = 545
@@ -1250,7 +1250,7 @@ MEASURED_TEST_MODULES = 545
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
 #: the third layer, this module's headline on the fifth.
 RECONCILIATION_LAYERS: dict[str, int] = {
-    "no_assert_statement": 425,
+    "no_assert_statement": 427,
     "and_no_pytest_raises": 122,
     "and_no_mock_assert_called": 107,
     "and_no_unittest_self_assert": 107,
@@ -1271,7 +1271,7 @@ RECONCILIATION: dict[str, Any] = {
     "note": (
         "Neither figure is wrong; they count different things, and the layer "
         "decomposition above shows exactly where they part. Measured here: 50 "
-        "zero-assertion tests in a corpus of 5,343 test functions over tests/ "
+        "zero-assertion tests in a corpus of 5,348 test functions over tests/ "
         "backend/ scripts/ agent-runtime/ eval/ (545 test modules). The prior "
         "~97-of-4,048 reading corresponds to the `and_no_mock_assert_called` "
         "layer — a detector that credits `pytest.raises` and `mock.assert_called*` "

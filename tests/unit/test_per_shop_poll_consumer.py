@@ -398,6 +398,76 @@ class TestSandboxWriteIsUnreachableFromThePollPath:
         mock_poll_cycle.assert_not_called()
 
 
+# --- The sandbox exclusion must fail CLOSED on a misconfigured constant ------
+
+
+class TestTheSandboxExclusionFailsClosed:
+    """#1995 review. Both guards first shipped as `if SANDBOX_AUTH_ID and ...`.
+
+    That short-circuit inverts a security refusal. `SANDBOX_AUTH_ID` is read
+    from `TIKTOK_SANDBOX_MERCHANT_ID` at import; set that env var to an empty
+    string and the constant is `""`, the `and` is False, and the sandbox
+    write-validation merchant is silently **admitted** to the read path -- the
+    one outcome `READ_CAPABILITIES` and both guards exist to prevent.
+
+    It was a REGRESSION, not an inherited hole: the pre-#1995 checks compared
+    `!= PRODUCTION_AUTH_ID`, which refuses everything when the constant is
+    empty. The value is non-empty in production today only because
+    `merchant.py` carries a hardcoded fallback and the env var is unset on the
+    deployed host (#1365 finding F6) -- luck, not a guarantee, and an
+    explicitly-empty env var defeats it.
+
+    A constant the guard cannot read is a DEPLOYMENT fault, so both refuse to
+    proceed rather than proceed without the check.
+    """
+
+    def test_the_read_factory_refuses_everything_when_sandbox_auth_id_is_empty(self, monkeypatch):
+        from juli_backend.integrations.tiktok import factories as factories_module
+
+        monkeypatch.setattr(factories_module, "SANDBOX_AUTH_ID", "")
+
+        # The sandbox merchant itself -- the id that MUST never be admitted.
+        with pytest.raises(ValueError, match="cannot enforce the SANDBOX_VN exclusion"):
+            factories_module.ProductionReadClientFactory().create(
+                factories_module.ClientFactoryConfig(
+                    app_key="k",
+                    app_secret="s",
+                    access_token="t",
+                    merchant_auth_id=SANDBOX_AUTH_ID or "7658096633384781588",
+                    shop_cipher="ROW_cipher1234567890",
+                )
+            )
+
+        # And an ordinary seller too: with the exclusion unenforceable the
+        # factory builds nothing at all, rather than building everything
+        # except a merchant it can no longer name.
+        with pytest.raises(ValueError, match="cannot enforce the SANDBOX_VN exclusion"):
+            factories_module.ProductionReadClientFactory().create(
+                factories_module.ClientFactoryConfig(
+                    app_key="k",
+                    app_secret="s",
+                    access_token="t",
+                    merchant_auth_id="seller_own_merchant_4242",
+                    shop_cipher="ROW_cipher1234567890",
+                )
+            )
+
+    def test_the_poll_guard_refuses_when_sandbox_auth_id_is_empty(self, monkeypatch):
+        from juli_backend.workers.services.polling import orchestrate as orchestrate_module
+
+        monkeypatch.setattr(orchestrate_module, "SANDBOX_AUTH_ID", "")
+
+        credential = MagicMock()
+        credential.capability = TikTokCapability.PRODUCTION_READ.value
+        credential.merchant_authorization_id = SANDBOX_AUTH_ID or "7658096633384781588"
+        credential.shop_id = uuid.uuid4()
+
+        with pytest.raises(ValueError, match="cannot enforce the SANDBOX_VN exclusion"):
+            orchestrate_module._assert_pollable_read_credential(
+                credential, shop_id=credential.shop_id
+            )
+
+
 # --- The fleet-wide beat is unchanged ----------------------------------------
 
 

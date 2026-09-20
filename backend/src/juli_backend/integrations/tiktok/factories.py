@@ -108,7 +108,31 @@ class ProductionReadClientFactory:
             raise ValueError(
                 "ProductionReadClientFactory requires a merchant auth ID; got an empty value"
             )
-        if SANDBOX_AUTH_ID and config.merchant_auth_id == SANDBOX_AUTH_ID:
+        # FAIL CLOSED, and never `if SANDBOX_AUTH_ID and ...`. That
+        # short-circuit was the shape this guard first shipped in (#1995
+        # review), and it inverts the refusal: with
+        # `TIKTOK_SANDBOX_MERCHANT_ID` set to an empty string the constant is
+        # `""`, the `and` is False, and the sandbox write-validation merchant
+        # is silently ADMITTED to the read factory -- the one thing this guard
+        # and `READ_CAPABILITIES` exist to prevent. The pre-#1995 check
+        # (`!= PRODUCTION_AUTH_ID`) failed closed under the same
+        # misconfiguration, so the short-circuit was a regression, not a
+        # pre-existing hole.
+        #
+        # An unusable sandbox constant is a DEPLOYMENT FAULT, not permission to
+        # skip the check: a factory that cannot say which merchant is the
+        # sandbox one cannot honour the exclusion, so it refuses to build a
+        # signed client at all. `merchant.py` supplies a hardcoded fallback
+        # today, which is why the value is non-empty in practice -- that is
+        # luck, and an explicitly-empty env var defeats it.
+        if not SANDBOX_AUTH_ID:
+            raise ValueError(
+                "ProductionReadClientFactory cannot enforce the SANDBOX_VN exclusion: "
+                "SANDBOX_AUTH_ID is empty (TIKTOK_SANDBOX_MERCHANT_ID is set to an empty "
+                "value). Refusing to build a read client rather than admitting a merchant "
+                "this guard can no longer exclude."
+            )
+        if config.merchant_auth_id == SANDBOX_AUTH_ID:
             raise ValueError(
                 "ProductionReadClientFactory refuses the SANDBOX_VN write-validation "
                 f"merchant auth ID ({SANDBOX_AUTH_ID}); it is not read-capable"

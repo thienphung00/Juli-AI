@@ -324,7 +324,7 @@ def _assert_pollable_read_credential(
 
     The sandbox merchant id is refused by *identity* as well as by capability.
     Belt and braces on purpose: capability is a stored column, and a mislabelled
-    row must not be able to reach a production write merchant through a read.
+    row must not be able to reach the sandbox write merchant through a read.
     """
     capability = credential.capability
     if capability is None or not is_read_capability(capability):
@@ -334,7 +334,18 @@ def _assert_pollable_read_credential(
     merchant = credential.merchant_authorization_id
     if not merchant:
         raise ValueError("polling requires a credential carrying a merchant authorization id")
-    if SANDBOX_AUTH_ID and merchant == SANDBOX_AUTH_ID:
+    # FAIL CLOSED -- see the identical note in
+    # `integrations/tiktok/factories.py`. `if SANDBOX_AUTH_ID and ...` would
+    # turn an empty `TIKTOK_SANDBOX_MERCHANT_ID` into permission to skip the
+    # exclusion, which is the inverse of what a guard is for. A constant this
+    # check cannot read is a deployment fault, and the poll refuses.
+    if not SANDBOX_AUTH_ID:
+        raise ValueError(
+            "polling cannot enforce the SANDBOX_VN exclusion: SANDBOX_AUTH_ID is empty "
+            "(TIKTOK_SANDBOX_MERCHANT_ID is set to an empty value). Refusing to poll "
+            "rather than admitting a merchant this guard can no longer exclude."
+        )
+    if merchant == SANDBOX_AUTH_ID:
         raise ValueError(
             "polling refuses the SANDBOX_VN write-validation merchant "
             f"({SANDBOX_AUTH_ID}); it is not read-capable"
