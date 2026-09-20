@@ -88,6 +88,16 @@ Invariants below.
   bearer-authenticated `GET /v1/shops` call. When not, the disabled state
   now also renders visible Vietnamese copy (`dictionary.md`
   `auth.google.unavailable`), not only an `aria-label`.
+- `ConnectShopView`'s "Kết nối TikTok Shop" control is LIVE from issue #1970,
+  where it used to be `aria-disabled` beside a disclaimer saying it did
+  nothing. It calls `lib/tiktok-connect-client.ts`'s bearer-authenticated
+  `GET /v1/auth/tiktok/start` and navigates to the authorize URL that returns.
+  It never assembles a TikTok URL itself: the only thing that makes that URL
+  safe is the server-signed `state` naming the signed-in seller, and a
+  client-built one would carry no owner. Both this call and `GET /v1/shops`
+  are same-origin relative paths (#397, no client-side API base), which is
+  why `infra/nginx/demo.app-juli.com.conf` now proxies `/v1/` to the API
+  upstream — without that, both are served by Next.js and 404.
 - `RecommendationsPanel`/`RecommendationsView` — the ANONYMOUS Decisions
   branch — make no backend request or real write anywhere in the
   recommendations flow (asserted in `decisions-recommendations.test.tsx`,
