@@ -1,0 +1,658 @@
+{
+  "architecturalChange": {
+    "signals": [],
+    "value": false
+  },
+  "gateVersion": 2,
+  "issue": 2050,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/database/migrations",
+      "docs/runbooks",
+      "tests/unit"
+    ]
+  },
+  "review": {
+    "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-2050.json",
+    "ownerSignoffPresent": true,
+    "sha256": "3e5094b6b6319230a35b67191318e191a40fbd57815717c9392c9f74590d7b7b",
+    "signoffRequired": false,
+    "status": "PASS",
+    "warningsAcknowledged": true
+  },
+  "run": {
+    "artifactBytes": {
+      "reviewBytes": 2554,
+      "validationBytes": 1053
+    },
+    "claimVsExecuted": {
+      "citedCommandCount": null,
+      "invokedCommandCount": 0,
+      "matchedCommandCount": null,
+      "reason": "implementation artifact for issue 2050 could not be read at /Users/macos/Juli-AI-v2/juli/.claude/worktrees/agent-a34906ab55417f30d/agent-runtime/artifacts/implementations/implementation-issue-2050.json",
+      "recordPasses": false,
+      "status": "MISSING_SOURCE",
+      "transcriptSources": [],
+      "transcriptsScanned": 0,
+      "unmatchedCommandCount": null,
+      "unmatchedCommands": [],
+      "unmatchedCommandsTruncated": false,
+      "verified": false
+    },
+    "commandScope": {
+      "ciSelectors": {
+        "mypy": {
+          "command": "mypy backend/src/juli_backend --ignore-missing-imports --disable-error-code=valid-type",
+          "deselectedMarkers": [],
+          "paths": [
+            "backend/src/juli_backend"
+          ]
+        },
+        "pytest": {
+          "command": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "deselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "paths": [
+            "tests"
+          ]
+        },
+        "ruff check": {
+          "command": "ruff check backend/src/juli_backend tests scripts agent-runtime/scripts",
+          "deselectedMarkers": [],
+          "paths": [
+            "backend/src/juli_backend",
+            "tests",
+            "scripts",
+            "agent-runtime/scripts"
+          ]
+        }
+      },
+      "ciWorkflow": ".github/workflows/pr.yml",
+      "commandsCited": 7,
+      "invocations": [
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "pytest tests/unit/test_workflow_subject_contract_migration.py -q",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/unit/test_workflow_subject_contract_migration.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "pytest tests/unit/test_migration_workflow_subject_roundtrip.py -q",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/unit/test_migration_workflow_subject_roundtrip.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "pytest tests/unit/test_workflow_run_subject_index.py tests/unit/test_action_card_subject_constraints.py -q",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/unit/test_workflow_run_subject_index.py tests/unit/test_action_card_subject_constraints.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "pytest tests/integration/test_rls_policies.py tests/integration/test_two_tenant_isolation_proof.py -q",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/integration/test_rls_policies.py tests/integration/test_two_tenant_isolation_proof.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "pytest tests/integration/test_schema_parity.py tests/integration/test_migrations.py -q",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/integration/test_schema_parity.py tests/integration/test_migrations.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciCommand": "mypy backend/src/juli_backend --ignore-missing-imports --disable-error-code=valid-type",
+          "ciDeselectedMarkers": [],
+          "ciSelector": "backend/src/juli_backend",
+          "citedCommand": "mypy backend/src/juli_backend --ignore-missing-imports --disable-error-code=valid-type",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "backend/src/juli_backend",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [],
+          "selectedMarkers": [],
+          "tool": "mypy",
+          "verdict": "subsumes_CI"
+        }
+      ],
+      "invocationsScored": 6,
+      "invocationsUnrecognised": 1,
+      "narrowerCount": 5,
+      "narrowerThanCI": [
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "pytest tests/unit/test_workflow_subject_contract_migration.py -q",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/unit/test_workflow_subject_contract_migration.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "pytest tests/unit/test_migration_workflow_subject_roundtrip.py -q",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/unit/test_migration_workflow_subject_roundtrip.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "pytest tests/unit/test_workflow_run_subject_index.py tests/unit/test_action_card_subject_constraints.py -q",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/unit/test_workflow_run_subject_index.py tests/unit/test_action_card_subject_constraints.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "pytest tests/integration/test_rls_policies.py tests/integration/test_two_tenant_isolation_proof.py -q",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/integration/test_rls_policies.py tests/integration/test_two_tenant_isolation_proof.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        },
+        {
+          "ciCommand": "python -X faulthandler -m pytest tests/ -v --tb=short -m 'not live and not demo_contract and not migration_heavy and not phase_scaffold' --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+          "ciDeselectedMarkers": [
+            "demo_contract",
+            "live",
+            "migration_heavy",
+            "phase_scaffold"
+          ],
+          "ciSelector": "tests",
+          "citedCommand": "pytest tests/integration/test_schema_parity.py tests/integration/test_migrations.py -q",
+          "citedDeselectedMarkers": [],
+          "citedSelector": "tests/integration/test_schema_parity.py tests/integration/test_migrations.py",
+          "extraDeselectedMarkers": [],
+          "keywordFilter": null,
+          "nodeIds": [],
+          "pathsFromTestpaths": false,
+          "reasons": [
+            "paths_not_subsuming"
+          ],
+          "selectedMarkers": [],
+          "tool": "pytest",
+          "verdict": "narrower_than_CI"
+        }
+      ],
+      "unit": "invocation",
+      "unitRationale": "76 corpus commands chain 2-5 runs; scoring per command lets a broad first run launder a narrow second one, so each invocation is scored on its own selector."
+    },
+    "environment": {
+      "cwd": "/Users/macos/Juli-AI-v2/juli/.claude/worktrees/agent-a34906ab55417f30d",
+      "dependencies": {
+        "constraints": "/Users/macos/Juli-AI-v2/juli/.claude/worktrees/agent-a34906ab55417f30d/backend/constraints.txt",
+        "drift": [
+          {
+            "installed": "1.18.5",
+            "package": "alembic",
+            "pinned": "1.19.1"
+          },
+          {
+            "installed": "0.0.4",
+            "package": "annotated-doc",
+            "pinned": "0.0.5"
+          },
+          {
+            "installed": "0.7.0",
+            "package": "annotated-types",
+            "pinned": "0.8.0"
+          },
+          {
+            "installed": "4.14.1",
+            "package": "anyio",
+            "pinned": "4.14.2"
+          },
+          {
+            "installed": "0.6.0",
+            "package": "ast-serialize",
+            "pinned": "0.8.0"
+          },
+          {
+            "installed": "2026.6.17",
+            "package": "certifi",
+            "pinned": "2026.7.22"
+          },
+          {
+            "installed": "2.1.0",
+            "package": "cffi",
+            "pinned": "2.1.1"
+          },
+          {
+            "installed": "3.4.9",
+            "package": "charset-normalizer",
+            "pinned": "3.5.1"
+          },
+          {
+            "installed": "8.4.2",
+            "package": "click",
+            "pinned": "8.5.0"
+          },
+          {
+            "installed": "7.15.1",
+            "package": "coverage",
+            "pinned": "7.16.0"
+          },
+          {
+            "installed": "49.0.0",
+            "package": "cryptography",
+            "pinned": "50.0.1"
+          },
+          {
+            "installed": "0.139.0",
+            "package": "fastapi",
+            "pinned": "0.141.1"
+          },
+          {
+            "installed": "3.5.3",
+            "package": "greenlet",
+            "pinned": "3.5.5"
+          },
+          {
+            "installed": "3.18",
+            "package": "idna",
+            "pinned": "3.19"
+          },
+          {
+            "installed": "1.5.3",
+            "package": "joblib",
+            "pinned": "1.6.0"
+          },
+          {
+            "installed": "0.13.0",
+            "package": "librt",
+            "pinned": "0.15.0"
+          },
+          {
+            "installed": "1.3.12",
+            "package": "mako",
+            "pinned": "1.4.1"
+          },
+          {
+            "installed": "2.3.0",
+            "package": "mypy",
+            "pinned": "2.3.1"
+          },
+          {
+            "installed": "2.23.0",
+            "package": "narwhals",
+            "pinned": "2.25.0"
+          },
+          {
+            "installed": "2.5.1",
+            "package": "numpy",
+            "pinned": "2.5.2"
+          },
+          {
+            "installed": "26.2",
+            "package": "packaging",
+            "pinned": "26.3"
+          },
+          {
+            "installed": "2.3.3",
+            "package": "pandas",
+            "pinned": "3.0.5"
+          },
+          {
+            "installed": "3.0.52",
+            "package": "prompt-toolkit",
+            "pinned": "3.0.53"
+          },
+          {
+            "installed": "24.0.0",
+            "package": "pyarrow",
+            "pinned": "25.0.1"
+          },
+          {
+            "installed": "2.13.4",
+            "package": "pydantic",
+            "pinned": "2.13.5"
+          },
+          {
+            "installed": "2.46.4",
+            "package": "pydantic-core",
+            "pinned": "2.46.5"
+          },
+          {
+            "installed": "2.20.0",
+            "package": "pygments",
+            "pinned": "2.21.0"
+          },
+          {
+            "installed": "8.4.2",
+            "package": "pytest",
+            "pinned": "9.1.1"
+          },
+          {
+            "installed": "0.26.0",
+            "package": "pytest-asyncio",
+            "pinned": "1.4.0"
+          },
+          {
+            "installed": "6.3.0",
+            "package": "pytest-cov",
+            "pinned": "7.1.0"
+          },
+          {
+            "installed": "1.2.2",
+            "package": "python-dotenv",
+            "pinned": "1.2.3"
+          },
+          {
+            "installed": "8.0.1",
+            "package": "redis",
+            "pinned": "8.1.0"
+          },
+          {
+            "installed": "0.26.2",
+            "package": "responses",
+            "pinned": "0.26.3"
+          },
+          {
+            "installed": "0.15.21",
+            "package": "ruff",
+            "pinned": "0.16.5"
+          },
+          {
+            "installed": "1.18.0",
+            "package": "scipy",
+            "pinned": "1.18.1"
+          },
+          {
+            "installed": "2.0.51",
+            "package": "sqlalchemy",
+            "pinned": "2.0.52"
+          },
+          {
+            "installed": "1.3.1",
+            "package": "starlette",
+            "pinned": "1.6.0"
+          },
+          {
+            "installed": "5.9.0",
+            "package": "stevedore",
+            "pinned": "5.9.1"
+          },
+          {
+            "installed": "0.4.2",
+            "package": "typing-inspection",
+            "pinned": "0.4.4"
+          },
+          {
+            "installed": "0.51.0",
+            "package": "uvicorn",
+            "pinned": "0.52.4"
+          },
+          {
+            "installed": "0.8.2",
+            "package": "wcwidth",
+            "pinned": "0.8.3"
+          },
+          {
+            "installed": "3.3.0",
+            "package": "xgboost",
+            "pinned": "3.4.1"
+          }
+        ],
+        "matched": 40,
+        "missing": [],
+        "pinned": 82
+      },
+      "executable": "/Users/macos/Juli-AI-v2/juli/.claude/worktrees/agent-a34906ab55417f30d/../../../.venv/bin/python",
+      "git": {
+        "baseDistanceUnavailable": "shallow-clone",
+        "behindOriginMain": null,
+        "branch": "fix/issue-2050-migration-062-additive-split",
+        "head": "d64e8c601a5703bc5b4ecca24a3b35eac7b5ab1f",
+        "shallow": true
+      },
+      "moduleResolution": {
+        "error": null,
+        "expectedPrefix": "/Users/macos/Juli-AI-v2/juli/.claude/worktrees/agent-a34906ab55417f30d/backend/src/juli_backend",
+        "insideRepo": true,
+        "module": "juli_backend",
+        "resolved": "/Users/macos/Juli-AI-v2/juli/.claude/worktrees/agent-a34906ab55417f30d/backend/src/juli_backend/__init__.py"
+      },
+      "python": "3.12.9",
+      "repoRoot": "/Users/macos/Juli-AI-v2/juli/.claude/worktrees/agent-a34906ab55417f30d"
+    },
+    "metrics": {
+      "agents": [],
+      "disagreements": [],
+      "executionDurationMs": {
+        "available": false,
+        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+      },
+      "executorDomain": null,
+      "executorDomainSource": "unknown",
+      "gaps": [
+        {
+          "agentsScanned": 507,
+          "detail": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
+          "reason": "no-transcript-for-issue"
+        },
+        {
+          "detail": "no artifact named a domain",
+          "reason": "executor-domain-unknown"
+        }
+      ],
+      "schemaVersion": 1,
+      "source": {
+        "agentsAttributed": 0,
+        "agentsScanned": 507,
+        "attributedBy": ".worktrees path naming issue-2050",
+        "executorsIdentified": 0,
+        "kind": "task-transcript",
+        "roleSelectedAgentId": null,
+        "roleSelectedBy": "spawn-directive",
+        "taskDirs": [
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/cb047053-ee20-4e00-925f-7ebf36c0417b/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
+          "/tmp/claude-501/-Users-macos/61a4eb31-9294-45c2-a803-0c26980300c6/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/491f9d6b-185a-43a4-bbea-f1fcd906bf1d/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/03369828-07b8-46b9-8587-8b7e97d289c1/tasks"
+        ]
+      },
+      "status": "not-measured",
+      "tokenUsage": {
+        "available": false,
+        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+      },
+      "toolInvocationCount": {
+        "available": false,
+        "reason": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero"
+      },
+      "toolsUsed": []
+    },
+    "transcripts": {
+      "commands": {
+        "executor": 0,
+        "executorCommands": [],
+        "includesExecutorCommands": false,
+        "parent": 0,
+        "parentCommands": []
+      },
+      "coverage": {
+        "complete": false,
+        "executorsExpected": 1,
+        "executorsPersisted": 0,
+        "gaps": [
+          {
+            "agent": "executor",
+            "reason": "no-transcript-persisted"
+          }
+        ]
+      },
+      "executorCount": 0,
+      "executors": [],
+      "parentOnly": true,
+      "schemaVersion": 1,
+      "status": "not-persisted"
+    }
+  },
+  "timestamp": "2026-09-20T00:00:00Z",
+  "validation": {
+    "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-2050.json",
+    "sha256": "ca5297cb8b46d9020ca4e55c3f1ebc32a81a45c315d2660a3b0e6d704a8fccf7",
+    "status": "PASS"
+  },
+  "wave": null
+}
