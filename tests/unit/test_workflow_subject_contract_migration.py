@@ -141,14 +141,29 @@ def test_contract_step_063_is_not_in_the_versions_directory():
     )
 
 
-def test_alembic_head_is_the_expand_step_and_the_deferred_file_is_not_in_the_chain():
+def test_alembic_head_is_a_single_revision_and_the_deferred_file_is_not_in_the_chain():
     """The mechanical consequence of the file's location, asserted through
-    Alembic itself rather than inferred from the directory listing."""
+    Alembic itself rather than inferred from the directory listing.
+
+    The head used to be pinned to `EXPAND_REVISION` by name. That was never the
+    property under test -- the property is that the chain has ONE tip and that
+    the contract step is not on it -- and the literal made every later
+    migration look like a regression of #2050. #1972's `064_users_phone_nullable`
+    is the first revision to land on top of the split and the first to trip it.
+    A single head still catches the fork this module exists to prevent; the
+    identity of the tip is the business of whichever migration is currently
+    last.
+    """
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
     script = ScriptDirectory.from_config(Config(str(REPO_ROOT / "alembic.ini")))
-    assert list(script.get_heads()) == [EXPAND_REVISION], script.get_heads()
+    heads = list(script.get_heads())
+    assert len(heads) == 1, (
+        f"the chain has forked: {heads}. Two heads mean `alembic upgrade head` "
+        "cannot run at all, which is exactly the deadlock this split avoided."
+    )
+    assert heads[0] != CONTRACT_REVISION, heads
     known = {revision.revision for revision in script.walk_revisions()}
     assert CONTRACT_REVISION not in known, (
         "Alembic can see the contract step, so it is pending on every release"
