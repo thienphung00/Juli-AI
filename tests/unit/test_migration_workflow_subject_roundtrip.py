@@ -14,12 +14,16 @@ asserts BOTH halves and the boundary between them. `subject_ref` arrives
 NULLABLE and un-backfilled in 062 (the additive-only release gate refuses a
 per-row `UPDATE` and a `SET NOT NULL` during a release, and refused every
 release from 2026-09-16 until the split); the backfill and the narrowing live
-in `063_workflow_subject_contract`, which is parked OUTSIDE `versions/` and run
-by hand. This module applies that deferred file directly -- its real
-`upgrade()`, against a real connection, through Alembic's own `Operations`
-context -- because it is the only way to prove the contract step still does
-what 062 used to do while keeping it out of the Alembic chain the release lane
-inspects.
+in `063_workflow_subject_contract`, which was parked OUTSIDE `versions/` and
+run by hand against production on 2026-09-20T12:06Z, then promoted into
+`versions/` by #2057 now that it is applied and no longer pending. This
+module applies that file's `upgrade()`/`downgrade()` directly, through
+Alembic's own `Operations` context, against a connection this module controls
+-- rather than driving it via `command.upgrade(cfg, "head")` -- because the
+round trip below needs fine-grained control over exactly when the contract
+step runs (after the expand step's NULLABLE assertion, and again after
+`command.downgrade(cfg, "-1")`), independent of wherever the file happens to
+sit in the chain today.
 
 The round trip seeds rows at revision `061_credential_owner_enum` -- BEFORE
 062, and the migration immediately below 062 on `main` (#1701's migration was
@@ -62,8 +66,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
 MIGRATIONS_DIR = REPO_ROOT / "backend/src/juli_backend/database/migrations/versions"
 MIGRATION_062_PATH = MIGRATIONS_DIR / "062_workflow_and_subject.py"
-DEFERRED_DIR = REPO_ROOT / "backend/src/juli_backend/database/migrations/deferred"
-CONTRACT_063_PATH = DEFERRED_DIR / "063_workflow_subject_contract.py"
+# #2057 promoted 063 from deferred/ into versions/ once it was applied in
+# production -- it is a normal chain member now, alongside 062.
+CONTRACT_063_PATH = MIGRATIONS_DIR / "063_workflow_subject_contract.py"
 
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 _PRE_REVISION = "061_credential_owner_enum"
@@ -109,17 +114,19 @@ def _reset_to_revision(cfg: Config, revision: str) -> None:
 def _run_deferred_contract(engine: Engine, direction: str = "upgrade") -> None:
     """Execute `063_workflow_subject_contract`'s real `upgrade()`/`downgrade()`.
 
-    The contract step is deliberately absent from `versions/` (#2050), so
-    `command.upgrade` cannot reach it -- putting it in the chain would make it
-    pending on every release and deadlock the additive-only gate, which is the
-    whole reason for the split. Loading the module and driving it through
-    Alembic's own `Operations` context runs the SAME statements the operator
-    runs by hand, against a real connection, with no reimplementation of the
-    SQL here. `alembic_version` is intentionally NOT stamped: on the VPS the
-    file is copied into the serving release's `versions/` before it is run, so
-    the stamp comes from Alembic there, and leaving it unstamped here keeps the
-    later `command.downgrade(cfg, "-1")` pointed at 062 exactly as the chain
-    says.
+    #2057 promoted the file into `versions/`, so `command.upgrade(cfg, "head")`
+    could reach it directly now -- but this test still loads the module and
+    drives it through Alembic's own `Operations` context by hand, against a
+    connection this test controls, because the round trip below needs the
+    expand step's NULLABLE state asserted BEFORE the contract step runs and
+    again AFTER `command.downgrade(cfg, "-1")`, independent of whichever
+    revision `command.upgrade`/`command.downgrade` would otherwise land the
+    chain on. It runs the SAME statements the operator ran by hand in
+    production, with no reimplementation of the SQL here. `alembic_version` is
+    intentionally NOT stamped by this helper: this test drives `command.*`
+    against `_THIS_REVISION` (062) elsewhere in the same run, and stamping
+    here out of band would desynchronize that from what `alembic_version`
+    actually says.
     """
     spec = importlib.util.spec_from_file_location(
         "deferred_063_workflow_subject_contract", CONTRACT_063_PATH
@@ -214,14 +221,21 @@ def test_migration_062_down_revision_is_061_credential_owner_enum():
     assert down.group(1) == _PRE_REVISION
 
 
-def test_migration_062_is_the_single_head():
+def test_migration_062_has_exactly_one_child_and_it_is_063():
     """Confirms this issue's own instruction was honoured: the migration
     number was RESERVED, not computed from `alembic heads` -- there is
     exactly one file whose down_revision is 062, and exactly one whose
     down_revision is 061_credential_owner_enum (this one). 061 itself was
     independently reserved twice (#1701 and #2019); #2019 merged first and
     kept 061, so this migration is 062, chained onto 061_credential_owner_enum,
-    not the 060 it was originally reserved against."""
+    not the 060 it was originally reserved against.
+
+    Originally asserted that 062 was the single head of `versions/` -- true
+    only while 063 was parked in `deferred/` (#2050). #2057 promoted 063 into
+    `versions/` once it was applied in production, so 062 now has exactly one
+    child (063) rather than none; this asserts THAT instead of a specific
+    global head, since a later migration may chain onto 063 without this
+    test needing to change again."""
     revisions: dict[str, str | None] = {}
     for path in MIGRATIONS_DIR.glob("*.py"):
         body = path.read_text(encoding="utf-8")
@@ -229,9 +243,15 @@ def test_migration_062_is_the_single_head():
         down = re.search(r'^down_revision: str \| None = (?:"([^"]+)"|None)', body, re.M)
         if rev:
             revisions[rev.group(1)] = down.group(1) if down and down.group(1) else None
-    parents = {d for d in revisions.values() if d}
-    heads = [r for r in revisions if r not in parents]
-    assert heads == [_THIS_REVISION], f"expected a single head at {_THIS_REVISION}, got {heads}"
+    children_of_062 = sorted(r for r, d in revisions.items() if d == _THIS_REVISION)
+    assert children_of_062 == [CONTRACT_063_PATH.stem], (
+        f"expected 062's only child to be {CONTRACT_063_PATH.stem}, got {children_of_062} -- "
+        "a second child means a migration number was reserved twice"
+    )
+    children_of_061 = sorted(r for r, d in revisions.items() if d == _PRE_REVISION)
+    assert children_of_061 == [_THIS_REVISION], (
+        f"expected 061's only child to be {_THIS_REVISION}, got {children_of_061}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -383,7 +403,12 @@ def test_expand_step_adds_the_columns_and_the_contract_step_backfills_them():
             assert run_count == pre_run_count, "downgrade -1 must not drop a workflow_runs row"
             assert card_count == pre_card_count, "downgrade -1 must not drop an action_cards row"
 
-        command.upgrade(cfg, "head")
+        # 062, not "head": #2057 promoted 063 into versions/, so `command.upgrade`
+        # reaching "head" now would run 063's real upgrade() through Alembic's
+        # own engine too (it is a normal chain member now) and land already
+        # contracted -- one step past the EXPAND state this line means to
+        # reassert before driving the contract step by hand again below.
+        command.upgrade(cfg, _THIS_REVISION)
         _assert_expanded(subject_ref_still_unset=True)
         _run_deferred_contract(engine, "upgrade")
         _assert_contracted()
@@ -403,13 +428,20 @@ def test_downgrade_refuses_when_a_non_product_run_exists():
     cfg = _alembic_config()
     engine = _sync_engine()
     try:
-        # Head, not a full base rebuild: this guard only needs to be AT head
-        # before probing it, and re-running the full 60+-step chain in every
-        # test in this module blows the suite's 30s per-test timeout. A bad
-        # row this test inserts itself cannot collide with another test's
-        # (fresh random shop_id per test), so a shared, already-migrated
-        # database is safe to reuse.
+        # Land exactly on 062, not "head": the guard under test lives in
+        # 062's own downgrade(), and #2057 promoted 063 into the chain right
+        # above it, so "head" now means 063 and `downgrade(cfg, "-1")` from
+        # there would run 063's downgrade (reopen subject_ref nullable) --
+        # one step short of the guard this test means to probe. Upgrading to
+        # head and then downgrading to 062 by name (rather than "-1")
+        # reproduces the original "at 062, one -1 away from the guard" setup
+        # regardless of what chains onto 062 later, and regardless of
+        # whichever revision a prior test in this module left the shared
+        # database at. A bad row this test inserts itself cannot collide with
+        # another test's (fresh random shop_id per test), so a shared,
+        # already-migrated database is safe to reuse.
         command.upgrade(cfg, "head")
+        command.downgrade(cfg, _THIS_REVISION)
         with engine.begin() as conn:
             user_id = uuid.uuid4()
             shop_id = uuid.uuid4()
@@ -436,7 +468,7 @@ def test_downgrade_refuses_when_a_non_product_run_exists():
 
         with engine.connect() as conn:
             version = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-        assert version == _THIS_REVISION, "a refused downgrade must leave the schema at head"
+        assert version == _THIS_REVISION, "a refused downgrade must leave the schema at 062"
     finally:
         engine.dispose()
 
@@ -449,9 +481,12 @@ def test_downgrade_refuses_when_action_cards_share_shop_and_workflow_key():
     cfg = _alembic_config()
     engine = _sync_engine()
     try:
-        # Head, not a full base rebuild -- see the sibling guard test's
-        # comment for why this is safe to share across tests in this module.
+        # 062, not "head" -- see the sibling guard test's comment for why
+        # (the guard under test lives in 062's downgrade, and #2057 put 063
+        # one step above it in the chain) and for why this is safe to share
+        # across tests in this module.
         command.upgrade(cfg, "head")
+        command.downgrade(cfg, _THIS_REVISION)
         with engine.begin() as conn:
             user_id = uuid.uuid4()
             shop_id = uuid.uuid4()
@@ -482,6 +517,6 @@ def test_downgrade_refuses_when_action_cards_share_shop_and_workflow_key():
 
         with engine.connect() as conn:
             version = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-        assert version == _THIS_REVISION, "a refused downgrade must leave the schema at head"
+        assert version == _THIS_REVISION, "a refused downgrade must leave the schema at 062"
     finally:
         engine.dispose()

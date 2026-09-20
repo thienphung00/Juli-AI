@@ -195,22 +195,20 @@ lives in
 would refuse it, no candidate would start, and the expand code it depends on
 could never go live.
 
-**Currently outstanding:** `063_workflow_subject_contract` (#1701, #2050) —
-backfills `workflow_runs.subject_ref` from each row's own `product_id` and
-narrows the column to `NOT NULL`. Until it runs, `subject_ref` is nullable and
-the partial unique `uq_workflow_runs_active_shop_product` does not constrain a
-row whose `subject_ref` is NULL.
+**Currently outstanding:** none. See "Applied contract migrations" below for
+the worked example this procedure was written against; the next migration to
+use this procedure names itself in both places.
 
 ### Preconditions — check all three before running anything
 
 1. **The expand release is serving.** The running `juli-api` must be a release
-   that contains `062_workflow_and_subject`. This step is what makes an INSERT
-   without `subject_ref` fail; any older code still serving starts erroring the
-   moment it lands. Running it early is the one way to turn a stalled release
-   into an outage.
+   that contains the expand step this contract step chains onto. The contract
+   step is what makes an INSERT that omits its column(s) fail; any older code
+   still serving starts erroring the moment it lands. Running it early is the
+   one way to turn a stalled release into an outage.
 2. **The database is at the expand revision.**
    `.venv/bin/python infra/scripts/safe_alembic_helpers.py current-revision`
-   must print `062_workflow_and_subject`. If it prints `061_credential_owner_enum`,
+   must print the expand step's revision id. If it prints an earlier one,
    stop — the expand step has not been applied.
 3. **A verified backup exists.** Take one now if the release's own
    `safe-alembic-upgrade.sh` did not just run (see ADR-027).
@@ -222,30 +220,67 @@ Run on the VPS, against the release directory that is **currently serving**
 
 ```bash
 # 1. Confirm precondition 2 with the release interpreter, not system python3.
-"${RELEASE_DIR}/.venv/bin/python" \
-    infra/scripts/safe_alembic_helpers.py current-revision
+# Capture it — step 3 needs it as an explicit start revision, not "head".
+FROM_REV="$("${RELEASE_DIR}/.venv/bin/python" \
+    infra/scripts/safe_alembic_helpers.py current-revision)"
+echo "${FROM_REV}"   # must be the expand step's revision id, never earlier
 
 # 2. Copy the contract migration into the serving release's chain and LEAVE IT
 #    THERE. Removing it afterwards leaves Alembic at a revision with no file on
 #    disk — the same care taken for 056_series_source_column on 2026-09-09.
-cp backend/src/juli_backend/database/migrations/deferred/063_workflow_subject_contract.py \
+cp backend/src/juli_backend/database/migrations/deferred/<NNN_contract_name>.py \
    "${RELEASE_DIR}/backend/src/juli_backend/database/migrations/versions/"
 
-# 3. Preview the SQL offline before writing anything.
-cd "${RELEASE_DIR}" && .venv/bin/alembic upgrade head --sql
+# 3. Preview the SQL offline before writing anything — from the database's
+#    ACTUAL current revision, never a bare `alembic upgrade head --sql`.
+#    Offline mode has no database connection, so with no explicit start it
+#    does not know where the database already is and replays the ENTIRE
+#    chain from base. Run as a bare `alembic upgrade head --sql` against
+#    production on 2026-09-20 (063_workflow_subject_contract), this got 14
+#    migrations in and died on `049_drop_legacy_isolation_policies`, which
+#    runs a live `pg_policies` query offline mode has no connection for
+#    (`AttributeError: 'NoneType' object has no attribute 'all'`). Nothing
+#    was written — offline mode cannot write — but the preview is useless
+#    without the explicit start.
+cd "${RELEASE_DIR}" && .venv/bin/alembic upgrade "${FROM_REV}:head" --sql
+```
 
-# 4. Apply, through the backup/row-count wrapper.
+**If the contract migration's own `upgrade()` runs a live pre-flight guard**
+— a query against `op.get_bind()` before it writes anything, the way
+`063_workflow_subject_contract._refuse_if_a_subjectless_run_exists` counted
+rows with both `subject_ref` and `product_id` NULL — step 3's preview
+**cannot complete for that migration, and that is expected, not a fault.**
+Offline mode has no connection for the guard to query either, so it raises
+the same class of error one migration later (for 063, immediately after
+fixing the range above:
+`AttributeError: 'NoneType' object has no attribute 'scalar_one'`). The
+preview mechanism itself cannot represent a migration whose `upgrade()`
+reads the database before deciding what to write. When this happens: skip
+completing the preview for this migration, read the guard's query out of the
+migration's source, and run it by hand against the database instead. For
+063 that query was:
+
+```sql
+SELECT COUNT(*) FROM public.workflow_runs WHERE subject_ref IS NULL AND product_id IS NULL;
+-- must be 0, or the migration will refuse the same way online, before
+-- writing anything, when step 4 runs it for real
+```
+
+```bash
+# 4. Apply, through the backup/row-count wrapper. This runs online, so both
+#    the guard and the migration's SQL execute for real here regardless of
+#    whether step 3's preview completed.
 RELEASE_DIR="${RELEASE_DIR}" API_ENV_FILE="${API_ENV_FILE}" \
     infra/scripts/safe-alembic-upgrade.sh
 
 # 5. Verify.
 "${RELEASE_DIR}/.venv/bin/python" \
-    infra/scripts/safe_alembic_helpers.py current-revision   # 063_workflow_subject_contract
+    infra/scripts/safe_alembic_helpers.py current-revision
 ```
 
-The migration refuses itself, before writing, if any `workflow_runs` row has
-both `subject_ref` and `product_id` NULL — that row's subject cannot be
-inferred. Resolve those rows and re-run.
+If the migration carries its own guard (like 063's), it refuses itself,
+before writing, when that guard's condition is not met — resolve the
+offending rows and re-run rather than editing the guard away.
 
 **Afterwards**, land a follow-up PR moving the file from `deferred/` into
 `versions/`. It is applied by then, so it is no longer pending and the gate
@@ -253,8 +288,16 @@ accepts the next release. Until that PR merges, the repo's Alembic head stays
 at the expand revision while production is one step ahead — expected, and the
 reason step 2 leaves the copied file in place.
 
-**Rollback** is the migration's own `downgrade()`, which reopens the column to
-nullable and deliberately does not erase the backfilled values.
+**Rollback** is the migration's own `downgrade()`. For 063 specifically, that
+reopens the column to nullable and deliberately does not erase the backfilled
+values — check the migration you are operating for whether its own downgrade
+makes the same choice.
+
+### Applied contract migrations
+
+| Migration | Applied | Verified | Follow-up |
+|---|---|---|---|
+| `063_workflow_subject_contract` (#1701, #2050) | 2026-09-20T12:06Z | `alembic_version` = `063_workflow_subject_contract`; `workflow_runs.subject_ref` `NOT NULL`; 37/37 rows backfilled, 0 NULL; row counts identical pre/post | #2057 promoted the file from `deferred/` into `versions/` |
 
 ---
 
