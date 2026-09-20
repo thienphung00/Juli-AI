@@ -177,6 +177,87 @@ Use the **same pooler `DATABASE_URL`** for both Alembic and `juli-api`.
 
 ---
 
+## Separately-operated contract migrations
+
+The `api` deploy lane runs `infra/scripts/migration_additive_gate.py` before it
+starts any candidate instance, and **refuses** a pending migration that moves
+rows or narrows a column. That is deliberate: during a release the candidate and
+the still-serving stable instance share one database, and only additive change
+keeps a code rollback possible. The gate has no allowlist and must not be given
+one.
+
+So a schema change that genuinely needs a backfill or a `NOT NULL` is split in
+two: an **expand** step that ships with the release, and a **contract** step an
+operator runs by hand once the expand release is serving. A contract migration
+lives in
+`backend/src/juli_backend/database/migrations/deferred/`, **not** in
+`versions/` — in `versions/` it would be pending on every release, the gate
+would refuse it, no candidate would start, and the expand code it depends on
+could never go live.
+
+**Currently outstanding:** `063_workflow_subject_contract` (#1701, #2050) —
+backfills `workflow_runs.subject_ref` from each row's own `product_id` and
+narrows the column to `NOT NULL`. Until it runs, `subject_ref` is nullable and
+the partial unique `uq_workflow_runs_active_shop_product` does not constrain a
+row whose `subject_ref` is NULL.
+
+### Preconditions — check all three before running anything
+
+1. **The expand release is serving.** The running `juli-api` must be a release
+   that contains `062_workflow_and_subject`. This step is what makes an INSERT
+   without `subject_ref` fail; any older code still serving starts erroring the
+   moment it lands. Running it early is the one way to turn a stalled release
+   into an outage.
+2. **The database is at the expand revision.**
+   `.venv/bin/python infra/scripts/safe_alembic_helpers.py current-revision`
+   must print `062_workflow_and_subject`. If it prints `061_credential_owner_enum`,
+   stop — the expand step has not been applied.
+3. **A verified backup exists.** Take one now if the release's own
+   `safe-alembic-upgrade.sh` did not just run (see ADR-027).
+
+### Procedure
+
+Run on the VPS, against the release directory that is **currently serving**
+(`~/releases/<sha>`); `RELEASE_DIR` below is that path.
+
+```bash
+# 1. Confirm precondition 2 with the release interpreter, not system python3.
+"${RELEASE_DIR}/.venv/bin/python" \
+    infra/scripts/safe_alembic_helpers.py current-revision
+
+# 2. Copy the contract migration into the serving release's chain and LEAVE IT
+#    THERE. Removing it afterwards leaves Alembic at a revision with no file on
+#    disk — the same care taken for 056_series_source_column on 2026-09-09.
+cp backend/src/juli_backend/database/migrations/deferred/063_workflow_subject_contract.py \
+   "${RELEASE_DIR}/backend/src/juli_backend/database/migrations/versions/"
+
+# 3. Preview the SQL offline before writing anything.
+cd "${RELEASE_DIR}" && .venv/bin/alembic upgrade head --sql
+
+# 4. Apply, through the backup/row-count wrapper.
+RELEASE_DIR="${RELEASE_DIR}" API_ENV_FILE="${API_ENV_FILE}" \
+    infra/scripts/safe-alembic-upgrade.sh
+
+# 5. Verify.
+"${RELEASE_DIR}/.venv/bin/python" \
+    infra/scripts/safe_alembic_helpers.py current-revision   # 063_workflow_subject_contract
+```
+
+The migration refuses itself, before writing, if any `workflow_runs` row has
+both `subject_ref` and `product_id` NULL — that row's subject cannot be
+inferred. Resolve those rows and re-run.
+
+**Afterwards**, land a follow-up PR moving the file from `deferred/` into
+`versions/`. It is applied by then, so it is no longer pending and the gate
+accepts the next release. Until that PR merges, the repo's Alembic head stays
+at the expand revision while production is one step ahead — expected, and the
+reason step 2 leaves the copied file in place.
+
+**Rollback** is the migration's own `downgrade()`, which reopens the column to
+nullable and deliberately does not erase the backfilled values.
+
+---
+
 ## Local development migration gate
 
 For local schema changes, use the safety-gated wrapper instead of a bare
