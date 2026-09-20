@@ -311,3 +311,96 @@ class TestTaskExceptionHandling:
         assert len(wait_for_calls) == 1
         assert wait_for_calls[0]["timeout"] is not None
         assert wait_for_calls[0]["timeout"] > 0
+
+
+# ---------------------------------------------------------------------------
+# #2033: the outer wrapper is a backstop on `_CycleDeadline`'s own budget, not
+# a competing ceiling. Before this fix, `timeout_seconds` was a hardcoded 300
+# regardless of `TIKTOK_POLL_CYCLE_BUDGET_SECONDS` -- production evidence: a
+# cold-start cycle was cut off by the outer wrapper at 290s with 3 of 5 steps
+# done, logging the undifferentiated `fujiwa_poll_beat_timeout` instead of the
+# inner budget's own per-stage diagnosis (`poll_cycle_stage_timed_out`).
+# ---------------------------------------------------------------------------
+
+
+class TestOuterTimeoutDerivesFromCycleBudget:
+    def test_outer_timeout_is_never_lower_than_the_configured_cycle_budget(self, monkeypatch):
+        """The invariant: the outer wrapper must never bind tighter than the
+        cycle's own configured budget. Setting the budget above the old
+        hardcoded 300 must actually widen what the wrapper allows -- that is
+        the whole defect this issue exists to fix."""
+        from juli_backend.workers.services.polling.orchestrate import (
+            cycle_budget_seconds,
+        )
+        from juli_backend.workers.tasks.fujiwa_poll_beat import fujiwa_poll_cycle
+
+        monkeypatch.setenv("TIKTOK_POLL_CYCLE_BUDGET_SECONDS", "3000")
+
+        wait_for_calls: list[dict[str, Any]] = []
+        original_wait_for = asyncio.wait_for
+
+        async def tracked_wait_for(aw, timeout=None):
+            wait_for_calls.append({"timeout": timeout})
+            return await original_wait_for(aw, timeout=timeout)
+
+        async def quick_success(poll_cycle_fn=None):
+            return None
+
+        monkeypatch.setattr(
+            "juli_backend.workers.tasks.fujiwa_poll_beat._run_fujiwa_poll_beat_async",
+            quick_success,
+        )
+        monkeypatch.setattr("asyncio.wait_for", tracked_wait_for)
+
+        fujiwa_poll_cycle()
+
+        assert len(wait_for_calls) == 1
+        assert wait_for_calls[0]["timeout"] >= cycle_budget_seconds()
+
+
+class TestInnerBudgetFiresNotTheOuterWrapper:
+    def test_a_slow_cycle_is_diagnosed_by_the_inner_budget_not_the_outer_wrapper(self, monkeypatch):
+        """A cycle body that outran its OWN (tiny, configured) cycle budget and
+        raised the inner `PollCycleTimeoutError` on its own must surface as
+        itself -- `fujiwa_poll_beat_failed` -- not be preempted by the outer
+        wrapper's own `asyncio.wait_for` timing out first and losing the
+        diagnosis to a bare `TimeoutError` / `fujiwa_poll_beat_timeout`.
+
+        This is the case a test that only checks the timeout NUMBER would
+        miss: `outer_timeout == cycle_budget_seconds()` (zero grace) already
+        satisfies "never lower than the budget" but leaves no headroom for the
+        inner mechanism's own save-before-raise + logging to finish before the
+        outer `wait_for` cancels the coroutine out from under it.
+        """
+        from juli_backend.workers.services.polling.orchestrate import (
+            PollCycleTimeoutError,
+        )
+        from juli_backend.workers.tasks.fujiwa_poll_beat import fujiwa_poll_cycle
+
+        # Tiny configured budget -- the mock below deliberately outruns it,
+        # then raises the inner diagnosis itself, exactly as the real
+        # `_CycleDeadline` machinery does once its own check() trips.
+        monkeypatch.setenv("TIKTOK_POLL_CYCLE_BUDGET_SECONDS", "0.05")
+
+        async def slow_then_diagnosed(poll_cycle_fn=None):
+            await asyncio.sleep(0.3)  # outran the 0.05s cycle budget
+            raise PollCycleTimeoutError(stage="products", budget_seconds=0.05, elapsed_seconds=0.3)
+
+        monkeypatch.setattr(
+            "juli_backend.workers.tasks.fujiwa_poll_beat._run_fujiwa_poll_beat_async",
+            slow_then_diagnosed,
+        )
+
+        logged: list[dict[str, Any]] = []
+
+        def mock_logger_error(msg, extra=None, **kwargs):
+            logged.append({"msg": msg, "extra": extra, **kwargs})
+
+        with patch("juli_backend.workers.tasks.fujiwa_poll_beat.logger") as mock_logger:
+            mock_logger.error = mock_logger_error
+            with pytest.raises(PollCycleTimeoutError):
+                fujiwa_poll_cycle()
+
+        messages = [entry["msg"] for entry in logged]
+        assert "fujiwa_poll_beat_timeout" not in messages
+        assert "fujiwa_poll_beat_failed" in messages

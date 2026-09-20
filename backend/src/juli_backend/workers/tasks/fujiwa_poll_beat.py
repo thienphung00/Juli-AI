@@ -61,6 +61,34 @@ from juli_backend.workers.tasks.database import get_async_database_url
 
 logger = logging.getLogger(__name__)
 
+# The outer wrapper is a BACKSTOP on `_CycleDeadline`'s own wall-clock budget
+# (`cycle_budget_seconds()`, `workers/services/polling/orchestrate.py`), not a
+# competing ceiling (#2033). Before this fix `timeout_seconds` was a hardcoded
+# 300 regardless of the configured budget, so raising the budget above 300
+# changed nothing: production cut a real cold-start cycle off at 290s with
+# 3 of 5 steps done, logging the undifferentiated `fujiwa_poll_beat_timeout`
+# instead of the inner budget's own per-stage diagnosis
+# (`poll_cycle_stage_timed_out`).
+#
+# `_OUTER_TIMEOUT_GRACE_SECONDS` covers only what happens AFTER the inner
+# budget has already fired and is unwinding -- not more cycle work:
+#   - one in-flight vendor request already past the deadline check, blocked
+#     synchronously up to the client's socket timeout (15s by default --
+#     `integrations/tiktok/client.py::TikTokClient.__init__`'s `timeout=15`,
+#     the same number `_CycleDeadline`'s own docstring names as the residual
+#     overrun `wait_for` cannot preempt)               -> 15s
+#   - the rest of that page's ETL handoff loop finishing its writes, bounded
+#     by one page, not the whole fetch                  -> 15s
+#   - `_poll`'s except block saving the sync-state watermarks it already has
+#     (`TikTokSyncStateRepo.save`, one flush) plus the
+#     `poll_cycle_stage_timed_out` / `poll_step_outcome` logging -> 10s
+# 15 + 15 + 10 = 40s of real unwind cost; doubled to 60s so this stays a
+# comfortable backstop rather than a value tuned to the edge. On the 1800s
+# default budget that is a 3.3% extension -- still small enough to catch a
+# genuinely wedged process (one that never reaches its own save-before-raise
+# at all) promptly rather than merely eventually.
+_OUTER_TIMEOUT_GRACE_SECONDS = 60.0
+
 #: Bound to `run_fujiwa_poll_cycle`'s real keyword-only signature (session,
 #: config, oauth_service, rate_limiter, handoff_fn) -- the injection seam
 #: `run_fujiwa_poll_beat_cycle` uses so a test can drive this wrapper without
@@ -178,10 +206,19 @@ def fujiwa_poll_cycle() -> None:
 
     Exception handling mirrors `analytics_backfill_topup`/`daily_impact_reader`:
     any unhandled exception is logged with structured context and re-raised
-    so Celery retry logic can kick in; runtime is bounded to prevent an
-    indefinite hang on a stuck vendor call.
+    so Celery retry logic can kick in.
+
+    `timeout_seconds` is derived from the cycle's own configured budget
+    (`cycle_budget_seconds()`), not a hardcoded ceiling that competes with it
+    (#2033) -- see `_OUTER_TIMEOUT_GRACE_SECONDS` above for why the grace is
+    60s. This bound only ever fires on a genuinely wedged process; a cycle
+    that respects its own budget always raises the inner, per-stage
+    `PollCycleTimeoutError` first, which the `except Exception` branch below
+    logs and re-raises undisturbed.
     """
-    timeout_seconds = 300  # 5 minutes max, matching analytics_backfill_topup
+    from juli_backend.workers.services.polling.orchestrate import cycle_budget_seconds
+
+    timeout_seconds = cycle_budget_seconds() + _OUTER_TIMEOUT_GRACE_SECONDS
     try:
         asyncio.run(asyncio.wait_for(_run_fujiwa_poll_beat_async(), timeout=timeout_seconds))
     except TimeoutError:
