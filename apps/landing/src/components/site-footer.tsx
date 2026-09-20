@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { JuliLogo } from "@juli/brand";
 
 import { DEMO_URL, SECTION_IDS } from "../lib/site";
@@ -23,6 +25,14 @@ export function SiteFooter() {
         <a className="lp-footer__link" href="mailto:lienhe@app-juli.com">
           lienhe@app-juli.com
         </a>
+      </nav>
+      <nav aria-label="Liên kết pháp lý" className="lp-footer__nav lp-footer__nav--legal">
+        <Link className="lp-footer__link" href="/privacy">
+          Chính sách bảo mật
+        </Link>
+        <Link className="lp-footer__link" href="/terms">
+          Điều khoản dịch vụ
+        </Link>
       </nav>
       <p className="lp-footer__legal">© 2026 Juli AI</p>
     </footer>

@@ -10,6 +10,13 @@ Static/mock content only; no backend calls, no auth.
 
 - `/` — single-page marketing story: Hero · 4-step strip · market comparison ·
   feature showcase · curiosity CTA · closing CTA · footer.
+- `/privacy`, `/terms` (issue #1971) — hosted privacy policy and terms of service,
+  a prerequisite for publishing the Google OAuth consent screen (ADR-094 decision
+  3). Linked from the hero's sign-in CTA and the site footer, which both pages
+  reuse. Content is owner-led: data-handling sections are grounded in what the
+  code demonstrably does; legal-specific fields (entity details, retention,
+  jurisdiction, liability, warranty) are explicit `[OWNER: ...]` placeholders
+  (`OwnerPlaceholder` component) pending owner and legal review — not invented.
 - `DEMO_URL` (`src/lib/site.ts`) — the one CTA destination
   (`demo.app-juli.com`, Mock mode; `NEXT_PUBLIC_DEMO_URL` overrides for preview).
 

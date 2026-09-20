@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 import heroMascot from "@juli/brand/assets/hero-mascot.webp";
 
@@ -54,6 +55,17 @@ export function HeroSection() {
             Đăng nhập / Đăng ký
           </CtaLink>
         </div>
+        <p className="lp-hero__consent" data-testid="hero-consent-note">
+          Bằng việc đăng nhập, bạn đồng ý với{" "}
+          <Link className="lp-hero__consent-link" href="/terms">
+            Điều khoản dịch vụ
+          </Link>{" "}
+          và{" "}
+          <Link className="lp-hero__consent-link" href="/privacy">
+            Chính sách bảo mật
+          </Link>{" "}
+          của Juli.
+        </p>
         <p className="lp-hero__reassurance">
           Miễn phí trải nghiệm · Dành cho điện thoại · Kết quả trực tiếp
         </p>
