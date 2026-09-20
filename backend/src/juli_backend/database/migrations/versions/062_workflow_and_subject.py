@@ -15,6 +15,21 @@ first readers. This migration must be a no-op for the currently-deployed
 release: every column it adds is either optional or carries a default that
 reproduces exactly what an unmodified writer already meant.
 
+**This is the EXPAND half of an expand/contract pair (#2050).** As first
+merged (#2027) this revision also backfilled ``subject_ref`` per row and then
+narrowed it to NOT NULL. Both statements are non-additive, and
+``infra/scripts/migration_additive_gate.py`` refused every release from
+2026-09-16 on because of them -- correctly: during a release the candidate and
+the still-serving stable instance share one database, and a NOT NULL
+``subject_ref`` stops the stable release (which does not know the column) from
+inserting a ``workflow_runs`` row at all, so a code rollback would no longer
+recover. The backfill and the narrowing now live in the CONTRACT step,
+``063_workflow_subject_contract``, which is deliberately parked OUTSIDE
+``versions/`` and operated by hand after this expand release is serving --
+see that file and ``docs/runbooks/backend-deploy-runbook.md``. This revision
+had never been applied to any database when it was split, so editing it in
+place reconciles nothing and rewrites no applied history.
+
 ``workflow_runs`` gains three columns:
 
 * ``workflow_key`` -- which playbook a run is executing. NOT NULL with a
@@ -28,11 +43,17 @@ reproduces exactly what an unmodified writer already meant.
 * ``subject_type`` -- what kind of thing the run is about. NOT NULL with a
   permanent server default of ``'product'``, the only subject kind a run has
   ever had (``product_id`` was NOT NULL before this migration).
-* ``subject_ref`` -- the subject's own identifier, as text. NOT NULL, but
-  backfilled per-row rather than defaulted: the correct value for every
+* ``subject_ref`` -- the subject's own identifier, as text. Added NULLABLE
+  with no default and no backfill, because the correct value for every
   existing row is THAT row's own ``product_id``, which a constant Postgres
-  ``DEFAULT`` cannot express. The ORM model (``models.py``) supplies the same
-  rule client-side for a future INSERT that does not name this column.
+  ``DEFAULT`` cannot express and a per-row ``UPDATE`` is not allowed to
+  express here (see the expand/contract note above). The ORM model
+  (``models.py``) still declares it NOT NULL and supplies that per-row rule
+  client-side via ``_default_workflow_run_subject_ref``, so every INSERT the
+  code in THIS release makes carries a real value from the moment the
+  migration lands; only rows written by the older, still-serving release --
+  and the rows that predate this migration -- can hold NULL, and
+  ``063_workflow_subject_contract`` is what fills them and closes the column.
 
 ``workflow_runs.product_id`` widens from NOT NULL to nullable -- a relaxation,
 not a narrowing, and every existing row keeps the FK value it already had.
@@ -43,6 +64,16 @@ non-terminal statuses, and KEEPS its name -- #1703 and #1706 already refer to
 "``uq_workflow_runs_active_shop_product`` (re-keyed by #1701)". Two DIFFERENT
 workflows racing the SAME product do not collide on this index by design
 (ADR-087 decision 2); that cross-workflow lock is #1710's, not this one.
+
+Between this expand step and the contract step the index does NOT constrain a
+row whose ``subject_ref`` is NULL -- Postgres never treats two NULLs as equal
+under a unique index. That window is bounded and narrow: only a writer that
+omits the column produces such a row, which is only the older release still
+serving during the rollout, and the concurrency guard it weakens protects one
+seller from double-starting their own run rather than enforcing a correctness
+invariant. It is the same trade-off, and the same reasoning, as the constant
+defaults chosen for ``action_cards`` below -- stated here rather than left to
+be discovered. Running the contract step promptly is what closes it.
 
 ``action_cards`` gains four columns (``subject_type``, ``subject_id``,
 ``revision``, ``supersedes_card_id``) and swaps its identity from the single
@@ -150,7 +181,8 @@ def _refuse_if_duplicate_shop_workflow_cards_exist(bind: sa.engine.Connection) -
 def upgrade() -> None:
     # -- workflow_runs: workflow_key, subject_type (both constant-defaulted,
     # so Postgres backfills every existing row in the same ALTER TABLE that
-    # adds the column), subject_ref (per-row backfill, no constant is true).
+    # adds the column), subject_ref (nullable here; no constant is true and a
+    # per-row backfill is the contract step's job -- 063, run by hand).
     op.add_column(
         "workflow_runs",
         sa.Column(
@@ -172,15 +204,6 @@ def upgrade() -> None:
     op.add_column(
         "workflow_runs",
         sa.Column("subject_ref", sa.String(length=64), nullable=True),
-    )
-    op.execute(
-        "UPDATE public.workflow_runs SET subject_ref = product_id::text WHERE subject_ref IS NULL"
-    )
-    op.alter_column(
-        "workflow_runs",
-        "subject_ref",
-        existing_type=sa.String(length=64),
-        nullable=False,
     )
 
     # product_id widens: NOT NULL -> nullable. A relaxation, not a narrowing.
