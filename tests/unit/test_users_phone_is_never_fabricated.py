@@ -249,6 +249,10 @@ ALLOWED_PHONE_MENTIONS = {
     # The definition of the column and of the write path.
     "models/models.py",
     "repositories/identity.py",
+    # #1973's claim reader. Mentions `phone` only to explain that the verified
+    # email is what replaces the fabricated one; it reads no `phone` claim and
+    # writes no phone.
+    "core/security/claims.py",
     # Redaction: these name `phone` in order to REMOVE it from logs and from
     # vendor payloads. They read nothing from `users`.
     "core/observability/logging.py",

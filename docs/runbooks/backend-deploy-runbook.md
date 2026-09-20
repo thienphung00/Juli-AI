@@ -195,11 +195,28 @@ lives in
 would refuse it, no candidate would start, and the expand code it depends on
 could never go live.
 
-**Currently outstanding:** `063_workflow_subject_contract` (#1701, #2050) —
-backfills `workflow_runs.subject_ref` from each row's own `product_id` and
-narrows the column to `NOT NULL`. Until it runs, `subject_ref` is nullable and
-the partial unique `uq_workflow_runs_active_shop_product` does not constrain a
-row whose `subject_ref` is NULL.
+**Currently outstanding:**
+
+- `063_workflow_subject_contract` (#1701, #2050) — backfills
+  `workflow_runs.subject_ref` from each row's own `product_id` and narrows the
+  column to `NOT NULL`. Until it runs, `subject_ref` is nullable and the
+  partial unique `uq_workflow_runs_active_shop_product` does not constrain a
+  row whose `subject_ref` is NULL. *Applied to production by hand
+  2026-09-20T12:06Z; the follow-up PR moving the file into `versions/` is
+  #2057.*
+- `066_users_placeholder_phone_cleanup` (#1972) — sets `users.phone` to NULL on
+  every row whose stored number equals the value the removed code derived from
+  that row's own id (`f"+849{user_id.int % 10_000_000_000:010d}"`). Until it
+  runs, those sellers still carry a fabricated Vietnamese mobile that is not
+  theirs; `064_users_phone_nullable` and the code change that stopped minting
+  new ones are already in the expand release. **Unlike 063, running this late
+  is harmless** — every day it waits is a day the rows sit in a column nothing
+  reads — but running it *before* the expand release serves is pointless,
+  because the old code would write the placeholders straight back. Its
+  precondition is therefore `alembic current` reporting `065_users_email` (or
+  later) and the serving release containing `064_users_phone_nullable`. The
+  step is idempotent, so an operator unsure whether it already ran may simply
+  run it.
 
 ### Preconditions — check all three before running anything
 

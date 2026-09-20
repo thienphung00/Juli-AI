@@ -221,7 +221,16 @@ def test_migration_062_is_the_single_head():
     down_revision is 061_credential_owner_enum (this one). 061 itself was
     independently reserved twice (#1701 and #2019); #2019 merged first and
     kept 061, so this migration is 062, chained onto 061_credential_owner_enum,
-    not the 060 it was originally reserved against."""
+    not the 060 it was originally reserved against.
+
+    ASSERTED AS RESERVATION, NOT AS HEAD (#1972). This used to read
+    `heads == [_THIS_REVISION]`, which held only for as long as 062 happened to
+    be the last migration in the tree -- so the first revision to land on top of
+    it (`064_users_phone_nullable`) failed this test while breaking nothing it
+    is about. What the docstring above actually claims is two things: the chain
+    has ONE tip (no fork, which is the failure worth catching), and 062 sits at
+    exactly the reserved place in it. Both are asserted directly now, and
+    neither expires when the next migration merges."""
     revisions: dict[str, str | None] = {}
     for path in MIGRATIONS_DIR.glob("*.py"):
         body = path.read_text(encoding="utf-8")
@@ -229,9 +238,23 @@ def test_migration_062_is_the_single_head():
         down = re.search(r'^down_revision: str \| None = (?:"([^"]+)"|None)', body, re.M)
         if rev:
             revisions[rev.group(1)] = down.group(1) if down and down.group(1) else None
-    parents = {d for d in revisions.values() if d}
-    heads = [r for r in revisions if r not in parents]
-    assert heads == [_THIS_REVISION], f"expected a single head at {_THIS_REVISION}, got {heads}"
+    parents = [d for d in revisions.values() if d]
+    heads = [r for r in revisions if r not in set(parents)]
+
+    assert len(heads) == 1, (
+        f"the chain has forked: {heads}. Two heads mean `alembic upgrade head` cannot run at all."
+    )
+    assert revisions[_THIS_REVISION] == _PRE_REVISION, (
+        f"062 revises {revisions[_THIS_REVISION]!r}, not {_PRE_REVISION!r}"
+    )
+    assert parents.count(_THIS_REVISION) <= 1, (
+        f"{parents.count(_THIS_REVISION)} migrations revise {_THIS_REVISION}; "
+        "the number was reserved, so exactly one may claim it as a parent"
+    )
+    assert parents.count(_PRE_REVISION) == 1, (
+        f"{parents.count(_PRE_REVISION)} migrations revise {_PRE_REVISION}; "
+        "062 must be the only one"
+    )
 
 
 # ---------------------------------------------------------------------------

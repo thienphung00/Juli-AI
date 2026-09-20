@@ -39,11 +39,19 @@ not close it.
 TABLES DELIBERATELY ABSENT. Append-only tables stay ungranted, at least until a
 call site proves otherwise: `action_card_approvals`, `alert_history`,
 `decision_emission_novelty_ledger`, `impact_readings`, `production_write_audit`,
-`recommendations`, `users`, `workflow_outcome_records`, `workflow_run_events`,
+`recommendations`, `workflow_outcome_records`, `workflow_run_events`,
 `workflow_webhook_signals`, `webhook_raw_events`, and the four bronze raw
 payload tables. `analytics_kpi_envelopes` is absent for a different reason --
 see `KNOWN_TRANSIENT`. The application contains no DELETE on any mapped table,
 so no DELETE is registered.
+
+`users` WAS on that list until #1973 and is the one table to have left it. The
+verified-email backfill is the first code in this application that writes to an
+existing `users` row; migration 065 grants the UPDATE **column-scoped**
+(`email`, `display_name`), so `id` and `phone` remain unwritable by `juli_app`.
+Had that grant been missed, the backfill would have raised
+`InsufficientPrivilegeError` inside the authentication path -- #1897's incident
+again, on every returning seller. This module is what caught it.
 """
 
 from __future__ import annotations
@@ -99,6 +107,17 @@ GRANT_REQUIRED: tuple[MutationSite, ...] = (
         "backend/src/juli_backend/repositories/identity.py",
         "shop.is_active = False",
         "ShopsRepo.pause_automation deactivates a shop after deauthorization (#354)",
+    ),
+    # -- #1973: the first mutation of `users` the application has ever had ----
+    MutationSite(
+        "public",
+        "users",
+        "UPDATE",
+        "backend/src/juli_backend/repositories/identity.py",
+        "user.email = email",
+        "UsersRepo fills a returning seller's empty email/display_name from the "
+        "verified JWT claim (#1973); granted COLUMN-SCOPED by migration 065 -- "
+        "`GRANT UPDATE (email, display_name)`, so id and phone stay unwritable",
     ),
     MutationSite(
         "public",
@@ -749,6 +768,13 @@ def test_append_only_tables_are_not_quietly_granted_update():
     later gains an UPDATE grant, that is either a mistake or a code change
     nobody registered here -- both worth failing on.
     """
+    # `users` left this set in #1973. It was append-only for as long as the
+    # application only ever INSERTed a first-sighting row; the verified-email
+    # backfill is the first code that writes to an existing one. Its grant is
+    # column-scoped (`email`, `display_name` only, migration 065), so the
+    # least-privilege claim this test defends still holds for `id` and `phone`
+    # -- but the table is genuinely no longer append-only and saying otherwise
+    # here would be the fiction this module exists to prevent.
     append_only = {
         "action_card_approvals",
         "alert_history",
@@ -756,7 +782,6 @@ def test_append_only_tables_are_not_quietly_granted_update():
         "impact_readings",
         "production_write_audit",
         "recommendations",
-        "users",
         "workflow_outcome_records",
         "workflow_run_events",
         "workflow_webhook_signals",

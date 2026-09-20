@@ -178,7 +178,14 @@ class _ScopeAwareSession(_RecordingSession):
         # This is the ORM read `UsersRepo.get` performs. Snapshot the GUC as it
         # happens — the whole defect is that this ran with no user context.
         self.guc_at_read = self.user_guc
-        return object()
+        # A real `User`, not a bare `object()` (#1973). The caller now reads
+        # `user.email` and `user.display_name` to decide whether to fill them
+        # from the JWT claim, and a stand-in without those attributes would
+        # make this test fail for a reason that has nothing to do with the GUC
+        # it exists to assert — the fake has to satisfy the real contract.
+        from juli_backend.models.models import User
+
+        return User(id=user_id)
 
 
 @pytest.mark.asyncio
