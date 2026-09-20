@@ -317,7 +317,18 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 **`auth.connect_shop`**
 - EN: Connect TikTok Shop
 - VI: Kết nối TikTok Shop
-- Definition: The screen a signed-in seller reaches after Google sign-in. States its actual state honestly — no control implies a working merchant exchange before the live OAuth exchange is wired (a flagged follow-up).
+- Definition: The screen a signed-in seller reaches after Google sign-in, and the label of the control that starts the real handshake. Live from issue #1970: the button calls `GET /v1/auth/tiktok/start`, which mints a signed state naming the signed-in seller, and sends the browser to TikTok Partner Center's consent screen. Until #1970 it was a deliberately inert control beside an honest "chưa thực hiện thao tác nào" disclaimer; that disclaimer is retired with the wiring, because keeping it would now be the dishonest option.
+
+**`auth.connect_shop.redirecting`**
+- EN: Taking you to TikTok…
+- VI: Đang chuyển bạn tới TikTok…
+- _Avoid_: Đang xử lý (says nothing about where the seller is about to land)
+- Definition: Transient state between the seller pressing `auth.connect_shop` and the browser leaving for Partner Center (issue #1970). Names the destination, because the next thing the seller sees is a TikTok-branded page and an unexplained hand-off reads as a phishing redirect.
+
+**`auth.connect_shop.failed`**
+- EN: Could not start the TikTok connection. Please try again.
+- VI: Không thể bắt đầu kết nối TikTok. Vui lòng thử lại.
+- Definition: Shown when `GET /v1/auth/tiktok/start` does not return an authorize URL (issue #1970) — the seller stays on the page with the control still usable. Never falls back to a hand-built TikTok URL: the authorize URL is only trustworthy with the server-signed state in it.
 
 **`auth.google.unavailable`**
 - EN: Sign in with Google is not available in this environment.

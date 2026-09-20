@@ -1,0 +1,117 @@
+{
+  "planId": "rep-1970-oauth-start-route-and-demo-v1-proxy",
+  "affectedPublicSurfaces": [
+    "api.app-juli.com GET /v1/auth/tiktok/start — a NEW authenticated route. It did not exist before this change (verified: 404 in production), so there is no prior behaviour to regress, only a new door to get right.",
+    "api.app-juli.com GET /v1/auth/tiktok/callback — unchanged path, changed owner binding. A callback carrying a state now binds the shop to the user that state names and can no longer reach the shared app-review row; a state that is unsigned, wrongly signed, minted for another flow, or older than 10 minutes is refused with 401 where a signed-but-undated one used to be accepted.",
+    "demo.app-juli.com /v1/* — previously served by Next.js and 404ing; now proxied to the juli_api upstream. This makes GET /v1/shops (already called by the connect-shop screen) and GET /v1/auth/tiktok/start reachable from the demo origin for the first time.",
+    "demo.app-juli.com /connect (apps/demo ConnectShopView) — the 'Kết nối TikTok Shop' control changes from aria-disabled with an onClick that calls preventDefault into a live control that navigates the browser to TikTok Partner Center."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the operator's own signed-in Google identity; no other seller is routed to the candidate",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": true,
+    "journeys": [
+      {
+        "name": "start-requires-the-jwt",
+        "entryUrl": "unit: GET /v1/auth/tiktok/start with no Authorization header",
+        "assertions": [
+          "the response is 401, not a minted state",
+          "no authorize URL is returned to an unauthenticated caller",
+          "the route signature accepts no caller-supplied user id, so no caller can name someone else"
+        ]
+      },
+      {
+        "name": "the-state-names-the-signed-in-seller",
+        "entryUrl": "unit: GET /v1/auth/tiktok/start as a seller, then verify the state off the returned URL",
+        "assertions": [
+          "the authorize URL is https, on the TikTok partner host, and carries app_key, redirect_uri and state",
+          "verify_state on that state returns exactly the caller's user id",
+          "two different signed-in sellers get two states naming themselves"
+        ]
+      },
+      {
+        "name": "two-sellers-two-owners",
+        "entryUrl": "unit: two complete_tiktok_oauth_callback runs, one per seller, through the real infrastructure service",
+        "assertions": [
+          "the two shops rows carry two distinct user_id values",
+          "neither is the app-review row 00000000-0000-4000-8000-000000000001",
+          "restoring `owner_id = _app_review_user_id()` on the seller branch turns this red — observed, not asserted"
+        ]
+      },
+      {
+        "name": "a-forged-or-stale-state-binds-nothing",
+        "entryUrl": "unit: a state signed with a different secret, and a validly signed state past its TTL",
+        "assertions": [
+          "both raise Unauthorized",
+          "no shops row is written in either case",
+          "the code exchange is never attempted for the forged one"
+        ]
+      },
+      {
+        "name": "demo-origin-reaches-v1",
+        "entryUrl": "POST-DEPLOY, MANUAL: https://demo.app-juli.com/v1/auth/tiktok/start with a real bearer token",
+        "assertions": [
+          "the response comes from the API, not from Next.js — i.e. 401 without a token and 200 with one, never a Next.js 404 page",
+          "https://demo.app-juli.com/v1/shops answers from the API for the same token",
+          "NOT COVERED BY ANY TEST IN THIS PR: nginx routing can only be established against the running host. The committed config was proven to parse (nginx -t over all three vhosts, both upstream includes and rate-limits.conf) and to route by longest-prefix in tests/unit/test_demo_vhost_v1_proxy.py, which reads the file — neither reaches a server."
+        ]
+      },
+      {
+        "name": "a-real-shop-connects-to-the-operator",
+        "entryUrl": "POST-DEPLOY, MANUAL: sign in with Google on demo.app-juli.com, press Kết nối TikTok Shop, complete TikTok's consent screen",
+        "assertions": [
+          "TikTok Partner Center accepts the authorize URL rather than rejecting the app_key/redirect_uri pair",
+          "the callback returns status ok and the new shops row's user_id equals the operator's own users.id",
+          "NOT COVERED BY ANY TEST IN THIS PR: no live OAuth round-trip was performed. The vendor's acceptance of the URL and of the code exchange is unverified."
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": ["https://demo.app-juli.com/connect"],
+    "discoverFromHtml": true,
+    "assetTypes": ["js", "css"],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration and no schema change — deliberately, since issues #1964/#1965 hold migrations 064/065 and are changing `users`. The only writes are through the existing provision_shop_and_credentials path into existing `shops` and `tiktok_credentials` columns. A stable and a candidate release can run side by side: the candidate accepts only states it minted itself (same TIKTOK_APP_SECRET, so either instance can verify the other's), and the stable release has no state minter at all."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy the prior release. The route disappears and the demo connect button 404s — i.e. back to the pre-#1970 state, which is the current production behaviour. Shops already connected under the candidate keep their correct owner; nothing written by this change needs unwinding. The nginx vhost is deployed separately from the API and can be reverted on its own with `nginx -t && nginx -s reload`.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": false,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_oauth_state_signing.py tests/unit/test_tiktok_connect_owner_binding.py tests/unit/test_tiktok_oauth_start_route.py tests/unit/test_demo_vhost_v1_proxy.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_oauth_state_required.py tests/unit/test_tiktok_oauth.py tests/unit/test_oauth_facade_dual_writer.py tests/unit/test_api_route_public_entrypoints.py -q",
+    "PYTHONPATH=$PWD/backend/src python -m pytest tests/harness/ -q",
+    "python agent-runtime/scripts/ci/check_nginx_rate_limits.py",
+    "sudo bash agent-runtime/scripts/ci/check_nginx_config_parses.sh",
+    "pnpm --filter @juli/demo test src/__tests__/connect-shop.test.tsx"
+  ],
+  "doNotInfer": [
+    "Do not read the two-owner test as proof of tenant isolation. The `session` fixture is SQLite in-memory; it proves the owner column gets the right value, and nothing at all about Row Level Security, because SQLite has none. The Postgres-backed lanes (full-regression, Release-shape regression) are the only place RLS is exercised.",
+    "Do not treat the signed state as replay-proof. There is no server-side single-use nonce ledger — adding one needs storage this slice had no migration authority for. Replay inside the 10-minute TTL is bounded only by TikTok's single-use authorization code and by provision_shop_and_credentials refusing to rebind an already-owned shop.",
+    "Do not re-include /etc/nginx/juli/api-upstream.conf in the demo vhost to 'make it self-contained'. nginx upstreams are http-context and shared; a second include is a hard duplicate-upstream error that stops nginx loading ANY site (reproduced locally). A separately-named copy is worse: the API lane alternates 8000/8020 at each blue/green cutover, so the copy would go stale and point the demo at a dead port.",
+    "Do not conclude the stateless app-review path was fixed. #1748's carve-out is unchanged: outside production a callback with no state still binds to _app_review_user_id(). What changed is that the seller-initiated branch returns before reaching it, so a connect that HAS a state can never land there.",
+    "Do not deploy the nginx change as part of the API release. infra/nginx is not in release.yml; the owner applies vhost changes by hand, and both api.app-juli.com.conf and demo.app-juli.com.conf must be present in sites-enabled for the demo /v1 proxy to resolve its upstream."
+  ]
+}

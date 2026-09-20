@@ -1,20 +1,32 @@
-"""TikTok Shop OAuth redirect URL — public callback from TikTok Partner Center."""
+"""TikTok Shop OAuth — the seller-initiated start, and the public callback.
+
+Two halves of one handshake, and they differ in exactly one respect that
+matters: ``GET /start`` **requires the Supabase JWT**, because the user id it
+seals into the signed state becomes the shop's owner; ``GET /callback`` is
+public, because TikTok is the caller and carries no Juli session — the state
+minted at ``/start`` is the only thing that identifies the seller there.
+"""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.core.security import get_current_user
 from juli_backend.core.security.exceptions import Unauthorized
-from juli_backend.database import get_session
+from juli_backend.database import User, get_session
 from juli_backend.services.tiktok.oauth import (
     TikTokOAuthInfrastructureService,
     TikTokOAuthNotConfiguredError,
     TikTokOAuthTokenExchangeFailed,
+    begin_tiktok_oauth,
     build_tiktok_oauth_service,
     complete_tiktok_oauth_callback,
 )
-from juli_backend.services.tiktok.schemas import TikTokOAuthCallbackResult
+from juli_backend.services.tiktok.schemas import (
+    TikTokOAuthCallbackResult,
+    TikTokOAuthStartResult,
+)
 
 router = APIRouter(prefix="/auth/tiktok", tags=["auth"])
 
@@ -27,6 +39,26 @@ def get_tiktok_oauth_service() -> TikTokOAuthInfrastructureService:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="TikTok OAuth is not configured",
         ) from exc
+
+
+@router.get("/start", response_model=TikTokOAuthStartResult)
+async def tiktok_oauth_start(
+    user: User = Depends(get_current_user),
+    oauth_service: TikTokOAuthInfrastructureService = Depends(get_tiktok_oauth_service),
+) -> TikTokOAuthStartResult:
+    """Begin connecting the authenticated seller's TikTok Shop (issue #1970).
+
+    ``get_current_user`` is the security boundary: the connecting user is taken
+    from the verified JWT and from nowhere else. There is deliberately no
+    ``user_id`` parameter — accepting one would let any caller mint a state
+    naming somebody else and bind their own TikTok shop to that person's
+    account.
+
+    Answers with the authorize URL rather than a 302 so the browser can call it
+    with its bearer token (a top-level navigation cannot carry one) and then
+    navigate itself.
+    """
+    return begin_tiktok_oauth(user.id, oauth_service=oauth_service)
 
 
 @router.get("/callback", response_model=TikTokOAuthCallbackResult)

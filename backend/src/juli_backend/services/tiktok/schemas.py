@@ -82,3 +82,23 @@ class TikTokOAuthCallbackResult(BaseModel):
     message: str
     open_id_present: bool | None = None
     access_token_expires_in: int | None = None
+
+
+class TikTokOAuthStartResult(BaseModel):
+    """Response of ``GET /v1/auth/tiktok/start`` (issue #1970).
+
+    The authorize URL already carries the signed state that names the
+    authenticated seller, so the browser only has to navigate to it. The state
+    itself is deliberately NOT echoed as a separate field — a caller has no
+    legitimate use for it apart from the URL it is already inside, and a second
+    copy is a second place for it to leak.
+    """
+
+    authorize_url: str = Field(min_length=1)
+    state_expires_in: int = Field(
+        ge=1,
+        description=(
+            "Seconds the signed state stays acceptable at the callback. A seller who "
+            "leaves the consent screen open longer than this must start again."
+        ),
+    )
