@@ -8,7 +8,7 @@
   "metrics": {
     "acceptanceMapped": 7,
     "acceptanceTotal": 7,
-    "criticalFindings": 5,
+    "criticalFindings": 7,
     "modulesTouched": [
       "backend/src/juli_backend/workers/services/polling",
       "backend/src/juli_backend/integrations/tiktok",
@@ -21,15 +21,15 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1995.json",
     "ownerSignoffPresent": true,
-    "sha256": "c28c886b28bea442a176f21ddd5ae07b65f2a06f3847cbb097c6e5055e52d808",
+    "sha256": "d8833d738809c9992e3875643a31845f442929bd21e97e25561cb76d8cb3ab5d",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 17348,
-      "validationBytes": 36736
+      "reviewBytes": 20738,
+      "validationBytes": 37306
     },
     "claimVsExecuted": {
       "citedCommandCount": null,
@@ -89,15 +89,15 @@
             "phase_scaffold"
           ],
           "ciSelector": "tests",
-          "citedCommand": "PYTHONPATH=backend/src python -m pytest tests/unit -q --timeout=900 -p no:randomly",
+          "citedCommand": "PYTHONPATH=backend/src python -m pytest tests/ -q -p no:randomly --timeout=900 --deselect tests/unit/test_harness_bootstrap_pin.py::test_shipped_config_pin_branch_resolves_against_this_repository --deselect tests/unit/test_mutants.py::test_clean_record_produces_no_failures --deselect tests/unit/test_mutants.py::test_planted_defect_is_actually_detectable_in_the_written_file",
           "citedDeselectedMarkers": [],
-          "citedSelector": "tests/unit",
+          "citedSelector": "tests",
           "extraDeselectedMarkers": [],
           "keywordFilter": null,
           "nodeIds": [],
           "pathsFromTestpaths": false,
           "reasons": [
-            "paths_not_subsuming"
+            "deselect_option"
           ],
           "selectedMarkers": [],
           "tool": "pytest",
@@ -142,15 +142,15 @@
             "phase_scaffold"
           ],
           "ciSelector": "tests",
-          "citedCommand": "PYTHONPATH=backend/src python -m pytest tests/unit -q --timeout=900 -p no:randomly",
+          "citedCommand": "PYTHONPATH=backend/src python -m pytest tests/ -q -p no:randomly --timeout=900 --deselect tests/unit/test_harness_bootstrap_pin.py::test_shipped_config_pin_branch_resolves_against_this_repository --deselect tests/unit/test_mutants.py::test_clean_record_produces_no_failures --deselect tests/unit/test_mutants.py::test_planted_defect_is_actually_detectable_in_the_written_file",
           "citedDeselectedMarkers": [],
-          "citedSelector": "tests/unit",
+          "citedSelector": "tests",
           "extraDeselectedMarkers": [],
           "keywordFilter": null,
           "nodeIds": [],
           "pathsFromTestpaths": false,
           "reasons": [
-            "paths_not_subsuming"
+            "deselect_option"
           ],
           "selectedMarkers": [],
           "tool": "pytest",
@@ -193,7 +193,7 @@
           {
             "installed": "1.18.5",
             "package": "alembic",
-            "pinned": "1.19.1"
+            "pinned": "1.20.0"
           },
           {
             "installed": "0.0.4",
@@ -208,12 +208,12 @@
           {
             "installed": "4.14.1",
             "package": "anyio",
-            "pinned": "4.14.2"
+            "pinned": "4.15.1"
           },
           {
             "installed": "0.6.0",
             "package": "ast-serialize",
-            "pinned": "0.8.0"
+            "pinned": "0.11.2"
           },
           {
             "installed": "2026.6.17",
@@ -283,12 +283,12 @@
           {
             "installed": "2.23.0",
             "package": "narwhals",
-            "pinned": "2.25.0"
+            "pinned": "2.26.0"
           },
           {
             "installed": "2.5.1",
             "package": "numpy",
-            "pinned": "2.5.2"
+            "pinned": "2.5.3"
           },
           {
             "installed": "26.2",
@@ -304,6 +304,11 @@
             "installed": "3.0.52",
             "package": "prompt-toolkit",
             "pinned": "3.0.53"
+          },
+          {
+            "installed": "2.9.12",
+            "package": "psycopg2-binary",
+            "pinned": "2.9.13"
           },
           {
             "installed": "24.0.0",
@@ -358,7 +363,7 @@
           {
             "installed": "0.15.21",
             "package": "ruff",
-            "pinned": "0.16.5"
+            "pinned": "0.16.8"
           },
           {
             "installed": "1.18.0",
@@ -368,7 +373,7 @@
           {
             "installed": "2.0.51",
             "package": "sqlalchemy",
-            "pinned": "2.0.52"
+            "pinned": "2.0.53"
           },
           {
             "installed": "1.3.1",
@@ -381,9 +386,19 @@
             "pinned": "5.9.1"
           },
           {
+            "installed": "2.33.0.20260712",
+            "package": "types-requests",
+            "pinned": "2.33.0.20260906"
+          },
+          {
             "installed": "0.4.2",
             "package": "typing-inspection",
             "pinned": "0.4.4"
+          },
+          {
+            "installed": "2026.3",
+            "package": "tzdata",
+            "pinned": "2026.4"
           },
           {
             "installed": "0.51.0",
@@ -401,7 +416,7 @@
             "pinned": "3.4.1"
           }
         ],
-        "matched": 40,
+        "matched": 37,
         "missing": [],
         "pinned": 82
       },
@@ -410,7 +425,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1995-per-shop-poll-consumer",
-        "head": "df3eb5b89af85108f70a443dc552e17e92358ae0",
+        "head": "201d6649a0215d67df012f27186081b4cdc1b9e4",
         "shallow": true
       },
       "moduleResolution": {
@@ -457,7 +472,7 @@
       "executorDomainSource": "implementation-artifact",
       "gaps": [
         {
-          "agentsScanned": 509,
+          "agentsScanned": 513,
           "detail": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
           "reason": "no-transcript-for-issue"
         }
@@ -465,7 +480,7 @@
       "schemaVersion": 1,
       "source": {
         "agentsAttributed": 0,
-        "agentsScanned": 509,
+        "agentsScanned": 513,
         "attributedBy": ".worktrees path naming issue-1995",
         "executorsIdentified": 0,
         "kind": "task-transcript",
@@ -520,10 +535,10 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-20T05:59:40Z",
+  "timestamp": "2026-09-20T10:21:16Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1995.json",
-    "sha256": "fc8376ce207ae3241d95f45cf8a40928d2871a3e41e011733a5a2b17ae135cd0",
+    "sha256": "8bb25fc975bd202cdc2ad877df49582d5a3de31160d46efb04d888952aeb4584",
     "status": "PASS"
   },
   "wave": null
