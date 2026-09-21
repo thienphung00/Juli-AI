@@ -130,6 +130,33 @@ single verdict is written to all seven. That over-approximation can mark a quiet
 endpoint failed when a sibling dropped rows. It errs in the direction this issue
 wants, and it is written down rather than discovered later.
 
+## Rationale
+
+Three properties decided every choice above, and each was chosen against a
+cheaper alternative that would have looked the same in a green test suite.
+
+**A failure must cost something outside the process.** An `ok=False` outcome is
+loud inside `_poll` and silent everywhere else: the Celery task still exits
+zero, nothing retries, and no operator is paged. ADR-104 made the record exist;
+this ADR makes something read it. The verdict is what turns "the poll ran" into
+"the poll can be relied on without someone watching it", which was the bar
+ADR-104 set for itself and did not reach.
+
+**Evidence outranks the exception that describes it.** Every write in this
+change happens before the raise that reports it, and `_record_cycle` is guarded
+so a failing write can never mask the failure that caused it. A cycle that
+raises while leaving no record of what broke is a worse position than one that
+completes quietly, because it destroys the only thing an operator could have
+diagnosed it from.
+
+**A number must mean what its name says.** A watermark named
+`shop_sku_performance_last_sync_at` claims that SKU performance synced. Charging
+it the rows of a sibling endpoint, or advancing it on a LIST call that returned
+before a single row reached the ETL, makes the name false while keeping the
+column populated — which is precisely the failure #1949 presented. The same
+reasoning forbids a backfilled `last_outcome`: NULL is the true value for a row
+that predates the column, and any default would be a claim nobody measured.
+
 ## Consequences
 
 - `run_fujiwa_poll_cycle` and `run_fujiwa_material_resource_fetch` now raise
