@@ -29,9 +29,9 @@ slice — see "Out of scope".
 - `emit_scoring_cards(session, shop_id, result, *, emission_config=None)` →
   `ScoringEmissionReport` (#1703, ADR-087 d.1/d.3/d.6) — the same path, with the
   per-recommendation decision record: `decisions`, `emitted`, `cards`, `suppressed`
-- `persist.CardEmission` / `persist.ScoringEmissionReport` — one decision per ranked
-  recommendation (`workflow_key`, `subject_type`, `subject_id`, `card`, `revision`,
-  `suppressed_reason`, `supersedes_card_id`) and the run's collection of them
+- `CardEmission` / `ScoringEmissionReport` (from `persist`) — one decision per ranked
+  recommendation (`workflow_key`, `subject_type`, `subject_id`, `card`, revision,
+  `suppressed_reason`, supersedes_card_id) and the run's collection of them
 - `SUPPRESSED_REASON_BASIS_UNCHANGED` / `SUPPRESSED_REASON_ACTIVE_CARD_EXISTS` /
   `REVISION_SUPPRESSED_REASONS` (from `persist`) — the **emission** suppression
   vocabulary. Disjoint from `emission_budget.SUPPRESSED_REASONS` and never written
@@ -41,8 +41,8 @@ slice — see "Out of scope".
   when the producer has no evidence naming an entity
 - `card_subject_is_bindable(card)` → bool (from `subjects`) — the predicate the approve
   path applies, shared so a read surface cannot disagree with the write surface
-- `BINDABLE_SUBJECT_TYPES` / `SUBJECT_TYPE_PRODUCT` / `SUBJECT_TYPE_UNSCOPED` (from
-  `subjects`)
+- `BINDABLE_SUBJECT_TYPES` / `SUBJECT_TYPE_PRODUCT` / `SUBJECT_TYPE_UNSCOPED` /
+  `UNSCOPED_SUBJECT` (from `subjects`)
 - `compute_card_basis(...)`, `stored_basis(card)`, `basis_unchanged(previous, current)`,
   `BASIS_METADATA_KEY` and `BasisField` (from `basis`, #1703, ADR-087 d.6) — the
   per-field basis fingerprint and the per-workflow-key materiality catalog
@@ -101,9 +101,9 @@ slice — see "Out of scope".
 ## Key behaviors
 
 - Identity is `(shop_id, workflow_key, subject_type, subject_id)` since #1701/#1703
-  (ADR-087 d.1/d.2): a full unique over the chain including `revision`, plus a
-  **partial** unique on the same tuple minus `revision` `WHERE status = 'active'`.
-  The single-key `uq_action_cards_shop_workflow` is gone. Re-refresh no longer
+  (ADR-087 d.1/d.2): a full unique over the chain including revision, plus a
+  **partial** unique on the same tuple minus revision `WHERE status = 'active'`.
+  The single-key uq_action_cards_shop_workflow is gone. Re-refresh no longer
   updates a live card in place — see "Subject-scoped emission" below
 - Sole write owner for `action_cards` and retained legacy `recommendations` tables
 - Card persistence itself has no Redis; Postgres is the sole store for
@@ -130,7 +130,7 @@ slice — see "Out of scope".
   `emit_scoring_cards` looks up the newest revision for
   `(shop_id, workflow_key, subject_type, subject_id)` before writing anything.
   A card in `IN_FLIGHT_STATUSES` (`approved` / `dismissed` / `executing`) is
-  still left completely untouched — no status, content, or `computed_at`
+  still left completely untouched — no status, content, or computed_at
   change — and is still included in the returned list so callers see the full
   candidate set for the run. `ActionCardsRepo.upsert` is **no longer used on
   this path**: its natural key is `(shop_id, workflow_key)` alone, which with
@@ -148,20 +148,20 @@ slice — see "Out of scope".
 subject, and then either writes a row or suppresses with a named reason.
 
 **Subject resolution (`subjects.py`).** The scoring pipeline computes shop-level
-KPI aggregates and `WorkflowRecommendation` carries no entity reference, so
-"which subject?" has no automatic answer. `optimize_product_2` resolves a
-**product** — the shop's top-revenue listing, `revenue` descending with
-`tiktok_product_id` ascending as tiebreak, the ordering ADR-082 decision 2
+KPI aggregates and WorkflowRecommendation carries no entity reference, so
+"which subject?" has no automatic answer. optimize_product_2 resolves a
+**product** — the shop's top-revenue listing, revenue descending with
+tiktok_product_id ascending as tiebreak, the ordering ADR-082 decision 2
 defined and ADR-087 decision 1 *relocates* from approval time to generation
-time. Every other key emits `unscoped`, because the `orders` /
-`inventory_items` / `campaigns` / `returns` rows their subjects would point at
+time. Every other key emits unscoped, because the orders /
+inventory_items / campaigns / returns rows their subjects would point at
 are empty on every shop (ADR-087's own Consequences: *"Only
-`optimize_product_2` is provable today"*), and `create_*` keys act on something
+optimize_product_2 is provable today"*), and `create_*` keys act on something
 that does not exist yet (decision 4). A subject is **never invented to satisfy a
 downstream guard** — a shop with no products gets an unscoped card and an honest
 refusal from approve, not a run pointed at an arbitrary listing.
 
-`unscoped` is therefore a live emission value, not only #1701's backfill marker,
+unscoped is therefore a live emission value, not only #1701's backfill marker,
 and it is not approvable. `approval._BINDABLE_SUBJECT_TYPES` is unchanged;
 widening it is #1704's seam.
 
@@ -170,32 +170,32 @@ basis having moved, with materiality defined *per workflow key*. A hash can only
 say same/different, so materiality lives in what gets hashed: KPI signals enter
 the fingerprint as their **severity bucket** (a metric that drifts without
 changing what Juli would say has not changed the basis), and
-`optimize_product_2`'s stock enters as the boolean `in_stock` (ADR-087's
+optimize_product_2's stock enters as the boolean in_stock (ADR-087's
 "crossing zero", not the level) while its price enters raw (this workflow writes
-the price; any move is news). `computed_at`, priority and generated copy are
+the price; any move is news). computed_at, priority and generated copy are
 deliberately **outside** the basis — folding any of them in would make
 `basis_unchanged` unreachable. The fingerprint is stored in
 `metadata_json["basis"]`; no column and no migration.
 
 **The decision ladder**, per recommendation:
 
-1. no row for this subject yet → emit `revision = 1`;
+1. no row for this subject yet → emit revision = 1;
 2. basis unchanged vs. the newest revision → suppress `basis_unchanged`;
 3. basis changed but a card is still **standing** → suppress
-   `active_card_exists`. Standing = a *surfaced* `active` row, an
+   active_card_exists. Standing = a *surfaced* `active` row, an
    `approved`/`executing` row, or a `dismissed` row inside its cooldown. A row
-   with `executed_at` set never stands — that is the revision a successor
+   with executed_at set never stands — that is the revision a successor
    follows;
 4. basis changed and the newest row is an unsurfaced **draft** → recomputed in
    place (#716's Collision 1 contract, unchanged: a budget-suppressed candidate
    keeps its copy current while it waits for a slot; rewriting a draft destroys
    nothing the seller was shown);
-5. otherwise → a chained successor at `revision + 1` with `supersedes_card_id`
+5. otherwise → a chained successor at revision + 1 with supersedes_card_id
    set and a payload built from the current run alone (ADR-087 decision 3: the
    predecessor is reached by reference, never copied).
 
 **Two vocabularies, two carriers.** The emission reasons above live on the
-returned `ScoringEmissionReport` and in the `action_card_emission_suppressed`
+returned `ScoringEmissionReport` and in the action_card_emission_suppressed
 log line. They are never written to `ActionCard.suppressed_reason`, which is the
 emission *budget*'s (`active_cap` / `cooldown` / `weekly_novelty_cap`). That
 separation is what makes "distinguishable" structural rather than a naming
