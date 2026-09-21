@@ -42,6 +42,7 @@ from sqlalchemy.exc import IntegrityError
 
 from juli_backend.core.config.runtime import sync_database_url
 from tests.integration.test_migrations import postgres_at_head, requires_postgres  # noqa: F401
+from tests.support.builders import seed_user_row_at_any_revision
 
 __all__ = ["postgres_at_head", "requires_postgres"]
 
@@ -96,13 +97,14 @@ def _columns_by_name(engine: Engine, table: str, schema: str | None = None) -> d
 def _seed_shop_and_user(session) -> tuple:
     from juli_backend.models import models as m
 
-    user = m.User(phone="+15550001214")
-    session.add(user)
-    session.flush()
-    shop = m.Shop(user_id=user.id, shop_name="AGT-W5A-DP Test Shop")
+    # Seeded column-by-column, not via the ORM (#1973): the model
+    # describes HEAD, and this schema is an older revision that has
+    # no `users.email`. See the helper's docstring.
+    user_id = seed_user_row_at_any_revision(session, "+15550001214")
+    shop = m.Shop(user_id=user_id, shop_name="AGT-W5A-DP Test Shop")
     session.add(shop)
     session.flush()
-    return user, shop
+    return user_id, shop
 
 
 # ---------------------------------------------------------------------------
@@ -249,7 +251,7 @@ def test_run_confirmations_partial_unique_index_rejects_second_pending_row(
     from juli_backend.models import models as m
 
     with Session(postgres_at_head) as session:
-        user, shop = _seed_shop_and_user(session)
+        user_id, shop = _seed_shop_and_user(session)
         product = m.Product(
             shop_id=shop.id,
             tiktok_product_id="agt-w5a-dp-product-1",
@@ -325,7 +327,7 @@ def test_run_confirmations_status_check_constraint_rejects_invalid_value(
     from juli_backend.models import models as m
 
     with Session(postgres_at_head) as session:
-        user, shop = _seed_shop_and_user(session)
+        user_id, shop = _seed_shop_and_user(session)
         product = m.Product(
             shop_id=shop.id,
             tiktok_product_id="agt-w5a-dp-product-2",
@@ -445,7 +447,7 @@ def test_action_card_approval_survives_action_card_change(postgres_at_head: Engi
     from juli_backend.models import models as m
 
     with Session(postgres_at_head) as session:
-        user, shop = _seed_shop_and_user(session)
+        user_id, shop = _seed_shop_and_user(session)
         card = m.ActionCard(
             shop_id=shop.id,
             workflow_key="optimize_product_price",
@@ -460,7 +462,7 @@ def test_action_card_approval_survives_action_card_change(postgres_at_head: Engi
         snapshot = {"title": card.title, "description": card.description, "status": card.status}
         approval = m.ActionCardApproval(
             action_card_id=card.id,
-            approved_by_user_id=user.id,
+            approved_by_user_id=user_id,
             card_snapshot=snapshot,
         )
         session.add(approval)
