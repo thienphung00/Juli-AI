@@ -12,7 +12,7 @@ test injects.
 
 **What this module can and cannot drive.** `_construct_runner`'s five
 composition seams (`_default_llm_service`/`_default_tool_registry`/
-`_default_playbook`/`_default_read_resources`/`_default_write_resources`)
+`_playbook_for_run`/`_default_read_resources`/`_default_write_resources`)
 no longer fail closed from `workers/` by default as of issue #1173 --
 `services/agent/composition.py` closes the depth-2 cross-package gap that
 used to block the first three, and (review-round-1 rework) builds real
@@ -288,7 +288,8 @@ async def test_run_agent_workflow_async_persists_events_via_the_constructed_pers
     monkeypatch.setattr(runner_pkg, "WorkflowRunner", _EmittingSpyWorkflowRunner)
     monkeypatch.setattr(agent_workflow, "_default_llm_service", lambda: "FAKE_LLM_SERVICE")
     monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
-    monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
+    # #1702: the seam is per-run now.
+    monkeypatch.setattr(agent_workflow, "_playbook_for_run", lambda _run: _dummy_playbook())
 
     async def _fake_read_resources(session, shop_id=None):
         return "FAKE_READ_RESOURCES"
