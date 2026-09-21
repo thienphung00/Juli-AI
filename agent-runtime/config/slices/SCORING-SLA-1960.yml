@@ -1,0 +1,29 @@
+# SCORING-SLA-1960 -- #1960, a directly-filed scoring bug with no PRD parent.
+# `_compute_orders_at_sla_risk` is keyed on an int count, so it had no `None`
+# state to carry "no data" the way every rate-keyed KPI does; a shop with zero
+# orders emitted severity="healthy", which `_score_workflows` scores (it skips
+# only `unavailable`) into a real, approvable process_order_5 ActionCard. The
+# fix reads the KPI's own 30-day denominator instead. Deliberately NOT in scope:
+# whether a `healthy` signal should mint a card at all -- that is #1961, an open
+# owner decision, and implementing a blanket rule here would settle it in code.
+SCORING-SLA-1960:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - backend/src/juli_backend/services/scoring/MODULE.md
+    - backend/src/juli_backend/services/aggregates/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/services/scoring/signals.py
+    - backend/src/juli_backend/services/aggregates/computed_kpis.py
+    - tests/unit/test_orders_at_sla_risk_zero_order_shop.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/scoring/recommendations.py
+    - backend/src/juli_backend/services/scoring/kpi_catalog.py
+    - backend/src/juli_backend/services/action_cards/persist.py
+    - docs/adr/103-first-connect-onboarding.md
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

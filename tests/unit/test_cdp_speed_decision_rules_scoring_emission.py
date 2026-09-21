@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -39,6 +39,7 @@ import pytest_asyncio
 from sqlalchemy import select
 
 from juli_backend.models.models import ActionCard, Order, Product, Return, Shop, User
+from juli_backend.services.aggregates.thresholds import ORDER_DISPATCH_SLA_HOURS
 from juli_backend.services.cdp_speed.decision_rules_scoring import decision_rules_scoring_stage
 from juli_backend.services.cdp_speed.shared_compute_orchestrator import SharedComputeJob
 from juli_backend.services.cdp_speed.targeted_fetch_planner import TargetedFetchPlan
@@ -63,9 +64,21 @@ def _make_job(shop: Shop, *, idempotency_key: str) -> SharedComputeJob:
 @pytest_asyncio.fixture
 async def shop_with_synced_data(session, user_id):
     """Same fixture shape as the B-2/B-3 continuous-trigger tests — produces
-    exactly 4 ranked recommendations (verified against the shared rules
-    pipeline): priorities 1-4 for prevent_return_8b / optimize_product_2 /
-    create_hero_product_1 / process_order_5."""
+    exactly 5 ranked recommendations (verified against the shared rules
+    pipeline): priorities 1-5 across process_order_5 / prevent_return_8b /
+    optimize_product_2 / create_hero_product_1 / prevent_cancellation_8a.
+
+    Was 4 before #1960. The orders below carried no timestamp at all, so
+    nothing was inside the 30-day window and two order-backed KPIs could say
+    nothing: `orders_at_sla_risk` reported a false `healthy` off that empty
+    population (the #1960 bug) and `seller_fault_cancellation_rate` correctly
+    reported `unavailable`. Giving the orders a real `payment_time` makes both
+    live — `process_order_5` is now earned by orders that really are past their
+    dispatch SLA, and `prevent_cancellation_8a` joins because a seller-fault
+    cancellation rate of 0/5 is a real reading over a real population. These
+    tests are about emission budgets, so the fixture supplies its candidates
+    with real data rather than borrowing one from a false signal.
+    """
     user = User(id=user_id, phone="+84901716716")
     shop = Shop(
         id=uuid.uuid4(),
@@ -98,15 +111,29 @@ async def shop_with_synced_data(session, user_id):
             update_time=now,
         ),
     ]
+    # Paid 72h before the compute anchor and never shipped, so they are
+    # genuinely inside the 30-day window AND genuinely past the 48h dispatch
+    # SLA (``ORDER_DISPATCH_SLA_HOURS``). Before #1960 these orders carried no
+    # timestamp at all, so ``created_at`` fell back to ``func.now()`` -- real
+    # wall-clock, later than ``COMPUTED_AT`` -- and nothing was in the window;
+    # ``orders_at_sla_risk`` still reported "healthy / 0 at risk" off that
+    # empty population, which is the exact bug #1960 fixed, and it was what
+    # supplied ``process_order_5`` here. These tests are about emission
+    # budgets, not about that KPI, so the fixture now earns its candidates
+    # with real data instead of borrowing them from a false healthy signal.
+    placed = COMPUTED_AT - timedelta(hours=ORDER_DISPATCH_SLA_HOURS + 24)
     orders = [
         Order(
             id=uuid.uuid4(),
             shop_id=shop.id,
             tiktok_order_id=f"ord-716-{index}",
-            status="COMPLETED",
+            status="AWAITING_SHIPMENT",
             total_amount=Decimal("150000"),
             currency="VND",
+            payment_time=placed,
+            ship_time=None,
             update_time=now,
+            created_at=placed,
         )
         for index in range(1, 6)
     ]
@@ -169,9 +196,9 @@ class TestEmissionBudgetAppliedOnTheComputePath:
         monkeypatch.setenv("CDP_DECISION_EMISSION_WEEKLY_NOVELTY_CAP", "10")
 
         shop = shop_with_synced_data
-        # Fixture's own rules pipeline ranks 4 workflows at priority 1-4.
+        # Fixture's own rules pipeline ranks 5 workflows at priority 1-5.
         # Seed 3 more pre-existing candidates at lower priority (10-12) so
-        # the shop has 7 active candidates total against a default cap of 5.
+        # the shop has 8 active candidates total against a default cap of 5.
         for index, priority in enumerate((10, 11, 12), start=1):
             await _seed_extra_active_candidate(
                 session,
@@ -183,33 +210,35 @@ class TestEmissionBudgetAppliedOnTheComputePath:
         job = _make_job(shop, idempotency_key="job-716-emission-cap")
         result = await decision_rules_scoring_stage(session, job, computed_at=COMPUTED_AT)
 
-        assert len(result.recommendations.recommended_workflows) == 4, (
+        assert len(result.recommendations.recommended_workflows) == 5, (
             "fixture assumption drifted — update the seeded priorities/count"
         )
 
         cards = await _cards_for(session, shop.id)
-        assert len(cards) == 7
+        assert len(cards) == 8
 
         surfaced = [card for card in cards if card.surfaced_at is not None]
         suppressed = [card for card in cards if card.surfaced_at is None]
 
         assert len(surfaced) == 5, "at most the configured active cap (5) may be surfaced"
-        assert len(suppressed) == 2
+        assert len(suppressed) == 3
 
-        # The 4 fixture-ranked candidates (priority 1-4) plus the best
-        # seeded one (priority 10) fill the 5 surfaced slots; the two
-        # lowest-priority seeded candidates are suppressed by the cap.
+        # The 5 fixture-ranked candidates (priority 1-5) fill the 5 surfaced
+        # slots; all three lower-priority seeded candidates (10-12) lose on
+        # priority and are suppressed. Three over the cap rather than two, so
+        # the cap is under more pressure here than it was before #1960, not
+        # less.
         surfaced_keys = {card.workflow_key for card in surfaced}
         assert surfaced_keys == {
             "prevent_return_8b",
             "optimize_product_2",
             "create_hero_product_1",
             "process_order_5",
-            "seed_extra_1",
+            "prevent_cancellation_8a",
         }
 
         for card in suppressed:
-            assert card.workflow_key in {"seed_extra_2", "seed_extra_3"}
+            assert card.workflow_key in {"seed_extra_1", "seed_extra_2", "seed_extra_3"}
             assert card.suppressed_reason == "active_cap"
 
     @pytest.mark.asyncio
@@ -234,7 +263,7 @@ class TestEmissionBudgetAppliedOnTheComputePath:
 
         cards = await _cards_for(session, shop.id)
         suppressed = [c for c in cards if c.suppressed_reason == "active_cap"]
-        assert len(suppressed) == 2
+        assert len(suppressed) == 3
         for card in suppressed:
             # Still an "active" candidate row, content intact — recomputation
             # and surfacing are independently gated.
@@ -279,6 +308,7 @@ class TestEmissionFailureContainment:
             "optimize_product_2",
             "create_hero_product_1",
             "process_order_5",
+            "prevent_cancellation_8a",
         }
         for card in cards:
             assert card.status == "active"

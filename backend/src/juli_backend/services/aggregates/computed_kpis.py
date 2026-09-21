@@ -35,6 +35,7 @@ class ComputedKpiMetrics:
     avg_on_hand_inventory: float | None
     sku_count_with_inventory: int
     stockout_sku_count: int
+    order_count_30d: int
     orders_with_ship_time_30d: int
     orders_fulfilled_without_seller_fault_30d: int
     orders_at_sla_risk_count: int
@@ -460,6 +461,7 @@ def compute_all_kpis(
         avg_on_hand_inventory=avg_on_hand_inventory,
         sku_count_with_inventory=sku_count_with_inventory,
         stockout_sku_count=stockout_sku_count,
+        order_count_30d=order_count_30d,
         orders_with_ship_time_30d=orders_with_ship_time_30d,
         orders_fulfilled_without_seller_fault_30d=orders_fulfilled_without_seller_fault_30d,
         orders_at_sla_risk_count=compute_orders_at_sla_risk(orders, anchor=anchor),
