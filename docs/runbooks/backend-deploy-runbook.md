@@ -195,7 +195,7 @@ lives in
 would refuse it, no candidate would start, and the expand code it depends on
 could never go live.
 
-**Currently outstanding:** `065_users_phone_placeholder_cleanup` (#1972) —
+**Currently outstanding:** `066_users_placeholder_phone_cleanup` (#1972) —
 sets `users.phone` to NULL on every row whose stored number equals the value
 the removed code derived from that row's own id
 (`f"+849{user_id.int % 10_000_000_000:010d}"`). Until it runs, those sellers
@@ -209,16 +209,17 @@ every day it waits is a day the fabricated rows sit in a column nothing reads.
 Running it *before* the expand release serves is pointless rather than
 dangerous: the old code would write the placeholders straight back. Its
 precondition is therefore that the serving release contains
-`064_users_phone_nullable` and `alembic current` reports `064_users_phone_nullable`
-or later. The step is idempotent, so an operator unsure whether it already ran
-may simply run it.
+`064_users_phone_nullable` and `alembic current` reports `065_users_email`. The
+step is idempotent, so an operator unsure whether it already ran may simply run
+it.
 
-> **Check the revision number before you run it.** #1973's follow-up PR adds
-> `065_users_email` to `versions/` and renumbers this file to
-> `066_users_placeholder_phone_cleanup`, chained onto it, so that the deferred
-> step stays the tail of the chain. Whichever of the two is on `main` when you
-> run it is the correct one; they differ only in `revision`/`down_revision` and
-> do exactly the same thing to exactly the same rows.
+> This step was numbered `065_users_phone_placeholder_cleanup` when #1972's PR
+> landed it, chained onto 064. #1973 added `065_users_email` to `versions/` and
+> renumbered it so the deferred step stays the **tail** of the chain — a
+> deferred step with a later revision above it forks the chain the moment it is
+> copied into a serving release's `versions/`, and `alembic upgrade head` then
+> refuses with multiple heads. It had not been applied anywhere when it was
+> renumbered.
 
 See "Applied contract migrations" below for the worked example this procedure
 was written against.

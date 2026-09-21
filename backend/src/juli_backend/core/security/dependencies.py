@@ -6,6 +6,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.config.runtime import require_env
+from juli_backend.core.security.claims import verified_identity
 from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.core.security.jwt import verify_supabase_jwt
 from juli_backend.database import NotFound, User, UsersRepo
@@ -50,12 +51,24 @@ async def get_current_user(
             detail="Invalid or expired credentials",
         )
 
+    # #1973: the same verified payload `sub` came from also carries the
+    # seller's Google email, whether Google verified it, and their name. Until
+    # now this function read one field and threw the rest away, leaving Juli
+    # with no way to contact a seller it had promised 1:1 support to. The
+    # translation lives in `claims.py` rather than here -- ADR-085 decision 2
+    # keeps this module to the auth decision, and a repository must not learn
+    # the shape of a Supabase payload -- so what crosses into the repository is
+    # two optional strings and no vendor shape.
+    identity = verified_identity(payload)
+
     try:
         # The scoped read (#1691): `users` is policy-gated on a GUC that
         # authentication has not set yet, and the repository owns knowing that.
         # ADR-085 decision 2 keeps the tenant seam out of this module, so the
         # scope lives in UsersRepo, not here.
-        user = await UsersRepo(session).get_for_authentication(user_id)
+        user = await UsersRepo(session).get_for_authentication(
+            user_id, email=identity.email, display_name=identity.display_name
+        )
     except NotFound:
         # Defensive backstop only (#1906): `get_for_authentication` now
         # provisions a first-time `sub` itself rather than raising this, so
@@ -80,5 +93,11 @@ async def get_current_user(
     # ordinary "row already existed" read and keeps this call site the one
     # place that decides the auth read/provision is its own atomic unit,
     # never entangled with whatever the route does next.
+    #
+    # #1973 gives the unconditional commit a second job it now genuinely does:
+    # a RETURNING seller whose row predates migration 065 has their verified
+    # email filled in during `get_for_authentication`, and that write is
+    # persisted here. Without this commit the backfill would be rolled back at
+    # request end and re-attempted on every single request, forever.
     await session.commit()
     return user

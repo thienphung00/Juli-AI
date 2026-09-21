@@ -1670,7 +1670,25 @@ def test_juli_app_has_schema_usage_grants(postgres_at_head: Engine):
 JULI_APP_UPDATE_GRANTED_BEFORE_THE_AUDIT = frozenset({"orders", "processed_events", "returns"})
 
 
+#: A COLUMN-level grant is invisible to `role_table_grants` (#1973). Migration
+#: 065 grants `UPDATE (email, display_name, updated_at) ON public.users` rather
+#: than the whole table, so that `id` and `phone` stay unwritable by `juli_app`.
+#: Reading only the table view would report that privilege as absent -- and the
+#: two tests below would then demand a WIDER grant than the code needs, which
+#: inverts the least-privilege intent they exist to defend. Both views are read;
+#: `tests/unit/test_juli_app_grants_cover_mutations.py::
+#: test_the_users_update_grant_is_column_scoped` is what pins WHICH columns, and
+#: that no table-level UPDATE on `users` exists.
+_COLUMN_GRANTS_SQL = text("""
+    SELECT DISTINCT privilege_type FROM information_schema.role_column_grants
+    WHERE grantee = 'juli_app'
+    AND table_schema = 'public'
+    AND table_name = :table_name
+""")
+
+
 def _juli_app_public_privileges(engine: Engine, table: str) -> set[str]:
+    """Every privilege `juli_app` holds on `table`, table- OR column-level."""
     with engine.connect() as conn:
         rows = conn.execute(
             text("""
@@ -1681,7 +1699,8 @@ def _juli_app_public_privileges(engine: Engine, table: str) -> set[str]:
             """),
             {"table_name": table},
         ).fetchall()
-    return {row[0] for row in rows}
+        column_rows = conn.execute(_COLUMN_GRANTS_SQL, {"table_name": table}).fetchall()
+    return {row[0] for row in rows} | {row[0] for row in column_rows}
 
 
 @requires_postgres
@@ -1735,8 +1754,17 @@ def test_no_public_table_holds_update_beyond_its_call_site(postgres_at_head: Eng
                 WHERE grantee = 'juli_app'
                 AND table_schema = 'public'
                 AND privilege_type = 'UPDATE'
+                UNION
+                SELECT table_name FROM information_schema.role_column_grants
+                WHERE grantee = 'juli_app'
+                AND table_schema = 'public'
+                AND privilege_type = 'UPDATE'
             """)
         ).fetchall()
+    # The UNION covers column-level grants, which `role_table_grants` does not
+    # list at all (#1973) -- see `_COLUMN_GRANTS_SQL` above. A table appears here
+    # when `juli_app` can UPDATE it AT ALL; "on which columns" is the narrower
+    # question `test_the_users_update_grant_is_column_scoped` answers.
     live_update = {row[0] for row in rows}
     justified = set(tables_requiring("UPDATE", schema="public"))
 

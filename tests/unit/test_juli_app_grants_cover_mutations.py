@@ -39,11 +39,27 @@ not close it.
 TABLES DELIBERATELY ABSENT. Append-only tables stay ungranted, at least until a
 call site proves otherwise: `action_card_approvals`, `alert_history`,
 `decision_emission_novelty_ledger`, `impact_readings`, `production_write_audit`,
-`recommendations`, `users`, `workflow_outcome_records`, `workflow_run_events`,
+`recommendations`, `workflow_outcome_records`, `workflow_run_events`,
 `workflow_webhook_signals`, `webhook_raw_events`, and the four bronze raw
 payload tables. `analytics_kpi_envelopes` is absent for a different reason --
 see `KNOWN_TRANSIENT`. The application contains no DELETE on any mapped table,
 so no DELETE is registered.
+
+`users` WAS on that list until #1973 and is the one table to have left it. The
+verified-email backfill is the first code in this application that writes to an
+existing `users` row; migration 065 grants the UPDATE **column-scoped**
+(`email`, `display_name`, and `updated_at`, which SQLAlchemy adds to every
+UPDATE unasked), so `id` and `phone` remain unwritable by `juli_app`. Had that
+grant been missed, the backfill would have raised
+`InsufficientPrivilegeError` inside the authentication path -- #1897's incident
+again, on every returning seller. This module is what caught it, and
+`test_the_users_update_grant_is_column_scoped` is what keeps the grant from
+quietly widening to the whole table later.
+
+A COLUMN GRANT IS INVISIBLE TO `role_table_grants`. `_grants` therefore unions
+`role_column_grants` in; reading only the table view would have reported the
+privilege missing when it is held -- a gate that fails for something untrue,
+which is the same defect class in the opposite direction.
 """
 
 from __future__ import annotations
@@ -99,6 +115,18 @@ GRANT_REQUIRED: tuple[MutationSite, ...] = (
         "backend/src/juli_backend/repositories/identity.py",
         "shop.is_active = False",
         "ShopsRepo.pause_automation deactivates a shop after deauthorization (#354)",
+    ),
+    # -- #1973: the first mutation of `users` the application has ever had ----
+    MutationSite(
+        "public",
+        "users",
+        "UPDATE",
+        "backend/src/juli_backend/repositories/identity.py",
+        "user.email = email",
+        "UsersRepo fills a returning seller's empty email/display_name from the "
+        "verified JWT claim (#1973); granted COLUMN-SCOPED by migration 065 -- "
+        "`GRANT UPDATE (email, display_name, updated_at)`, so id and phone stay "
+        "unwritable",
     ),
     MutationSite(
         "public",
@@ -647,12 +675,50 @@ def _value_model(
 
 
 def _grants(engine: Engine) -> set[tuple[str, str, str]]:
-    sql = text(
+    """Every (schema, table, privilege) `juli_app` holds, table- OR column-level.
+
+    `role_table_grants` alone was the whole picture until #1973. Migration 065
+    grants `UPDATE (email, display_name, updated_at) ON public.users` -- a
+    COLUMN-level grant, which is how the backfill gets the privilege it needs
+    without giving `juli_app` the run of the identity table -- and a
+    column-level grant does not appear in `role_table_grants` at all. Reading
+    only that view would have reported the privilege missing when it is held,
+    which is a gate that fails for something that is not true.
+
+    `role_column_grants` is unioned in at table granularity, so a table here
+    means "holds this privilege on at least one column". That is deliberately
+    weaker than the table-level reading, and
+    `test_the_users_update_grant_is_column_scoped` below is what pins WHICH
+    columns -- the two questions are separate and this one is only "can the
+    code path write at all".
+    """
+    table_sql = text(
         "SELECT table_schema, table_name, privilege_type "
         "FROM information_schema.role_table_grants WHERE grantee = :role"
     )
+    column_sql = text(
+        "SELECT DISTINCT table_schema, table_name, privilege_type "
+        "FROM information_schema.role_column_grants WHERE grantee = :role"
+    )
     with engine.connect() as conn:
-        return {tuple(row) for row in conn.execute(sql, {"role": RUNTIME_ROLE})}
+        held = {tuple(row) for row in conn.execute(table_sql, {"role": RUNTIME_ROLE})}
+        held |= {tuple(row) for row in conn.execute(column_sql, {"role": RUNTIME_ROLE})}
+    return held
+
+
+def _column_grants(engine: Engine, table: str, privilege: str) -> set[str]:
+    sql = text(
+        "SELECT column_name FROM information_schema.role_column_grants "
+        "WHERE grantee = :role AND table_schema = 'public' "
+        "AND table_name = :table AND privilege_type = :privilege"
+    )
+    with engine.connect() as conn:
+        return {
+            row[0]
+            for row in conn.execute(
+                sql, {"role": RUNTIME_ROLE, "table": table, "privilege": privilege}
+            )
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -676,6 +742,47 @@ def test_every_mutated_table_grants_the_privilege_it_needs():
         f"  {s.schema}.{s.table} needs {s.privilege} -- {s.why} ({s.path}: {s.source_line!r})"
         for s in missing
     )
+
+
+@requires_postgres
+def test_the_users_update_grant_is_column_scoped():
+    """The identity table's UPDATE is three columns, not the table (#1973).
+
+    Two halves, and both matter. `juli_app` must NOT hold a table-level UPDATE
+    on `users` -- that would let any code path overwrite `id` (the value a
+    verified JWT is matched on) or `phone` (the column #1972 just emptied of
+    fabricated numbers). And the column grant must be exactly the set the
+    backfill needs: `email` and `display_name`, which
+    `_record_first_known_identity` assigns, plus `updated_at`, which SQLAlchemy
+    adds to every UPDATE because `User.updated_at` carries `onupdate`. Postgres
+    checks an UPDATE's whole column list, so a grant missing `updated_at`
+    denies the statement outright -- measured as `InsufficientPrivilegeError:
+    permission denied for table users` before it was added.
+    """
+    with owner_sync_engine() as engine:
+        table_level = {
+            (schema, table, privilege) for schema, table, privilege in _grants_table_level(engine)
+        }
+        columns = _column_grants(engine, "users", "UPDATE")
+
+    assert ("public", "users", "UPDATE") not in table_level, (
+        "juli_app holds a TABLE-level UPDATE on public.users; migration 065 "
+        "grants it per column on purpose, so `id` and `phone` stay unwritable"
+    )
+    assert columns == {"email", "display_name", "updated_at"}, (
+        f"the column-scoped UPDATE on public.users is {sorted(columns)}; it must "
+        "be exactly the backfill's two columns plus the `updated_at` SQLAlchemy "
+        "writes unasked"
+    )
+
+
+def _grants_table_level(engine: Engine) -> set[tuple[str, str, str]]:
+    sql = text(
+        "SELECT table_schema, table_name, privilege_type "
+        "FROM information_schema.role_table_grants WHERE grantee = :role"
+    )
+    with engine.connect() as conn:
+        return {tuple(row) for row in conn.execute(sql, {"role": RUNTIME_ROLE})}
 
 
 def test_the_code_scan_finds_no_mutation_outside_the_registry():
@@ -749,6 +856,13 @@ def test_append_only_tables_are_not_quietly_granted_update():
     later gains an UPDATE grant, that is either a mistake or a code change
     nobody registered here -- both worth failing on.
     """
+    # `users` left this set in #1973. It was append-only for as long as the
+    # application only ever INSERTed a first-sighting row; the verified-email
+    # backfill is the first code that writes to an existing one. Its grant is
+    # column-scoped (`email`, `display_name` only, migration 065), so the
+    # least-privilege claim this test defends still holds for `id` and `phone`
+    # -- but the table is genuinely no longer append-only and saying otherwise
+    # here would be the fiction this module exists to prevent.
     append_only = {
         "action_card_approvals",
         "alert_history",
@@ -756,7 +870,6 @@ def test_append_only_tables_are_not_quietly_granted_update():
         "impact_readings",
         "production_write_audit",
         "recommendations",
-        "users",
         "workflow_outcome_records",
         "workflow_run_events",
         "workflow_webhook_signals",

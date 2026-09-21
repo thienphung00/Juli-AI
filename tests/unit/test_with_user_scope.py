@@ -36,6 +36,7 @@ from juli_backend.database.tenant_context import (
     TenantContextRequiredError,
     with_user_scope,
 )
+from juli_backend.models.models import User
 from tests.unit.test_with_shop_scope import _RecordingSession
 
 
@@ -178,7 +179,16 @@ class _ScopeAwareSession(_RecordingSession):
         # This is the ORM read `UsersRepo.get` performs. Snapshot the GUC as it
         # happens — the whole defect is that this ran with no user context.
         self.guc_at_read = self.user_guc
-        return object()
+        # A REAL `User`, not a bare `object()` (#1973). The caller now reads
+        # `user.email` and `user.display_name` to decide whether to fill them
+        # from the verified JWT claim, and a stand-in missing those attributes
+        # fails this test for a reason that has nothing to do with the GUC it
+        # exists to assert. Returning the mapped class rather than bolting two
+        # attributes onto a stub is deliberate: a stub grown one attribute at a
+        # time hides the next contract change instead of failing on it, and a
+        # `**kwargs`-shaped double would prove only that the double answers to
+        # whatever it is asked.
+        return User(id=user_id)
 
 
 @pytest.mark.asyncio
