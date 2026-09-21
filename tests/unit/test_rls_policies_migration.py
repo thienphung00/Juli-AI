@@ -184,8 +184,18 @@ def test_the_two_tables_1712_added_are_covered_by_their_own_migration():
         "069 must route its policies through the GUC helper added by migration 050, "
         "never a raw current_setting(...)::uuid"
     )
-    assert "current_setting(" not in text, (
-        "069 compares against current_setting directly; use app_current_shop_id()"
+    # Only the policy clauses, not the prose: the migration's docstring names
+    # `current_setting(...)::uuid` in order to explain why it is NOT used, and a
+    # whole-file grep would fail on the explanation rather than on the defect.
+    policy_clauses = [
+        line for line in text.splitlines() if "USING (" in line or "WITH CHECK (" in line
+    ]
+    assert policy_clauses, "069 defines no RLS policy clauses at all"
+    offenders = [line.strip() for line in policy_clauses if "current_setting(" in line]
+    assert offenders == [], (
+        f"{offenders} compare against current_setting directly; route through "
+        "app_current_shop_id(), which tolerates the empty string SET LOCAL leaves "
+        "behind at commit (#1467)"
     )
     for table in ("run_act_records", "run_checklist_items"):
         assert table in text, f"migration 069 never names {table}"
