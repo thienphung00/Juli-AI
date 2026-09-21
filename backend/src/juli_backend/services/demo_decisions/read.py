@@ -100,6 +100,15 @@ def mask_decision_payload(card: ActionCard) -> dict[str, Any]:
     from the real playbook registry, revealing whether Juli can carry this
     recommendation out itself, without exposing the workflow_key or any
     taxonomy.
+
+    Since #1703 that discriminator also requires the card to carry a subject
+    approve can bind a run to. A registered playbook is necessary and no
+    longer sufficient: approve refuses a subject-less card outright (issue
+    #1702's ``CardSubjectNotApprovable``), so reporting ``is_executable:
+    true`` for one told the seller a button would work that returns 409 the
+    moment they press it. Listing and approving now answer from the same
+    predicate (``action_cards.subjects.card_subject_is_bindable``), which is
+    the only way the two can be kept from drifting apart again.
     """
     try:
         raw_payload = json.loads(card.recommendation_payload) if card.recommendation_payload else {}
@@ -108,7 +117,12 @@ def mask_decision_payload(card: ActionCard) -> dict[str, Any]:
     except json.JSONDecodeError:
         raw_payload = {}
 
+    from juli_backend.services.action_cards.subjects import card_subject_is_bindable
     from juli_backend.services.agent import playbooks as playbooks_module
+
+    is_executable = playbooks_module.is_workflow_executable(
+        card.workflow_key
+    ) and card_subject_is_bindable(card)
 
     return {
         "id": str(card.id),
@@ -118,7 +132,7 @@ def mask_decision_payload(card: ActionCard) -> dict[str, Any]:
         "priority": card.priority,
         "computed_at": card.computed_at.isoformat() if card.computed_at else None,
         "surfaced_at": card.surfaced_at.isoformat() if card.surfaced_at else None,
-        "is_executable": playbooks_module.is_workflow_executable(card.workflow_key),
+        "is_executable": is_executable,
         "recommendation": _mask_recommendation_payload(raw_payload),
     }
 

@@ -1,9 +1,42 @@
 # ADR-087: Subject-scoped Action Cards, card revisions, and a per-visitor demo tenant
 
-**Status:** Proposed
+**Status:** Accepted (2026-09-21, #1703)
 **Date:** 2026-08-26
 **Deciders:** grill-with-docs (Architect) with owner
 **Amends:** ADR-082 decision 1, ADR-084 decision 1. Schedules ADR-083's deferred subject-scoping T-slice.
+**Amended by:** this ADR's own decision 6 supersedes #716 (B-4)'s Collision 2 resolution —
+see "Acceptance note" below.
+
+## Acceptance note (2026-09-21, #1703)
+
+Moved from Proposed to Accepted with the slice that makes emission subject-scoped.
+What is now built, and what this ADR still only decides:
+
+| Decision | State |
+| --- | --- |
+| 1 — cards are subject-scoped | **Built.** Columns in #1701 (migration 062); the producer in #1703 (`services/action_cards/subjects.py`) |
+| 2 — two constraints, one partial | **Built** in #1701. #1703 added `sqlite_where` beside `postgresql_where` on the model so the unit fixture builds the same *partial* index rather than a full unique that forbids a legal chain |
+| 3 — revisions are chained rows | **Built.** `supersedes_card_id`, `revision + 1`, payload assembled from the current scoring run only |
+| 4 — `create_*` out of scope | **Built** by omission: those keys resolve no subject and emit `unscoped` |
+| 5 — the subject taxonomy | **Decided, one quarter built.** Only `optimize_product_2` resolves a subject today, exactly as this ADR's Consequences predicted — the tables Order, Campaign and After-sales would point at are still empty |
+| 6 — basis-change gating, named suppression | **Built.** `basis_unchanged` / `active_card_exists` (`services/action_cards/basis.py`, `persist.py`) |
+| 7 — a replayed demo run applies its outcome | Decided, not built (demo lane) |
+| 8 — per-visitor demo tenant | Decided, not built (demo lane, #1313's prerequisite) |
+| 9 — the emission budget keeps its key | **Built** by leaving it alone. Subject-level ranking under `max_active` is still open |
+
+**`unscoped` is a live value, not only a backfill marker.** Decision 1 assumed every card
+would carry a subject. In practice a producer that cannot name one writes `unscoped`, which
+is what #1701 backfilled and what the approve path already refuses. That is the fail-closed
+posture this ADR's Consequences ask for, reached without a card pointing at a subject nobody
+chose; it is **not** a shop-level subject and is **not** approvable, so
+`approval._BINDABLE_SUBJECT_TYPES` needs no widening (that remains #1704's seam).
+
+**Decision 6 narrows #716's Collision 2 resolution.** #716 reset a dismissed card in place
+once its 7-day cooldown elapsed, on the clock alone. Under this ADR the clock is a secondary
+cap on churn and the basis is the trigger, so an unchanged card is not re-offered when its
+cooldown expires, and a changed one returns as a chained successor rather than as a reset that
+erases the dismiss. #716's actual requirement — that the cooldown clock can finish — is
+unchanged.
 
 > **Numbering:** assumes [ADR-086](086-runtime-database-role-and-tenant-isolation.md) lands first.
 > If it does not, renumber — ADR-083's own header records a prior collision of exactly this kind.

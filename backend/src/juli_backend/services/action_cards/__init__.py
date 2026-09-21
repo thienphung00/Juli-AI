@@ -8,7 +8,10 @@ from juli_backend.services.action_cards.dispatch import (
 from juli_backend.services.action_cards.legacy_recommendations import (
     persist_legacy_recommendations,
 )
-from juli_backend.services.action_cards.persist import persist_scoring_result
+from juli_backend.services.action_cards.persist import (
+    emit_scoring_cards,
+    persist_scoring_result,
+)
 from juli_backend.services.action_cards.refresh import (
     maybe_poll_tiktok_data,
     run_action_card_refresh,
@@ -21,6 +24,7 @@ from juli_backend.services.action_cards.refresh_cooldown import (
 
 __all__ = [
     "bind_action_card_refresh_cooldown_gate",
+    "emit_scoring_cards",
     "enqueue_action_card_refresh",
     "get_refresh_cooldown_gate",
     "get_refresh_dispatcher",
