@@ -24,15 +24,15 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1950.json",
     "ownerSignoffPresent": true,
-    "sha256": "c6b519d3fb587f81837e7e35b9c46420be16d077a3611ab3641b9942e0e3cf84",
+    "sha256": "8c7fe933234eecb9eb03962b4ac202471d78f7147b5c5a76363b1ba1fc1be1ae",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 16238,
-      "validationBytes": 48255
+      "reviewBytes": 16700,
+      "validationBytes": 48592
     },
     "claimVsExecuted": {
       "citedCommandCount": null,
@@ -215,7 +215,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "fix/issue-1950-poll-step-outcomes",
-        "head": "d7030f5d799d1bc11bda7225082e058b2fa04d5b",
+        "head": "2bfc8932d62ea5fa5d60fb1a83c6ae88963c3ca3",
         "shallow": true
       },
       "moduleResolution": {
@@ -262,7 +262,7 @@
       "executorDomainSource": "implementation-artifact",
       "gaps": [
         {
-          "agentsScanned": 533,
+          "agentsScanned": 534,
           "detail": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
           "reason": "no-transcript-for-issue"
         }
@@ -270,7 +270,7 @@
       "schemaVersion": 1,
       "source": {
         "agentsAttributed": 0,
-        "agentsScanned": 533,
+        "agentsScanned": 534,
         "attributedBy": ".worktrees path naming issue-1950",
         "executorsIdentified": 0,
         "kind": "task-transcript",
@@ -326,10 +326,10 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-21T12:15:21Z",
+  "timestamp": "2026-09-21T13:47:38Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1950.json",
-    "sha256": "a1bbdeb595a8fa1311b3dabb2aa04f0afe5a604f51c04652a9dd01ccb14bca23",
+    "sha256": "278a63cbd34c952bad5b616da74d49e5289ca4f7533a0fa2e3a5bc3756557c7c",
     "status": "PASS"
   },
   "wave": null
