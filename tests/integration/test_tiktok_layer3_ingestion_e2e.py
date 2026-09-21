@@ -39,6 +39,7 @@ from juli_backend.services.ingestion.handoff import make_etl_handoff
 from juli_backend.services.webhook.app import WEBHOOK_PATH, create_app
 from juli_backend.workers.services.polling.orchestrate import (
     FujiwaPollConfig,
+    PollCycleFailedError,
     run_fujiwa_poll_cycle,
 )
 from tests.integration.tiktok_recorded_replay import load_sample, recorded_tiktok_replay
@@ -278,7 +279,13 @@ class TestPollToEtlIngestion:
         fujiwa_credential,
         run_replay_poll,
     ):
-        """When orders fail, products/returns still persist and prior cursors remain."""
+        """When orders fail, products/returns still persist and prior cursors remain.
+
+        The cycle now RAISES on that failure (#1950 criterion 2) -- a poll whose
+        orders endpoint is down used to exit zero. The partial-ETL and
+        cursor-preservation assertions below are unchanged and still hold:
+        `_record_cycle` writes what completed before the verdict is raised.
+        """
         repo = TikTokSyncStateRepo(session)
         seeded_orders_cursor = EXPECTED_ORDER_CURSOR - 1
         await repo.save(
@@ -287,10 +294,12 @@ class TestPollToEtlIngestion:
         )
         await session.commit()
 
-        await run_replay_poll(
-            fujiwa_credential=fujiwa_credential,
-            fail_paths=frozenset({ORDER_SEARCH_PATH}),
-        )
+        with pytest.raises(PollCycleFailedError) as excinfo:
+            await run_replay_poll(
+                fujiwa_credential=fujiwa_credential,
+                fail_paths=frozenset({ORDER_SEARCH_PATH}),
+            )
+        assert [failure.resource for failure in excinfo.value.failures] == ["orders"]
 
         loaded = await repo.load(fujiwa_shop.id)
         assert loaded["orders_last_update_time"] == seeded_orders_cursor

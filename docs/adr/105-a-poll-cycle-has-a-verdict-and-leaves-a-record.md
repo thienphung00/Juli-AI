@@ -140,10 +140,27 @@ still open — but it is also why the new `poll_cycle_outcome` and
 `poll_watermark_held_back` events must not be read as production-visible
 evidence until #1978 lands.
 
-`sync_analytics` is one step over seven `tiktok_sync_state` endpoints, so its
-single verdict is written to all seven. That over-approximation can mark a quiet
-endpoint failed when a sibling dropped rows. It errs in the direction this issue
-wants, and it is written down rather than discovered later.
+**The analytics verdict is recorded once, not fanned out — and this is the
+second design.** `sync_analytics` is one step over seven `tiktok_sync_state`
+endpoints. Writing its single verdict to all seven looked like a fair
+over-approximation, erring toward reporting failure. The integration suite
+showed what it actually did: a replay poll carries no `promotion_activity_ids`,
+so A-25 never runs, and the fan-out stamped `promotion_activity` with
+`last_outcome='ok'` and a `last_success_at`.
+
+**A recorded success for an endpoint that never executed is the same lie as a
+backfilled `last_outcome`, and it poisons the one query this decision exists
+for.** So the verdict is recorded at the granularity the step actually reports
+at: one `analytics` row. `_ENDPOINT_STATE_KEYS` has no `analytics` key, so
+`load` ignores that row and no cursor is affected. What is given up is a
+per-endpoint answer for analytics — which `sync_analytics` never had to give,
+so producing one was invention rather than measurement.
+
+Worth recording as a process point, not only a design one: the unit suite could
+not see this. `tests/unit` never runs a real cycle against recorded vendor
+fixtures, so the false success was invisible there and visible immediately in
+`tests/integration`. The lane that runs `tests/` in one invocation is the one
+that caught it.
 
 ## Rationale
 

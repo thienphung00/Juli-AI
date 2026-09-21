@@ -285,28 +285,34 @@ _ENDPOINT_STATE_KEYS: dict[str, str] = {
 }
 _STATE_KEY_ENDPOINTS = {state_key: endpoint for endpoint, state_key in _ENDPOINT_STATE_KEYS.items()}
 
-# Poll-step name (`SyncOutcome.resource`) -> the endpoints whose row that step's
-# verdict describes (#1950 criterion 4). Four of the five steps own exactly one
-# endpoint. `sync_analytics` owns seven: it is ONE step with one outcome that
-# fans out over them, so its verdict is written to all seven rather than being
-# recorded against a single endpoint the table does not have. That is a fair
-# over-approximation and not a silent one -- it can mark an endpoint that had
-# nothing to do as failed when a sibling analytics endpoint dropped rows, which
-# is the direction this issue wants to err in.
+#: Poll-step name (`SyncOutcome.resource`) -> the endpoint row its verdict
+#: describes (#1950 criterion 4).
+#:
+#: The four search steps each own exactly one endpoint, so the mapping is
+#: identity and the verdict is precise.
+#:
+#: `sync_analytics` is deliberately NOT fanned out over the seven analytics
+#: endpoints, and this is the second design it had. Fanning out wrote one
+#: verdict to all seven, which looked like a fair over-approximation until
+#: `test_repoll_is_idempotent_and_does_not_corrupt_sync_state` (integration)
+#: showed what it actually does: a replay poll carries no
+#: `promotion_activity_ids`, so A-25 never runs -- and the fan-out stamped
+#: `promotion_activity` with `last_outcome='ok'` and a `last_success_at`.
+#: A recorded success for an endpoint that never executed is precisely the
+#: comfortable-looking lie this issue exists to remove, and it would have
+#: poisoned the one query criterion 4 is for (`last_success_at IS NULL`).
+#:
+#: So the verdict is recorded at the granularity the step actually reports at:
+#: one `analytics` row. `_ENDPOINT_STATE_KEYS` has no `analytics` key, so
+#: `load` ignores that row and no cursor is affected. What is lost is a
+#: per-endpoint answer for analytics -- which `sync_analytics` never had to
+#: give, so recording one would have been invention rather than measurement.
 _OUTCOME_ENDPOINTS: dict[str, tuple[str, ...]] = {
     "orders": ("orders",),
     "products": ("products",),
     "returns": ("returns",),
     "inventory": ("inventory",),
-    "analytics": (
-        "shop_sku_performance",
-        "shop_product_performance",
-        "shop_performance",
-        "shop_performance_per_hour",
-        "bestselling_products",
-        "bestselling_videos",
-        "promotion_activity",
-    ),
+    "analytics": ("analytics",),
 }
 
 OUTCOME_OK = "ok"

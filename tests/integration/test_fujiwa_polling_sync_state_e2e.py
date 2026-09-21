@@ -25,6 +25,7 @@ from juli_backend.models.models import Shop, TikTokSyncState, User
 from juli_backend.repositories.repos import TikTokCredentialRepo, TikTokSyncStateRepo
 from juli_backend.workers.services.polling.orchestrate import (
     FujiwaPollConfig,
+    PollCycleFailedError,
     run_fujiwa_poll_cycle,
 )
 from tests.integration.tiktok_recorded_replay import load_sample, recorded_tiktok_replay
@@ -220,8 +221,12 @@ class TestFujiwaPollingSyncStateE2E:
             assert after_second[key] == after_first[key]
         assert "inventory_last_sync_at" in after_second
         assert after_second["inventory_last_sync_at"] >= after_first["inventory_last_sync_at"]
-        # orders + products + returns + inventory + 6 analytics watermarks (#424)
-        assert row_count_after_second == row_count_after_first == 10
+        # orders + products + returns + inventory + 6 analytics watermarks (#424),
+        # plus the single `analytics` VERDICT row #1950 records. That row is a
+        # last-outcome record, not a cursor: `_ENDPOINT_STATE_KEYS` has no
+        # `analytics` key, so `repo.load` above never sees it -- which is why
+        # every cursor assertion in this test is unchanged.
+        assert row_count_after_second == row_count_after_first == 11
         assert "shop_sku_performance_last_sync_at" in after_second
         assert "bestselling_videos_last_sync_at" in after_second
 
@@ -233,7 +238,16 @@ class TestFujiwaPollingSyncStateE2E:
         fujiwa_credential,
         run_replay_poll,
     ):
-        """When one endpoint fails, previously persisted cursors for others remain intact."""
+        """When one endpoint fails, previously persisted cursors for others remain intact.
+
+        The cycle now RAISES on that failure (#1950 criterion 2): before this,
+        `sync_orders` caught the `TikTokAPIError`, reported an `ok=False`
+        outcome, and the cycle completed -- so a poll in which the orders
+        endpoint was down exited zero and nothing retried. Every assertion
+        below is unchanged and still holds, because `_record_cycle` writes the
+        partial sync state BEFORE the verdict is raised; the `pytest.raises` is
+        added on top of them, not in place of them.
+        """
         repo = TikTokSyncStateRepo(session)
         seeded_orders_cursor = EXPECTED_ORDER_CURSOR - 1
         await repo.save(
@@ -241,10 +255,12 @@ class TestFujiwaPollingSyncStateE2E:
             {"orders_last_update_time": seeded_orders_cursor},
         )
 
-        await run_replay_poll(
-            fujiwa_credential=fujiwa_credential,
-            fail_paths=frozenset({ORDER_SEARCH_PATH}),
-        )
+        with pytest.raises(PollCycleFailedError) as excinfo:
+            await run_replay_poll(
+                fujiwa_credential=fujiwa_credential,
+                fail_paths=frozenset({ORDER_SEARCH_PATH}),
+            )
+        assert [failure.resource for failure in excinfo.value.failures] == ["orders"]
 
         loaded = await repo.load(fujiwa_shop.id)
         assert loaded["orders_last_update_time"] == seeded_orders_cursor

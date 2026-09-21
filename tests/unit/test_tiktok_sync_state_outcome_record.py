@@ -149,27 +149,59 @@ class TestNeverSucceededIsQueryable:
         assert row.last_outcome == OUTCOME_SKIPPED
         assert row.last_success_at is None
 
-    async def test_the_analytics_verdict_lands_on_every_analytics_endpoint(self, session, shop_id):
-        """One step, seven endpoints.
+    async def test_the_analytics_verdict_is_recorded_once_not_fanned_out(self, session, shop_id):
+        """One step, one verdict row -- NOT one per analytics endpoint.
 
-        `sync_analytics` fans out and reports ONE outcome. Recording it against
-        a single endpoint would leave six rows that no cycle ever touches, which
-        is the missing-row problem again with extra steps.
+        This is the second design. Fanning the single `analytics` outcome out
+        over the seven analytics endpoints looked like a fair
+        over-approximation, and
+        `tests/integration/test_fujiwa_polling_sync_state_e2e.py::
+        test_repoll_is_idempotent_and_does_not_corrupt_sync_state` showed what
+        it actually did: a poll carrying no `promotion_activity_ids` never runs
+        A-25, and the fan-out stamped `promotion_activity` with
+        `last_outcome='ok'` and a `last_success_at`.
+
+        A recorded success for an endpoint that never executed is the exact
+        class of comfortable-looking lie this issue exists to remove, and it
+        poisons the one query criterion 4 is for. `sync_analytics` reports at
+        step granularity, so that is the granularity recorded; claiming more
+        would be invention, not measurement.
         """
         repo = TikTokSyncStateRepo(session)
         await repo.record_outcomes(shop_id, [_outcome("analytics", fetched=9, persisted=9)])
 
         rows = await _rows(session, shop_id)
-        assert set(rows) == {
-            "shop_sku_performance",
-            "shop_product_performance",
-            "shop_performance",
-            "shop_performance_per_hour",
-            "bestselling_products",
-            "bestselling_videos",
-            "promotion_activity",
-        }
-        assert all(row.last_outcome == OUTCOME_OK for row in rows.values())
+        assert set(rows) == {"analytics"}
+        assert rows["analytics"].last_outcome == OUTCOME_OK
+        assert rows["analytics"].last_success_at is not None
+
+    async def test_a_cycle_that_never_ran_an_analytics_endpoint_claims_no_success_for_it(
+        self, session, shop_id
+    ):
+        """The regression the integration lane caught, pinned here as a unit test.
+
+        `promotion_activity` (A-25) runs only when `promotion_activity_ids` is
+        present in sync_state. A poll without it must leave no trace claiming
+        that endpoint succeeded.
+        """
+        repo = TikTokSyncStateRepo(session)
+        await repo.record_outcomes(shop_id, [_outcome("analytics", fetched=9, persisted=9)])
+
+        rows = await _rows(session, shop_id)
+        assert "promotion_activity" not in rows, (
+            "a verdict was recorded for an analytics endpoint this cycle never ran"
+        )
+
+    async def test_the_analytics_verdict_row_is_not_read_back_as_a_cursor(self, session, shop_id):
+        """`load` must ignore it, or the verdict row would look like sync state.
+
+        `_ENDPOINT_STATE_KEYS` has no `analytics` key, so the row is invisible
+        to the cursor read the poll cycle starts from.
+        """
+        repo = TikTokSyncStateRepo(session)
+        await repo.record_outcomes(shop_id, [_outcome("analytics", fetched=9, persisted=9)])
+
+        assert await repo.load(shop_id) == {}
 
     async def test_recording_does_not_disturb_an_existing_cursor(self, session, shop_id):
         """The verdict is written BESIDE `last_update_time`, never over it.
