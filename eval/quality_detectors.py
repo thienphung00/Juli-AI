@@ -1250,7 +1250,20 @@ MEASURED_TEST_MODULES = 558
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
 #: the third layer, this module's headline on the fifth.
 RECONCILIATION_LAYERS: dict[str, int] = {
-    "no_assert_statement": 439,
+    # 439 -> 440 with #1702, derived from the tree after rebasing onto e6fa7133.
+    # The top layer is a repo-wide count, so it moves whenever main does (438 at
+    # d33c4f5b, 439 once #2072 landed) and has to be re-derived on every rebase,
+    # never carried over. The +1 is two tests whose only verification is
+    # `pytest.raises` (`test_agent_approval_transaction.py::
+    # TestCardSubjectIsTheRunsSubject::
+    # test_a_product_subject_that_is_not_a_uuid_is_refused_not_passed_to_the_fk`
+    # and `::test_a_subject_product_from_another_shop_is_refused`, both re-checked
+    # against this tree rather than assumed), less one this layer already counted
+    # that was deleted with the zero-products refusal it pinned. Every layer below
+    # is UNCHANGED, which is the check that matters and the signature that nothing
+    # about this slice moved: the second layer credits `pytest.raises`, so both new
+    # tests drop out of it and the headline is untouched at 49.
+    "no_assert_statement": 440,
     "and_no_pytest_raises": 121,
     "and_no_mock_assert_called": 106,
     "and_no_unittest_self_assert": 106,
