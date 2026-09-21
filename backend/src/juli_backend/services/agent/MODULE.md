@@ -123,6 +123,28 @@ from juli_backend.services.agent.sanitize import (
   shared whole-structure scan both guards use; raises
   `BannedPatternScanError` if the shared pattern source fails to load/compile.
 
+The package facade itself. The import-boundary contract caps a
+cross-package caller at depth 2 (importlinter's max_cross_package_depth), so
+the api package reaches this one by importing a MODULE OBJECT, never a symbol
+inside one -- and the name it imports is part of this package's public surface
+just as much as a function would be. Both names below are that surface,
+recorded here because nothing else records it:
+
+- `approval` — the approve-is-run-creation transaction module, imported as
+  "from juli_backend.services.agent import approval as approval_module" by
+  api/routes/demo_execution.py. Its contents are listed immediately below.
+- `abuse_limits` — the inbound abuse-limit gate for the agent-run routes,
+  imported the same way by api/routes/demo_execution.py,
+  api/routes/agent_runs.py and api/main.py. Described in full under
+  "Top-level modules".
+
+Neither name is an export in the syntax-tree sense -- a submodule is not a
+function or a class -- so the symbol scanner cannot see it, and the derived
+drift allowlist therefore records both as orphan entries. That is a limitation
+of the symbol scanner, not a claim that the names are unused: the
+module-boundary gate reads this same section and refuses the import without
+them.
+
 Approve-is-run-creation (approval.py, reached as `from
 juli_backend.services.agent import approval`):
 
