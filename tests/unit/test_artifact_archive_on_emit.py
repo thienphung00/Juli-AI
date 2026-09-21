@@ -179,9 +179,17 @@ def test_unarchivable_body_fails_loudly_at_emit_time(tmp_path, monkeypatch):
     blocker = tmp_path / "not-a-dir"
     blocker.write_text("", encoding="utf-8")
     monkeypatch.setenv(artifact_archive.ARCHIVE_DIR_ENV, str(blocker))
+    body = _body_path(tmp_path / "repo", 2067)
 
-    with pytest.raises(artifact_archive.ArtifactArchiveError):
-        common.write_json(_body_path(tmp_path / "repo", 2067), _payload(2067))
+    with pytest.raises(artifact_archive.ArtifactArchiveError) as raised:
+        common.write_json(body, _payload(2067))
+
+    # The exception type alone would also be raised by the unrelated
+    # "no repo root to resolve an archive for" path, so pin it to the copy
+    # failure and to the body it could not save.
+    message = str(raised.value)
+    assert str(body) in message
+    assert "only inside this worktree" in message
 
 
 # ---------------------------------------------------------------------------
