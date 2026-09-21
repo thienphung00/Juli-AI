@@ -15,21 +15,22 @@
       "backend/src/juli_backend/services/scoring",
       "backend/src/juli_backend/models",
       "tests/unit",
-      "docs/adr"
+      "docs/adr",
+      "agent-runtime/scripts/validate"
     ]
   },
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1703.json",
     "ownerSignoffPresent": true,
-    "sha256": "06f214e050172185cca31f900dc3f48c82ce464a30d6a1fc8a4b3e67364bcf34",
+    "sha256": "ae0b3f268d23f1dd2ec58b1f2147b3ad255439ec8f33553b341f694e10a8bce7",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 19205,
-      "validationBytes": 46677
+      "reviewBytes": 20883,
+      "validationBytes": 47150
     },
     "claimVsExecuted": {
       "citedCommandCount": null,
@@ -212,7 +213,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1703-subject-scoped-card-emission",
-        "head": "620552cc667926b6db0031c61abec6aa84155df0",
+        "head": "f68974745d3d653a82b19e2a2895049eb36e616f",
         "shallow": true
       },
       "moduleResolution": {
@@ -323,10 +324,10 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-21T12:44:17Z",
+  "timestamp": "2026-09-21T14:16:44Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1703.json",
-    "sha256": "85f7da197a288e124f6ec44b649ec87fde27772bb6952f2cb1d2da4401e78d22",
+    "sha256": "e576e5a2e488ef5ccd48b5a2d3c9ec2197bc77a677b9e8e12992d8a3cbe9dd6d",
     "status": "PASS"
   },
   "wave": null
