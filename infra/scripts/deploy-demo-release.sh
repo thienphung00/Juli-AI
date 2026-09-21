@@ -390,9 +390,13 @@ start_candidate() {
     done < <(demo_candidate_argv "${release_dir}" "${port}")
 
     systemctl reset-failed "${CANDIDATE_UNIT}" >/dev/null 2>&1 || true
+    # See deploy.sh's landing lane: the candidate is what gets promoted, so it
+    # needs the durable unit's environment. No EnvironmentFile was passed here
+    # before, so a promoted Demo ran with no TIKTOK_EVENTS_API_ACCESS_TOKEN.
     systemd-run --unit="${CANDIDATE_UNIT}" --collect \
         --property=Type=simple \
         --property=WorkingDirectory="${release_dir}/apps/demo" \
+        --property=EnvironmentFile=-/etc/juli/frontend.env \
         --property=Restart=no \
         "${argv[@]}" >&2
 }

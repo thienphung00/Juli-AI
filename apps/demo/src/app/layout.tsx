@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { DemoShell } from "../components/demo-shell";
+import { TikTokTracking } from "../components/tiktok-tracking";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,6 +14,9 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
   return (
     <html lang="vi">
       <body>
+        {/* Loads the TikTok pixel only for a visitor who arrived from an ad —
+            see the component for why the Demo gates what Landing does not. */}
+        <TikTokTracking />
         <DemoShell>{children}</DemoShell>
       </body>
     </html>

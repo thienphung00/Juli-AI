@@ -17,6 +17,7 @@
   "dependencies": {
     "@juli/contracts": "workspace:*",
     "@juli/theme": "workspace:*",
+    "@juli/tiktok-events": "workspace:*",
     "@juli/ui": "workspace:*",
     "@juli/utils": "workspace:*",
     "next": "^16.2.10",

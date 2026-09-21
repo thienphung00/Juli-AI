@@ -29,3 +29,17 @@ export const SECTION_IDS = {
   comparison: "giai-phap",
   contact: "lien-he",
 } as const;
+
+/**
+ * The origins this site is actually served from, and the only ones whose
+ * pages may post to `/api/tt/event`.
+ *
+ * Apex only for production: nginx 301s `www.app-juli.com` to `app-juli.com`
+ * (infra/nginx/app-juli.com.conf), so no page is ever served from www and no
+ * browser will send it as an Origin. The dev entry is the port
+ * `package.json` binds `next dev` and `next start` to.
+ */
+export const SITE_ORIGINS: readonly string[] = [
+  "https://app-juli.com",
+  "http://localhost:3007",
+];

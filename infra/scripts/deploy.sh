@@ -650,9 +650,15 @@ deploy_lane_landing() {
 
     systemctl stop "juli-landing-candidate-${peer_port}" >/dev/null 2>&1 || true
     systemctl reset-failed "juli-landing-candidate-${peer_port}" >/dev/null 2>&1 || true
+    # The candidate is what gets promoted, so it needs the same environment the
+    # durable unit has. Before this, no EnvironmentFile was passed here at all
+    # (only the api lane passed one), so every promoted Landing instance ran
+    # with no TIKTOK_EVENTS_API_ACCESS_TOKEN and the server channel silently
+    # stopped after each deploy. `-` so a host without the secret still starts.
     systemd-run --unit="juli-landing-candidate-${peer_port}" --collect \
         --property=Type=simple \
         --property=WorkingDirectory="${release_dir}/apps/landing" \
+        --property=EnvironmentFile=-/etc/juli/frontend.env \
         --property=Restart=no \
         "${release_dir}/apps/landing/node_modules/.bin/next" start \
         --port "${peer_port}" --hostname 127.0.0.1 >&2

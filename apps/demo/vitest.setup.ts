@@ -22,6 +22,19 @@ if (typeof Element.prototype.scrollIntoView !== "function") {
   Element.prototype.scrollIntoView = vi.fn();
 }
 
+// jsdom does not implement sendBeacon. Without a stub, the TikTok relay's
+// fallback (`fetch(..., { keepalive: true })`) fires a REAL request from any
+// test that reaches a tracked event — an unawaited network call that makes the
+// suite slow and intermittently red. A per-file `vi.fn()` can still override
+// this to assert on what was beaconed.
+if (typeof navigator.sendBeacon !== "function") {
+  Object.defineProperty(navigator, "sendBeacon", {
+    configurable: true,
+    value: vi.fn(() => true),
+    writable: true,
+  });
+}
+
 afterEach(() => {
   cleanup();
 });

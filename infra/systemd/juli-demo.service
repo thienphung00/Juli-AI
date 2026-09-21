@@ -41,6 +41,16 @@ User=root
 WorkingDirectory=/root/releases/demo-current/apps/demo
 Environment=DEMO_LIVE_PORT=3001
 EnvironmentFile=-/etc/juli/demo-runtime.env
+# TIKTOK EVENTS API TOKEN (server channel).
+#
+# /etc/juli/frontend.env carries TIKTOK_EVENTS_API_ACCESS_TOKEN for the relay
+# route at /api/tt/event. A SEPARATE file from demo-runtime.env on purpose:
+# deploy-demo-release.sh truncates and rewrites that one on every deploy
+# (write_demo_runtime_env), so a secret placed there would survive exactly
+# until the next release. The `-` prefix keeps the unit starting on a host
+# where the secret has not been provisioned; the route then answers 503 and
+# says so in the journal.
+EnvironmentFile=-/etc/juli/frontend.env
 # Production Next.js server bound to the loopback upstream Nginx proxies to.
 ExecStart=/root/releases/demo-current/apps/demo/node_modules/.bin/next start --port ${DEMO_LIVE_PORT} --hostname 127.0.0.1
 Restart=on-failure

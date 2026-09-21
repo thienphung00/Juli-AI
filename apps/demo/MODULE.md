@@ -60,6 +60,12 @@ Invariants below.
   - **Signed-in (token present):** `SignedInRunDetail` calls `fetchDemoRuns` (`lib/run-ledger/api-client.ts`, real `GET /v1/demo/runs`) to resolve the run, then `useRunStream(runId)` (`lib/run-surface/use-run-stream.ts`) opens the real SSE transport (`lib/agent-event-stream.ts`) with reconnect/backoff via `Last-Event-ID`. `RunStagedView` renders the live event fold; `OptionPicker`'s confirm/decline calls `submitConfirmationDecision` (`lib/run-surface/confirmation-client.ts`), a real bearer-authenticated `POST /v1/demo/runs/{id}/confirmations/{tool_call_id}`. This path is live-backed end to end.
   - **Replay/anonymous (no token):** `ReplayRunDetail` seeds `RunStagedView` from `useReplayEvents` (`lib/run-surface/use-replay-events.ts`), which reveals the one bundled, tool-captured golden scenario (`lib/run-surface/golden-scenarios/optimize_product_confirm_pause.json`, imported statically — never fetched, verified absent-from-build-fails-loudly by `scripts/verify-replay-scenario-in-build.mjs`) paced by its own captured inter-event deltas, rebased to now. Reaching and viewing this run issues zero `/v1/*` requests — matches `RunDetailRoute`'s own test, `run-detail-route.test.tsx`'s "replay path ... zero /v1/* requests" case.
 - `RunStagedView` / `RunStepper` / `RunStageCanvas` / `OptionPicker` — the one-stage-at-a-time canvas, top stepper, and consent-grade option picker (PUI-DESIGN.md §2/§3); shared verbatim by both doors above, so replay and signed-in render identically by construction.
+- `POST /api/tt/event` — the TikTok Events API relay, sharing one data source
+  with `apps/landing`. Same-origin, so an ad blocker that stops the pixel does
+  not stop this. Accepts only this site's own origins (`lib/site-origins.ts`)
+  and only the events in `@juli/tiktok-events`'s allowlist. It reaches TikTok,
+  never `juli-api`, so it is outside every `/v1/*` claim below. Only ever
+  called for an ad visitor — see the invariant.
 
 ## Dependencies
 
@@ -67,13 +73,28 @@ Invariants below.
 - `@juli/theme` — semantic tokens.
 - `@juli/ui` — accessible destination cards and primary navigation.
 - `@juli/utils` — Vietnamese date/number formatting.
+- `@juli/tiktok-events` — TikTok pixel, event vocabulary, and the relay handler.
 
 ## Invariants
 
 - Home contains no KPI, recommendation action, execution queue, template, or threshold.
 - User-visible copy is Vietnamese with correct diacritics.
 - Analytics (`/analytics`) performs read-only `GET /v1/demo/analytics` (no force-recompute); Home, Settings, and Decisions remain mock fixtures.
-- Dùng thử Demo stays sessionless and issues no request; Đăng nhập với Google
+- **The TikTok channel is loaded only for a visitor who arrived from a TikTok
+  ad** — a `ttclid` on the landing URL, or one stored from an earlier visit
+  (`components/tiktok-tracking.tsx`, and the same gate in
+  `lib/tiktok-registration.ts` so the server relay cannot report an organic
+  visitor either). Owner decision, 2026-09-21. `apps/landing` loads it for
+  everyone; the Demo cannot, because entering and browsing the anonymous
+  replay issues no request that leaves the origin — asserted by
+  `e2e/exit-gate/locale-and-assistance.spec.ts` and kept covered by
+  `tests/unit/test_phase_2_6_demo_exit_gate.py`. The consequence, stated so it
+  is not rediscovered as a bug: no retargeting or lookalike audience is built
+  from organic Demo visitors. `e2e/analytics/tiktok-ad-visitor.spec.ts` owns
+  the other direction — that the pixel really does load for an ad visitor,
+  which an absence test cannot show.
+- Dùng thử Demo stays sessionless and issues no request at all for an organic
+  visitor; Đăng nhập với Google
   (issue #1319) is real code, but only a real LINK when
   `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` were present at
   `next build` time (Next inlines `NEXT_PUBLIC_*` at build, never at

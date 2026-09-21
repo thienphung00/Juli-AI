@@ -23,11 +23,13 @@ FETCH_SCRIPT="${SCRIPT_DIR}/fetch-secrets.sh"
 NGINX_UPSTREAM_DIR="${NGINX_UPSTREAM_DIR:-/etc/nginx/juli}"
 API_ENV_FILE="/etc/juli/api.env"
 WEB_ENV_FILE="/etc/juli/web.env"
+FRONTEND_ENV_FILE="/etc/juli/frontend.env"
 API_TMP="$(mktemp /etc/juli/.api.env.XXXXXX)"
 WEB_TMP="$(mktemp /etc/juli/.web.env.XXXXXX)"
+FRONTEND_TMP="$(mktemp /etc/juli/.frontend.env.XXXXXX)"
 
 cleanup() {
-    rm -f "${API_TMP}" "${WEB_TMP}"
+    rm -f "${API_TMP}" "${WEB_TMP}" "${FRONTEND_TMP}"
 }
 trap cleanup EXIT
 
@@ -61,7 +63,14 @@ for key, value in data.items():
     if value is None:
         sys.exit(f"secret key {key!r} must not be null")
     print(f"{key}={value}")
-' > "${dest}"
+' > "${dest}" || return 1
+  # `|| return 1` above is load-bearing. Without it this function returns
+  # chmod's status, not the pipeline's — and because every caller invokes it as
+  # `if ! fetch_to ...`, errexit is suppressed for the whole body, so a failed
+  # fetch fell through to chown/chmod and returned 0. The caller then compared
+  # api.env against an EMPTY temp file, saw a change, moved the empty file into
+  # place and restarted the API with no environment at all. Silent, and on a
+  # daily timer.
   chown root:root "${dest}"
   chmod 600 "${dest}"
 }
@@ -77,8 +86,17 @@ if ! fetch_to "${WEB_SECRET_ID:-juli/web/production}" "${WEB_TMP}"; then
     exit 1
 fi
 
+# The Landing/Demo secret is optional — see fetch-secrets.sh for why wiring it
+# as a hard requirement would let a missing secret take the API down.
+frontend_available=true
+if ! fetch_to "${FRONTEND_SECRET_ID:-juli/frontend/production}" "${FRONTEND_TMP}"; then
+    echo "WARN: optional secret juli/frontend/production is unavailable — skipping." >&2
+    frontend_available=false
+fi
+
 api_changed=false
 web_changed=false
+frontend_changed=false
 
 if [ ! -f "${API_ENV_FILE}" ] || ! cmp -s "${API_ENV_FILE}" "${API_TMP}"; then
     api_changed=true
@@ -86,8 +104,13 @@ fi
 if [ ! -f "${WEB_ENV_FILE}" ] || ! cmp -s "${WEB_ENV_FILE}" "${WEB_TMP}"; then
     web_changed=true
 fi
+if [ "${frontend_available}" = true ] &&
+   { [ ! -f "${FRONTEND_ENV_FILE}" ] || ! cmp -s "${FRONTEND_ENV_FILE}" "${FRONTEND_TMP}"; }; then
+    frontend_changed=true
+fi
 
-if [ "${api_changed}" = false ] && [ "${web_changed}" = false ]; then
+if [ "${api_changed}" = false ] && [ "${web_changed}" = false ] &&
+   [ "${frontend_changed}" = false ]; then
     echo "No secret changes detected — services left running."
     exit 0
 fi
@@ -160,6 +183,36 @@ if [ "${web_changed}" = true ]; then
     echo "Updated ${WEB_ENV_FILE} — restarting juli-web."
     echo "WARN: if NEXT_PUBLIC_* changed, run deploy-release.sh to rebuild the frontend." >&2
     systemctl restart juli-web
+fi
+
+# Landing and Demo run the same blue/green shape as the API (#839, #843): the
+# process actually serving is a TRANSIENT candidate unit, and the persistent
+# juli-landing/juli-demo unit is usually the drained previous instance or
+# inactive. Restarting the persistent unit would report success while the live
+# process kept the old token — the exact silent no-op documented above for the
+# API. So resolve the live unit from the nginx include, the same way.
+live_frontend_unit() {
+    # $1 = lane name as used in the include and unit names (landing|demo).
+    local lane="$1" conf="${NGINX_UPSTREAM_DIR}/$1-upstream.conf" port candidate
+    if [ -f "${conf}" ]; then
+        port="$(awk 'match($0, /server[[:space:]]+127\.0\.0\.1:[0-9]+;/) {
+            s = substr($0, RSTART, RLENGTH); sub(/.*:/, "", s); sub(/;/, "", s); print s; exit }' "${conf}")"
+        candidate="juli-${lane}-candidate-${port}.service"
+        if [ -n "${port}" ] && systemctl is-active --quiet "${candidate}"; then
+            echo "${candidate}"
+            return 0
+        fi
+    fi
+    echo "juli-${lane}.service"
+}
+
+if [ "${frontend_changed}" = true ]; then
+    mv -f "${FRONTEND_TMP}" "${FRONTEND_ENV_FILE}"
+    for lane in landing demo; do
+        unit="$(live_frontend_unit "${lane}")"
+        echo "Updated ${FRONTEND_ENV_FILE} — restarting ${unit}."
+        systemctl restart "${unit}" || echo "WARN: ${unit} failed to restart" >&2
+    done
 fi
 
 echo "== refresh-secrets: complete =="

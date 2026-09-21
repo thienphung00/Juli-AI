@@ -120,6 +120,13 @@ export default function PrivacyPolicyPage() {
             <ul>
               <li>Supabase — xác thực đăng nhập (Google) và lưu trữ cơ sở dữ liệu</li>
               <li>TikTok Shop API — nguồn dữ liệu shop của bạn</li>
+              <li>
+                TikTok Pixel và Events API — đo lường hiệu quả quảng cáo. Nhận địa chỉ
+                IP, thông tin trình duyệt, trang bạn xem trên website này, và mã định
+                danh quảng cáo của TikTok nếu bạn đến từ một quảng cáo. Nếu bạn đăng ký,
+                email của bạn được băm (SHA-256) trước khi gửi — TikTok không nhận được
+                email dạng gốc
+              </li>
             </ul>
             <OwnerPlaceholder>
               xác nhận danh sách đầy đủ các bên xử lý dữ liệu (bao gồm nhà cung cấp hạ tầng

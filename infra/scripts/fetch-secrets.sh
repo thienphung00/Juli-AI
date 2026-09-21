@@ -9,14 +9,15 @@
 # credential_process (aws_signing_helper) and set AWS_PROFILE below.
 #
 # Secrets (JSON blob per app):
-#   juli/api/production -> /etc/juli/api.env
-#   juli/web/production -> /etc/juli/web.env
+#   juli/api/production      -> /etc/juli/api.env
+#   juli/web/production      -> /etc/juli/web.env
+#   juli/frontend/production -> /etc/juli/frontend.env   (OPTIONAL, see below)
 #
 # Usage (on the VPS, as root):
 #   ./infra/scripts/fetch-secrets.sh
 #
 # Env overrides: AWS_REGION, AWS_CONFIG_FILE, AWS_PROFILE,
-#                API_SECRET_ID, WEB_SECRET_ID.
+#                API_SECRET_ID, WEB_SECRET_ID, FRONTEND_SECRET_ID.
 set -euo pipefail
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -29,8 +30,10 @@ AWS_CONFIG_FILE="${AWS_CONFIG_FILE:-/etc/aws/config}"
 AWS_PROFILE="${AWS_PROFILE:-juli-vps-secrets-reader}"
 API_SECRET_ID="${API_SECRET_ID:-juli/api/production}"
 WEB_SECRET_ID="${WEB_SECRET_ID:-juli/web/production}"
+FRONTEND_SECRET_ID="${FRONTEND_SECRET_ID:-juli/frontend/production}"
 API_ENV_FILE="/etc/juli/api.env"
 WEB_ENV_FILE="/etc/juli/web.env"
+FRONTEND_ENV_FILE="/etc/juli/frontend.env"
 
 export AWS_CONFIG_FILE AWS_PROFILE AWS_REGION
 
@@ -100,7 +103,30 @@ for key, value in data.items():
     echo "Wrote $(wc -l < "${dest}") key(s) to ${dest} (values redacted)."
 }
 
+# The Landing/Demo server-side secret is OPTIONAL, and that is deliberate.
+#
+# This script is ExecStartPre= on juli-api and juli-web. write_env_file exits 1
+# on a missing secret, so wiring juli/frontend/production in the same way would
+# stop the API booting on any host where that secret has not been created yet —
+# trading a missing analytics channel for an outage. It warns and continues
+# instead; the relay route answers 503 and logs loudly when its token is absent
+# (packages/tiktok-events/src/server/handler.ts), which is where that failure
+# belongs.
+write_env_file_optional() {
+    # $1 = secret id, $2 = destination path.
+    local secret_id="$1" dest="$2"
+
+    if ! fetch_secret_json "${secret_id}" >/dev/null 2>&1; then
+        echo "WARN: optional secret ${secret_id} is unavailable — ${dest} left as-is." >&2
+        echo "WARN: the TikTok Events API relay will answer 503 until it exists." >&2
+        return 0
+    fi
+
+    write_env_file "${secret_id}" "${dest}"
+}
+
 echo "== Fetching secrets from AWS Secrets Manager (region ${AWS_REGION}, profile ${AWS_PROFILE}) =="
 write_env_file "${API_SECRET_ID}" "${API_ENV_FILE}"
 write_env_file "${WEB_SECRET_ID}" "${WEB_ENV_FILE}"
-echo "== Done. Restart juli-api/juli-web (or redeploy) to pick up any changes. =="
+write_env_file_optional "${FRONTEND_SECRET_ID}" "${FRONTEND_ENV_FILE}"
+echo "== Done. Restart juli-api/juli-web/juli-landing/juli-demo (or redeploy) to pick up any changes. =="

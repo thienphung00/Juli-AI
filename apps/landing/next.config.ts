@@ -5,7 +5,7 @@ import type { NextConfig } from "next";
 // for the measured reasoning; the same decision covers both public Next apps.
 // The service starts node_modules/.bin/next directly from this directory.
 const nextConfig: NextConfig = {
-  transpilePackages: ["@juli/ui", "@juli/brand"],
+  transpilePackages: ["@juli/ui", "@juli/brand", "@juli/tiktok-events"],
 };
 
 export default nextConfig;
