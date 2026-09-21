@@ -55,7 +55,7 @@ deep collaborator directly, unrestricted, and exposes plain functions:
   (that package's `MODULE.md`: "so nothing depends on a concrete adapter by
   accident") -- `composition.py` is the one sanctioned place that concrete
   dependency is allowed to exist, reached the same depth-2-facade way
-  `_default_playbook` below reaches `services.agent.playbooks`. Fails closed
+  `_playbook_for_run` below reaches `services.agent.playbooks`. Fails closed
   via `resolve_llm_config()`'s `require_env("OPENAI_API_KEY")` before the
   adapter is ever constructed.
 - `build_product_tool_registry()` -- the real, populated Optimize Product
@@ -74,10 +74,10 @@ deep collaborator directly, unrestricted, and exposes plain functions:
   reach `core.security`'s credential resolvers without adding a new
   deep-import baseline entry.
 
-The third and fourth seams, `_default_playbook` and (implicitly, via
+The third and fourth seams, `_playbook_for_run` and (implicitly, via
 `composition.py`) nothing else, needed no new composition helper for the
-playbook: `OPTIMIZE_PRODUCT_PLAYBOOK` (`services.agent.playbooks
-.optimize_product`) is *already* re-exported at `services.agent.playbooks`'s
+playbook: the registry (`services.agent.playbooks::get_playbook`, issue
+#1702) is *already* exposed at `services.agent.playbooks`'s
 own depth-2 public facade (that package's own docstring) -- exactly the same
 `from juli_backend.services.agent import <child> as <alias>` idiom
 `api/routes/agent_runs.py::_resolve_optimize_product_prompt_pin` already
@@ -103,7 +103,7 @@ here is also what makes stamping actually correct: `WorkflowRunner.run`
 .workflow_key, self._playbook.version)` / `prompt_version(...)` /
 `prompt_sha256(...)` itself and includes `prompt_version` on the
 `WorkflowStartedEvent` payload it emits -- that seam already existed and
-needed no change here, it was simply unreachable while `_default_playbook`
+needed no change here, it was simply unreachable while `_default_playbook` (now `_playbook_for_run`)
 raised. The separate `workflow_runs.prompt_version`/`.prompt_sha256`
 *columns* are stamped at run-creation time by `api/routes/agent_runs.py`'s
 `_resolve_optimize_product_prompt_pin` (issue #1145 territory, unchanged) --
@@ -443,14 +443,23 @@ def _default_tool_registry():
     return composition_module.build_product_tool_registry()
 
 
-def _default_playbook():
-    """The real, concrete `OPTIMIZE_PRODUCT_PLAYBOOK` (issue #1173) --
-    already re-exported at `services.agent.playbooks`'s own depth-2 public
-    facade, so no `composition.py` helper is needed for this one (see module
-    docstring)."""
+def _playbook_for_run(run: WorkflowRun):
+    """The real, concrete `Playbook` THIS run executes (issue #1702) --
+    resolved from the run's own `workflow_key` (#1701's column) through
+    `services.agent.playbooks`'s registry, reached at that package's own
+    depth-2 public facade, so no `composition.py` helper is needed for this
+    one (see module docstring).
+
+    Replaces `_default_playbook`, which returned `OPTIMIZE_PRODUCT_PLAYBOOK`
+    for every run no matter which card started it -- finding F3 of #1365's
+    audit. `approve_action_card` stamps the key from the same registry this
+    reads, so the playbook the worker executes is the one the seller's card
+    named. `UnregisteredWorkflowError` propagates: a run whose workflow
+    cannot be resolved must fail loudly, never execute a substitute.
+    """
     from juli_backend.services.agent import playbooks as playbooks_module
 
-    return playbooks_module.OPTIMIZE_PRODUCT_PLAYBOOK
+    return playbooks_module.get_playbook(run.workflow_key)
 
 
 async def _default_read_resources(
@@ -604,13 +613,14 @@ async def _construct_runner(
     from juli_backend.services.agent import runner as runner_module
 
     registry = _default_tool_registry()
-    playbook = _default_playbook()
+    playbook = _playbook_for_run(run)
     # #1939: the ledger stamps this run's workflow key into every fresh
     # dispatch's `payload_json`, which is where `record_workflow_outcome` reads
     # it back from (`extract_workflow_id`). Referenced off the playbook, never
-    # retyped: the value is `playbooks/optimize_product.py::WORKFLOW_KEY`, the
-    # same namespace as `VALIDATED_WORKFLOW_IDS` -- not the prompt-directory
-    # name, and not parsed out of `workflow_runs.prompt_version`.
+    # retyped: the value is the registry key `approve_action_card` stamped on
+    # this run (#1702), in the same namespace as `VALIDATED_WORKFLOW_IDS` --
+    # not the prompt-directory name, and not parsed out of
+    # `workflow_runs.prompt_version`.
     ledger = runner_module.ToolExecutionLedger(
         sync_session, shop_id=run.shop_id, workflow_id=playbook.workflow_key
     )

@@ -110,10 +110,16 @@ async def product(session, shop):
 
 
 @pytest_asyncio.fixture
-async def card(session, shop):
+async def card(session, shop, product):
+    """Depends on `product` since #1702: the run's subject is the CARD's
+    subject, so a card with no subject is refused (409) before any run is
+    created. Every producer's card is `subject_type='unscoped'` until #1703,
+    which is this slice's coexistence window."""
     c = ActionCard(
         shop_id=shop.id,
         workflow_key="optimize_product_2",
+        subject_type="product",
+        subject_id=str(product.id),
         priority=1,
         severity="high",
         title="Optimize this listing",
@@ -238,6 +244,8 @@ async def test_approve_cross_tenant_card_returns_404_never_403(
     other_card = ActionCard(
         shop_id=other_shop.id,
         workflow_key="optimize_product_2",
+        subject_type="product",
+        subject_id=str(uuid.uuid4()),
         priority=1,
         severity="high",
         title="Other shop's card",
@@ -307,14 +315,41 @@ async def test_repeat_approve_of_the_same_card_returns_409_on_the_second_call(
 # ---------------------------------------------------------------------------
 
 
-async def test_approve_with_zero_products_returns_409_not_500(app, user, shop, card):
+async def test_approve_of_a_card_with_no_subject_returns_409_not_500(
+    app, session, user, shop, product
+):
+    """Replaces `test_approve_with_zero_products_returns_409_not_500`
+    (issue #1702). Approve no longer derives a product from the shop, so
+    "this shop has no products" stopped being a reason it can fail and
+    `NoProductsForShop` is deleted. The card's own subject is the binding,
+    and a card that carries none -- which is EVERY card a producer writes
+    until #1703 -- gets the same 409, for an honest reason.
+
+    The shop here does have a product; the card simply does not name it.
+    """
+    unscoped = ActionCard(
+        shop_id=shop.id,
+        workflow_key="optimize_product_2",
+        priority=1,
+        severity="high",
+        title="A card that predates subject scoping",
+        description="",
+        recommendation_payload=json.dumps({}),
+        status="active",
+        computed_at=_naive_utc_now(),
+    )
+    session.add(unscoped)
+    await session.commit()
+    assert unscoped.subject_type == "unscoped"
+
     mock_task = _mock_run_agent_workflow_task()
     with patch("juli_backend.workers.tasks.agent_workflow.run_agent_workflow", mock_task):
         async with _client_for(app, user, shop) as client:
-            resp = await client.post(f"/v1/demo/decisions/{card.id}/approve")
+            resp = await client.post(f"/v1/demo/decisions/{unscoped.id}/approve")
 
     assert resp.status_code == 409
     assert resp.status_code != 500
+    assert resp.json()["detail"] == "This decision has no subject Juli can act on"
     mock_task.delay.assert_not_called()
 
 
@@ -342,6 +377,8 @@ async def test_second_active_run_for_the_same_derived_product_returns_409_not_50
     card_one = ActionCard(
         shop_id=shop.id,
         workflow_key="optimize_product_2",
+        subject_type="product",
+        subject_id=str(product.id),
         priority=1,
         severity="high",
         title="Card one",
@@ -352,11 +389,15 @@ async def test_second_active_run_for_the_same_derived_product_returns_409_not_50
     )
     card_two = ActionCard(
         shop_id=shop.id,
-        # action_cards uniques on (shop_id, workflow_key) -- distinct key so
-        # both cards can coexist; prompt-pin resolution ignores the card's
-        # own workflow_key regardless (see approval.py's
-        # freed by _free_workflow_key_slot after card_one is consumed).
+        # action_cards uniques on (shop_id, workflow_key) -- the slot is
+        # freed by _free_workflow_key_slot after card_one is consumed.
         workflow_key="optimize_product_2",
+        # The SAME subject as card_one (#1702). What collides at the run
+        # level is now `uq_workflow_runs_active_shop_product`'s re-keyed
+        # (shop_id, workflow_key, subject_type, subject_ref) -- which is
+        # only reachable because both cards name the same product.
+        subject_type="product",
+        subject_id=str(product.id),
         priority=1,
         severity="high",
         title="Card two",
@@ -439,6 +480,10 @@ async def test_approve_conflict_is_logged(app, session, user, shop, card, produc
             second_card = ActionCard(
                 shop_id=shop.id,
                 workflow_key="optimize_product_2",
+                # Same subject as `card` (#1702) -- that is what makes the
+                # second run collide on the re-keyed active-run index.
+                subject_type="product",
+                subject_id=str(product.id),
                 priority=1,
                 severity="high",
                 title="Second card",

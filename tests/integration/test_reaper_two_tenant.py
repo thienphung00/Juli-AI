@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 import pytest_asyncio
@@ -216,3 +216,111 @@ async def test_reaper_enumeration_returns_both_tenants_as_juli_app(two_tenants):
             "migration 052 widened the enumeration to waiting_approval; "
             f"{tenant.expired_approval_run_id} is missing"
         )
+
+
+async def test_each_run_is_reaped_by_its_own_workflows_policy_as_juli_app(
+    two_tenants, owner_engine
+):
+    """AC 4 of #1702, through the REAL Postgres path.
+
+    `tests/unit/test_reaper_per_workflow_policy.py` proves the per-run
+    resolution on SQLite, where `_enumerate_active_runs` takes its
+    non-Postgres branch and neither RLS nor `with_shop_scope` does anything.
+    This proves the same decision survives the path production actually
+    takes: the `enumerate_active_workflow_runs()` SECURITY DEFINER function
+    as `juli_app`, the per-run `with_shop_scope`, and the RLS policies on
+    `workflow_runs`/`workflow_run_events`.
+
+    Two runs on ONE tenant, identical age (400s of silence), differing only
+    in `workflow_key`. 400s sits strictly between the test workflow's
+    threshold (10s wall clock + the fixed 300s slack = 310s) and Optimize
+    Product's (300 + 300 = 600s), so a reaper carrying one global threshold
+    reaps both or neither.
+
+    The two runs share one product on purpose: since #1701 re-keyed
+    `uq_workflow_runs_active_shop_product` to
+    `(shop_id, workflow_key, subject_type, subject_ref)`, two DIFFERENT
+    workflows on the same subject are no longer a uniqueness collision, and
+    this INSERT pair would have failed before that migration.
+    """
+    from juli_backend.services.agent import playbooks as playbooks_module
+    from tests.support.workflow_registry import TEST_WORKFLOW_KEY, make_test_playbook
+
+    tenant1, _tenant2 = two_tenants
+    now = datetime.now(UTC)
+    silence = timedelta(seconds=400)
+
+    prod_run_id = uuid.uuid4()
+    test_run_id = uuid.uuid4()
+    subject_product_id = uuid.uuid4()
+
+    with owner_engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO public.products (id, shop_id, tiktok_product_id, name, status, "
+                " update_time, created_at, updated_at) "
+                "VALUES (:id, :shop_id, :tiktok_id, 'per-workflow subject', 'active', "
+                " :now, :now, :now)"
+            ),
+            {
+                "id": str(subject_product_id),
+                "shop_id": str(tenant1.shop_id),
+                "tiktok_id": f"tt-{subject_product_id.hex[:10]}",
+                "now": now,
+            },
+        )
+        for run_id, workflow_key in (
+            (prod_run_id, "optimize_product_2"),
+            (test_run_id, TEST_WORKFLOW_KEY),
+        ):
+            conn.execute(
+                text(
+                    "INSERT INTO public.workflow_runs "
+                    "(id, shop_id, product_id, workflow_key, subject_type, subject_ref, state, "
+                    " status, prompt_version, prompt_sha256, running_seconds_elapsed, "
+                    " cancel_requested, created_at, updated_at) "
+                    "VALUES (:id, :shop_id, :product_id, :workflow_key, 'product', "
+                    " CAST(:product_id AS text), '{}', 'running', 'v1', :sha, 0, false, "
+                    " :created, :created)"
+                ),
+                {
+                    "id": str(run_id),
+                    "shop_id": str(tenant1.shop_id),
+                    "product_id": str(subject_product_id),
+                    "workflow_key": workflow_key,
+                    "sha": "0" * 64,
+                    "created": now - silence,
+                },
+            )
+
+    test_playbook = make_test_playbook(wall_clock_timeout_s=10)
+    with playbooks_module.playbook_registered_for_test(test_playbook):
+        async with juli_app_session() as session:
+            result = await reaper.reap_workflow_runs(
+                session,
+                now=now,
+                has_live_task=_never_live,
+            )
+            await session.commit()
+
+    reaped = set(result.stale_runs_reaped)
+    assert test_run_id in reaped, (
+        f"the run whose OWN workflow times out at 10s must be reaped at 400s of "
+        f"silence; reaped {reaped}"
+    )
+    assert prod_run_id not in reaped, (
+        "the optimize_product_2 run of IDENTICAL age must NOT be reaped -- its own "
+        f"threshold is 600s; reaped {reaped}"
+    )
+
+    # Python state is not evidence: read the rows back as the owner.
+    with owner_engine.connect() as conn:
+        statuses = dict(
+            conn.execute(
+                text("SELECT id, status FROM public.workflow_runs WHERE id IN (:a, :b)").bindparams(
+                    a=str(prod_run_id), b=str(test_run_id)
+                )
+            ).all()
+        )
+    assert statuses[test_run_id] == "failed"
+    assert statuses[prod_run_id] == "running"

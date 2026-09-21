@@ -131,10 +131,11 @@ async def async_engine_factory():
 async def _seed_shop_card_and_one_product(
     factory,
 ) -> tuple[uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID]:
-    """Deliberately exactly ONE product for the shop -- both concurrent
-    callers below MUST derive the same `product_id`, so the partial unique
-    index (not incidental revenue-tiebreak divergence) is what forces
-    "exactly one run". Returns `(shop_id, card_id, product_id, user_id)` --
+    """Deliberately exactly ONE product for the shop, and the card names it
+    as its subject -- both concurrent callers below read the SAME
+    `(workflow_key, subject)` off that one card (issue #1702 replaced the
+    revenue derivation with this), so the partial unique index is what
+    forces "exactly one run". Returns `(shop_id, card_id, product_id, user_id)` --
     Postgres enforces `action_card_approvals.approved_by_user_id`'s FK for
     real (SQLite in the unit suite does not by default), so every caller
     below must approve as this real seeded user, never a bare `uuid.uuid4()`.
@@ -161,6 +162,13 @@ async def _seed_shop_card_and_one_product(
             id=uuid.uuid4(),
             shop_id=shop.id,
             workflow_key="optimize_product_2",
+            # #1702: the run's subject is the CARD's subject. Without these
+            # two columns approve refuses the card outright, which is the
+            # coexistence window with #1703 (no producer writes a subject
+            # yet) -- named here so a future reader knows this fixture is
+            # standing in for what #1703 will emit.
+            subject_type="product",
+            subject_id=str(product.id),
             priority=1,
             severity="high",
             title="Concurrency test card",

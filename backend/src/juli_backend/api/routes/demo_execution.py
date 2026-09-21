@@ -136,11 +136,17 @@ async def approve_demo_decision(
             status_code=status.HTTP_409_CONFLICT,
             detail="Decision is not active",
         ) from exc
-    except approval_module.NoProductsForShop as exc:
+    except approval_module.CardSubjectNotApprovable as exc:
+        # Replaces the NoProductsForShop branch (issue #1702): approve no
+        # longer derives a product from the shop, so "this shop has no
+        # products" stopped being a reason it can fail. The card's own
+        # subject is now the binding, and a card that carries none is
+        # refused with this 409 instead. Same status code, different and
+        # honest reason.
         await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Shop has no products to bind this run to",
+            detail="This decision has no subject Juli can act on",
         ) from exc
     except approval_module.WorkflowNotExecutable as exc:
         await session.rollback()

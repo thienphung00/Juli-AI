@@ -123,6 +123,28 @@ from juli_backend.services.agent.sanitize import (
   shared whole-structure scan both guards use; raises
   `BannedPatternScanError` if the shared pattern source fails to load/compile.
 
+Approve-is-run-creation (approval.py, reached as `from
+juli_backend.services.agent import approval`):
+
+- The transaction and its result (ADR-075 decision 1, ADR-082, #1222;
+  rewritten by #1702) — `approve_action_card` returns an `ApprovalResult`
+  carrying the new run's id, the card's id, the approval audit row's id, and
+  the run's bound product, workflow key, subject type, subject ref and
+  status. It resolves the approved card's OWN workflow through the playbook
+  registry and the approved card's OWN subject from the card's subject
+  columns, and never commits — the caller does.
+- The four fail-closed refusals, every one raised BEFORE the flush and all
+  translated to HTTP by the approve route — `ActionCardNotFound` (404,
+  identical for a nonexistent and a cross-tenant card so the route cannot
+  become an existence oracle), `ActionCardNotActive` (409),
+  `WorkflowNotExecutable` (409, the card's workflow key has no registered
+  playbook — ADR-084 decision 3), and `CardSubjectNotApprovable` (409, the
+  card carries no subject, or a subject kind this runtime cannot bind a run
+  to yet). The zero-products refusal was deleted by #1702 together with the
+  highest-revenue derivation it reported: approve no longer asks the shop
+  for a product, so "this shop has no products" stopped being a reason it
+  can fail.
+
 ## Dependencies
 
 - stdlib only (`json`, `re`, `pathlib`, `dataclasses`, `functools`, `math`,
