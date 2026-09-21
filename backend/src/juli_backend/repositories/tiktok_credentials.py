@@ -43,6 +43,19 @@ def _capability_value(capability: TikTokCapability | str) -> str:
     return capability.value if isinstance(capability, TikTokCapability) else capability
 
 
+def parse_granted_scopes(scopes: str | None) -> frozenset[str]:
+    """Parse the stored comma-separated scope list into a set of scope names.
+
+    ``None``, ``""``, and a string of only commas/whitespace all parse to the
+    empty set -- there is deliberately no distinct "unknown" value. See
+    :meth:`TikTokCredentialRepo.has_scope` for why an empty set means "not
+    granted" rather than "unknown".
+    """
+    if not scopes:
+        return frozenset()
+    return frozenset(scope.strip() for scope in scopes.split(",") if scope.strip())
+
+
 class TikTokCredentialRepo(SessionRepo):
     async def create(
         self,
@@ -119,6 +132,31 @@ class TikTokCredentialRepo(SessionRepo):
             TikTokCredential.shop_id == shop_id,
             missing=NotFound(f"No credentials found for shop {shop_id}"),
         )
+
+    async def has_scope(self, shop_id: uuid.UUID, scope: str) -> bool:
+        """Whether the shop's current credential was granted ``scope``.
+
+        Fails closed. A credential whose ``scopes`` column is empty or NULL --
+        every shop that authorised before #1714 persisted the update-branch
+        scope list, and any credential row a caller manages to seed without
+        scope data -- reports every scope as **not granted**, never
+        "unknown". The alternative (treating an absent record as a grant, or
+        surfacing a third "unknown" state a caller must remember to handle)
+        is exactly how a scope checker becomes worse than none at all: a
+        scoped vendor call would go out with no evidence TikTok ever approved
+        it, and the one caller who checked would be the one who got it wrong.
+        A shop that needs to prove a scope it authorised before this landed
+        re-authorises once (Partner Center enabled the scopes 2026-09-07,
+        per issue #1714) and the normal update-branch write covers it from
+        then on.
+
+        Raises :class:`NotFound` when the shop has no credential row at all
+        -- that is a different condition ("not connected") than "connected
+        but this scope is missing", and callers that care about the
+        distinction should not have it collapsed into a bare ``False``.
+        """
+        credential = await self.get_by_shop(shop_id)
+        return scope in parse_granted_scopes(credential.scopes)
 
     async def _newest(self, *criteria: Any, missing: NotFound) -> TikTokCredential:
         stmt = (
@@ -293,4 +331,9 @@ class TikTokSyncStateRepo(SessionRepo):
         await self._session.flush()
 
 
-__all__ = ["NEEDS_REAUTH", "TikTokCredentialRepo", "TikTokSyncStateRepo"]
+__all__ = [
+    "NEEDS_REAUTH",
+    "TikTokCredentialRepo",
+    "TikTokSyncStateRepo",
+    "parse_granted_scopes",
+]
