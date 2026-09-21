@@ -278,7 +278,15 @@ class TestTheVerifiedEmailIsCaptured:
     grant the last test here is exactly the #1897 incident again.
     """
 
-    async def test_first_sighting_stores_the_verified_email_and_name(self):
+    async def test_first_sighting_reads_the_verified_email_claim_instead_of_inventing_data(
+        self,
+    ):
+        """The claim is read from the token; nothing about this row is invented.
+
+        Through the real route, as `juli_app`, against real migrations -- so
+        the RLS policies and the grants are the deployed ones, not the SQLite
+        fixture's absence of both.
+        """
         sub = uuid.uuid4()
 
         async with juli_app_async_sessionmaker() as factory:

@@ -68,7 +68,14 @@ def _google_payload(**overrides) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def test_a_verified_google_token_yields_the_email_and_the_name() -> None:
+def test_a_verified_google_token_yields_the_email_and_name_with_zero_screens() -> None:
+    """No screen, no field, no friction -- the claims are already in the token.
+
+    This is #1973's fourth acceptance criterion in one assertion: a verified
+    Google sign-in yields the address and the name with nothing asked of the
+    seller, because `verify_supabase_jwt` has already checked the payload
+    these come out of.
+    """
     identity = verified_identity(_google_payload())
 
     assert identity == VerifiedIdentity(email=EMAIL, display_name=NAME)
@@ -192,7 +199,7 @@ async def test_first_sighting_without_a_verified_claim_leaves_the_columns_null(
     assert (user.email, user.display_name, user.phone) == (None, None, None)
 
 
-async def test_a_returning_seller_whose_row_predates_the_column_is_backfilled(
+async def test_a_returning_seller_is_backfilled_where_a_claim_is_recoverable(
     session,
 ) -> None:
     """THE BACKFILL (#1973), and the only one available.
