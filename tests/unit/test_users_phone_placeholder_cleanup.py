@@ -48,22 +48,28 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS_ROOT = REPO_ROOT / "backend/src/juli_backend/database/migrations"
 VERSIONS_DIR = MIGRATIONS_ROOT / "versions"
 DEFERRED_DIR = MIGRATIONS_ROOT / "deferred"
-CLEANUP_PATH = DEFERRED_DIR / "070_users_placeholder_phone_cleanup.py"
+CLEANUP_PATH = DEFERRED_DIR / "072_users_placeholder_phone_cleanup.py"
 RUNBOOK_PATH = REPO_ROOT / "docs/runbooks/backend-deploy-runbook.md"
 
-CLEANUP_REVISION = "070_users_placeholder_phone_cleanup"
+CLEANUP_REVISION = "072_users_placeholder_phone_cleanup"
 #: The step's parent -- whatever the current tail of `versions/` happens to be.
 #: It was 064 when #1972 landed this file; #1973 added `065_users_email` and
 #: renumbered the step onto it; #1712 added `069_act_records_and_checklists`
-#: and renumbered it again. Each move exists so the deferred step stays the
+#: and renumbered it again; #1950 added `071_sync_state_last_outcome` and
+#: renumbered it a THIRD time. Each move exists so the deferred step stays the
 #: TAIL of the chain rather than becoming a second child of its old parent --
 #: which forks the chain the moment an operator copies it into a serving
 #: release's `versions/`. The constant is what makes that renumber
 #: unskippable: `test_the_cleanup_step_is_the_tail_of_the_chain` below reads it
 #: and fails the moment anything in `versions/` shares the parent it names.
-PHONE_REVISION = "069_act_records_and_checklists"
+#:
+#: Three hand-renumbers, each found by this test going red AFTER a merge race
+#: rather than prevented before one. That is an argument for a pre-commit hook
+#: that re-parents the file whenever `versions/` gains a revision, not for a
+#: fourth round of the same manual edit -- see #1950's PR body.
+PHONE_REVISION = "071_sync_state_last_outcome"
 
-_SCHEMA = "phone_cleanup_070"
+_SCHEMA = "phone_cleanup_072"
 
 
 def _revision_ids(path: Path) -> tuple[str | None, str | None]:
@@ -170,7 +176,7 @@ def test_the_deferred_directory_holds_only_migrations_the_gate_refuses() -> None
 
 def test_the_cleanup_step_refuses_to_downgrade() -> None:
     """Reversing it means re-fabricating numbers, which is the defect itself."""
-    cleanup = _load(CLEANUP_PATH, "deferred_066_downgrade_check")
+    cleanup = _load(CLEANUP_PATH, "deferred_072_downgrade_check")
 
     with pytest.raises(NotImplementedError, match="not reversible"):
         cleanup.downgrade()
@@ -238,7 +244,7 @@ def test_it_clears_only_rows_whose_phone_was_derived_from_their_own_id(
     ANOTHER row's id.
     """
     engine = users_table_at_064
-    cleanup = _load(CLEANUP_PATH, "deferred_066_predicate")
+    cleanup = _load(CLEANUP_PATH, "deferred_072_predicate")
 
     fabricated_id = uuid.uuid4()
     real_id = uuid.uuid4()
@@ -266,7 +272,7 @@ def test_it_clears_only_rows_whose_phone_was_derived_from_their_own_id(
                 {"id": str(user_id), "phone": phone},
             )
 
-    _apply(engine, "deferred_066_apply")
+    _apply(engine, "deferred_072_apply")
 
     with engine.begin() as conn:
         rows = dict(conn.execute(text(f"SELECT id, phone FROM {_SCHEMA}.users")).fetchall())
@@ -284,7 +290,7 @@ def test_it_clears_only_rows_whose_phone_was_derived_from_their_own_id(
 def test_it_is_idempotent(users_table_at_064) -> None:
     """An operator unsure whether it already ran must be able to just run it."""
     engine = users_table_at_064
-    cleanup = _load(CLEANUP_PATH, "deferred_066_idempotent")
+    cleanup = _load(CLEANUP_PATH, "deferred_072_idempotent")
 
     fabricated_id = uuid.uuid4()
     with engine.begin() as conn:
@@ -293,8 +299,8 @@ def test_it_is_idempotent(users_table_at_064) -> None:
             {"id": str(fabricated_id), "phone": cleanup._fabricated_phone_for(fabricated_id)},
         )
 
-    _apply(engine, "deferred_066_first")
-    _apply(engine, "deferred_066_second")
+    _apply(engine, "deferred_072_first")
+    _apply(engine, "deferred_072_second")
 
     with engine.begin() as conn:
         remaining = conn.execute(

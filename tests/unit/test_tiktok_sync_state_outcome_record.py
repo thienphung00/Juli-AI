@@ -50,7 +50,7 @@ from tests.support.builders import make_shop, make_user
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS_ROOT = REPO_ROOT / "backend/src/juli_backend/database/migrations"
-MIGRATION_PATH = MIGRATIONS_ROOT / "versions/067_tiktok_sync_state_last_outcome.py"
+MIGRATION_PATH = MIGRATIONS_ROOT / "versions/071_tiktok_sync_state_last_outcome.py"
 GRANT_MIGRATION_PATH = MIGRATIONS_ROOT / "versions/055_juli_app_sync_state_update.py"
 
 OUTCOME_COLUMN_NAMES = (
@@ -241,24 +241,31 @@ class TestNeverSucceededIsQueryable:
 class TestTheMigrationMatchesTheModel:
     def test_the_migration_exists_and_chains_onto_the_head_of_versions(self):
         text = MIGRATION_PATH.read_text(encoding="utf-8")
-        assert 'revision: str = "067_sync_state_last_outcome"' in text
-        assert 'down_revision: str | None = "065_users_email"' in text
+        assert 'revision: str = "071_sync_state_last_outcome"' in text
+        assert 'down_revision: str | None = "069_act_records_and_checklists"' in text
 
     def test_it_is_the_only_child_of_its_parent(self):
         """A second child of one revision forks the chain.
 
+        This revision was authored as `067` onto `065_users_email`. #1712
+        (PR #2071) merged first with `069_act_records_and_checklists`, ALSO a
+        child of 065 -- so leaving 067 where it was would have forked the chain
+        rather than extended it. Hence the rebase to 071 onto 069, and hence
+        this test reading the CURRENT parent rather than a fixed revision.
+
         The deferred contract step from #1972 was renumbered onto THIS revision
-        in the same change for exactly this reason;
-        `tests/unit/test_users_phone_placeholder_cleanup.py` is the test that
-        enforces it from the other side.
+        in the same change for the same reason;
+        `tests/unit/test_users_phone_placeholder_cleanup.py` enforces it from
+        the other side.
         """
+        parent = "069_act_records_and_checklists"
         versions = MIGRATIONS_ROOT / "versions"
         siblings = sorted(
             path.name
             for path in versions.glob("*.py")
-            if re.search(r'^down_revision: str \| None = "065_users_email"', path.read_text(), re.M)
+            if re.search(rf'^down_revision: str \| None = "{parent}"', path.read_text(), re.M)
         )
-        assert siblings == ["067_tiktok_sync_state_last_outcome.py"], siblings
+        assert siblings == ["071_tiktok_sync_state_last_outcome.py"], siblings
 
     def test_every_model_column_is_added_by_the_migration(self):
         """The two lists must agree, or SQLite-backed tests pass over a schema
@@ -291,7 +298,7 @@ class TestTheMigrationMatchesTheModel:
         result = evaluate_migration_paths([MIGRATION_PATH])
         assert [finding.render() for finding in result.findings] == []
         assert result.accepted is True
-        assert result.inspected == ["067_sync_state_last_outcome"]
+        assert result.inspected == ["071_sync_state_last_outcome"]
 
     def test_the_existing_update_grant_is_table_level_so_new_columns_are_covered(self):
         """The claim this migration rests on, checked rather than assumed.
@@ -305,4 +312,4 @@ class TestTheMigrationMatchesTheModel:
         """
         text = GRANT_MIGRATION_PATH.read_text(encoding="utf-8")
         assert '"tiktok_sync_state": ("UPDATE",)' in text
-        assert "UPDATE (" not in text, "055's grant has become column-scoped; 067 now needs its own"
+        assert "UPDATE (" not in text, "055's grant has become column-scoped; 071 now needs its own"

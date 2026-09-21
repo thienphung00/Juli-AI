@@ -1,7 +1,7 @@
 """tiktok_sync_state last-outcome columns -- make "never succeeded" queryable (#1950)
 
-Revision ID: 067_sync_state_last_outcome
-Revises: 065_users_email
+Revision ID: 071_sync_state_last_outcome
+Revises: 069_act_records_and_checklists
 Create Date: 2026-09-21
 
 WHAT WAS MISSING. `tiktok_sync_state` stored one number per (shop, endpoint):
@@ -76,12 +76,18 @@ further privilege. `tests/unit/test_tiktok_sync_state_outcome_migration.py`
 asserts 055's `GRANT_MAP` still names no column list, so this claim fails
 loudly if that grant is ever narrowed.
 
-CHAIN. Revises `065_users_email`, the head of `versions/`. The deferred
-contract step from #1972 is renumbered onto THIS revision in the same change
-(`deferred/068_users_placeholder_phone_cleanup.py`), exactly as #1973 renumbered
-it onto 065 -- a deferred step that keeps an older parent forks the chain the
-moment an operator copies it into a serving release's `versions/`, and
-`tests/unit/test_users_phone_placeholder_cleanup.py` is the test that says so.
+CHAIN. Revises `069_act_records_and_checklists`, the head of `versions/`. This
+revision was authored as `067` onto `065_users_email`; #1712 (PR #2071) merged
+first, so it was rebased and renumbered rather than left as a second child of
+065. The deferred contract step from #1972 is renumbered onto THIS revision in
+the same change (`deferred/072_users_placeholder_phone_cleanup.py`) -- a
+deferred step that keeps an older parent stops being the tail the moment a new
+`versions/` revision lands above it, and it then forks the chain when an
+operator copies it into a serving release's `versions/`.
+`tests/unit/test_users_phone_placeholder_cleanup.py` is the test that says so,
+and this is the THIRD time that rule has been rediscovered by hand
+(065->066, 066->068, 070->072). It should be a pre-commit mechanism, not a
+convention -- see this PR's body and the review artifact.
 """
 
 from collections.abc import Sequence
@@ -89,8 +95,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "067_sync_state_last_outcome"
-down_revision: str | None = "065_users_email"
+revision: str = "071_sync_state_last_outcome"
+down_revision: str | None = "069_act_records_and_checklists"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
