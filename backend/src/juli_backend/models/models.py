@@ -39,6 +39,14 @@ class User(Base):
     # export, or match on. `tests/unit/test_users_phone_is_never_fabricated.py`
     # holds that line.
     phone: Mapped[str | None] = mapped_column(String(20), unique=True, nullable=True)
+    # The verified Google address from the Supabase JWT (#1973, migration 065).
+    # NOT UNIQUE, deliberately: `users.id` is the Supabase `sub`, and a seller
+    # who deletes and re-creates their Supabase account arrives with a NEW sub
+    # and the SAME address. A unique index would turn that into an IntegrityError
+    # inside the authentication path -- a seller locked out of their own account
+    # by a constraint defending an invariant nothing needs yet. 320 is RFC 5321's
+    # maximum address length.
+    email: Mapped[str | None] = mapped_column(String(320))
     display_name: Mapped[str | None] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())

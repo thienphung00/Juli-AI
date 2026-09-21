@@ -48,13 +48,18 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS_ROOT = REPO_ROOT / "backend/src/juli_backend/database/migrations"
 VERSIONS_DIR = MIGRATIONS_ROOT / "versions"
 DEFERRED_DIR = MIGRATIONS_ROOT / "deferred"
-CLEANUP_PATH = DEFERRED_DIR / "065_users_phone_placeholder_cleanup.py"
+CLEANUP_PATH = DEFERRED_DIR / "066_users_placeholder_phone_cleanup.py"
 RUNBOOK_PATH = REPO_ROOT / "docs/runbooks/backend-deploy-runbook.md"
 
-CLEANUP_REVISION = "065_users_phone_placeholder_cleanup"
-PHONE_REVISION = "064_users_phone_nullable"
+CLEANUP_REVISION = "066_users_placeholder_phone_cleanup"
+#: The step's parent. It was 064 when #1972 landed this file; #1973 added
+#: `065_users_email` to `versions/` and renumbered the step onto it, so that
+#: the deferred step stays the TAIL of the chain rather than becoming a
+#: second child of 064 -- which forks the chain the moment an operator
+#: copies it into a serving release's `versions/`.
+PHONE_REVISION = "065_users_email"
 
-_SCHEMA = "phone_cleanup_065"
+_SCHEMA = "phone_cleanup_066"
 
 
 def _revision_ids(path: Path) -> tuple[str | None, str | None]:
@@ -161,7 +166,7 @@ def test_the_deferred_directory_holds_only_migrations_the_gate_refuses() -> None
 
 def test_the_cleanup_step_refuses_to_downgrade() -> None:
     """Reversing it means re-fabricating numbers, which is the defect itself."""
-    cleanup = _load(CLEANUP_PATH, "deferred_065_downgrade_check")
+    cleanup = _load(CLEANUP_PATH, "deferred_066_downgrade_check")
 
     with pytest.raises(NotImplementedError, match="not reversible"):
         cleanup.downgrade()
@@ -175,7 +180,11 @@ def test_the_cleanup_step_refuses_to_downgrade() -> None:
 
 @pytest.fixture
 def users_table_at_064():
-    """`users` as migration 064 leaves it: nullable phone, UNIQUE retained."""
+    """`users` as 064/065 leave it: nullable phone, UNIQUE retained, email.
+
+    The cleanup step touches only `phone`, so `email` is here for fidelity
+    with the shape it actually runs against, not because the step reads it.
+    """
     engine = create_engine(sync_database_url(os.environ["DATABASE_URL"]), pool_pre_ping=True)
     with engine.begin() as conn:
         conn.execute(text(f"DROP SCHEMA IF EXISTS {_SCHEMA} CASCADE"))
@@ -186,6 +195,7 @@ def users_table_at_064():
                 "CREATE TABLE users ("
                 "  id UUID PRIMARY KEY,"
                 "  phone VARCHAR(20),"
+                "  email VARCHAR(320),"
                 "  display_name VARCHAR(100),"
                 "  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),"
                 "  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),"
@@ -224,7 +234,7 @@ def test_it_clears_only_rows_whose_phone_was_derived_from_their_own_id(
     ANOTHER row's id.
     """
     engine = users_table_at_064
-    cleanup = _load(CLEANUP_PATH, "deferred_065_predicate")
+    cleanup = _load(CLEANUP_PATH, "deferred_066_predicate")
 
     fabricated_id = uuid.uuid4()
     real_id = uuid.uuid4()
@@ -252,7 +262,7 @@ def test_it_clears_only_rows_whose_phone_was_derived_from_their_own_id(
                 {"id": str(user_id), "phone": phone},
             )
 
-    _apply(engine, "deferred_065_apply")
+    _apply(engine, "deferred_066_apply")
 
     with engine.begin() as conn:
         rows = dict(conn.execute(text(f"SELECT id, phone FROM {_SCHEMA}.users")).fetchall())
@@ -270,7 +280,7 @@ def test_it_clears_only_rows_whose_phone_was_derived_from_their_own_id(
 def test_it_is_idempotent(users_table_at_064) -> None:
     """An operator unsure whether it already ran must be able to just run it."""
     engine = users_table_at_064
-    cleanup = _load(CLEANUP_PATH, "deferred_065_idempotent")
+    cleanup = _load(CLEANUP_PATH, "deferred_066_idempotent")
 
     fabricated_id = uuid.uuid4()
     with engine.begin() as conn:
@@ -279,8 +289,8 @@ def test_it_is_idempotent(users_table_at_064) -> None:
             {"id": str(fabricated_id), "phone": cleanup._fabricated_phone_for(fabricated_id)},
         )
 
-    _apply(engine, "deferred_065_first")
-    _apply(engine, "deferred_065_second")
+    _apply(engine, "deferred_066_first")
+    _apply(engine, "deferred_066_second")
 
     with engine.begin() as conn:
         remaining = conn.execute(
