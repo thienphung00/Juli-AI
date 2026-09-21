@@ -76,12 +76,7 @@ class WorktreeInfo:
     @property
     def safe_to_close(self) -> bool:
         """Merged-and-clean: the only state the agent may auto-close without asking."""
-        return (
-            not self.is_protected
-            and self.pr_merged
-            and not self.is_dirty
-            and self.unpushed == 0
-        )
+        return not self.is_protected and self.pr_merged and not self.is_dirty and self.unpushed == 0
 
     @property
     def status(self) -> str:
@@ -110,8 +105,19 @@ def _pr_state(branch: str) -> tuple[bool, bool]:
     """Return (merged, closed_unmerged) for a branch's PRs, using gh (catches squash)."""
     try:
         out = _run(
-            ["gh", "pr", "list", "--state", "all", "--head", branch,
-             "--json", "state", "--jq", ".[].state"],
+            [
+                "gh",
+                "pr",
+                "list",
+                "--state",
+                "all",
+                "--head",
+                branch,
+                "--json",
+                "state",
+                "--jq",
+                ".[].state",
+            ],
         )
     except (GitError, FileNotFoundError):
         return (False, False)
@@ -126,9 +132,9 @@ def _iter_worktrees() -> list[tuple[Path, str]]:
     path: Path | None = None
     for line in out.splitlines():
         if line.startswith("worktree "):
-            path = Path(line[len("worktree "):])
+            path = Path(line[len("worktree ") :])
         elif line.startswith("branch ") and path is not None:
-            branch = line[len("branch "):].removeprefix("refs/heads/")
+            branch = line[len("branch ") :].removeprefix("refs/heads/")
             results.append((path, branch))
             path = None
     return results
@@ -138,8 +144,12 @@ def _collect(path: Path, branch: str) -> WorktreeInfo:
     is_protected = branch in PROTECTED_BRANCHES
     dirty = bool(_run(["git", "status", "--porcelain"], cwd=path))
     has_upstream = (
-        _run(["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
-             cwd=path, check=False) != ""
+        _run(
+            ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+            cwd=path,
+            check=False,
+        )
+        != ""
     )
     unpushed = 0
     if has_upstream:
@@ -159,10 +169,43 @@ def _collect(path: Path, branch: str) -> WorktreeInfo:
 
 
 def _close(info: WorktreeInfo) -> None:
-    """Remove worktree + local branch. Caller must have verified safe_to_close."""
+    """Remove worktree + local branch. Caller must have verified safe_to_close.
+
+    #2067: ``safe_to_close`` reads "merged and clean", where *clean* is
+    ``git status --porcelain`` -- which cannot see the five gitignored ADR-003
+    artifact body directories at all. That blind spot is what let a cleanup on
+    2026-09-21 remove 21 worktrees and destroy the bodies behind five committed
+    status records. Archive-on-emit (``ci/artifact_archive.py``) is the real fix;
+    this is the backstop for bodies that predate it or never went through the
+    shared writer, and it archives rather than refuses, because the worktree is
+    genuinely merged and the bodies are genuinely wanted.
+    """
+    archived = _archive_bodies_before_removal(info.path)
+    if archived:
+        print(f"  archived {archived} artifact body/bodies from {info.path.name} first.")
     if info.path != REPO_ROOT:
         _run(["git", "worktree", "remove", str(info.path)])
     _run(["git", "branch", "-D", info.branch])
+
+
+def _archive_bodies_before_removal(worktree: Path) -> int:
+    """Copy any unarchived ADR-003 body out of ``worktree``; return how many.
+
+    Failures raise: removing the worktree afterwards would be unrecoverable, so
+    "could not archive" has to stop the close, not warn under it.
+    """
+    here = Path(__file__).resolve().parent
+    for extra in (here, here.parent / "ci"):
+        if str(extra) not in sys.path:
+            sys.path.insert(0, str(extra))
+    from artifact_archive import archive_body
+
+    from check_worktree_artifacts_archived import unarchived_bodies
+
+    at_risk = unarchived_bodies(worktree)
+    for path in at_risk:
+        archive_body(path)
+    return len(at_risk)
 
 
 def _fetch_prune() -> None:
@@ -180,8 +223,10 @@ def cmd_report(infos: list[WorktreeInfo]) -> int:
         print(f"{info.status:<38} {info.branch:<44} {info.path}")
     safe = [i for i in infos if i.safe_to_close]
     confirm = [i for i in infos if not i.safe_to_close and "NEEDS-CONFIRM" in i.status]
-    print(f"\n{len(safe)} safe-to-close, {len(confirm)} need confirmation, "
-          f"{len(infos) - len(safe) - len(confirm)} keep.")
+    print(
+        f"\n{len(safe)} safe-to-close, {len(confirm)} need confirmation, "
+        f"{len(infos) - len(safe) - len(confirm)} keep."
+    )
     if safe:
         print("Auto-closeable: " + ", ".join(i.branch for i in safe))
     return 0
@@ -193,8 +238,9 @@ def cmd_close(infos: list[WorktreeInfo], task: str) -> int:
         print(f"error: no worktree/branch matching '{task}'", file=sys.stderr)
         return 2
     if len(matches) > 1:
-        print(f"error: '{task}' is ambiguous: {', '.join(i.branch for i in matches)}",
-              file=sys.stderr)
+        print(
+            f"error: '{task}' is ambiguous: {', '.join(i.branch for i in matches)}", file=sys.stderr
+        )
         return 2
     info = matches[0]
     if not info.safe_to_close:
@@ -227,7 +273,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
-        "--report", action="store_true",
+        "--report",
+        action="store_true",
         help="Classify all worktrees; delete nothing (default).",
     )
     group.add_argument("--close", metavar="TASK", help="Close one merged+clean task worktree.")
@@ -235,8 +282,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if not _gh_available():
-        print("error: `gh` is required for squash-merge detection and not authenticated.",
-              file=sys.stderr)
+        print(
+            "error: `gh` is required for squash-merge detection and not authenticated.",
+            file=sys.stderr,
+        )
         print("Run `gh auth login`, or use --report which degrades gracefully.", file=sys.stderr)
         if not args.report:
             return 2
