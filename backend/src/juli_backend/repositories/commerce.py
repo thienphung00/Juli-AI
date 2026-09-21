@@ -130,21 +130,16 @@ class ProductsRepo(ShopScopedRepo[Product]):
             self._scoped(shop_id), sort_column=Product.revenue, after=after, limit=limit
         )
 
-    async def get_highest_revenue_product(self, shop_id: uuid.UUID) -> Product | None:
-        """The ADR-082 product-binding rule: top ``revenue``, then ``tiktok_product_id`` ascending.
-
-        The tiebreak is load-bearing. Without it two products with equal revenue
-        resolve in whatever order Postgres returns them, and the same ActionCard
-        approved twice could bind to different listings for no reason a seller
-        could see. ``None`` when the shop has no products; the caller turns that
-        into ``NoProductsForShop`` rather than a run with a NULL product.
-        """
-        stmt = (
-            self._scoped(shop_id)
-            .order_by(Product.revenue.desc(), Product.tiktok_product_id.asc())
-            .limit(1)
-        )
-        return await self._one_or_none(stmt)
+    # ``get_highest_revenue_product`` was DELETED by issue #1702 (W9-A/
+    # P-SHARED-2), not merely left unreferenced. It existed for exactly one
+    # caller -- ``services/agent/approval.py``'s ADR-082 decision 2 binding,
+    # which chose the shop's best-selling product for a run no matter which
+    # listing the approved card was about. The run's subject now comes off
+    # the card (ADR-087 d.1), so the rule has no remaining meaning; leaving
+    # the helper in place would let a future caller reintroduce the
+    # substitution by reaching for something that looked supported.
+    # ``list_by_revenue`` above still serves the ordinary "products by
+    # revenue" read.
 
 
 class InventoryRepo(ShopScopedRepo[InventoryItem]):

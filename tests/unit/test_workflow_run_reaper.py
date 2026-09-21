@@ -52,15 +52,17 @@ from sqlalchemy import select
 
 from juli_backend.models.models import Product, Shop, WorkflowRun
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
+from juli_backend.services.agent import playbooks as playbooks_module
 from juli_backend.services.agent.events.envelope import WorkflowFailedEvent
 from juli_backend.services.agent.events.sink import EventSink
-from juli_backend.services.agent.playbooks.base import TerminationPolicy
 from juli_backend.services.agent.playbooks.optimize_product import (
+    OPTIMIZE_PRODUCT_PLAYBOOK,
     OPTIMIZE_PRODUCT_TERMINATION_POLICY,
 )
 from juli_backend.services.agent.status import StopReason, WorkflowRunStatus
 from juli_backend.workers.celery_app import celery_app
 from juli_backend.workers.tasks import reaper
+from tests.support.workflow_registry import TEST_WORKFLOW_KEY, make_test_playbook
 
 WALL_CLOCK_TIMEOUT_S = OPTIMIZE_PRODUCT_TERMINATION_POLICY.wall_clock_timeout_s
 APPROVAL_TIMEOUT_H = OPTIMIZE_PRODUCT_TERMINATION_POLICY.approval_timeout_h
@@ -69,6 +71,12 @@ APPROVAL_THRESHOLD_S = APPROVAL_TIMEOUT_H * 3600
 
 NOW = datetime(2026, 8, 14, 12, 0, 0, tzinfo=UTC)
 
+#: The one registered production workflow. Every run in this file carries it
+#: unless a test deliberately gives a run the test-only key instead (#1702):
+#: the reaper resolves each run's policy from this column, so a run with no
+#: workflow_key would be resolving nothing.
+PROD_WORKFLOW_KEY = OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key
+
 
 def _never_live(_run_id: uuid.UUID) -> bool:
     return False
@@ -76,20 +84,6 @@ def _never_live(_run_id: uuid.UUID) -> bool:
 
 def _always_live(_run_id: uuid.UUID) -> bool:
     return True
-
-
-def _custom_policy(*, wall_clock_timeout_s: int, approval_timeout_h: int) -> TerminationPolicy:
-    """A `TerminationPolicy` with unusual, non-default numbers -- used to
-    prove the reaper's thresholds move with whatever policy it is given
-    rather than a value copied at import time."""
-    return TerminationPolicy(
-        max_iterations=6,
-        max_extensions=1,
-        extension_iterations=2,
-        wall_clock_timeout_s=wall_clock_timeout_s,
-        approval_timeout_h=approval_timeout_h,
-        required_steps=("some_step",),
-    )
 
 
 class _RecordingNoopSink:
@@ -148,11 +142,13 @@ async def _make_run(
     waiting_approval_since: datetime | None = None,
     created_at: datetime | None = None,
     state: dict | None = None,
+    workflow_key: str = PROD_WORKFLOW_KEY,
 ) -> WorkflowRun:
     run = WorkflowRun(
         id=uuid.uuid4(),
         shop_id=shop_id,
         product_id=product_id,
+        workflow_key=workflow_key,
         state=state if state is not None else {},
         status=status,
         prompt_version="optimize_product_2/v1",
@@ -288,40 +284,48 @@ async def test_worker_lost_records_required_steps_completed_false_when_nothing_c
     assert reloaded.required_steps_completed is False
 
 
-async def test_worker_lost_required_steps_completed_moves_with_injected_policy(
+async def test_worker_lost_required_steps_completed_comes_from_the_runs_own_policy(
     session, shop, product
 ):
-    """Proves `_ReaperEventSink` reads `required_steps` off whatever policy
-    it is given, not the real playbook's copied at import time -- the same
-    discipline `test_reap_stale_threshold_moves_with_injected_policy_not_
-    the_default` already pins for the wall-clock threshold."""
-    run = await _make_run(
-        session,
-        shop.id,
-        product.id,
-        status="running",
-        started_at=NOW - timedelta(seconds=STALE_THRESHOLD_S + 100),
-        state={
-            "conversation_window": [
-                {
-                    "role": "tool",
-                    "tool_call_id": "c0",
-                    "tool_name": "some_step",
-                    "content": {"ok": True},
-                }
-            ]
-        },
-    )
-    policy = _custom_policy(wall_clock_timeout_s=WALL_CLOCK_TIMEOUT_S, approval_timeout_h=1)
+    """Proves `_ReaperEventSink` reads `required_steps` off the policy of the
+    run's OWN workflow, not a value copied at import time (#1702 replaces the
+    injected-policy version of this proof: nothing passes a policy in any
+    more, so the only way the right `required_steps` can be reached is
+    through `workflow_runs.workflow_key`).
 
-    await reaper.reap_workflow_runs(session, now=NOW, has_live_task=_never_live, policy=policy)
+    The seeded `conversation_window` completed `some_step`, which is the test
+    workflow's whole `required_steps` tuple and is in Optimize Product's
+    (`update_product_listing`, `update_product_price`) not at all -- so
+    `True` here is only reachable by resolving the test workflow."""
+    playbook = make_test_playbook(required_steps=("some_step",))
+    with playbooks_module.playbook_registered_for_test(playbook):
+        run = await _make_run(
+            session,
+            shop.id,
+            product.id,
+            status="running",
+            workflow_key=TEST_WORKFLOW_KEY,
+            started_at=NOW - timedelta(seconds=STALE_THRESHOLD_S + 100),
+            state={
+                "conversation_window": [
+                    {
+                        "role": "tool",
+                        "tool_call_id": "c0",
+                        "tool_name": "some_step",
+                        "content": {"ok": True},
+                    }
+                ]
+            },
+        )
 
-    reloaded = await _reload(session, run)
-    assert reloaded.required_steps_completed is True, (
-        "the custom policy's required_steps=('some_step',) was satisfied by the "
-        "seeded conversation_window -- proves the sink read the injected policy, "
-        "not OPTIMIZE_PRODUCT_TERMINATION_POLICY.required_steps"
-    )
+        await reaper.reap_workflow_runs(session, now=NOW, has_live_task=_never_live)
+
+        reloaded = await _reload(session, run)
+        assert reloaded.required_steps_completed is True, (
+            "the test workflow's required_steps=('some_step',) was satisfied by the "
+            "seeded conversation_window -- proves the sink resolved the RUN's policy, "
+            "not OPTIMIZE_PRODUCT_TERMINATION_POLICY.required_steps"
+        )
 
 
 async def test_stale_queued_run_with_no_events_uses_created_at_fallback_and_is_reaped(
@@ -649,63 +653,84 @@ async def test_reaped_run_has_both_the_event_row_and_the_status_update(session, 
 # ---------------------------------------------------------------------------
 
 
-def test_reap_defaults_to_the_real_optimize_product_termination_policy(session, shop, product):
-    """`reap_workflow_runs`'s `policy=` default (no override at all) really
-    is `OPTIMIZE_PRODUCT_TERMINATION_POLICY` -- not a copy, the object
-    itself -- so every other test in this file that never passes `policy=`
-    is genuinely exercising the real policy, not a stand-in."""
-    assert reaper._DEFAULT_TERMINATION_POLICY is OPTIMIZE_PRODUCT_TERMINATION_POLICY
+def test_the_registered_policy_for_the_production_key_is_the_real_object():
+    """The policy the reaper resolves for `optimize_product_2` really is
+    `OPTIMIZE_PRODUCT_TERMINATION_POLICY` -- not a copy, the object itself --
+    so every other test in this file, all of which seed runs carrying that
+    key, is genuinely exercising the real policy and not a stand-in.
 
-
-async def test_reap_stale_threshold_moves_with_injected_policy_not_the_default(
-    session, shop, product
-):
-    """Proves `wall_clock_timeout_s` is READ off whichever `TerminationPolicy`
-    is passed in, not a value copied once at import time (this phase's
-    architect lock: a literal reproducing a policy field anywhere else is a
-    defect). 400s elapsed sits strictly between a tiny injected policy's
-    threshold (10 + the fixed 300s slack = 310s -- reaped) and the real
-    default's (300 + 300 = 600s -- not reaped): only the injected policy
-    changes the outcome, proving the number really moved."""
-    run = await _make_run(
-        session,
-        shop.id,
-        product.id,
-        status="running",
-        started_at=NOW - timedelta(seconds=400),
+    Replaces the `reaper._DEFAULT_TERMINATION_POLICY` identity assertion
+    (#1702): that module constant is deleted, because a default policy is
+    exactly what "judge every run by Optimize Product's timer" was made of.
+    """
+    assert (
+        playbooks_module.get_termination_policy(PROD_WORKFLOW_KEY)
+        is OPTIMIZE_PRODUCT_TERMINATION_POLICY
     )
 
-    default_result = await reaper.reap_workflow_runs(session, now=NOW, has_live_task=_never_live)
-    assert default_result.stale_runs_reaped == ()
 
-    tiny_policy = _custom_policy(wall_clock_timeout_s=10, approval_timeout_h=APPROVAL_TIMEOUT_H)
-    custom_result = await reaper.reap_workflow_runs(
-        session, now=NOW, has_live_task=_never_live, policy=tiny_policy
-    )
-    assert custom_result.stale_runs_reaped == (run.id,)
+async def test_reap_stale_threshold_is_read_off_each_runs_own_workflow(session, shop, product):
+    """Proves `wall_clock_timeout_s` is READ off the policy of each run's OWN
+    workflow, not a value copied once at import time (this phase's architect
+    lock: a literal reproducing a policy field anywhere else is a defect).
+
+    400s elapsed sits strictly between the test workflow's threshold
+    (10 + the fixed 300s slack = 310s -- reaped) and Optimize Product's
+    (300 + 300 = 600s -- not reaped). Both runs are judged in the same tick,
+    so a reaper holding one global threshold cannot produce this result."""
+    playbook = make_test_playbook(wall_clock_timeout_s=10)
+    with playbooks_module.playbook_registered_for_test(playbook):
+        prod_run = await _make_run(
+            session,
+            shop.id,
+            product.id,
+            status="running",
+            started_at=NOW - timedelta(seconds=400),
+        )
+        test_run = await _make_run(
+            session,
+            shop.id,
+            product.id,
+            status="running",
+            workflow_key=TEST_WORKFLOW_KEY,
+            started_at=NOW - timedelta(seconds=400),
+        )
+
+        result = await reaper.reap_workflow_runs(session, now=NOW, has_live_task=_never_live)
+
+        assert result.stale_runs_reaped == (test_run.id,), (
+            "only the run whose own workflow has a 10s wall-clock timeout is "
+            "stale at 400s; the optimize_product_2 run is not"
+        )
+        assert (await _reload(session, prod_run)).status == "running"
 
 
-async def test_reap_approval_threshold_moves_with_injected_policy_not_the_default(
-    session, shop, product
-):
-    """Same proof for `approval_timeout_h`: 2h elapsed is under the real
-    default's 4h (not reaped) but past a tiny injected policy's 1h (reaped)."""
-    run = await _make_run(
-        session,
-        shop.id,
-        product.id,
-        status="waiting_approval",
-        waiting_approval_since=NOW - timedelta(hours=2),
-    )
+async def test_reap_approval_threshold_is_read_off_each_runs_own_workflow(session, shop, product):
+    """Same proof for `approval_timeout_h`: 2h elapsed is under Optimize
+    Product's 4h (not reaped) but past the test workflow's 1h (reaped), both
+    judged on the same tick."""
+    playbook = make_test_playbook(approval_timeout_h=1)
+    with playbooks_module.playbook_registered_for_test(playbook):
+        prod_run = await _make_run(
+            session,
+            shop.id,
+            product.id,
+            status="waiting_approval",
+            waiting_approval_since=NOW - timedelta(hours=2),
+        )
+        test_run = await _make_run(
+            session,
+            shop.id,
+            product.id,
+            status="waiting_approval",
+            workflow_key=TEST_WORKFLOW_KEY,
+            waiting_approval_since=NOW - timedelta(hours=2),
+        )
 
-    default_result = await reaper.reap_workflow_runs(session, now=NOW, has_live_task=_never_live)
-    assert default_result.expired_approvals_reaped == ()
+        result = await reaper.reap_workflow_runs(session, now=NOW, has_live_task=_never_live)
 
-    tiny_policy = _custom_policy(wall_clock_timeout_s=WALL_CLOCK_TIMEOUT_S, approval_timeout_h=1)
-    custom_result = await reaper.reap_workflow_runs(
-        session, now=NOW, has_live_task=_never_live, policy=tiny_policy
-    )
-    assert custom_result.expired_approvals_reaped == (run.id,)
+        assert result.expired_approvals_reaped == (test_run.id,)
+        assert (await _reload(session, prod_run)).status == "waiting_approval"
 
 
 def test_reaper_module_never_references_tool_error_unrecoverable():

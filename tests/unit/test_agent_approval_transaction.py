@@ -53,7 +53,15 @@ async def other_shop(session):
     return s
 
 
-def _make_card(shop_id: uuid.UUID, **overrides) -> ActionCard:
+def _make_card(shop_id: uuid.UUID, *, subject_product_id: uuid.UUID | None = None, **overrides):
+    """An `ActionCard` carrying a product subject (issue #1702).
+
+    `subject_product_id` is what the run gets bound to -- approve reads it
+    off the card and no longer derives a product from the shop. A caller
+    that passes `None` gets #1701's backfill values
+    (`subject_type='unscoped'`, `subject_id=''`), which is what every card
+    written by a producer looks like until #1703, and which approve refuses.
+    """
     fields = {
         "id": uuid.uuid4(),
         "shop_id": shop_id,
@@ -66,13 +74,19 @@ def _make_card(shop_id: uuid.UUID, **overrides) -> ActionCard:
         "status": "active",
         "computed_at": _naive_utc_now(),
     }
+    if subject_product_id is not None:
+        fields["subject_type"] = "product"
+        fields["subject_id"] = str(subject_product_id)
     fields.update(overrides)
     return ActionCard(**fields)
 
 
 @pytest.fixture
-async def card(session, shop):
-    c = _make_card(shop.id)
+async def card(session, shop, product):
+    """The ordinary card under test: active, executable workflow, and a
+    product subject. It depends on `product` because a card without a
+    subject cannot be approved at all since #1702."""
+    c = _make_card(shop.id, subject_product_id=product.id)
     session.add(c)
     await session.flush()
     return c
@@ -200,27 +214,82 @@ class TestNonActiveCard:
 
 
 # ---------------------------------------------------------------------------
-# AC (ADR-082 decision 4) -- zero products -> NoProductsForShop, never a
-# run with a NULL product_id, never a 500 from the NOT NULL constraint
+# AC (issue #1702) -- the run's subject is the CARD's subject. A card with no
+# subject is refused by name; the shop's best seller is never substituted.
+# Replaces the deleted ADR-082 decision-2/4 pair (highest-revenue derivation,
+# NoProductsForShop) -- both gone with `ProductsRepo.get_highest_revenue_
+# product` itself.
 # ---------------------------------------------------------------------------
 
 
-class TestZeroProducts:
-    async def test_shop_with_no_products_raises_no_products_for_shop(self, session, shop, card):
-        with pytest.raises(approval_module.NoProductsForShop):
+class TestCardSubjectIsTheRunsSubject:
+    async def test_run_is_bound_to_the_cards_subject_not_the_shops_top_product(self, session, shop):
+        """The defect this closes (#1365 finding F3, second half): approve
+        bound every run to the shop's highest-revenue product regardless of
+        what the approved card was about.
+
+        The card here names the SMALLEST-revenue product while a much larger
+        one exists in the same shop, so the old rule and the new one give
+        different answers and the assertion cannot pass by coincidence."""
+        subject = _make_product(shop.id, revenue="1.00", tiktok_product_id="tt-aaa-subject")
+        best_seller = _make_product(shop.id, revenue="999999.00", tiktok_product_id="tt-zzz-best")
+        session.add_all([subject, best_seller])
+        await session.flush()
+        c = _make_card(shop.id, subject_product_id=subject.id)
+        session.add(c)
+        await session.flush()
+
+        result = await approval_module.approve_action_card(
+            session,
+            shop_id=shop.id,
+            action_card_id=c.id,
+            approved_by_user_id=uuid.uuid4(),
+        )
+
+        run = (
+            await session.execute(select(WorkflowRunRow).where(WorkflowRunRow.id == result.run_id))
+        ).scalar_one()
+        assert run.product_id == subject.id
+        assert run.product_id != best_seller.id
+        assert run.subject_type == "product"
+        assert run.subject_ref == str(subject.id)
+        assert result.product_id == subject.id
+
+    async def test_the_highest_revenue_derivation_is_gone_from_the_repository(self):
+        """ "Its function removed" is the acceptance criterion's own wording.
+        Asserted on the real `ProductsRepo`, so leaving the helper behind
+        unreferenced would still fail this."""
+        from juli_backend.repositories.repos import ProductsRepo
+
+        assert not hasattr(ProductsRepo, "get_highest_revenue_product")
+
+    async def test_an_unscoped_card_is_refused_by_name(self, session, shop, product):
+        """Every card a producer writes today is `subject_type='unscoped'`
+        (#1701's backfill; subject-scoped emission is #1703). Approve refuses
+        it rather than picking a product for the seller."""
+        c = _make_card(shop.id)
+        session.add(c)
+        await session.flush()
+
+        with pytest.raises(approval_module.CardSubjectNotApprovable) as exc:
             await approval_module.approve_action_card(
                 session,
                 shop_id=shop.id,
-                action_card_id=card.id,
+                action_card_id=c.id,
                 approved_by_user_id=uuid.uuid4(),
             )
+        assert "unscoped" in str(exc.value)
 
-    async def test_zero_products_leaves_no_run_row_behind(self, session, shop, card):
-        with pytest.raises(approval_module.NoProductsForShop):
+    async def test_an_unscoped_card_leaves_no_run_row_behind(self, session, shop, product):
+        c = _make_card(shop.id)
+        session.add(c)
+        await session.flush()
+
+        with pytest.raises(approval_module.CardSubjectNotApprovable):
             await approval_module.approve_action_card(
                 session,
                 shop_id=shop.id,
-                action_card_id=card.id,
+                action_card_id=c.id,
                 approved_by_user_id=uuid.uuid4(),
             )
         await session.rollback()
@@ -228,93 +297,63 @@ class TestZeroProducts:
         rows = (await session.execute(select(WorkflowRunRow))).scalars().all()
         assert rows == []
 
-
-# ---------------------------------------------------------------------------
-# AC (ADR-082 decision 2) -- highest revenue first, tiktok_product_id
-# ascending tiebreak
-# ---------------------------------------------------------------------------
-
-
-class TestProductBindingDerivation:
-    async def test_binds_to_the_highest_revenue_product(self, session, shop, card):
-        low = _make_product(shop.id, revenue="10.00", tiktok_product_id="tt-low")
-        high = _make_product(shop.id, revenue="999.00", tiktok_product_id="tt-high")
-        mid = _make_product(shop.id, revenue="500.00", tiktok_product_id="tt-mid")
-        session.add_all([low, high, mid])
-        await session.flush()
-
-        result = await approval_module.approve_action_card(
-            session,
-            shop_id=shop.id,
-            action_card_id=card.id,
-            approved_by_user_id=uuid.uuid4(),
-        )
-
-        assert result.product_id == high.id
-
-    async def test_tiebreak_orders_by_tiktok_product_id_ascending_on_equal_revenue(
-        self, session, shop, card
+    async def test_a_subject_kind_this_runtime_cannot_bind_is_refused_by_name(
+        self, session, shop, product
     ):
-        """The tiebreak this ADR calls out explicitly: two products with
-        IDENTICAL revenue must resolve deterministically, not by whatever
-        order the database happens to return them in."""
-        z_product = _make_product(shop.id, revenue="500.00", tiktok_product_id="tt-zzz")
-        a_product = _make_product(shop.id, revenue="500.00", tiktok_product_id="tt-aaa")
-        m_product = _make_product(shop.id, revenue="500.00", tiktok_product_id="tt-mmm")
-        # Insert in an order that would trip a row-order-dependent implementation.
-        session.add_all([z_product, a_product, m_product])
-        await session.flush()
-
-        result = await approval_module.approve_action_card(
-            session,
-            shop_id=shop.id,
-            action_card_id=card.id,
-            approved_by_user_id=uuid.uuid4(),
+        """#1704 widens `_BINDABLE_SUBJECT_TYPES`; until then a non-product
+        subject is refused rather than coerced into one."""
+        c = _make_card(
+            shop.id,
+            subject_type="dispatch_window",
+            subject_id="2026-09-21",
         )
-
-        assert result.product_id == a_product.id
-
-    async def test_tiebreak_is_stable_across_repeated_derivation(self, session, shop):
-        """Same rule, re-derived independently against the identical product
-        set, must land on the identical product every time -- proving the
-        ordering is a deterministic function of the data, not incidental
-        query-plan behaviour. Exercises `ProductsRepo.get_highest_revenue_
-        product` directly (not the full `approve_action_card` transaction
-        twice for the same product -- that would legitimately hit the
-        one-active-run-per-product index on the second call, a DIFFERENT
-        AC covered by `TestInTransactionIndexRejection`, not this one)."""
-        from juli_backend.repositories.repos import ProductsRepo
-
-        z_product = _make_product(shop.id, revenue="500.00", tiktok_product_id="tt-zzz")
-        a_product = _make_product(shop.id, revenue="500.00", tiktok_product_id="tt-aaa")
-        session.add_all([z_product, a_product])
+        session.add(c)
         await session.flush()
 
-        repo = ProductsRepo(session)
-        first = await repo.get_highest_revenue_product(shop.id)
-        second = await repo.get_highest_revenue_product(shop.id)
+        with pytest.raises(approval_module.CardSubjectNotApprovable) as exc:
+            await approval_module.approve_action_card(
+                session,
+                shop_id=shop.id,
+                action_card_id=c.id,
+                approved_by_user_id=uuid.uuid4(),
+            )
+        assert "dispatch_window" in str(exc.value)
 
-        assert first.id == a_product.id
-        assert second.id == a_product.id
-
-    async def test_products_belonging_to_another_shop_are_never_candidates(
-        self, session, shop, other_shop, card
+    async def test_a_product_subject_that_is_not_a_uuid_is_refused_not_passed_to_the_fk(
+        self, session, shop, product
     ):
-        own = _make_product(shop.id, revenue="1.00", tiktok_product_id="tt-own")
-        foreign_high = _make_product(
-            other_shop.id, revenue="999999.00", tiktok_product_id="tt-foreign"
-        )
-        session.add_all([own, foreign_high])
+        c = _make_card(shop.id, subject_type="product", subject_id="demo-product-001")
+        session.add(c)
         await session.flush()
 
-        result = await approval_module.approve_action_card(
-            session,
-            shop_id=shop.id,
-            action_card_id=card.id,
-            approved_by_user_id=uuid.uuid4(),
-        )
+        with pytest.raises(approval_module.CardSubjectNotApprovable):
+            await approval_module.approve_action_card(
+                session,
+                shop_id=shop.id,
+                action_card_id=c.id,
+                approved_by_user_id=uuid.uuid4(),
+            )
 
-        assert result.product_id == own.id
+    async def test_a_subject_product_from_another_shop_is_refused(
+        self, session, shop, other_shop, product
+    ):
+        """The card is this shop's, but the product it names is not. Refused
+        with the subject error -- never bound, and never reported in a way
+        that confirms the other tenant's row exists."""
+        foreign = _make_product(other_shop.id, revenue="10.00", tiktok_product_id="tt-foreign")
+        session.add(foreign)
+        await session.flush()
+        c = _make_card(shop.id, subject_product_id=foreign.id)
+        session.add(c)
+        await session.flush()
+
+        with pytest.raises(approval_module.CardSubjectNotApprovable):
+            await approval_module.approve_action_card(
+                session,
+                shop_id=shop.id,
+                action_card_id=c.id,
+                approved_by_user_id=uuid.uuid4(),
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -323,7 +362,7 @@ class TestProductBindingDerivation:
 
 
 class TestCreatedRun:
-    async def test_run_carries_action_card_id_and_derived_product_id(
+    async def test_run_carries_the_cards_id_workflow_key_and_subject(
         self, session, shop, card, product
     ):
         result = await approval_module.approve_action_card(
@@ -342,6 +381,13 @@ class TestCreatedRun:
         assert run.status == "queued"
         assert run.prompt_version
         assert run.prompt_sha256
+        # #1702: the run's identity is the card's, stamped, not implied.
+        assert run.workflow_key == card.workflow_key
+        assert run.subject_type == card.subject_type
+        assert run.subject_ref == card.subject_id
+        assert result.workflow_key == card.workflow_key
+        assert result.subject_type == card.subject_type
+        assert result.subject_ref == card.subject_id
 
     async def test_created_run_state_loads_through_the_runners_own_reader(
         self, session, shop, card, product
@@ -579,7 +625,10 @@ class TestExecutabilityCheck:
         approve_action_card at the service layer (ADR-084 decision 3) --
         proven here at the service layer directly, not only through HTTP,
         so a future caller cannot route around the check."""
-        c = _make_card(shop.id, workflow_key="unknown_workflow_1")
+        # The card carries a perfectly good subject, so the ONLY thing
+        # wrong with it is its workflow_key -- otherwise this test could
+        # pass on #1702's subject refusal and prove nothing about #1350's.
+        c = _make_card(shop.id, workflow_key="unknown_workflow_1", subject_product_id=product.id)
         session.add(c)
         await session.flush()
 
@@ -594,7 +643,7 @@ class TestExecutabilityCheck:
     async def test_non_executable_workflow_leaves_no_run_row_behind(self, session, shop, product):
         """Non-executable approval fails before any run is created -- the card
         is left active and unmodified."""
-        c = _make_card(shop.id, workflow_key="unknown_workflow_2")
+        c = _make_card(shop.id, workflow_key="unknown_workflow_2", subject_product_id=product.id)
         session.add(c)
         await session.commit()
         card_id = c.id
@@ -625,7 +674,7 @@ class TestExecutabilityCheck:
         workflow_key from the run (the card's own workflow_key will be in the
         run's state blob, and the prompt version/sha256 will match the
         registry lookup) -- not by asserting a hardcoded constant."""
-        c = _make_card(shop.id, workflow_key="optimize_product_2")
+        c = _make_card(shop.id, workflow_key="optimize_product_2", subject_product_id=product.id)
         session.add(c)
         await session.flush()
 
@@ -650,7 +699,7 @@ class TestExecutabilityCheck:
         the registry lookup for the card's workflow_key, not hardcoded."""
         from juli_backend.services.agent import prompts as prompts_module
 
-        c = _make_card(shop.id, workflow_key="optimize_product_2")
+        c = _make_card(shop.id, workflow_key="optimize_product_2", subject_product_id=product.id)
         session.add(c)
         await session.flush()
 
