@@ -1,0 +1,14 @@
+# #1960 is a directly-filed scoring bug, not architect/PRD-derived: it was split
+# out of ADR-103's "Thin data (unanswered, now urgent)" open question
+# (docs/adr/103-first-connect-onboarding.md) as the one part that is an
+# unambiguous bug rather than an owner decision, and filed alongside the broader
+# policy question (#1961) that is deliberately NOT this issue's to settle. No
+# PRD governs it. Self-parented per the documented pattern in
+# ensure_workflow_cache.py's resolve_parent_from_epic_registry docstring ("If
+# issue_id is itself a registered epic, treat it as its own parent (PRD
+# implemented as the work item, e.g. #499)"). Same shape as #2058 (PR #2060) and
+# #2067 (PR #2068). handoffPath points at EXECUTION.md per CLAUDE.md's Artifacts
+# section: cross-session continuity lives in EXECUTION.md.
+parentIssueId: 1960
+sliceId: SCORING-SLA-1960
+handoffPath: EXECUTION.md

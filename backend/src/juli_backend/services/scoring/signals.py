@@ -43,6 +43,7 @@ CTR_HEALTHY_THRESHOLD = 0.025
 _PROMOTION_UNAVAILABLE_REASON = "Chờ đồng bộ Promotion API"
 _ANALYTICS_CTR_UNAVAILABLE_REASON = "Chưa đồng bộ Analytics product CTR"
 _PROMOTION_SPEND_UNAVAILABLE_REASON = "Chờ đồng bộ chi phí Promotion (spend)"
+_NO_ORDERS_IN_WINDOW_REASON = "Chưa có đơn hàng trong 30 ngày"
 
 _SHOP_STATUS_ACTION = "investigate fulfillment/cancellation/CS"
 _RETURN_ACTION = "review return drivers by SKU"
@@ -379,9 +380,21 @@ def _compute_fulfillment_accuracy_rate(snapshot: FeatureAggregateSnapshot) -> Ad
 
 
 def _compute_orders_at_sla_risk(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
+    """At-SLA-risk order count, or ``unavailable`` when no order was evaluated (#1960).
+
+    Every other computed KPI reaches ``unavailable`` because its own 30-day denominator
+    was empty — ``compute_fulfillment_accuracy_rate`` returns None on
+    ``orders_with_ship_time_30d <= 0``, ``compute_seller_fault_cancellation_rate`` and
+    ``compute_csat_proxy`` on ``order_count_30d <= 0``. This KPI is keyed on a **count**,
+    which has no None state to carry that same emptiness, so the denominator is read
+    directly: zero orders in the window means nothing was measured, which is not the
+    same statement as "no orders are past their dispatch SLA".
+    """
     metrics = _computed(snapshot)
     if metrics is None:
         return _unavailable_kpi("orders_at_sla_risk")
+    if metrics.order_count_30d == 0:
+        return _unavailable_kpi("orders_at_sla_risk", reason=_NO_ORDERS_IN_WINDOW_REASON)
 
     count = metrics.orders_at_sla_risk_count
     change = f"{count} đơn at SLA risk"

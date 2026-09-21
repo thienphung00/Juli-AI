@@ -67,6 +67,7 @@ def _computed_kpis(**overrides: object) -> ComputedKpiMetrics:
         "avg_on_hand_inventory": None,
         "sku_count_with_inventory": 0,
         "stockout_sku_count": 0,
+        "order_count_30d": 5,
         "orders_with_ship_time_30d": 0,
         "orders_fulfilled_without_seller_fault_30d": 0,
         "orders_at_sla_risk_count": 0,
@@ -671,9 +672,7 @@ class TestComputedKpisFlipUnavailableSignals:
 
         for ads_kpi in ("roas", "cac"):
             assert result.signals.kpis[ads_kpi].signal_type == "unavailable"
-            assert (
-                result.signals.kpis[ads_kpi].action_hint == _PROMOTION_SPEND_UNAVAILABLE
-            )
+            assert result.signals.kpis[ads_kpi].action_hint == _PROMOTION_SPEND_UNAVAILABLE
 
         ctr = result.signals.kpis["ctr"]
         assert ctr.signal_type in {"risk", "opportunity"}
