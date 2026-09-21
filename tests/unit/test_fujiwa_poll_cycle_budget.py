@@ -549,6 +549,12 @@ class TestPartialStateSurvivesAMidCycleFailure:
             async def save(self, shop_id, state: dict) -> None:
                 saved.append(dict(state))
 
+            # Declared because `_record_cycle` calls it inside a guarded `try`
+            # (#1950). A double missing it would let this test pass while
+            # production logged `poll_cycle_outcome_record_failed` every cycle.
+            async def record_outcomes(self, shop_id, outcomes) -> None:
+                return None
+
         # Orders succeed; products blow up the way a malformed payload would.
         one_row_resources.products.search_all.side_effect = RuntimeError("vendor payload is junk")
 
@@ -583,6 +589,9 @@ class TestPartialStateSurvivesAMidCycleFailure:
                 return {}
 
             async def save(self, shop_id, state: dict) -> None:
+                raise RuntimeError("session is poisoned")
+
+            async def record_outcomes(self, shop_id, outcomes) -> None:
                 raise RuntimeError("session is poisoned")
 
         one_row_resources.products.search_all.side_effect = ValueError("the real failure")

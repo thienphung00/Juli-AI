@@ -212,6 +212,24 @@ class _CountingHandoff:
             )
 
 
+@dataclass(frozen=True)
+class _StagedWatermark:
+    """A watermark an endpoint WANTS, and where in the step's handoffs it was asked for.
+
+    `offered_at` / `persisted_at` are the step's running counters at the moment
+    the endpoint staged its watermark -- i.e. immediately BEFORE it handed any
+    of its own rows off. That is what makes the per-endpoint arithmetic in
+    `_StepRun.flush_watermarks` possible without threading a counter through
+    ten call sites.
+    """
+
+    sync_state: dict[str, Any]
+    key: str
+    value: int
+    offered_at: int
+    persisted_at: int
+
+
 class _StepRun:
     """One poll step's budget, counters, and its single outcome record.
 
@@ -248,6 +266,7 @@ class _StepRun:
         self._update_time_from = update_time_from
         self._scope_cm: Any | None = None
         self._scope: Any | None = None
+        self._staged_watermarks: list[_StagedWatermark] = []
 
     @property
     def pages(self) -> int:
@@ -281,6 +300,15 @@ class _StepRun:
         a lie: a step that hides the exception that killed it is the defect.
         """
         try:
+            # Staged watermarks are committed on EVERY exit path, including the
+            # one an exception took. `_poll` deliberately saves partial sync
+            # state before re-raising, and a step that dies at endpoint 7 of 10
+            # must not throw away the six watermarks whose rows did land --
+            # that is the "loud failure that silently enlarges the next read"
+            # trade `orchestrate.py` refuses to make. `flush_watermarks` clears
+            # the ledger, so the explicit call a step makes first wins and this
+            # one is a no-op.
+            self.flush_watermarks()
             if not self.reported:
                 # An exception no step arm anticipated -- a malformed row blowing
                 # up a normalizer, say. Still gets a verdict; `report` re-raises
@@ -294,6 +322,72 @@ class _StepRun:
     def fetch(self, call: Callable[[], _T]) -> _T:
         """Run the synchronous vendor fetch inside this step's pagination scope."""
         return call()
+
+    def stage_watermark(self, sync_state: dict[str, Any], key: str, value: int) -> None:
+        """Ask for a watermark instead of writing one (#1950 criterion 3).
+
+        The four search steps fetch once and gate their single watermark inline
+        (`if orders and outcome.persisted`). `sync_analytics` cannot: it fans out
+        over ~10 endpoints that each own a watermark, and each one used to write
+        `sync_state[key] = synced_at` the instant its LIST call returned -- before
+        a single row had been offered to the ETL. That is mechanism 2 of this
+        issue verbatim: a healthy-looking timestamp on every run over rows that
+        never landed. There is no incremental cursor behind these keys (the
+        analytics window is always yesterday, `_analytics_date_window`), so the
+        damage is not a skipped delta -- it is that `tiktok_sync_state` reports
+        success for an endpoint that persisted nothing, which is the one thing
+        this issue exists to make impossible.
+
+        **Call this where the write used to be, and nowhere else.** The
+        arithmetic in `flush_watermarks` charges every row offered between this
+        call and the NEXT `stage_watermark` (or the end of the step) to this
+        endpoint, which is sound precisely because the endpoint blocks run
+        strictly in sequence and hand off only their own rows. A `stage_watermark`
+        moved away from its block's handoffs would silently credit them to a
+        neighbour.
+        """
+        self._staged_watermarks.append(
+            _StagedWatermark(
+                sync_state=sync_state,
+                key=key,
+                value=value,
+                offered_at=self.handoff.offered,
+                persisted_at=self.handoff.persisted,
+            )
+        )
+
+    def flush_watermarks(self) -> None:
+        """Write the staged watermarks whose rows actually landed.
+
+        The rule is the issue's: advance on `persisted > 0`, or on a genuine
+        `offered == 0` -- an endpoint whose window held no rows is not a failure
+        and must not be refetched forever. An endpoint that offered rows and
+        landed none is held back and says so at ERROR.
+        """
+        staged = self._staged_watermarks
+        for index, mark in enumerate(staged):
+            if index + 1 < len(staged):
+                offered_end = staged[index + 1].offered_at
+                persisted_end = staged[index + 1].persisted_at
+            else:
+                offered_end = self.handoff.offered
+                persisted_end = self.handoff.persisted
+            offered = offered_end - mark.offered_at
+            persisted = persisted_end - mark.persisted_at
+            if offered and not persisted:
+                logger.error(
+                    "poll_watermark_held_back",
+                    extra={
+                        "resource": self.resource,
+                        "shop_id": self.shop_id,
+                        "watermark": mark.key,
+                        "offered": offered,
+                        "persisted": persisted,
+                    },
+                )
+                continue
+            mark.sync_state[mark.key] = mark.value
+        staged.clear()
 
     def outcome(self, *, error: BaseException | None = None, skipped: bool = False) -> SyncOutcome:
         return SyncOutcome(
@@ -944,7 +1038,7 @@ async def sync_analytics(
                 )
                 skus = None
             if isinstance(skus, list):
-                sync_state["shop_sku_performance_last_sync_at"] = synced_at
+                step.stage_watermark(sync_state, "shop_sku_performance_last_sync_at", synced_at)
                 for sku in skus:
                     if not isinstance(sku, dict):
                         continue
@@ -1019,7 +1113,7 @@ async def sync_analytics(
                 )
                 products = None
             if isinstance(products, list):
-                sync_state["shop_product_performance_last_sync_at"] = synced_at
+                step.stage_watermark(sync_state, "shop_product_performance_last_sync_at", synced_at)
                 for product in products:
                     if not isinstance(product, dict):
                         continue
@@ -1111,8 +1205,16 @@ async def sync_analytics(
                     if row is not None:
                         live_rows.append(row)
                 if live_rows:
+                    # Staged BEFORE the handoff, not after it. `stage_watermark`
+                    # charges this endpoint every row offered between here and
+                    # the next stage point; staged afterwards the interval would
+                    # be empty, the gate would read "nothing offered", and the
+                    # watermark would advance over dropped live rows exactly as
+                    # it did before.
+                    step.stage_watermark(
+                        sync_state, "shop_live_performance_last_sync_at", synced_at
+                    )
                     await _handoff_analytics_rows(handoff_fn, shop_id, live_rows)
-                    sync_state["shop_live_performance_last_sync_at"] = synced_at
 
         if _acquire(
             rate_limiter,
@@ -1125,7 +1227,7 @@ async def sync_analytics(
                     start_date_ge=start_date_ge,
                     end_date_lt=end_date_lt,
                 )
-                sync_state["shop_performance_last_sync_at"] = synced_at
+                step.stage_watermark(sync_state, "shop_performance_last_sync_at", synced_at)
                 if isinstance(shop_performance, dict):
                     await _handoff_analytics_rows(
                         handoff_fn,
@@ -1143,7 +1245,9 @@ async def sync_analytics(
         if _acquire(rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=per_hour_path):
             try:
                 per_hour = resource.get_shop_performance_per_hour(date=day)
-                sync_state["shop_performance_per_hour_last_sync_at"] = synced_at
+                step.stage_watermark(
+                    sync_state, "shop_performance_per_hour_last_sync_at", synced_at
+                )
                 if isinstance(per_hour, dict):
                     await _handoff_analytics_rows(
                         handoff_fn,
@@ -1167,7 +1271,7 @@ async def sync_analytics(
         ):
             try:
                 resource.get_bestselling_products(date=day, time_slot="1D")
-                sync_state["bestselling_products_last_sync_at"] = synced_at
+                step.stage_watermark(sync_state, "bestselling_products_last_sync_at", synced_at)
             except TikTokAPIError:
                 logger.warning(
                     "sync_analytics_bestselling_products_failed",
@@ -1183,7 +1287,7 @@ async def sync_analytics(
         ):
             try:
                 resource.get_bestselling_videos(date=day, time_slot="1D")
-                sync_state["bestselling_videos_last_sync_at"] = synced_at
+                step.stage_watermark(sync_state, "bestselling_videos_last_sync_at", synced_at)
             except TikTokAPIError:
                 logger.warning(
                     "sync_analytics_bestselling_videos_failed",
@@ -1208,9 +1312,13 @@ async def sync_analytics(
                         exc_info=True,
                     )
             if fetched_any:
-                sync_state["promotion_activity_last_sync_at"] = synced_at
+                step.stage_watermark(sync_state, "promotion_activity_last_sync_at", synced_at)
 
         step.fetched = step.handoff.offered
+        # Every analytics watermark was STAGED rather than written (#1950
+        # criterion 3). This is where the ones whose rows actually landed are
+        # committed to `sync_state`, and where the rest are held back.
+        step.flush_watermarks()
         return step.report()
 
 

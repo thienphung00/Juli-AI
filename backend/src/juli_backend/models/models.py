@@ -119,7 +119,18 @@ class TikTokCredential(Base):
 
 
 class TikTokSyncState(Base):
-    """Per-endpoint incremental sync cursor for Fujiwa production polling."""
+    """Per-endpoint incremental sync cursor AND last verdict for Fujiwa polling.
+
+    The verdict columns are #1950's fourth criterion. Before them the only
+    evidence a poll endpoint had ever worked was the presence of a cursor row,
+    and "this endpoint has never once succeeded" was not a question this table
+    could answer -- #1948's inventory sync failed 100% of the time for the
+    lifetime of the table and looked exactly like an endpoint with nothing to do.
+
+    ``last_success_at IS NULL`` is that question, in SQL. The rest of the
+    columns are the outcome triple the log line carries, written where a Celery
+    worker's log formatter cannot drop them (#1978).
+    """
 
     __tablename__ = "tiktok_sync_state"
 
@@ -127,6 +138,14 @@ class TikTokSyncState(Base):
     shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     endpoint: Mapped[str] = mapped_column(String(50), nullable=False)
     last_update_time: Mapped[int] = mapped_column(nullable=False, default=0)
+    # Nullable on purpose, all six: every row that already exists predates this
+    # column and has no verdict to report. A default would invent one.
+    last_outcome: Mapped[str | None] = mapped_column(String(20))
+    last_outcome_at: Mapped[datetime | None] = mapped_column()
+    last_fetched: Mapped[int | None] = mapped_column()
+    last_persisted: Mapped[int | None] = mapped_column()
+    last_error: Mapped[str | None] = mapped_column(String(500))
+    last_success_at: Mapped[datetime | None] = mapped_column()
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
