@@ -38,6 +38,7 @@ from sqlalchemy.exc import IntegrityError
 
 from juli_backend.core.config.runtime import sync_database_url
 from tests.integration.test_migrations import postgres_at_head, requires_postgres  # noqa: F401
+from tests.support.builders import seed_user_row_at_any_revision
 
 __all__ = ["postgres_at_head", "requires_postgres"]
 
@@ -93,13 +94,14 @@ def _columns_by_name(engine: Engine, table: str, schema: str | None = None) -> d
 def _seed_shop_and_user(session) -> tuple:
     from juli_backend.models import models as m
 
-    user = m.User(phone="+15550001269")
-    session.add(user)
-    session.flush()
-    shop = m.Shop(user_id=user.id, shop_name="AGT-W5A-DP #1269 Test Shop")
+    # Seeded column-by-column, not via the ORM (#1973): the model
+    # describes HEAD, and this schema is an older revision that has
+    # no `users.email`. See the helper's docstring.
+    user_id = seed_user_row_at_any_revision(session, "+15550001269")
+    shop = m.Shop(user_id=user_id, shop_name="AGT-W5A-DP #1269 Test Shop")
     session.add(shop)
     session.flush()
-    return user, shop
+    return user_id, shop
 
 
 def _seed_product(session, shop) -> object:
@@ -227,7 +229,7 @@ def test_action_card_id_defaults_to_null_on_insert(postgres_at_head: Engine):
     from juli_backend.models import models as m
 
     with Session(postgres_at_head) as session:
-        user, shop = _seed_shop_and_user(session)
+        user_id, shop = _seed_shop_and_user(session)
         product = _seed_product(session, shop)
 
         run = m.WorkflowRun(
@@ -256,7 +258,7 @@ def test_action_card_id_fk_rejects_nonexistent_card(postgres_at_head: Engine):
     from juli_backend.models import models as m
 
     with Session(postgres_at_head) as session:
-        user, shop = _seed_shop_and_user(session)
+        user_id, shop = _seed_shop_and_user(session)
         product = _seed_product(session, shop)
 
         run = m.WorkflowRun(
@@ -284,7 +286,7 @@ def test_action_card_id_fk_accepts_real_card(postgres_at_head: Engine):
     from juli_backend.models import models as m
 
     with Session(postgres_at_head) as session:
-        user, shop = _seed_shop_and_user(session)
+        user_id, shop = _seed_shop_and_user(session)
         product = _seed_product(session, shop)
         card = m.ActionCard(
             shop_id=shop.id,
@@ -361,7 +363,7 @@ def test_existing_workflow_run_row_not_rewritten_by_migration(postgres_at_head: 
         from sqlalchemy.orm import Session
 
         with Session(engine) as session:
-            user, shop = _seed_shop_and_user(session)
+            user_id, shop = _seed_shop_and_user(session)
             product = _seed_product(session, shop)
             session.commit()
             shop_id = shop.id

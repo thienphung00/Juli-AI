@@ -1,7 +1,7 @@
 """CONTRACT step for #1972: null out the phone numbers Juli fabricated
 
-Revision ID: 065_users_phone_placeholder_cleanup
-Revises: 064_users_phone_nullable
+Revision ID: 066_users_placeholder_phone_cleanup
+Revises: 065_users_email
 Create Date: 2026-09-20
 
 **This file is deliberately NOT in ``versions/``. Do not move it there until it
@@ -76,18 +76,16 @@ the VPS, against the release directory that is *currently serving*:
 
 1. Confirm the serving release contains ``064_users_phone_nullable`` (and so
    the code that stopped fabricating) and that ``alembic current`` reports
-   ``064_users_phone_nullable`` or later. If it reports anything earlier,
-   STOP: an older release would immediately mint fresh placeholders behind
-   this cleanup.
+   ``065_users_email``. If it reports anything earlier, STOP: an older
+   release would immediately mint fresh placeholders behind this cleanup.
 
-   **Check the revision number before you run this.** #1973's follow-up PR
-   adds ``065_users_email`` to ``versions/`` and renumbers this file to
-   ``066_users_placeholder_phone_cleanup``, chained onto it, so that the
-   deferred step stays the tail of the chain. Whichever of the two is on
-   ``main`` when you run it is the correct one; they differ only in
-   ``revision``/``down_revision`` and do exactly the same thing to the same
-   rows. Running the older copy against a database already at
-   ``065_users_email`` would stamp a revision Alembic cannot place.
+   This file was numbered ``065_users_phone_placeholder_cleanup`` when
+   #1972's PR landed it, chained onto 064. #1973 added ``065_users_email``
+   to ``versions/`` and renumbered it here so that the deferred step stays
+   the TAIL of the chain -- a deferred step with a later revision above it
+   forks the chain the moment it is copied into a serving release's
+   ``versions/``. Nothing else about it changed; it had not been applied
+   anywhere when it was renumbered.
 2. Take the backup (``infra/scripts/safe-alembic-upgrade.sh`` does this).
 3. Copy this file into that release's ``versions/`` directory and LEAVE IT
    THERE -- removing it afterwards would leave Alembic at a revision with no
@@ -109,8 +107,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "065_users_phone_placeholder_cleanup"
-down_revision: str | None = "064_users_phone_nullable"
+revision: str = "066_users_placeholder_phone_cleanup"
+down_revision: str | None = "065_users_email"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

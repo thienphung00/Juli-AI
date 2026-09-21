@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import (
@@ -192,3 +193,49 @@ __all__ = [
     "next_unique",
     "utc_now_naive",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Seeding against a HISTORICAL schema
+# ---------------------------------------------------------------------------
+
+#: `created_at`/`updated_at` are deliberately NOT named. Migration 001 gives
+#: both a `server_default` of `now()`, and at that revision they are naive
+#: `TIMESTAMP` columns -- passing a tz-aware `datetime.now(UTC)` makes asyncpg
+#: raise `DataError: can't subtract offset-naive and offset-aware datetimes`.
+#: Letting the database fill them is both simpler and correct at every revision.
+_HISTORICAL_USER_INSERT = text("INSERT INTO users (id, phone) VALUES (:id, :phone)")
+
+
+def seed_user_row_at_any_revision(session: Any, phone: str) -> uuid.UUID:
+    """Insert one `users` row naming only columns that exist at EVERY revision.
+
+    WHY NOT `User(...)` (#1973). Migration-era tests downgrade the database to a
+    specific old revision and then seed it. The ORM model always describes the
+    schema at HEAD, so `session.add(User(...))` emits an INSERT naming every
+    mapped column -- and the moment head gains one the old schema lacks, every
+    such test fails on a column it never asked for:
+
+        psycopg2.errors.UndefinedColumn: column "email" of relation "users"
+        does not exist
+        LINE 1: INSERT INTO users (id, phone, email, display_name) VALUES (...
+
+    That is not a defect in the migration under test; it is the seed reaching
+    forward in time. `users.email` (migration 065) is the column that first
+    exposed it, and the next added column would have done the same.
+
+    `id` and `phone` have existed since
+    `001_create_users_shops_tiktok_credentials`, so this INSERT is valid at
+    every revision from 001 onward -- including the 041/042-era schemas these
+    tests reconstruct. `phone` is set rather than left NULL because before 064
+    the column was `NOT NULL`, and the timestamps come from their own
+    `server_default`.
+
+    Returns the new row's id, since there is no ORM object to read it from.
+
+    Works on a sync Session; the one async caller passes
+    ``await session.execute`` through its own await.
+    """
+    user_id = uuid.uuid4()
+    session.execute(_HISTORICAL_USER_INSERT, {"id": str(user_id), "phone": phone})
+    return user_id

@@ -39,6 +39,7 @@ from sqlalchemy.exc import IntegrityError
 from juli_backend.core.config.runtime import sync_database_url
 from juli_backend.services.agent.status import StopReason
 from tests.integration.test_migrations import postgres_at_head, requires_postgres  # noqa: F401
+from tests.support.builders import seed_user_row_at_any_revision
 
 __all__ = ["postgres_at_head", "requires_postgres"]
 
@@ -93,10 +94,11 @@ def _reset_to_revision(cfg: Config, revision: str) -> None:
 def _seed_shop_and_product(session) -> tuple:
     from juli_backend.models import models as m
 
-    user = m.User(phone="+15550001359")
-    session.add(user)
-    session.flush()
-    shop = m.Shop(user_id=user.id, shop_name="AGT-W5A-PROMPTPIN #1359 Test Shop")
+    # Seeded column-by-column, not via the ORM (#1973): the model
+    # describes HEAD, and this schema is an older revision that has
+    # no `users.email`. See the helper's docstring.
+    user_id = seed_user_row_at_any_revision(session, "+15550001359")
+    shop = m.Shop(user_id=user_id, shop_name="AGT-W5A-PROMPTPIN #1359 Test Shop")
     session.add(shop)
     session.flush()
     product = m.Product(

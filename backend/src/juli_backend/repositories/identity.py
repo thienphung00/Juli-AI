@@ -27,7 +27,13 @@ class UsersRepo(SessionRepo):
             raise NotFound(f"User {user_id} not found")
         return user
 
-    async def get_for_authentication(self, user_id: uuid.UUID) -> User:
+    async def get_for_authentication(
+        self,
+        user_id: uuid.UUID,
+        *,
+        email: str | None = None,
+        display_name: str | None = None,
+    ) -> User:
         """Read one user during authentication, under a scope of its own (#1691).
 
         THE CIRCULARITY. `users` carries
@@ -65,14 +71,84 @@ class UsersRepo(SessionRepo):
         this SAME scope, so `users_insert_public`'s `WITH CHECK (id =
         app_current_user_id())` sees exactly the caller's own verified id,
         never anyone else's.
+
+        WHAT THE CALLER PASSES IN (#1973). `email` and `display_name` are the
+        claims `core/security/claims.py` read out of the same verified token
+        `user_id` came from. They arrive as plain strings rather than a Supabase
+        payload because a repository that reached into
+        `payload["user_metadata"]` would have taken on an authentication
+        concern; the vendor shape stops at `core/security/`. Both are optional:
+        a token without a verified email leaves the column NULL, which is the
+        honest answer and the one `users.phone` could not give before #1972.
         """
         async with with_user_scope(self._session, user_id):
             try:
-                return await self.get(user_id)
+                user = await self.get(user_id)
             except NotFound:
-                return await self._provision_first_sighting(user_id)
+                return await self._provision_first_sighting(
+                    user_id, email=email, display_name=display_name
+                )
+            if self._record_first_known_identity(user, email=email, display_name=display_name):
+                # FLUSHED INSIDE THE SCOPE, AND THAT IS LOAD-BEARING (#1973).
+                # The assignment above only marks the row dirty; the UPDATE is
+                # emitted at the next flush. `get_current_user` commits AFTER
+                # this context manager has exited, by which point
+                # `with_user_scope` has put the previous (empty) GUCs back --
+                # and `users_update_public` is
+                # `USING (id = current_setting('app.current_user_id', true)::uuid)`,
+                # so with no GUC the policy matches no row. Postgres does not
+                # raise for that; it updates zero rows, and SQLAlchemy turns the
+                # mismatch into `StaleDataError: expected to update 1 row(s); 0
+                # were matched` -- a 500 on the seller's request with nothing in
+                # it naming RLS. Measured exactly that way on a freshly migrated
+                # database before this flush was added
+                # (`tests/integration/test_google_identity_provisioning.py::
+                # test_a_returning_seller_with_no_email_is_backfilled`).
+                await self._session.flush()
+            return user
 
-    async def _provision_first_sighting(self, user_id: uuid.UUID) -> User:
+    @staticmethod
+    def _record_first_known_identity(
+        user: User, *, email: str | None, display_name: str | None
+    ) -> bool:
+        """Fill a column that is still empty, and never overwrite one that is not.
+
+        Returns whether anything changed, so the caller flushes only when there
+        is something to write -- an unconditional flush would put a round trip
+        on every authenticated request in the application for the benefit of the
+        handful that carry a hole to fill.
+
+        THIS IS THE BACKFILL (#1973). Every `users` row that predates migration
+        065 has `email IS NULL`, and there is no way to recover the claim from
+        this database: Supabase's `auth.users` lives in Supabase's project, not
+        in Juli's Postgres, so a SQL backfill has nothing to read. The only
+        authority on a seller's verified address is a token that seller
+        presents -- so the backfill is this, on their next authenticated
+        request, from the same signed claim a new seller's row is built from. A
+        seller who never returns keeps a NULL email, which is exactly right: we
+        genuinely do not know it.
+
+        ONLY EVER FILLS A HOLE. `or None`-style overwriting would let a later
+        token quietly replace a value, and the one field a seller may edit
+        later (`display_name`) would be reverted to the Google name on every
+        request. A column that already holds something is left alone.
+        """
+        changed = False
+        if user.email is None and email is not None:
+            user.email = email
+            changed = True
+        if user.display_name is None and display_name is not None:
+            user.display_name = display_name
+            changed = True
+        return changed
+
+    async def _provision_first_sighting(
+        self,
+        user_id: uuid.UUID,
+        *,
+        email: str | None = None,
+        display_name: str | None = None,
+    ) -> User:
         """Insert the first-sighting row for `user_id` (#1906), racing safely.
 
         NOT A SECOND PROVISIONING PATH. The write is `get_or_create` --  the
@@ -103,32 +179,65 @@ class UsersRepo(SessionRepo):
         as contactable, and that occupied a UNIQUE slot a seller's real number
         could later collide with. Migration 064 made the column nullable
         precisely so this row can say "we have no phone for this seller",
-        which is the truth. The verified `email` claim the JWT already carries
-        is the identity to capture instead (#1973).
+        which is the truth.
+
+        WHAT IS WRITTEN INSTEAD (#1973). The verified `email` and the display
+        name the same token already carries. Those are not invented -- Google
+        checked the address and Supabase signed the claim -- so this row now
+        starts life with a real way to reach the seller and a real name to
+        greet them by, which is what the fabricated phone was standing in for.
 
         Uniqueness is unaffected. What makes the insert idempotent under a
         retry for the same `sub` is the primary key on `users.id`, never the
         phone -- and Postgres's UNIQUE treats NULLs as distinct, so any number
-        of phone-less rows coexist.
+        of phone-less rows coexist. `users.email` carries no unique constraint
+        at all (see `models.py`), so a repeat address cannot fail this insert
+        either.
+
+        THE LOSER OF THE RACE STILL GETS ITS CLAIMS RECORDED. The
+        `IntegrityError` branch re-reads the winner's row and runs the same
+        fill as an ordinary returning sign-in, so a concurrent first sighting
+        does not end with one caller's claims silently dropped.
         """
         try:
             async with self._session.begin_nested():
-                return await self.get_or_create(user_id)
+                return await self.get_or_create(user_id, email=email, display_name=display_name)
         except IntegrityError:
-            return await self.get(user_id)
+            user = await self.get(user_id)
+            if self._record_first_known_identity(user, email=email, display_name=display_name):
+                # Same reason as the returning-seller path above: this still
+                # runs inside `get_for_authentication`'s `with_user_scope`, and
+                # the UPDATE has to be emitted before that scope hands the GUCs
+                # back, or `users_update_public` matches no row.
+                await self._session.flush()
+            return user
 
-    async def get_or_create(self, user_id: uuid.UUID, phone: str | None = None) -> User:
-        """Return the user with ``user_id``, creating it with ``phone`` when absent.
+    async def get_or_create(
+        self,
+        user_id: uuid.UUID,
+        phone: str | None = None,
+        *,
+        email: str | None = None,
+        display_name: str | None = None,
+    ) -> User:
+        """Return the user with ``user_id``, creating it when absent.
 
         ``phone`` defaults to ``None`` (#1972): a caller that does not have the
         seller's real number must leave the column NULL rather than invent one.
         The two remaining callers that pass a value pass a fixed, non-seller
         sentinel for an internal account, not a derived per-user number.
+
+        ``email``/``display_name`` (#1973) are keyword-only, so the four
+        ``services/tiktok/*`` call sites that predate them keep their exact
+        meaning: those paths provision an internal account from an OAuth
+        callback and hold no seller claims at all.
         """
         existing = await self._session.get(User, user_id)
         if existing is not None:
             return existing
-        return await self._add(User(id=user_id, phone=phone))
+        return await self._add(
+            User(id=user_id, phone=phone, email=email, display_name=display_name)
+        )
 
 
 class ShopsRepo(SessionRepo):
