@@ -53,6 +53,28 @@ Matches ``__all__`` — re-exports only:
   ``credential_resolver``'s wildcard re-export, with no ``__all__`` entry of its own,
   even though ``workers/services/polling/sync.py`` and
   ``services/agent/composition.py`` already imported it from here)
+- ``mint_oauth_state(user_id, *, secret, flow, now=None) -> str`` — the signed OAuth
+  ``state`` (#1970). Wire format unchanged from what this package already produced:
+  ``base64url(json) "." hex(HMAC-SHA256(secret, base64url))``. The payload gains
+  ``flow`` and ``iat``, so a state is accepted only by the handshake it was minted for
+  and only inside its TTL. Exported at this package root, not deep-imported:
+  ``services/tiktok/oauth.py`` is capped at cross-package depth 2 by
+  ``.importlinter.toml``
+- ``verify_oauth_state(state, *, secret, expected_flow, ttl_seconds=…, now=None) -> OAuthState``
+  — signature first, then payload, then flow, then freshness. Raises ``Unauthorized``
+  for every rejection; never returns a partially-trusted value. There is no single-use
+  nonce ledger (it would need storage this slice has no migration authority for), so a
+  state can be presented twice inside its TTL — bounded by TikTok's single-use
+  authorization code and by ``provision_shop_and_credentials`` refusing to rebind a shop
+  owned by someone else. See the module docstring for the full residual
+- ``OAuthState`` — the verified payload (``user_id``, ``flow``, ``nonce``, ``issued_at``);
+  only ever constructed after the HMAC checked out
+- ``SELLER_CONNECT_FLOW`` — flow label for the seller-initiated "connect my TikTok Shop"
+  handshake, minted by ``GET /v1/auth/tiktok/start`` and required at the callback
+- ``DEFAULT_STATE_TTL_SECONDS`` — 600. Long enough to read TikTok's consent screen,
+  short enough that a state in a log or browser history is stale before anyone reads it
+- ``CLOCK_SKEW_TOLERANCE_SECONDS`` — 60. Tolerance for a forward-dated ``iat``; beyond
+  it the state is refused rather than trusted, so skew cannot extend the window
 - ``JwksUnavailableError`` — raised when the JWKS key set cannot be fetched/parsed, or a
   `kid` is still absent after one refetch attempt; fails closed (401), logged under
   `jwt_jwks_unavailable`, distinguishable from a bad token's `jwt_invalid`/`jwt_expired`

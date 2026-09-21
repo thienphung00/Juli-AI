@@ -7,12 +7,7 @@ to provide a complete OAuth lifecycle for connecting TikTok Shops.
 from __future__ import annotations
 
 import asyncio
-import base64
-import hashlib
-import hmac
-import json
 import logging
-import secrets
 import uuid
 from typing import Protocol
 
@@ -25,6 +20,11 @@ from juli_backend.core.security.credential_refresh import (
     refresh_credential,
 )
 from juli_backend.core.security.exceptions import Unauthorized
+from juli_backend.core.security.oauth_state import (
+    SELLER_CONNECT_FLOW,
+    mint_oauth_state,
+    verify_oauth_state,
+)
 from juli_backend.database.exceptions import NotFound
 from juli_backend.integrations.tiktok import (
     TikTokAuth,
@@ -240,28 +240,23 @@ class TikTokOAuthService:
         return _unwrap_for_legacy_caller(outcome)
 
     def _build_state(self, user_id: uuid.UUID) -> str:
-        """Build an HMAC-signed state parameter encoding user_id + nonce."""
-        payload = json.dumps({"user_id": str(user_id), "nonce": secrets.token_urlsafe(16)})
-        encoded = base64.urlsafe_b64encode(payload.encode()).decode()
-        signature = hmac.new(
-            self._app_secret.encode(), encoded.encode(), hashlib.sha256
-        ).hexdigest()
-        return f"{encoded}.{signature}"
+        """Mint the signed seller-connect state (see ``core.security.oauth_state``).
+
+        Delegates rather than re-implementing: this module and
+        ``services/tiktok/oauth.py`` had two copies of the same HMAC
+        construction, and #1970's TTL + flow binding had to land in both to
+        mean anything.
+        """
+        return mint_oauth_state(
+            user_id,
+            secret=self._app_secret,
+            flow=SELLER_CONNECT_FLOW,
+        )
 
     def _verify_state(self, state: str) -> uuid.UUID:
-        """Verify HMAC signature and extract user_id from state parameter."""
-        parts = state.split(".", 1)
-        if len(parts) != 2:
-            raise Unauthorized("Invalid OAuth state")
-
-        encoded, signature = parts
-        expected = hmac.new(self._app_secret.encode(), encoded.encode(), hashlib.sha256).hexdigest()
-
-        if not hmac.compare_digest(signature, expected):
-            raise Unauthorized("Invalid OAuth state signature")
-
-        try:
-            payload = json.loads(base64.urlsafe_b64decode(encoded))
-            return uuid.UUID(payload["user_id"])
-        except (json.JSONDecodeError, KeyError, ValueError) as exc:
-            raise Unauthorized(f"Malformed OAuth state: {exc}")
+        """Verify the signed state and return the user id it names."""
+        return verify_oauth_state(
+            state,
+            secret=self._app_secret,
+            expected_flow=SELLER_CONNECT_FLOW,
+        ).user_id

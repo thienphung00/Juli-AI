@@ -23,6 +23,18 @@ from juli_backend.api.dependencies import get_active_shop
 
 - `GET /v1/shops` — list authenticated user's shops
 - `GET /v1/shops/me` — get the shop identified by X-Shop-Id header
+- `tiktok_oauth_start` → `GET /v1/auth/tiktok/start` — begin a seller-initiated TikTok
+  Shop connect (issue #1970, ADR-094 decision 3's named follow-up). **Requires the
+  Supabase JWT**: `get_current_user` is the only identity input, and the user id it
+  yields is sealed into the signed OAuth `state` that the callback binds the shop to.
+  The route accepts no caller-supplied user id — one would let any caller name a victim
+  and bind their own shop to that account. Answers `{authorize_url, state_expires_in}`
+  rather than a 302, because the caller is a browser XHR carrying a bearer token a
+  top-level navigation cannot hold. 503 when TikTok OAuth is unconfigured.
+  Delegates to `services/tiktok/oauth.begin_tiktok_oauth`; see `api/routes/auth_tiktok.py`.
+- `GET /v1/auth/tiktok/callback` — public TikTok Partner Center redirect. No Juli
+  session exists here (TikTok is the caller), so the signed state minted at /start is
+  the sole thing identifying the seller.
 - `GET /v1/creators` — creators with attribution + commission efficiency (matching signal)
 - `GET /v1/creators/{id}/content` — content-to-conversion funnel for a creator
 - `GET /v1/products` — products (product nodes for matching)

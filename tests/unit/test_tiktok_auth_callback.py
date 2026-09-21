@@ -1,10 +1,5 @@
 """Route tests for TikTok OAuth callback infrastructure (GET /v1/auth/tiktok/callback)."""
 
-import base64
-import hashlib
-import hmac
-import json
-import secrets
 import uuid
 from unittest.mock import MagicMock
 
@@ -13,6 +8,10 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
+from juli_backend.core.security.oauth_state import (
+    SELLER_CONNECT_FLOW,
+    mint_oauth_state,
+)
 from juli_backend.integrations.tiktok.exceptions import (
     AuthenticationError,
 )
@@ -32,10 +31,18 @@ TOKEN_FIXTURE = {
 
 
 def _build_state(user_id: uuid.UUID, *, secret: str = APP_SECRET) -> str:
-    payload = json.dumps({"user_id": str(user_id), "nonce": secrets.token_urlsafe(16)})
-    encoded = base64.urlsafe_b64encode(payload.encode()).decode()
-    signature = hmac.new(secret.encode(), encoded.encode(), hashlib.sha256).hexdigest()
-    return f"{encoded}.{signature}"
+    """Mint the state with the PRODUCTION minter, not a local copy of its format.
+
+    This used to hand-roll the base64+HMAC bytes. That is the shape #1970's
+    review calls out: a local reimplementation of a collaborator's format proves
+    the route accepts *this file's* idea of a state, not the one the application
+    actually issues. When #1970 added `flow` and `iat` claims and made the
+    verifier require them, the hand-rolled state silently stopped being valid
+    and these tests turned red on a 401 -- the right answer arriving through the
+    wrong channel. Calling the real minter means the next change to the format
+    is either compatible or caught at its source.
+    """
+    return mint_oauth_state(user_id, secret=secret, flow=SELLER_CONNECT_FLOW)
 
 
 @pytest.fixture(autouse=True)
