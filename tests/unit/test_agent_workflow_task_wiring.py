@@ -29,7 +29,7 @@ AC -> test map:
 - `_construct_runner` builds the real `WorkflowRunner` with its real
   keyword-only collaborators (llm_service, tool_executor, event_sink,
   conversation_store, registry, playbook) -> TestConstructRunner
-- the `_default_llm_service`/`_default_tool_registry`/`_default_playbook`
+- the `_default_llm_service`/`_default_tool_registry`/`_playbook_for_run`
   composition seams build the real collaborators (issue #1173), with
   `_default_llm_service` failing closed on a missing `OPENAI_API_KEY`
   rather than faking a collaborator that would look real ->
@@ -157,7 +157,7 @@ class TestDefaultSeamsComposeRealCollaborators:
     boundary gap the three `_construct_runner` seams previously could not
     cross from `workers/` -- `RunnerCompositionUnavailableError` (retired,
     kept only for backward compatibility -- see its docstring) is no longer
-    raised by any of them. `_default_tool_registry` and `_default_playbook`
+    raised by any of them. `_default_tool_registry` and `_playbook_for_run`
     need no credentials at all and always succeed; `_default_llm_service`
     fails closed on a missing `OPENAI_API_KEY` with a precise, ordinary
     `RuntimeError` (`require_env`'s own message), never the retired
@@ -191,14 +191,28 @@ class TestDefaultSeamsComposeRealCollaborators:
             "conclude_without_changes",
         }
 
-    def test_default_playbook_returns_the_real_optimize_product_playbook(self):
+    def test_playbook_for_run_resolves_the_runs_own_workflow(self):
+        """#1702 replaced `_default_playbook()` (which returned Optimize
+        Product for every run) with `_playbook_for_run(run)`, resolved off
+        the run's own `workflow_key` through the playbook registry. A run
+        carrying the one registered production key still gets the real
+        `OPTIMIZE_PRODUCT_PLAYBOOK`; a run carrying an unregistered key
+        raises rather than silently executing a substitute."""
+        import pytest
+
+        from juli_backend.services.agent import playbooks as playbooks_module
         from juli_backend.services.agent.playbooks import OPTIMIZE_PRODUCT_PLAYBOOK
         from juli_backend.services.agent.playbooks.base import Playbook
 
-        playbook = agent_workflow._default_playbook()
+        run, _product = _seeded_run_and_product()
+        playbook = agent_workflow._playbook_for_run(run)
 
         assert isinstance(playbook, Playbook)
         assert playbook is OPTIMIZE_PRODUCT_PLAYBOOK
+
+        run.workflow_key = "no_such_workflow_in_the_registry"
+        with pytest.raises(playbooks_module.UnregisteredWorkflowError):
+            agent_workflow._playbook_for_run(run)
 
     def test_default_llm_service_builds_the_real_openai_adapter_when_key_present(self, monkeypatch):
         from juli_backend.services.agent.llm import LLMService
@@ -235,13 +249,14 @@ class TestDefaultSeamsComposeRealCollaborators:
 
         assert not isinstance(exc_info.value, agent_workflow.RunnerCompositionUnavailableError)
 
-    def test_default_tool_registry_and_default_playbook_never_need_openai_key(self, monkeypatch):
+    def test_default_tool_registry_and_playbook_for_run_never_need_openai_key(self, monkeypatch):
         """Neither of these seams touches marketplace or LLM credentials --
         both must succeed even with no relevant environment configured."""
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
+        run, _product = _seeded_run_and_product()
         agent_workflow._default_tool_registry()
-        agent_workflow._default_playbook()
+        agent_workflow._playbook_for_run(run)
 
 
 class TestDefaultResourceSeamsComposeRealMarketplaceResources:
@@ -412,6 +427,10 @@ def _seeded_run_and_product() -> tuple[WorkflowRun, Product]:
         id=run_id,
         shop_id=shop_id,
         product_id=product_id,
+        # #1702: `_playbook_for_run` resolves the playbook off this column.
+        # `WorkflowRun.workflow_key`'s client-side default only fires on
+        # INSERT, and this row is never flushed, so it is set explicitly.
+        workflow_key="optimize_product_2",
         state={"basis_snapshots": {}},
         status="running",
         prompt_version="v1",
@@ -433,7 +452,7 @@ class TestConstructRunner:
         monkeypatch.setattr(runner_pkg, "WorkflowRunner", _SpyWorkflowRunner)
         monkeypatch.setattr(agent_workflow, "_default_llm_service", lambda: "FAKE_LLM_SERVICE")
         monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
-        monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
+        monkeypatch.setattr(agent_workflow, "_playbook_for_run", lambda _run: _dummy_playbook())
         monkeypatch.setattr(agent_workflow, "_default_read_resources", _fake_read_resources)
         monkeypatch.setattr(agent_workflow, "_default_write_resources", _fake_write_resources)
 
@@ -502,7 +521,7 @@ class TestConstructRunner:
         monkeypatch.setattr(runner_pkg, "WorkflowRunner", _SpyWorkflowRunner)
         monkeypatch.setattr(agent_workflow, "_default_llm_service", lambda: "FAKE_LLM_SERVICE")
         monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
-        monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
+        monkeypatch.setattr(agent_workflow, "_playbook_for_run", lambda _run: _dummy_playbook())
         monkeypatch.setattr(agent_workflow, "_default_read_resources", _fake_read_resources)
         monkeypatch.setattr(agent_workflow, "_default_write_resources", _fake_write_resources)
 
@@ -529,7 +548,7 @@ class TestConstructRunner:
         monkeypatch.setattr(runner_pkg, "WorkflowRunner", _SpyWorkflowRunner)
         monkeypatch.setattr(agent_workflow, "_default_llm_service", lambda: "FAKE_LLM_SERVICE")
         monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
-        monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
+        monkeypatch.setattr(agent_workflow, "_playbook_for_run", lambda _run: _dummy_playbook())
         monkeypatch.setattr(agent_workflow, "_default_read_resources", _fake_read_resources)
         monkeypatch.setattr(agent_workflow, "_default_write_resources", _fake_write_resources)
 
@@ -569,7 +588,7 @@ class TestConstructRunnerUsesRealPersistingEventSink:
         monkeypatch.setattr(runner_pkg, "WorkflowRunner", _SpyWorkflowRunner)
         monkeypatch.setattr(agent_workflow, "_default_llm_service", lambda: "FAKE_LLM_SERVICE")
         monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
-        monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
+        monkeypatch.setattr(agent_workflow, "_playbook_for_run", lambda _run: _dummy_playbook())
         monkeypatch.setattr(agent_workflow, "_default_read_resources", _fake_read_resources)
         monkeypatch.setattr(agent_workflow, "_default_write_resources", _fake_write_resources)
 
@@ -600,7 +619,7 @@ class TestTaskBodiesCallRealRunnerMethods:
         monkeypatch.setattr(runner_pkg, "WorkflowRunner", _SpyWorkflowRunner)
         monkeypatch.setattr(agent_workflow, "_default_llm_service", lambda: "FAKE_LLM_SERVICE")
         monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
-        monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
+        monkeypatch.setattr(agent_workflow, "_playbook_for_run", lambda _run: _dummy_playbook())
         monkeypatch.setattr(agent_workflow, "_default_read_resources", _fake_read_resources)
         monkeypatch.setattr(agent_workflow, "_default_write_resources", _fake_write_resources)
 
@@ -640,7 +659,7 @@ class TestTaskBodiesCallRealRunnerMethods:
         monkeypatch.setattr(runner_pkg, "WorkflowRunner", _CapturingSpyWorkflowRunner)
         monkeypatch.setattr(agent_workflow, "_default_llm_service", lambda: "FAKE_LLM_SERVICE")
         monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
-        monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
+        monkeypatch.setattr(agent_workflow, "_playbook_for_run", lambda _run: _dummy_playbook())
         monkeypatch.setattr(agent_workflow, "_default_read_resources", _fake_read_resources)
         monkeypatch.setattr(agent_workflow, "_default_write_resources", _fake_write_resources)
 
@@ -759,7 +778,7 @@ class TestCancelCheckReadsFreshFromDatabase:
         monkeypatch.setattr(runner_pkg, "WorkflowRunner", _SpyWorkflowRunner)
         monkeypatch.setattr(agent_workflow, "_default_llm_service", lambda: "FAKE_LLM_SERVICE")
         monkeypatch.setattr(agent_workflow, "_default_tool_registry", ToolRegistry)
-        monkeypatch.setattr(agent_workflow, "_default_playbook", _dummy_playbook)
+        monkeypatch.setattr(agent_workflow, "_playbook_for_run", lambda _run: _dummy_playbook())
         monkeypatch.setattr(agent_workflow, "_default_read_resources", _fake_read_resources)
         monkeypatch.setattr(agent_workflow, "_default_write_resources", _fake_write_resources)
 

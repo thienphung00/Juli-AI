@@ -113,16 +113,21 @@ class TestProductsRevenueRecompute:
 
 
 class TestProductsRanking:
-    async def test_highest_revenue_breaks_ties_on_tiktok_product_id(self, session, shop):
-        """ADR-082: the same ActionCard approved twice must bind to the same listing."""
-        await make_product(session, shop, tiktok_product_id="b", revenue=Decimal("10"))
-        winner = await make_product(session, shop, tiktok_product_id="a", revenue=Decimal("10"))
-        await make_product(session, shop, tiktok_product_id="c", revenue=Decimal("5"))
+    def test_the_highest_revenue_derivation_is_gone(self):
+        """`get_highest_revenue_product` is DELETED by #1702, not deprecated.
 
-        assert (await ProductsRepo(session).get_highest_revenue_product(shop.id)) is winner
-
-    async def test_highest_revenue_is_none_for_a_shop_without_products(self, session, shop):
-        assert await ProductsRepo(session).get_highest_revenue_product(shop.id) is None
+        It replaced the two tie-break tests that used to sit here. They were
+        correct about the rule they pinned -- ADR-082 decision 2's "the same
+        ActionCard approved twice must bind to the same listing" -- but the
+        rule itself was the defect (#1365 finding F3): it bound every run to
+        the shop's best seller no matter which listing the approved card was
+        about. A run's subject now comes off the card (ADR-087 d.1,
+        `services/agent/approval.py`), so the method has no caller and no
+        meaning, and it is removed rather than left available for a future
+        caller to reach for. `list_by_revenue` below still serves the
+        ordinary "products by revenue" read.
+        """
+        assert not hasattr(ProductsRepo, "get_highest_revenue_product")
 
     async def test_list_by_revenue_pages_in_revenue_order(self, session, shop):
         low = await make_product(session, shop, revenue=Decimal("1"))
