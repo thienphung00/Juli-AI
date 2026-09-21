@@ -439,8 +439,18 @@ def test_additive_gate_accepts_the_real_repo_at_the_promoted_063_revision():
     `alembic.util.exc.ResolutionError`, which this script's `main()` turns
     into `ADDITIVE-ONLY: ERROR` and a non-zero exit -- indistinguishable from
     a refusal to `deploy.sh`, which aborts the whole release before any
-    candidate starts. With the file promoted, the revision is no longer
-    pending and the gate must accept with zero findings.
+    candidate starts. With the file promoted, the revision RESOLVES, and the
+    gate reaches a real verdict instead of erroring.
+
+    WHAT IS ASSERTED, AND WHAT DELIBERATELY IS NOT (#1972). This test first
+    pinned `pending revisions inspected: (none)`, which held only while 063
+    happened to be the last migration in the tree -- the first revision to land
+    on top of it (`064_users_phone_nullable`) failed this test for a reason
+    that has nothing to do with the resolution defect it exists to catch. The
+    empty list was a side effect of the fixture, not the property. What must
+    hold is that 063 resolves and the gate ACCEPTS; the pending set is whatever
+    has legitimately landed since, and every entry in it has been judged
+    additive by the same run.
     """
     result = _run_gate(
         "--alembic-ini",
@@ -450,4 +460,9 @@ def test_additive_gate_accepts_the_real_repo_at_the_promoted_063_revision():
     )
     assert result.returncode == GATE_EXIT_ACCEPTED, result.stdout + result.stderr
     assert "ADDITIVE-ONLY: ACCEPTED" in result.stdout
-    assert "pending revisions inspected: (none)" in result.stdout
+    assert "ADDITIVE-ONLY: ERROR" not in result.stdout
+    assert "No such revision or branch" not in (result.stdout + result.stderr), (
+        "the gate could not resolve 063 -- that is the defect this test exists "
+        "to catch, and it aborts the release before any candidate starts"
+    )
+    assert "pending revisions inspected:" in result.stdout

@@ -72,6 +72,43 @@ def _jwt_secret_env(monkeypatch):
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
 
+@pytest.fixture(autouse=True)
+def _remove_provisioned_rows():
+    """Delete the phone-less `users` rows this module provisions (#1972).
+
+    THIS MODULE IS THE ONLY ONE THAT WRITES A NULL PHONE TO `public.users`.
+    Every other test either supplies one (`tests/support/builders.make_user`)
+    or works in a schema of its own. Before #1972 that did not matter -- the
+    rows this module left behind carried a placeholder, so `users.phone` had
+    no NULLs and a chain-walking test could downgrade straight through.
+
+    It matters now. The release lane runs the whole tree in ONE pytest
+    invocation against ONE database (`Release-shape regression`), and two
+    modules in it walk the chain down past 064 --
+    `test_juli_app_update_grants_migration.py` (head -> 057 -> head) and
+    `test_production_write_authorizations_postgres.py` (head -> 044). 064's
+    downgrade restores `NOT NULL`, which is impossible while a row left here
+    has no phone, so both failed with
+
+        psycopg2.errors.NotNullViolation: column "phone" of relation "users"
+        contains null values
+
+    -- caused by this module, surfacing three files away. Cleaning up after
+    itself is the fix; widening 064's downgrade to tolerate NULLs would mean
+    inventing a phone number for them, which is the defect #1972 removed.
+
+    Deletes by `phone IS NULL` rather than by a list of subs, so a row left by
+    a test that failed part way through is still collected.
+    """
+    yield
+    engine = _owner_engine()
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM users WHERE phone IS NULL"))
+    finally:
+        engine.dispose()
+
+
 def _make_token(
     sub: uuid.UUID | str, *, secret: str = TEST_JWT_SECRET, expired: bool = False
 ) -> str:

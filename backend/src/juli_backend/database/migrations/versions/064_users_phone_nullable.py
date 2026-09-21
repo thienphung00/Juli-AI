@@ -76,15 +76,42 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Re-narrow the column.
+    """Re-narrow the column, refusing rather than failing when it cannot.
 
-    This is here for completeness of the Alembic contract only. Migrations in
-    this repo are schema-only and are NEVER automatically reverted (ADR-027),
-    and this particular downgrade cannot succeed once any row has a NULL phone
-    -- which is the expected steady state the moment the expand release serves
-    its first new sign-in. Running it would require re-fabricating exactly the
-    data #1972 exists to delete.
+    Migrations in this repo are schema-only and are NEVER automatically
+    reverted (ADR-027), so this exists to complete the Alembic contract and to
+    let the chain-walking tests pass through this revision -- not as an
+    operational step.
+
+    IT CANNOT ALWAYS SUCCEED, AND SAYS SO. The moment the expand release serves
+    its first new sign-in there is a row with a NULL phone, and `SET NOT NULL`
+    is then impossible without inventing a value for it -- which is precisely
+    the data #1972 exists to remove. Left as a bare `alter_column`, Postgres
+    answers that with
+
+        psycopg2.errors.NotNullViolation: column "phone" of relation "users"
+        contains null values
+
+    from inside Alembic, naming neither the reason nor the fix. The explicit
+    check below turns that into a sentence an operator can act on, and it is
+    the same shape `063_workflow_subject_contract`'s downgrade already uses for
+    its own un-revertible case.
+
+    The count is deliberately NOT a "fix it for them" branch. There is no
+    correct value to write: after 066's cleanup a NULL phone is
+    indistinguishable from a seller who simply never supplied one, so anything
+    written here would be a guess presented as a restoration.
     """
+    bind = op.get_bind()
+    phoneless = bind.execute(sa.text("SELECT count(*) FROM users WHERE phone IS NULL")).scalar_one()
+    if phoneless:
+        raise RuntimeError(
+            f"cannot downgrade 064: {phoneless} users row(s) have no phone, and "
+            "restoring NOT NULL would require inventing one for each -- the "
+            "fabrication #1972 removed. Those rows are correct as they are; if "
+            "this schema really must be reverted, restore from a pre-064 backup "
+            "(ADR-027) rather than re-deriving contact data."
+        )
     op.alter_column(
         "users",
         "phone",
