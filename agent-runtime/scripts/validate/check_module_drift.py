@@ -603,6 +603,13 @@ KNOWN_DRIFT_ALLOWLIST: dict[str, dict[str, AllowedDrift]] = {
         ),
     },
     "backend/services/agent": {
+        "orphan": AllowedDrift(
+            reason=ORPHAN_REASON,
+            symbols=(
+                "abuse_limits",
+                "approval",
+            ),
+        ),
         "undocumented": AllowedDrift(
             reason=UNDOCUMENTED_REASON,
             symbols=(
@@ -610,10 +617,7 @@ KNOWN_DRIFT_ALLOWLIST: dict[str, dict[str, AllowedDrift]] = {
                 "AGENT_OUTPUT_SCOPE",
                 "AbuseLimitDecision",
                 "AbuseLimitGate",
-                "ActionCardNotActive",
-                "ActionCardNotFound",
                 "AgentReadResources",
-                "ApprovalResult",
                 "AssistantTextEvent",
                 "AssistantTextPayload",
                 "AssistantTurn",
@@ -685,7 +689,6 @@ KNOWN_DRIFT_ALLOWLIST: dict[str, dict[str, AllowedDrift]] = {
                 "MutableProductFields",
                 "NON_TERMINAL_STATUSES",
                 "NoPendingConfirmationError",
-                "NoProductsForShop",
                 "Number",
                 "OPERATION_APPROVE",
                 "OPERATION_CONFIRMATION",
@@ -771,7 +774,6 @@ KNOWN_DRIFT_ALLOWLIST: dict[str, dict[str, AllowedDrift]] = {
                 "WorkflowCompletedPayload",
                 "WorkflowFailedEvent",
                 "WorkflowFailedPayload",
-                "WorkflowNotExecutable",
                 "WorkflowRunEvent",
                 "WorkflowRunEventAdapter",
                 "WorkflowRunStatus",
@@ -783,7 +785,6 @@ KNOWN_DRIFT_ALLOWLIST: dict[str, dict[str, AllowedDrift]] = {
                 "WriteOutcomeRecorder",
                 "accumulate_running_seconds",
                 "append_continuation",
-                "approve_action_card",
                 "approve_rate_limit_burst_max_requests",
                 "approve_rate_limit_burst_window_seconds",
                 "approve_rate_limit_max_requests",
