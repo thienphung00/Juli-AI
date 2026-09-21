@@ -110,13 +110,32 @@ def _remove_provisioned_rows():
 
 
 def _make_token(
-    sub: uuid.UUID | str, *, secret: str = TEST_JWT_SECRET, expired: bool = False
+    sub: uuid.UUID | str,
+    *,
+    secret: str = TEST_JWT_SECRET,
+    expired: bool = False,
+    email: str | None = None,
+    email_verified: bool = True,
+    full_name: str | None = None,
 ) -> str:
+    """A Supabase access token. With `email`, shaped like a Google identity (#1973).
+
+    The profile claims go where Supabase actually puts them -- `email` promoted
+    to the top level, `email_verified` and `full_name` under `user_metadata` --
+    so a change to `claims.py` that only works against a flattened payload fails
+    here.
+    """
     now = datetime.now(UTC)
     exp = now - timedelta(hours=1) if expired else now + timedelta(hours=1)
-    return pyjwt.encode(
-        {"sub": str(sub), "aud": "authenticated", "exp": exp}, secret, algorithm="HS256"
-    )
+    payload: dict = {"sub": str(sub), "aud": "authenticated", "exp": exp}
+    if email is not None:
+        payload["email"] = email
+        payload["user_metadata"] = {
+            "email": email,
+            "email_verified": email_verified,
+            "full_name": full_name,
+        }
+    return pyjwt.encode(payload, secret, algorithm="HS256")
 
 
 def _app_for_session_factory(factory: async_sessionmaker) -> FastAPI:
@@ -160,7 +179,8 @@ def _users_row(sub: uuid.UUID):
     try:
         with engine.connect() as conn:
             return conn.execute(
-                text("SELECT id, phone FROM users WHERE id = :id"), {"id": str(sub)}
+                text("SELECT id, phone, email, display_name FROM users WHERE id = :id"),
+                {"id": str(sub)},
             ).fetchone()
     finally:
         engine.dispose()
@@ -244,6 +264,99 @@ class TestTwoConcurrentFirstRequestsCreateExactlyOneRow:
         assert resp_a.json() == []
         assert resp_b.json() == []
         assert _users_row_count(sub) == 1
+
+
+class TestTheVerifiedEmailIsCaptured:
+    """#1973, on real Postgres, through the real route and the real role.
+
+    The unit tests for this run on the SQLite `session` fixture, where neither
+    the `users_update_public` RLS policy nor `juli_app`'s grants exist. Both
+    decide whether the backfill below writes anything at all -- and they fail
+    differently: a missing policy silently updates zero rows, a missing grant
+    raises `InsufficientPrivilegeError` inside the authentication path. `users`
+    held `SELECT, INSERT` and no UPDATE until migration 065, so without that
+    grant the last test here is exactly the #1897 incident again.
+    """
+
+    async def test_first_sighting_stores_the_verified_email_and_name(self):
+        sub = uuid.uuid4()
+
+        async with juli_app_async_sessionmaker() as factory:
+            app = _app_for_session_factory(factory)
+            resp = await _get_shops(
+                app, _make_token(sub, email="seller@example.com", full_name="Nguyen Van A")
+            )
+
+        assert resp.status_code == 200, resp.text
+        row = _users_row(sub)
+        assert row is not None
+        assert row.email == "seller@example.com"
+        assert row.display_name == "Nguyen Van A"
+        assert row.phone is None
+
+    async def test_an_unverified_email_is_not_stored(self):
+        """An address no provider checked is #1972's mistake in a new column."""
+        sub = uuid.uuid4()
+
+        async with juli_app_async_sessionmaker() as factory:
+            app = _app_for_session_factory(factory)
+            resp = await _get_shops(
+                app,
+                _make_token(
+                    sub,
+                    email="unverified@example.com",
+                    email_verified=False,
+                    full_name="Someone",
+                ),
+            )
+
+        assert resp.status_code == 200, resp.text
+        row = _users_row(sub)
+        assert row is not None
+        assert row.email is None, "an unverified claim must leave the column NULL"
+        assert row.display_name == "Someone", "the name is a label, not a channel"
+
+    async def test_a_returning_seller_with_no_email_is_backfilled(self):
+        """The backfill, and the test that needs the column-scoped UPDATE grant.
+
+        First request carries no profile claims at all, so the row is created
+        with a NULL email -- the shape every `users` row on production has
+        today. The second request carries the verified claim, and the UPDATE
+        that fills the column runs as `juli_app`, under
+        `users_update_public`, against the real table.
+        """
+        sub = uuid.uuid4()
+
+        async with juli_app_async_sessionmaker() as factory:
+            app = _app_for_session_factory(factory)
+            first = await _get_shops(app, _make_token(sub))
+            assert first.status_code == 200, first.text
+            assert _users_row(sub).email is None
+
+            second = await _get_shops(
+                app, _make_token(sub, email="returning@example.com", full_name="Returning")
+            )
+
+        assert second.status_code == 200, second.text
+        assert _users_row_count(sub) == 1, "the backfill must not insert a second row"
+        row = _users_row(sub)
+        assert row.email == "returning@example.com"
+        assert row.display_name == "Returning"
+
+    async def test_the_backfill_never_overwrites_an_existing_value(self):
+        """`display_name` is editable by the seller; a later token must not revert it."""
+        sub = uuid.uuid4()
+
+        async with juli_app_async_sessionmaker() as factory:
+            app = _app_for_session_factory(factory)
+            await _get_shops(app, _make_token(sub, email="first@example.com", full_name="First"))
+            resp = await _get_shops(
+                app, _make_token(sub, email="second@example.com", full_name="Second")
+            )
+
+        assert resp.status_code == 200, resp.text
+        row = _users_row(sub)
+        assert (row.email, row.display_name) == ("first@example.com", "First")
 
 
 class TestAnUnverifiedTokenProvisionsNothing:

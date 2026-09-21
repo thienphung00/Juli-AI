@@ -79,6 +79,25 @@ Matches ``__all__`` — re-exports only:
   `kid` is still absent after one refetch attempt; fails closed (401), logged under
   `jwt_jwks_unavailable`, distinguishable from a bad token's `jwt_invalid`/`jwt_expired`
 
+### Verified identity claims (`claims.py`)
+
+Not on the package facade: the only caller is `dependencies.py`, one module over, and
+widening `__all__` for it would invite a repository or a service to reach for a Supabase
+payload directly — which is exactly what this seam exists to prevent.
+
+- ``VerifiedIdentity`` — frozen value carrying ``email`` and ``display_name``, both
+  optional, with no vendor shape left in it. What crosses from `core/security` into
+  `repositories/` (#1973), so `UsersRepo` never learns what a Supabase payload looks like
+- ``verified_identity(payload)`` — reads the seller's claims out of a payload
+  ``verify_supabase_jwt`` has ALREADY checked; it re-validates nothing and must never be
+  handed an unverified decode. The email is taken **only** alongside a true
+  ``email_verified`` (top-level claim wins over the ``user_metadata`` copy; both the
+  boolean and the string ``"true"`` count, anything else does not) — storing an address
+  no provider verified would repeat #1972's fabricated-phone mistake in a new column.
+  The display name is taken regardless: it is a label shown back to the seller, not a
+  channel anyone can be reached on. Values are trimmed to the columns that hold them
+  (320 / 100), so a long name cannot fail the INSERT inside the auth path
+
 ## Dependencies
 - `juli_backend.database` — `UsersRepo`, `User` model, and `tenant_context.with_shop_scope`
   (#2019: `credential_resolver` enumerates the configured merchant's owning shop through
