@@ -110,10 +110,31 @@ def load_json(path: Path) -> dict[str, Any]:
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
+    """Write an artifact, archiving it outside the worktree in the same step.
+
+    The archive half is not optional and not a separate call site on purpose
+    (#2067). The five ADR-003 body directories are gitignored, so a body written
+    here lives *only* inside the worktree that produced it; a routine worktree
+    cleanup on 2026-09-21 therefore destroyed the bodies behind five committed
+    status records, and 99 of the 111 ``local-only:`` records on ``main`` were
+    already orphaned before it. Making the archive a step of the write -- rather
+    than a rule a generator has to remember -- is what makes "removing a worktree
+    loses nothing" structurally true. ``archive_body`` is a no-op for every other
+    path this writer serves (status records, audits, caches).
+
+    Imported inside the function, matching ``write_json_with_schema_validation``'s
+    ``json_schema_validate`` import: callers put ``agent-runtime/scripts/ci`` on
+    ``sys.path`` before importing this module, but not always before importing it
+    *transitively*, and a module-level import would need a ``# noqa: E402`` the
+    debt ratchet counts.
+    """
+    from artifact_archive import archive_body
+
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as fh:
         json.dump(payload, fh, indent=2)
         fh.write("\n")
+    archive_body(path)
 
 
 class SchemaValidationError(Exception):
