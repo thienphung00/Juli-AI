@@ -32,19 +32,20 @@ slice — see "Out of scope".
 - `persist.CardEmission` / `persist.ScoringEmissionReport` — one decision per ranked
   recommendation (`workflow_key`, `subject_type`, `subject_id`, `card`, `revision`,
   `suppressed_reason`, `supersedes_card_id`) and the run's collection of them
-- `persist.SUPPRESSED_REASON_BASIS_UNCHANGED` / `_ACTIVE_CARD_EXISTS` /
-  `REVISION_SUPPRESSED_REASONS` — the **emission** suppression vocabulary. Disjoint
-  from `emission_budget.SUPPRESSED_REASONS` and never written to
-  `ActionCard.suppressed_reason` (see "Subject-scoped emission" below)
-- `subjects.resolve_card_subject(session, shop_id, workflow_key)` → `CardSubject`
-  (#1703) — what a card about to be emitted is *about*; `UNSCOPED_SUBJECT` when the
-  producer has no evidence naming an entity
-- `subjects.card_subject_is_bindable(card)` → `bool` — the predicate the approve path
-  applies, shared so a read surface cannot disagree with the write surface
-- `subjects.BINDABLE_SUBJECT_TYPES` / `SUBJECT_TYPE_PRODUCT` / `SUBJECT_TYPE_UNSCOPED`
-- `basis.compute_card_basis(...)` / `basis.stored_basis(card)` / `basis.basis_unchanged(...)`
-  / `basis.BASIS_METADATA_KEY` / `basis.BasisField` (#1703, ADR-087 d.6) — the per-field
-  basis fingerprint and the per-workflow-key materiality catalog
+- `SUPPRESSED_REASON_BASIS_UNCHANGED` / `SUPPRESSED_REASON_ACTIVE_CARD_EXISTS` /
+  `REVISION_SUPPRESSED_REASONS` (from `persist`) — the **emission** suppression
+  vocabulary. Disjoint from `emission_budget.SUPPRESSED_REASONS` and never written
+  to `ActionCard.suppressed_reason` (see "Subject-scoped emission" below)
+- `resolve_card_subject(session, shop_id, workflow_key)` → `CardSubject` (from
+  `subjects`, #1703) — what a card about to be emitted is *about*; `UNSCOPED_SUBJECT`
+  when the producer has no evidence naming an entity
+- `card_subject_is_bindable(card)` → bool (from `subjects`) — the predicate the approve
+  path applies, shared so a read surface cannot disagree with the write surface
+- `BINDABLE_SUBJECT_TYPES` / `SUBJECT_TYPE_PRODUCT` / `SUBJECT_TYPE_UNSCOPED` (from
+  `subjects`)
+- `compute_card_basis(...)`, `stored_basis(card)`, `basis_unchanged(previous, current)`,
+  `BASIS_METADATA_KEY` and `BasisField` (from `basis`, #1703, ADR-087 d.6) — the
+  per-field basis fingerprint and the per-workflow-key materiality catalog
 - `IN_FLIGHT_STATUSES` — `frozenset[str]` (`approved`, `dismissed`, `executing`)
   — statuses `persist_scoring_result` will not overwrite on re-scoring (#715).
   **Unchanged by #716** (see "Collision 2" below) — the hard rule for B-4 was
