@@ -150,6 +150,39 @@ A branch with no upstream and no merged PR, or a **closed-not-merged** PR, is le
 for a human decision. `worktree_gc.py --report` shows this classification for everything;
 `--sweep` closes all safe ones and lists the rest.
 
+### Gitignored artifact bodies do NOT die with the worktree (#2067)
+
+`git status --porcelain` — criterion 2 above — **cannot see** the five ADR-003 artifact
+body directories (`reviews/`, `implementations/`, `intent-reviews/`, `validation/`,
+`optimization/`). That is what `.gitignore` means, and it is exactly the blind spot that
+let a cleanup on 2026-09-21 remove 21 worktrees and permanently destroy the bodies behind
+five committed status records (#1701, #1748, #1977, #1540, #1608). They were never git
+objects, so `git fsck` could not bring them back. 99 of the 111 `local-only:` records on
+`main` had already been orphaned the same way before that cleanup.
+
+So the premise *"a worktree is a checkout, not history; removing it loses nothing"* is now
+**made true** rather than restated:
+
+* **Archive on emit.** `common.write_json` copies every policy-local body to
+  `$(git rev-parse --git-common-dir)/artifact-archive/` in the same step that writes it —
+  the main checkout's `.git`, shared by every linked worktree and never touched by
+  `git worktree remove`. Content-addressed, so a re-review adds a version instead of
+  overwriting one. Override with `JULI_ARTIFACT_ARCHIVE_DIR`.
+* **Pre-removal guard.** `worktree_gc.py --close`/`--sweep` archive anything still at risk
+  before removing a worktree. Run it by hand before a manual `git worktree remove`:
+
+```bash
+python agent-runtime/scripts/git/check_worktree_artifacts_archived.py --worktree <path>
+python agent-runtime/scripts/git/check_worktree_artifacts_archived.py --worktree <path> --archive
+```
+
+Recovering one archived body: its status record's `sha256` is the address —
+`ls .git/artifact-archive/reviews/review-issue-<N>.*.json` and match the first 12 hex
+characters.
+
+This is orthogonal to whether the bodies should be *committed*, which is a separate,
+larger decision (measured ~18MB against a 387MB `.git`) tracked in its own issue.
+
 ### Prune cadence
 
 `--close`, `--sweep`, and `--report` each run `git fetch --prune origin` first, so

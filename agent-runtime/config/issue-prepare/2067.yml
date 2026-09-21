@@ -1,0 +1,13 @@
+# #2067 is a directly-filed harness data-loss fix with no PRD parent: it was
+# opened from a live incident (a worktree cleanup on 2026-09-21 destroyed the
+# gitignored ADR-003 bodies behind five committed status records) rather than
+# routed through Focus -> Architect -> to-prd -> to-issues. Self-parented per
+# the documented pattern in ensure_workflow_cache.py's
+# resolve_parent_from_epic_registry docstring ("If issue_id is itself a
+# registered epic, treat it as its own parent"). Same shape as #2057 (PR #2063)
+# and #2058 (PR #2060). handoffPath points at the operational document this
+# issue's own fix corrects -- the worktree close procedure whose "clean" test
+# cannot see the bodies at all.
+parentIssueId: 2067
+sliceId: ART-ARCHIVE-2067
+handoffPath: docs/handoffs/worktree-branch-topology.md

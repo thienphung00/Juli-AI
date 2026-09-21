@@ -1,0 +1,31 @@
+# ART-ARCHIVE-2067 -- #2067, a standalone harness fix filed directly from an
+# incident (no PRD parent). `.gitignore` keeps five ADR-003 artifact body
+# directories out of every commit, so a body lives ONLY inside the worktree that
+# wrote it; `git status --porcelain` -- which worktree_gc's safe_to_close calls
+# "clean" -- cannot see them. A cleanup on 2026-09-21 therefore removed 21
+# worktrees and permanently destroyed the bodies behind #1701, #1748, #1977,
+# #1540 and #1608 (99 of 111 `local-only:` records on main were already orphaned
+# the same way). Fix makes the property structural: the shared writer archives
+# each body to the repository's common git dir in the same step, plus a
+# pre-removal guard wired into worktree_gc's close path.
+ART-ARCHIVE-2067:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+  requiredModules:
+    - agent-runtime/scripts/ci/artifact_archive.py
+    - agent-runtime/scripts/ci/common.py
+    - agent-runtime/scripts/git/check_worktree_artifacts_archived.py
+    - agent-runtime/scripts/git/worktree_gc.py
+    - tests/unit/test_artifact_archive_on_emit.py
+  loadWhenNeeded:
+    - agent-runtime/scripts/ci/artifact_ref_resolution.py
+    - agent-runtime/scripts/ci/check_artifact_retention_guard.py
+    - .gitignore
+  doNotLoad:
+    - apps/
+    - ios/
+    - backend/src/juli_backend/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
