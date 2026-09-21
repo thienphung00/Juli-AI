@@ -47,10 +47,11 @@ are still rejected -- which is the property worth keeping.
 
 CHAINS ONTO 063, NOT 062. ``063_workflow_subject_contract`` is the contract
 half of #2050's expand/contract split. It was applied to production by hand on
-2026-09-20 and is being moved from ``deferred/`` into ``versions/`` by its own
-follow-up PR (the step 5 that runbook section prescribes). This revision's
-parent is that applied revision, so the chain stays linear; the PR carrying
-this file merges after that move lands.
+2026-09-20T12:06Z and promoted from ``deferred/`` into ``versions/`` by #2063
+-- the step 5 that runbook section prescribes -- so it is the revision
+production is actually at and the one Alembic resolves as the tip. This
+revision's parent is therefore 063; chaining onto 062 instead would fork the
+chain at the revision the database has already passed.
 """
 
 from collections.abc import Sequence

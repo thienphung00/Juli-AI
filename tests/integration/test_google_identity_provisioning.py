@@ -145,7 +145,16 @@ class TestFirstTimeIdentityIsProvisionedOnce:
         row = _users_row(sub)
         assert row is not None
         assert str(row.id) == str(sub)
-        assert row.phone, "the provisioned row must carry a derived placeholder phone"
+        assert row.phone is None, (
+            "#1972: the provisioned row must carry NO phone. This assertion used "
+            "to read `assert row.phone` -- the row was required to carry a number "
+            "derived from its own UUID, which is not the seller's, is "
+            "indistinguishable from a real one, and occupied a UNIQUE slot a real "
+            "number could collide with. Migration 064 made the column nullable so "
+            "'we do not have this seller's number' is sayable. This is the "
+            "Postgres-level proof, through the real route, the real RLS policies "
+            "and the real `juli_app` role -- not the SQLite unit fixture."
+        )
 
     async def test_a_second_identical_request_creates_no_further_row(self):
         sub = uuid.uuid4()
