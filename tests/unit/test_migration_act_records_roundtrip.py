@@ -733,3 +733,120 @@ def test_the_runtime_role_holds_select_and_no_write_verb_yet() -> None:
                 )
     finally:
         engine.dispose()
+
+
+@requires_postgres
+def test_the_boot_check_names_either_table_if_its_rls_is_ever_turned_off() -> None:
+    """#1712 acceptance criterion 2's second half: "the named application
+    error, per ADR-086".
+
+    The error is not hypothetical and it is not raised by a reader -- this
+    slice has none. It is `assert_agent_runtime_config` check 7, which reads
+    `database/tenant_scoped_tables.py` (where this migration registers both
+    tables) against `pg_catalog` and refuses boot naming every tenant-scoped
+    table whose RLS is off. Registering a table in that map is what arms it,
+    so the map entry and this error are the same fact.
+
+    Bound to the real `_check_tenant_tables_have_rls` over a real cursor, not
+    a double: a `**kwargs` fake would prove the call was routed, never that
+    the check can see these two tables. Asserted in both directions -- it
+    passes as the migration leaves the database, and it names the table by
+    name once RLS is disabled on it. The check alone, with only the first
+    half, would pass against a check that never looked at anything.
+    """
+    import psycopg2
+
+    from juli_backend.workers.agent_runtime_boot import _check_tenant_tables_have_rls
+
+    cfg = _alembic_config()
+    engine = _sync_engine()
+    try:
+        _reset_to_revision(cfg, _PRE_REVISION)
+        command.upgrade(cfg, _THIS_REVISION)
+
+        conn = psycopg2.connect(sync_database_url(_database_url()))
+        try:
+            with conn.cursor() as cursor:
+                # As the migration leaves it: every mapped table has RLS.
+                _check_tenant_tables_have_rls(cursor)
+
+            for table in NEW_TABLES:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        f"ALTER TABLE public.{table} DISABLE ROW LEVEL SECURITY"  # noqa: S608
+                    )
+                    conn.commit()
+                with conn.cursor() as cursor:
+                    with pytest.raises(RuntimeError, match=rf"\b{table}\b") as excinfo:
+                        _check_tenant_tables_have_rls(cursor)
+                    assert "refuses boot" in str(excinfo.value)
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        f"ALTER TABLE public.{table} ENABLE ROW LEVEL SECURITY"  # noqa: S608
+                    )
+                    conn.commit()
+        finally:
+            conn.close()
+    finally:
+        engine.dispose()
+
+
+@requires_postgres
+def test_both_tables_exist_and_are_listed_in_the_tenant_scoped_table_set() -> None:
+    """#1712 acceptance criterion 1, stated as one assertion.
+
+    The criterion is a conjunction of three claims -- the tables exist after
+    the migration, they are listed in the tenant-scoped table set, and the RLS
+    coverage test passes for them -- and each is proved separately elsewhere in
+    this module and in `test_rls_policies_migration.py`. This asserts the
+    conjunction against a live catalog in one place, so "criterion 1 holds" is
+    something one test can be pointed at rather than a claim a reader has to
+    assemble across four.
+
+    Against `pg_catalog` rather than the migration's source text: the migration
+    saying `ENABLE ROW LEVEL SECURITY` and the database having it enabled are
+    different facts, and only the second one protects a seller.
+    """
+    cfg = _alembic_config()
+    engine = _sync_engine()
+    try:
+        _reset_to_revision(cfg, _PRE_REVISION)
+        command.upgrade(cfg, _THIS_REVISION)
+
+        tenant_scoped = set(get_tenant_scoped_tables())
+        with engine.connect() as conn:
+            for table in NEW_TABLES:
+                row = conn.execute(
+                    text(
+                        "SELECT c.relrowsecurity FROM pg_class c "
+                        "JOIN pg_namespace n ON c.relnamespace = n.oid "
+                        "WHERE n.nspname = 'public' AND c.relname = :table AND c.relkind = 'r'"
+                    ),
+                    {"table": table},
+                ).one_or_none()
+                assert row is not None, f"public.{table} does not exist after the migration"
+                assert row[0] is True, (
+                    f"public.{table} exists but RLS is not enabled on it -- the #1329 defect, "
+                    "where a tenant-scoped table nothing protects reads across tenants"
+                )
+                assert ("public", table) in tenant_scoped, (
+                    f"public.{table} is not in the tenant-scoped table set, so neither the "
+                    "#1329 isolation proof nor the #1330 boot check would ever look at it"
+                )
+
+                policy_verbs = {
+                    r[0]
+                    for r in conn.execute(
+                        text(
+                            "SELECT cmd FROM pg_policies "
+                            "WHERE schemaname = 'public' AND tablename = :table"
+                        ),
+                        {"table": table},
+                    )
+                }
+                assert policy_verbs == {"SELECT", "INSERT", "UPDATE", "DELETE"}, (
+                    f"public.{table} has policies for {sorted(policy_verbs)}; a verb with no "
+                    "policy is a verb a future grant opens across tenants"
+                )
+    finally:
+        engine.dispose()
