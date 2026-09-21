@@ -68,6 +68,21 @@ record of what failed unwritten, which is the position this issue started from.
 `_record_cycle` is itself guarded and never raises: an exception escaping from
 the bookkeeping would replace a diagnosable failure with an undiagnosable one.
 
+**A partial persist is loud but not fatal, and that is a deliberate narrowing.**
+`SyncOutcome.ok` is false as soon as one row is rejected, so failing the cycle
+on `not ok` would mean a single malformed order in 3,581 fails the poll — and,
+through `run_action_card_refresh`, a seller's manual refresh. That is not what
+this issue asks for (`fetched > 0 and persisted == 0`), and it would override a
+decision ADR-104 made deliberately: `_CountingHandoff` counts and logs a
+rejected row rather than re-raising, so that one bad row is not reported as "the
+ETL is down". `_step_failed_the_cycle` therefore fires only where **nothing
+landed and something should have** — a failed fetch, or rows fetched and all
+rejected. The partial case is not thereby silent: it is written to
+`tiktok_sync_state` as `last_outcome='failed'` with its real counts, it does not
+advance `last_success_at`, and the cycle record carries it as `degraded_steps`.
+Decision 3 is what makes this narrowing safe; without the column it would be a
+hole.
+
 **Accepted cost.** `services/action_cards/refresh.py::maybe_poll_tiktok_data`
 (ADR-021 manual refresh) calls the cycle with no `try`/`except`, so a vendor
 outage now fails a manual refresh where it previously produced stale cards

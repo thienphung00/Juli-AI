@@ -562,9 +562,45 @@ async def _record_cycle(
         )
 
 
+def _step_failed_the_cycle(outcome: SyncOutcome) -> bool:
+    """Did this step fail in a way the CYCLE must not survive?
+
+    Deliberately narrower than `not outcome.ok`, and the difference is one case:
+    a PARTIAL persist. `SyncOutcome.ok` is false as soon as a single row is
+    rejected, so reusing it would fail a whole cycle -- and, through
+    `run_action_card_refresh`, a seller's manual refresh -- because one
+    malformed order in 3,581 did not normalize. That is not what #1950 asks for
+    ("`fetched > 0 and persisted == 0` fails the poll loudly"), and it would
+    override a decision #1969 already made deliberately: `_CountingHandoff`
+    counts and logs a rejected row rather than re-raising, precisely so that one
+    bad row is not reported as "the ETL is down".
+
+    A partial persist is not silent under this branch either -- it is written to
+    `tiktok_sync_state` as `last_outcome='failed'` with its real `last_fetched`
+    and `last_persisted`, and it does not advance `last_success_at`. That is
+    criterion 4 doing its job: durably visible without being fatal.
+
+    What DOES fail the cycle is a step where nothing landed and something should
+    have:
+
+    - the vendor fetch failed outright -- `fetched == 0`, `persisted == 0`, and
+      an error. This is the swallow in `sync_orders`/`sync_products`/
+      `sync_returns`' `except TikTokAPIError` arms, and the case #2009's PR body
+      routed to this issue.
+    - the step fetched rows and landed none (`dropped_everything`). #1949.
+
+    A skipped step (rate-limited) and a clean empty read are neither.
+    """
+    if outcome.skipped:
+        return False
+    if outcome.persisted:
+        return False
+    return outcome.fetched > 0 or outcome.error is not None
+
+
 def _assert_cycle_succeeded(outcomes: list[SyncOutcome], *, shop_id: uuid.UUID) -> None:
     """Log the cycle's verdict, and refuse to call a cycle with a failed step a success."""
-    failures = [outcome for outcome in outcomes if not outcome.ok]
+    failures = [outcome for outcome in outcomes if _step_failed_the_cycle(outcome)]
     logger.info(
         "poll_cycle_outcome",
         extra={
@@ -573,6 +609,13 @@ def _assert_cycle_succeeded(outcomes: list[SyncOutcome], *, shop_id: uuid.UUID) 
             "failed_steps": len(failures),
             "fetched": sum(outcome.fetched for outcome in outcomes),
             "persisted": sum(outcome.persisted for outcome in outcomes),
+            "rejected": sum(outcome.failed for outcome in outcomes),
+            # Steps that did not cleanly succeed but did not fail the cycle --
+            # partial persists. Reported so the distinction is visible rather
+            # than only implied by `failed_steps` being smaller than expected.
+            "degraded_steps": sum(
+                1 for outcome in outcomes if not outcome.ok and not _step_failed_the_cycle(outcome)
+            ),
             "ok": not failures,
         },
     )

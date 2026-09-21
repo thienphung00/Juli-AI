@@ -132,6 +132,50 @@ class TestTheCycleRefusesToCallAFailedStepASuccess:
         assert record.fetched == 2
         assert record.persisted == 2
 
+    def test_one_rejected_row_does_not_fail_the_whole_cycle(self, caplog):
+        """The narrowing, and the reason for it.
+
+        `SyncOutcome.ok` is false as soon as ONE row is rejected. Failing the
+        cycle on `not ok` would mean a single malformed order in 3,581 fails the
+        poll -- and, through `run_action_card_refresh`, a seller's manual
+        refresh. #1950 asks for `fetched > 0 and persisted == 0` to fail the
+        poll, not `failed > 0`; and #1969's `_CountingHandoff` already decided
+        deliberately that a rejected row is counted and logged rather than
+        re-raised, so that one bad row is not reported as "the ETL is down".
+
+        The partial persist is NOT thereby silent: `record_outcomes` writes it
+        as last_outcome='failed' with its real counts and does not advance
+        last_success_at (see test_tiktok_sync_state_outcome_record.py), and the
+        cycle record carries it as `degraded_steps`.
+        """
+        partial = _outcome("orders", fetched=3581, persisted=3580, failed=1)
+        assert partial.ok is False, "the premise: a partial persist is not ok"
+        assert partial.dropped_everything is False
+
+        with caplog.at_level(logging.INFO, logger=orchestrate_module.__name__):
+            _assert_cycle_succeeded([partial], shop_id=uuid.uuid4())
+
+        (record,) = [r for r in caplog.records if r.message == "poll_cycle_outcome"]
+        assert record.failed_steps == 0
+        assert record.degraded_steps == 1
+        assert record.rejected == 1
+        assert record.ok is True
+
+    def test_a_step_that_landed_nothing_at_all_still_fails_the_cycle(self):
+        """The narrowing must not open a hole where `persisted == 0`.
+
+        Three shapes, all of them "nothing landed and something should have":
+        the vendor call failed outright, the rows were fetched and all rejected,
+        and a fetch error alongside rejected rows.
+        """
+        for outcome in (
+            _outcome("orders", error="TikTokSystemError(100006)"),
+            _outcome("orders", fetched=3581, persisted=0, failed=3581),
+            _outcome("orders", fetched=2, persisted=0, failed=2, error="boom"),
+        ):
+            with pytest.raises(PollCycleFailedError):
+                _assert_cycle_succeeded([outcome], shop_id=uuid.uuid4())
+
     def test_a_rate_limited_and_an_empty_step_are_not_failures(self, caplog):
         """The two ways a step legitimately does nothing.
 
