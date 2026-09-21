@@ -195,9 +195,33 @@ lives in
 would refuse it, no candidate would start, and the expand code it depends on
 could never go live.
 
-**Currently outstanding:** none. See "Applied contract migrations" below for
-the worked example this procedure was written against; the next migration to
-use this procedure names itself in both places.
+**Currently outstanding:** `065_users_phone_placeholder_cleanup` (#1972) —
+sets `users.phone` to NULL on every row whose stored number equals the value
+the removed code derived from that row's own id
+(`f"+849{user_id.int % 10_000_000_000:010d}"`). Until it runs, those sellers
+still carry a fabricated Vietnamese mobile that is not theirs, in a `UNIQUE`
+column a real number could later collide with;
+`064_users_phone_nullable` and the code change that stopped minting new ones
+are already in the expand release.
+
+**Unlike `063_workflow_subject_contract`, running this late is harmless** —
+every day it waits is a day the fabricated rows sit in a column nothing reads.
+Running it *before* the expand release serves is pointless rather than
+dangerous: the old code would write the placeholders straight back. Its
+precondition is therefore that the serving release contains
+`064_users_phone_nullable` and `alembic current` reports `064_users_phone_nullable`
+or later. The step is idempotent, so an operator unsure whether it already ran
+may simply run it.
+
+> **Check the revision number before you run it.** #1973's follow-up PR adds
+> `065_users_email` to `versions/` and renumbers this file to
+> `066_users_placeholder_phone_cleanup`, chained onto it, so that the deferred
+> step stays the tail of the chain. Whichever of the two is on `main` when you
+> run it is the correct one; they differ only in `revision`/`down_revision` and
+> do exactly the same thing to exactly the same rows.
+
+See "Applied contract migrations" below for the worked example this procedure
+was written against.
 
 ### Preconditions — check all three before running anything
 

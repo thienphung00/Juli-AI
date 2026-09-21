@@ -92,20 +92,39 @@ class UsersRepo(SessionRepo):
         this method was called from -- one row survives, both callers
         succeed.
 
-        The placeholder phone is derived from `user_id` exactly the way
-        `business_account_holder_store.py` derives one: deterministic per
-        caller (so a retry for the same `sub` is a no-op, not a second
-        collision) and distinct across callers (`users.phone` is UNIQUE).
+        NO PHONE IS WRITTEN, AND THAT IS THE POINT (#1972). This method used
+        to satisfy the old `NOT NULL` on `users.phone` with
+
+            placeholder_phone = f"+849{user_id.int % 10_000_000_000:010d}"
+
+        -- a number derived from the caller's own UUID. Nothing in the column
+        marked it synthetic, so every Google-signed-in seller carried a `+849`
+        number that was not theirs, that any outreach or CSV export would treat
+        as contactable, and that occupied a UNIQUE slot a seller's real number
+        could later collide with. Migration 064 made the column nullable
+        precisely so this row can say "we have no phone for this seller",
+        which is the truth. The verified `email` claim the JWT already carries
+        is the identity to capture instead (#1973).
+
+        Uniqueness is unaffected. What makes the insert idempotent under a
+        retry for the same `sub` is the primary key on `users.id`, never the
+        phone -- and Postgres's UNIQUE treats NULLs as distinct, so any number
+        of phone-less rows coexist.
         """
-        placeholder_phone = f"+849{user_id.int % 10_000_000_000:010d}"
         try:
             async with self._session.begin_nested():
-                return await self.get_or_create(user_id, placeholder_phone)
+                return await self.get_or_create(user_id)
         except IntegrityError:
             return await self.get(user_id)
 
-    async def get_or_create(self, user_id: uuid.UUID, phone: str) -> User:
-        """Return the user with ``user_id``, creating it with ``phone`` when absent."""
+    async def get_or_create(self, user_id: uuid.UUID, phone: str | None = None) -> User:
+        """Return the user with ``user_id``, creating it with ``phone`` when absent.
+
+        ``phone`` defaults to ``None`` (#1972): a caller that does not have the
+        seller's real number must leave the column NULL rather than invent one.
+        The two remaining callers that pass a value pass a fixed, non-seller
+        sentinel for an internal account, not a derived per-user number.
+        """
         existing = await self._session.get(User, user_id)
         if existing is not None:
             return existing

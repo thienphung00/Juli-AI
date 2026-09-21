@@ -36,7 +36,14 @@ async def persist_account_holder_tokens(
     if not access_token or not refresh_token or not merchant_id:
         return
 
-    await UsersRepo(session).get_or_create(user_id, f"+849{user_id.int % 10_000_000_000:010d}")
+    # No phone (#1972). This call site derived one from `user_id` with the same
+    # `f"+849{user_id.int % 10_000_000_000:010d}"` expression that
+    # `UsersRepo._provision_first_sighting` used, so an account-holder OAuth
+    # callback minted the identical fabricated Vietnamese mobile for its user.
+    # `users.phone` is nullable from migration 064; leaving it NULL is the only
+    # honest value here, and it keeps this path from re-minting exactly the rows
+    # the deferred cleanup step exists to un-fabricate.
+    await UsersRepo(session).get_or_create(user_id)
 
     shops_repo = ShopsRepo(session)
     shop = await _resolve_shop(shops_repo, user_id, merchant_id)
@@ -48,9 +55,7 @@ async def persist_account_holder_tokens(
     scopes = _scopes_to_str(token_data.get("scope") or token_data.get("scopes"))
 
     try:
-        existing = await cred_repo.get_by_merchant(
-            merchant_id, ACCOUNT_HOLDER_CAPABILITY
-        )
+        existing = await cred_repo.get_by_merchant(merchant_id, ACCOUNT_HOLDER_CAPABILITY)
         await cred_repo.update_tokens(
             credential_id=existing.id,
             access_token=access_token,
