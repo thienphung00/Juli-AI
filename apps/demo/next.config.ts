@@ -8,7 +8,7 @@ import type { NextConfig } from "next";
 // from the inferred workspace root rather than fixed.
 // juli-demo.service starts node_modules/.bin/next directly from this directory.
 const nextConfig: NextConfig = {
-  transpilePackages: ["@juli/ui", "@juli/utils"],
+  transpilePackages: ["@juli/ui", "@juli/utils", "@juli/tiktok-events"],
 };
 
 export default nextConfig;

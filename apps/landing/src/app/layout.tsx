@@ -1,5 +1,8 @@
+import { TikTokPixel } from "@juli/tiktok-events";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+
+import { TikTokTracking } from "../components/tiktok-tracking";
 
 import "./globals.css";
 
@@ -12,7 +15,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="vi">
-      <body>{children}</body>
+      <body>
+        <TikTokPixel />
+        <TikTokTracking />
+        {children}
+      </body>
     </html>
   );
 }

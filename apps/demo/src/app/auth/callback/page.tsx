@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { parseAuthCallbackHash, storeAuthSession } from "../../../lib/supabase-auth";
+import { reportTikTokRegistration } from "../../../lib/tiktok-registration";
 
 type Phase =
   | { kind: "processing" }
@@ -30,6 +31,11 @@ export default function AuthCallbackPage() {
 
       if (result.status === "success") {
         storeAuthSession(result.session);
+        // Not awaited: the seller's redirect must not wait on an analytics
+        // hash-and-send, and the pixel queue survives this client-side
+        // navigation. Deliberately after storeAuthSession, so a throw here
+        // could never cost the session itself.
+        void reportTikTokRegistration(result.session.accessToken);
         router.replace("/auth/connect-shop");
         return;
       }
