@@ -187,6 +187,11 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         # private database can guarantee (#1701). #1701's migration was
         # renumbered 061->062 when #2019 merged first and took 061.
         "test_migration_workflow_subject_roundtrip.py",
+        # And again for migration 069 (#1712): the two new tables must be
+        # proved absent BEFORE the upgrade and dropped again by `downgrade -1`,
+        # against `shops`/`workflow_runs` rows seeded at 065's shape. Both
+        # halves need a database nothing else is writing to.
+        "test_migration_act_records_roundtrip.py",
         "test_workflow_run_events_schema.py",
         "test_workflow_run_action_card_fk_schema.py",
         "test_juli_app_role_downgrade_cross_database.py",

@@ -60,6 +60,14 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "ingest_dedup_epochs"): "tenant_direct",
     ("public", "production_write_authorizations"): "tenant_direct",
     ("public", "production_write_audit"): "tenant_direct",
+    # W9-A/P-SHARED-12 (#1712), migration 069. Both hang off a run and would
+    # normally be "tenant_via_parent" like workflow_run_events — but each
+    # carries its own shop_id, kept un-driftable by a composite foreign key
+    # onto workflow_runs (id, shop_id), so the direct policy is both correct
+    # and the one the seller's timeline can read without a join. There is no
+    # reader or writer yet; #1713 adds the producer.
+    ("public", "run_act_records"): "tenant_direct",
+    ("public", "run_checklist_items"): "tenant_direct",
     # Via-parent tenant-scoped tables
     ("public", "workflow_run_events"): "tenant_via_parent",
     ("public", "run_confirmations"): "tenant_via_parent",
