@@ -195,7 +195,7 @@ lives in
 would refuse it, no candidate would start, and the expand code it depends on
 could never go live.
 
-**Currently outstanding:** `066_users_placeholder_phone_cleanup` (#1972) —
+**Currently outstanding:** `070_users_placeholder_phone_cleanup` (#1972) —
 sets `users.phone` to NULL on every row whose stored number equals the value
 the removed code derived from that row's own id
 (`f"+849{user_id.int % 10_000_000_000:010d}"`). Until it runs, those sellers
