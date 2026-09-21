@@ -54,7 +54,9 @@ from juli_backend.services.aggregates.types import (
 from juli_backend.services.scoring.types import (
     AdvisorySignal,
     DailyScoringResult,
+    KpiId,
     ScoringSignals,
+    Severity,
     VisualLayerDomain,
     WorkflowExpectedImpact,
     WorkflowRecommendation,
@@ -81,11 +83,11 @@ def _snapshot(shop_id: uuid.UUID) -> FeatureAggregateSnapshot:
     )
 
 
-def _signal(kpi_id: str, severity: str) -> AdvisorySignal:
+def _signal(kpi_id: KpiId, severity: Severity) -> AdvisorySignal:
     """A real ``AdvisorySignal`` — the object the scoring pipeline produces and
     the object ``basis.compute_card_basis`` reads its severity bucket off."""
     return AdvisorySignal(
-        kpi_id=kpi_id,  # type: ignore[arg-type]
+        kpi_id=kpi_id,
         domain=VisualLayerDomain.INVENTORY,
         technique="rules_proxy",
         change_text="test",
@@ -93,7 +95,7 @@ def _signal(kpi_id: str, severity: str) -> AdvisorySignal:
         action_hint="test",
         one_line="test",
         workflow_keys=(),
-        severity=severity,  # type: ignore[arg-type]
+        severity=severity,
     )
 
 

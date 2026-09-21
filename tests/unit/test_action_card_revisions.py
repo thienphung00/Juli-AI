@@ -71,7 +71,9 @@ from juli_backend.services.aggregates.types import (
 from juli_backend.services.scoring.types import (
     AdvisorySignal,
     DailyScoringResult,
+    KpiId,
     ScoringSignals,
+    Severity,
     VisualLayerDomain,
     WorkflowExpectedImpact,
     WorkflowRecommendation,
@@ -130,9 +132,9 @@ async def products(session, shop):
     return top, tail
 
 
-def _signal(kpi_id: str, severity: str) -> AdvisorySignal:
+def _signal(kpi_id: KpiId, severity: Severity) -> AdvisorySignal:
     return AdvisorySignal(
-        kpi_id=kpi_id,  # type: ignore[arg-type]
+        kpi_id=kpi_id,
         domain=VisualLayerDomain.REVENUE,
         technique="rules_proxy",
         change_text="test",
@@ -140,7 +142,7 @@ def _signal(kpi_id: str, severity: str) -> AdvisorySignal:
         action_hint="test",
         one_line="test",
         workflow_keys=(OPTIMIZE,),
-        severity=severity,  # type: ignore[arg-type]
+        severity=severity,
     )
 
 
@@ -151,7 +153,7 @@ def _result(
     workflow_key: str = OPTIMIZE,
     workflow_name: str = "Tối ưu sản phẩm",
     priority: int = 1,
-    severity: str = "warning",
+    severity: Severity = "warning",
     rationale: str = "Conversion is slipping on your best listing",
 ) -> DailyScoringResult:
     """A real ``DailyScoringResult``, the shape ``run_daily_scoring_for_shop``
@@ -177,11 +179,7 @@ def _result(
             shop_id=shop_id,
             computed_at=computed_at,
             health_data_source=HealthDataSource.PROXY,
-            kpis={
-                "conversion_rate_by_category": _signal(  # type: ignore[dict-item]
-                    "conversion_rate_by_category", severity
-                )
-            },
+            kpis={"conversion_rate_by_category": _signal("conversion_rate_by_category", severity)},
         ),
         recommendations=WorkflowRecommendations(
             shop_profile=ShopProfile.MID_LARGE_SHOP,
