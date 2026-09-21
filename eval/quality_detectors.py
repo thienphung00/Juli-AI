@@ -1240,22 +1240,22 @@ def build_report(
 #: This module's own reading of the repository, recorded beside the prior figure
 #: rather than reconciled away. Regenerate with
 #: ``python -m eval.quality_detectors scan`` and update both numbers together.
-MEASURED_ZERO_ASSERTION_TESTS = 50
-MEASURED_TEST_FUNCTIONS = 5437
+MEASURED_ZERO_ASSERTION_TESTS = 49
+MEASURED_TEST_FUNCTIONS = 5464
 #: Test modules the corpus figure is spread over. Like the corpus it is a
 #: denominator, not a claim, so it is held to a tolerance rather than pinned.
-MEASURED_TEST_MODULES = 554
+MEASURED_TEST_MODULES = 556
 
 #: The measured decomposition that reconciles the two figures. Each layer
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
 #: the third layer, this module's headline on the fifth.
 RECONCILIATION_LAYERS: dict[str, int] = {
-    "no_assert_statement": 437,
-    "and_no_pytest_raises": 122,
-    "and_no_mock_assert_called": 107,
-    "and_no_unittest_self_assert": 107,
-    "and_no_same_file_asserting_helper": 54,
-    "and_no_raise_assertionerror": 50,
+    "no_assert_statement": 438,
+    "and_no_pytest_raises": 121,
+    "and_no_mock_assert_called": 106,
+    "and_no_unittest_self_assert": 106,
+    "and_no_same_file_asserting_helper": 53,
+    "and_no_raise_assertionerror": 49,
 }
 
 RECONCILIATION: dict[str, Any] = {
@@ -1270,13 +1270,13 @@ RECONCILIATION: dict[str, Any] = {
     "priorFigureLayer": "and_no_mock_assert_called",
     "note": (
         "Neither figure is wrong; they count different things, and the layer "
-        "decomposition above shows exactly where they part. Measured here: 50 "
-        "zero-assertion tests in a corpus of 5,437 test functions over tests/ "
-        "backend/ scripts/ agent-runtime/ eval/ (554 test modules). The prior "
+        "decomposition above shows exactly where they part. Measured here: 49 "
+        "zero-assertion tests in a corpus of 5,464 test functions over tests/ "
+        "backend/ scripts/ agent-runtime/ eval/ (556 test modules). The prior "
         "~97-of-4,048 reading corresponds to the `and_no_mock_assert_called` "
         "layer — a detector that credits `pytest.raises` and `mock.assert_called*` "
         "as assertions but not delegation to a same-file asserting helper. That "
-        "layer reads 107 today, a difference of 10 tests from the prior reading. "
+        "layer reads 106 today, a difference of 9 tests from the prior reading. "
         "That difference is the claim, and it is stated in tests rather than "
         "scaled by corpus size: this layer is an absolute count over a set that "
         "does not grow with the corpus — it read 107 at 4,545, at 4,638, at 4,675, at 4,798, "
@@ -1284,9 +1284,9 @@ RECONCILIATION: dict[str, Any] = {
         "diverges "
         "mechanically as the repository grows and says nothing about the code "
         "(#1682). The rates are recorded beside it as readings, not as the claim "
-        "(2.40% then, 1.97% now). "
+        "(2.40% then, 1.94% now). "
         "So the prior measurement "
-        "reproduces, and the gap between 107 and 50 is 53 tests whose only "
+        "reproduces, and the gap between 106 and 49 is 53 tests whose only "
         "assertion is inside a "
         "same-file `_assert_*` helper plus 4 that raise AssertionError directly. "
         "Both were inspected: `tests/unit/test_agent_prompt_budget_gate.py` and "

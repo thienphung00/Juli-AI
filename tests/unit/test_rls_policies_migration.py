@@ -208,14 +208,50 @@ def test_the_two_tables_1712_added_are_covered_by_their_own_migration():
 
 
 def test_migration_skips_non_tenant_tables():
-    """Non-tenant tables get specific policies or none at all.
+    """Non-tenant tables are excluded from the tenant-scoped sweep by name.
 
     users: app.current_user_id policy
     shops: user_id policy
     webhook_raw_events: no policy (read grant in #1326)
+
+    Had assertions once. It was reduced to two comments saying the migration
+    "documents that non-tenant tables have special handling", and a test whose
+    body is a comment cannot fail -- it reported coverage of the exclusion rule
+    while checking nothing. Found by `eval/quality_detectors.py`'s
+    `no_assert_statement` layer while #1712 was reconciling that baseline, and
+    restored here rather than re-baselined, because the alternative is
+    ratifying it.
+
+    What it now asserts is the half that matters next door: the sweep in
+    `test_migration_covers_all_tenant_scoped_tables` demands an RLS-enabling
+    migration for every table `get_tenant_scoped_tables()` returns. These three
+    must be absent from that list, or the sweep would demand RLS for tables
+    ADR-085 deliberately leaves out -- and, worse, a table wrongly classified
+    `non_tenant` would be silently skipped by both this test and the #1329
+    isolation proof.
     """
-    # Migration documents that non-tenant tables have special handling
-    # (this is documented in the migration source)
+    from juli_backend.database.tenant_scoped_tables import (
+        TABLE_CLASSIFICATION_MAP,
+        get_tenant_scoped_tables,
+    )
+
+    tenant_scoped = set(get_tenant_scoped_tables())
+    expected = {
+        ("public", "users"): "non_tenant",
+        ("public", "shops"): "non_tenant",
+        ("public", "webhook_raw_events"): "non_tenant_unprotected",
+    }
+    for key, classification in expected.items():
+        assert TABLE_CLASSIFICATION_MAP.get(key) == classification, (
+            f"{key} is classified {TABLE_CLASSIFICATION_MAP.get(key)!r}, expected "
+            f"{classification!r} -- these three are keyed on user identity, not shop_id, "
+            "and ADR-085 excludes them from the shop_id sweep deliberately"
+        )
+        assert key not in tenant_scoped, (
+            f"{key} is in the tenant-scoped set, so the sweep in "
+            "test_migration_covers_all_tenant_scoped_tables would demand a shop_id RLS "
+            "policy for a table that has no shop_id column"
+        )
 
 
 def test_migration_satisfies_additive_gate():

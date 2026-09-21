@@ -121,6 +121,46 @@ EXPECTED_CHECKLIST_COLUMNS = {
 }
 
 
+#: Literal SQL per table. Written out rather than built with an f-string over
+#: the table constants: an f-string here trips ruff's S608, and suppressing
+#: S608 seven times to keep two fixed table names interpolated is a worse trade
+#: than four literal statements. There is no dynamic SQL in this module.
+_COUNT_SQL = {
+    ACT_RECORDS: "SELECT COUNT(*) FROM run_act_records",
+    CHECKLIST_ITEMS: "SELECT COUNT(*) FROM run_checklist_items",
+}
+_ENABLE_RLS_SQL = {
+    ACT_RECORDS: "ALTER TABLE public.run_act_records ENABLE ROW LEVEL SECURITY",
+    CHECKLIST_ITEMS: "ALTER TABLE public.run_checklist_items ENABLE ROW LEVEL SECURITY",
+}
+_DISABLE_RLS_SQL = {
+    ACT_RECORDS: "ALTER TABLE public.run_act_records DISABLE ROW LEVEL SECURITY",
+    CHECKLIST_ITEMS: "ALTER TABLE public.run_checklist_items DISABLE ROW LEVEL SECURITY",
+}
+
+_INSERT_ACT_SQL = (
+    "INSERT INTO run_act_records "
+    "(id, shop_id, workflow_run_id, kind, what, occurred_at, why) "
+    "VALUES (:id, :shop_id, :run_id, :kind, 'Reminded the seller', now(), "
+    "'the clearance window closes tomorrow')"
+)
+_INSERT_CHECKLIST_SQL = (
+    "INSERT INTO run_checklist_items "
+    "(id, shop_id, workflow_run_id, key, text, position) "
+    "VALUES (:id, :shop_id, :run_id, :key, 'Place the supplier order', :position)"
+)
+_SELECT_ACT_SQL = "SELECT state, channel, otherwise, undo_hint FROM run_act_records WHERE id = :id"
+_SELECT_CHECKLIST_SQL = (
+    "SELECT done, done_at, edited_by_seller, position FROM run_checklist_items WHERE id = :id"
+)
+_SELECT_DONE_AT_SQL = "SELECT done_at FROM run_checklist_items WHERE id = :id"
+_UPDATE_ACT_STATE_SQL = "UPDATE run_act_records SET state = 'snoozed' WHERE id = :id"
+_UPDATE_ACT_CHANNEL_SQL = "UPDATE run_act_records SET channel = 'zalo' WHERE id = :id"
+_UPDATE_DONE_SQL = "UPDATE run_checklist_items SET done = true WHERE id = :id"
+_UPDATE_DONE_AT_SQL = "UPDATE run_checklist_items SET done_at = now() WHERE id = :id"
+_UPDATE_TICK_SQL = "UPDATE run_checklist_items SET done = true, done_at = now() WHERE id = :id"
+
+
 def _database_url() -> str:
     return os.environ.get("DATABASE_URL", "").strip()
 
@@ -211,12 +251,7 @@ def _seed_pre_069_rows(engine: Engine) -> dict:
 def _insert_act_record(conn, tenant: dict, *, kind: str = "reminder") -> uuid.UUID:
     record_id = uuid.uuid4()
     conn.execute(
-        text(
-            f"INSERT INTO {ACT_RECORDS} "  # noqa: S608 - fixed module constant
-            "(id, shop_id, workflow_run_id, kind, what, occurred_at, why) "
-            "VALUES (:id, :shop_id, :run_id, :kind, 'Reminded the seller', now(), "
-            "'the clearance window closes tomorrow')"
-        ),
+        text(_INSERT_ACT_SQL),
         {
             "id": record_id,
             "shop_id": tenant["shop_id"],
@@ -230,11 +265,7 @@ def _insert_act_record(conn, tenant: dict, *, kind: str = "reminder") -> uuid.UU
 def _insert_checklist_item(conn, tenant: dict, *, key: str = "place_the_order", position: int = 0):
     item_id = uuid.uuid4()
     conn.execute(
-        text(
-            f"INSERT INTO {CHECKLIST_ITEMS} "  # noqa: S608 - fixed module constant
-            "(id, shop_id, workflow_run_id, key, text, position) "
-            "VALUES (:id, :shop_id, :run_id, :key, 'Place the supplier order', :position)"
-        ),
+        text(_INSERT_CHECKLIST_SQL),
         {
             "id": item_id,
             "shop_id": tenant["shop_id"],
@@ -422,20 +453,14 @@ def test_upgrade_downgrade_roundtrip() -> None:
                 item_id = _insert_checklist_item(conn, tenant_a)
             with engine.connect() as conn:
                 row = conn.execute(
-                    text(  # noqa: S608 - fixed module constant
-                        f"SELECT state, channel, otherwise, undo_hint FROM {ACT_RECORDS} "
-                        "WHERE id = :id"
-                    ),
+                    text(_SELECT_ACT_SQL),
                     {"id": record_id},
                 ).one()
                 assert row.state == "pending", "a new record is born pending"
                 assert row.channel == "in_app", "v1 has no transport but the app"
                 assert row.otherwise is None and row.undo_hint is None
                 item = conn.execute(
-                    text(  # noqa: S608 - fixed module constant
-                        f"SELECT done, done_at, edited_by_seller, position "
-                        f"FROM {CHECKLIST_ITEMS} WHERE id = :id"
-                    ),
+                    text(_SELECT_CHECKLIST_SQL),
                     {"id": item_id},
                 ).one()
                 assert item.done is False and item.done_at is None
@@ -496,9 +521,7 @@ def test_tables_are_tenant_isolated() -> None:
 
         def _count_as_owner(table: str) -> int:
             with engine.connect() as conn:
-                return conn.execute(
-                    text(f"SELECT COUNT(*) FROM {table}")  # noqa: S608 - module constant
-                ).scalar_one()
+                return conn.execute(text(_COUNT_SQL[table])).scalar_one()
 
         def _count_as_runtime_role(table: str, shop_id: uuid.UUID | None) -> int:
             with engine.connect() as conn:
@@ -509,9 +532,7 @@ def test_tables_are_tenant_isolated() -> None:
                             val=str(shop_id)
                         )
                     )
-                count = conn.execute(
-                    text(f"SELECT COUNT(*) FROM {table}")  # noqa: S608 - module constant
-                ).scalar_one()
+                count = conn.execute(text(_COUNT_SQL[table])).scalar_one()
                 conn.execute(text("RESET ROLE"))
                 return count
 
@@ -602,9 +623,7 @@ def test_the_check_constraints_refuse_the_values_the_issue_excludes() -> None:
             with engine.begin() as conn:
                 record_id = _insert_act_record(conn, tenant)
                 conn.execute(
-                    text(  # noqa: S608 - fixed module constant
-                        f"UPDATE {ACT_RECORDS} SET state = 'snoozed' WHERE id = :id"
-                    ),
+                    text(_UPDATE_ACT_STATE_SQL),
                     {"id": record_id},
                 )
 
@@ -613,9 +632,7 @@ def test_the_check_constraints_refuse_the_values_the_issue_excludes() -> None:
             with engine.begin() as conn:
                 record_id = _insert_act_record(conn, tenant)
                 conn.execute(
-                    text(  # noqa: S608 - fixed module constant
-                        f"UPDATE {ACT_RECORDS} SET channel = 'zalo' WHERE id = :id"
-                    ),
+                    text(_UPDATE_ACT_CHANNEL_SQL),
                     {"id": record_id},
                 )
 
@@ -625,34 +642,26 @@ def test_the_check_constraints_refuse_the_values_the_issue_excludes() -> None:
             with engine.begin() as conn:
                 item_id = _insert_checklist_item(conn, tenant)
                 conn.execute(
-                    text(  # noqa: S608 - fixed module constant
-                        f"UPDATE {CHECKLIST_ITEMS} SET done = true WHERE id = :id"
-                    ),
+                    text(_UPDATE_DONE_SQL),
                     {"id": item_id},
                 )
         with pytest.raises(IntegrityError, match="ck_run_checklist_items_done_at"):
             with engine.begin() as conn:
                 item_id = _insert_checklist_item(conn, tenant, key="print_and_pack", position=1)
                 conn.execute(
-                    text(  # noqa: S608 - fixed module constant
-                        f"UPDATE {CHECKLIST_ITEMS} SET done_at = now() WHERE id = :id"
-                    ),
+                    text(_UPDATE_DONE_AT_SQL),
                     {"id": item_id},
                 )
         # Both together is the shape a tick actually produces.
         with engine.begin() as conn:
             item_id = _insert_checklist_item(conn, tenant, key="apply_the_label", position=2)
             conn.execute(
-                text(  # noqa: S608 - fixed module constant
-                    f"UPDATE {CHECKLIST_ITEMS} SET done = true, done_at = now() WHERE id = :id"
-                ),
+                text(_UPDATE_TICK_SQL),
                 {"id": item_id},
             )
         with engine.connect() as conn:
             done_at = conn.execute(
-                text(  # noqa: S608 - fixed module constant
-                    f"SELECT done_at FROM {CHECKLIST_ITEMS} WHERE id = :id"
-                ),
+                text(_SELECT_DONE_AT_SQL),
                 {"id": item_id},
             ).scalar_one()
             assert done_at is not None
@@ -772,18 +781,14 @@ def test_the_boot_check_names_either_table_if_its_rls_is_ever_turned_off() -> No
 
             for table in NEW_TABLES:
                 with conn.cursor() as cursor:
-                    cursor.execute(
-                        f"ALTER TABLE public.{table} DISABLE ROW LEVEL SECURITY"  # noqa: S608
-                    )
+                    cursor.execute(_DISABLE_RLS_SQL[table])
                     conn.commit()
                 with conn.cursor() as cursor:
                     with pytest.raises(RuntimeError, match=rf"\b{table}\b") as excinfo:
                         _check_tenant_tables_have_rls(cursor)
                     assert "refuses boot" in str(excinfo.value)
                 with conn.cursor() as cursor:
-                    cursor.execute(
-                        f"ALTER TABLE public.{table} ENABLE ROW LEVEL SECURITY"  # noqa: S608
-                    )
+                    cursor.execute(_ENABLE_RLS_SQL[table])
                     conn.commit()
         finally:
             conn.close()
@@ -848,5 +853,52 @@ def test_both_tables_exist_and_are_listed_in_the_tenant_scoped_table_set() -> No
                     f"public.{table} has policies for {sorted(policy_verbs)}; a verb with no "
                     "policy is a verb a future grant opens across tenants"
                 )
+    finally:
+        engine.dispose()
+
+
+@requires_postgres
+def test_an_empty_tenant_guc_denies_rather_than_raising() -> None:
+    """The specific reason these policies must go through `app_current_shop_id()`.
+
+    `SET LOCAL app.current_shop_id = ''` is a real state, not a hypothetical:
+    a `SET LOCAL` is scoped to the transaction and an internal commit leaves
+    the GUC as the EMPTY STRING rather than unset. A policy written as
+    `shop_id = current_setting('app.current_shop_id', true)::uuid` casts `''`
+    to uuid and raises `invalid input syntax for type uuid`, so a session that
+    merely lost its scope gets a 500 instead of an empty result.
+
+    The helper is `SELECT nullif(current_setting('app.current_shop_id', true),
+    '')::uuid` -- the `nullif` turns that empty string into NULL, and
+    `shop_id = NULL` is NULL, so the row is filtered out. Denial, not an error.
+
+    This asserts the behaviour rather than the spelling. A future edit that
+    inlines the raw cast would keep every name in the migration intact and
+    fail here, which is the point: `test_the_two_tables_1712_added_are_covered_
+    by_their_own_migration` checks the source text, and source text is not
+    behaviour.
+    """
+    cfg = _alembic_config()
+    engine = _sync_engine()
+    try:
+        _reset_to_revision(cfg, _PRE_REVISION)
+        seeded = _seed_pre_069_rows(engine)
+        command.upgrade(cfg, _THIS_REVISION)
+        with engine.begin() as conn:
+            _insert_act_record(conn, seeded["a"])
+            _insert_checklist_item(conn, seeded["a"])
+
+        for table in NEW_TABLES:
+            with engine.connect() as conn:
+                conn.execute(text("SET ROLE juli_app"))
+                # The empty string, explicitly -- not "unset", which is the
+                # easier case the other isolation test already covers.
+                conn.execute(text("SELECT set_config('app.current_shop_id', '', true)"))
+                count = conn.execute(text(_COUNT_SQL[table])).scalar_one()
+                conn.execute(text("RESET ROLE"))
+            assert count == 0, (
+                f"{table} returned {count} rows to juli_app whose tenant GUC is the empty "
+                "string; the policy must deny, not match"
+            )
     finally:
         engine.dispose()
