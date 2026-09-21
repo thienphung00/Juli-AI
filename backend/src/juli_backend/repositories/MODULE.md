@@ -17,7 +17,7 @@ Import from the package root: `from juli_backend.repositories import OrdersRepo`
 | Module | Owns |
 |--------|------|
 | `identity` | `UsersRepo`, `ShopsRepo` |
-| `tiktok_credentials` | `TikTokCredentialRepo` (tokens encrypted at rest), `TikTokSyncStateRepo` |
+| `tiktok_credentials` | `TikTokCredentialRepo` (tokens encrypted at rest; `has_scope` fails closed on empty/NULL scopes), `TikTokSyncStateRepo`, `parse_granted_scopes` |
 | `commerce` | `OrdersRepo`, `OrderItemsRepo`, `ReturnsRepo`, `ProductsRepo`, `InventoryRepo`, `SettlementsRepo` |
 | `analytics` | `CreatorsRepo`, `LivestreamsRepo`, `AnalyticsPerformanceRepo`, `GoldKpiEnvelopesRepo`, `AnalyticsKpiEnvelopesRepo` |
 | `decisions` | `AlertConfigsRepo`, `AlertHistoryRepo`, `RecommendationsRepo`, `ActionCardsRepo` |

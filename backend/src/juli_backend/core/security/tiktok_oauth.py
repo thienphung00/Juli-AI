@@ -193,6 +193,14 @@ class TikTokOAuthService:
             # The verified cipher is the binding; record it on the row so the
             # next write's distinctness/TOFU check has something to compare to.
             existing_cred.shop_cipher = verified_cipher
+            # Issue #1714: a re-authorisation is exactly when the granted scope
+            # list changes (the seller approved a newly requested scope, or
+            # revoked one) -- the create branch below has always persisted
+            # `scopes`, but this update branch dropped it, so a shop that
+            # re-authorised kept whatever stale (often empty/None) scope list
+            # its first `create` wrote. Assigning here, same as `shop_cipher`
+            # above, relies on the caller's flush/commit to persist it.
+            existing_cred.scopes = scopes
         except NotFound:
             await cred_repo.create(
                 shop_id=shop.id,
