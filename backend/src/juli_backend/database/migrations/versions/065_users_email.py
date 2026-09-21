@@ -62,14 +62,19 @@ before it shipped, which is the whole reason that module exists.
 
 SCOPED AS NARROWLY AS POSTGRES ALLOWS. The grant is COLUMN-LEVEL:
 
-    GRANT UPDATE (email, display_name) ON public.users TO juli_app
+    GRANT UPDATE (email, display_name, updated_at) ON public.users TO juli_app
 
 `juli_app` still cannot UPDATE `id` or `phone` -- so nothing in the application
 can overwrite the identity a JWT is matched on, and nothing can write a phone
 number back into the column #1972 just emptied. Combined with
-`users_update_public`, the reachable set is "these two columns, on the caller's
-own row, only". No DELETE is granted; there is still no DELETE anywhere in the
-application on any mapped table.
+`users_update_public`, the reachable set is "these three columns, on the
+caller's own row, only". No DELETE is granted; there is still no DELETE
+anywhere in the application on any mapped table.
+
+`updated_at` is in the list because SQLAlchemy puts it in the statement, not
+because any code assigns it -- see `BACKFILLABLE_COLUMNS` below. Postgres
+checks the full column list of an UPDATE, so omitting it denies the whole
+statement.
 
 ADDITIVE, INCLUDING THE GRANT. Adding a nullable column with no default leaves
 the previously deployed code -- which never mentions `email` -- fully
@@ -91,8 +96,15 @@ depends_on: str | Sequence[str] | None = None
 
 ROLE_NAME = "juli_app"
 
-#: Exactly the columns `UsersRepo._record_first_known_identity` assigns.
-BACKFILLABLE_COLUMNS = ("email", "display_name")
+#: The two columns `UsersRepo._record_first_known_identity` assigns -- plus
+#: `updated_at`, which SQLAlchemy writes on every UPDATE whether anyone asked or
+#: not, because `User.updated_at` carries `onupdate=func.now()`. The emitted
+#: statement is `UPDATE users SET email=..., updated_at=...`, so a grant naming
+#: only the first two is denied in full: measured on a freshly migrated database
+#: as `asyncpg.exceptions.InsufficientPrivilegeError: permission denied for
+#: table users`, from `tests/integration/test_google_identity_provisioning.py`.
+#: Postgres checks the whole column list, not the column the caller cared about.
+BACKFILLABLE_COLUMNS = ("email", "display_name", "updated_at")
 
 
 def _apply_column_update_privilege(keyword: str) -> None:

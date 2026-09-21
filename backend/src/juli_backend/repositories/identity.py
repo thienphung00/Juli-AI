@@ -88,14 +88,35 @@ class UsersRepo(SessionRepo):
                 return await self._provision_first_sighting(
                     user_id, email=email, display_name=display_name
                 )
-            self._record_first_known_identity(user, email=email, display_name=display_name)
+            if self._record_first_known_identity(user, email=email, display_name=display_name):
+                # FLUSHED INSIDE THE SCOPE, AND THAT IS LOAD-BEARING (#1973).
+                # The assignment above only marks the row dirty; the UPDATE is
+                # emitted at the next flush. `get_current_user` commits AFTER
+                # this context manager has exited, by which point
+                # `with_user_scope` has put the previous (empty) GUCs back --
+                # and `users_update_public` is
+                # `USING (id = current_setting('app.current_user_id', true)::uuid)`,
+                # so with no GUC the policy matches no row. Postgres does not
+                # raise for that; it updates zero rows, and SQLAlchemy turns the
+                # mismatch into `StaleDataError: expected to update 1 row(s); 0
+                # were matched` -- a 500 on the seller's request with nothing in
+                # it naming RLS. Measured exactly that way on a freshly migrated
+                # database before this flush was added
+                # (`tests/integration/test_google_identity_provisioning.py::
+                # test_a_returning_seller_with_no_email_is_backfilled`).
+                await self._session.flush()
             return user
 
     @staticmethod
     def _record_first_known_identity(
         user: User, *, email: str | None, display_name: str | None
-    ) -> None:
+    ) -> bool:
         """Fill a column that is still empty, and never overwrite one that is not.
+
+        Returns whether anything changed, so the caller flushes only when there
+        is something to write -- an unconditional flush would put a round trip
+        on every authenticated request in the application for the benefit of the
+        handful that carry a hole to fill.
 
         THIS IS THE BACKFILL (#1973). Every `users` row that predates migration
         065 has `email IS NULL`, and there is no way to recover the claim from
@@ -112,10 +133,14 @@ class UsersRepo(SessionRepo):
         later (`display_name`) would be reverted to the Google name on every
         request. A column that already holds something is left alone.
         """
+        changed = False
         if user.email is None and email is not None:
             user.email = email
+            changed = True
         if user.display_name is None and display_name is not None:
             user.display_name = display_name
+            changed = True
+        return changed
 
     async def _provision_first_sighting(
         self,
@@ -179,7 +204,12 @@ class UsersRepo(SessionRepo):
                 return await self.get_or_create(user_id, email=email, display_name=display_name)
         except IntegrityError:
             user = await self.get(user_id)
-            self._record_first_known_identity(user, email=email, display_name=display_name)
+            if self._record_first_known_identity(user, email=email, display_name=display_name):
+                # Same reason as the returning-seller path above: this still
+                # runs inside `get_for_authentication`'s `with_user_scope`, and
+                # the UPDATE has to be emitted before that scope hands the GUCs
+                # back, or `users_update_public` matches no row.
+                await self._session.flush()
             return user
 
     async def get_or_create(
