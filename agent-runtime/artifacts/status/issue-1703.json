@@ -22,15 +22,15 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1703.json",
     "ownerSignoffPresent": true,
-    "sha256": "ae0b3f268d23f1dd2ec58b1f2147b3ad255439ec8f33553b341f694e10a8bce7",
+    "sha256": "384e06e50d0fdbaae8eeda19a7dc4134248499e6856c5de3c3ac6a268af0a2a0",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 20883,
-      "validationBytes": 47150
+      "reviewBytes": 22264,
+      "validationBytes": 47153
     },
     "claimVsExecuted": {
       "citedCommandCount": null,
@@ -213,7 +213,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1703-subject-scoped-card-emission",
-        "head": "f68974745d3d653a82b19e2a2895049eb36e616f",
+        "head": "f590b1beec52c10412b6fce0f582a04f2a801248",
         "shallow": true
       },
       "moduleResolution": {
@@ -324,10 +324,10 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-21T14:16:44Z",
+  "timestamp": "2026-09-21T14:24:51Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1703.json",
-    "sha256": "e576e5a2e488ef5ccd48b5a2d3c9ec2197bc77a677b9e8e12992d8a3cbe9dd6d",
+    "sha256": "adbccce44eb3f812fd65c680b12dc75f04a95b84a1045219a2f5d935cbf1a9a7",
     "status": "PASS"
   },
   "wave": null
