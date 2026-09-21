@@ -1,6 +1,6 @@
 "use client";
 
-import { trackTikTokPageView } from "@juli/tiktok-events";
+import { captureTikTokClickId, trackTikTokPageView } from "@juli/tiktok-events";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 
@@ -24,6 +24,12 @@ export function TikTokTracking() {
   // has-mounted flag) also makes this idempotent under React's development
   // double-invocation of effects.
   const trackedPath = useRef<string | null>(null);
+
+  useEffect(() => {
+    // An ad can land directly on the Demo, so the click id has to be captured
+    // here too — it is on the landing URL and nowhere else.
+    captureTikTokClickId();
+  }, []);
 
   useEffect(() => {
     if (trackedPath.current === null) {

@@ -37,6 +37,13 @@ beforeAll(() => {
 
 beforeEach(() => {
   window.localStorage.clear();
+  // The server copy of every event goes out as a beacon; stub it so the suite
+  // makes no network calls.
+  Object.defineProperty(navigator, "sendBeacon", {
+    configurable: true,
+    value: vi.fn(() => true),
+    writable: true,
+  });
   pixel = { identify: vi.fn(), page: vi.fn(), track: vi.fn() };
   (window as unknown as { ttq?: FakePixel }).ttq = pixel;
 });

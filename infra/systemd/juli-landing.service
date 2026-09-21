@@ -32,6 +32,16 @@ WorkingDirectory=/root/releases/landing-current/apps/landing
 # Production Next.js server bound to the loopback port nginx will later proxy to (#842).
 Environment=LANDING_LIVE_PORT=3007
 EnvironmentFile=-/etc/juli/landing-runtime.env
+# TIKTOK EVENTS API TOKEN (server channel).
+#
+# /etc/juli/frontend.env carries TIKTOK_EVENTS_API_ACCESS_TOKEN for the relay
+# route at /api/tt/event. It is a SEPARATE file from the runtime env above on
+# purpose: deploy.sh truncates and rewrites landing-runtime.env on every
+# deploy (write_runtime_env), so a secret placed there would survive exactly
+# until the next release. The `-` prefix keeps the unit starting on a host
+# where the secret has not been provisioned; the route then answers 503 and
+# says so in the journal.
+EnvironmentFile=-/etc/juli/frontend.env
 ExecStart=/root/releases/landing-current/apps/landing/node_modules/.bin/next start --port ${LANDING_LIVE_PORT} --hostname 127.0.0.1
 Restart=on-failure
 RestartSec=5

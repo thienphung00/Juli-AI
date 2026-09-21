@@ -9,6 +9,8 @@ identifiers.
 
 ## Public interface
 
+### Browser (`@juli/tiktok-events`)
+
 - `TikTokPixel` — server component rendering TikTok's base code; mount once per
   app, near the top of the root layout's `<body>`.
 - `trackTikTokEvent(name, properties?)` — records a conversion, returns the
@@ -23,11 +25,27 @@ identifiers.
 - `normalizeEmail`, `normalizeExternalId`, `sha256Hex`, `hashIdentity` —
   identifier normalisation, shared by browser and server so both derive the
   same digest.
+- `captureTikTokClickId` / `readTikTokClickId` — keep the `ttclid` from the ad
+  landing URL, which is handed over once and then gone.
+- `relayTikTokEvent`, `TIKTOK_RELAY_PATH` — the server copy, beaconed to the
+  app's own origin. `trackTikTokEvent` calls it; call it directly only in a
+  test.
+
+### Server (`@juli/tiktok-events/server`)
+
+- `createTikTokRelayRoute({ allowedOrigins })` — the POST handler each app
+  mounts at `TIKTOK_RELAY_PATH`. Validates, enriches, forwards.
+- `handleTikTokRelayRequest` — the same thing with no framework, for tests.
+- `buildTikTokEventPayload` — the Events API 2.0 body, pure.
+- `postTikTokEvent` — the HTTP call to TikTok's consolidated endpoint.
+- `readTikTokServerConfig` — reads `TIKTOK_EVENTS_API_ACCESS_TOKEN`; null,
+  never a throw and never a default.
 
 ## Dependencies
 
 - `react` (peer) — for `TikTokPixel` only. No `next` dependency: both public
-  apps consume the same component.
+  apps consume the same component, and the relay route is a plain
+  `(Request) => Response`.
 
 ## Invariants
 
@@ -42,7 +60,18 @@ identifiers.
   field that cannot be normalised is omitted.
 - No call into `window.ttq` may throw. A blocked pixel must not take the page
   down.
+- The server entry point is a separate export path. Nothing under `./server`
+  may be imported from a client component.
+- The relay trusts nothing in the request body: event name against an
+  allowlist, properties against a closed schema, identifiers only if they are
+  SHA-256 digests, and the event time from the server clock.
+- A missing access token is a logged 503, never a silent success.
 - This package never imports an app.
+
+## Operating it
+
+[`docs/runbooks/tiktok-pixel-runbook.md`](../../docs/runbooks/tiktok-pixel-runbook.md)
+— token setup, verification commands, and what bounds abuse of the relay.
 
 ## Owners
 

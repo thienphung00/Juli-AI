@@ -1,6 +1,11 @@
 import type { TikTokEventName, TikTokEventProperties } from "./data-source";
 import { newEventId } from "./event-id";
-import { hashIdentity, type TikTokIdentity } from "./identity";
+import {
+  hashIdentity,
+  type TikTokHashedIdentity,
+  type TikTokIdentity,
+} from "./identity";
+import { relayTikTokEvent } from "./relay";
 
 /**
  * The slice of `window.ttq` this codebase calls. The base code installs every
@@ -57,12 +62,28 @@ export function trackTikTokPageView(): void {
 }
 
 /**
- * Record a conversion and return the `event_id` it was recorded under.
+ * Identifiers established by the most recent `identifyTikTokUser` call, so the
+ * server copy of an event can carry what the pixel copy carries.
+ *
+ * Module state mirrors how the pixel itself works: `identify` seeds matching
+ * state that subsequent events read. It lives for one document, which is the
+ * same lifetime `ttq`'s own copy has.
+ */
+let currentIdentity: TikTokHashedIdentity = {};
+
+/**
+ * Record a conversion on both channels and return the `event_id` they share.
+ *
+ * Both, always, with one id — that is what makes the two channels additive
+ * instead of double-counting. TikTok collapses a pixel event and an Events API
+ * event with the same name and the same `event_id` within 48 hours into one
+ * conversion, keeping the first and enriching it with the second. So the
+ * browser copy wins when it arrives, the server copy covers the visitor whose
+ * blocker ate it, and neither case inflates the number.
  *
  * The id is minted before the pixel is consulted and returned even when the
- * pixel never fired, because the server-side copy of this event needs the
- * *same* id to deduplicate against — and a blocked pixel is precisely the case
- * where the server copy is the only one that arrives.
+ * pixel never fired, because a blocked pixel is precisely the case where the
+ * server copy is the only one that arrives.
  */
 export function trackTikTokEvent(
   name: TikTokEventName,
@@ -71,6 +92,7 @@ export function trackTikTokEvent(
   const eventId = newEventId();
 
   callPixel((pixel) => pixel.track(name, properties, { event_id: eventId }));
+  relayTikTokEvent(name, eventId, properties, currentIdentity);
 
   return eventId;
 }
@@ -94,5 +116,11 @@ export async function identifyTikTokUser(
     return;
   }
 
+  currentIdentity = { ...currentIdentity, ...hashed };
   callPixel((pixel) => pixel.identify(hashed as Record<string, string>));
+}
+
+/** Test seam: drop identifiers established in this document. */
+export function resetTikTokIdentity(): void {
+  currentIdentity = {};
 }

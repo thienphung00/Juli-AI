@@ -4,7 +4,8 @@
 
 Public marketing site for `app-juli.com` (Phase 2.7 PRD). Persuades prospective
 TikTok Shop sellers and converts them into the Demo — it does not operate a shop.
-Static/mock content only; no backend calls, no auth.
+Static/mock content, no auth. It calls no Juli backend: the one server
+route it owns (`/api/tt/event`) talks to TikTok, not to `juli-api`.
 
 ## Public interface
 
@@ -19,12 +20,17 @@ Static/mock content only; no backend calls, no auth.
   (`OwnerPlaceholder` component) pending owner and legal review — not invented.
 - `DEMO_URL` (`src/lib/site.ts`) — the one CTA destination
   (`demo.app-juli.com`, Mock mode; `NEXT_PUBLIC_DEMO_URL` overrides for preview).
+- `POST /api/tt/event` — the TikTok Events API relay. Same-origin, so an ad
+  blocker that stops the pixel does not stop this. Accepts only this site's
+  own origins (`SITE_ORIGINS`) and only the events in
+  `@juli/tiktok-events`'s allowlist.
 
 ## Dependencies
 
 - `@juli/brand` — logo lockup + hero/render raster assets (ADR-056).
 - `@juli/theme` — semantic tokens; all colors come from here.
 - `@juli/ui` — button/badge primitives where they fit the marketing layout.
+- `@juli/tiktok-events` — pixel, event vocabulary, and the relay handler.
 
 ## Invariants
 
@@ -38,6 +44,10 @@ Static/mock content only; no backend calls, no auth.
   visible focus states.
 - The app never imports a sibling app; feature mockups are rebuilt in code,
   never shipped as flattened UI bitmaps.
+- The Events API token is read from the server process environment and never
+  becomes a `NEXT_PUBLIC_*` value — that would publish it in the bundle.
+- Analytics never breaks the page: no call into the pixel or the relay may
+  throw, and a missing token produces a logged 503, never a silent no-op.
 
 ## Owners
 

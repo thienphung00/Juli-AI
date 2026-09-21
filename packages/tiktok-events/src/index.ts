@@ -6,6 +6,12 @@ export {
   type TikTokEventName,
   type TikTokEventProperties,
 } from "./data-source";
+export {
+  captureTikTokClickId,
+  CLICK_ID_QUERY_PARAM,
+  CLICK_ID_STORAGE_KEY,
+  readTikTokClickId,
+} from "./click-id";
 export { newEventId } from "./event-id";
 export {
   hashIdentity,
@@ -17,8 +23,14 @@ export {
 } from "./identity";
 export { TikTokPixel, type TikTokPixelProps } from "./pixel";
 export { tiktokPixelSnippet } from "./pixel-snippet";
+export { relayTikTokEvent } from "./relay";
+export {
+  TIKTOK_RELAY_PATH,
+  type TikTokRelayEventBody,
+} from "./relay-contract";
 export {
   identifyTikTokUser,
+  resetTikTokIdentity,
   trackTikTokEvent,
   trackTikTokPageView,
 } from "./track";

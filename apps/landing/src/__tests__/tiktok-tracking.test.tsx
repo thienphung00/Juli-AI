@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import LandingPage from "../app/page";
+import { SITE_ORIGINS } from "../lib/site";
 import { TikTokTracking } from "../components/tiktok-tracking";
 
 interface FakePixel {
@@ -12,6 +13,7 @@ interface FakePixel {
 }
 
 let pixel: FakePixel;
+let sendBeacon: ReturnType<typeof vi.fn>;
 
 /** jsdom cannot navigate; without this every CTA click logs a "Not implemented". */
 function swallowNavigation(event: MouseEvent) {
@@ -19,6 +21,15 @@ function swallowNavigation(event: MouseEvent) {
 }
 
 beforeEach(() => {
+  window.localStorage.clear();
+  // Every tracked event also beacons a server copy; stub it so the suite
+  // makes no network calls.
+  sendBeacon = vi.fn(() => true);
+  Object.defineProperty(navigator, "sendBeacon", {
+    configurable: true,
+    value: sendBeacon,
+    writable: true,
+  });
   pixel = { identify: vi.fn(), page: vi.fn(), track: vi.fn() };
   (window as unknown as { ttq?: FakePixel }).ttq = pixel;
   document.addEventListener("click", swallowNavigation);
@@ -133,5 +144,19 @@ describe("a pixel that never loaded", () => {
     await expect(
       user.click(screen.getByTestId("hero-demo-cta")),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("the relay's allowed origins", () => {
+  it("names the origin this site is actually served from", () => {
+    // A typo here 403s every server-side event in production while the pixel
+    // keeps working, so the two channels would silently disagree.
+    expect(SITE_ORIGINS).toContain("https://app-juli.com");
+  });
+
+  it("allows nothing outside Juli", () => {
+    for (const origin of SITE_ORIGINS) {
+      expect(origin).toMatch(/^https:\/\/[\w.-]*app-juli\.com$|^http:\/\/localhost:\d+$/);
+    }
   });
 });

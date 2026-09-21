@@ -1,6 +1,10 @@
 "use client";
 
-import { TIKTOK_EVENTS, trackTikTokEvent } from "@juli/tiktok-events";
+import {
+  captureTikTokClickId,
+  TIKTOK_EVENTS,
+  trackTikTokEvent,
+} from "@juli/tiktok-events";
 import { useEffect } from "react";
 
 import { DEMO_URL } from "../lib/site";
@@ -17,6 +21,10 @@ const PAGE_CONTENT_NAME = "landing";
  */
 export function TikTokTracking() {
   useEffect(() => {
+    // Before the first event, so it carries the click that produced it. The
+    // `ttclid` parameter is on the ad landing URL and nowhere else.
+    captureTikTokClickId();
+
     trackTikTokEvent(TIKTOK_EVENTS.viewContent, {
       content_name: PAGE_CONTENT_NAME,
       content_type: CONTENT_TYPE,
