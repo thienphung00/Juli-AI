@@ -323,7 +323,11 @@ def _worker_bound_to_juli_app(
         agent_workflow, "_default_llm_service", lambda: FakeLLMService(script=list(script))
     )
     monkeypatch.setattr(agent_workflow, "_default_tool_registry", _full_registry)
-    monkeypatch.setattr(agent_workflow, "_default_playbook", _read_then_confirm_playbook)
+    # #1702: the seam is per-run now -- the worker resolves the playbook
+    # from the run's own workflow_key rather than returning one for every run.
+    monkeypatch.setattr(
+        agent_workflow, "_playbook_for_run", lambda _run: _read_then_confirm_playbook()
+    )
 
     async def _fake_read_resources(session, shop_id=None):
         return _read_resources(products)
