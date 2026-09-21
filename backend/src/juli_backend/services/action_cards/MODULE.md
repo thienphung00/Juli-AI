@@ -337,12 +337,19 @@ post-cooldown candidate legitimately supersede the `dismissed` row** —
 `dismissed` / `executing`; `test_in_flight_statuses_...` in both #715's and
 #716's test files assert this). Instead, `persist.py` adds one additional
 check purely on the `dismissed` branch:
-`_dismiss_cooldown_expired(existing, now=computed_at, cooldown_days=...)` —
-true only when `now - (existing.dismissed_at or existing.updated_at) >=
-cooldown_days`. When true, the fresh candidate is allowed to upsert in place
-(status resets to `"active"`, `dismissed_at` clears so the clock does not
-appear "still running" on the next check); when false, behavior is
-byte-for-byte what B-3 shipped. `approved` and `executing` are **not** given
+a terminal-cooldown check on that branch, named _terminal_cooldown_expired
+since #1703 and _dismiss_cooldown_expired before it — true only when the run's
+clock minus the most recent terminal marker is at least `cooldown_days`. When
+true the fresh candidate is allowed through; when false, behavior is
+byte-for-byte what B-3 shipped. **#1703 changed what "allowed through" means**:
+the successor is a new chained row rather than an in-place reset, so the
+dismiss stays on the record, and the basis must also have moved (ADR-087 d.6
+makes the clock a cap, not a trigger). #1703 also widened the marker from
+dismissed_at alone to the most recent of the three terminal timestamps,
+because a chained successor carries none of its predecessor's and the emission
+budget's own cooldown gate — which reads a card's OWN markers — therefore
+cannot see them. ADR-087 decision 9 assumed the budget covered this "for free";
+under chained revisions it does not, so the floor lives here. `approved` and `executing` are **not** given
 this escape hatch — only an explicit outcome should ever move a workflow out
 of those, not the mere passage of time; this is intentional, not an
 oversight, and is proven by

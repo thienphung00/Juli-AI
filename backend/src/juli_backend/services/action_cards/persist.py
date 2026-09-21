@@ -67,6 +67,17 @@ IN_FLIGHT_STATUSES: frozenset[str] = frozenset({"approved", "dismissed", "execut
 
 _ACTIVE_STATUS = "active"
 
+
+def _as_aware(value: datetime) -> datetime:
+    """A naive timestamp read back from the database, made comparable.
+
+    Mirrors ``emission_budget._as_aware``: ``approved_at``/``executed_at``
+    predate the timezone-aware columns beside them, so one chain can hold both
+    naive and aware markers and ``max()`` over the mix raises.
+    """
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
 #: Nothing material moved for this subject since the card we already emitted
 #: for it, so there is nothing new to offer (ADR-087 decision 6). The
 #: reference revision is the newest row for the subject: when that row has
@@ -85,12 +96,14 @@ SUPPRESSED_REASON_BASIS_UNCHANGED = "basis_unchanged"
 #: "Standing" is the seller's-desk sense: a card that has actually reached
 #: the seller and has not finished. That is a *surfaced* ``active`` row (the
 #: emission budget put it in front of them), an ``approved``/``executing``
-#: row (they acted on it and the outcome is not in yet), or a ``dismissed``
-#: row inside its cooldown (they said no recently). The latter two were
-#: frozen against re-scoring before this slice (#715 B-3, #716 B-4
+#: row (they acted on it and the outcome is not in yet), or a terminal row --
+#: dismissed, or executed -- still inside its cooldown. The in-flight statuses
+#: were frozen against re-scoring before this slice (#715 B-3, #716 B-4
 #: "Collision 2") and stay frozen; naming the reason is the only thing that
-#: changed. A row with ``executed_at`` set never stands -- that is the
-#: revision a successor follows.
+#: changed for them. An *executed* row is the one ADR-087 decision 6 says a
+#: successor follows, so it stops standing the moment its cooldown elapses --
+#: see ``_card_still_stands`` for why that floor lives here and not in the
+#: emission budget.
 #:
 #: An ``active`` row the budget has **not** surfaced is not an offer, it is a
 #: draft, and #716's Collision 1 contract says a draft keeps getting
@@ -239,37 +252,46 @@ def _build_payload(
     return payload
 
 
-def _dismiss_cooldown_expired(
+def _terminal_cooldown_expired(
     existing: ActionCard,
     *,
     now: datetime,
     cooldown_days: int,
 ) -> bool:
-    """Whether a ``dismissed`` row's per-workflow cooldown has fully elapsed.
+    """Whether *existing*'s terminal cooldown has fully elapsed.
 
-    Resolves Collision 2 (#716, B-4): B-3's ``IN_FLIGHT_STATUSES`` skip froze
-    ``dismissed`` rows forever, so a cooldown that starts on a dismiss could
-    never finish — nothing would ever produce a fresh candidate for that
-    ``workflow_key`` again. Only ``dismissed`` gets this time-boxed escape
-    hatch; ``approved``/``executing`` remain frozen indefinitely by design —
-    resetting those requires an explicit outcome, not just a clock (see
-    MODULE.md "Collision 2").
+    Resolves Collision 2 (#716, B-4) for the ``dismissed`` case: B-3's
+    ``IN_FLIGHT_STATUSES`` skip froze ``dismissed`` rows forever, so a cooldown
+    that starts on a dismiss could never finish — nothing would ever produce a
+    fresh candidate for that ``workflow_key`` again. ``approved``/``executing``
+    are still never time-boxed: resetting those requires an explicit outcome,
+    not just a clock (see MODULE.md "Collision 2"), and ``_card_still_stands``
+    never consults this function for them.
 
-    Falls back to ``updated_at`` when ``dismissed_at`` was never stamped
-    (e.g. a row dismissed before #716 added the column) — the same fallback
-    already documented pre-B-4 for the surfacing signal.
+    The marker is the most recent of ``dismissed_at``/``executed_at``/
+    ``approved_at`` — the same three ``emission_budget._terminal_marker``
+    considers, so the two modules agree on when a card's clock started. Falls
+    back to ``updated_at`` when none was stamped (e.g. a row dismissed before
+    #716 added the column) — the same fallback already documented pre-B-4 for
+    the surfacing signal.
 
     Under #1703 this is the churn floor ADR-087 decision 6 permits as a
     *secondary* cap ("a time-based rule is admissible only as a secondary cap
     on churn, never as the primary trigger"): the clock cannot cause a
     revision, it can only delay one the basis already justified.
     """
-    marker = existing.dismissed_at or existing.updated_at
-    if marker is None:
+    stamped = [
+        _as_aware(marker)
+        for marker in (existing.dismissed_at, existing.executed_at, existing.approved_at)
+        if marker is not None
+    ]
+    if stamped:
+        marker = max(stamped)
+    elif existing.updated_at is not None:
+        marker = _as_aware(existing.updated_at)
+    else:
         return False
-    if marker.tzinfo is None:
-        marker = marker.replace(tzinfo=UTC)
-    return now - marker >= timedelta(days=cooldown_days)
+    return _as_aware(now) - marker >= timedelta(days=cooldown_days)
 
 
 def _card_still_stands(
@@ -281,15 +303,26 @@ def _card_still_stands(
     """Whether *card* is still the shop's live answer for its subject.
 
     See ``SUPPRESSED_REASON_ACTIVE_CARD_EXISTS`` for what "standing" covers
-    and why. An executed row is the one thing that never stands: ADR-087
-    decision 6 defines a successor as following the last **executed**
-    revision, so ``executed_at`` being set is precisely the condition that
-    opens the subject to a new one.
+    and why. An executed row is what ADR-087 decision 6 defines a successor as
+    following, so ``executed_at`` being set is what opens the subject to a new
+    revision -- **after** the churn floor below has elapsed.
+
+    The churn floor, and why it is here rather than in the emission budget.
+    ADR-087 decision 9 reasoned that the budget's cooldown gate needs no change
+    because *"per-card becomes per-subject for free -- and it doubles as the
+    secondary time-based floor decision 6 wants, so a basis change inside 7
+    days still waits."* That is true of an in-place upsert and **false** of a
+    chained revision: ``emission_budget._terminal_marker`` reads *the card's
+    own* ``approved_at``/``executed_at``/``dismissed_at``, and a successor is a
+    brand-new row carrying none of them, so the budget would surface it the day
+    after its predecessor executed. The floor has to live where the chain is
+    visible, which is here. Implementing it is what makes decision 9's sentence
+    true rather than merely written.
     """
-    if card.executed_at is not None:
-        return False
     if card.status == "dismissed":
-        return not _dismiss_cooldown_expired(card, now=now, cooldown_days=cooldown_days)
+        return not _terminal_cooldown_expired(card, now=now, cooldown_days=cooldown_days)
+    if card.executed_at is not None:
+        return not _terminal_cooldown_expired(card, now=now, cooldown_days=cooldown_days)
     if card.status == _ACTIVE_STATUS:
         return card.surfaced_at is not None
     return True

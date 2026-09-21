@@ -22,7 +22,7 @@ What is now built, and what this ADR still only decides:
 | 6 — basis-change gating, named suppression | **Built.** `basis_unchanged` / `active_card_exists` (`services/action_cards/basis.py`, `persist.py`) |
 | 7 — a replayed demo run applies its outcome | Decided, not built (demo lane) |
 | 8 — per-visitor demo tenant | Decided, not built (demo lane, #1313's prerequisite) |
-| 9 — the emission budget keeps its key | **Built** by leaving it alone. Subject-level ranking under `max_active` is still open |
+| 9 — the emission budget keeps its key | **Built** by leaving it alone, with one correction below. Subject-level ranking under `max_active` is still open |
 
 **`unscoped` is a live value, not only a backfill marker.** Decision 1 assumed every card
 would carry a subject. In practice a producer that cannot name one writes `unscoped`, which
@@ -30,6 +30,16 @@ is what #1701 backfilled and what the approve path already refuses. That is the 
 posture this ADR's Consequences ask for, reached without a card pointing at a subject nobody
 chose; it is **not** a shop-level subject and is **not** approvable, so
 `approval._BINDABLE_SUBJECT_TYPES` needs no widening (that remains #1704's seam).
+
+**Decision 9's cooldown reasoning is corrected.** It says the budget's cooldown gate needs
+no change because *"per-card becomes per-subject for free -- and it doubles as the secondary
+time-based floor decision 6 wants, so a basis change inside 7 days still waits."* That holds
+for an in-place upsert and fails for a chained revision: `emission_budget._terminal_marker`
+reads *the card's own* `approved_at`/`executed_at`/`dismissed_at`, and a successor is a new
+row carrying none of them, so the budget would surface it the day after its predecessor
+executed. The floor is therefore implemented in emission, where the chain is visible
+(`persist._card_still_stands` / `_terminal_cooldown_expired`), and the budget is still left
+exactly as it was. The sentence above is now true; it was not.
 
 **Decision 6 narrows #716's Collision 2 resolution.** #716 reset a dismissed card in place
 once its 7-day cooldown elapsed, on the clock alone. Under this ADR the clock is a secondary

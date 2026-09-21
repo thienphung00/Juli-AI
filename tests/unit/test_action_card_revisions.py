@@ -346,7 +346,9 @@ async def test_changed_basis_emits_chained_successor_without_copying(session, sh
 
     The predecessor is *executed* — ADR-087 decision 6 defines a successor as
     following the last executed revision — and carries a marker in its
-    payload that only a copy-forward could reproduce.
+    payload that only a copy-forward could reproduce. The second emission is
+    dated past the 7-day churn floor; the floor itself is pinned by
+    ``test_a_changed_basis_inside_the_churn_floor_still_waits`` below.
     """
     top, _tail = products
 
@@ -374,7 +376,7 @@ async def test_changed_basis_emits_chained_successor_without_copying(session, sh
     second = await emit_scoring_cards(
         session,
         shop.id,
-        _result(shop.id, computed_at=datetime(2026, 9, 9, 9, 0, tzinfo=UTC)),
+        _result(shop.id, computed_at=datetime(2026, 9, 12, 9, 0, tzinfo=UTC)),
     )
     await session.flush()
 
@@ -407,6 +409,57 @@ async def test_changed_basis_emits_chained_successor_without_copying(session, sh
     # And the successor recorded its own, different basis.
     assert stored_basis(successor) != predecessor_basis
     assert BASIS_METADATA_KEY in json.loads(successor.metadata_json)
+
+
+@pytest.mark.asyncio
+async def test_a_changed_basis_inside_the_churn_floor_still_waits(session, shop, products):
+    """ADR-087 decision 9's sentence, made true rather than merely written.
+
+    That decision left the emission budget's cooldown gate alone on the
+    reasoning that *"per-card becomes per-subject for free -- and it doubles as
+    the secondary time-based floor decision 6 wants, so a basis change inside 7
+    days still waits."* Under chained revisions it does not come for free:
+    ``emission_budget._terminal_marker`` reads a card's OWN terminal
+    timestamps, and a successor is a new row carrying none of its
+    predecessor's, so the budget would surface it the day after the
+    predecessor executed. The floor lives in emission, where the chain is
+    visible.
+    """
+    top, _tail = products
+
+    first = await emit_scoring_cards(session, shop.id, _result(shop.id))
+    await session.flush()
+    predecessor = first.decisions[0].card
+    assert predecessor is not None
+    predecessor.status = "approved"
+    predecessor.approved_at = datetime(2026, 9, 2, 9, 0, tzinfo=UTC)
+    predecessor.executed_at = datetime(2026, 9, 2, 10, 0, tzinfo=UTC)
+    predecessor.surfaced_at = RUN_AT
+    await session.flush()
+
+    top.price = Decimal("129000")
+    await session.flush()
+
+    # Day 6 after execution: the basis moved, and the successor still waits.
+    inside = await emit_scoring_cards(
+        session,
+        shop.id,
+        _result(shop.id, computed_at=datetime(2026, 9, 8, 9, 0, tzinfo=UTC)),
+    )
+    await session.flush()
+    assert inside.decisions[0].suppressed_reason == SUPPRESSED_REASON_ACTIVE_CARD_EXISTS
+    assert len(await _rows(session, shop.id)) == 1
+
+    # Day 11: the floor has elapsed and the successor lands.
+    outside = await emit_scoring_cards(
+        session,
+        shop.id,
+        _result(shop.id, computed_at=datetime(2026, 9, 13, 9, 0, tzinfo=UTC)),
+    )
+    await session.flush()
+    assert outside.decisions[0].suppressed_reason is None
+    assert outside.decisions[0].revision == 2
+    assert len(await _rows(session, shop.id)) == 2
 
 
 # ---------------------------------------------------------------------------
