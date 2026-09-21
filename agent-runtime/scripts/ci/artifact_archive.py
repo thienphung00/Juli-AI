@@ -122,11 +122,17 @@ def body_relative_path(path: Path) -> str | None:
 
 
 def repo_root_for_body(path: Path) -> Path | None:
-    """Return the checkout root implied by a policy-local body path."""
-    rel = body_relative_path(path)
-    if rel is None:
-        return None
-    return Path(str(path)[: -(len(rel) + 1)])
+    """Return the checkout root implied by a policy-local body path.
+
+    ``Path(*parts[:index])`` rather than string slicing, so a relative path whose
+    anchor sits at position 0 yields ``Path(".")`` deliberately (the caller's cwd
+    is then the checkout) instead of falling out of an off-by-one.
+    """
+    parts = path.parts
+    for index in range(len(parts) - 3):
+        if parts[index : index + 2] == _ARTIFACTS_ANCHOR and parts[index + 2] in BODY_DIR_NAMES:
+            return Path(*parts[:index]) if index else Path(".")
+    return None
 
 
 def archive_root(repo_root: Path | None = None) -> Path:
