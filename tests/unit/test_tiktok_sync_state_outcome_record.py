@@ -244,28 +244,59 @@ class TestTheMigrationMatchesTheModel:
         assert 'revision: str = "071_sync_state_last_outcome"' in text
         assert 'down_revision: str | None = "069_act_records_and_checklists"' in text
 
-    def test_it_is_the_only_child_of_its_parent(self):
-        """A second child of one revision forks the chain.
+    def test_no_revision_in_versions_has_two_children(self):
+        """The fork invariant, DERIVED from the tree rather than pinned to a number.
 
         This revision was authored as `067` onto `065_users_email`. #1712
         (PR #2071) merged first with `069_act_records_and_checklists`, ALSO a
         child of 065 -- so leaving 067 where it was would have forked the chain
-        rather than extended it. Hence the rebase to 071 onto 069, and hence
-        this test reading the CURRENT parent rather than a fixed revision.
+        rather than extended it. That is the fourth time in this repo that a
+        reserved migration number lost a merge race (061 twice, then 067).
 
-        The deferred contract step from #1972 was renumbered onto THIS revision
-        in the same change for the same reason;
-        `tests/unit/test_users_phone_placeholder_cleanup.py` enforces it from
-        the other side.
+        Written as a derivation on purpose. Every migration slice so far has
+        shipped a guard naming a FIXED parent revision -- `_PRE_REVISION` in
+        `test_migration_act_records_roundtrip.py`, `PHONE_REVISION` in
+        `test_users_phone_placeholder_cleanup.py` -- and every one of those
+        constants has to be hand-edited by the NEXT slice. The invariant they
+        each encode a slice of is one sentence: no revision has two children.
+        Asserting it over the whole directory needs no constant, so the next
+        migration cannot make this test stale, only red -- and red is correct
+        when the chain really has forked.
         """
-        parent = "069_act_records_and_checklists"
         versions = MIGRATIONS_ROOT / "versions"
-        siblings = sorted(
-            path.name
-            for path in versions.glob("*.py")
-            if re.search(rf'^down_revision: str \| None = "{parent}"', path.read_text(), re.M)
+        children: dict[str, list[str]] = {}
+        for path in sorted(versions.glob("*.py")):
+            down = re.search(
+                r'^down_revision: str \| None = (?:"([^"]+)"|None)', path.read_text(), re.M
+            )
+            if down and down.group(1):
+                children.setdefault(down.group(1), []).append(path.name)
+
+        forked = {parent: kids for parent, kids in children.items() if len(kids) > 1}
+        assert forked == {}, (
+            f"forked chain: {forked} -- a revision with two children means a migration "
+            "number was reserved twice, and `alembic upgrade head` refuses with multiple heads"
         )
-        assert siblings == ["071_tiktok_sync_state_last_outcome.py"], siblings
+
+    def test_the_chain_has_exactly_one_head(self):
+        """The other half of the same fact, also derived.
+
+        A fork shows up as two children of one revision; it also shows up as two
+        heads. Asserting both means a malformed chain cannot slip through by
+        being malformed in only one of the two shapes.
+        """
+        versions = MIGRATIONS_ROOT / "versions"
+        revisions: dict[str, str | None] = {}
+        for path in sorted(versions.glob("*.py")):
+            body = path.read_text()
+            rev = re.search(r'^revision: str = "([^"]+)"', body, re.M)
+            down = re.search(r'^down_revision: str \| None = (?:"([^"]+)"|None)', body, re.M)
+            if rev:
+                revisions[rev.group(1)] = down.group(1) if down and down.group(1) else None
+
+        parents = {down for down in revisions.values() if down}
+        heads = sorted(rev for rev in revisions if rev not in parents)
+        assert heads == ["071_sync_state_last_outcome"], heads
 
     def test_every_model_column_is_added_by_the_migration(self):
         """The two lists must agree, or SQLite-backed tests pass over a schema
