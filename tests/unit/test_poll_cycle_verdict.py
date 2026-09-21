@@ -132,16 +132,22 @@ class TestTheCycleRefusesToCallAFailedStepASuccess:
         assert record.fetched == 2
         assert record.persisted == 2
 
-    def test_a_rate_limited_and_an_empty_step_are_not_failures(self):
+    def test_a_rate_limited_and_an_empty_step_are_not_failures(self, caplog):
         """The two ways a step legitimately does nothing.
 
         Treating either as a failure would make the cycle raise on an ordinary
         quiet hour, which is how a loud signal gets turned off again.
         """
-        _assert_cycle_succeeded(
-            [_outcome("orders", skipped=True), _outcome("returns", fetched=0, persisted=0)],
-            shop_id=uuid.uuid4(),
-        )
+        with caplog.at_level(logging.INFO, logger=orchestrate_module.__name__):
+            _assert_cycle_succeeded(
+                [_outcome("orders", skipped=True), _outcome("returns", fetched=0, persisted=0)],
+                shop_id=uuid.uuid4(),
+            )
+
+        (record,) = [r for r in caplog.records if r.message == "poll_cycle_outcome"]
+        assert record.failed_steps == 0
+        assert record.ok is True
+        assert record.steps == 2
 
 
 # ---------------------------------------------------------------------------
@@ -555,4 +561,13 @@ class TestAFailedVendorCallFailsTheCycle:
             sync_state_repo=repo,
         )
 
-        assert all(outcome.ok for outcome in repo.recorded[-1])
+        # Named per resource rather than `all(...)`: a truthiness assertion
+        # over an empty list is vacuously true, and an empty `recorded` is
+        # exactly the regression this test exists to catch.
+        assert {outcome.resource: outcome.ok for outcome in repo.recorded[-1]} == {
+            "orders": True,
+            "products": True,
+            "returns": True,
+            "inventory": True,
+            "analytics": True,
+        }

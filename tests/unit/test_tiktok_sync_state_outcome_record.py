@@ -257,7 +257,9 @@ class TestTheMigrationMatchesTheModel:
         from migration_additive_gate import evaluate_migration_paths
 
         result = evaluate_migration_paths([MIGRATION_PATH])
-        assert result.accepted, [finding.render() for finding in result.findings]
+        assert [finding.render() for finding in result.findings] == []
+        assert result.accepted is True
+        assert result.inspected == ["067_sync_state_last_outcome"]
 
     def test_the_existing_update_grant_is_table_level_so_new_columns_are_covered(self):
         """The claim this migration rests on, checked rather than assumed.
