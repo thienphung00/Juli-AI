@@ -148,6 +148,12 @@ def archive_root(repo_root: Path | None = None) -> Path:
     return _common_git_dir(repo_root) / ARCHIVE_DIR_NAME
 
 
+#: Memoised per checkout root. A checkout's common git dir cannot change while
+#: the process runs, and a generator that emits several bodies would otherwise
+#: pay one ``git rev-parse`` subprocess per write.
+_COMMON_GIT_DIR_CACHE: dict[str, Path] = {}
+
+
 def _common_git_dir(repo_root: Path) -> Path:
     """The ``.git`` directory shared by the main checkout and every worktree.
 
@@ -156,6 +162,16 @@ def _common_git_dir(repo_root: Path) -> Path:
     one here. Resolved relative to ``repo_root`` because git prints a relative
     path when run from the main checkout.
     """
+    key = str(repo_root)
+    cached = _COMMON_GIT_DIR_CACHE.get(key)
+    if cached is not None:
+        return cached
+    resolved = _resolve_common_git_dir(repo_root)
+    _COMMON_GIT_DIR_CACHE[key] = resolved
+    return resolved
+
+
+def _resolve_common_git_dir(repo_root: Path) -> Path:
     try:
         proc = subprocess.run(
             ["git", "rev-parse", "--git-common-dir"],
