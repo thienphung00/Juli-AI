@@ -24,15 +24,15 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1950.json",
     "ownerSignoffPresent": true,
-    "sha256": "8c7fe933234eecb9eb03962b4ac202471d78f7147b5c5a76363b1ba1fc1be1ae",
+    "sha256": "c076ae101b24ea9de70b7f742d9f8da73ab46a827e296a9afa27290d483e84de",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 16700,
-      "validationBytes": 48592
+      "reviewBytes": 17617,
+      "validationBytes": 48917
     },
     "claimVsExecuted": {
       "citedCommandCount": null,
@@ -215,7 +215,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "fix/issue-1950-poll-step-outcomes",
-        "head": "2bfc8932d62ea5fa5d60fb1a83c6ae88963c3ca3",
+        "head": "5905d1fc11d7c6e9b11136557902a8ca6f2a2930",
         "shallow": true
       },
       "moduleResolution": {
@@ -278,9 +278,9 @@
         "roleSelectedBy": "spawn-directive",
         "taskDirs": [
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/b15fbf42-c853-405d-890f-cf7b65e56b33/tasks",
+          "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/133aaec1-2a32-4b64-8524-a3b3ab8969f7/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/b2d72967-c0ca-4106-9500-7fc4a9313e3d/tasks",
-          "/tmp/claude-501/-Users-macos-Juli-AI-v2/fc399cce-6b71-4e94-86c9-afaa5ae7b20f/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/3035598a-f8d1-4c62-bc80-6838edda31d6/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/cb047053-ee20-4e00-925f-7ebf36c0417b/tasks",
           "/tmp/claude-501/-Users-macos-Juli-AI-v2/162c579e-1fca-4268-812a-b7d992f7f312/tasks",
@@ -326,10 +326,10 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-21T13:47:38Z",
+  "timestamp": "2026-09-21T18:11:40Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1950.json",
-    "sha256": "278a63cbd34c952bad5b616da74d49e5289ca4f7533a0fa2e3a5bc3756557c7c",
+    "sha256": "0b3a972a80adc3f860f49b60e639517d04c6acd3c0d122036cb2026c17501b80",
     "status": "PASS"
   },
   "wave": null
