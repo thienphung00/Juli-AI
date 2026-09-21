@@ -24,15 +24,15 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1950.json",
     "ownerSignoffPresent": true,
-    "sha256": "54cf0de40cc64e8f0d670893cf8d3e3179ad08b2900282d423d8cd8c2c8ea91c",
+    "sha256": "ad4e703c6aefc0f4a094d418aa26ffdd033926e66b51ae2f357495d48fd4dd10",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 12035,
-      "validationBytes": 45538
+      "reviewBytes": 13159,
+      "validationBytes": 46926
     },
     "claimVsExecuted": {
       "citedCommandCount": null,
@@ -215,7 +215,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "fix/issue-1950-poll-step-outcomes",
-        "head": "96fda8abbfbeede84702ae31aeba44cc10eee8b1",
+        "head": "2c94f4f823e99a660925fec61f06b9c5181200e1",
         "shallow": true
       },
       "moduleResolution": {
@@ -326,10 +326,10 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-21T06:10:07Z",
+  "timestamp": "2026-09-21T06:34:22Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1950.json",
-    "sha256": "902335002bb061a812f10a2e2e8616111059c0464700b5b4aaddae905cd38570",
+    "sha256": "ee37307d943d7c54491b78cd56feaf1e18ad1c10cd3c6bc5a5a92663b7a33a67",
     "status": "PASS"
   },
   "wave": null
