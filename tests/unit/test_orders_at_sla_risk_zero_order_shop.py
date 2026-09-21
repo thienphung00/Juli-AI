@@ -19,6 +19,9 @@ AC1 → a zero-order shop reports `orders_at_sla_risk` as `unavailable`, not `he
 AC2 → a zero-order shop persists no `process_order_5` ActionCard at all.
 AC3 → a shop whose orders really are past the dispatch SLA still mints its card,
        so the false positive is not traded for a false negative.
+AC4 → the issue's audit question, made observable: a shop with nothing synced at all
+       reports *every* KPI as `unavailable` and mints no card. `orders_at_sla_risk`
+       was the last KPI that did not, which is what made it the unique instance.
 """
 
 from __future__ import annotations
@@ -152,6 +155,42 @@ async def test_zero_order_shop_mints_no_approvable_process_order_card(session, s
     # The shop is still scored — the assertion above is about orders, not about
     # the pipeline having produced nothing.
     assert cards, "expected the product-backed workflows to still mint their cards"
+
+
+@pytest_asyncio.fixture
+async def shop_with_nothing_synced(session, user_id):
+    """A connected shop whose every commerce and analytics table is still empty."""
+    return await _make_shop(session, user_id, "+84901960003", "Nothing Synced Shop")
+
+
+@pytest.mark.asyncio
+async def test_a_shop_with_no_synced_data_reports_every_kpi_unavailable_and_mints_no_card(
+    session, shop_with_nothing_synced
+):
+    """AC4: the audit's claim, made observable rather than asserted in prose.
+
+    Every KPI but one already expressed "nothing measured" as `unavailable` on an
+    empty population — the rate-keyed ones through a `None` metric, the count-keyed
+    `net_revenue`/`aov`/`cac` through an explicit zero check. `orders_at_sla_risk`
+    was the only hold-out, which is exactly why it alone minted a card here. With
+    it fixed, a shop with nothing synced reports no verdict about anything.
+    """
+    result = await run_daily_scoring_for_shop(
+        session, shop_with_nothing_synced.id, computed_at=COMPUTED_AT
+    )
+
+    live = {
+        kpi_id: (signal.signal_type, signal.severity)
+        for kpi_id, signal in result.signals.kpis.items()
+        if signal.signal_type != "unavailable"
+    }
+    assert live == {}, f"a shop with nothing synced reported a verdict on: {live}"
+    assert all(signal.severity == "not_applicable" for signal in result.signals.kpis.values())
+
+    await persist_scoring_result(session, shop_with_nothing_synced.id, result)
+    await session.flush()
+
+    assert await _cards_by_workflow(session, shop_with_nothing_synced.id) == {}
 
 
 @pytest.mark.asyncio
