@@ -185,16 +185,41 @@ def test_alembic_head_descends_from_the_contract_step():
     )
 
 
-def test_deferred_directory_no_longer_exists():
-    """063 was the only file `deferred/` ever held. An empty holding
-    directory has no purpose of its own -- git does not track empty
-    directories, and a future contract step recreates `deferred/` the moment
-    it needs it. #2057 deleted it rather than leaving it to rot with a
-    placeholder; this pins that decision so it is not silently reversed."""
-    assert not DEFERRED_DIR.exists(), (
-        f"{DEFERRED_DIR} exists but should have been removed once 063 was promoted "
-        "-- either it holds a new contract step (update this test to name it) or "
-        "it is stray and should be deleted again"
+#: Contract steps parked outside the chain right now. #2057 deleted `deferred/`
+#: once 063 was promoted, because 063 was the only file it had ever held and an
+#: empty holding directory has no purpose of its own. #1972 recreated it for the
+#: step below -- which is the "a future contract step recreates `deferred/` the
+#: moment it needs it" case that decision anticipated, and which that test's own
+#: failure message asks to be named here.
+EXPECTED_DEFERRED_FILES = {"065_users_phone_placeholder_cleanup.py"}
+
+
+def test_deferred_directory_holds_only_the_contract_steps_named_here():
+    """`deferred/` exists only while a contract step is awaiting an operator.
+
+    The directory is not a junk drawer and not a permanent fixture: it is
+    present exactly when something is parked outside the chain, and it goes
+    away again once that step has been applied and promoted (#2057's decision,
+    kept). Naming the files is what keeps a stray or forgotten one visible --
+    a step nobody remembers is a step that never runs.
+    """
+    if not EXPECTED_DEFERRED_FILES:
+        assert not DEFERRED_DIR.exists(), (
+            f"{DEFERRED_DIR} exists but nothing is parked outside the chain -- "
+            "either it holds a new contract step (name it in "
+            "EXPECTED_DEFERRED_FILES) or it is stray and should be deleted"
+        )
+        return
+
+    assert DEFERRED_DIR.is_dir(), (
+        f"{EXPECTED_DEFERRED_FILES} are expected under {DEFERRED_DIR}, which does "
+        "not exist -- a contract step that is not on disk cannot be operated"
+    )
+    present = {p.name for p in DEFERRED_DIR.glob("*.py") if p.name != "__init__.py"}
+    assert present == EXPECTED_DEFERRED_FILES, (
+        f"{DEFERRED_DIR} holds {sorted(present)}, expected "
+        f"{sorted(EXPECTED_DEFERRED_FILES)}. A contract step appears here on "
+        "purpose and leaves once it has been applied and promoted."
     )
 
 
