@@ -22,11 +22,11 @@ import pytest
 import pytest_asyncio
 from alembic import command
 from alembic.config import Config as AlembicConfig
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from juli_backend.database.exceptions import NotFound
-from juli_backend.models.models import Product, Shop, User, WorkflowRun
+from juli_backend.models.models import Product, Shop, WorkflowRun
 from juli_backend.repositories.repos import ProductionWriteAuthorizationsRepo
 
 # Skip all tests in this module if DATABASE_URL is not set
@@ -92,11 +92,25 @@ class TestProductionWriteAuthorizationsConcurrency:
 
         # Setup: create auth to consume
         async with factory() as sess:
-            user = User(phone=f"+1555{uuid.uuid4().int % 10_000_000:07d}")
-            sess.add(user)
-            await sess.flush()
+            # Seeded column-by-column, not via the ORM (#1973): this module
+            # downgrades to 043/044-era schemas, and the model describes HEAD.
+            # `session.add(User(...))` names every mapped column, so the moment
+            # head gains one the old schema lacks -- `users.email`, migration
+            # 065 -- the INSERT fails on a column the test never asked for.
+            # `created_at`/`updated_at` are left to their `server_default`:
+            # at this revision they are naive TIMESTAMP columns, and handing
+            # asyncpg a tz-aware value raises `DataError: can't subtract
+            # offset-naive and offset-aware datetimes`.
+            user_id = uuid.uuid4()
+            await sess.execute(
+                text("INSERT INTO users (id, phone) VALUES (:id, :phone)"),
+                {
+                    "id": str(user_id),
+                    "phone": f"+1555{uuid.uuid4().int % 10_000_000:07d}",
+                },
+            )
 
-            shop = Shop(user_id=user.id, shop_name="Concurrent Test Shop")
+            shop = Shop(user_id=user_id, shop_name="Concurrent Test Shop")
             sess.add(shop)
             await sess.flush()
 
