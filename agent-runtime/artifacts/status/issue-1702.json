@@ -24,15 +24,15 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1702.json",
     "ownerSignoffPresent": true,
-    "sha256": "c27ac963a35631abd2ee347ea137ac29a052c1e9a1141974ee31292b448055f9",
+    "sha256": "f5f75ff54e6fd7c09391daf258e290174e75cfda202733031c55307b01806749",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 12371,
-      "validationBytes": 39258
+      "reviewBytes": 13432,
+      "validationBytes": 39594
     },
     "claimVsExecuted": {
       "citedCommandCount": null,
@@ -330,7 +330,7 @@
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "feature/issue-1702-approve-runs-the-cards-workflow",
-        "head": "88f163495eba566b0e5a42abc91c52133f44b7ad",
+        "head": "802fb81355863bc4fef03247de546fd9384d7740",
         "shallow": true
       },
       "moduleResolution": {
@@ -377,7 +377,7 @@
       "executorDomainSource": "implementation-artifact",
       "gaps": [
         {
-          "agentsScanned": 533,
+          "agentsScanned": 534,
           "detail": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
           "reason": "no-transcript-for-issue"
         }
@@ -385,7 +385,7 @@
       "schemaVersion": 1,
       "source": {
         "agentsAttributed": 0,
-        "agentsScanned": 533,
+        "agentsScanned": 534,
         "attributedBy": ".worktrees path naming issue-1702",
         "executorsIdentified": 0,
         "kind": "task-transcript",
@@ -441,10 +441,10 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-21T12:09:46Z",
+  "timestamp": "2026-09-21T14:16:05Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1702.json",
-    "sha256": "7f571b206fadee1aaba8e4e2f745a5d54d6b612e82fa009a56216a234fbde669",
+    "sha256": "9f799367a86d84201ec1e37fe84cd410f087816955941c545892fe2bc15e04c8",
     "status": "PASS"
   },
   "wave": null
