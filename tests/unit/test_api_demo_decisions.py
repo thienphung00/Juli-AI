@@ -183,6 +183,7 @@ def _card(
     title: str = "Test Decision",
     description: str = "Test description.",
     recommendation_payload: str | None = None,
+    subject_product_id: uuid.UUID | None = None,
 ) -> ActionCard:
     payload = recommendation_payload or json.dumps(
         {
@@ -197,7 +198,7 @@ def _card(
             "computed_at": (computed_at or COMPUTED_AT).isoformat(),
         }
     )
-    return ActionCard(
+    card = ActionCard(
         id=uuid.uuid4(),
         shop_id=shop_id,
         workflow_key=workflow_key,
@@ -211,6 +212,14 @@ def _card(
         suppressed_reason=suppressed_reason,
         computed_at=computed_at,
     )
+    if subject_product_id is not None:
+        # #1702: approve binds the run to the CARD's subject, so a card that
+        # is meant to be approvable has to name one. Listing does not care
+        # (every card in this file's read tests leaves it unset, which is
+        # #1701's `unscoped` backfill -- what every producer writes today).
+        card.subject_type = "product"
+        card.subject_id = str(subject_product_id)
+    return card
 
 
 def _scoring_result(
@@ -785,8 +794,14 @@ async def product(session, shop):
 
 
 @pytest_asyncio.fixture
-async def surfaced_card(session, shop):
-    c = _card(shop.id, workflow_key="optimize_product_2", priority=1, surfaced_at=COMPUTED_AT)
+async def surfaced_card(session, shop, product):
+    c = _card(
+        shop.id,
+        workflow_key="optimize_product_2",
+        priority=1,
+        surfaced_at=COMPUTED_AT,
+        subject_product_id=product.id,
+    )
     session.add(c)
     await session.commit()
     return c
