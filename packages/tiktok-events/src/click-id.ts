@@ -57,4 +57,16 @@ export function readTikTokClickId(): string | undefined {
   }
 }
 
+/**
+ * Whether this visitor reached us from a TikTok ad, now or on an earlier
+ * visit. The Demo gates its whole TikTok channel on this: `apps/demo`'s
+ * anonymous replay promises it sends nothing off-origin
+ * (`e2e/exit-gate/locale-and-assistance.spec.ts`), and that promise is kept
+ * for everyone except the visitor an ad sent — who is the only one TikTok
+ * attribution is about.
+ */
+export function hasTikTokAdReferral(): boolean {
+  return readTikTokClickId() !== undefined;
+}
+
 export { CLICK_ID_QUERY_PARAM, CLICK_ID_STORAGE_KEY };

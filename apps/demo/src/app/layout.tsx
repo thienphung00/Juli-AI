@@ -1,4 +1,3 @@
-import { TikTokPixel } from "@juli/tiktok-events";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
@@ -15,7 +14,8 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
   return (
     <html lang="vi">
       <body>
-        <TikTokPixel />
+        {/* Loads the TikTok pixel only for a visitor who arrived from an ad —
+            see the component for why the Demo gates what Landing does not. */}
         <TikTokTracking />
         <DemoShell>{children}</DemoShell>
       </body>

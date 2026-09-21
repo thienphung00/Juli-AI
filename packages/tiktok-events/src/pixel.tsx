@@ -1,4 +1,5 @@
 import { TIKTOK_DATA_SOURCE_ID } from "./data-source";
+import { TIKTOK_PIXEL_SCRIPT_ID } from "./pixel-loader";
 import { tiktokPixelSnippet } from "./pixel-snippet";
 
 export interface TikTokPixelProps {
@@ -23,7 +24,7 @@ export function TikTokPixel({
   return (
     <script
       dangerouslySetInnerHTML={{ __html: tiktokPixelSnippet(dataSourceId) }}
-      id="tiktok-pixel"
+      id={TIKTOK_PIXEL_SCRIPT_ID}
     />
   );
 }

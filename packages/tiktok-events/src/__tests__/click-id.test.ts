@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   captureTikTokClickId,
   CLICK_ID_STORAGE_KEY,
+  hasTikTokAdReferral,
   readTikTokClickId,
 } from "../click-id";
 
@@ -54,5 +55,26 @@ describe("captureTikTokClickId", () => {
 describe("readTikTokClickId", () => {
   it("is undefined for a visitor who did not arrive from an ad", () => {
     expect(readTikTokClickId()).toBeUndefined();
+  });
+});
+
+describe("hasTikTokAdReferral", () => {
+  it("is false for a visitor who did not come from an ad", () => {
+    // The Demo gates its whole TikTok channel on this, so a false positive
+    // here would quietly retire its no-external-request guarantee.
+    expect(hasTikTokAdReferral()).toBe(false);
+  });
+
+  it("is true on the ad landing itself", () => {
+    captureTikTokClickId("?ttclid=abc123");
+
+    expect(hasTikTokAdReferral()).toBe(true);
+  });
+
+  it("stays true on a later visit with no parameter of its own", () => {
+    captureTikTokClickId("?ttclid=abc123");
+    captureTikTokClickId("?utm_source=newsletter");
+
+    expect(hasTikTokAdReferral()).toBe(true);
   });
 });

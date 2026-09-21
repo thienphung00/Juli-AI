@@ -35,8 +35,14 @@ beforeAll(() => {
   }
 });
 
+/** The Demo reports nothing for a visitor who did not arrive from an ad. */
+function arriveFromAd(clickId = "click-1") {
+  window.localStorage.setItem("juli_tiktok_click_id", clickId);
+}
+
 beforeEach(() => {
   window.localStorage.clear();
+  arriveFromAd();
   // The server copy of every event goes out as a beacon; stub it so the suite
   // makes no network calls.
   Object.defineProperty(navigator, "sendBeacon", {
@@ -70,6 +76,32 @@ describe("readSupabaseIdentity", () => {
     const token = accessTokenFor({ email: 42, sub: { nested: true } });
 
     expect(readSupabaseIdentity(token)).toEqual({ email: null, userId: null });
+  });
+});
+
+describe("the ad-referral gate", () => {
+  it("reports nothing for a visitor who did not arrive from a TikTok ad", async () => {
+    // The pixel is never loaded for them either
+    // (`components/tiktok-tracking.tsx`), but the gate has to be here too: a
+    // tracked event also beacons a server copy, which would reach TikTok with
+    // no pixel in the page and nothing in the browser to show for it.
+    window.localStorage.clear();
+
+    await reportTikTokRegistration(accessTokenFor({ email: "seller@example.com", sub: "user-1" }));
+
+    expect(pixel.track).not.toHaveBeenCalled();
+    expect(pixel.identify).not.toHaveBeenCalled();
+  });
+
+  it("reports for a visitor whose ad click was captured on an earlier visit", async () => {
+    // The click id outlives the session precisely so a sign-up days later is
+    // still attributed.
+    window.localStorage.clear();
+    arriveFromAd("click-from-last-week");
+
+    await reportTikTokRegistration(accessTokenFor({ sub: "user-1" }));
+
+    expect(pixel.track).toHaveBeenCalledTimes(1);
   });
 });
 

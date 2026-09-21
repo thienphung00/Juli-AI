@@ -19,7 +19,7 @@ identifiers.
   code already fires the first one.
 - `identifyTikTokUser(identity)` — hashed advanced matching; call before the
   event it should enrich.
-- `TIKTOK_DATA_SOURCE_ID`, `TIKTOK_EVENTS`, `TRACKED_EVENT_NAMES`,
+- `TIKTOK_DATA_SOURCE_ID`, `TikTokEvents`, `TRACKED_EVENT_NAMES`,
   `isTrackedEventName` — the vocabulary, and the allowlist a public relay
   validates against.
 - `normalizeEmail`, `normalizeExternalId`, `sha256Hex`, `hashIdentity` —
@@ -27,6 +27,12 @@ identifiers.
   same digest.
 - `captureTikTokClickId` / `readTikTokClickId` — keep the `ttclid` from the ad
   landing URL, which is handed over once and then gone.
+- `hasTikTokAdReferral()` — whether this visitor came from an ad. `apps/demo`
+  gates its whole TikTok channel on it.
+- `loadTikTokPixel()` — install the base code at runtime, idempotently, for
+  the one case the server cannot decide: whether this visitor came from an ad
+  is in their browser, not the request. Prefer `TikTokPixel` anywhere the
+  pixel loads unconditionally.
 - `relayTikTokEvent`, `TIKTOK_RELAY_PATH` — the server copy, beaconed to the
   app's own origin. `trackTikTokEvent` calls it; call it directly only in a
   test.

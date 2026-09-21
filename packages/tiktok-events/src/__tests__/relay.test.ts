@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TIKTOK_EVENTS } from "../data-source";
+import { TikTokEvents } from "../data-source";
 import { relayTikTokEvent } from "../relay";
 import { TIKTOK_RELAY_PATH } from "../relay-contract";
 
@@ -38,7 +38,7 @@ afterEach(() => {
 
 describe("relayTikTokEvent", () => {
   it("beacons the event to this origin's own relay route", async () => {
-    relayTikTokEvent(TIKTOK_EVENTS.startDemo, "event-1", { content_name: "hero" }, {});
+    relayTikTokEvent(TikTokEvents.startDemo, "event-1", { content_name: "hero" }, {});
 
     expect(sendBeacon).toHaveBeenCalledWith(TIKTOK_RELAY_PATH, expect.any(Blob));
     await expect(beaconBody()).resolves.toMatchObject({
@@ -53,7 +53,7 @@ describe("relayTikTokEvent", () => {
     // fires.
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
-    relayTikTokEvent(TIKTOK_EVENTS.startDemo, "event-1", {}, {});
+    relayTikTokEvent(TikTokEvents.startDemo, "event-1", {}, {});
 
     expect(sendBeacon).toHaveBeenCalledTimes(1);
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -65,7 +65,7 @@ describe("relayTikTokEvent", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response(null, { status: 202 }));
 
-    relayTikTokEvent(TIKTOK_EVENTS.startDemo, "event-1", {}, {});
+    relayTikTokEvent(TikTokEvents.startDemo, "event-1", {}, {});
 
     expect(fetchSpy).toHaveBeenCalledWith(
       TIKTOK_RELAY_PATH,
@@ -76,7 +76,7 @@ describe("relayTikTokEvent", () => {
   it("carries the click id and the hashed identifiers", async () => {
     window.localStorage.setItem("juli_tiktok_click_id", "click-1");
 
-    relayTikTokEvent(TIKTOK_EVENTS.completeRegistration, "event-1", {}, {
+    relayTikTokEvent(TikTokEvents.completeRegistration, "event-1", {}, {
       email: "a".repeat(64),
     });
 
@@ -87,13 +87,13 @@ describe("relayTikTokEvent", () => {
   });
 
   it("sends no user key when nothing identifies the visitor", async () => {
-    relayTikTokEvent(TIKTOK_EVENTS.viewContent, "event-1", {}, {});
+    relayTikTokEvent(TikTokEvents.viewContent, "event-1", {}, {});
 
     expect(await beaconBody()).not.toHaveProperty("user");
   });
 
   it("never sends an event time — the server sets that from its own clock", async () => {
-    relayTikTokEvent(TIKTOK_EVENTS.viewContent, "event-1", {}, {});
+    relayTikTokEvent(TikTokEvents.viewContent, "event-1", {}, {});
 
     const body = await beaconBody();
     expect(body).not.toHaveProperty("event_time");
@@ -107,7 +107,7 @@ describe("relayTikTokEvent", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 202 }));
 
     expect(() =>
-      relayTikTokEvent(TIKTOK_EVENTS.viewContent, "event-1", {}, {}),
+      relayTikTokEvent(TikTokEvents.viewContent, "event-1", {}, {}),
     ).not.toThrow();
   });
 });

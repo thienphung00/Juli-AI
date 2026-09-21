@@ -80,7 +80,9 @@ def test_workspace_packages_are_real_consumed_members():
     """Shared packages are populated and consumed, not empty scaffold directories.
 
     ``@juli/brand`` joined in Phase 2.7 as the canonical brand asset owner
-    (ADR-056).
+    (ADR-056). ``@juli/tiktok-events`` joined with the TikTok pixel: it owns the
+    one data source both public sites report into, so the event vocabulary and
+    the deduplication id cannot drift between them.
     """
     package_names = {
         _read_json(path)["name"] for path in (REPO_ROOT / "packages").glob("*/package.json")
@@ -89,6 +91,7 @@ def test_workspace_packages_are_real_consumed_members():
         "@juli/brand",
         "@juli/contracts",
         "@juli/theme",
+        "@juli/tiktok-events",
         "@juli/ui",
         "@juli/utils",
     }

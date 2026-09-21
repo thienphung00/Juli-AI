@@ -1,7 +1,7 @@
 export {
   isTrackedEventName,
   TIKTOK_DATA_SOURCE_ID,
-  TIKTOK_EVENTS,
+  TikTokEvents,
   TRACKED_EVENT_NAMES,
   type TikTokEventName,
   type TikTokEventProperties,
@@ -10,6 +10,7 @@ export {
   captureTikTokClickId,
   CLICK_ID_QUERY_PARAM,
   CLICK_ID_STORAGE_KEY,
+  hasTikTokAdReferral,
   readTikTokClickId,
 } from "./click-id";
 export { newEventId } from "./event-id";
@@ -22,6 +23,7 @@ export {
   type TikTokIdentity,
 } from "./identity";
 export { TikTokPixel, type TikTokPixelProps } from "./pixel";
+export { loadTikTokPixel, TIKTOK_PIXEL_SCRIPT_ID } from "./pixel-loader";
 export { tiktokPixelSnippet } from "./pixel-snippet";
 export { relayTikTokEvent } from "./relay";
 export {

@@ -1,12 +1,12 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 
-import { TIKTOK_EVENTS } from "../../data-source";
+import { TikTokEvents } from "../../data-source";
 import { buildTikTokEventPayload } from "../payload";
 import { postTikTokEvent, TIKTOK_EVENTS_API_URL } from "../client";
 
 const payload = buildTikTokEventPayload(
-  { eventId: "event-1", eventName: TIKTOK_EVENTS.startDemo, eventTime: 1_700_000_000 },
+  { eventId: "event-1", eventName: TikTokEvents.startDemo, eventTime: 1_700_000_000 },
   {},
 );
 

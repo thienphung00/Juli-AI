@@ -31,14 +31,14 @@ export const TIKTOK_DATA_SOURCE_ID = "DAO9C6JC77U88MSNU74G";
  * else), and a wrong standard name is worse than an honest custom one because
  * it pollutes a goal the optimiser understands.
  */
-export const TIKTOK_EVENTS = {
+export const TikTokEvents = {
   pageView: "Pageview",
   viewContent: "ViewContent",
   startDemo: "StartDemo",
   completeRegistration: "CompleteRegistration",
 } as const;
 
-export type TikTokEventName = (typeof TIKTOK_EVENTS)[keyof typeof TIKTOK_EVENTS];
+export type TikTokEventName = (typeof TikTokEvents)[keyof typeof TikTokEvents];
 
 /**
  * The events sent through `track()` — i.e. everything except the automatic
@@ -47,9 +47,9 @@ export type TikTokEventName = (typeof TIKTOK_EVENTS)[keyof typeof TIKTOK_EVENTS]
  * the data source.
  */
 export const TRACKED_EVENT_NAMES: readonly TikTokEventName[] = [
-  TIKTOK_EVENTS.viewContent,
-  TIKTOK_EVENTS.startDemo,
-  TIKTOK_EVENTS.completeRegistration,
+  TikTokEvents.viewContent,
+  TikTokEvents.startDemo,
+  TikTokEvents.completeRegistration,
 ];
 
 export function isTrackedEventName(value: unknown): value is TikTokEventName {

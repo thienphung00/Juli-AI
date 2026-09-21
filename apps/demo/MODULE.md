@@ -64,7 +64,8 @@ Invariants below.
   with `apps/landing`. Same-origin, so an ad blocker that stops the pixel does
   not stop this. Accepts only this site's own origins (`lib/site-origins.ts`)
   and only the events in `@juli/tiktok-events`'s allowlist. It reaches TikTok,
-  never `juli-api`, so it is outside every `/v1/*` claim below.
+  never `juli-api`, so it is outside every `/v1/*` claim below. Only ever
+  called for an ad visitor — see the invariant.
 
 ## Dependencies
 
@@ -79,11 +80,21 @@ Invariants below.
 - Home contains no KPI, recommendation action, execution queue, template, or threshold.
 - User-visible copy is Vietnamese with correct diacritics.
 - Analytics (`/analytics`) performs read-only `GET /v1/demo/analytics` (no force-recompute); Home, Settings, and Decisions remain mock fixtures.
-- Dùng thử Demo stays sessionless and issues no `/v1/*` request. Since the
-  TikTok pixel landed it does emit analytics beacons to its own
-  `/api/tt/event`, which carry no session and no identifier for an anonymous
-  visitor — the `zero /v1/* requests` tests are unaffected and still enforce
-  the backend half of this; Đăng nhập với Google
+- **The TikTok channel is loaded only for a visitor who arrived from a TikTok
+  ad** — a `ttclid` on the landing URL, or one stored from an earlier visit
+  (`components/tiktok-tracking.tsx`, and the same gate in
+  `lib/tiktok-registration.ts` so the server relay cannot report an organic
+  visitor either). Owner decision, 2026-09-21. `apps/landing` loads it for
+  everyone; the Demo cannot, because entering and browsing the anonymous
+  replay issues no request that leaves the origin — asserted by
+  `e2e/exit-gate/locale-and-assistance.spec.ts` and kept covered by
+  `tests/unit/test_phase_2_6_demo_exit_gate.py`. The consequence, stated so it
+  is not rediscovered as a bug: no retargeting or lookalike audience is built
+  from organic Demo visitors. `e2e/analytics/tiktok-ad-visitor.spec.ts` owns
+  the other direction — that the pixel really does load for an ad visitor,
+  which an absence test cannot show.
+- Dùng thử Demo stays sessionless and issues no request at all for an organic
+  visitor; Đăng nhập với Google
   (issue #1319) is real code, but only a real LINK when
   `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` were present at
   `next build` time (Next inlines `NEXT_PUBLIC_*` at build, never at

@@ -1,4 +1,9 @@
-import { TIKTOK_EVENTS, identifyTikTokUser, trackTikTokEvent } from "@juli/tiktok-events";
+import {
+  TikTokEvents,
+  hasTikTokAdReferral,
+  identifyTikTokUser,
+  trackTikTokEvent,
+} from "@juli/tiktok-events";
 
 import { decodeJwtPayload } from "./supabase-auth";
 
@@ -85,6 +90,15 @@ export async function reportTikTokRegistration(accessToken: string): Promise<voi
     return;
   }
 
+  // The same gate the pixel is behind (`components/tiktok-tracking.tsx`). It
+  // has to be here too, not just on the pixel: `trackTikTokEvent` also beacons
+  // a server copy, which would reach TikTok even with no pixel loaded — and
+  // being invisible to the e2e request check is exactly what would make that
+  // leak survive review.
+  if (!hasTikTokAdReferral()) {
+    return;
+  }
+
   const { email, userId } = readSupabaseIdentity(accessToken);
 
   if (!userId || !claimRegistration(userId)) {
@@ -92,7 +106,7 @@ export async function reportTikTokRegistration(accessToken: string): Promise<voi
   }
 
   await identifyTikTokUser({ email, externalId: userId });
-  trackTikTokEvent(TIKTOK_EVENTS.completeRegistration);
+  trackTikTokEvent(TikTokEvents.completeRegistration);
 }
 
 export { REGISTERED_USERS_STORAGE_KEY };

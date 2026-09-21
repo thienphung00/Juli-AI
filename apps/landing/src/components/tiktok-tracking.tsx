@@ -2,7 +2,7 @@
 
 import {
   captureTikTokClickId,
-  TIKTOK_EVENTS,
+  TikTokEvents,
   trackTikTokEvent,
 } from "@juli/tiktok-events";
 import { useEffect } from "react";
@@ -25,7 +25,7 @@ export function TikTokTracking() {
     // `ttclid` parameter is on the ad landing URL and nowhere else.
     captureTikTokClickId();
 
-    trackTikTokEvent(TIKTOK_EVENTS.viewContent, {
+    trackTikTokEvent(TikTokEvents.viewContent, {
       content_name: PAGE_CONTENT_NAME,
       content_type: CONTENT_TYPE,
     });
@@ -63,7 +63,7 @@ export function TikTokTracking() {
         return;
       }
 
-      trackTikTokEvent(TIKTOK_EVENTS.startDemo, {
+      trackTikTokEvent(TikTokEvents.startDemo, {
         // Which CTA converted. The testids already distinguish them, so this
         // costs nothing and turns one number in Events Manager into six.
         content_name: anchor.getAttribute("data-testid") ?? "footer-demo-link",

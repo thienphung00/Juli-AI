@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   isTrackedEventName,
   TIKTOK_DATA_SOURCE_ID,
-  TIKTOK_EVENTS,
+  TikTokEvents,
   TRACKED_EVENT_NAMES,
 } from "../data-source";
 
@@ -21,7 +21,7 @@ describe("isTrackedEventName", () => {
   });
 
   it("rejects Pageview, which the base code fires and track() never sends", () => {
-    expect(isTrackedEventName(TIKTOK_EVENTS.pageView)).toBe(false);
+    expect(isTrackedEventName(TikTokEvents.pageView)).toBe(false);
   });
 
   it("rejects an arbitrary event name", () => {

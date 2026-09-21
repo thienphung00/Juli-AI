@@ -2,7 +2,7 @@ import { webcrypto } from "node:crypto";
 
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TIKTOK_EVENTS } from "../data-source";
+import { TikTokEvents } from "../data-source";
 import { sha256Hex } from "../identity";
 import { TIKTOK_RELAY_PATH } from "../relay-contract";
 import {
@@ -78,7 +78,7 @@ describe("trackTikTokEvent", () => {
   it("sends the event with the id it returns", () => {
     const pixel = installPixel();
 
-    const eventId = trackTikTokEvent(TIKTOK_EVENTS.startDemo);
+    const eventId = trackTikTokEvent(TikTokEvents.startDemo);
 
     expect(pixel.track).toHaveBeenCalledWith(
       "StartDemo",
@@ -90,7 +90,7 @@ describe("trackTikTokEvent", () => {
   it("forwards properties untouched", () => {
     const pixel = installPixel();
 
-    trackTikTokEvent(TIKTOK_EVENTS.viewContent, {
+    trackTikTokEvent(TikTokEvents.viewContent, {
       content_name: "landing",
       content_type: "product",
     });
@@ -105,15 +105,15 @@ describe("trackTikTokEvent", () => {
   it("mints a fresh id per call", () => {
     installPixel();
 
-    expect(trackTikTokEvent(TIKTOK_EVENTS.startDemo)).not.toBe(
-      trackTikTokEvent(TIKTOK_EVENTS.startDemo),
+    expect(trackTikTokEvent(TikTokEvents.startDemo)).not.toBe(
+      trackTikTokEvent(TikTokEvents.startDemo),
     );
   });
 
   it("still returns an id when the pixel never loaded", () => {
     // A blocked pixel is exactly when the server-side copy is the only one
     // that arrives — and it needs this id to deduplicate against.
-    const eventId = trackTikTokEvent(TIKTOK_EVENTS.startDemo);
+    const eventId = trackTikTokEvent(TikTokEvents.startDemo);
 
     expect(eventId).toMatch(/\S/);
   });
@@ -121,7 +121,7 @@ describe("trackTikTokEvent", () => {
   it("sends the server copy under the same id, which is what deduplicates them", async () => {
     const pixel = installPixel();
 
-    const eventId = trackTikTokEvent(TIKTOK_EVENTS.startDemo, {
+    const eventId = trackTikTokEvent(TikTokEvents.startDemo, {
       content_name: "hero-demo-cta",
     });
 
@@ -140,7 +140,7 @@ describe("trackTikTokEvent", () => {
   });
 
   it("still relays to the server when the pixel never loaded", async () => {
-    const eventId = trackTikTokEvent(TIKTOK_EVENTS.startDemo);
+    const eventId = trackTikTokEvent(TikTokEvents.startDemo);
 
     await expect(relayedBodies()).resolves.toEqual([
       expect.objectContaining({ event_id: eventId }),
@@ -154,7 +154,7 @@ describe("trackTikTokEvent", () => {
       }),
     });
 
-    expect(() => trackTikTokEvent(TIKTOK_EVENTS.startDemo)).not.toThrow();
+    expect(() => trackTikTokEvent(TikTokEvents.startDemo)).not.toThrow();
   });
 });
 
@@ -191,7 +191,7 @@ describe("identifyTikTokUser", () => {
     installPixel();
 
     await identifyTikTokUser({ email: "seller@example.com" });
-    trackTikTokEvent(TIKTOK_EVENTS.completeRegistration);
+    trackTikTokEvent(TikTokEvents.completeRegistration);
 
     await expect(relayedBodies()).resolves.toEqual([
       expect.objectContaining({
