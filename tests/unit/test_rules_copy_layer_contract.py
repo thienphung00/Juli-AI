@@ -89,6 +89,7 @@ def _snapshot_with_computed_kpis(**kpi_overrides: object) -> FeatureAggregateSna
         "avg_on_hand_inventory": None,
         "sku_count_with_inventory": 0,
         "stockout_sku_count": 0,
+        "order_count_30d": 5,
         "orders_with_ship_time_30d": 0,
         "orders_fulfilled_without_seller_fault_30d": 0,
         "orders_at_sla_risk_count": 0,
@@ -151,9 +152,7 @@ def _ads_kpi_linked_copy(
 
     recommendations = rank_workflow_recommendations(ShopProfile.MID_LARGE_SHOP, signals)
     linked = [
-        item
-        for item in recommendations.recommended_workflows
-        if kpi_id in item.source_kpi_ids
+        item for item in recommendations.recommended_workflows if kpi_id in item.source_kpi_ids
     ]
     assert linked, f"expected workflow recommendation linked to {kpi_id}"
 

@@ -48,18 +48,22 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS_ROOT = REPO_ROOT / "backend/src/juli_backend/database/migrations"
 VERSIONS_DIR = MIGRATIONS_ROOT / "versions"
 DEFERRED_DIR = MIGRATIONS_ROOT / "deferred"
-CLEANUP_PATH = DEFERRED_DIR / "066_users_placeholder_phone_cleanup.py"
+CLEANUP_PATH = DEFERRED_DIR / "070_users_placeholder_phone_cleanup.py"
 RUNBOOK_PATH = REPO_ROOT / "docs/runbooks/backend-deploy-runbook.md"
 
-CLEANUP_REVISION = "066_users_placeholder_phone_cleanup"
-#: The step's parent. It was 064 when #1972 landed this file; #1973 added
-#: `065_users_email` to `versions/` and renumbered the step onto it, so that
-#: the deferred step stays the TAIL of the chain rather than becoming a
-#: second child of 064 -- which forks the chain the moment an operator
-#: copies it into a serving release's `versions/`.
-PHONE_REVISION = "065_users_email"
+CLEANUP_REVISION = "070_users_placeholder_phone_cleanup"
+#: The step's parent -- whatever the current tail of `versions/` happens to be.
+#: It was 064 when #1972 landed this file; #1973 added `065_users_email` and
+#: renumbered the step onto it; #1712 added `069_act_records_and_checklists`
+#: and renumbered it again. Each move exists so the deferred step stays the
+#: TAIL of the chain rather than becoming a second child of its old parent --
+#: which forks the chain the moment an operator copies it into a serving
+#: release's `versions/`. The constant is what makes that renumber
+#: unskippable: `test_the_cleanup_step_is_the_tail_of_the_chain` below reads it
+#: and fails the moment anything in `versions/` shares the parent it names.
+PHONE_REVISION = "069_act_records_and_checklists"
 
-_SCHEMA = "phone_cleanup_066"
+_SCHEMA = "phone_cleanup_070"
 
 
 def _revision_ids(path: Path) -> tuple[str | None, str | None]:

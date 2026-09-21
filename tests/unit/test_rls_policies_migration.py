@@ -113,34 +113,145 @@ def test_migration_includes_via_parent_exists_policies():
 
 
 def test_migration_covers_all_tenant_scoped_tables():
-    """Migration must enable RLS on all tenant-scoped tables.
+    """Every tenant-scoped table is named by SOME migration that enables RLS.
 
-    Derived from models.py metadata, not a hardcoded 13-count list.
-    The set includes tables added by migrations 033-041 after the old audit.
+    Rewritten by #1712. It used to assert eight table names it listed by hand
+    against 045's source, under a docstring claiming it was "derived from
+    models.py metadata, not a hardcoded list" -- it was not, and a hand-written
+    list is precisely what cannot notice a ninth table. #1329 found migration
+    045 missing `gold.ml_feature_snapshots` and `public.processed_events`, and
+    this test as written would have passed throughout.
+
+    So it now iterates `database/tenant_scoped_tables.py`, the committed
+    classification map both the #1329 isolation proof and the #1330 boot-time
+    precondition check consume, and a new entry there fails here until some
+    migration covers it. There is nothing left to remember to update.
+
+    Across every file in `versions/`, not only 045: RLS for a table added later
+    necessarily lands in the migration that creates it (046 for the two #1329
+    found, 047 for `production_write_audit`, 060 for `ingest_dedup_epochs`, 069
+    for `run_act_records`/`run_checklist_items`). Demanding 045 name them all
+    would demand 045 mention tables that did not exist when it was written.
+
+    Source text rather than a live catalog on purpose: this module is
+    `migration_heavy` and file-content assertions run everywhere, including
+    where no Postgres is reachable. The live-catalog counterpart is
+    `tests/integration/test_two_tenant_isolation_proof.py`, which enumerates
+    `pg_catalog` as the authority.
     """
-    text = MIGRATION_PATH.read_text(encoding="utf-8")
-    # Verify key tenant-scoped tables are mentioned
-    # Direct:
-    assert "tiktok_credentials" in text
-    assert "products" in text
-    assert "action_cards" in text
-    assert "workflow_runs" in text
-    # Via parent:
-    assert "workflow_run_events" in text
-    assert "run_confirmations" in text
-    assert "impact_readings" in text
-    assert "action_card_approvals" in text
+    from juli_backend.database.tenant_scoped_tables import get_tenant_scoped_tables
+
+    versions_dir = MIGRATION_PATH.parent
+    sources = {
+        path.name: path.read_text(encoding="utf-8") for path in sorted(versions_dir.glob("*.py"))
+    }
+    assert sources, f"no migrations found in {versions_dir}"
+
+    tenant_tables = get_tenant_scoped_tables()
+    assert len(tenant_tables) >= 40, (
+        f"only {len(tenant_tables)} tenant-scoped tables classified -- the map looks "
+        "truncated, and a truncated map makes this test pass vacuously"
+    )
+
+    uncovered = []
+    for schema, table in tenant_tables:
+        covering = [
+            name for name, text in sources.items() if table in text and "ROW LEVEL SECURITY" in text
+        ]
+        if not covering:
+            uncovered.append(f"{schema}.{table}")
+
+    assert uncovered == [], (
+        f"{uncovered} are classified tenant-scoped in "
+        "backend/src/juli_backend/database/tenant_scoped_tables.py but no migration "
+        "in versions/ names them alongside ROW LEVEL SECURITY. That is the #1329 "
+        "defect exactly: a tenant-scoped table nothing enables RLS on reads across "
+        "tenants, silently."
+    )
+
+
+def test_the_two_tables_1712_added_are_covered_by_their_own_migration():
+    """The #1329 failure mode, aimed at the newest pair specifically.
+
+    The sweep above is satisfied by any migration that happens to contain the
+    table's name. This pins the coverage to migration 069 itself: RLS enabled
+    on each table by name, a policy for each of the four verbs, and the GUC
+    helper rather than a raw `current_setting(...)::uuid` (#1467 -- the raw
+    cast raises on the empty string `SET LOCAL` leaves behind at commit).
+    """
+    text = (MIGRATION_PATH.parent / "069_act_records_and_checklists.py").read_text(encoding="utf-8")
+    assert "app_current_shop_id()" in text, (
+        "069 must route its policies through the GUC helper added by migration 050, "
+        "never a raw current_setting(...)::uuid"
+    )
+    # Only the policy clauses, not the prose: the migration's docstring names
+    # `current_setting(...)::uuid` in order to explain why it is NOT used, and a
+    # whole-file grep would fail on the explanation rather than on the defect.
+    policy_clauses = [
+        line for line in text.splitlines() if "USING (" in line or "WITH CHECK (" in line
+    ]
+    assert policy_clauses, "069 defines no RLS policy clauses at all"
+    offenders = [line.strip() for line in policy_clauses if "current_setting(" in line]
+    assert offenders == [], (
+        f"{offenders} compare against current_setting directly; route through "
+        "app_current_shop_id(), which tolerates the empty string SET LOCAL leaves "
+        "behind at commit (#1467)"
+    )
+    for table in ("run_act_records", "run_checklist_items"):
+        assert table in text, f"migration 069 never names {table}"
+    assert "ENABLE ROW LEVEL SECURITY" in text, "069 enables RLS on neither table"
+    for verb in ("SELECT", "UPDATE", "DELETE", "INSERT"):
+        assert f"FOR {verb}" in text or f'"{verb}"' in text or f"'{verb}'" in text, (
+            f"069 creates no {verb} policy; a verb with no policy is a verb a future "
+            "grant opens across tenants"
+        )
 
 
 def test_migration_skips_non_tenant_tables():
-    """Non-tenant tables get specific policies or none at all.
+    """Non-tenant tables are excluded from the tenant-scoped sweep by name.
 
     users: app.current_user_id policy
     shops: user_id policy
     webhook_raw_events: no policy (read grant in #1326)
+
+    Had assertions once. It was reduced to two comments saying the migration
+    "documents that non-tenant tables have special handling", and a test whose
+    body is a comment cannot fail -- it reported coverage of the exclusion rule
+    while checking nothing. Found by `eval/quality_detectors.py`'s
+    `no_assert_statement` layer while #1712 was reconciling that baseline, and
+    restored here rather than re-baselined, because the alternative is
+    ratifying it.
+
+    What it now asserts is the half that matters next door: the sweep in
+    `test_migration_covers_all_tenant_scoped_tables` demands an RLS-enabling
+    migration for every table `get_tenant_scoped_tables()` returns. These three
+    must be absent from that list, or the sweep would demand RLS for tables
+    ADR-085 deliberately leaves out -- and, worse, a table wrongly classified
+    `non_tenant` would be silently skipped by both this test and the #1329
+    isolation proof.
     """
-    # Migration documents that non-tenant tables have special handling
-    # (this is documented in the migration source)
+    from juli_backend.database.tenant_scoped_tables import (
+        TABLE_CLASSIFICATION_MAP,
+        get_tenant_scoped_tables,
+    )
+
+    tenant_scoped = set(get_tenant_scoped_tables())
+    expected = {
+        ("public", "users"): "non_tenant",
+        ("public", "shops"): "non_tenant",
+        ("public", "webhook_raw_events"): "non_tenant_unprotected",
+    }
+    for key, classification in expected.items():
+        assert TABLE_CLASSIFICATION_MAP.get(key) == classification, (
+            f"{key} is classified {TABLE_CLASSIFICATION_MAP.get(key)!r}, expected "
+            f"{classification!r} -- these three are keyed on user identity, not shop_id, "
+            "and ADR-085 excludes them from the shop_id sweep deliberately"
+        )
+        assert key not in tenant_scoped, (
+            f"{key} is in the tenant-scoped set, so the sweep in "
+            "test_migration_covers_all_tenant_scoped_tables would demand a shop_id RLS "
+            "policy for a table that has no shop_id column"
+        )
 
 
 def test_migration_satisfies_additive_gate():

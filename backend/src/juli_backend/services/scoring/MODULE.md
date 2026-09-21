@@ -29,6 +29,13 @@ Each KPI emits an `AdvisorySignal`:
 - Shop Status KPIs render mock/fixture advisory only — **no workflow_keys** until Partner API fields exist
 - Ads CTR from analytics product-grain CTR rollup (#428); ROAS/CAC stay `unavailable` until promotion spend ETL (live formulas wired when spend denominators exist)
 - KPIs without ETL fields emit `signal_type: unavailable` (never fabricated)
+- An empty 30-day denominator emits `unavailable` too — never a healthy verdict (#1960).
+  Rate-keyed KPIs carry that emptiness as a None metric (fulfillment accuracy on an
+  empty ship-time denominator, CSAT on an empty order count, …). A **count**-keyed KPI
+  has no None state to carry it, so it reads its own denominator directly: orders at SLA
+  risk reads the 30-day order count, the way net revenue and AOV read the snapshot's
+  order count and CAC reads unique buyers. Zero orders measured is not the same
+  statement as "your SLA risk is fine"
 
 ## Copy layer (#304, #427)
 

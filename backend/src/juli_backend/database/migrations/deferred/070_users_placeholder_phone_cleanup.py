@@ -1,12 +1,28 @@
 """CONTRACT step for #1972: null out the phone numbers Juli fabricated
 
-Revision ID: 066_users_placeholder_phone_cleanup
-Revises: 065_users_email
+Revision ID: 070_users_placeholder_phone_cleanup
+Revises: 069_act_records_and_checklists
 Create Date: 2026-09-20
 
 **This file is deliberately NOT in ``versions/``. Do not move it there until it
 has been applied to production.** Read the next three sections before touching
 it.
+
+Renumbered twice, for the same reason both times
+------------------------------------------------
+This step must stay the **tail** of the chain, so every new ``versions/``
+revision takes over as its parent and it is renumbered above that revision.
+It was 064's child when #1972 landed it, became
+``066``/``065_users_email``'s child with #1973, and is now
+``070``/``069_act_records_and_checklists``'s child with #1712. Nothing about
+its predicate or its preconditions changed on either move -- only the two
+revision identifiers below and the constants in
+``tests/unit/test_users_phone_placeholder_cleanup.py`` that pin them.
+
+070 rather than 069+1=some lower number on purpose: #1950 was concurrently
+holding 067 and re-chaining this same file to 068. 070 sits above 068 as well
+as 069, so whichever of the two lands second, this step is still the tail
+after the rebase.
 
 Why it is parked here
 ---------------------
@@ -107,8 +123,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "066_users_placeholder_phone_cleanup"
-down_revision: str | None = "065_users_email"
+revision: str = "070_users_placeholder_phone_cleanup"
+down_revision: str | None = "069_act_records_and_checklists"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -160,6 +176,6 @@ def downgrade() -> None:
     backup taken in the procedure above.
     """
     raise NotImplementedError(
-        "066 is not reversible: re-deriving a phone number from a user id is "
+        "070 is not reversible: re-deriving a phone number from a user id is "
         "the defect #1972 removed. Restore from the pre-migration backup."
     )
