@@ -24,15 +24,15 @@
   "review": {
     "artifactRef": "local-only:agent-runtime/artifacts/reviews/review-issue-1950.json",
     "ownerSignoffPresent": true,
-    "sha256": "ad4e703c6aefc0f4a094d418aa26ffdd033926e66b51ae2f357495d48fd4dd10",
+    "sha256": "c1664da1c712744804d33f91e1e40c577a31b886ccf7f01ee5a355c88157af81",
     "signoffRequired": false,
     "status": "PASS",
     "warningsAcknowledged": true
   },
   "run": {
     "artifactBytes": {
-      "reviewBytes": 13159,
-      "validationBytes": 46926
+      "reviewBytes": 15274,
+      "validationBytes": 47471
     },
     "claimVsExecuted": {
       "citedCommandCount": null,
@@ -210,12 +210,12 @@
         "missing": [],
         "pinned": 82
       },
-      "executable": "/opt/homebrew/anaconda3/bin/python",
+      "executable": "/opt/homebrew/anaconda3/bin/python3",
       "git": {
         "baseDistanceUnavailable": "shallow-clone",
         "behindOriginMain": null,
         "branch": "fix/issue-1950-poll-step-outcomes",
-        "head": "2c94f4f823e99a660925fec61f06b9c5181200e1",
+        "head": "551de33f9570375a632f122cfd2839d87f9c875f",
         "shallow": true
       },
       "moduleResolution": {
@@ -262,7 +262,7 @@
       "executorDomainSource": "implementation-artifact",
       "gaps": [
         {
-          "agentsScanned": 531,
+          "agentsScanned": 533,
           "detail": "no persisted task transcript was found for this issue; recorded unavailable rather than 0 so an unmeasured field cannot read as a measured zero",
           "reason": "no-transcript-for-issue"
         }
@@ -270,7 +270,7 @@
       "schemaVersion": 1,
       "source": {
         "agentsAttributed": 0,
-        "agentsScanned": 531,
+        "agentsScanned": 533,
         "attributedBy": ".worktrees path naming issue-1950",
         "executorsIdentified": 0,
         "kind": "task-transcript",
@@ -326,10 +326,10 @@
       "status": "not-persisted"
     }
   },
-  "timestamp": "2026-09-21T06:34:22Z",
+  "timestamp": "2026-09-21T11:44:46Z",
   "validation": {
     "artifactRef": "local-only:agent-runtime/artifacts/validation/validation-issue-1950.json",
-    "sha256": "ee37307d943d7c54491b78cd56feaf1e18ad1c10cd3c6bc5a5a92663b7a33a67",
+    "sha256": "8b90e1850e24c0f594a804322184859ce8893979c1c0cd9e061d939e4b1769f9",
     "status": "PASS"
   },
   "wave": null
