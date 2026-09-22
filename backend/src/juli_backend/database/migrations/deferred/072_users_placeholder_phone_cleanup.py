@@ -1,28 +1,38 @@
 """CONTRACT step for #1972: null out the phone numbers Juli fabricated
 
-Revision ID: 070_users_placeholder_phone_cleanup
-Revises: 069_act_records_and_checklists
+Revision ID: 072_users_placeholder_phone_cleanup
+Revises: 071_sync_state_last_outcome
 Create Date: 2026-09-20
 
 **This file is deliberately NOT in ``versions/``. Do not move it there until it
 has been applied to production.** Read the next three sections before touching
 it.
 
-Renumbered twice, for the same reason both times
-------------------------------------------------
+Renumbered THREE times now, for the same reason every time
+-----------------------------------------------------------
 This step must stay the **tail** of the chain, so every new ``versions/``
 revision takes over as its parent and it is renumbered above that revision.
 It was 064's child when #1972 landed it, became
-``066``/``065_users_email``'s child with #1973, and is now
-``070``/``069_act_records_and_checklists``'s child with #1712. Nothing about
-its predicate or its preconditions changed on either move -- only the two
-revision identifiers below and the constants in
+``066``/``065_users_email``'s child with #1973, then
+``070``/``069_act_records_and_checklists``'s child with #1712, and is now
+``072``/``071_sync_state_last_outcome``'s child with #1950. Nothing about its
+predicate or its preconditions has changed on any move -- only the two revision
+identifiers below and the constants in
 ``tests/unit/test_users_phone_placeholder_cleanup.py`` that pin them.
 
-070 rather than 069+1=some lower number on purpose: #1950 was concurrently
-holding 067 and re-chaining this same file to 068. 070 sits above 068 as well
-as 069, so whichever of the two lands second, this step is still the tail
-after the rebase.
+The #1712 note here previously read "070 sits above 068 as well as 069, so
+whichever of the two lands second, this step is still the tail after the
+rebase". That held only while #1950 stayed at 067/068. It could not: 067 was a
+child of 065, and once 069 landed as 065's child too, 067 would have FORKED the
+chain rather than extended it. #1950 therefore renumbered to ``071`` onto 069,
+which put 070 below it -- so this file moved again. A number chosen to sit
+above a sibling is not protection; only being re-parented onto the actual head
+is.
+
+THIS IS THE THIRD HAND-RENUMBER (065->066, 066->068, 070->072), and each one
+was discovered by a red test after a merge race rather than prevented. It
+should be a pre-commit mechanism that re-parents this file whenever
+``versions/`` gains a revision. See #1950's PR body and review artifact.
 
 Why it is parked here
 ---------------------
@@ -92,16 +102,14 @@ the VPS, against the release directory that is *currently serving*:
 
 1. Confirm the serving release contains ``064_users_phone_nullable`` (and so
    the code that stopped fabricating) and that ``alembic current`` reports
-   ``065_users_email``. If it reports anything earlier, STOP: an older
-   release would immediately mint fresh placeholders behind this cleanup.
+   ``071_sync_state_last_outcome``. If it reports anything earlier, STOP: an
+   older release would immediately mint fresh placeholders behind this
+   cleanup.
 
-   This file was numbered ``065_users_phone_placeholder_cleanup`` when
-   #1972's PR landed it, chained onto 064. #1973 added ``065_users_email``
-   to ``versions/`` and renumbered it here so that the deferred step stays
-   the TAIL of the chain -- a deferred step with a later revision above it
-   forks the chain the moment it is copied into a serving release's
-   ``versions/``. Nothing else about it changed; it had not been applied
-   anywhere when it was renumbered.
+   This file has been renumbered three times (065 -> 066 -> 070 -> 072) as
+   #1973, #1712 and #1950 each added a revision to ``versions/``; see
+   "Renumbered THREE times now" above for why. Nothing else about it has
+   changed, and it has not been applied anywhere.
 2. Take the backup (``infra/scripts/safe-alembic-upgrade.sh`` does this).
 3. Copy this file into that release's ``versions/`` directory and LEAVE IT
    THERE -- removing it afterwards would leave Alembic at a revision with no
@@ -123,8 +131,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "070_users_placeholder_phone_cleanup"
-down_revision: str | None = "069_act_records_and_checklists"
+revision: str = "072_users_placeholder_phone_cleanup"
+down_revision: str | None = "071_sync_state_last_outcome"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -176,6 +184,6 @@ def downgrade() -> None:
     backup taken in the procedure above.
     """
     raise NotImplementedError(
-        "070 is not reversible: re-deriving a phone number from a user id is "
+        "072 is not reversible: re-deriving a phone number from a user id is "
         "the defect #1972 removed. Restore from the pre-migration backup."
     )

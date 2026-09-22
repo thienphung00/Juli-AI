@@ -195,7 +195,7 @@ lives in
 would refuse it, no candidate would start, and the expand code it depends on
 could never go live.
 
-**Currently outstanding:** `070_users_placeholder_phone_cleanup` (#1972) —
+**Currently outstanding:** `072_users_placeholder_phone_cleanup` (#1972) —
 sets `users.phone` to NULL on every row whose stored number equals the value
 the removed code derived from that row's own id
 (`f"+849{user_id.int % 10_000_000_000:010d}"`). Until it runs, those sellers
@@ -209,17 +209,33 @@ every day it waits is a day the fabricated rows sit in a column nothing reads.
 Running it *before* the expand release serves is pointless rather than
 dangerous: the old code would write the placeholders straight back. Its
 precondition is therefore that the serving release contains
-`064_users_phone_nullable` and `alembic current` reports `065_users_email`. The
-step is idempotent, so an operator unsure whether it already ran may simply run
-it.
+`064_users_phone_nullable` and `alembic current` reports
+`071_sync_state_last_outcome`. The step is idempotent, so an operator unsure
+whether it already ran may simply run it.
 
-> This step was numbered `065_users_phone_placeholder_cleanup` when #1972's PR
-> landed it, chained onto 064. #1973 added `065_users_email` to `versions/` and
-> renumbered it so the deferred step stays the **tail** of the chain — a
-> deferred step with a later revision above it forks the chain the moment it is
-> copied into a serving release's `versions/`, and `alembic upgrade head` then
-> refuses with multiple heads. It had not been applied anywhere when it was
-> renumbered.
+> **This step has now been renumbered three times** — 065 → 066 (#1973),
+> 066 → 070 (#1712), 070 → 072 (#1950) — because it must stay the **tail** of
+> the chain: a deferred step with a later revision above it forks the chain the
+> moment it is copied into a serving release's `versions/`, and
+> `alembic upgrade head` then refuses with multiple heads. It has not been
+> applied anywhere.
+>
+> **Every PR that adds a migration to `versions/` must re-parent this file onto
+> the new head** and update `PHONE_REVISION`, `CLEANUP_REVISION`,
+> `CLEANUP_PATH` and `_SCHEMA` in
+> `tests/unit/test_users_phone_placeholder_cleanup.py`, plus
+> `EXPECTED_DEFERRED_FILES` in
+> `tests/unit/test_workflow_subject_contract_migration.py`.
+>
+> **Choosing a deferred number "above" a known concurrent sibling does not
+> avoid this.** #1712 tried that (070 sits above both 068 and 069) and it still
+> had to move, because #1950's own revision could not stay a second child of
+> 065 once 069 landed there. Only being re-parented onto whatever actually
+> becomes the head is merge-order-proof.
+>
+> All three renumbers were found by a red test *after* a merge race, never
+> prevented before one. This should become a pre-commit check that re-parents
+> the deferred tail automatically — see #1950's PR body and review artifact.
 
 See "Applied contract migrations" below for the worked example this procedure
 was written against.

@@ -91,6 +91,7 @@ from juli_backend.models.models import Shop, TikTokCredential
 from juli_backend.repositories.repos import ProductsRepo, TikTokSyncStateRepo
 from juli_backend.services.ingestion.handoff import HandoffFn
 from juli_backend.workers.services.polling.sync import (
+    PollStepDroppedRowsError,
     ProductIdsFn,
     SyncOutcome,
     sync_analytics,
@@ -492,6 +493,136 @@ async def _run_poll_step(
     )
 
 
+class PollCycleFailedError(RuntimeError):
+    """A poll cycle ran to the end and at least one of its steps did not succeed.
+
+    The missing half of #1950's second criterion. `PollStepDroppedRowsError`
+    already fails a step that fetched rows and landed none -- but three of the
+    five steps still catch `TikTokAPIError` on the FETCH and return an
+    `ok=False` outcome instead of raising (`polling/sync.py`, the
+    `except TikTokAPIError as exc: return step.report(error=exc)` arms), which
+    #2009 recorded as a residual gap belonging to this issue. Under that shape
+    a cycle in which every endpoint's vendor call failed completed normally: the
+    Celery task exited zero, nothing retried, and the only trace was a log line
+    whose numbers the worker's formatter drops (#1978).
+
+    Raised AFTER the sync state and the outcome records are written, so the
+    evidence of what failed survives the failure -- the same order `_poll`'s
+    partial-save arm uses and for the same reason.
+    """
+
+    def __init__(self, failures: list[SyncOutcome], *, shop_id: uuid.UUID) -> None:
+        self.failures = failures
+        self.shop_id = shop_id
+        detail = ", ".join(
+            f"{outcome.resource}(fetched={outcome.fetched}, persisted={outcome.persisted}, "
+            f"failed={outcome.failed}, error={outcome.error})"
+            for outcome in failures
+        )
+        super().__init__(f"poll cycle for shop {shop_id} had failing steps: {detail}")
+
+
+async def _record_cycle(
+    repo: TikTokSyncStateRepo,
+    shop_id: uuid.UUID,
+    *,
+    sync_state: dict[str, Any],
+    outcomes: list[SyncOutcome],
+) -> None:
+    """Persist the cycle's watermarks and its per-endpoint verdicts.
+
+    Guarded, and never raises. It is called on the failing path too, where an
+    exception escaping from here would replace a diagnosable failure with an
+    undiagnosable one -- the reason the pre-existing partial-state save was
+    already written this way.
+
+    The outcome write is what makes #1950's fourth criterion answerable in SQL
+    rather than inferred from a missing row, and it is the only half of this
+    issue's observability that survives the Celery worker: every field
+    `poll_step_outcome` carries travels in `logger.extra`, and
+    `workers/celery_app.py` never calls `configure_logging`, so the worker
+    renders the event name and drops the numbers (#1978). A column does not go
+    through a formatter.
+    """
+    try:
+        await repo.save(shop_id, sync_state)
+    except Exception:
+        logger.error(
+            "poll_cycle_partial_state_save_failed",
+            extra={"shop_id": str(shop_id)},
+            exc_info=True,
+        )
+    try:
+        await repo.record_outcomes(shop_id, outcomes)
+    except Exception:
+        logger.error(
+            "poll_cycle_outcome_record_failed",
+            extra={"shop_id": str(shop_id)},
+            exc_info=True,
+        )
+
+
+def _step_failed_the_cycle(outcome: SyncOutcome) -> bool:
+    """Did this step fail in a way the CYCLE must not survive?
+
+    Deliberately narrower than `not outcome.ok`, and the difference is one case:
+    a PARTIAL persist. `SyncOutcome.ok` is false as soon as a single row is
+    rejected, so reusing it would fail a whole cycle -- and, through
+    `run_action_card_refresh`, a seller's manual refresh -- because one
+    malformed order in 3,581 did not normalize. That is not what #1950 asks for
+    ("`fetched > 0 and persisted == 0` fails the poll loudly"), and it would
+    override a decision #1969 already made deliberately: `_CountingHandoff`
+    counts and logs a rejected row rather than re-raising, precisely so that one
+    bad row is not reported as "the ETL is down".
+
+    A partial persist is not silent under this branch either -- it is written to
+    `tiktok_sync_state` as `last_outcome='failed'` with its real `last_fetched`
+    and `last_persisted`, and it does not advance `last_success_at`. That is
+    criterion 4 doing its job: durably visible without being fatal.
+
+    What DOES fail the cycle is a step where nothing landed and something should
+    have:
+
+    - the vendor fetch failed outright -- `fetched == 0`, `persisted == 0`, and
+      an error. This is the swallow in `sync_orders`/`sync_products`/
+      `sync_returns`' `except TikTokAPIError` arms, and the case #2009's PR body
+      routed to this issue.
+    - the step fetched rows and landed none (`dropped_everything`). #1949.
+
+    A skipped step (rate-limited) and a clean empty read are neither.
+    """
+    if outcome.skipped:
+        return False
+    if outcome.persisted:
+        return False
+    return outcome.fetched > 0 or outcome.error is not None
+
+
+def _assert_cycle_succeeded(outcomes: list[SyncOutcome], *, shop_id: uuid.UUID) -> None:
+    """Log the cycle's verdict, and refuse to call a cycle with a failed step a success."""
+    failures = [outcome for outcome in outcomes if _step_failed_the_cycle(outcome)]
+    logger.info(
+        "poll_cycle_outcome",
+        extra={
+            "shop_id": str(shop_id),
+            "steps": len(outcomes),
+            "failed_steps": len(failures),
+            "fetched": sum(outcome.fetched for outcome in outcomes),
+            "persisted": sum(outcome.persisted for outcome in outcomes),
+            "rejected": sum(outcome.failed for outcome in outcomes),
+            # Steps that did not cleanly succeed but did not fail the cycle --
+            # partial persists. Reported so the distinction is visible rather
+            # than only implied by `failed_steps` being smaller than expected.
+            "degraded_steps": sum(
+                1 for outcome in outcomes if not outcome.ok and not _step_failed_the_cycle(outcome)
+            ),
+            "ok": not failures,
+        },
+    )
+    if failures:
+        raise PollCycleFailedError(failures, shop_id=shop_id)
+
+
 async def _poll(
     *,
     session: AsyncSession,
@@ -543,19 +674,22 @@ async def _poll(
     shop_key = shop.tiktok_shop_id
     list_product_ids = _synced_product_ids_fn(session, credential.shop_id)
 
+    outcomes: list[SyncOutcome] = []
     try:
         for step in _FUJIWA_POLL_STEPS:
-            await _run_poll_step(
-                step,
-                resources=resources,
-                rate_limiter=rate_limiter,
-                handoff_fn=handoff_fn,
-                app_id=app_id,
-                shop_key=shop_key,
-                sync_state=sync_state,
-                sleep=sleep,
-                deadline=deadline,
-                list_product_ids=list_product_ids,
+            outcomes.append(
+                await _run_poll_step(
+                    step,
+                    resources=resources,
+                    rate_limiter=rate_limiter,
+                    handoff_fn=handoff_fn,
+                    app_id=app_id,
+                    shop_key=shop_key,
+                    sync_state=sync_state,
+                    sleep=sleep,
+                    deadline=deadline,
+                    list_product_ids=list_product_ids,
+                )
             )
 
         await _within_cycle_budget(
@@ -569,19 +703,32 @@ async def _poll(
             deadline=deadline,
             stage="analytics",
         )
-        await _within_cycle_budget(
-            lambda: sync_analytics(
-                resource=resources.analytics,
-                promotion_resource=resources.promotion,
-                rate_limiter=rate_limiter,
-                handoff_fn=handoff_fn,
-                app_id=app_id,
-                shop_id=shop_key,
-                sync_state=sync_state,
-            ),
-            deadline=deadline,
-            stage="analytics",
+        outcomes.append(
+            await _within_cycle_budget(
+                lambda: sync_analytics(
+                    resource=resources.analytics,
+                    promotion_resource=resources.promotion,
+                    rate_limiter=rate_limiter,
+                    handoff_fn=handoff_fn,
+                    app_id=app_id,
+                    shop_id=shop_key,
+                    sync_state=sync_state,
+                ),
+                deadline=deadline,
+                stage="analytics",
+            )
         )
+    except PollStepDroppedRowsError as exc:
+        # The step that raised never returned its outcome, so it is missing from
+        # `outcomes` -- and it is the one the operator most needs recorded.
+        outcomes.append(exc.outcome)
+        await _record_cycle(
+            repo,
+            credential.shop_id,
+            sync_state=sync_state,
+            outcomes=outcomes,
+        )
+        raise
     except Exception:
         # Save what completed before re-raising. The steps that did finish
         # advanced their watermarks in `sync_state`, and throwing those away
@@ -598,17 +745,21 @@ async def _poll(
         # The save is guarded and the re-raise is bare, so a failing save can
         # never mask the failure that caused it -- losing the original exception
         # here would be trading a diagnosable failure for an undiagnosable one.
-        try:
-            await repo.save(credential.shop_id, sync_state)
-        except Exception:
-            logger.error(
-                "poll_cycle_partial_state_save_failed",
-                extra={"shop_id": str(credential.shop_id)},
-                exc_info=True,
-            )
+        await _record_cycle(
+            repo,
+            credential.shop_id,
+            sync_state=sync_state,
+            outcomes=outcomes,
+        )
         raise
 
-    await repo.save(credential.shop_id, sync_state)
+    await _record_cycle(
+        repo,
+        credential.shop_id,
+        sync_state=sync_state,
+        outcomes=outcomes,
+    )
+    _assert_cycle_succeeded(outcomes, shop_id=credential.shop_id)
 
 
 async def _default_resolve_credential(

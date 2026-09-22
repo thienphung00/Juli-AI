@@ -75,6 +75,21 @@ MIGRATION_069_PATH = MIGRATIONS_DIR / "069_act_records_and_checklists.py"
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 _PRE_REVISION = "065_users_email"
 _THIS_REVISION = "069_act_records_and_checklists"
+#: What chains onto 069, once something does. `None` while 069 is the tail.
+#:
+#: 069 was the tail when #1712 shipped it, so this was implicitly `None` and the
+#: assertion below read `children == []`. #1950 then landed
+#: `071_sync_state_last_outcome` onto 069 -- legitimately: 071 was authored as
+#: 067 onto 065, and once 069 landed as 065's child too, staying at 067 would
+#: have FORKED 065 rather than extended it.
+#:
+#: NOT folded into `_PRE_REVISION`, despite what the assertion message below
+#: suggests: `_PRE_REVISION` is 069's PARENT and is load-bearing for the
+#: `siblings` assertion that guards 065 against a second child. Repointing it
+#: would delete that guard. The fork detection here is preserved in BOTH
+#: directions -- a second child of 065 still fails `siblings`, and a second
+#: child of 069 still fails `children`.
+_POST_REVISION = "071_sync_state_last_outcome"
 
 ACT_RECORDS = "run_act_records"
 CHECKLIST_ITEMS = "run_checklist_items"
@@ -327,9 +342,12 @@ def test_migration_069_chains_onto_the_versions_tail_and_is_the_only_child() -> 
         f"got {siblings} -- a second child means a migration number was reserved twice"
     )
     children = sorted(r for r, d in revisions.items() if d == _THIS_REVISION)
-    assert children == [], (
-        f"{children} chains onto {_THIS_REVISION}; update _PRE_REVISION here and "
-        "re-check the deferred step is still the tail"
+    expected_children = [] if _POST_REVISION is None else [_POST_REVISION]
+    assert children == expected_children, (
+        f"{children} chains onto {_THIS_REVISION}, expected {expected_children}; "
+        "a revision with TWO children is a forked chain -- if a new revision "
+        "legitimately extends 069, set _POST_REVISION to it and re-check the "
+        "deferred step is still the tail (it must sit above the new head)"
     )
 
 

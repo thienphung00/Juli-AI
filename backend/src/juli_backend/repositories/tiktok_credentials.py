@@ -17,6 +17,7 @@ Moving the enum and the merchant map under ``models`` would retire the entry.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -284,6 +285,58 @@ _ENDPOINT_STATE_KEYS: dict[str, str] = {
 }
 _STATE_KEY_ENDPOINTS = {state_key: endpoint for endpoint, state_key in _ENDPOINT_STATE_KEYS.items()}
 
+#: Poll-step name (`SyncOutcome.resource`) -> the endpoint row its verdict
+#: describes (#1950 criterion 4).
+#:
+#: The four search steps each own exactly one endpoint, so the mapping is
+#: identity and the verdict is precise.
+#:
+#: `sync_analytics` is deliberately NOT fanned out over the seven analytics
+#: endpoints, and this is the second design it had. Fanning out wrote one
+#: verdict to all seven, which looked like a fair over-approximation until
+#: `test_repoll_is_idempotent_and_does_not_corrupt_sync_state` (integration)
+#: showed what it actually does: a replay poll carries no
+#: `promotion_activity_ids`, so A-25 never runs -- and the fan-out stamped
+#: `promotion_activity` with `last_outcome='ok'` and a `last_success_at`.
+#: A recorded success for an endpoint that never executed is precisely the
+#: comfortable-looking lie this issue exists to remove, and it would have
+#: poisoned the one query criterion 4 is for (`last_success_at IS NULL`).
+#:
+#: So the verdict is recorded at the granularity the step actually reports at:
+#: one `analytics` row. `_ENDPOINT_STATE_KEYS` has no `analytics` key, so
+#: `load` ignores that row and no cursor is affected. What is lost is a
+#: per-endpoint answer for analytics -- which `sync_analytics` never had to
+#: give, so recording one would have been invention rather than measurement.
+_OUTCOME_ENDPOINTS: dict[str, tuple[str, ...]] = {
+    "orders": ("orders",),
+    "products": ("products",),
+    "returns": ("returns",),
+    "inventory": ("inventory",),
+    "analytics": ("analytics",),
+}
+
+OUTCOME_OK = "ok"
+OUTCOME_SKIPPED = "skipped"
+OUTCOME_DROPPED = "dropped"
+OUTCOME_FAILED = "failed"
+
+#: `tiktok_sync_state.last_error` is VARCHAR(500); `SyncOutcome.error` is already
+#: bounded to 200 by `_describe`, and this is the column's own guard so a widened
+#: bound upstream cannot turn a poll failure into a `StringDataRightTruncation`
+#: raised from the code path that records poll failures.
+_LAST_ERROR_LIMIT = 500
+
+
+def _outcome_verdict(outcome: Any) -> str:
+    """One word for what a step did, ordered most-specific first."""
+    if outcome.skipped:
+        return OUTCOME_SKIPPED
+    if outcome.dropped_everything:
+        return OUTCOME_DROPPED
+    if not outcome.ok:
+        return OUTCOME_FAILED
+    return OUTCOME_OK
+
 
 class TikTokSyncStateRepo(SessionRepo):
     """Incremental sync cursors, one row per ``(shop, endpoint)``."""
@@ -330,9 +383,66 @@ class TikTokSyncStateRepo(SessionRepo):
                 row.last_update_time = last_update_time
         await self._session.flush()
 
+    async def record_outcomes(self, shop_id: uuid.UUID, outcomes: Sequence[Any]) -> None:
+        """Write each step's last verdict onto the endpoints it covers (#1950).
+
+        Unlike ``save``, this INSERTS a row for an endpoint that has never had a
+        cursor. That is the point: the two production bugs this issue exists to
+        prevent were invisible because "never succeeded" and "no row yet" were
+        the same observation. A row whose ``last_outcome`` is ``failed`` and
+        whose ``last_success_at`` is NULL says the first thing out loud.
+
+        ``last_success_at`` is only ever advanced, never cleared, so the answer
+        to "did this endpoint EVER work" survives the next failure.
+
+        Takes ``Sequence[Any]`` rather than ``Sequence[SyncOutcome]`` because
+        ``SyncOutcome`` lives in ``workers/services/polling`` and the repository
+        layer does not import the worker layer. The attributes read here --
+        ``resource``, ``fetched``, ``persisted``, ``skipped``,
+        ``dropped_everything``, ``ok``, ``error`` -- are the whole contract.
+        """
+        recorded_at = utc_now_naive()
+        per_endpoint: dict[str, Any] = {}
+        for outcome in outcomes:
+            for endpoint in _OUTCOME_ENDPOINTS.get(outcome.resource, ()):
+                per_endpoint[endpoint] = outcome
+        if not per_endpoint:
+            return
+
+        existing_rows = await self._all(
+            select(TikTokSyncState).where(
+                TikTokSyncState.shop_id == shop_id,
+                TikTokSyncState.endpoint.in_(per_endpoint),
+            )
+        )
+        existing = {row.endpoint: row for row in existing_rows}
+        for endpoint, outcome in per_endpoint.items():
+            verdict = _outcome_verdict(outcome)
+            row = existing.get(endpoint)
+            if row is None:
+                row = TikTokSyncState(
+                    id=uuid.uuid4(),
+                    shop_id=shop_id,
+                    endpoint=endpoint,
+                    last_update_time=0,
+                )
+                self._session.add(row)
+            row.last_outcome = verdict
+            row.last_outcome_at = recorded_at
+            row.last_fetched = int(outcome.fetched)
+            row.last_persisted = int(outcome.persisted)
+            row.last_error = (outcome.error or None) and str(outcome.error)[:_LAST_ERROR_LIMIT]
+            if verdict == OUTCOME_OK:
+                row.last_success_at = recorded_at
+        await self._session.flush()
+
 
 __all__ = [
     "NEEDS_REAUTH",
+    "OUTCOME_DROPPED",
+    "OUTCOME_FAILED",
+    "OUTCOME_OK",
+    "OUTCOME_SKIPPED",
     "TikTokCredentialRepo",
     "TikTokSyncStateRepo",
     "parse_granted_scopes",

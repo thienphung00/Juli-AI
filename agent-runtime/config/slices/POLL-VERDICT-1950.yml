@@ -1,0 +1,35 @@
+# POLL-VERDICT-1950 -- #1950, the structural reason #1948 and #1949 survived for
+# months: a poll step that failed or dropped its rows was indistinguishable from
+# one that had nothing to do. #1969 (PR #2009) landed the outcome triple, the
+# per-step raise on `fetched > 0 and persisted == 0`, and watermark gating for
+# the four search steps -- and recorded, in its own PR body, two holes it left
+# for this issue: a fetch error still completed the cycle, and the ~10 analytics
+# watermarks were never gated. Neither the cycle verdict nor the durable
+# per-endpoint record existed. This slice closes those three and leaves the rest
+# of #2009 alone.
+POLL-VERDICT-1950:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+  requiredModules:
+    - backend/src/juli_backend/workers/services/polling/orchestrate.py
+    - backend/src/juli_backend/workers/services/polling/sync.py
+    - backend/src/juli_backend/repositories/tiktok_credentials.py
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/database/migrations/versions/067_tiktok_sync_state_last_outcome.py
+    - tests/unit/test_poll_cycle_verdict.py
+    - tests/unit/test_tiktok_sync_state_outcome_record.py
+  loadWhenNeeded:
+    - tests/unit/test_poll_step_outcome.py
+    - tests/unit/test_fujiwa_poll_cycle_budget.py
+    - tests/unit/test_analytics_poll_cycle.py
+    - tests/unit/test_users_phone_placeholder_cleanup.py
+    - infra/scripts/migration_additive_gate.py
+    - docs/runbooks/backend-deploy-runbook.md
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - backend/src/juli_backend/api/
+    - Sibling issue context caches

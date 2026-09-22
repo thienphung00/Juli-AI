@@ -1,0 +1,13 @@
+# #1950 is a structural defect filed directly from two production data-loss
+# incidents (#1948 inventory, #1949 orders) rather than routed through
+# Focus -> Architect -> to-prd -> to-issues, so it has no PRD parent.
+# Self-parented per the documented pattern in ensure_workflow_cache.py's
+# resolve_parent_from_epic_registry docstring ("If issue_id is itself a
+# registered epic, treat it as its own parent"). Same shape as #2057 (PR #2063),
+# #2058 (PR #2060) and #2067 (PR #2068). handoffPath points at the module
+# contract this issue's fix changes -- the polling module's own MODULE.md, which
+# is where "sync_state updated only when at least one record was handed off" is
+# written down and where the new cycle verdict and outcome record are recorded.
+parentIssueId: 1950
+sliceId: POLL-VERDICT-1950
+handoffPath: backend/src/juli_backend/workers/services/polling/MODULE.md

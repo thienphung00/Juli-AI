@@ -41,6 +41,16 @@ and both of us are adding one. This revision moves the deferred step to
 ``deferred/070_users_placeholder_phone_cleanup.py`` revising 069; 070 is above
 068 as well as 069, so it stays the tail in either merge order.
 
+CORRECTION (#1950, added when this PR merged second). The last sentence did not
+hold, and the reason is worth keeping. #1950's revision could not stay at 067:
+067 was a child of ``065_users_email``, and once THIS revision landed as 065's
+child too, 067 would have FORKED the chain rather than extended it. #1950
+therefore rebased and renumbered to ``071_sync_state_last_outcome`` onto 069 --
+which put 070 BELOW the new head, so the deferred step had to move again, to
+``deferred/072_users_placeholder_phone_cleanup.py`` revising 071. Choosing a
+deferred number above a known sibling does not make it merge-order-proof; only
+being re-parented onto whatever actually becomes the head does.
+
 Why ``shop_id`` is on the row, and why that is safe here
 -------------------------------------------------------
 Both tables hang off a run, so the obvious classification is ADR-085's
