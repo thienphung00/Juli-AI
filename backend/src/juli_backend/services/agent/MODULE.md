@@ -275,6 +275,23 @@ juli_backend.services.agent import approval`):
 
 ## Top-level modules
 
+- `status.py` (ADR-073 decision 2; #1706 for the set below) — the run-status
+  and stop-reason vocabulary, and the total mapping between them. A neutral
+  leaf: it imports nothing from juli_backend, which is what lets the runner
+  package and the events package both depend on it instead of one depending
+  on the other (#1139).
+  - SUSPENDED_STATUSES — the statuses a run is parked in rather than stopped
+    at: paused on a person, or (since #1706) paused on the world. It is named
+    here because two packages outside this one need the same answer and were
+    each spelling it as a literal exception inside a subtraction over the
+    whole enum — runner/conversation_store.py, which stamps completed_at for
+    every status NOT in the exception set, and services/agent_runs/events.py,
+    which closes the SSE stream for every status NOT in it. Both derivations
+    are written to absorb a new enum member automatically, so both absorbed
+    it as TERMINAL, which for a suspended run means a completion time it does
+    not have and a stream closed under a run that is still going. Which
+    statuses are suspended is a product fact about each member, not something
+    the enum's shape can answer, so it is recorded once, beside the enum.
 - `abuse_limits.py` (ADR-075 decision 4, #1223) — inbound abuse limits for
   the agent-run routes: approve/run creation (5/hour, burst 2), confirmations
   (30/hour), and SSE (10 concurrent streams), all keyed by shop after

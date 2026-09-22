@@ -20,6 +20,7 @@ from pathlib import Path
 from juli_backend.services.agent.status import (
     NON_TERMINAL_STATUSES,
     STOP_REASON_TO_STATUS,
+    SUSPENDED_STATUSES,
     StopReason,
     WorkflowRunStatus,
     status_for,
@@ -29,14 +30,16 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 RUNNER_PACKAGE_DIR = REPO_ROOT / "backend/src/juli_backend/services/agent/runner"
 
 
-def test_workflow_run_status_has_exactly_seven_members():
+def test_workflow_run_status_has_exactly_eight_members():
     """ADR-073 amends ADR-068's original eight states by dropping `created` —
-    a run row is only ever inserted already `queued`. Exactly these seven,
-    no more, no fewer."""
+    a run row is only ever inserted already `queued` — and issue #1706 adds
+    `waiting_external` (ADR-091 d.4, ADR-093 d.2). Exactly these eight, no
+    more, no fewer."""
     expected = {
         "queued",
         "running",
         "waiting_approval",
+        "waiting_external",
         "completed",
         "cancelled",
         "timed_out",
@@ -46,15 +49,35 @@ def test_workflow_run_status_has_exactly_seven_members():
     assert actual == expected
 
 
-def test_stop_reason_has_exactly_sixteen_members():
+def test_every_status_fits_the_status_column():
+    """`workflow_runs.status` is `String(20)`. A longer member writes fine on
+    SQLite and raises `StringDataRightTruncation` against the real database,
+    so the width is asserted here rather than discovered in production."""
+    for member in WorkflowRunStatus:
+        assert len(member.value) <= 20, f"{member.value!r} exceeds workflow_runs.status String(20)"
+
+
+def test_every_stop_reason_fits_the_stop_reason_column():
+    """The same fact for `String(32)`, asserted over the WHOLE vocabulary
+    rather than once per amendment: `confirmation_diverged` got its own width
+    assertion below, and every member added since has been checked by hand or
+    not at all."""
+    for member in StopReason:
+        assert len(member.value) <= 32, (
+            f"{member.value!r} exceeds workflow_runs.stop_reason String(32)"
+        )
+
+
+def test_stop_reason_has_exactly_eighteen_members():
     """The full vocabulary named in ADR-073 decision 2 plus the
     `output_validation_failed` P7 reservation, the `worker_lost` ADR-074
     amendment, the `confirmation_diverged` ADR-075 decision 2 / #1224
     review round 3 amendment, the `prompt_version_unrecoverable`
     #1359 amendment (fail-closed resume when stored prompt version is
-    missing or unparseable), and the `concluded_without_changes` and
+    missing or unparseable), the `concluded_without_changes` and
     `required_steps_unfulfilled` #1373 amendments (ADR-088 consent pause
-    guarantee)."""
+    guarantee), and the `paused_for_external_wait`/`external_wait_expired`
+    pair #1706 adds with the `waiting_external` status (ADR-091 d.4)."""
     expected = {
         "final_response",
         "confirmation_declined",
@@ -72,6 +95,8 @@ def test_stop_reason_has_exactly_sixteen_members():
         "prompt_version_unrecoverable",
         "concluded_without_changes",
         "required_steps_unfulfilled",
+        "paused_for_external_wait",
+        "external_wait_expired",
     }
     actual = {member.value for member in StopReason}
     assert actual == expected
@@ -110,11 +135,13 @@ def test_mapping_reproduces_adr073_decision2_table_exactly():
         StopReason.CONFIRMATION_DECLINED: WorkflowRunStatus.COMPLETED,
         StopReason.CONCLUDED_WITHOUT_CHANGES: WorkflowRunStatus.COMPLETED,
         StopReason.PAUSED_FOR_CONFIRMATION: WorkflowRunStatus.WAITING_APPROVAL,
+        StopReason.PAUSED_FOR_EXTERNAL_WAIT: WorkflowRunStatus.WAITING_EXTERNAL,
         StopReason.CANCELLED_BY_SELLER: WorkflowRunStatus.CANCELLED,
         StopReason.CONFIRMATION_EXPIRED: WorkflowRunStatus.CANCELLED,
         StopReason.CONFIRMATION_DIVERGED: WorkflowRunStatus.FAILED,
         StopReason.ITERATION_CAP_EXCEEDED: WorkflowRunStatus.TIMED_OUT,
         StopReason.WALL_CLOCK_TIMEOUT: WorkflowRunStatus.TIMED_OUT,
+        StopReason.EXTERNAL_WAIT_EXPIRED: WorkflowRunStatus.TIMED_OUT,
         StopReason.TOOL_ERROR_UNRECOVERABLE: WorkflowRunStatus.FAILED,
         StopReason.LLM_ERROR: WorkflowRunStatus.FAILED,
         StopReason.CONCURRENCY_CONFLICT: WorkflowRunStatus.FAILED,
@@ -158,6 +185,76 @@ def test_mapping_is_total_onto_every_terminal_status_reverse_direction():
     # mapping, NON_TERMINAL_STATUSES would need updating deliberately.
     for status in NON_TERMINAL_STATUSES:
         assert status not in covered_statuses
+
+
+def test_the_three_status_sets_partition_the_enum_with_nothing_left_over():
+    """`NON_TERMINAL_STATUSES` (pre-stop), `SUSPENDED_STATUSES` (paused on a
+    person or on the world) and the terminal remainder cover every member
+    exactly once.
+
+    This is the assertion that makes the derived sets in
+    `runner/conversation_store.py::_TERMINAL_STATUSES` and
+    `agent_runs/events.py::TERMINAL_RUN_STATUSES` safe. Both are written as
+    "every member minus the exceptions", so a new status joins the TERMINAL
+    side by default -- which is how `waiting_external` would silently have
+    stamped `completed_at` on a suspended run and closed its SSE stream
+    (issue #1706). A future ninth member lands in the remainder here too, and
+    that is fine as long as it really is terminal; what this test forbids is
+    the sets overlapping or leaving a member in none of them.
+    """
+    assert NON_TERMINAL_STATUSES & SUSPENDED_STATUSES == frozenset()
+    terminal = frozenset(WorkflowRunStatus) - NON_TERMINAL_STATUSES - SUSPENDED_STATUSES
+    assert terminal == {
+        WorkflowRunStatus.COMPLETED,
+        WorkflowRunStatus.CANCELLED,
+        WorkflowRunStatus.TIMED_OUT,
+        WorkflowRunStatus.FAILED,
+    }
+    assert NON_TERMINAL_STATUSES | SUSPENDED_STATUSES | terminal == frozenset(WorkflowRunStatus)
+
+
+def test_suspended_statuses_is_exactly_the_two_paused_members():
+    """`waiting_external` is SUSPENDED, not NON_TERMINAL, and the difference
+    is load-bearing.
+
+    `NON_TERMINAL_STATUSES` means "no `stop_reason` can structurally target
+    this" -- true of `queued`/`running`, which a run occupies before any
+    iteration has stopped. Putting `waiting_external` there would have made
+    the reverse-totality test below pass without a suspending stop reason
+    existing at all, which is the cheap repair #1706 deliberately did not
+    make: a status nothing can record a run INTO is a status nothing can put
+    a run into.
+    """
+    assert SUSPENDED_STATUSES == {
+        WorkflowRunStatus.WAITING_APPROVAL,
+        WorkflowRunStatus.WAITING_EXTERNAL,
+    }
+    covered = set(STOP_REASON_TO_STATUS.values())
+    for status in SUSPENDED_STATUSES:
+        assert status in covered, (
+            f"{status} is suspended but no stop_reason targets it -- nothing can "
+            "record a run into it"
+        )
+
+
+def test_the_external_wait_pair_is_present_and_mapped():
+    """The two members #1706 adds, and the two decisions behind their
+    statuses.
+
+    `paused_for_external_wait -> waiting_external` mirrors
+    `paused_for_confirmation -> waiting_approval` exactly.
+    `external_wait_expired -> timed_out` is the decision worth pinning: NOT
+    `cancelled`, which `confirmation_expired` earns because a lapsed consent
+    window cancels the consent, and there is no consent to cancel when the
+    world simply never reported back -- only a deadline that elapsed, like
+    `wall_clock_timeout` and `iteration_cap_exceeded`. #1707 inherits this
+    row; changing it is changing a contract, not a refactor.
+    """
+    assert STOP_REASON_TO_STATUS[StopReason.PAUSED_FOR_EXTERNAL_WAIT] == (
+        WorkflowRunStatus.WAITING_EXTERNAL
+    )
+    assert STOP_REASON_TO_STATUS[StopReason.EXTERNAL_WAIT_EXPIRED] == WorkflowRunStatus.TIMED_OUT
+    assert STOP_REASON_TO_STATUS[StopReason.CONFIRMATION_EXPIRED] == WorkflowRunStatus.CANCELLED
 
 
 def test_output_validation_failed_is_present_and_mapped_to_failed():

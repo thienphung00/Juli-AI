@@ -195,7 +195,7 @@ lives in
 would refuse it, no candidate would start, and the expand code it depends on
 could never go live.
 
-**Currently outstanding:** `072_users_placeholder_phone_cleanup` (#1972) —
+**Currently outstanding:** `074_users_placeholder_phone_cleanup` (#1972) —
 sets `users.phone` to NULL on every row whose stored number equals the value
 the removed code derived from that row's own id
 (`f"+849{user_id.int % 10_000_000_000:010d}"`). Until it runs, those sellers
@@ -210,11 +210,12 @@ Running it *before* the expand release serves is pointless rather than
 dangerous: the old code would write the placeholders straight back. Its
 precondition is therefore that the serving release contains
 `064_users_phone_nullable` and `alembic current` reports
-`071_sync_state_last_outcome`. The step is idempotent, so an operator unsure
+`073_waiting_external`. The step is idempotent, so an operator unsure
 whether it already ran may simply run it.
 
-> **This step has now been renumbered three times** — 065 → 066 (#1973),
-> 066 → 070 (#1712), 070 → 072 (#1950) — because it must stay the **tail** of
+> **This step has now been renumbered four times** — 065 → 066 (#1973),
+> 066 → 070 (#1712), 070 → 072 (#1950), 072 → 074 (#1706) — because it must
+> stay the **tail** of
 > the chain: a deferred step with a later revision above it forks the chain the
 > moment it is copied into a serving release's `versions/`, and
 > `alembic upgrade head` then refuses with multiple heads. It has not been

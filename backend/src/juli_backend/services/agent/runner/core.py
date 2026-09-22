@@ -361,6 +361,22 @@ class NoPendingConfirmationError(RuntimeError):
     """
 
 
+class ExternalWaitNotPermitted(RuntimeError):
+    """Raised by `WorkflowRunner.enter_external_wait` when the active
+    `Playbook`'s `TerminationPolicy.external_wait_timeout_h` is `None`
+    (issue #1706, W9-A/P-SHARED-6).
+
+    `None` means "this workflow may not wait on the world at all", never
+    "wait forever". Refusing here is what keeps the capability declarative:
+    a workflow acquires it by putting a number on its own policy, and by no
+    other means -- so `optimize_product_2`, whose policy leaves the field
+    `None`, cannot reach `waiting_external` however the runtime is driven.
+    Failing closed also protects the run: a run parked in a state its own
+    policy has no timeout for could never be reaped, and would sit there
+    forever holding its subject.
+    """
+
+
 # Two consecutive malformed-params attempts on a tool call end the run
 # (ADR-073 decision 6 / issue #1119 acceptance criteria: "a second malformed
 # attempt ... terminates the run rather than requesting a third"). Not a
@@ -1128,6 +1144,96 @@ class WorkflowRunner:
             version_str=version_str,
             sha256=sha256,
             tool_definitions=tool_definitions,
+        )
+
+    async def enter_external_wait(self, workflow_run_id: uuid.UUID, *, reason: str) -> RunResult:
+        """Suspend this run on the WORLD, under its own workflow's clock
+        (issue #1706, W9-A/P-SHARED-6; ADR-091 decision 4, ADR-093 d.2).
+
+        The counterpart of `_pause_for_confirmation`, and deliberately the
+        SAME shape: a `RunState` persisted through the `ConversationStore`
+        seam with a suspending `status`/`stop_reason` pair, and a `RunResult`
+        describing where the run stopped. It is public where that one is
+        private because the thing that decides to wait is a workflow's own
+        step logic, outside this class, whereas a CONFIRM pause is decided
+        inside `_drive_loop`.
+
+        **Refuses when this workflow may not wait.** The first thing this
+        does is read `external_wait_timeout_h` off the active `Playbook`'s
+        own `TerminationPolicy`. `None` raises `ExternalWaitNotPermitted`
+        naming the workflow, before anything is persisted -- see that
+        exception's docstring for why "may not" rather than "forever" is the
+        right reading of `None`, and why a run must never reach a state its
+        own policy cannot time out of.
+
+        **`reason` is recorded, not decoration.** It is the named condition
+        the run is waiting for, and it goes onto `RunState.external_wait_
+        reason`, which `JsonbConversationStore.persist` copies to the
+        `workflow_runs.external_wait_reason` column beside the status flip.
+        #1708's webhook dispatcher matches a persisted signal against that
+        column, so a wait with no reason would be a run nothing can ever
+        wake. An empty reason is refused for the same reason an unresolvable
+        policy is.
+
+        **The wall clock is paused by construction, not by subtraction.**
+        Nothing here calls `accumulate_running_seconds`, and nothing does
+        between this call and whatever resumes the run -- the same mechanism
+        that makes a `waiting_approval` pause cost a run none of its running
+        budget (`termination.py`'s module docstring: there is no
+        `pause`/`resume` pair to forget). A run that waits 72 hours comes
+        back with exactly the `running_seconds_elapsed` it had. The value is
+        still written to the row on this persist, as every persist does
+        (#1216), so the column mirrors the float rather than going stale
+        across a long wait.
+
+        **Nothing resumes the state in this slice.** `resume_agent_workflow`
+        still has exactly one caller, the confirmation-decision endpoint. A
+        run that enters `waiting_external` here can only be ended by the
+        reaper, on its own workflow's timeout. That is the honest shape until
+        #1708 lands the webhook consumer, and it is why the reaper half of
+        #1706 is not optional: without it this method would be a way to
+        strand a run permanently.
+
+        No event is emitted. `waiting_external` is not a failure-class
+        status (`status.py`'s total mapping sends
+        `paused_for_external_wait` to it), so no `workflow.failed` follows,
+        and there is no `workflow.approval_required` analogue to emit
+        because there is nobody to ask -- the seller-facing record of the
+        wait is #1713's act record, not an event on this stream.
+        """
+        policy = self._playbook.termination_policy
+        if policy.external_wait_timeout_h is None:
+            raise ExternalWaitNotPermitted(
+                f"workflow {self._playbook.workflow_key!r} has no "
+                "external_wait_timeout_h on its TerminationPolicy, so it may not enter "
+                "waiting_external. Declare a positive number of hours on the playbook's "
+                "policy to give this workflow the capability."
+            )
+        if not reason or not reason.strip():
+            raise ValueError(
+                "enter_external_wait requires a non-empty reason naming what the run is "
+                "waiting for; a wait with no named condition is a run nothing can wake"
+            )
+
+        state = await self._conversation_store.load(workflow_run_id)
+        state.external_wait_reason = reason
+        stop_reason = StopReason.PAUSED_FOR_EXTERNAL_WAIT
+        status = status_for(stop_reason)
+        await self._conversation_store.persist(
+            workflow_run_id,
+            state,
+            status=status,
+            stop_reason=stop_reason,
+            required_steps_completed=self._required_steps_completed(state),
+            running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+        )
+        return RunResult(
+            stop_reason=stop_reason,
+            status=status,
+            final_response=None,
+            prompt_version=state.prompt_version or "",
+            prompt_sha256=state.prompt_sha256 or "",
+            iteration_count=state.iteration_count,
         )
 
     async def _drive_loop(
@@ -2195,4 +2301,9 @@ class WorkflowRunner:
         await self._event_sink.emit(event)
 
 
-__all__ = ["NoPendingConfirmationError", "RunResult", "WorkflowRunner"]
+__all__ = [
+    "ExternalWaitNotPermitted",
+    "NoPendingConfirmationError",
+    "RunResult",
+    "WorkflowRunner",
+]

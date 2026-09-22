@@ -1,8 +1,8 @@
-"""The five-minute reaper — closes both run-abandonment holes through the
+"""The five-minute reaper — closes every run-abandonment hole through the
 normal `EventSink` path (#1130, ADR-074 decision 4; ADR-073's `worker_lost`
-amendment, 2026-08-12).
+amendment, 2026-08-12; #1706's `external_wait_expired`, 2026-09-22).
 
-Two closures, both terminal `workflow.failed`-shaped events so a client with
+Three closures, all terminal `workflow.failed`-shaped events so a client with
 an open SSE stream watches the run die honestly instead of finding it
 silently gone on next poll:
 
@@ -13,8 +13,17 @@ silently gone on next poll:
 2. **Expired `waiting_approval`** — past `approval_timeout_h` (4h) since
    `waiting_approval_since` -> `stop_reason: confirmation_expired` -> status
    `cancelled`. ADR-073 defined the policy; this is where it physically runs.
+3. **Expired `waiting_external`** — past THAT RUN'S OWN
+   `external_wait_timeout_h` since `waiting_external_since` ->
+   `stop_reason: external_wait_expired` -> status `timed_out` (issue #1706,
+   ADR-091 decision 4). A third closure rather than a branch inside the
+   second, because it is a different clock over a different column: a run
+   waiting on a supplier for two days must survive every tick of the
+   four-hour consent timer, and the only way to be sure it does is for the
+   approval sweep never to select it. `waiting_external` is not in that
+   sweep's status filter, and this sweep's filter contains nothing else.
 
-Neither closure ever emits `stop_reason: tool_error_unrecoverable`. ADR-074
+No closure ever emits `stop_reason: tool_error_unrecoverable`. ADR-074
 d.4 is explicit about why: infrastructure death (`worker_lost`) and
 task-logic failure (`tool_error_unrecoverable`) are different facts feeding
 the execution-quality metric, and conflating them corrupts it. This module
@@ -48,6 +57,15 @@ the previous `_DEFAULT_TERMINATION_POLICY = OPTIMIZE_PRODUCT_TERMINATION_
 POLICY` was correct only while one playbook existed, and the moment a second
 one is registered it becomes a silent substitution -- a two-day supplier
 wait reaped by a four-hour confirmation timer.
+
+**A run whose external wait has no timeout is also LEFT ALONE, loudly**
+(issue #1706). `TerminationPolicy.external_wait_timeout_h` is `None` for a
+workflow that may not wait externally at all, and `WorkflowRunner
+.enter_external_wait` refuses to put such a run into the state — so a row in
+`waiting_external` under a `None` timeout means the two halves disagree, and
+the destructive action is the wrong response to a disagreement. It is logged
+as `reaper_external_wait_without_timeout` and skipped, the same failure
+direction as the unregistered key below.
 
 **A run whose key is not registered is LEFT ALONE, loudly.** Reaping is
 destructive and irreversible (a terminal `workflow.failed` event plus a
@@ -321,6 +339,11 @@ class ReapResult:
 
     stale_runs_reaped: tuple[uuid.UUID, ...]
     expired_approvals_reaped: tuple[uuid.UUID, ...]
+    #: Issue #1706. Kept as its own field rather than folded into
+    #: `expired_approvals_reaped`: the two closures answer different
+    #: questions, and a test that could not tell them apart could not prove
+    #: that the approval sweep left an externally-waiting run alone.
+    expired_external_waits_reaped: tuple[uuid.UUID, ...] = ()
 
 
 async def _next_sequence_number(session: AsyncSession, run_id: uuid.UUID) -> int:
@@ -518,6 +541,75 @@ async def _reap_expired_waiting_approval(
     return tuple(reaped)
 
 
+async def _reap_expired_external_waits(
+    session: AsyncSession,
+    sink: _TerminalEventSink,
+    now: datetime,
+) -> tuple[uuid.UUID, ...]:
+    """Reap `waiting_external` runs past THEIR OWN workflow's timeout.
+
+    Issue #1706, ADR-091 decision 4. Structurally the twin of
+    `_reap_expired_waiting_approval` -- same enumeration, same per-run tenant
+    scope, same per-run policy resolution -- and different in exactly the two
+    places that matter: the threshold is `policy.external_wait_timeout_h`, and
+    the instant it is measured from is `run.waiting_external_since`. Neither
+    `approval_timeout_h` nor `waiting_approval_since` appears anywhere in this
+    function, and that absence is the whole point: a supplier wait judged by
+    the consent timer would be killed on its first tick.
+
+    A `None` `external_wait_timeout_h` means this workflow may not wait
+    externally at all, so a row sitting here under such a policy is a
+    disagreement between this module and
+    `WorkflowRunner.enter_external_wait`, which refuses to create one. It is
+    logged and skipped, never reaped -- the same never-a-false-kill direction
+    `_policy_for_run` takes for an unregistered key.
+    """
+    from juli_backend.database.tenant_context import with_shop_scope
+
+    waiting = (WorkflowRunStatus.WAITING_EXTERNAL.value,)
+    reaped: list[uuid.UUID] = []
+
+    for run_id, shop_id in await _enumerate_active_runs(session, waiting):
+        async with with_shop_scope(session, shop_id):
+            run = await session.get(WorkflowRun, run_id)
+            if run is None:
+                continue
+            if run.status != WorkflowRunStatus.WAITING_EXTERNAL.value:
+                continue
+            if run.waiting_external_since is None:
+                continue
+
+            policy = _policy_for_run(run)
+            if policy is None:
+                continue
+            if policy.external_wait_timeout_h is None:
+                logger.warning(
+                    "reaper_external_wait_without_timeout",
+                    extra={
+                        "run_id": str(run.id),
+                        "workflow_key": run.workflow_key,
+                        "run_status": run.status,
+                    },
+                )
+                continue
+
+            elapsed_s = (now - _as_aware_utc(run.waiting_external_since)).total_seconds()
+            if elapsed_s < policy.external_wait_timeout_h * 3600:
+                continue
+
+            await _emit_terminal_event(
+                session,
+                sink,
+                run,
+                stop_reason=StopReason.EXTERNAL_WAIT_EXPIRED,
+                status=WorkflowRunStatus.TIMED_OUT,
+                now=now,
+            )
+            reaped.append(run_id)
+
+    return tuple(reaped)
+
+
 async def reap_workflow_runs(
     session: AsyncSession,
     *,
@@ -542,7 +634,12 @@ async def reap_workflow_runs(
 
     stale = await _reap_stale_running_and_queued(session, resolved_sink, now, has_live_task)
     expired = await _reap_expired_waiting_approval(session, resolved_sink, now)
-    return ReapResult(stale_runs_reaped=stale, expired_approvals_reaped=expired)
+    external = await _reap_expired_external_waits(session, resolved_sink, now)
+    return ReapResult(
+        stale_runs_reaped=stale,
+        expired_approvals_reaped=expired,
+        expired_external_waits_reaped=external,
+    )
 
 
 def _database_url() -> str:
@@ -556,7 +653,7 @@ def _ensure_session_factory() -> async_sessionmaker:
 
 
 async def _reap_abandoned_workflow_runs_async() -> ReapResult:
-    """Reap stale and expired runs without a fleet-wide scope at this level.
+    """Reap stale, expired and externally-waiting runs without a fleet-wide scope.
 
     ADR-089 decision 2: Fleet-scoped work runs under real per-tenant context
     for every data access. The enumeration is the only cross-tenant read
@@ -574,6 +671,7 @@ async def _reap_abandoned_workflow_runs_async() -> ReapResult:
             extra={
                 "stale_runs_reaped": len(result.stale_runs_reaped),
                 "expired_approvals_reaped": len(result.expired_approvals_reaped),
+                "expired_external_waits_reaped": len(result.expired_external_waits_reaped),
             },
         )
         return result
@@ -586,7 +684,8 @@ def reap_abandoned_workflow_runs() -> None:
     Thin wrapper only: opens a session, delegates to `reap_workflow_runs`
     with production defaults (real clock, real Celery liveness probe, the
     real `_ReaperEventSink`), logs a summary. No loop/branch logic lives
-    here -- both closures' decision logic lives in
-    `_reap_stale_running_and_queued`/`_reap_expired_waiting_approval`.
+    here -- every closure's decision logic lives in
+    `_reap_stale_running_and_queued`/`_reap_expired_waiting_approval`/
+    `_reap_expired_external_waits`.
     """
     asyncio.run(_reap_abandoned_workflow_runs_async())

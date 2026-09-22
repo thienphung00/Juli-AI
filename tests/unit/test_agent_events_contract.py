@@ -62,7 +62,11 @@ from juli_backend.services.agent.events import (
     WorkflowStartedPayload,
     WorkflowStatusPayload,
 )
-from juli_backend.services.agent.status import STOP_REASON_TO_STATUS
+from juli_backend.services.agent.status import (
+    STOP_REASON_TO_STATUS,
+    StopReason,
+    WorkflowRunStatus,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACTS_DIR = REPO_ROOT / "packages" / "contracts"
@@ -172,6 +176,7 @@ process.stdout.write(JSON.stringify({
   payloadFields: mod.PAYLOAD_FIELDS,
   envelopeFields: mod.ENVELOPE_FIELDS,
   stopReasons: mod.STOP_REASONS,
+  workflowRunStatuses: mod.WORKFLOW_RUN_STATUSES,
   workflowFailedStopReasonToStatus: mod.WORKFLOW_FAILED_STOP_REASON_TO_STATUS,
 }));
 """
@@ -265,14 +270,70 @@ def test_payload_field_sets_match_between_python_and_typescript(event_type):
 
 
 # ---------------------------------------------------------------------------
-# `WORKFLOW_FAILED_STOP_REASON_TO_STATUS` (TS) mirrors the failure-class
+# Whole-vocabulary equality (issue #1706), then
+# `WORKFLOW_FAILED_STOP_REASON_TO_STATUS` (TS) mirroring the failure-class
 # subset of `STOP_REASON_TO_STATUS` (Python, ADR-073's single authority) --
-# all 10 members, not just the 1 exercised by the workflow.failed golden
+# every member, not just the 1 exercised by the workflow.failed golden
 # fixture (review follow-up, #1126).
 # ---------------------------------------------------------------------------
 
 
-def test_workflow_failed_stop_reason_to_status_mapping_matches_python_for_all_twelve_members():
+def test_the_status_union_equals_the_backend_enum_exactly():
+    """The assertion #1706 found MISSING, and the reason the slice exists.
+
+    Until this test, nothing anywhere compared `WORKFLOW_RUN_STATUSES` to
+    `WorkflowRunStatus`. The only cross-language check over this vocabulary
+    was the failure-class SUBSET below, which by construction cannot see a
+    status no `stop_reason` maps into a failure -- `queued`, `running`,
+    `waiting_approval`, `completed`, and now `waiting_external`. So a status
+    could be added on one side alone and every test in the repo would stay
+    green while the wire contract diverged: the backend would emit
+    `"waiting_external"` on the SSE stream and on `GET /demo/runs`, and a TS
+    client typed against the union would have no such member.
+
+    Equality in BOTH directions on purpose. A subset check in either
+    direction passes for exactly the drift that matters -- one side growing a
+    member the other does not have is precisely what "equal" forbids and what
+    "contains" permits.
+    """
+    introspected = _ts_introspect()
+    python_statuses = {member.value for member in WorkflowRunStatus}
+    ts_statuses = set(introspected["workflowRunStatuses"])
+
+    assert python_statuses == ts_statuses, (
+        "the run-status vocabulary diverges between languages -- "
+        f"python-only={sorted(python_statuses - ts_statuses)}, "
+        f"ts-only={sorted(ts_statuses - python_statuses)}"
+    )
+    assert len(introspected["workflowRunStatuses"]) == len(python_statuses), (
+        "WORKFLOW_RUN_STATUSES holds a duplicate: the array and the set it "
+        "becomes are different sizes"
+    )
+
+
+def test_the_stop_reason_vocabulary_equals_the_backend_enum_exactly():
+    """The same equality for the other half of the vocabulary.
+
+    `STOP_REASONS` was compared to nothing either: the mapping test below
+    reaches only the twelve (now thirteen) failure-class members, so
+    `final_response`, `confirmation_declined`, `paused_for_confirmation`,
+    `concluded_without_changes` and `paused_for_external_wait` were
+    unasserted in TypeScript. `validateAgentEvent` rejects an event whose
+    `stop_reason` is not in this array, so a member missing here is a
+    completed run a TS client refuses to parse.
+    """
+    introspected = _ts_introspect()
+    python_reasons = {member.value for member in StopReason}
+    ts_reasons = set(introspected["stopReasons"])
+
+    assert python_reasons == ts_reasons, (
+        "the stop_reason vocabulary diverges between languages -- "
+        f"python-only={sorted(python_reasons - ts_reasons)}, "
+        f"ts-only={sorted(ts_reasons - python_reasons)}"
+    )
+
+
+def test_workflow_failed_stop_reason_to_status_mapping_matches_python_for_all_thirteen_members():
     introspected = _ts_introspect()
     ts_mapping = introspected["workflowFailedStopReasonToStatus"]
 
@@ -296,8 +357,14 @@ def test_workflow_failed_stop_reason_to_status_mapping_matches_python_for_all_tw
         # retry. `concluded_without_changes` is deliberately absent — that is the
         # honest negative ADR-073 d.2 protects and maps to `completed`.
         "required_steps_unfulfilled",
+        # Issue #1706: the reaper's cause when an external wait ran out, mapped
+        # to `timed_out` and therefore failure-class. Its sibling
+        # `paused_for_external_wait` is deliberately absent for the same reason
+        # `paused_for_confirmation` is: it targets a SUSPENDED status, and
+        # `workflow.failed` never carries it.
+        "external_wait_expired",
     }
-    assert len(python_mapping) == 12
+    assert len(python_mapping) == 13
 
     assert set(ts_mapping) == set(python_mapping), (
         f"stop_reason membership diverges -- python-only={set(python_mapping) - set(ts_mapping)}, "
