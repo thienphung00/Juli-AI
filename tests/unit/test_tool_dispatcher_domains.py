@@ -604,6 +604,30 @@ class TestAToolFromAnotherDomainIsRefusedByName:
         assert PRODUCT_DOMAIN in message
         assert SKU_SET_SUBJECT_TYPE in message
 
+    def test_the_wrong_subject_is_refused_on_domain_grounds_not_on_missing_resources(self):
+        """Ordering matters, because the message is the whole point.
+
+        An executor bound to a SKU set typically also carries no product
+        resource bundle, and the resource check would happily refuse the call
+        first — truthfully, but for the wrong reason, and naming neither the
+        domain nor the subject. The domain check runs first.
+        """
+        registry = build_product_tool_registry()
+        product_spec = next(spec for spec in registry.list_all() if spec.domain == PRODUCT_DOMAIN)
+        executor = DomainToolExecutor(
+            registry=registry,
+            subject=RunSubject(subject_type=SKU_SET_SUBJECT_TYPE, subject_ref="sku-set-7"),
+        )
+
+        with pytest.raises(ToolDomainBindingError) as excinfo:
+            executor.execute(
+                tool_name=product_spec.name,
+                params=_sample_params(product_spec.input_model),
+            )
+
+        assert "read_resources" not in str(excinfo.value)
+        assert SKU_SET_SUBJECT_TYPE in str(excinfo.value)
+
     def test_a_product_tool_is_refused_when_no_product_binding_is_bound(self):
         """The second cause, and the one a subclass-less executor hits: the
         subject kind is right but nothing supplied the domain's bound state."""

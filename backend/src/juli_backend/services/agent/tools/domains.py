@@ -218,22 +218,32 @@ class ToolDomain:
                 f"registers no handler for it; its tools are {sorted(self.handlers)}"
             ) from exc
 
-    def context_for(self, context: ToolContext) -> Any:
-        """The object this domain's handlers take, built from `context`.
+    def check_subject(self, subject: RunSubject) -> None:
+        """Refuse, by name, a run whose subject this domain does not act on.
 
-        Checks the run's subject against `subject_types` FIRST, so a run
-        bound to the wrong kind of subject is refused by name before any
-        domain-specific unwrapping can produce a more obscure message.
+        Called by the executor BEFORE it selects a resource bundle, so a run
+        bound to a SKU set asking for a product tool is told that — rather
+        than being told, misleadingly, that the executor has no
+        `read_resources`, which is true but not the reason. A
+        subject-agnostic domain (`subject_types is None`) never refuses here.
         """
-        if (
-            self.subject_types is not None
-            and context.subject.subject_type not in self.subject_types
-        ):
+        if self.subject_types is not None and subject.subject_type not in self.subject_types:
             raise ToolDomainBindingError(
                 f"tool domain {self.name!r} acts on subject kinds "
                 f"{sorted(self.subject_types)}, but this run's subject is "
-                f"{context.subject.subject_type!r}"
+                f"{subject.subject_type!r}"
             )
+
+    def context_for(self, context: ToolContext) -> Any:
+        """The object this domain's handlers take, built from `context`.
+
+        Re-checks the subject before unwrapping, so this method is safe on
+        its own and does not depend on the caller having called
+        `check_subject` first — the subject test is a cheap set membership
+        and running it twice is cheaper than a seam that is only correct in
+        one call order.
+        """
+        self.check_subject(context.subject)
         return self.bind_context(context)
 
 

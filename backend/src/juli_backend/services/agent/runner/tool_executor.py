@@ -295,6 +295,11 @@ class DomainToolExecutor:
             # inside the ledger's `perform` when one is configured.
             domain = get_tool_domain(spec.domain)
             handler = domain.handler_for(tool_name)
+            # Domain grounds first: a run bound to a subject this domain does
+            # not act on is refused by name here, BEFORE the resource
+            # selection below could refuse it for the unrelated reason that
+            # this executor happens to carry no bundle.
+            domain.check_subject(self._subject)
 
             if not domain.takes_resources:
                 resources: Any = None
