@@ -296,12 +296,35 @@ _Avoid_: "Action Card" in seller-facing copy; "Decision" as SQLAlchemy model nam
 A successor Action Card for the *same* `(shop, workflow_key, subject)` — a new row linked to its
 predecessor by `supersedes_card_id`, never a counter updated in place and never a copy of the
 predecessor's payload. Emitted only when the subject's **Basis snapshot** has changed since the
-last executed revision; an unchanged basis suppresses with a named `suppressed_reason` instead.
+last executed revision; otherwise emission is suppressed with one of **two named reasons**
+(`services/action_cards/persist.py`):
+**`basis_unchanged`** — nothing material moved for this subject, so there is nothing new to
+offer; and **`active_card_exists`** — the basis did move, but a card for this subject is still
+standing (surfaced and active, approved, executing, or dismissed inside its cooldown), so the
+successor is withheld rather than written beside it.
+These are the *emission* vocabulary. They are reported on the emission outcome and in the
+`action_card_emission_suppressed` log line, and are **never** written to
+`action_cards.suppressed_reason`, which belongs to the **Decision emission budget** and keeps
+its own disjoint reasons (`active_cap`, `cooldown`, `weekly_novelty_cap`) for a different
+question — was the candidate *surfaced*, not was a row *written*.
 Distinct from the trailing identifiers in `workflow_key` (`optimize_product_2`,
 `process_order_5b`), which are catalog suffixes and carry no version meaning. See
 [ADR-087](docs/adr/087-subject-scoped-action-cards-and-card-revisions.md).
 _Avoid_: a bare `version` column (collides with `workflow_key` suffixes in every reader's head),
-copying the previous revision forward, re-offering an executed card on a timer alone
+copying the previous revision forward, re-offering an executed card on a timer alone, putting an
+emission reason in `suppressed_reason` (that column is the budget's)
+
+**Card subject**:
+What an Action Card is *about* — `action_cards.subject_type` / `subject_id`, written by the
+scoring emission path at card-generation time ([ADR-087](docs/adr/087-subject-scoped-action-cards-and-card-revisions.md)
+decision 1, which amends ADR-082 decision 1's approval-time revenue derivation). Today
+`optimize_product_2` resolves a **product** subject — the shop's top-revenue listing, `revenue`
+descending with `tiktok_product_id` ascending as tiebreak — and every other workflow key emits
+**`unscoped`**, because the `orders` / `inventory_items` / `campaigns` / `returns` rows their
+subjects would point at do not exist on any shop yet. `unscoped` means "this producer could not
+name what the card is about"; it is not a shop-level subject, and approve refuses it.
+_Avoid_: reading `unscoped` as "shop-level"; deriving the subject at approval time; inventing a
+`subject_id` so a card passes a guard (a run against the wrong product is worse than a refusal)
 
 ## Inventory
 

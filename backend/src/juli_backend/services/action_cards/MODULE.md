@@ -23,6 +23,29 @@ slice — see "Out of scope".
 
 - `run_action_card_refresh(session, shop_id, *, poll=True)` → `list[ActionCard]`
 - `persist_scoring_result(session, shop_id, result, *, emission_config=None)` → `list[ActionCard]`
+  — thin wrapper over `emit_scoring_cards`, kept as the historic shape for both
+  production callers. The list holds every card the run resolved to: rows it wrote
+  and rows it deliberately left standing.
+- `emit_scoring_cards(session, shop_id, result, *, emission_config=None)` →
+  `ScoringEmissionReport` (#1703, ADR-087 d.1/d.3/d.6) — the same path, with the
+  per-recommendation decision record: `decisions`, `emitted`, `cards`, `suppressed`
+- `CardEmission` / `ScoringEmissionReport` (from `persist`) — one decision per ranked
+  recommendation (`workflow_key`, `subject_type`, `subject_id`, `card`, revision,
+  `suppressed_reason`, supersedes_card_id) and the run's collection of them
+- `SUPPRESSED_REASON_BASIS_UNCHANGED` / `SUPPRESSED_REASON_ACTIVE_CARD_EXISTS` /
+  `REVISION_SUPPRESSED_REASONS` (from `persist`) — the **emission** suppression
+  vocabulary. Disjoint from `emission_budget.SUPPRESSED_REASONS` and never written
+  to `ActionCard.suppressed_reason` (see "Subject-scoped emission" below)
+- `resolve_card_subject(session, shop_id, workflow_key)` → `CardSubject` (from
+  `subjects`, #1703) — what a card about to be emitted is *about*; `UNSCOPED_SUBJECT`
+  when the producer has no evidence naming an entity
+- `card_subject_is_bindable(card)` → bool (from `subjects`) — the predicate the approve
+  path applies, shared so a read surface cannot disagree with the write surface
+- `BINDABLE_SUBJECT_TYPES` / `SUBJECT_TYPE_PRODUCT` / `SUBJECT_TYPE_UNSCOPED` /
+  `UNSCOPED_SUBJECT` (from `subjects`)
+- `compute_card_basis(...)`, `stored_basis(card)`, `basis_unchanged(previous, current)`,
+  `BASIS_METADATA_KEY` and `BasisField` (from `basis`, #1703, ADR-087 d.6) — the
+  per-field basis fingerprint and the per-workflow-key materiality catalog
 - `IN_FLIGHT_STATUSES` — `frozenset[str]` (`approved`, `dismissed`, `executing`)
   — statuses `persist_scoring_result` will not overwrite on re-scoring (#715).
   **Unchanged by #716** (see "Collision 2" below) — the hard rule for B-4 was
@@ -77,7 +100,11 @@ slice — see "Out of scope".
 
 ## Key behaviors
 
-- Unique constraint on `(shop_id, workflow_key)` — re-refresh updates rows in place
+- Identity is `(shop_id, workflow_key, subject_type, subject_id)` since #1701/#1703
+  (ADR-087 d.1/d.2): a full unique over the chain including revision, plus a
+  **partial** unique on the same tuple minus revision `WHERE status = 'active'`.
+  The single-key uq_action_cards_shop_workflow is gone. Re-refresh no longer
+  updates a live card in place — see "Subject-scoped emission" below
 - Sole write owner for `action_cards` and retained legacy `recommendations` tables
 - Card persistence itself has no Redis; Postgres is the sole store for
   `ActionCard` rows (ADR-021) — the `refresh_cooldown` module below is a
@@ -99,22 +126,94 @@ slice — see "Out of scope".
   timestamp landed in #716 (B-4) — see "Decision emission/surfacing budget"
   below; it is written only by `emission_budget.apply_emission_budget`, never
   by `persist_scoring_result`.
-- **Idempotent-upsert + status-preservation (#715, B-3):** `persist_scoring_result`
-  looks up the existing `(shop_id, workflow_key)` row *before* delegating to
-  `ActionCardsRepo.upsert`. If the existing row's `status` is in
-  `IN_FLIGHT_STATUSES` (`approved` / `dismissed` / `executing`), the row is
-  left completely untouched — no status, content, or `computed_at` change —
-  and the untouched card is still included in the returned list so callers see
-  the full candidate set for the run. Only a card still in the `"active"`
-  candidate status (or not yet persisted) is upserted. This preserves seller
-  (or dry-run) decisions across continuous re-scoring without a second
-  surfacing-state model living in this module.
+- **Idempotent emission + status-preservation (#715 B-3, re-keyed by #1703):**
+  `emit_scoring_cards` looks up the newest revision for
+  `(shop_id, workflow_key, subject_type, subject_id)` before writing anything.
+  A card in `IN_FLIGHT_STATUSES` (`approved` / `dismissed` / `executing`) is
+  still left completely untouched — no status, content, or computed_at
+  change — and is still included in the returned list so callers see the full
+  candidate set for the run. `ActionCardsRepo.upsert` is **no longer used on
+  this path**: its natural key is `(shop_id, workflow_key)` alone, which with
+  chained revisions matches several rows and would update an arbitrary one.
 - **Negative-path / atomicity:** `persist_scoring_result` performs no `commit`
   itself (same as before) — a caller wrapping the call in a transaction that
   rolls back on failure (e.g. the Shared Compute Orchestrator's isolated
   scoring failure domain, #713) leaves previously-committed cards exactly as
   they were; a failure partway through one run's recommendation loop leaves no
   partial row from that run visible after rollback.
+
+## Subject-scoped emission, revisions and named suppression (#1703, ADR-087)
+
+`emit_scoring_cards` resolves what each card is **about**, keys the row on that
+subject, and then either writes a row or suppresses with a named reason.
+
+**Subject resolution (`subjects.py`).** The scoring pipeline computes shop-level
+KPI aggregates and WorkflowRecommendation carries no entity reference, so
+"which subject?" has no automatic answer. optimize_product_2 resolves a
+**product** — the shop's top-revenue listing, revenue descending with
+tiktok_product_id ascending as tiebreak, the ordering ADR-082 decision 2
+defined and ADR-087 decision 1 *relocates* from approval time to generation
+time. Every other key emits unscoped, because the orders /
+inventory_items / campaigns / returns rows their subjects would point at
+are empty on every shop (ADR-087's own Consequences: *"Only
+optimize_product_2 is provable today"*), and `create_*` keys act on something
+that does not exist yet (decision 4). A subject is **never invented to satisfy a
+downstream guard** — a shop with no products gets an unscoped card and an honest
+refusal from approve, not a run pointed at an arbitrary listing.
+
+unscoped is therefore a live emission value, not only #1701's backfill marker,
+and it is not approvable. `approval._BINDABLE_SUBJECT_TYPES` is unchanged;
+widening it is #1704's seam.
+
+**Basis (`basis.py`).** ADR-087 decision 6 gates a revision on the subject's
+basis having moved, with materiality defined *per workflow key*. A hash can only
+say same/different, so materiality lives in what gets hashed: KPI signals enter
+the fingerprint as their **severity bucket** (a metric that drifts without
+changing what Juli would say has not changed the basis), and
+optimize_product_2's stock enters as the boolean in_stock (ADR-087's
+"crossing zero", not the level) while its price enters raw (this workflow writes
+the price; any move is news). computed_at, priority and generated copy are
+deliberately **outside** the basis — folding any of them in would make
+`basis_unchanged` unreachable. The fingerprint is stored in
+`metadata_json["basis"]`; no column and no migration.
+
+**The decision ladder**, per recommendation:
+
+1. no row for this subject yet → emit revision = 1;
+2. basis unchanged vs. the newest revision → suppress `basis_unchanged`;
+3. basis changed but a card is still **standing** → suppress
+   active_card_exists. Standing = a *surfaced* `active` row, an
+   `approved`/`executing` row, or a `dismissed` row inside its cooldown. A row
+   with executed_at set never stands — that is the revision a successor
+   follows;
+4. basis changed and the newest row is an unsurfaced **draft** → recomputed in
+   place (#716's Collision 1 contract, unchanged: a budget-suppressed candidate
+   keeps its copy current while it waits for a slot; rewriting a draft destroys
+   nothing the seller was shown);
+5. otherwise → a chained successor at revision + 1 with supersedes_card_id
+   set and a payload built from the current run alone (ADR-087 decision 3: the
+   predecessor is reached by reference, never copied).
+
+**Two vocabularies, two carriers.** The emission reasons above live on the
+returned `ScoringEmissionReport` and in the action_card_emission_suppressed
+log line. They are never written to `ActionCard.suppressed_reason`, which is the
+emission *budget*'s (`active_cap` / `cooldown` / `weekly_novelty_cap`). That
+separation is what makes "distinguishable" structural rather than a naming
+convention.
+
+**#1701 coexistence bridge.** Every deployed row carries
+`subject_type='unscoped'`. On the first subject-scoped emission for a workflow,
+a *standing* unscoped candidate is completed in place — subject stamped, content
+refreshed — rather than having a second live card inserted beside it. An
+unscoped row the seller already actioned is left alone: back-filling a subject
+onto an approved or dismissed card would falsify the record.
+
+**Collision 2 narrowed.** #716 reset a dismissed card in place once its 7-day
+cooldown elapsed, on the clock alone. Under ADR-087 decision 6 the clock is a
+secondary cap on churn and the basis is the trigger, so an unchanged card is not
+re-offered when its cooldown expires, and a changed one returns as a chained
+successor instead of a reset that erases the dismiss. #716's actual requirement
+— that the cooldown clock can finish — is unchanged.
 
 ## Decision emission/surfacing budget (#716, B-4, ADR-038 §6)
 
@@ -238,12 +337,19 @@ post-cooldown candidate legitimately supersede the `dismissed` row** —
 `dismissed` / `executing`; `test_in_flight_statuses_...` in both #715's and
 #716's test files assert this). Instead, `persist.py` adds one additional
 check purely on the `dismissed` branch:
-`_dismiss_cooldown_expired(existing, now=computed_at, cooldown_days=...)` —
-true only when `now - (existing.dismissed_at or existing.updated_at) >=
-cooldown_days`. When true, the fresh candidate is allowed to upsert in place
-(status resets to `"active"`, `dismissed_at` clears so the clock does not
-appear "still running" on the next check); when false, behavior is
-byte-for-byte what B-3 shipped. `approved` and `executing` are **not** given
+a terminal-cooldown check on that branch, named _terminal_cooldown_expired
+since #1703 and _dismiss_cooldown_expired before it — true only when the run's
+clock minus the most recent terminal marker is at least `cooldown_days`. When
+true the fresh candidate is allowed through; when false, behavior is
+byte-for-byte what B-3 shipped. **#1703 changed what "allowed through" means**:
+the successor is a new chained row rather than an in-place reset, so the
+dismiss stays on the record, and the basis must also have moved (ADR-087 d.6
+makes the clock a cap, not a trigger). #1703 also widened the marker from
+dismissed_at alone to the most recent of the three terminal timestamps,
+because a chained successor carries none of its predecessor's and the emission
+budget's own cooldown gate — which reads a card's OWN markers — therefore
+cannot see them. ADR-087 decision 9 assumed the budget covered this "for free";
+under chained revisions it does not, so the floor lives here. `approved` and `executing` are **not** given
 this escape hatch — only an explicit outcome should ever move a workflow out
 of those, not the mere passage of time; this is intentional, not an
 oversight, and is proven by

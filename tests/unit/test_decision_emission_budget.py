@@ -42,6 +42,8 @@ from juli_backend.services.action_cards.emission_budget import (
 )
 from juli_backend.services.action_cards.persist import (
     IN_FLIGHT_STATUSES,
+    SUPPRESSED_REASON_BASIS_UNCHANGED,
+    emit_scoring_cards,
     persist_scoring_result,
 )
 from juli_backend.services.aggregates.types import (
@@ -50,8 +52,12 @@ from juli_backend.services.aggregates.types import (
     ShopProfile,
 )
 from juli_backend.services.scoring.types import (
+    AdvisorySignal,
     DailyScoringResult,
+    KpiId,
     ScoringSignals,
+    Severity,
+    VisualLayerDomain,
     WorkflowExpectedImpact,
     WorkflowRecommendation,
     WorkflowRecommendations,
@@ -77,6 +83,22 @@ def _snapshot(shop_id: uuid.UUID) -> FeatureAggregateSnapshot:
     )
 
 
+def _signal(kpi_id: KpiId, severity: Severity) -> AdvisorySignal:
+    """A real ``AdvisorySignal`` — the object the scoring pipeline produces and
+    the object ``basis.compute_card_basis`` reads its severity bucket off."""
+    return AdvisorySignal(
+        kpi_id=kpi_id,
+        domain=VisualLayerDomain.INVENTORY,
+        technique="rules_proxy",
+        change_text="test",
+        signal_type="risk",
+        action_hint="test",
+        one_line="test",
+        workflow_keys=(),
+        severity=severity,
+    )
+
+
 def _result(
     shop_id: uuid.UUID,
     computed_at: datetime,
@@ -84,6 +106,8 @@ def _result(
     workflow_key: str,
     workflow_name: str = "Workflow",
     priority: int = 1,
+    kpis: dict | None = None,
+    source_kpi_ids: tuple[str, ...] = (),
 ) -> DailyScoringResult:
     return DailyScoringResult(
         aggregates=_snapshot(shop_id),
@@ -91,7 +115,7 @@ def _result(
             shop_id=shop_id,
             computed_at=computed_at,
             health_data_source=HealthDataSource.PROXY,
-            kpis={},
+            kpis=kpis or {},
         ),
         recommendations=WorkflowRecommendations(
             shop_profile=ShopProfile.NEW_SHOP,
@@ -106,7 +130,7 @@ def _result(
                     ),
                     preconditions_met=True,
                     user_action_required=True,
-                    source_kpi_ids=(),
+                    source_kpi_ids=source_kpi_ids,
                 )
             ],
         ),
@@ -732,22 +756,50 @@ async def test_dismissed_workflow_stays_frozen_within_cooldown_window(session, s
 
 @pytest.mark.asyncio
 async def test_dismissed_workflow_superseded_after_cooldown_fully_elapses(session, shop):
-    """Collision 2 resolution: once the 7-day cooldown fully elapses, a fresh
-    candidate legitimately supersedes the dismissed row so the workflow_key
-    can re-enter emission-budget evaluation — the cooldown clock finishes."""
+    """Collision 2 resolution, as ADR-087 decision 6 amends it (#1703).
+
+    #716 (B-4) resolved Collision 2 by *resetting the dismissed row in place*
+    once the 7-day cooldown elapsed, on the clock alone. Subject-scoped
+    emission changes both halves of that:
+
+    * the successor is a **new row** chained by ``supersedes_card_id``, not a
+      reset -- ADR-087 decision 3 rejects the counter-on-one-row shape because
+      *"the predecessor's information is destroyed by the update, which is the
+      half of the requirement that says the successor must carry it"*. The
+      dismiss stays on the record;
+    * the clock alone no longer produces it. ADR-087 decision 6 admits a
+      time-based rule *"only as a secondary cap on churn, never as the primary
+      trigger -- it manufactures the appearance of an improvement on a
+      schedule"*, which CONTEXT.md's Card revision entry lists under _Avoid_.
+      The basis must have moved too; the companion test below pins the
+      elapsed-but-unchanged case.
+
+    What #716's acceptance criterion actually asked for is unchanged and still
+    proven here: the cooldown clock, once started, can finish, and the
+    workflow_key re-enters emission-budget evaluation.
+    """
     first_computed_at = datetime(2026, 8, 1, 9, 0, tzinfo=UTC)
-    first_result = _result(shop.id, first_computed_at, workflow_key="wf_dismiss_expires")
+    first_result = _result(
+        shop.id,
+        first_computed_at,
+        workflow_key="wf_dismiss_expires",
+        kpis={"dsi": _signal("dsi", "healthy")},
+        source_kpi_ids=("dsi",),
+    )
     await persist_scoring_result(session, shop.id, first_result)
     await session.flush()
 
     card = await _fetch(session, shop.id, "wf_dismiss_expires")
     assert card is not None
+    predecessor_id = card.id
     dismissed_marker = datetime(2026, 8, 1, 9, 30, tzinfo=UTC)
     card.status = "dismissed"
     card.dismissed_at = dismissed_marker
+    card.surfaced_at = first_computed_at
     await session.flush()
 
-    # 8 days after the dismiss — cooldown (7 days) has fully elapsed.
+    # 8 days after the dismiss — cooldown (7 days) has fully elapsed — and the
+    # signal behind the recommendation has moved from healthy to critical.
     later_computed_at = dismissed_marker + timedelta(days=8)
     later_result = _result(
         shop.id,
@@ -755,32 +807,79 @@ async def test_dismissed_workflow_superseded_after_cooldown_fully_elapses(sessio
         workflow_key="wf_dismiss_expires",
         workflow_name="Fresh candidate post-cooldown",
         priority=2,
+        kpis={"dsi": _signal("dsi", "critical")},
+        source_kpi_ids=("dsi",),
     )
     cards = await persist_scoring_result(session, shop.id, later_result)
     await session.flush()
 
-    superseded = await _fetch(session, shop.id, "wf_dismiss_expires")
-    assert superseded is not None
-    assert superseded.status == "active"
-    assert superseded.title == "Fresh candidate post-cooldown"
-    assert superseded.priority == 2
-    assert superseded.dismissed_at is None
-    assert superseded.computed_at == later_computed_at
-    assert any(c.workflow_key == "wf_dismiss_expires" for c in cards)
-
-    # Still exactly one row — a supersede updates in place, no duplicate.
     stmt = select(ActionCard).where(
         ActionCard.shop_id == shop.id,
         ActionCard.workflow_key == "wf_dismiss_expires",
     )
     rows = (await session.execute(stmt)).scalars().all()
-    assert len(rows) == 1
+    assert len(rows) == 2
+
+    successor = next(row for row in rows if row.id != predecessor_id)
+    assert successor.status == "active"
+    assert successor.title == "Fresh candidate post-cooldown"
+    assert successor.priority == 2
+    assert successor.revision == 2
+    assert successor.supersedes_card_id == predecessor_id
+    assert successor.computed_at == later_computed_at
+    assert any(c.id == successor.id for c in cards)
+
+    # The dismiss stays on the record rather than being erased by a reset.
+    predecessor = next(row for row in rows if row.id == predecessor_id)
+    assert predecessor.status == "dismissed"
+    assert predecessor.dismissed_at is not None
 
     # Now eligible for a fresh emission-budget evaluation.
     budget_now = later_computed_at + timedelta(minutes=1)
     config = DecisionEmissionConfig(max_active=5, cooldown_days=7, weekly_novelty_cap=10)
     outcome = await apply_emission_budget(session, shop.id, now=budget_now, config=config)
-    assert any(c.workflow_key == "wf_dismiss_expires" for c in outcome.surfaced)
+    assert any(c.id == successor.id for c in outcome.surfaced)
+
+
+@pytest.mark.asyncio
+async def test_elapsed_cooldown_alone_does_not_re_offer_an_unchanged_card(session, shop):
+    """The other half of the amendment above: the clock caps churn, it does
+    not trigger a revision (ADR-087 decision 6).
+
+    Cooldown fully elapsed, basis untouched — no second pass is manufactured,
+    and the suppression says which of the two reasons applied.
+    """
+    first_computed_at = datetime(2026, 8, 1, 9, 0, tzinfo=UTC)
+    first_result = _result(shop.id, first_computed_at, workflow_key="wf_dismiss_unchanged")
+    await persist_scoring_result(session, shop.id, first_result)
+    await session.flush()
+
+    card = await _fetch(session, shop.id, "wf_dismiss_unchanged")
+    assert card is not None
+    dismissed_marker = datetime(2026, 8, 1, 9, 30, tzinfo=UTC)
+    card.status = "dismissed"
+    card.dismissed_at = dismissed_marker
+    card.surfaced_at = first_computed_at
+    await session.flush()
+
+    later_result = _result(
+        shop.id,
+        dismissed_marker + timedelta(days=8),
+        workflow_key="wf_dismiss_unchanged",
+        workflow_name="Would-be re-offer",
+        priority=2,
+    )
+    report = await emit_scoring_cards(session, shop.id, later_result)
+    await session.flush()
+
+    assert [d.suppressed_reason for d in report.decisions] == [SUPPRESSED_REASON_BASIS_UNCHANGED]
+    stmt = select(ActionCard).where(
+        ActionCard.shop_id == shop.id,
+        ActionCard.workflow_key == "wf_dismiss_unchanged",
+    )
+    rows = (await session.execute(stmt)).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].title != "Would-be re-offer"
 
 
 @pytest.mark.asyncio

@@ -184,6 +184,8 @@ def _card(
     description: str = "Test description.",
     recommendation_payload: str | None = None,
     subject_product_id: uuid.UUID | None = None,
+    subject_type: str = "unscoped",
+    subject_id: str = "",
 ) -> ActionCard:
     payload = recommendation_payload or json.dumps(
         {
@@ -202,6 +204,8 @@ def _card(
         id=uuid.uuid4(),
         shop_id=shop_id,
         workflow_key=workflow_key,
+        subject_type=subject_type,
+        subject_id=subject_id,
         priority=priority,
         severity="warning",
         title=title,
@@ -214,9 +218,14 @@ def _card(
     )
     if subject_product_id is not None:
         # #1702: approve binds the run to the CARD's subject, so a card that
-        # is meant to be approvable has to name one. Listing does not care
-        # (every card in this file's read tests leaves it unset, which is
-        # #1701's `unscoped` backfill -- what every producer writes today).
+        # is meant to be approvable has to name one. The shorthand for the
+        # product case; `subject_type`/`subject_id` above are the general form
+        # #1703's tests need to express a non-product subject.
+        #
+        # Listing DOES care since #1703: `is_executable` is false for a card
+        # approve would refuse, so a read test that wants it true has to name a
+        # subject too. Leaving it unset is #1701's `unscoped` backfill -- what
+        # every producer wrote until #1703's emission path.
         card.subject_type = "product"
         card.subject_id = str(subject_product_id)
     return card
@@ -840,8 +849,19 @@ async def test_a_card_that_appears_in_the_list_is_approvable_by_the_same_caller(
 
 async def test_list_decisions_includes_is_executable_discriminator(demo_client, session, shop):
     """GET /v1/demo/decisions carries an is_executable discriminator on each
-    card (ADR-084 decision 3), derived from the playbook registry."""
-    executable_card = _card(shop.id, workflow_key="optimize_product_2", surfaced_at=COMPUTED_AT)
+    card (ADR-084 decision 3), derived from the playbook registry.
+
+    The card carries a product subject because since #1703 a registered
+    playbook is necessary but no longer sufficient -- see
+    ``test_registered_playbook_without_a_subject_is_not_executable``.
+    """
+    executable_card = _card(
+        shop.id,
+        workflow_key="optimize_product_2",
+        surfaced_at=COMPUTED_AT,
+        subject_type="product",
+        subject_id=str(uuid.uuid4()),
+    )
     session.add(executable_card)
     await session.commit()
 
@@ -856,7 +876,13 @@ async def test_list_decisions_includes_is_executable_discriminator(demo_client, 
 async def test_detail_decisions_includes_is_executable_discriminator(demo_client, session, shop):
     """GET /v1/demo/decisions/{id} carries an is_executable discriminator
     (ADR-084 decision 3)."""
-    executable_card = _card(shop.id, workflow_key="optimize_product_2", surfaced_at=COMPUTED_AT)
+    executable_card = _card(
+        shop.id,
+        workflow_key="optimize_product_2",
+        surfaced_at=COMPUTED_AT,
+        subject_type="product",
+        subject_id=str(uuid.uuid4()),
+    )
     session.add(executable_card)
     await session.commit()
 
@@ -864,6 +890,45 @@ async def test_detail_decisions_includes_is_executable_discriminator(demo_client
 
     assert resp.status_code == 200
     assert resp.json()["data"]["is_executable"] is True
+
+
+@pytest.mark.parametrize(
+    ("subject_type", "subject_id"),
+    [
+        ("unscoped", ""),
+        ("order", "tiktok-order-1"),
+    ],
+)
+async def test_registered_playbook_without_a_subject_is_not_executable(
+    demo_client, session, shop, subject_type, subject_id
+):
+    """Listing and approving must answer the same question (#1703).
+
+    ``optimize_product_2`` has a registered playbook, so before #1703 this
+    card reported ``is_executable: true``. Approve refuses it -- #1702 raises
+    ``CardSubjectNotApprovable`` for a card carrying no subject (#1701
+    backfilled every row to ``unscoped``) and for any subject kind outside
+    ``_BINDABLE_SUBJECT_TYPES`` -- so the seller met a 409 on a button the
+    listing told them would work. The discriminator now answers from the same
+    predicate the approve path applies.
+    """
+    card = _card(
+        shop.id,
+        workflow_key="optimize_product_2",
+        surfaced_at=COMPUTED_AT,
+        subject_type=subject_type,
+        subject_id=subject_id,
+    )
+    session.add(card)
+    await session.commit()
+
+    listed = await demo_client.get("/v1/demo/decisions")
+    assert listed.status_code == 200
+    assert listed.json()["data"][0]["is_executable"] is False
+
+    detail = await demo_client.get(f"/v1/demo/decisions/{card.id}")
+    assert detail.status_code == 200
+    assert detail.json()["data"]["is_executable"] is False
 
 
 async def test_non_executable_card_on_list_carries_is_executable_false(demo_client, session, shop):

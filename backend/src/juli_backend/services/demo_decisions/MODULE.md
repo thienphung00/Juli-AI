@@ -44,8 +44,19 @@ from a nonexistent row when looked up by id (safe-default 404).
   `description`, `severity`, `priority`, `computed_at`, `surfaced_at`
   (freshness / promotion timestamps, #715 + #716), and `recommendation` — an
   **allowlist** copy of `ActionCard.recommendation_payload`'s JSON (never a
-  passthrough of the raw dict, which always includes `workflow_key` per
-  `persist.py::_build_payload`).
+  passthrough of the raw dict, which always includes workflow_key — and, since
+  #1703, a subject block — per persist.py's _build_payload). The envelope also
+  carries the is_executable discriminator below.
+
+**The is_executable discriminator must agree with approve (#1703).** It is
+`playbooks.is_workflow_executable(card.workflow_key)` **and**
+`action_cards.subjects.card_subject_is_bindable(card)`. A registered
+playbook alone is necessary and no longer sufficient: the approve path refuses
+a card that carries no subject, or one whose subject kind it cannot bind a run
+to (#1702's CardSubjectNotApprovable), and #1701 backfilled every existing row
+to subject_type 'unscoped'. Reporting true for such a card told the seller a
+button would work that returns 409 the moment they press it. Both surfaces now
+read the same predicate rather than each deciding for itself.
 
 ## Masking contract (#718 AC3)
 
