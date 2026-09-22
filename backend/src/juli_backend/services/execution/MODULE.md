@@ -23,6 +23,12 @@ sandbox write guard contract, idempotency key threading, and error taxonomy.
 - `load_sandbox_write_resources(session, app_key, app_secret)` — SANDBOX_VN write path for real tools
 - `build_sandbox_write_resources(config)` — lower-level guard entry when config is already resolved
 - `is_noop_tool(tool_name)` — smoke-test tools that skip TikTok write guards
+- `screen_and_reencode_image(image_bytes, filename)` — `file_screening.py`'s
+  seller-image screen and re-encode, called by the agent's
+  `upload_product_image` WRITE handler before any vendor upload. Documented
+  here by #1704, which was the first change to touch that handler's module
+  since the module-boundary gate stopped being vacuous (#1859) and so the
+  first to surface a cross-module import that was already there
 - `POST /v1/executions` — enqueue approved tool (202); optional `idempotency_key`
 - `GET /v1/executions/{id}` — query status, outcome, `error`, `error_category`
 - Celery task `juli_backend.execute_approved_tool`

@@ -41,7 +41,6 @@ from __future__ import annotations
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -101,7 +100,10 @@ from juli_backend.services.agent.tools.registry import (
     ToolRegistry,
     ToolSpec,
 )
-from juli_backend.services.agent.tools.terminal import TERMINAL_TOOL_HANDLERS
+from juli_backend.services.agent.tools.terminal import (
+    TERMINAL_TOOL_HANDLERS,
+    ConcludeWithoutChangesInput,
+)
 from tests.support.tool_domains import (
     SKU_SET_SUBJECT_TYPE,
     TEST_INVENTORY_DOMAIN,
@@ -156,22 +158,22 @@ class _FakeProductsResource:
 
 def _read_resources(products: _FakeProductsResource) -> ProductionReadResources:
     return ProductionReadResources(
-        authorization=None,  # type: ignore[arg-type]
-        orders=None,  # type: ignore[arg-type]
-        products=products,  # type: ignore[arg-type]
-        returns=None,  # type: ignore[arg-type]
-        inventory=None,  # type: ignore[arg-type]
-        analytics=None,  # type: ignore[arg-type]
-        promotion=None,  # type: ignore[arg-type]
+        authorization=None,
+        orders=None,
+        products=products,
+        returns=None,
+        inventory=None,
+        analytics=None,
+        promotion=None,
     )
 
 
 def _write_resources(products: _FakeProductsResource) -> SandboxWriteResources:
     return SandboxWriteResources(
-        inventory=None,  # type: ignore[arg-type]
-        products=products,  # type: ignore[arg-type]
-        fulfillment=None,  # type: ignore[arg-type]
-        promotion=None,  # type: ignore[arg-type]
+        inventory=None,
+        products=products,
+        fulfillment=None,
+        promotion=None,
     )
 
 
@@ -196,7 +198,10 @@ def _executor_kwargs(products: _FakeProductsResource, *, resourced: bool) -> dic
         "read_resources": _read_resources(products) if resourced else None,
         "write_resources": _write_resources(products) if resourced else None,
         "product_id": _BOUND_PRODUCT_ID,
-        "sku_refs": {"S1": "vendor-sku-1"},
+        # "1" is what `_sample_params` fills a required `str` field with, so
+        # `update_product_price` resolves its sku_ref and actually reaches the
+        # vendor call rather than both paths merely failing the same way.
+        "sku_refs": {"S1": "vendor-sku-1", "1": "vendor-sku-1"},
         "staged_image_uri": "tos://staged-1",
         "pending_image_bytes": (
             b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
@@ -287,7 +292,7 @@ def _outcome(call) -> tuple[Any, ...]:
     ones."""
     try:
         return ("returned", call())
-    except Exception as exc:  # noqa: BLE001 - the exception IS the outcome here
+    except Exception as exc:
         return ("raised", type(exc).__name__, str(exc))
 
 
@@ -326,52 +331,54 @@ def _sample_params(model: type[BaseModel]) -> BaseModel:
 # --- AC1: the product domain migrated with zero behaviour change ----------------
 
 
+def test_product_domain_migration_is_behaviour_preserving():
+    """Every tool in the REAL production registry dispatches, through the
+    real `ProductToolExecutor`, to the same outcome the pre-#1704 if/elif
+    produced — in both executor configurations, happy and resource-less.
+
+    The set iterated over is the registry's own, so a tool added or removed
+    moves this test with it; nothing here names a tool.
+    """
+    registry = build_product_tool_registry()
+    specs = registry.list_all()
+    assert specs, "the production registry must not be empty"
+
+    compared = 0
+    for spec in specs:
+        params = _sample_params(spec.input_model)
+        for resourced in (True, False):
+            legacy_products = _FakeProductsResource()
+            legacy_kwargs = _executor_kwargs(legacy_products, resourced=resourced)
+            legacy = _outcome(
+                lambda: _legacy_dispatch(
+                    tool_name=spec.name,
+                    spec=spec,
+                    params=params,
+                    kwargs=legacy_kwargs,
+                )
+            )
+
+            domain_products = _FakeProductsResource()
+            executor = ProductToolExecutor(
+                registry=registry,
+                **_executor_kwargs(domain_products, resourced=resourced),
+            )
+            current = _outcome(lambda: executor.execute(tool_name=spec.name, params=params))
+
+            assert current == legacy, (
+                f"{spec.name!r} (resourced={resourced}) dispatched differently "
+                f"after #1704: {current!r} vs {legacy!r}"
+            )
+            assert domain_products.calls == legacy_products.calls, (
+                f"{spec.name!r} (resourced={resourced}) made different vendor calls after #1704"
+            )
+            compared += 1
+
+    assert compared == len(specs) * 2
+
+
 class TestProductDomainMigrationIsBehaviourPreserving:
-    def test_product_domain_migration_is_behaviour_preserving(self):
-        """Every tool in the REAL production registry dispatches, through the
-        real `ProductToolExecutor`, to the same outcome the pre-#1704
-        if/elif produced — in both executor configurations, happy and
-        resource-less.
-
-        The set iterated over is the registry's own, so a tool added or
-        removed moves this test with it; nothing here names a tool.
-        """
-        registry = build_product_tool_registry()
-        specs = registry.list_all()
-        assert specs, "the production registry must not be empty"
-
-        compared = 0
-        for spec in specs:
-            params = _sample_params(spec.input_model)
-            for resourced in (True, False):
-                legacy_products = _FakeProductsResource()
-                legacy_kwargs = _executor_kwargs(legacy_products, resourced=resourced)
-                legacy = _outcome(
-                    lambda: _legacy_dispatch(
-                        tool_name=spec.name,
-                        spec=spec,
-                        params=params,
-                        kwargs=legacy_kwargs,
-                    )
-                )
-
-                domain_products = _FakeProductsResource()
-                executor = ProductToolExecutor(
-                    registry=registry,
-                    **_executor_kwargs(domain_products, resourced=resourced),
-                )
-                current = _outcome(lambda: executor.execute(tool_name=spec.name, params=params))
-
-                assert current == legacy, (
-                    f"{spec.name!r} (resourced={resourced}) dispatched differently "
-                    f"after #1704: {current!r} vs {legacy!r}"
-                )
-                assert domain_products.calls == legacy_products.calls, (
-                    f"{spec.name!r} (resourced={resourced}) made different vendor calls after #1704"
-                )
-                compared += 1
-
-        assert compared == len(specs) * 2
+    """The derived reachability assertions the criterion above rests on."""
 
     def test_every_registered_tool_resolves_to_the_handler_it_resolved_to_before(self):
         """The object identity check, tool by tool over the real registry.
@@ -404,30 +411,37 @@ class TestProductDomainMigrationIsBehaviourPreserving:
 # --- AC2: a non-product domain gets a subject-generic context -------------------
 
 
+def test_non_product_domain_receives_subject_generic_context():
+    """A run whose subject is a SKU set calls the test-only `inventory`
+    domain's READ tool, and the handler is handed a context carrying THAT
+    subject and no product id."""
+    recorder = InventoryToolRecorder()
+    registry = ToolRegistry()
+    register_inventory_tools(registry)
+    subject = RunSubject(subject_type=SKU_SET_SUBJECT_TYPE, subject_ref="sku-set-7")
+
+    with tool_domain_registered_for_test(make_inventory_domain(recorder)):
+        executor = DomainToolExecutor(registry=registry, subject=subject)
+        result = executor.execute(
+            tool_name=TEST_INVENTORY_READ_TOOL,
+            params=_sample_params(registry.get(TEST_INVENTORY_READ_TOOL).input_model),
+        )
+
+    assert result == {"subject_type": SKU_SET_SUBJECT_TYPE, "subject_ref": "sku-set-7"}
+
+    (context,) = recorder.contexts
+    assert isinstance(context, ToolContext)
+    assert context.subject == subject
+    # ABSENT, not present-and-None: a context that still carries a product id
+    # for a run about a SKU set is the product assumption this slice removes,
+    # and `is None` would pass on one that still had the field.
+    assert not hasattr(context, "product_id")
+    assert context.binding is None
+
+
 class TestNonProductDomainReceivesSubjectGenericContext:
-    def test_non_product_domain_receives_subject_generic_context(self):
-        recorder = InventoryToolRecorder()
-        registry = ToolRegistry()
-        register_inventory_tools(registry)
-        subject = RunSubject(subject_type=SKU_SET_SUBJECT_TYPE, subject_ref="sku-set-7")
-
-        with tool_domain_registered_for_test(make_inventory_domain(recorder)):
-            executor = DomainToolExecutor(registry=registry, subject=subject)
-            result = executor.execute(
-                tool_name=TEST_INVENTORY_READ_TOOL,
-                params=_sample_params(registry.get(TEST_INVENTORY_READ_TOOL).input_model),
-            )
-
-        assert result == {"subject_type": SKU_SET_SUBJECT_TYPE, "subject_ref": "sku-set-7"}
-
-        (context,) = recorder.contexts
-        assert isinstance(context, ToolContext)
-        assert context.subject == subject
-        # ABSENT, not present-and-None: a context that still carries a product
-        # id for a run about a SKU set is the product assumption this slice
-        # removes, and `is None` would pass on one that still had the field.
-        assert not hasattr(context, "product_id")
-        assert context.binding is None
+    """The two halves the criterion above depends on: the subject comes from
+    the run, and the product domain still gets its own bound context."""
 
     def test_the_subject_comes_from_the_run_not_from_params(self):
         """A `params` object carrying its own subject cannot move the context.
@@ -479,36 +493,39 @@ class TestNonProductDomainReceivesSubjectGenericContext:
 # --- AC3: a domainless spec is refused ------------------------------------------
 
 
+def _domainless_spec_kwargs() -> dict[str, Any]:
+    class _In(BaseModel):
+        pass
+
+    class _Out(BaseModel):
+        pass
+
+    return {
+        "name": "a_tool_with_no_domain",
+        "description": "A tool nobody gave a domain.",
+        "seller_rationale_vi": "Công cụ không có miền (test-only).",
+        "input_model": _In,
+        "output_model": _Out,
+        "classification": ToolClassification.READ,
+        "policy": ToolPolicy.AUTO,
+        "timeout_seconds": 10,
+    }
+
+
+def test_domainless_spec_is_refused():
+    """Refused at CONSTRUCTION, which for a module-level spec is import time
+    — the moment the module registering it is loaded, not the first dispatch
+    that reaches it in a seller's run."""
+    with pytest.raises(DomainlessToolError, match="declares no domain"):
+        ToolSpec(**_domainless_spec_kwargs())
+
+
 class TestDomainlessSpecIsRefused:
-    @staticmethod
-    def _spec_kwargs() -> dict[str, Any]:
-        class _In(BaseModel):
-            pass
-
-        class _Out(BaseModel):
-            pass
-
-        return {
-            "name": "a_tool_with_no_domain",
-            "description": "A tool nobody gave a domain.",
-            "seller_rationale_vi": "Công cụ không có miền (test-only).",
-            "input_model": _In,
-            "output_model": _Out,
-            "classification": ToolClassification.READ,
-            "policy": ToolPolicy.AUTO,
-            "timeout_seconds": 10,
-        }
-
-    def test_domainless_spec_is_refused(self):
-        """Refused at CONSTRUCTION, which for a module-level spec is import
-        time — the moment the module registering it is loaded, not the first
-        dispatch that reaches it in a seller's run."""
-        with pytest.raises(DomainlessToolError, match="declares no domain"):
-            ToolSpec(**self._spec_kwargs())
+    """The registry's own door, and the real registry's conformance."""
 
     def test_an_empty_domain_string_is_refused_too(self):
         with pytest.raises(DomainlessToolError):
-            ToolSpec(domain="", **self._spec_kwargs())
+            ToolSpec(domain="", **_domainless_spec_kwargs())
 
     def test_the_registry_refuses_a_domainless_spec_that_evaded_construction(self):
         """The registry is the second closed door.
@@ -517,7 +534,7 @@ class TestDomainlessSpecIsRefused:
         `__post_init__` alone is not the whole guard: a name in the registry
         is a name `WorkflowRunner` offers the model.
         """
-        spec = ToolSpec(domain=PRODUCT_DOMAIN, **self._spec_kwargs())
+        spec = ToolSpec(domain=PRODUCT_DOMAIN, **_domainless_spec_kwargs())
         object.__setattr__(spec, "domain", "")
 
         registry = ToolRegistry()
@@ -856,6 +873,6 @@ class TestToolDomainRegistryContract:
         )
         result = executor.execute(
             tool_name="conclude_without_changes",
-            params=SimpleNamespace(reason="nothing to do"),  # type: ignore[arg-type]
+            params=ConcludeWithoutChangesInput(reason="nothing to do"),
         )
         assert result == {"acknowledged": True}

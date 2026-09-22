@@ -60,11 +60,6 @@ def get_registered_tool_domains() -> Mapping[str, ToolDomain]:
     return MappingProxyType(_TOOL_DOMAIN_REGISTRY)
 
 
-def is_tool_domain_registered(name: str) -> bool:
-    """Whether `name` has a registered domain."""
-    return name in _TOOL_DOMAIN_REGISTRY
-
-
 def get_tool_domain(name: str) -> ToolDomain:
     """The `ToolDomain` registered under `name`.
 
@@ -149,7 +144,6 @@ __all__ = [
     "bindable_subject_types",
     "get_registered_tool_domains",
     "get_tool_domain",
-    "is_tool_domain_registered",
     "reachable_tool_names",
     "tool_domain_registered_for_test",
 ]

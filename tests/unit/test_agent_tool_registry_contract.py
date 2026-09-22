@@ -12,6 +12,11 @@ AC3 → adding a capability without a catalog relationship, or removing one, fai
 AC4 → follows the `test_action_cards_contract.py` convention: module docstring
       mapping issue -> AC lines, `from __future__ import annotations`,
       class-grouped tests.
+AC6 (#1704) → the capability→catalog assertion gains a DOMAIN dimension: every
+      catalog-mapped capability must also be dispatchable through the
+      `ToolDomain` its own `ToolSpec` declares. Extended, never deleted —
+      a contract assertion dropped because the shape moved is how a contract
+      silently stops being one.
 AC5 → the legacy execution registry (`services/execution/runner.py`) and its
       chains (`listing_handlers.py`, `leakage_handlers.py`) are read-only
       dependencies here — never imported for mutation, never edited
@@ -51,6 +56,8 @@ from collections.abc import Mapping
 
 import pytest
 
+from juli_backend.services.agent.tools.domain_registry import get_registered_tool_domains
+from juli_backend.services.agent.tools.domains import PRODUCT_DOMAIN
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
 from juli_backend.services.agent.tools.registry import ToolRegistry
@@ -118,15 +125,40 @@ def _registered_capability_names(registry: ToolRegistry) -> frozenset[str]:
     return frozenset(spec.name for spec in registry.list_all())
 
 
+def _capability_domains(registry: ToolRegistry) -> Mapping[str, str]:
+    """`capability -> declared tool domain`, read off the real specs (#1704)."""
+    return {spec.name: spec.domain for spec in registry.list_all()}
+
+
+def _reachable_by_domain() -> Mapping[str, frozenset[str]]:
+    """`domain -> the tool names that domain can dispatch`, read off the real
+    domain registry's own handler tables (#1704)."""
+    return {
+        name: frozenset(domain.handlers) for name, domain in get_registered_tool_domains().items()
+    }
+
+
 def _assert_capability_catalog_mapping_is_consistent(
     *,
     registered_capability_names: frozenset[str],
     mapping: Mapping[str, str],
     catalog_workflow_keys: frozenset[str],
+    capability_domains: Mapping[str, str] | None = None,
+    reachable_by_domain: Mapping[str, frozenset[str]] | None = None,
 ) -> None:
-    """The validator under test (AC3): both cross-validation directions, plus
-    the catalog-key sanity check, each failing with a message naming the
-    offending capability.
+    """The validator under test (AC3): both cross-validation directions, the
+    catalog-key sanity check, and — since #1704 — the DOMAIN check, each
+    failing with a message naming the offending capability.
+
+    **The domain dimension (issue #1704, W9-A/P-SHARED-4).** A capability is
+    now mapped in two directions, not one: to the catalog `workflow_key` it
+    serves, and to the `ToolDomain` whose handler table dispatch resolves it
+    through. A capability that is catalog-mapped but whose domain cannot
+    dispatch it is a name the model is offered and the runtime cannot run —
+    the exact "silently stops being reachable" failure the dispatch refactor
+    had to be proved against. The two optional arguments keep every
+    pre-#1704 call site of this validator valid, so the catalog assertion is
+    extended rather than replaced.
 
     This is the function both the real-inputs test (AC1/AC3 "the real thing
     stays green") and the synthetic-inputs tests (AC3 "the check actually
@@ -164,6 +196,22 @@ def _assert_capability_catalog_mapping_is_consistent(
             f"Capability(ies) {offending_capabilities} map to workflow_key(s) "
             f"{sorted(unknown_workflow_keys)} that do not exist in "
             "WORKFLOW_TOOL_CATALOG."
+        )
+
+    if capability_domains is None or reachable_by_domain is None:
+        return
+
+    undispatchable = sorted(
+        name
+        for name in mapping
+        if name not in reachable_by_domain.get(capability_domains.get(name, ""), frozenset())
+    )
+    if undispatchable:
+        raise AssertionError(
+            f"Capability(ies) {undispatchable} are catalog-mapped but their declared "
+            "tool domain registers no handler for them, so a run could never "
+            "dispatch them (issue #1704). Either register the handler in the "
+            "domain's own module or stop offering the capability."
         )
 
 
@@ -222,7 +270,27 @@ class TestCapabilityCatalogMappingCoversTheRealRegistryAndCatalog:
             registered_capability_names=_registered_capability_names(registry),
             mapping=AGENT_CAPABILITY_TO_CATALOG_WORKFLOW_KEY,
             catalog_workflow_keys=frozenset(WORKFLOW_TOOL_CATALOG.keys()),
+            capability_domains=_capability_domains(registry),
+            reachable_by_domain=_reachable_by_domain(),
         )
+
+    def test_every_mapped_capability_is_dispatchable_through_its_declared_domain(self):
+        """The #1704 half of this contract: catalog-mapped AND reachable.
+
+        Derived from the registry's own specs and the domain registry's own
+        handler tables — no second list of names to go stale.
+        """
+        registry = _build_registry()
+        domains = _capability_domains(registry)
+        reachable = _reachable_by_domain()
+        for name in AGENT_CAPABILITY_TO_CATALOG_WORKFLOW_KEY:
+            assert name in reachable[domains[name]], (
+                f"{name!r} declares domain {domains[name]!r} but that domain cannot dispatch it"
+            )
+
+    def test_all_six_capabilities_declare_the_product_domain(self):
+        registry = _build_registry()
+        assert set(_capability_domains(registry).values()) == {PRODUCT_DOMAIN}
 
     def test_mapping_keys_equal_the_six_expected_capabilities(self):
         assert set(AGENT_CAPABILITY_TO_CATALOG_WORKFLOW_KEY.keys()) == (
@@ -261,6 +329,22 @@ class TestCrossValidationNamesTheOffendingCapability:
                 registered_capability_names=registered,
                 mapping=AGENT_CAPABILITY_TO_CATALOG_WORKFLOW_KEY,
                 catalog_workflow_keys=frozenset(WORKFLOW_TOOL_CATALOG.keys()),
+            )
+
+    def test_capability_whose_domain_cannot_dispatch_it_fails_naming_it(self):
+        """AC3 for the #1704 domain dimension: the new check bites, and the
+        message names the capability whose domain lost its handler."""
+        registry = _build_registry()
+        domains = dict(_capability_domains(registry))
+        domains["update_product_price"] = "a_domain_with_no_handler_for_it"
+
+        with pytest.raises(AssertionError, match="update_product_price"):
+            _assert_capability_catalog_mapping_is_consistent(
+                registered_capability_names=_registered_capability_names(registry),
+                mapping=AGENT_CAPABILITY_TO_CATALOG_WORKFLOW_KEY,
+                catalog_workflow_keys=frozenset(WORKFLOW_TOOL_CATALOG.keys()),
+                capability_domains=domains,
+                reachable_by_domain=_reachable_by_domain(),
             )
 
     def test_mapping_entry_pointing_at_an_unknown_workflow_key_fails_naming_the_capability(
