@@ -80,6 +80,7 @@ from juli_backend.services.agent.sanitize import (
     sanitize_images,
     to_json_safe,
 )
+from juli_backend.services.agent.tools.domains import PRODUCT_DOMAIN
 from juli_backend.services.agent.tools.registry import (
     ToolClassification,
     ToolPolicy,
@@ -279,6 +280,7 @@ GET_PRODUCT_INFORMATION_SPEC = ToolSpec(
     classification=ToolClassification.READ,
     policy=ToolPolicy.AUTO,
     timeout_seconds=10,
+    domain=PRODUCT_DOMAIN,
 )
 
 
@@ -368,6 +370,7 @@ GET_SEO_KEYWORDS_SPEC = ToolSpec(
     classification=ToolClassification.READ,
     policy=ToolPolicy.AUTO,
     timeout_seconds=15,
+    domain=PRODUCT_DOMAIN,
 )
 
 
@@ -407,6 +410,7 @@ CHECK_PRODUCT_STATUS_SPEC = ToolSpec(
     classification=ToolClassification.READ,
     policy=ToolPolicy.AUTO,
     timeout_seconds=10,
+    domain=PRODUCT_DOMAIN,
 )
 
 
@@ -514,6 +518,7 @@ INSPECT_PRODUCT_IMAGE_SPEC = ToolSpec(
     # in ~5-10s against real product images, so this is ample headroom without
     # widening a safety bound as a side effect of a tool swap.
     timeout_seconds=30,
+    domain=PRODUCT_DOMAIN,
 )
 
 

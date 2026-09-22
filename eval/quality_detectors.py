@@ -1241,29 +1241,34 @@ def build_report(
 #: rather than reconciled away. Regenerate with
 #: ``python -m eval.quality_detectors scan`` and update both numbers together.
 MEASURED_ZERO_ASSERTION_TESTS = 49
-MEASURED_TEST_FUNCTIONS = 5523
+MEASURED_TEST_FUNCTIONS = 5566
 #: Test modules the corpus figure is spread over. Like the corpus it is a
 #: denominator, not a claim, so it is held to a tolerance rather than pinned.
-MEASURED_TEST_MODULES = 562
+MEASURED_TEST_MODULES = 564
 
 #: The measured decomposition that reconciles the two figures. Each layer
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
 #: the third layer, this module's headline on the fifth.
 RECONCILIATION_LAYERS: dict[str, int] = {
-    # 439 -> 440 with #1702, derived from the tree after rebasing onto e6fa7133.
-    # The top layer is a repo-wide count, so it moves whenever main does (438 at
-    # d33c4f5b, 439 once #2072 landed) and has to be re-derived on every rebase,
-    # never carried over. The +1 is two tests whose only verification is
-    # `pytest.raises` (`test_agent_approval_transaction.py::
-    # TestCardSubjectIsTheRunsSubject::
-    # test_a_product_subject_that_is_not_a_uuid_is_refused_not_passed_to_the_fk`
-    # and `::test_a_subject_product_from_another_shop_is_refused`, both re-checked
-    # against this tree rather than assumed), less one this layer already counted
-    # that was deleted with the zero-products refusal it pinned. Every layer below
-    # is UNCHANGED, which is the check that matters and the signature that nothing
-    # about this slice moved: the second layer credits `pytest.raises`, so both new
-    # tests drop out of it and the headline is untouched at 49.
-    "no_assert_statement": 441,
+    # 441 -> 449 with #1704, re-derived from this branch's tree after rebasing
+    # onto d34b542a by `python -m eval.quality_detectors reconcile --write`,
+    # never hand-typed and never carried over from the pre-rebase reading (448
+    # on the old base). The top layer is a repo-wide count, so it moves whenever
+    # main does -- 438 at d33c4f5b, 439 once #2072 landed, 440 with #1702, 441
+    # once #1703 and #1950 merged -- and has to be re-derived on every rebase.
+    # The +8 is eight tests whose only verification is `pytest.raises`, each
+    # named from this tree by `reconciliation_identities` rather than assumed:
+    # seven in `test_tool_dispatcher_domains.py` (`::test_domainless_spec_is_
+    # refused`, the empty-domain-string and registry-evasion refusals, the two
+    # cross-domain refusals, and the test-domain registry's shadow and
+    # empty-`subject_types` refusals) and one in
+    # `test_agent_tool_registry_contract.py`
+    # (`::test_capability_whose_domain_cannot_dispatch_it_fails_naming_it`).
+    # Every layer below is UNCHANGED at 121/106/106/53/49, which is the check
+    # that matters and the signature that nothing about this slice moved: the
+    # second layer credits `pytest.raises`, so all eight drop out of it and the
+    # headline is untouched at 49.
+    "no_assert_statement": 449,
     "and_no_pytest_raises": 121,
     "and_no_mock_assert_called": 106,
     "and_no_unittest_self_assert": 106,
@@ -1284,8 +1289,8 @@ RECONCILIATION: dict[str, Any] = {
     "note": (
         "Neither figure is wrong; they count different things, and the layer "
         "decomposition above shows exactly where they part. Measured here: 49 "
-        "zero-assertion tests in a corpus of 5,523 test functions over tests/ "
-        "backend/ scripts/ agent-runtime/ eval/ (562 test modules). The prior "
+        "zero-assertion tests in a corpus of 5,566 test functions over tests/ "
+        "backend/ scripts/ agent-runtime/ eval/ (564 test modules). The prior "
         "~97-of-4,048 reading corresponds to the `and_no_mock_assert_called` "
         "layer — a detector that credits `pytest.raises` and `mock.assert_called*` "
         "as assertions but not delegation to a same-file asserting helper. That "
@@ -1297,7 +1302,7 @@ RECONCILIATION: dict[str, Any] = {
         "diverges "
         "mechanically as the repository grows and says nothing about the code "
         "(#1682). The rates are recorded beside it as readings, not as the claim "
-        "(2.40% then, 1.92% now). "
+        "(2.40% then, 1.90% now). "
         "So the prior measurement "
         "reproduces, and the gap between 106 and 49 is 53 tests whose only "
         "assertion is inside a "

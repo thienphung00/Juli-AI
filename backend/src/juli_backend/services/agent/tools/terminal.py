@@ -18,6 +18,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from juli_backend.services.agent.tools.domains import (
+    TERMINAL_DOMAIN,
+    ToolDomain,
+)
 from juli_backend.services.agent.tools.registry import (
     ToolClassification,
     ToolPolicy,
@@ -92,6 +96,7 @@ CONCLUDE_WITHOUT_CHANGES_SPEC = ToolSpec(
     classification=ToolClassification.READ,
     policy=ToolPolicy.AUTO,
     timeout_seconds=1,
+    domain=TERMINAL_DOMAIN,
 )
 
 
@@ -104,6 +109,25 @@ CONCLUDE_WITHOUT_CHANGES_SPEC = ToolSpec(
 TERMINAL_TOOL_HANDLERS: dict[str, Callable[[Any, Any, Any], BaseModel]] = {
     CONCLUDE_WITHOUT_CHANGES_SPEC.name: handle_conclude_without_changes,
 }
+
+
+#: The terminal domain (#1704). Subject-agnostic — a run can conclude
+#: whatever it is about, so `subject_types` is None rather than a list that
+#: would have to grow with every new subject kind — and `takes_resources` is
+#: False, which is what preserves the pre-#1704 dispatch exactly: the
+#: executor's if/elif checked `TERMINAL_TOOL_HANDLERS` BEFORE the
+#: READ/WRITE branch, so a terminal tool never touched `read_resources` and
+#: never failed on their absence. `bind_context` is left at the default
+#: identity: the handler ignores its context entirely (see
+#: `handle_conclude_without_changes`), so it now receives the generic
+#: `ToolContext` where it used to receive a `ProductToolContext` it did not
+#: read.
+TERMINAL_TOOL_DOMAIN = ToolDomain(
+    name=TERMINAL_DOMAIN,
+    handlers=TERMINAL_TOOL_HANDLERS,
+    subject_types=None,
+    takes_resources=False,
+)
 
 
 def register_terminal_tools(registry: ToolRegistry) -> None:

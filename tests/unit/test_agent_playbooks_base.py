@@ -60,6 +60,7 @@ def _make_registry(*names: str) -> ToolRegistry:
                 classification=ToolClassification.READ,
                 policy=ToolPolicy.AUTO,
                 timeout_seconds=10,
+                domain="product",
             )
         )
     return registry

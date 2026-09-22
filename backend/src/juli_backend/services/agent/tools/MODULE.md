@@ -19,7 +19,10 @@ stays untouched.
   #1904), `seller_rationale_vi` (required; dictionary-governed seller-facing Vietnamese —
   distinct from `description`, issue #1904/W6-FIX), `input_model`, `output_model`
   (Pydantic `BaseModel` subclasses), `classification` (`ToolClassification`), `policy`
-  (`ToolPolicy`), `timeout_seconds`
+  (`ToolPolicy`), `timeout_seconds`, `domain` (issue #1704 — the tool domain dispatch
+  resolves its handler through; a spec naming none is refused at construction, which for
+  a module-level spec is import time, and again by `register`)
+- `DomainlessToolError` — raised for a spec that names no domain
 - `ToolSpec.render_input_schema()` — the model-facing JSON schema, exactly
   `input_model.model_json_schema()`
 - `ToolClassification` — `READ` | `WRITE`
@@ -44,6 +47,24 @@ dispatches a tool call, not by the handler itself — see `product.py`'s module
 docstring. WRITE `output_model`s carry no raw vendor identifier by construction and
 have no vendor-sourced free text/timestamp/money value to shape (they echo
 agent-authored input).
+
+## Tool domains (#1704, W9-A/P-SHARED-4)
+
+`domains.py` holds the types — `ToolDomain`, the subject-generic `ToolContext`,
+`RunSubject`, and the three named refusals (`UnregisteredToolDomainError`,
+`ToolNotInDomainError`, `ToolDomainBindingError`). `domain_registry.py` holds ONE
+explicit dict literal registering them, the shape `playbooks/__init__.py`
+established: import the domain artifact and add one line. `product_domain.py`
+assembles the product domain from `product.py`'s READ table and
+`product_write.py`'s WRITE table (disjointness asserted at import) and unwraps
+the `ProductToolContext` its handlers take; `terminal.py` declares its own,
+subject-agnostic and resource-free.
+
+Dispatch (`runner/tool_executor.py`) resolves a tool's declared domain first,
+so a tool absent from that domain's handler table is unreachable by
+construction and refused by name. Adding a WRITE-CONFIRM capability is one
+handler plus one spec in the domain's own module, and nothing in `runner/`
+moves — the CONFIRM pause hangs off `ToolSpec.policy`, never off the domain.
 
 ## Registry, allowlist and dispatcher — all shipped
 

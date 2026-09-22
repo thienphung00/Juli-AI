@@ -114,6 +114,7 @@ from juli_backend.services.agent.runner.termination import (
     running_seconds_column_value,
 )
 from juli_backend.services.agent.runner.tool_executor import (
+    DomainToolExecutor,
     ProductToolExecutor,
     ToolExecutionError,
     ToolExecutor,
@@ -137,6 +138,7 @@ __all__ = [
     "ConcurrencyMatch",
     "ConversationMessage",
     "ConversationStore",
+    "DomainToolExecutor",
     "IterationGate",
     "IterationGateAction",
     "JsonbConversationStore",

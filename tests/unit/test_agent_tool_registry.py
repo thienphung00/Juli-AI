@@ -57,6 +57,7 @@ def make_get_widget_status_spec() -> ToolSpec:
         classification=ToolClassification.READ,
         policy=ToolPolicy.AUTO,
         timeout_seconds=10,
+        domain="widget",
     )
 
 
@@ -86,6 +87,7 @@ class TestToolSpecAttributes:
                 classification="read",  # type: ignore[arg-type]
                 policy=ToolPolicy.AUTO,
                 timeout_seconds=10,
+                domain="widget",
             )
 
     def test_policy_rejects_free_string(self):
@@ -100,6 +102,7 @@ class TestToolSpecAttributes:
                 classification=ToolClassification.READ,
                 policy="auto",  # type: ignore[arg-type]
                 timeout_seconds=10,
+                domain="widget",
             )
 
     def test_classification_and_policy_are_enum_members(self):
@@ -171,6 +174,7 @@ class TestEnumeration:
             classification=ToolClassification.READ,
             policy=ToolPolicy.AUTO,
             timeout_seconds=5,
+            domain="widget",
         )
 
         registry.register(widget_spec)
@@ -211,6 +215,7 @@ class TestRenderedSchemaIsDerivedFromInputModel:
             classification=ToolClassification.READ,
             policy=ToolPolicy.AUTO,
             timeout_seconds=10,
+            domain="widget",
         )
         widened_spec = ToolSpec(
             name="get_widget_status_v2",
@@ -221,6 +226,7 @@ class TestRenderedSchemaIsDerivedFromInputModel:
             classification=ToolClassification.READ,
             policy=ToolPolicy.AUTO,
             timeout_seconds=10,
+            domain="widget",
         )
 
         narrow_schema = narrow_spec.render_input_schema()
@@ -275,6 +281,7 @@ class TestRenderedSchemaIsModelConsumable:
             classification=ToolClassification.READ,
             policy=ToolPolicy.AUTO,
             timeout_seconds=10,
+            domain="widget",
         )
         schema = spec.render_input_schema()
 

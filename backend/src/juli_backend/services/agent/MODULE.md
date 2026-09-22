@@ -68,6 +68,67 @@ from juli_backend.services.agent.sanitize import (
 )
 ```
 
+Tool domains — issue #1704, W9-A/P-SHARED-4, spec P0-3. A tool domain is the
+family of tools sharing one handler table, one rule for which run subjects
+they act on, and one way of turning the subject-generic tool context into
+whatever their handlers take. Dispatch resolves a tool's declared domain
+first, so a tool absent from that domain's table is unreachable by
+construction and refused by name rather than falling through.
+
+```python
+from juli_backend.services.agent.tools.domains import (
+    PRODUCT_DOMAIN,
+    TERMINAL_DOMAIN,
+    ContextBinder,
+    RunSubject,
+    ToolContext,
+    ToolDomain,
+    ToolDomainBindingError,
+    ToolDomainError,
+    ToolHandler,
+    ToolNotInDomainError,
+    UnregisteredToolDomainError,
+    subject_generic_context,
+)
+from juli_backend.services.agent.tools.domain_registry import (
+    bindable_subject_types,
+    get_registered_tool_domains,
+    get_tool_domain,
+    reachable_tool_names,
+    tool_domain_registered_for_test,
+)
+from juli_backend.services.agent.tools.product_domain import (
+    PRODUCT_SUBJECT_TYPES,
+    PRODUCT_TOOL_DOMAIN,
+    PRODUCT_TOOL_HANDLERS,
+    bind_product_context,
+)
+from juli_backend.services.agent.tools.terminal import TERMINAL_TOOL_DOMAIN
+from juli_backend.services.agent.tools.registry import DomainlessToolError
+from juli_backend.services.agent.runner.tool_executor import DomainToolExecutor
+```
+
+- RunSubject — what a run is about, the workflow_runs subject_type/subject_ref
+  pair #1701 added; server-held run state, never read from tool params
+- ToolContext — the subject-generic per-call context: the run's subject, the
+  already-guarded marketplace resources for this call, and the domain's own
+  opaque binding. Carries no product id, and no field naming any other single
+  subject kind
+- ToolDomain — name, handler table, the subject kinds it acts on (None for
+  subject-agnostic), whether its handlers take resources, and its context
+  binder; handler_for and context_for are the two resolution steps
+- get_tool_domain, get_registered_tool_domains — resolution against one
+  explicit dict literal, shaped after the playbook registry; never a fallback
+  to the product domain
+- reachable_tool_names, bindable_subject_types — derived from the registered
+  domains' own tables, never a second hand-maintained list
+- tool_domain_registered_for_test — the supported test seam for a second
+  domain, refusing to shadow a registered one
+- DomainToolExecutor — the subject-generic ToolExecutor; ProductToolExecutor
+  is its product-bound specialization and keeps its own constructor
+- DomainlessToolError — a tool spec naming no domain, refused at construction
+  (import time for a module-level spec) and again at registration
+
 - `load_banned_patterns() -> tuple[re.Pattern[str], ...]` — compiled patterns,
   cached.
 - `load_banned_pattern_entries() -> tuple[BannedPatternEntry, ...]` — raw

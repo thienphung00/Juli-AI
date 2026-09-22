@@ -173,13 +173,35 @@ class CardSubjectNotApprovable(Exception):
     shop has no products" stopped being a reason approval can fail."""
 
 
-#: Subject kinds `approve_action_card` can bind a run to. ONE entry today,
-#: and widening it is a deliberate act with its own slice (#1704 adds the
-#: non-product subjects: dispatch windows, SKU sets, orders). A card naming
-#: anything else is refused by name rather than coerced -- `workflow_runs`
-#: carries `subject_type`/`subject_ref` for any string, but the run created
-#: here still needs a `product_id` for the worker's `_load_context`, and
-#: inventing one is the substitution this slice exists to delete.
+#: Subject kinds `approve_action_card` can bind a run to. ONE entry today.
+#: A card naming anything else is refused by name rather than coerced --
+#: `workflow_runs` carries `subject_type`/`subject_ref` for any string, but
+#: the run created here still needs a `product_id` for the worker's
+#: `_load_context`, and inventing one is the substitution #1702 deleted.
+#:
+#: **Still one entry after #1704 (W9-A/P-SHARED-4), deliberately.** That
+#: slice made tool dispatch domain-based, and a `ToolDomain` declares the
+#: subject kinds it acts on
+#: (`tools/domain_registry.py::bindable_subject_types`), so the runtime can
+#: now *express* a non-product subject. It cannot yet *run* one: only the
+#: product domain is registered, and
+#: `workers/tasks/agent_workflow.py::_load_context` still loads a `Product`
+#: for every run unconditionally, so a run bound to a SKU set would be
+#: created and then fail in the worker. Widening this set therefore has
+#: four halves that move together, and
+#: `tests/unit/test_tool_dispatcher_domains.py
+#: ::test_bindable_subject_types_and_the_approval_wire_widen_together` is the
+#: tripwire that fails the day one of them moves alone:
+#:
+#: 1. this set, and `bindable_subject_types()` growing a second kind;
+#: 2. `services/action_cards/subjects.py::BINDABLE_SUBJECT_TYPES` -- the set
+#:    the card PRODUCER may emit, added by #1703 after this note was first
+#:    written, and kept identical to this one by its own comment rather than
+#:    by anything mechanical. Emitting a subject kind approve cannot bind
+#:    would refuse every such card at approval;
+#: 3. `ApprovalResult.product_id` -> `uuid.UUID | None`, and
+#:    `DemoDecisionApproveData.product_id` with it (see that field's note);
+#: 4. `_load_context`'s unconditional `Product` load.
 _BINDABLE_SUBJECT_TYPES: frozenset[str] = frozenset({"product"})
 
 #: `action_cards.subject_type`'s #1701 backfill value: "this card predates
@@ -194,10 +216,13 @@ class ApprovalResult:
     action_card_id: uuid.UUID
     approval_id: uuid.UUID
     #: The run's subject, verbatim from the card (#1702). `product_id` stays
-    #: a `uuid.UUID` rather than widening to `str` because only a product
+    #: a non-optional `uuid.UUID` rather than widening because only a product
     #: subject is bindable today (`_BINDABLE_SUBJECT_TYPES`) and
     #: `DemoDecisionApproveData.product_id` is a non-optional `uuid.UUID` on
-    #: the wire; #1704 widens both together.
+    #: the wire. #1704 did NOT widen the pair: it made the *precondition* for
+    #: widening explicit and executable instead -- see
+    #: `_BINDABLE_SUBJECT_TYPES`' own note for the four halves that must move
+    #: together, and the tripwire test that fails if one moves alone.
     product_id: uuid.UUID
     workflow_key: str
     subject_type: str

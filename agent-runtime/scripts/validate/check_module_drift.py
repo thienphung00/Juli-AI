@@ -1093,7 +1093,6 @@ KNOWN_DRIFT_ALLOWLIST: dict[str, dict[str, AllowedDrift]] = {
                 "run_replenish_inventory_chain",
                 "run_tool_async",
                 "run_update_activity_chain",
-                "screen_and_reencode_image",
                 "screen_upload_file",
                 "update_activity_handler",
             ),

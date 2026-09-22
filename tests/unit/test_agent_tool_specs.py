@@ -157,6 +157,11 @@ def _base_kwargs() -> dict:
         "classification": ToolClassification.READ,
         "policy": ToolPolicy.AUTO,
         "timeout_seconds": 10,
+        # #1704: every spec names a tool domain. A fixture spec is not a real
+        # capability, so it names a fixture domain -- `ToolRegistry.register`
+        # requires *a* domain, and "names a registered domain" is asserted
+        # against the real registry in `test_tool_dispatcher_domains.py`.
+        "domain": "fixture",
     }
 
 

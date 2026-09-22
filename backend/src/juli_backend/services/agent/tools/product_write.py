@@ -84,6 +84,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from juli_backend.integrations.tiktok import SandboxWriteResources
+from juli_backend.services.agent.tools.domains import PRODUCT_DOMAIN
 from juli_backend.services.agent.tools.product import ProductToolContext
 from juli_backend.services.agent.tools.registry import (
     ToolClassification,
@@ -172,6 +173,7 @@ UPLOAD_PRODUCT_IMAGE_SPEC = ToolSpec(
     classification=ToolClassification.WRITE,
     policy=ToolPolicy.AUTO,
     timeout_seconds=30,
+    domain=PRODUCT_DOMAIN,
 )
 
 
@@ -352,6 +354,7 @@ UPDATE_PRODUCT_LISTING_SPEC = ToolSpec(
     classification=ToolClassification.WRITE,
     policy=ToolPolicy.CONFIRM,
     timeout_seconds=20,
+    domain=PRODUCT_DOMAIN,
 )
 
 
@@ -424,6 +427,7 @@ UPDATE_PRODUCT_PRICE_SPEC = ToolSpec(
     classification=ToolClassification.WRITE,
     policy=ToolPolicy.CONFIRM,
     timeout_seconds=20,
+    domain=PRODUCT_DOMAIN,
 )
 
 

@@ -82,6 +82,7 @@ def _register_confirm_tool(registry: ToolRegistry) -> None:
         classification=ToolClassification.WRITE,
         policy=ToolPolicy.CONFIRM,
         timeout_seconds=30,
+        domain="product",
     )
     registry._specs[_CONFIRM_TOOL_NAME] = spec
 

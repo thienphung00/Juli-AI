@@ -291,6 +291,7 @@ class TestRegisteringANewWriteToolRequiresNoReaderEdit:
             classification=ToolClassification.WRITE,
             policy=ToolPolicy.CONFIRM,
             timeout_seconds=20,
+            domain="product",
         )
 
         real_build_product_tool_registry = composition_module.build_product_tool_registry

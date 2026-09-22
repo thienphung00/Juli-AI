@@ -7,13 +7,35 @@ decision 1, issue #1119 / AGT-W3A).
 by the time `ToolExecutor.execute` is called, the tool name is known-good and
 `params` is an already-validated `input_model` instance. This module's whole
 job is narrower: resolve the target handler and its marketplace resources,
-build a `ProductToolContext` (`tools/product.py`) from **server-held run
-state bound at construction time** — never from `params`, and never from
-anything the LLM supplied — call the handler, and hand back a plain
-JSON-safe mapping. `WorkflowRunner` is what runs that mapping through
-`guard_inbound_tool_result` (`sanitize/chokepoints.py`) before it reaches the
-conversation; this seam does not call the guard itself, exactly as
-`product.py`'s module docstring describes the boundary.
+build the tool context from **server-held run state bound at construction
+time** — never from `params`, and never from anything the LLM supplied —
+call the handler, and hand back a plain JSON-safe mapping. `WorkflowRunner`
+is what runs that mapping through `guard_inbound_tool_result`
+(`sanitize/chokepoints.py`) before it reaches the conversation; this seam
+does not call the guard itself, exactly as `product.py`'s module docstring
+describes the boundary.
+
+**Dispatch is domain-first (issue #1704, W9-A/P-SHARED-4, spec P0-3).**
+`execute` used to fall through a literal if/elif over three module-level
+dicts imported at the top of this file — `TERMINAL_TOOL_HANDLERS`, then
+`PRODUCT_READ_TOOL_HANDLERS` for a READ, else `PRODUCT_WRITE_TOOL_HANDLERS`
+— and hard-built a `ProductToolContext(product_id=...)` for every one of
+them. A tool that was not about a product had nowhere to live. Now every
+`ToolSpec` names a `domain`; `tools/domain_registry.py` resolves that name
+to a `ToolDomain`; the domain owns its handler table, the subject kinds it
+acts on, and the rule that turns the subject-generic
+`ToolContext` into whatever its handlers take. `DomainToolExecutor` below is
+the subject-generic half. `ProductToolExecutor` is what it always was — the
+executor bound to one run's product identity — and is now one domain's
+specialization of it rather than the only shape an executor can have.
+
+The refactor is behaviour-preserving by construction: the product domain's
+handler table is the union of the same two dicts (`tools/product_domain.py`,
+which asserts at import that their key sets are disjoint, so keying on the
+name alone cannot reach a different handler than keying on name *and*
+classification did), and the terminal domain declares `takes_resources =
+False`, which reproduces exactly the old "terminal tools are checked first
+and never touch `read_resources`" branch order.
 
 **Why the bound context is constructor state, not `RunState`.** `RunState`
 (`state.py`, #1118) does not carry `product_id`/`sku_refs`/
@@ -21,12 +43,13 @@ conversation; this seam does not call the guard itself, exactly as
 `ProductToolContext` itself, and `state.py` is explicitly not writable by
 this slice. `ProductToolExecutor` is built once per run with the run's bound
 product identity already resolved (by whatever constructs the runner for a
-given `workflow_runs` row — a later slice's job), so every `execute` call
-this run makes reflects that identity, never a value an agent could spoof
-through `ToolCallBlock.arguments`.
+given `workflow_runs` row), so every `execute` call this run makes reflects
+that identity, never a value an agent could spoof through
+`ToolCallBlock.arguments`. The same rule governs the run's `subject`: it is
+`RunSubject` state threaded in at construction, never read from `params`.
 
 **Idempotency-ledger routing (ADR-073 decision 3, issue #1121 / AGT-W3A).**
-`ProductToolExecutor` optionally takes a `ledger` (`ledger.py`'s
+`DomainToolExecutor` optionally takes a `ledger` (`ledger.py`'s
 `ToolExecutionLedger`) and the run's `workflow_run_id`. When both are
 supplied *and* a caller passes `tool_call_id` to `execute` *and* the target
 tool is `WRITE`-classified, dispatch routes through
@@ -76,9 +99,15 @@ READ dispatch additionally re-reads the product once more to call
 `ConcurrencyGuard.record_basis` — the "captured when the agent reads the
 product" half of decision 4 — and a successful WRITE dispatch refreshes the
 basis again afterward (`concurrency.py`'s module docstring, "Post-write
-basis refresh", explains why). `concurrency_guard` defaults to `None`, so
-every pre-existing call site and test keeps behaving byte-for-byte as
-before — additive and opt-in, exactly like the ledger routing above.
+basis refresh", explains why). All three of those live on
+`ProductToolExecutor` as overrides of `DomainToolExecutor`'s three empty
+dispatch hooks (`_before_dispatch`, `_after_read_dispatch`,
+`_after_dispatch`): they read `self._product_id` and
+`write_resources.products`, which are product-domain facts, and a
+subject-generic executor must not carry them. `concurrency_guard` defaults
+to `None`, so every pre-existing call site and test keeps behaving
+byte-for-byte as before — additive and opt-in, exactly like the ledger
+routing above.
 
 **Reachability (issue #1145).** `core.py` now threads `block.call_id` /
 the pending call's `call_id` into every `execute` call as `tool_call_id`
@@ -114,28 +143,37 @@ from juli_backend.services.agent.runner.ledger import (
     ToolExecutionLedger,
     ToolExecutionRequestPayload,
 )
-from juli_backend.services.agent.tools import ToolClassification, ToolRegistry
-from juli_backend.services.agent.tools.product import (
-    PRODUCT_READ_TOOL_HANDLERS,
-    ProductToolContext,
+from juli_backend.services.agent.tools import ToolClassification, ToolRegistry, ToolSpec
+from juli_backend.services.agent.tools.domain_registry import get_tool_domain
+from juli_backend.services.agent.tools.domains import (
+    PRODUCT_DOMAIN,
+    RunSubject,
+    ToolContext,
 )
+from juli_backend.services.agent.tools.product import ProductToolContext
 from juli_backend.services.agent.tools.product_write import (
-    PRODUCT_WRITE_TOOL_HANDLERS,
     UpdateProductListingInput,
     UpdateProductPriceInput,
 )
-from juli_backend.services.agent.tools.terminal import TERMINAL_TOOL_HANDLERS
 
 
 class ToolExecutionError(RuntimeError):
-    """Raised when a tool name resolves against the registry but has no
-    registered handler in either `PRODUCT_READ_TOOL_HANDLERS` or
-    `PRODUCT_WRITE_TOOL_HANDLERS`.
+    """Raised when a tool resolves against the registry but cannot be run on
+    this executor — today, when the call needs a marketplace resource bundle
+    the executor was constructed without.
 
-    A wiring defect (a `ToolSpec` registered without a matching handler
-    entry), never a normal runtime outcome — the playbook allowlist and
-    registry lookup `WorkflowRunner` performs before calling `execute` are
-    what keep an ordinary bad tool name from ever reaching this far.
+    A wiring defect, never a normal runtime outcome — the playbook allowlist
+    and registry lookup `WorkflowRunner` performs before calling `execute`
+    are what keep an ordinary bad tool name from ever reaching this far.
+
+    Since #1704, the *other* wiring defect this used to cover — a `ToolSpec`
+    registered without a matching handler entry — is raised by
+    `tools/domains.py` instead, as `ToolNotInDomainError` (the tool names a
+    domain that registers no handler for it) or `UnregisteredToolDomainError`
+    (the tool names a domain nothing registers). Those are deliberately not
+    subclasses of this class: they live in `tools/`, which `runner/` imports,
+    and the reverse edge would be a cycle. Both are `RuntimeError`s like this
+    one, so a caller catching `RuntimeError` is unaffected.
     """
 
 
@@ -151,6 +189,9 @@ class ToolExecutor(Protocol):
     return value is a plain JSON-safe mapping (the handler's declared
     `output_model` instance, dumped) — not yet run through
     `guard_inbound_tool_result`; that is the caller's job.
+
+    #1704 did not touch this signature: the domain registry sits *behind*
+    this Protocol, so `runner/core.py` and every other caller are unchanged.
     """
 
     def execute(
@@ -158,10 +199,16 @@ class ToolExecutor(Protocol):
     ) -> Mapping[str, Any]: ...
 
 
-class ProductToolExecutor:
-    """The `ToolExecutor` this slice ships: Optimize Product's six product
-    READ/WRITE capabilities (`tools/product.py`, `tools/product_write.py`),
-    constructor-bound to one run's product identity.
+class DomainToolExecutor:
+    """The subject-generic `ToolExecutor` (#1704): resolve the tool's domain,
+    let the domain build the context its handlers take, dispatch.
+
+    Holds only what is true of every domain — the registry, the run's
+    subject, the two already-guarded marketplace resource bundles, and the
+    ledger wiring — and knows nothing about products. A domain-bound
+    subclass supplies its own bound state through `_binding` and its own
+    pre/post-dispatch behaviour through the three hooks below;
+    `ProductToolExecutor` is the one this slice ships.
 
     `read_resources`/`write_resources` are already-built, already-guarded
     marketplace resource bundles (`ProductionReadResources`/
@@ -170,6 +217,161 @@ class ProductToolExecutor:
     left `None` when a run only ever needs the other side (e.g. a read-only
     scripted scenario never needs `write_resources`) — `execute` raises
     plainly if a call needs the missing side.
+    """
+
+    def __init__(
+        self,
+        *,
+        registry: ToolRegistry,
+        subject: RunSubject,
+        read_resources: ProductionReadResources | SandboxWriteResources | None = None,
+        write_resources: SandboxWriteResources | None = None,
+        ledger: ToolExecutionLedger | None = None,
+        workflow_run_id: uuid.UUID | None = None,
+        concurrency_guard: ConcurrencyGuard | None = None,
+    ) -> None:
+        self._registry = registry
+        self._subject = subject
+        self._read_resources = read_resources
+        self._write_resources = write_resources
+        self._ledger = ledger
+        self._workflow_run_id = workflow_run_id
+        self._concurrency_guard = concurrency_guard
+
+    @property
+    def subject(self) -> RunSubject:
+        """The run's subject, as every tool context this executor builds
+        carries it. Read-only: a run's subject is decided at approval
+        (#1702) and never moves mid-run."""
+        return self._subject
+
+    # --- hooks a domain-bound subclass may override ---------------------------
+
+    def _binding(self) -> Any:
+        """The domain-specific bound state to put on `ToolContext.binding`.
+
+        `None` for a domain whose handlers need nothing beyond the subject.
+        Called once per dispatch, so a subclass may rebuild it from mutable
+        constructor state.
+        """
+        return None
+
+    def _build_request_payload(
+        self, *, tool_name: str, params: BaseModel
+    ) -> ToolExecutionRequestPayload | None:
+        """The `payload_json` the ledger persists for a WRITE, or `None`.
+
+        Domain-specific by nature (it names the subject the mutation
+        targets), so the generic executor contributes nothing and the
+        `ToolExecution` row keeps its model default (`"{}"`).
+        """
+        return None
+
+    def _before_dispatch(self, *, tool_name: str, spec: ToolSpec) -> Mapping[str, Any] | None:
+        """Runs before the ledger-gated/direct dispatch.
+
+        Returning a mapping short-circuits `execute` with that payload and
+        the handler is never called; returning `None` falls through.
+        """
+        return None
+
+    def _after_read_dispatch(self, *, tool_name: str) -> None:
+        """Runs after a READ handler returns, inside the dispatch."""
+
+    def _after_dispatch(self, *, tool_name: str, spec: ToolSpec) -> None:
+        """Runs after a successful dispatch, ledger-gated or direct."""
+
+    # --- dispatch -------------------------------------------------------------
+
+    def execute(
+        self, *, tool_name: str, params: BaseModel, tool_call_id: str | None = None
+    ) -> Mapping[str, Any]:
+        spec = self._registry.get(tool_name)
+
+        def _dispatch() -> Mapping[str, Any]:
+            # Resolved inside the dispatch, not before the guard below, so a
+            # wiring defect surfaces at exactly the point the pre-#1704
+            # if/elif would have raised — after the concurrency check, and
+            # inside the ledger's `perform` when one is configured.
+            domain = get_tool_domain(spec.domain)
+            handler = domain.handler_for(tool_name)
+            # Domain grounds first: a run bound to a subject this domain does
+            # not act on is refused by name here, BEFORE the resource
+            # selection below could refuse it for the unrelated reason that
+            # this executor happens to carry no bundle.
+            domain.check_subject(self._subject)
+
+            if not domain.takes_resources:
+                resources: Any = None
+            elif spec.classification is ToolClassification.READ:
+                if self._read_resources is None:
+                    raise ToolExecutionError(
+                        f"Tool {tool_name!r} requires read_resources, but this "
+                        f"{type(self).__name__} was constructed without them."
+                    )
+                resources = self._read_resources
+            else:
+                if self._write_resources is None:
+                    raise ToolExecutionError(
+                        f"Tool {tool_name!r} requires write_resources, but this "
+                        f"{type(self).__name__} was constructed without them."
+                    )
+                resources = self._write_resources
+
+            context = ToolContext(
+                subject=self._subject, resources=resources, binding=self._binding()
+            )
+            result = handler(resources, domain.context_for(context), params)
+
+            if domain.takes_resources and spec.classification is ToolClassification.READ:
+                self._after_read_dispatch(tool_name=tool_name)
+
+            return result.model_dump(mode="json")
+
+        short_circuit = self._before_dispatch(tool_name=tool_name, spec=spec)
+        if short_circuit is not None:
+            return short_circuit
+
+        # ADR-073 decision 3 (#1121): WRITE calls route through the ledger
+        # only when the caller opted in with all three of ledger,
+        # workflow_run_id, and tool_call_id — see module docstring. READ
+        # calls never take this branch, satisfying "reads skip the ledger
+        # entirely" unconditionally.
+        if (
+            spec.classification is ToolClassification.WRITE
+            and self._ledger is not None
+            and self._workflow_run_id is not None
+            and tool_call_id is not None
+        ):
+            result = self._ledger.execute_write(
+                workflow_run_id=self._workflow_run_id,
+                tool_call_id=tool_call_id,
+                operation=tool_name,
+                perform=_dispatch,
+                verify_applied=None,
+                request_payload=self._build_request_payload(tool_name=tool_name, params=params),
+            )
+        else:
+            result = _dispatch()
+
+        self._after_dispatch(tool_name=tool_name, spec=spec)
+
+        return result
+
+
+class ProductToolExecutor(DomainToolExecutor):
+    """The product domain's `DomainToolExecutor`: Optimize Product's seven
+    product READ/WRITE capabilities (`tools/product.py`,
+    `tools/product_write.py`), constructor-bound to one run's product
+    identity, plus the terminal tools any run may call.
+
+    Its subject is `('product', product_id)` unless the caller passes a
+    `subject` explicitly. The default exists because the only construction
+    site in production (`workers/tasks/agent_workflow.py::_construct_runner`)
+    binds the run's product and does not yet read the run row's own
+    `subject_type`/`subject_ref` — threading those through is #1710's, which
+    shares this module; the `subject=` keyword is the seam it needs and is
+    already honoured here.
     """
 
     def __init__(
@@ -187,10 +389,17 @@ class ProductToolExecutor:
         ledger: ToolExecutionLedger | None = None,
         workflow_run_id: uuid.UUID | None = None,
         concurrency_guard: ConcurrencyGuard | None = None,
+        subject: RunSubject | None = None,
     ) -> None:
-        self._registry = registry
-        self._read_resources = read_resources
-        self._write_resources = write_resources
+        super().__init__(
+            registry=registry,
+            subject=subject or RunSubject(subject_type=PRODUCT_DOMAIN, subject_ref=product_id),
+            read_resources=read_resources,
+            write_resources=write_resources,
+            ledger=ledger,
+            workflow_run_id=workflow_run_id,
+            concurrency_guard=concurrency_guard,
+        )
         self._product_id = product_id
         self._sku_refs = dict(sku_refs or {})
         self._staged_image_uri = staged_image_uri
@@ -203,9 +412,83 @@ class ProductToolExecutor:
         # forward so update_product_listing can derive required fields without
         # a second vendor call. Comes from RunState on the resume leg.
         self._product_detail = product_detail
-        self._ledger = ledger
-        self._workflow_run_id = workflow_run_id
-        self._concurrency_guard = concurrency_guard
+
+    def _binding(self) -> ProductToolContext:
+        """The `ProductToolContext` the product domain unwraps and hands to
+        its handlers (`tools/product_domain.py::bind_product_context`).
+
+        Built per dispatch from constructor-bound state, exactly as the
+        pre-#1704 `_dispatch` built it inline — never from `params`.
+        """
+        return ProductToolContext(
+            product_id=self._product_id,
+            sku_refs=self._sku_refs,
+            staged_image_uri=self._staged_image_uri,
+            pending_image_bytes=self._pending_image_bytes,
+            image_inspector=self._image_inspector,
+            product_detail=self._product_detail,
+        )
+
+    def _is_scoped_write(self, *, tool_name: str, spec: ToolSpec) -> bool:
+        return (
+            spec.classification is ToolClassification.WRITE
+            and tool_name in FIELD_SCOPE_BY_OPERATION
+            and self._concurrency_guard is not None
+            and self._write_resources is not None
+        )
+
+    def _before_dispatch(self, *, tool_name: str, spec: ToolSpec) -> Mapping[str, Any] | None:
+        """ADR-073 decision 4 (#1122): a scoped WRITE with a configured
+        concurrency_guard is checked *before* the ledger-gated/direct
+        dispatch ever runs. A conflict short-circuits `execute` entirely —
+        the dispatch (and therefore the ledger and any vendor write call) is
+        never reached, which is the whole of how "rejected before signing,
+        zero vendor calls" holds. A second same-operation mismatch raises
+        `ConcurrencyExhaustedError` out of `execute`, uncaught here
+        (mirroring `ToolExecutionUnrecoverableError`'s propagation) —
+        `WorkflowRunner` (`core.py`) is what catches it and translates it
+        into a terminal `stop_reason=concurrency_conflict` run (#1172)."""
+        if not self._is_scoped_write(tool_name=tool_name, spec=spec):
+            return None
+        assert self._write_resources is not None  # narrowed by _is_scoped_write
+        assert self._concurrency_guard is not None
+        raw = self._write_resources.products.get_details(self._product_id)
+        check = self._concurrency_guard.check_before_write(
+            operation=tool_name, current_fields=extract_mutable_fields(raw)
+        )
+        if isinstance(check, ConcurrencyConflict):
+            return dict(check.payload)
+        return None
+
+    def _after_read_dispatch(self, *, tool_name: str) -> None:
+        if tool_name != "get_product_information" or self._concurrency_guard is None:
+            return
+        assert self._read_resources is not None  # a READ dispatch got this far
+        # ADR-073 decision 4: "captured when the agent reads the product" —
+        # a dedicated re-read, independent of the handler's own sanitized
+        # output (see concurrency.py's module docstring for why this module
+        # never reuses tools/product.py's sanitize-shaped result for
+        # hashing).
+        raw = self._read_resources.products.get_details(self._product_id)
+        self._concurrency_guard.record_basis(extract_mutable_fields(raw))
+        # #1389: keep the RAW detail too, not just the hashes derived from
+        # it. The B-4 edit body needs this product's own category_id, skus
+        # and package_weight, and the write runs on the RESUME leg where
+        # get_product_information never runs again. The guard is the object
+        # both the executor and the runner hold, so it is what carries this
+        # to `_sync_product_detail` and on into RunState.
+        self._concurrency_guard.set_product_detail(raw)
+
+    def _after_dispatch(self, *, tool_name: str, spec: ToolSpec) -> None:
+        if not self._is_scoped_write(tool_name=tool_name, spec=spec):
+            return
+        assert self._write_resources is not None
+        assert self._concurrency_guard is not None
+        # Post-write basis refresh (concurrency.py's module docstring):
+        # this run's own successful write must not be mistaken for a
+        # competing edit on a later same-operation call.
+        raw = self._write_resources.products.get_details(self._product_id)
+        self._concurrency_guard.record_basis(extract_mutable_fields(raw))
 
     def _build_request_payload(
         self, *, tool_name: str, params: BaseModel
@@ -249,134 +532,9 @@ class ProductToolExecutor:
             )
         return None
 
-    def execute(
-        self, *, tool_name: str, params: BaseModel, tool_call_id: str | None = None
-    ) -> Mapping[str, Any]:
-        spec = self._registry.get(tool_name)
-        is_scoped_write = (
-            spec.classification is ToolClassification.WRITE
-            and tool_name in FIELD_SCOPE_BY_OPERATION
-        )
-
-        def _dispatch() -> Mapping[str, Any]:
-            context = ProductToolContext(
-                product_id=self._product_id,
-                sku_refs=self._sku_refs,
-                staged_image_uri=self._staged_image_uri,
-                pending_image_bytes=self._pending_image_bytes,
-                image_inspector=self._image_inspector,
-                product_detail=self._product_detail,
-            )
-
-            # Check for terminal tools first (ADR-088 decision 1)
-            # Terminal tools are side-effect-free and don't fit the READ/WRITE model
-            if tool_name in TERMINAL_TOOL_HANDLERS:
-                result = TERMINAL_TOOL_HANDLERS[tool_name](None, context, params)
-            elif spec.classification is ToolClassification.READ:
-                read_handler = PRODUCT_READ_TOOL_HANDLERS.get(tool_name)
-                if read_handler is None:
-                    raise ToolExecutionError(
-                        f"Tool {tool_name!r} is registered READ but has no handler in "
-                        "PRODUCT_READ_TOOL_HANDLERS."
-                    )
-                if self._read_resources is None:
-                    raise ToolExecutionError(
-                        f"Tool {tool_name!r} requires read_resources, but this "
-                        "ProductToolExecutor was constructed without them."
-                    )
-                result = read_handler(self._read_resources, context, params)
-                if tool_name == "get_product_information" and self._concurrency_guard is not None:
-                    # ADR-073 decision 4: "captured when the agent reads the
-                    # product" — a dedicated re-read, independent of the
-                    # handler's own sanitized output (see concurrency.py's
-                    # module docstring for why this module never reuses
-                    # tools/product.py's sanitize-shaped result for hashing).
-                    raw = self._read_resources.products.get_details(self._product_id)
-                    self._concurrency_guard.record_basis(extract_mutable_fields(raw))
-                    # #1389: keep the RAW detail too, not just the hashes derived
-                    # from it. The B-4 edit body needs this product's own
-                    # category_id, skus and package_weight, and the write runs on
-                    # the RESUME leg where get_product_information never runs
-                    # again. The guard is the object both the executor and the
-                    # runner hold, so it is what carries this to
-                    # `_sync_product_detail` and on into RunState.
-                    self._concurrency_guard.set_product_detail(raw)
-            else:
-                write_handler = PRODUCT_WRITE_TOOL_HANDLERS.get(tool_name)
-                if write_handler is None:
-                    raise ToolExecutionError(
-                        f"Tool {tool_name!r} is registered WRITE but has no handler in "
-                        "PRODUCT_WRITE_TOOL_HANDLERS."
-                    )
-                if self._write_resources is None:
-                    raise ToolExecutionError(
-                        f"Tool {tool_name!r} requires write_resources, but this "
-                        "ProductToolExecutor was constructed without them."
-                    )
-                result = write_handler(self._write_resources, context, params)
-
-            return result.model_dump(mode="json")
-
-        # ADR-073 decision 4 (#1122): a scoped WRITE with a configured
-        # concurrency_guard is checked *before* the ledger-gated/direct
-        # dispatch below ever runs. A conflict short-circuits execute()
-        # entirely — _dispatch (and therefore the ledger and any vendor
-        # write call) is never reached, which is the whole of how "rejected
-        # before signing, zero vendor calls" holds. A second same-operation
-        # mismatch raises ConcurrencyExhaustedError out of this method,
-        # uncaught here (mirroring ToolExecutionUnrecoverableError's
-        # propagation) — WorkflowRunner (core.py) is what catches it and
-        # translates it into a terminal stop_reason=concurrency_conflict
-        # run (issue #1172).
-        if (
-            is_scoped_write
-            and self._concurrency_guard is not None
-            and self._write_resources is not None
-        ):
-            raw = self._write_resources.products.get_details(self._product_id)
-            check = self._concurrency_guard.check_before_write(
-                operation=tool_name, current_fields=extract_mutable_fields(raw)
-            )
-            if isinstance(check, ConcurrencyConflict):
-                return dict(check.payload)
-
-        # ADR-073 decision 3 (#1121): WRITE calls route through the ledger
-        # only when the caller opted in with all three of ledger,
-        # workflow_run_id, and tool_call_id — see module docstring. READ
-        # calls never take this branch, satisfying "reads skip the ledger
-        # entirely" unconditionally.
-        if (
-            spec.classification is ToolClassification.WRITE
-            and self._ledger is not None
-            and self._workflow_run_id is not None
-            and tool_call_id is not None
-        ):
-            result = self._ledger.execute_write(
-                workflow_run_id=self._workflow_run_id,
-                tool_call_id=tool_call_id,
-                operation=tool_name,
-                perform=_dispatch,
-                verify_applied=None,
-                request_payload=self._build_request_payload(tool_name=tool_name, params=params),
-            )
-        else:
-            result = _dispatch()
-
-        if (
-            is_scoped_write
-            and self._concurrency_guard is not None
-            and self._write_resources is not None
-        ):
-            # Post-write basis refresh (concurrency.py's module docstring):
-            # this run's own successful write must not be mistaken for a
-            # competing edit on a later same-operation call.
-            raw = self._write_resources.products.get_details(self._product_id)
-            self._concurrency_guard.record_basis(extract_mutable_fields(raw))
-
-        return result
-
 
 __all__ = [
+    "DomainToolExecutor",
     "ProductToolExecutor",
     "ToolExecutionError",
     "ToolExecutor",
