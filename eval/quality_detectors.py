@@ -1241,32 +1241,46 @@ def build_report(
 #: rather than reconciled away. Regenerate with
 #: ``python -m eval.quality_detectors scan`` and update both numbers together.
 MEASURED_ZERO_ASSERTION_TESTS = 49
-MEASURED_TEST_FUNCTIONS = 5523
+MEASURED_TEST_FUNCTIONS = 5557
 #: Test modules the corpus figure is spread over. Like the corpus it is a
 #: denominator, not a claim, so it is held to a tolerance rather than pinned.
-MEASURED_TEST_MODULES = 562
+MEASURED_TEST_MODULES = 564
 
 #: The measured decomposition that reconciles the two figures. Each layer
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
 #: the third layer, this module's headline on the fifth.
 RECONCILIATION_LAYERS: dict[str, int] = {
-    # 439 -> 440 with #1702, derived from the tree after rebasing onto e6fa7133.
-    # The top layer is a repo-wide count, so it moves whenever main does (438 at
-    # d33c4f5b, 439 once #2072 landed) and has to be re-derived on every rebase,
-    # never carried over. The +1 is two tests whose only verification is
-    # `pytest.raises` (`test_agent_approval_transaction.py::
-    # TestCardSubjectIsTheRunsSubject::
-    # test_a_product_subject_that_is_not_a_uuid_is_refused_not_passed_to_the_fk`
-    # and `::test_a_subject_product_from_another_shop_is_refused`, both re-checked
-    # against this tree rather than assumed), less one this layer already counted
-    # that was deleted with the zero-products refusal it pinned. Every layer below
-    # is UNCHANGED, which is the check that matters and the signature that nothing
-    # about this slice moved: the second layer credits `pytest.raises`, so both new
-    # tests drop out of it and the headline is untouched at 49.
-    "no_assert_statement": 441,
-    "and_no_pytest_raises": 121,
-    "and_no_mock_assert_called": 106,
-    "and_no_unittest_self_assert": 106,
+    # 441 -> 445 with #1705, derived from this tree against origin/main rather
+    # than reasoned about: the membership of every layer was diffed, not just its
+    # count. The top layer is a repo-wide count, so it moves whenever main does
+    # and has to be re-derived on every rebase, never carried over -- it read
+    # 440 -> 444 against 0d515db6 and the same seven arrivals and three
+    # departures reproduce against d34b542a, which is the check that the number
+    # moving is main's traffic and not this slice changing its mind.
+    #
+    # +7 into the top layer: five new tests in
+    # `test_agent_prompt_shared_sections.py` and two in
+    # `test_agent_prompt_snapshot_gate.py` whose only verification is
+    # `pytest.raises` or a same-file `_assert_*` helper. -3 from it: the three
+    # per-version snapshot tests (`..._v1_...`, `..._v2_...`, `..._v3_...`)
+    # collapsed into one parametrised `test_composed_prompt_matches_golden_
+    # snapshot_byte_for_byte`, which is the same coverage in one function.
+    #
+    # The three middle layers move -2 each (+1/-3) for exactly that collapse:
+    # six of the seven arrivals are credited by `pytest.raises` at the second
+    # layer and drop out there, and the parametrised survivor delegates to a
+    # same-file asserting helper, so it is credited at the fifth. Which is why
+    # the bottom two layers are UNCHANGED and the headline is untouched at 49 --
+    # the check that matters, and the signature that this slice added no test
+    # that cannot fail.
+    #
+    # #1705 was also the first change to move a layer other than the top one,
+    # which is how `reconcile_source` came to rewrite only a third of the
+    # decomposition while reporting "written". That is fixed in the same change.
+    "no_assert_statement": 445,
+    "and_no_pytest_raises": 119,
+    "and_no_mock_assert_called": 104,
+    "and_no_unittest_self_assert": 104,
     "and_no_same_file_asserting_helper": 53,
     "and_no_raise_assertionerror": 49,
 }
@@ -1284,12 +1298,12 @@ RECONCILIATION: dict[str, Any] = {
     "note": (
         "Neither figure is wrong; they count different things, and the layer "
         "decomposition above shows exactly where they part. Measured here: 49 "
-        "zero-assertion tests in a corpus of 5,523 test functions over tests/ "
-        "backend/ scripts/ agent-runtime/ eval/ (562 test modules). The prior "
+        "zero-assertion tests in a corpus of 5,557 test functions over tests/ "
+        "backend/ scripts/ agent-runtime/ eval/ (564 test modules). The prior "
         "~97-of-4,048 reading corresponds to the `and_no_mock_assert_called` "
         "layer — a detector that credits `pytest.raises` and `mock.assert_called*` "
         "as assertions but not delegation to a same-file asserting helper. That "
-        "layer reads 106 today, a difference of 9 tests from the prior reading. "
+        "layer reads 104 today, a difference of 7 tests from the prior reading. "
         "That difference is the claim, and it is stated in tests rather than "
         "scaled by corpus size: this layer is an absolute count over a set that "
         "does not grow with the corpus — it read 107 at 4,545, at 4,638, at 4,675, at 4,798, "
@@ -1297,9 +1311,9 @@ RECONCILIATION: dict[str, Any] = {
         "diverges "
         "mechanically as the repository grows and says nothing about the code "
         "(#1682). The rates are recorded beside it as readings, not as the claim "
-        "(2.40% then, 1.92% now). "
+        "(2.40% then, 1.87% now). "
         "So the prior measurement "
-        "reproduces, and the gap between 106 and 49 is 53 tests whose only "
+        "reproduces, and the gap between 104 and 49 is 51 tests whose only "
         "assertion is inside a "
         "same-file `_assert_*` helper plus 4 that raise AssertionError directly. "
         "Both were inspected: `tests/unit/test_agent_prompt_budget_gate.py` and "
@@ -1352,21 +1366,58 @@ def reconcile_source(root: Path, source: str) -> tuple[str, dict[str, object]]:
         "nowRate": round(now_rate, 2),
     }
 
+    committed_prior = RECONCILIATION_LAYERS[RECONCILIATION["priorFigureLayer"]]
+    # The two figures the note derives from a *pair* of layers, before and after.
+    # `test_reconciliation_note_states_no_stale_corpus_layer_or_ratio_figure`
+    # recomputes both from the committed layers, so they go stale the moment any
+    # of the four layers below the headline moves -- which is why they are
+    # rewritten here rather than left to a hand edit.
+    committed_helper_credited = (
+        RECONCILIATION_LAYERS["and_no_unittest_self_assert"]
+        - RECONCILIATION_LAYERS["and_no_same_file_asserting_helper"]
+    )
+    helper_credited = (
+        layers["and_no_unittest_self_assert"] - layers["and_no_same_file_asserting_helper"]
+    )
+    committed_raise_credited = (
+        RECONCILIATION_LAYERS["and_no_same_file_asserting_helper"]
+        - RECONCILIATION_LAYERS["and_no_raise_assertionerror"]
+    )
+    raise_credited = (
+        layers["and_no_same_file_asserting_helper"] - layers["and_no_raise_assertionerror"]
+    )
+
     edits = [
         (f"MEASURED_TEST_FUNCTIONS = {MEASURED_TEST_FUNCTIONS}",
          f"MEASURED_TEST_FUNCTIONS = {live.test_functions}"),
         (f"MEASURED_TEST_MODULES = {MEASURED_TEST_MODULES}",
          f"MEASURED_TEST_MODULES = {live.files}"),
-        (f'"no_assert_statement": {RECONCILIATION_LAYERS["no_assert_statement"]},',
-         f'"no_assert_statement": {layers["no_assert_statement"]},'),
+    ]
+    # EVERY layer, not just the top one. Until #1705 only `no_assert_statement`
+    # had ever moved, so the other five were left to a hand edit that the
+    # command's own "written" line did not distinguish from having rewritten
+    # them -- a reconcile that reports success having reconciled a third of the
+    # decomposition is the failure this loop closes.
+    edits += [
+        (f'"{name}": {RECONCILIATION_LAYERS[name]},', f'"{name}": {layers[name]},')
+        for name in RECONCILIATION_LAYER_ORDER
+    ]
+    edits += [
         (f"corpus of {MEASURED_TEST_FUNCTIONS:,} test functions",
          f"corpus of {live.test_functions:,} test functions"),
         (f"({MEASURED_TEST_MODULES} test modules)", f"({live.files} test modules)"),
-        (f"layer reads {RECONCILIATION_LAYERS[RECONCILIATION['priorFigureLayer']]} today",
+        (f"layer reads {committed_prior} today",
          f"layer reads {prior_layer} today"),
+        (f"a difference of {abs(committed_prior - REPORTED_ZERO_ASSERTION_TESTS)} tests",
+         f"a difference of {abs(prior_layer - REPORTED_ZERO_ASSERTION_TESTS)} tests"),
         (f"({100 * REPORTED_ZERO_ASSERTION_TESTS / REPORTED_TEST_FUNCTIONS:.2f}% then, "
-         f"{100 * RECONCILIATION_LAYERS[RECONCILIATION['priorFigureLayer']] / MEASURED_TEST_FUNCTIONS:.2f}% now)",
+         f"{100 * committed_prior / MEASURED_TEST_FUNCTIONS:.2f}% now)",
          f"({then_rate:.2f}% then, {now_rate:.2f}% now)"),
+        (f"gap between {committed_prior} and {MEASURED_ZERO_ASSERTION_TESTS} "
+         f"is {committed_helper_credited} tests",
+         f"gap between {prior_layer} and {headline} is {helper_credited} tests"),
+        (f"plus {committed_raise_credited} that raise AssertionError",
+         f"plus {raise_credited} that raise AssertionError"),
     ]
     for old, new in edits:
         # The anchor is checked even when the value is unchanged. Checking only
