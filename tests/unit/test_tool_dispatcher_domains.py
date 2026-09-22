@@ -38,12 +38,16 @@ names a tool by hand except the two the test-only domain invents.
 
 from __future__ import annotations
 
+import io
+import re
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import pytest
+from PIL import Image
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -152,7 +156,12 @@ class _FakeProductsResource:
         return {}
 
     def upload_product_image(self, *, image_bytes: bytes, filename: str) -> dict:
-        self.calls.append(("upload_product_image", (len(image_bytes), filename)))
+        # The filename's stem is a fresh `uuid4()` per call by design
+        # (`screen_and_reencode_image` replaces any caller-supplied name), so
+        # only its extension is comparable between two dispatches of the same
+        # tool. Recording the whole name would make this fake, not the
+        # dispatcher, the thing that differs.
+        self.calls.append(("upload_product_image", (len(image_bytes), Path(filename).suffix)))
         return {"uri": "tos://uploaded-1"}
 
 
@@ -187,6 +196,19 @@ _PRODUCT_DETAIL = {
 _BOUND_PRODUCT_ID = "bound-product-id"
 
 
+def _valid_png_bytes() -> bytes:
+    """A genuinely decodable image, so `upload_product_image` reaches its
+    vendor call on both dispatch paths rather than both failing the same way
+    inside `screen_and_reencode_image`. Comparing two identical refusals is a
+    much weaker equivalence than comparing two identical writes."""
+    buffer = io.BytesIO()
+    Image.new("RGB", (8, 8), (1, 2, 3)).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+_PENDING_IMAGE_BYTES = _valid_png_bytes()
+
+
 def _executor_kwargs(products: _FakeProductsResource, *, resourced: bool) -> dict[str, Any]:
     """The one constructor configuration both dispatch paths are given.
 
@@ -203,9 +225,7 @@ def _executor_kwargs(products: _FakeProductsResource, *, resourced: bool) -> dic
         # vendor call rather than both paths merely failing the same way.
         "sku_refs": {"S1": "vendor-sku-1", "1": "vendor-sku-1"},
         "staged_image_uri": "tos://staged-1",
-        "pending_image_bytes": (
-            b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
-        ),
+        "pending_image_bytes": _PENDING_IMAGE_BYTES,
         "image_inspector": None,
         "product_detail": _PRODUCT_DETAIL,
     }
@@ -286,6 +306,15 @@ def _legacy_reachable_tool_names() -> frozenset[str]:
     )
 
 
+#: Any `0x...` in an exception message is an allocation address from some
+#: object's `repr` (PIL's "cannot identify image file <_io.BytesIO object at
+#: 0x...>" is the one that bit this test), and two dispatches of the same tool
+#: allocate different objects. Comparing it would make the heap, not the
+#: dispatcher, the thing under test — and it passes locally whenever CPython
+#: happens to reuse the address, so it fails only in a long run.
+_ADDRESS_RE = re.compile(r"0x[0-9a-fA-F]+")
+
+
 def _outcome(call) -> tuple[Any, ...]:
     """Run `call` and reduce it to a comparable value — including the way it
     failed, so the refusal branches are compared as strictly as the happy
@@ -293,7 +322,7 @@ def _outcome(call) -> tuple[Any, ...]:
     try:
         return ("returned", call())
     except Exception as exc:
-        return ("raised", type(exc).__name__, str(exc))
+        return ("raised", type(exc).__name__, _ADDRESS_RE.sub("0xADDR", str(exc)))
 
 
 # --- generic params, derived from each spec's own input_model -------------------
