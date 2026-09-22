@@ -1219,6 +1219,15 @@ class WorkflowRunner:
         state.external_wait_reason = reason
         stop_reason = StopReason.PAUSED_FOR_EXTERNAL_WAIT
         status = status_for(stop_reason)
+        # Issue #1653: the rollup rides the SAME persist call as
+        # `status`/`stop_reason`, never a second write path -- the rule every
+        # other `stop_reason=`-stamping call site in this module follows, and
+        # the one `test_agent_runner_terminal_persistence.py` walks this file's
+        # AST to enforce. It applies here even though this is a suspension
+        # rather than a terminal exit, for the same reason it applies at the
+        # CONFIRM pause: the columns must describe the run as it stands at
+        # every write, and a run can sit in this state for days.
+        rollup = self._compute_rollup_values(state)
         await self._conversation_store.persist(
             workflow_run_id,
             state,
@@ -1226,6 +1235,12 @@ class WorkflowRunner:
             stop_reason=stop_reason,
             required_steps_completed=self._required_steps_completed(state),
             running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+            input_tokens=rollup.input_tokens,
+            output_tokens=rollup.output_tokens,
+            cost_usd=rollup.cost_usd,
+            duration_ms=rollup.duration_ms,
+            tool_call_count=rollup.tool_call_count,
+            rows_affected=rollup.rows_affected,
         )
         return RunResult(
             stop_reason=stop_reason,

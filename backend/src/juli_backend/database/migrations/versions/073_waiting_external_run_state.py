@@ -281,9 +281,7 @@ def _refuse_if_the_new_vocabulary_is_in_use(bind: sa.engine.Connection) -> None:
         {"status": _NEW_STATUS},
     ).scalar_one()
     reason_rows = bind.execute(
-        sa.text(
-            f"SELECT COUNT(*) FROM public.{TABLE_NAME} WHERE stop_reason = ANY(:reasons)"  # noqa: S608
-        ),
+        sa.text(f"SELECT COUNT(*) FROM public.{TABLE_NAME} WHERE stop_reason = ANY(:reasons)"),
         {"reasons": list(_NEW_STOP_REASONS)},
     ).scalar_one()
     if status_rows or reason_rows:

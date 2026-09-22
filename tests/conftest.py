@@ -187,6 +187,14 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         # private database can guarantee (#1701). #1701's migration was
         # renumbered 061->062 when #2019 merged first and took 061.
         "test_migration_workflow_subject_roundtrip.py",
+        # And again for migration 073 (#1706): it inherits `postgres_at_head`
+        # from `test_migrations.py`, so its reset downgrades to base — and its
+        # downgrade half deliberately parks a `waiting_external` run to prove
+        # the revision REFUSES to narrow its CHECK under one. Against the
+        # shared database that row would block the next module's reset with
+        # 073's own refusal, which is the guard working correctly in the wrong
+        # place.
+        "test_waiting_external_migration.py",
         # And again for migration 069 (#1712): the two new tables must be
         # proved absent BEFORE the upgrade and dropped again by `downgrade -1`,
         # against `shops`/`workflow_runs` rows seeded at 065's shape. Both

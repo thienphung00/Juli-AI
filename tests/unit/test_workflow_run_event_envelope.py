@@ -450,6 +450,12 @@ def test_workflow_failed_documents_exact_failure_class_members():
         # that is the honest negative ADR-073 d.2 protects and maps to
         # `completed`.
         "required_steps_unfulfilled",
+        # Issue #1706: the reaper's cause when a run's own external-wait
+        # timeout elapsed. Failure-class because it maps to `timed_out`; its
+        # sibling `paused_for_external_wait` is deliberately NOT here, for the
+        # same reason `paused_for_confirmation` is not — it targets a
+        # SUSPENDED status, and `workflow.failed` never carries it.
+        "external_wait_expired",
     }
 
 
@@ -467,6 +473,7 @@ def test_workflow_failed_documents_exact_failure_class_members():
         (StopReason.OUTPUT_VALIDATION_FAILED, WorkflowRunStatus.FAILED),
         (StopReason.WORKER_LOST, WorkflowRunStatus.FAILED),
         (StopReason.PROMPT_VERSION_UNRECOVERABLE, WorkflowRunStatus.FAILED),
+        (StopReason.EXTERNAL_WAIT_EXPIRED, WorkflowRunStatus.TIMED_OUT),
     ],
 )
 def test_workflow_failed_accepts_every_failure_class_member_with_matching_status(

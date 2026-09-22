@@ -35,7 +35,13 @@ from sqlalchemy.orm import Session
 from juli_backend.core.config.runtime import sync_database_url
 from juli_backend.models.models import WorkflowRun
 from juli_backend.services.agent.status import StopReason, WorkflowRunStatus
-from tests.integration.test_migrations import postgres_at_head, requires_postgres  # noqa: F401
+
+# Re-exported, not merely imported: `postgres_at_head` is a pytest fixture
+# and `requires_postgres` a marker, and pytest resolves both by NAME in this
+# module's namespace. `__all__` below is what says so -- the re-export
+# convention ruff already understands, which is why no blanket suppression
+# rides here even though nothing in this file calls either name.
+from tests.integration.test_migrations import postgres_at_head, requires_postgres
 from tests.support.builders import seed_user_row_at_any_revision
 
 __all__ = ["postgres_at_head", "requires_postgres"]
@@ -302,25 +308,38 @@ def test_a_waiting_external_row_really_inserts(postgres_at_head: Engine, drained
         shop, product = _seed_shop_and_product(session)
         from juli_backend.models import models as m
 
+        written: list[tuple[str, str]] = []
         for stop_reason, status in (
             ("paused_for_external_wait", NEW_STATUS),
             ("external_wait_expired", "timed_out"),
         ):
-            session.add(
-                m.WorkflowRun(
-                    shop_id=shop.id,
-                    product_id=product.id,
-                    subject_ref=f"{stop_reason}-{uuid.uuid4().hex[:8]}",
-                    state={},
-                    status=status,
-                    stop_reason=stop_reason,
-                    waiting_external_since=datetime.now(UTC),
-                    external_wait_reason="supplier_delivery",
-                    prompt_version="optimize_product.v1",
-                    prompt_sha256="f" * 64,
+            run = m.WorkflowRun(
+                shop_id=shop.id,
+                product_id=product.id,
+                subject_ref=f"{stop_reason}-{uuid.uuid4().hex[:8]}",
+                state={},
+                status=status,
+                stop_reason=stop_reason,
+                waiting_external_since=datetime.now(UTC),
+                external_wait_reason="supplier_delivery",
+                prompt_version="optimize_product.v1",
+                prompt_sha256="f" * 64,
+            )
+            session.add(run)
+            session.commit()
+            written.append(
+                tuple(
+                    session.execute(
+                        text("SELECT status, stop_reason FROM public.workflow_runs WHERE id = :id"),
+                        {"id": run.id},
+                    ).one()
                 )
             )
-            session.commit()
+
+        assert written == [
+            (NEW_STATUS, "paused_for_external_wait"),
+            ("timed_out", "external_wait_expired"),
+        ], "the rows must be readable back exactly as written, not merely accepted"
 
 
 @requires_postgres

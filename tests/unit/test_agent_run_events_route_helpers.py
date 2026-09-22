@@ -22,7 +22,11 @@ from juli_backend.api.routes import agent_runs as route_module
 from juli_backend.services import agent_runs
 from juli_backend.services.agent.events.envelope import WorkflowCompletedEvent, WorkflowFailedEvent
 from juli_backend.services.agent.events.persisting_sink import run_events_channel
-from juli_backend.services.agent.status import NON_TERMINAL_STATUSES, WorkflowRunStatus
+from juli_backend.services.agent.status import (
+    NON_TERMINAL_STATUSES,
+    SUSPENDED_STATUSES,
+    WorkflowRunStatus,
+)
 from juli_backend.workers.tasks.database import get_async_database_url
 
 
@@ -52,13 +56,20 @@ def test_redis_event_subscriber_is_optional(monkeypatch):
 
 
 def test_terminal_run_statuses_are_derived_from_the_status_enum():
+    """The exception set is `SUSPENDED_STATUSES` now, not the single literal
+    `WAITING_APPROVAL` this test used to spell (issue #1706).
+
+    A run parked in `waiting_external` is mid-run exactly as a run parked on a
+    seller is, and the stream must stay open across both. The derivation in
+    `events.py` was "every member minus the pre-stop ones minus
+    waiting_approval", which absorbed the new member as terminal and would have
+    closed the SSE stream under a run that was still going.
+    """
     non_terminal = {member.value for member in NON_TERMINAL_STATUSES}
-    canonical = (
-        {member.value for member in WorkflowRunStatus}
-        - non_terminal
-        - {WorkflowRunStatus.WAITING_APPROVAL.value}
-    )
+    suspended = {member.value for member in SUSPENDED_STATUSES}
+    canonical = {member.value for member in WorkflowRunStatus} - non_terminal - suspended
     assert agent_runs.TERMINAL_RUN_STATUSES == canonical
+    assert WorkflowRunStatus.WAITING_EXTERNAL.value not in agent_runs.TERMINAL_RUN_STATUSES
     assert agent_runs.WAITING_APPROVAL_RUN_STATUS == WorkflowRunStatus.WAITING_APPROVAL.value
 
 

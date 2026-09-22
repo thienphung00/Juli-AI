@@ -1310,13 +1310,26 @@ _DEFERRED_TO_LATER_SLICES: frozenset[StopReason] = frozenset(
         # #1359: fail-closed resume guard when stored prompt_version is missing
         # or unparseable. Produced by `resume()`, never by `run()`.
         StopReason.PROMPT_VERSION_UNRECOVERABLE,
+        # #1706: produced by `WorkflowRunner.enter_external_wait`, the public
+        # transition a workflow's own step logic calls to suspend a run on the
+        # world. It is not a loop exit at all -- `_drive_loop` neither produces
+        # it nor can reach it -- so it belongs here rather than in the
+        # reachable set, for the same reason the CONFIRM family does.
+        StopReason.PAUSED_FOR_EXTERNAL_WAIT,
     }
 )
 
 # Reserved, never producible by any W3-A code (ADR-073 decision 5 / the
 # ADR-074 amendment) — explicitly excluded from any scenario in this suite.
 _RESERVED_UNREACHABLE: frozenset[StopReason] = frozenset(
-    {StopReason.WORKER_LOST, StopReason.OUTPUT_VALIDATION_FAILED}
+    {
+        StopReason.WORKER_LOST,
+        StopReason.OUTPUT_VALIDATION_FAILED,
+        # #1706: assigned by the reaper (`workers/tasks/reaper.py`) when a run's
+        # own `external_wait_timeout_h` elapses, exactly as `worker_lost` is.
+        # No code under `runner/` constructs it.
+        StopReason.EXTERNAL_WAIT_EXPIRED,
+    }
 )
 
 
