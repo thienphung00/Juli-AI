@@ -318,6 +318,7 @@ class TestReverseDirectionDrift:
             classification=ToolClassification.WRITE,
             policy=ToolPolicy.CONFIRM,
             timeout_seconds=10,
+            domain="product",
         )
 
     def test_a_seventh_registered_tool_with_no_playbook_step_fails_naming_it(self):
@@ -381,6 +382,7 @@ class TestReverseDirectionDrift:
                 classification=ToolClassification.WRITE,
                 policy=ToolPolicy.CONFIRM,
                 timeout_seconds=10,
+                domain="product",
             )
         )
         registered_tool_names = frozenset(spec.name for spec in registry.list_all())
