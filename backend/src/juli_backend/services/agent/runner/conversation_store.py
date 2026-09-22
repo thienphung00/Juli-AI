@@ -105,17 +105,26 @@ from juli_backend.services.agent.events.payloads import ConfirmationOptionPayloa
 from juli_backend.services.agent.runner.state import RunState
 from juli_backend.services.agent.status import (
     NON_TERMINAL_STATUSES,
+    SUSPENDED_STATUSES,
     StopReason,
     WorkflowRunStatus,
 )
 
 # Derived, never a copied literal set: "terminal" is exactly every
 # WorkflowRunStatus member that is neither pre-stop (`NON_TERMINAL_STATUSES`
-# -- QUEUED/RUNNING) nor the one other non-terminal-but-active member,
-# WAITING_APPROVAL. If `status.py` ever grows a new member, this set updates
-# itself rather than silently staying stale.
+# -- QUEUED/RUNNING) nor one of the SUSPENDED members below. If `status.py`
+# ever grows a new member, this set updates itself rather than silently
+# staying stale.
+#
+# The suspended half used to be the literal `{WAITING_APPROVAL}` written here.
+# Issue #1706 moved it to `status.py::SUSPENDED_STATUSES`: a new member lands
+# in this derivation as TERMINAL by default, so `WAITING_EXTERNAL` would have
+# stamped `completed_at` on a run merely waiting on a supplier -- and the same
+# subtraction, with the same literal exception, was written a second time in
+# `services/agent_runs/events.py`. Which statuses are suspended is a product
+# fact about each member, so it is written down once, beside the enum.
 _TERMINAL_STATUSES: frozenset[WorkflowRunStatus] = (
-    frozenset(WorkflowRunStatus) - NON_TERMINAL_STATUSES - {WorkflowRunStatus.WAITING_APPROVAL}
+    frozenset(WorkflowRunStatus) - NON_TERMINAL_STATUSES - SUSPENDED_STATUSES
 )
 
 
@@ -182,8 +191,10 @@ class ConversationStore(Protocol):
         non-terminal, per-iteration persist call — a true no-op, touching
         nothing about the row's status columns. When a caller passes a
         `status`, an implementation is expected to also stamp
-        `completed_at` (terminal statuses) or `waiting_approval_since`
-        (`WAITING_APPROVAL`) — see `JsonbConversationStore.persist` below.
+        `completed_at` (terminal statuses), `waiting_approval_since`
+        (`WAITING_APPROVAL`) or `waiting_external_since`
+        (`WAITING_EXTERNAL`, issue #1706) — see
+        `JsonbConversationStore.persist` below.
 
         `required_steps_completed` (issue #1220) is a third, independent
         outcome fact — never `stop_reason` and never derived from it — set
@@ -333,6 +344,16 @@ class JsonbConversationStore:
                 run.completed_at = now
             elif status is WorkflowRunStatus.WAITING_APPROVAL:
                 run.waiting_approval_since = now
+            elif status is WorkflowRunStatus.WAITING_EXTERNAL:
+                # Issue #1706. The exact counterpart of the line above: the
+                # reaper measures an external wait from THIS instant against
+                # the run's own `TerminationPolicy.external_wait_timeout_h`,
+                # never from `waiting_approval_since` (whose four-hour rule
+                # would kill a supplier wait on day one). The reason rides on
+                # `state` rather than on a new `persist` keyword -- see
+                # `RunState.external_wait_reason`.
+                run.waiting_external_since = now
+                run.external_wait_reason = state.external_wait_reason
 
             # Issue #1305 / AGT-W5A: auto-revert consumed action card when run
             # fails cleanly (terminal FAILED status, same guard as crash handler

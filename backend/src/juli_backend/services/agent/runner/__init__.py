@@ -82,6 +82,7 @@ from juli_backend.services.agent.runner.conversation_store import (
     JsonbConversationStore,
 )
 from juli_backend.services.agent.runner.core import (
+    ExternalWaitNotPermitted,
     NoPendingConfirmationError,
     RunResult,
     WorkflowRunner,
@@ -122,6 +123,7 @@ from juli_backend.services.agent.runner.tool_executor import (
 from juli_backend.services.agent.status import (
     NON_TERMINAL_STATUSES,
     STOP_REASON_TO_STATUS,
+    SUSPENDED_STATUSES,
     StopReason,
     WorkflowRunStatus,
     status_for,
@@ -132,6 +134,7 @@ __all__ = [
     "MUTABLE_FIELD_NAMES",
     "NON_TERMINAL_STATUSES",
     "STOP_REASON_TO_STATUS",
+    "SUSPENDED_STATUSES",
     "ConcurrencyConflict",
     "ConcurrencyExhaustedError",
     "ConcurrencyGuard",
@@ -139,6 +142,7 @@ __all__ = [
     "ConversationMessage",
     "ConversationStore",
     "DomainToolExecutor",
+    "ExternalWaitNotPermitted",
     "IterationGate",
     "IterationGateAction",
     "JsonbConversationStore",

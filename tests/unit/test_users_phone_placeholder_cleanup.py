@@ -48,28 +48,30 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS_ROOT = REPO_ROOT / "backend/src/juli_backend/database/migrations"
 VERSIONS_DIR = MIGRATIONS_ROOT / "versions"
 DEFERRED_DIR = MIGRATIONS_ROOT / "deferred"
-CLEANUP_PATH = DEFERRED_DIR / "072_users_placeholder_phone_cleanup.py"
+CLEANUP_PATH = DEFERRED_DIR / "074_users_placeholder_phone_cleanup.py"
 RUNBOOK_PATH = REPO_ROOT / "docs/runbooks/backend-deploy-runbook.md"
 
-CLEANUP_REVISION = "072_users_placeholder_phone_cleanup"
+CLEANUP_REVISION = "074_users_placeholder_phone_cleanup"
 #: The step's parent -- whatever the current tail of `versions/` happens to be.
 #: It was 064 when #1972 landed this file; #1973 added `065_users_email` and
 #: renumbered the step onto it; #1712 added `069_act_records_and_checklists`
 #: and renumbered it again; #1950 added `071_sync_state_last_outcome` and
-#: renumbered it a THIRD time. Each move exists so the deferred step stays the
+#: renumbered it a THIRD time; #1706 added `073_waiting_external` and
+#: renumbered it a FOURTH. Each move exists so the deferred step stays the
 #: TAIL of the chain rather than becoming a second child of its old parent --
 #: which forks the chain the moment an operator copies it into a serving
 #: release's `versions/`. The constant is what makes that renumber
 #: unskippable: `test_the_cleanup_step_is_the_tail_of_the_chain` below reads it
 #: and fails the moment anything in `versions/` shares the parent it names.
 #:
-#: Three hand-renumbers, each found by this test going red AFTER a merge race
-#: rather than prevented before one. That is an argument for a pre-commit hook
-#: that re-parents the file whenever `versions/` gains a revision, not for a
-#: fourth round of the same manual edit -- see #1950's PR body.
-PHONE_REVISION = "071_sync_state_last_outcome"
+#: Four hand-renumbers. The first three were found by this test going red
+#: AFTER a merge race; the fourth (#1706) was done up front because the issue
+#: that dispatched it said to. Better process, same missing mechanism: it
+#: should be a pre-commit hook that re-parents the file whenever `versions/`
+#: gains a revision -- see #1950's PR body.
+PHONE_REVISION = "073_waiting_external"
 
-_SCHEMA = "phone_cleanup_072"
+_SCHEMA = "phone_cleanup_074"
 
 
 def _revision_ids(path: Path) -> tuple[str | None, str | None]:

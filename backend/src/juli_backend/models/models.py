@@ -625,12 +625,18 @@ class WorkflowRun(Base):
     the clock pauses while ``waiting_approval``) and the 4h
     ``confirmation_expired`` reaper check (ADR-074 amendment) without a
     further migration. This slice does not write the accounting logic itself.
+    ``waiting_external_since``/``external_wait_reason`` (migration 073, issue
+    #1706) are the same pair of facts for the OTHER kind of pause: a run
+    suspended on the world rather than on a person, judged against its own
+    workflow's ``external_wait_timeout_h``. The running clock pauses there
+    identically.
 
-    Only one active run per ``(shop_id, product_id)`` is allowed structurally
-    via the partial unique index below, scoped to
-    ``status IN ('queued', 'running', 'waiting_approval')`` — ADR-073
-    decision 4, the guard against a second Juli-initiated run racing the
-    same product.
+    Only one active run per subject is allowed structurally via the partial
+    unique index below, scoped to ``status IN ('queued', 'running',
+    'waiting_approval', 'waiting_external')`` — ADR-073 decision 4, the guard
+    against a second Juli-initiated run racing the same subject. #1706 added
+    the fourth status to that scope: a run waiting on the world still holds
+    its subject.
     """
 
     __tablename__ = "workflow_runs"
@@ -681,6 +687,26 @@ class WorkflowRun(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     waiting_approval_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: When this run entered ``waiting_external`` (migration 073, issue #1706,
+    #: ADR-091 d.4). The exact counterpart of ``waiting_approval_since``, and
+    #: deliberately NOT the same column: the reaper measures an external wait
+    #: against ``TerminationPolicy.external_wait_timeout_h`` while it measures
+    #: an approval wait against ``approval_timeout_h``, and one column would
+    #: make a run that had paused for a seller *and then* for a supplier
+    #: judged from the wrong instant. Nullable, no backfill -- a run that has
+    #: never waited externally has no such instant, and inventing one would be
+    #: false data. Written by ``JsonbConversationStore.persist`` at the same
+    #: place it stamps ``waiting_approval_since``.
+    waiting_external_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: The named condition this run is waiting on the world for (migration
+    #: 073, issue #1706): the discount window closing, the supplier
+    #: delivering. Carried on ``RunState.external_wait_reason`` through the
+    #: state blob and copied here by ``JsonbConversationStore.persist`` so
+    #: #1708's webhook dispatcher can match a signal to the one waiting run in
+    #: SQL rather than by scanning JSONB. Nullable, no backfill; String(64)
+    #: matches ``subject_ref``'s width, and the condition is a short key, not
+    #: prose.
+    external_wait_reason: Mapped[str | None] = mapped_column(String(64))
     running_seconds_elapsed: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
@@ -745,6 +771,17 @@ class WorkflowRun(Base):
         # index (ADR-087 decision 2). The index KEEPS its name: #1703 and #1706
         # already refer to "uq_workflow_runs_active_shop_product (re-keyed by
         # #1701)".
+        #
+        # #1706 WIDENED the predicate to include waiting_external, in migration
+        # 073, and that is a deliberate decision rather than a follow-on edit.
+        # "Active" here means "still holds its subject". A run suspended on a
+        # supplier delivery for two days holds its subject exactly as a run
+        # suspended on a seller for four hours does; leaving the new status out
+        # would have let a second run start on a subject a live run still owns,
+        # and would have quietly undermined #1710's cross-workflow subject lock
+        # before it was written. The widening cannot collide with existing
+        # data: no row can carry the new status until the code that writes it
+        # ships in the same commit.
         Index(
             "uq_workflow_runs_active_shop_product",
             "shop_id",
@@ -752,11 +789,13 @@ class WorkflowRun(Base):
             "subject_type",
             "subject_ref",
             unique=True,
-            postgresql_where="status IN ('queued', 'running', 'waiting_approval')",
+            postgresql_where=(
+                "status IN ('queued', 'running', 'waiting_approval', 'waiting_external')"
+            ),
         ),
         CheckConstraint(
-            "status IN ('queued', 'running', 'waiting_approval', 'completed', "
-            "'cancelled', 'timed_out', 'failed')",
+            "status IN ('queued', 'running', 'waiting_approval', 'waiting_external', "
+            "'completed', 'cancelled', 'timed_out', 'failed')",
             name="ck_workflow_runs_status",
         ),
         CheckConstraint(
@@ -767,7 +806,8 @@ class WorkflowRun(Base):
             "'iteration_cap_exceeded', "
             "'wall_clock_timeout', 'tool_error_unrecoverable', 'llm_error', "
             "'concurrency_conflict', 'output_validation_failed', 'worker_lost', "
-            "'concluded_without_changes', 'required_steps_unfulfilled')",
+            "'concluded_without_changes', 'required_steps_unfulfilled', "
+            "'paused_for_external_wait', 'external_wait_expired')",
             name="ck_workflow_runs_stop_reason",
         ),
     )

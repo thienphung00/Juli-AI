@@ -58,6 +58,19 @@ class TerminationPolicy:
       called to explicitly end a run without proposing changes (ADR-088
       decision 1). Not added as playbook steps; instead, appended to the
       model-facing tool list directly by the runner. Empty by default.
+    - `external_wait_timeout_h` — how long a `waiting_external` run of THIS
+      workflow may sit waiting on the world before the reaper ends it
+      `external_wait_expired` (ADR-091 decision 4, ADR-093 decision 2, issue
+      #1706). **`None` is the default and it means "this workflow may not
+      wait externally at all"**, not "wait forever": `WorkflowRunner
+      .enter_external_wait` refuses with `ExternalWaitNotPermitted` when it
+      is `None`, so a workflow acquires the capability by declaring a number
+      here and in no other way. Deliberately a SECOND field rather than a
+      reinterpretation of `approval_timeout_h`: those four hours are a
+      consent-expiry rule (ADR-073 decision 2) whose paused wall clock is
+      load-bearing, and a supplier delivery measured against them would be
+      killed on day one. Hours, like `approval_timeout_h`, because the waits
+      this describes are days long.
     """
 
     max_iterations: int
@@ -67,6 +80,7 @@ class TerminationPolicy:
     approval_timeout_h: int
     required_steps: tuple[str, ...]
     terminal_tools: tuple[str, ...] = ()
+    external_wait_timeout_h: int | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.max_iterations, int) or self.max_iterations <= 0:
@@ -87,6 +101,15 @@ class TerminationPolicy:
             raise ValueError("TerminationPolicy.terminal_tools must be a tuple")
         if not all(isinstance(name, str) and name for name in self.terminal_tools):
             raise ValueError("TerminationPolicy.terminal_tools entries must be non-empty strings")
+        if self.external_wait_timeout_h is not None and (
+            not isinstance(self.external_wait_timeout_h, int)
+            or isinstance(self.external_wait_timeout_h, bool)
+            or self.external_wait_timeout_h <= 0
+        ):
+            raise ValueError(
+                "TerminationPolicy.external_wait_timeout_h must be None (this workflow "
+                "may not wait externally) or a positive int"
+            )
 
 
 @dataclass(frozen=True)

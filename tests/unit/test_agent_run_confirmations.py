@@ -101,7 +101,20 @@ class TestRunStatusRung:
 
     @pytest.mark.parametrize(
         "run_status",
-        ["queued", "running", "completed", "cancelled", "timed_out", "failed"],
+        [
+            "queued",
+            "running",
+            "completed",
+            "cancelled",
+            "timed_out",
+            "failed",
+            # #1706: suspended, but on the WORLD. There is no pending
+            # confirmation to decide, so a decision must be refused here for
+            # exactly the same reason it is refused on a `running` run -- and
+            # naming it is what stops the new status from quietly becoming a
+            # seventh way to reach the decision path.
+            "waiting_external",
+        ],
     )
     async def test_non_waiting_approval_run_is_refused(self, session, shop, run_status):
         run = await make_workflow_run(session, shop, status=run_status)

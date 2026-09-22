@@ -55,6 +55,13 @@ export const STOP_REASONS = [
   "paused_for_confirmation",
   "cancelled_by_seller",
   "confirmation_expired",
+  // ADR-091 d.4 / ADR-093 d.2, issue #1706: the run is suspended on the WORLD
+  // rather than on a person -- the analogue of `paused_for_confirmation`, and
+  // the reason that targets the `waiting_external` status below.
+  "paused_for_external_wait",
+  // ADR-091 d.4, issue #1706: the reaper's terminal cause when a run's own
+  // workflow's `external_wait_timeout_h` elapsed and no signal ever arrived.
+  "external_wait_expired",
   // ADR-073 amendment (ADR-075 decision 2, #1224 review round 3): consent
   // binding refused a write because it no longer matched what the seller
   // consented to -- distinct in kind from `concurrency_conflict` (a stale
@@ -83,6 +90,12 @@ export const WORKFLOW_RUN_STATUSES = [
   "queued",
   "running",
   "waiting_approval",
+  // ADR-091 / ADR-093, issue #1706: suspended on the world rather than on a
+  // person -- neither pre-stop nor terminal, judged by the run's own
+  // workflow's `external_wait_timeout_h` and never by the four-hour consent
+  // timer. A client with an exhaustive switch over this union now has a state
+  // it has never received before; it stays open, like `waiting_approval`.
+  "waiting_external",
   "completed",
   "cancelled",
   "timed_out",
@@ -115,6 +128,7 @@ export const WORKFLOW_FAILED_STOP_REASON_TO_STATUS: Readonly<
       | "worker_lost"
       | "prompt_version_unrecoverable"
       | "required_steps_unfulfilled"
+      | "external_wait_expired"
     >,
     WorkflowRunStatus
   >
@@ -131,6 +145,11 @@ export const WORKFLOW_FAILED_STOP_REASON_TO_STATUS: Readonly<
   worker_lost: "failed",
   prompt_version_unrecoverable: "failed",
   required_steps_unfulfilled: "failed",
+  // Issue #1706. `timed_out`, not `cancelled`: `confirmation_expired` earns
+  // `cancelled` because a lapsed consent window cancels the consent, and there
+  // is no consent to cancel here -- only a deadline that elapsed, like
+  // `wall_clock_timeout` and `iteration_cap_exceeded`.
+  external_wait_expired: "timed_out",
 };
 
 // ---------------------------------------------------------------------------

@@ -56,10 +56,17 @@ def make_test_playbook(
     wall_clock_timeout_s: int = 300,
     approval_timeout_h: int = 4,
     required_steps: tuple[str, ...] = (TEST_FIRST_TOOL,),
+    external_wait_timeout_h: int | None = None,
 ) -> Playbook:
     """A real `Playbook` for `workflow_key`, distinguishable from Optimize
     Product by its first step and (when the caller moves them) by its
-    termination numbers."""
+    termination numbers.
+
+    `external_wait_timeout_h` defaults to `None` (issue #1706) for the same
+    reason `OPTIMIZE_PRODUCT_TERMINATION_POLICY` leaves it `None`: a workflow
+    may not wait on the world unless it says so. A test that wants the
+    capability asks for it by passing a number, which is exactly how a real
+    playbook acquires it."""
     return Playbook(
         workflow_key=workflow_key,
         version=1,
@@ -78,6 +85,7 @@ def make_test_playbook(
             wall_clock_timeout_s=wall_clock_timeout_s,
             approval_timeout_h=approval_timeout_h,
             required_steps=required_steps,
+            external_wait_timeout_h=external_wait_timeout_h,
         ),
     )
 

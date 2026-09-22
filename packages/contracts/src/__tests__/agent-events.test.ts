@@ -166,7 +166,20 @@ describe("PAYLOAD_FIELDS / ENVELOPE_FIELDS", () => {
     // dedicated member for consent-binding refusal, distinct from
     // concurrency_conflict -- see agent-events.ts's own comment.
     expect(STOP_REASONS).toContain("confirmation_diverged");
-    expect(STOP_REASONS).toHaveLength(13);
+    // Issue #1706 (W9-A/P-SHARED-6): the two `waiting_external` members.
+    expect(STOP_REASONS).toContain("paused_for_external_wait");
+    expect(STOP_REASONS).toContain("external_wait_expired");
+    // This pin read 13 against an array that already held SIXTEEN, and had
+    // read wrong since the `prompt_version_unrecoverable` (#1359),
+    // `concluded_without_changes` and `required_steps_unfulfilled` (#1373)
+    // amendments landed. Nothing caught it because `.github/workflows/pr.yml`
+    // runs no vitest for this package -- so a length pin here is a number
+    // nobody validates, and the REAL guard against drift is
+    // `tests/unit/test_agent_events_contract.py`, which compares this array
+    // against the Python enum through node and DOES run in CI. Corrected to
+    // 18 rather than deleted: within this file it still catches a member
+    // added here and nowhere else.
+    expect(STOP_REASONS).toHaveLength(18);
   });
 });
 
