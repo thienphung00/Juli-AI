@@ -16,6 +16,7 @@ would prove the exact opposite of what it claimed.
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import re
 import sys
@@ -153,6 +154,50 @@ def drained(postgres_at_head: Engine):
         )
 
 
+def _load_migration_module():
+    """Import the migration by path -- `versions/` is not an importable
+    package, and the revision id is not a module name."""
+    spec = importlib.util.spec_from_file_location("_m073", MIGRATION_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _attached_suppressions(path: Path) -> list[str]:
+    """Suppression comments ATTACHED TO A STATEMENT, ignoring prose.
+
+    Tokenized rather than substring-scanned: this file's own block comment
+    names `# nosec` and `noqa: S608` in order to say it does not use them, and
+    a substring scan cannot tell a rule from a violation of it. A real
+    suppression rides on the same line as the code it excuses, so that is what
+    is looked for.
+    """
+    import io
+    import tokenize
+
+    found: list[str] = []
+    with path.open("rb") as handle:
+        for token in tokenize.tokenize(handle.readline):
+            if token.type != tokenize.COMMENT:
+                continue
+            before = token.line[: token.start[1]]
+            if not before.strip():
+                continue  # a standalone comment line is prose, not a suppression
+            if "nosec" in token.string or "S608" in token.string:
+                found.append(f"{path.name}:{token.start[0]} {token.string.strip()}")
+    assert io  # imported for the reader; tokenize does the work
+    return found
+
+
+def _assignment_of(code: str, name: str) -> str:
+    """The source text bound to `name`, up to the next top-level statement."""
+    start = code.index(f"{name} = ")
+    tail = code[start:]
+    stop = re.search(r"\n(?=[A-Za-z_#@])", tail)
+    return tail[: stop.start()] if stop else tail
+
+
 def _seed_shop_and_product(session: Session) -> tuple:
     from juli_backend.models import models as m
 
@@ -229,6 +274,80 @@ class TestTheMigrationIsWhereAndWhatItClaims:
             WorkflowRunStatus.WAITING_APPROVAL.value,
             WorkflowRunStatus.WAITING_EXTERNAL.value,
         }
+
+    def test_the_literal_check_bodies_name_exactly_the_live_enums(self):
+        """The cost of literal SQL, paid where it is checkable.
+
+        The migration's statements are literal strings rather than joined
+        tuples, because `bandit -ll` refuses B608 string-built SQL and #1950's
+        precedent is to delete the interpolation rather than suppress the
+        warning. A literal can drift from `status.py` in a way a derivation
+        cannot, so the drift is asserted here instead of prevented there --
+        statically, with no database, so it runs at issue tier on every PR.
+        """
+        module = _load_migration_module()
+        assert _quoted_values(module._STATUS_CHECK_AFTER) == {
+            member.value for member in WorkflowRunStatus
+        }
+        assert _quoted_values(module._STOP_REASON_CHECK_AFTER) == {
+            member.value for member in StopReason
+        }
+        # ...and the BEFORE bodies are exactly the AFTER bodies minus what this
+        # revision adds, so a downgrade cannot restore a list that was never
+        # the previous one.
+        assert _quoted_values(module._STATUS_CHECK_AFTER) - _quoted_values(
+            module._STATUS_CHECK_BEFORE
+        ) == {NEW_STATUS}
+        assert _quoted_values(module._STOP_REASON_CHECK_AFTER) - _quoted_values(
+            module._STOP_REASON_CHECK_BEFORE
+        ) == set(NEW_STOP_REASONS)
+
+    def test_the_literal_index_predicate_and_enumeration_agree_on_active(self):
+        """One meaning of "active", in two statements that must not disagree.
+
+        The partial index decides which rows collide; the enumeration decides
+        which rows the reaper can see at all. A status in one and not the other
+        is either a subject silently released or a run silently unreapable --
+        the two failure modes this slice exists to prevent, one each.
+        """
+        module = _load_migration_module()
+        index_after = _quoted_values(module._ACTIVE_INDEX_WHERE_AFTER)
+        assert index_after == {"queued", "running", "waiting_approval", NEW_STATUS}
+        assert NEW_STATUS in module._ENUMERATION_AFTER
+        for status in index_after:
+            assert f"'{status}'" in module._ENUMERATION_AFTER, (
+                f"{status} holds the active-run slot but the fleet enumeration "
+                "does not return it, so the reaper can never see such a run"
+            )
+        assert NEW_STATUS not in module._ENUMERATION_BEFORE
+        assert NEW_STATUS not in module._ACTIVE_INDEX_WHERE_BEFORE
+
+    def test_no_statement_is_built_by_interpolation_and_none_is_suppressed(self):
+        """The shape `bandit -ll` refuses, refused here too.
+
+        Asserted on the source rather than trusted to a clean bandit run,
+        because bandit is a separate CI job that a future edit to this file
+        would not obviously be read against. An f-string or a `.format` inside
+        a SQL constant is the defect; so is reaching for a suppression instead
+        of removing it.
+        """
+        suppressions = _attached_suppressions(MIGRATION_PATH)
+        assert suppressions == [], (
+            f"{MIGRATION_PATH.name} carries {suppressions}; remove the dynamic "
+            "SQL instead of the warning (#1950's precedent)"
+        )
+        code = MIGRATION_PATH.read_text(encoding="utf-8").split('"""', 2)[2]
+        for constant in (
+            "_STATUS_CHECK_AFTER",
+            "_STOP_REASON_CHECK_AFTER",
+            "_ACTIVE_INDEX_WHERE_AFTER",
+            "_ENUMERATION_AFTER",
+        ):
+            assignment = _assignment_of(code, constant)
+            assert 'f"' not in assignment and ".format(" not in assignment, (
+                f"{constant} is built by interpolation; every statement in this "
+                "migration must be a literal"
+            )
 
     def test_the_upgrade_drops_nothing_it_does_not_recreate(self):
         """`op.drop_index`/`op.drop_constraint` appear only inside the
