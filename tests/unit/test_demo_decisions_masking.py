@@ -132,10 +132,34 @@ def test_mask_decision_payload_handles_malformed_recommendation_payload_graceful
 def test_executable_card_carries_is_executable_true() -> None:
     """A card whose workflow_key resolves to a registered playbook carries
     is_executable=true (ADR-084 decision 3)."""
-    card = _card(workflow_key="optimize_product_2")
+    card = _card(
+        workflow_key="optimize_product_2",
+        subject_type="product",
+        subject_id=str(uuid.uuid4()),
+    )
     masked = mask_decision_payload(card)
 
     assert masked["is_executable"] is True
+
+
+def test_registered_playbook_without_a_subject_is_not_executable() -> None:
+    """Since #1703 a registered playbook is necessary but not sufficient.
+
+    Approve refuses a card carrying no subject (#1702's
+    ``CardSubjectNotApprovable``; #1701 backfilled every existing row to
+    ``unscoped``), so reporting ``is_executable: true`` for one told the
+    seller a button would work that returns 409. Listing and approve answer
+    from the same predicate now.
+    """
+    unscoped = _card(workflow_key="optimize_product_2")
+    assert mask_decision_payload(unscoped)["is_executable"] is False
+
+    unbindable = _card(
+        workflow_key="optimize_product_2",
+        subject_type="order",
+        subject_id="tiktok-order-1",
+    )
+    assert mask_decision_payload(unbindable)["is_executable"] is False
 
 
 def test_non_executable_card_carries_is_executable_false() -> None:
@@ -151,7 +175,11 @@ def test_mask_decision_payload_never_leaks_workflow_key() -> None:
     """The executability discriminator reveals no workflow taxonomy -- the
     serialized envelope carries is_executable but never workflow_key
     (ADR-084 decision 3)."""
-    card = _card(workflow_key="optimize_product_2")
+    card = _card(
+        workflow_key="optimize_product_2",
+        subject_type="product",
+        subject_id=str(uuid.uuid4()),
+    )
     masked = mask_decision_payload(card)
 
     serialized = json.dumps(masked)
@@ -170,8 +198,16 @@ def test_discriminator_changes_with_registry_changes() -> None:
     "optimize_product_2" is executable (OPTIMIZE_PRODUCT_PLAYBOOK is
     registered), and a card with workflow_key "future_workflow_42" is not
     (not yet registered)."""
-    executable_card = _card(workflow_key="optimize_product_2")
-    non_executable_card = _card(workflow_key="future_workflow_42")
+    executable_card = _card(
+        workflow_key="optimize_product_2",
+        subject_type="product",
+        subject_id=str(uuid.uuid4()),
+    )
+    non_executable_card = _card(
+        workflow_key="future_workflow_42",
+        subject_type="product",
+        subject_id=str(uuid.uuid4()),
+    )
 
     executable_masked = mask_decision_payload(executable_card)
     non_executable_masked = mask_decision_payload(non_executable_card)

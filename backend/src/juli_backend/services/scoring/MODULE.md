@@ -16,6 +16,14 @@ signals → ranked **execution_layer** workflow recommendations → **rules-base
 - `build_reasoning_for_recommendations(recommendations, signals)` → `tuple[WorkflowReasoningSummary, ...]`
 - `format_advisory_one_line(change, signal_type, action)` — visual_layer one-line format
 - `DAILY_SCORING_UTC_HOUR` / `DAILY_SCORING_CRON_UTC` — 08:00 UTC per `phase-2-mvp.md`
+- **Result types** (`types.py`) — `DailyScoringResult`, `ScoringSignals`,
+  `WorkflowRecommendations`, `WorkflowRecommendation`, `WorkflowExpectedImpact`,
+  `WorkflowReasoningSummary`, `WorkflowReasoningCopy`, `AdvisorySignal`, `KpiId`,
+  `Severity`. Declared here because they already cross the module boundary: every
+  consumer of the functions above reads them, and `services/action_cards/persist.py`
+  has imported `KpiId`, `Severity` and `WorkflowReasoningSummary` by name since #715
+  (#1703 surfaces them here — the boundary gate only inspects a module once
+  something in it is touched)
 
 ## Signal contract
 

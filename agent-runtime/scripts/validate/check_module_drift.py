@@ -57,7 +57,13 @@ ORPHAN_REASON = (
     "owns, named in dependency prose, lands here. That is the safe direction "
     "-- it can only over-report an orphan, never lose a documented symbol. "
     "What is left is a name a MODULE.md documents that the module no longer "
-    "exports. Each is removable on its own. Burn-down is tracked in #1963."
+    "exports. Each is removable on its own. Burn-down is tracked in #1963. "
+    "Regenerated wholesale on 2026-09-21 (#1703, PR #2076), which documented two "
+    "names this side had been excusing; 195 entries now. This list is regenerated "
+    "from the derivation and never hand-edited -- "
+    "tests/harness/test_module_md_sync_parser.py asserts it equals a fresh "
+    "derivation in both directions, so removing a single stale name by hand would "
+    "leave it unfaithful in the other one."
 )
 UNDOCUMENTED_REASON = (
     "Pre-existing undocumented drift, derived on 2026-09-15. 809 entries. It "
@@ -70,7 +76,9 @@ UNDOCUMENTED_REASON = (
     "really exports and its MODULE.md really does not name, in a bullet or in "
     "a fence. backend/services/operations was burned to zero as the worked "
     "example (#1859 AC5) and is absent from this list. Each symbol is "
-    "removable on its own, by documenting it. Burn-down is tracked in #1963."
+    "removable on its own, by documenting it. Burn-down is tracked in #1963. "
+    "Regenerated wholesale on 2026-09-21 (#1703, PR #2076), which documented the "
+    "five scoring result types this side had been excusing; 791 entries now."
 )
 
 
@@ -555,7 +563,6 @@ KNOWN_DRIFT_ALLOWLIST: dict[str, dict[str, AllowedDrift]] = {
                 "SUPABASE_JWT_SECRET",
                 "_COOLDOWN",
                 "_WEEKLY_NOVELTY_CAP",
-                "_dismiss_cooldown_expired",
                 "action_cards",
                 "active",
                 "active_cap",
@@ -565,7 +572,6 @@ KNOWN_DRIFT_ALLOWLIST: dict[str, dict[str, AllowedDrift]] = {
                 "cooldown_days",
                 "decision_emission_novelty_ledger",
                 "dismissed",
-                "dismissed_at",
                 "emission_budget_applied",
                 "executing",
                 "ix_action_cards_shop_surfaced_at",
@@ -1155,20 +1161,15 @@ KNOWN_DRIFT_ALLOWLIST: dict[str, dict[str, AllowedDrift]] = {
                 "ImpactConfidence",
                 "KPI_DOMAIN",
                 "KPI_WORKFLOW_KEYS",
-                "KpiId",
                 "LifecycleForShopFn",
                 "RETURN_RATE_RISK_THRESHOLD",
                 "SELLER_FAULT_CANCEL_RISK_THRESHOLD",
                 "STOCKOUT_RATE_RISK_THRESHOLD",
-                "Severity",
                 "SignalType",
                 "TechniqueId",
                 "VISUAL_LAYER_KPI_IDS",
                 "VisualLayerDomain",
                 "WORKFLOW_DISPLAY_NAMES",
-                "WorkflowExpectedImpact",
-                "WorkflowReasoningSummary",
-                "WorkflowRecommendation",
                 "get_workflows_for_profile",
             ),
         ),

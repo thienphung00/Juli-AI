@@ -2,12 +2,19 @@
 
 Throttles which persisted Action Card *candidates* (``status == "active"``)
 surface into the Demo active set. Deliberately independent of recomputation:
-``services.action_cards.persist.persist_scoring_result`` always refreshes a
-candidate's content on every scoring run regardless of budget; this module
-runs on its own cadence and only ever writes the surfacing columns
+``services.action_cards.persist`` refreshes a candidate this module has not yet
+surfaced on every scoring run regardless of budget (Collision 1, #716; a
+*surfaced* card is an offer and is left alone instead — #1703, ADR-087 d.3);
+this module runs on its own cadence and only ever writes the surfacing columns
 (``ActionCard.surfaced_at`` / ``ActionCard.suppressed_reason``) — never
 title/priority/payload/computed_at. See MODULE.md "Emission/surfacing
 persistence model" for why columns were chosen over a new ``status`` enum.
+
+``SUPPRESSED_REASONS`` below is this module's vocabulary and answers "was this
+candidate surfaced?". The emission path owns a separate, disjoint set
+(``persist.REVISION_SUPPRESSED_REASONS``) answering "was a row written at
+all?"; those never reach ``ActionCard.suppressed_reason``, so the two can be
+told apart by their carrier and not only by their spelling (ADR-087 d.6).
 
 Postgres is sole source of truth here (this table plus the novelty ledger).
 Nothing in this module reads or writes Redis.

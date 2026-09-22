@@ -17,6 +17,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -1149,6 +1150,14 @@ class ActionCard(Base):
         # ``uq_action_cards_shop_workflow`` used to give
         # ``(shop_id, workflow_key)`` -- the coexistence hazard this migration
         # would otherwise open stays closed.
+        # ``sqlite_where`` mirrors ``postgresql_where`` so the SQLite unit-test
+        # fixture builds the same *partial* index Postgres has (#1703). Without
+        # it SQLite silently drops the predicate and builds a FULL unique, which
+        # is strictly stronger than production: an ADR-087 revision chain --
+        # two rows for one subject, at most one of them ``active`` -- is legal
+        # in Postgres and rejected in the fixture. Postgres DDL is unchanged
+        # (migration 062 owns it); this only stops the fixture from
+        # misrepresenting the schema it stands in for.
         Index(
             "uq_action_cards_active_shop_workflow_subject",
             "shop_id",
@@ -1157,6 +1166,7 @@ class ActionCard(Base):
             "subject_id",
             unique=True,
             postgresql_where="status = 'active'",
+            sqlite_where=text("status = 'active'"),
         ),
     )
 
