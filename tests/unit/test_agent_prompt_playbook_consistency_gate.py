@@ -51,12 +51,22 @@ than a hand-maintained list of "the current six":
   suite already uses (`test_agent_tool_registry_contract.py`,
   `test_agent_tool_schema_description_hygiene.py`,
   `test_agent_playbooks_optimize_product.py`), not invented here;
-- every currently-bound `Playbook`: `composer.py`'s own
-  `_WORKFLOW_BINDINGS` dict -- the one explicit, visible `workflow_key` ->
-  `(prompt_dir, Playbook)` mapping the composer itself reads. Every
-  playbook a real workflow can compose from is reachable through this
-  dict; when P13 adds a workflow, its `Playbook` is reachable the moment
-  its binding is added to that dict, with **no edit to this gate file**.
+- every currently-bound `Playbook`: the playbook `compose()` itself
+  resolves for each `workflow_key` in `registered_workflow_keys()`. Since
+  #1705 that is a two-step walk the composer performs identically -- the
+  prompt binding registry says which workflows have a prompt, #1702's
+  playbook registry says which `Playbook` each one composes -- so this gate
+  and production can never define "the current playbooks" two different
+  ways. When a later W9-A workflow lands, its `Playbook` is reachable the
+  moment its binding is registered, with **no edit to this gate file**.
+
+## Parametrised per workflow (#1705)
+
+Direction 1 runs as one pytest parameter per registered workflow, each
+against that workflow's own composed prompt and its own playbook's tool
+allowlist. A prose file that names a tool its own playbook does not grant
+fails its own case naming the workflow; it can never be masked by another
+workflow's prompt being clean.
 
 `_SHARED_TOOL_NAMES` below is the "explicit shared / not-workflow-scoped
 marker" ADR-069 decision 4 calls for. It is empty today (no tool is
@@ -84,12 +94,15 @@ import re
 import pytest
 from pydantic import BaseModel
 
-import juli_backend.services.agent.prompts.composer as compose_module
+import juli_backend.services.agent.playbooks as playbooks_module
 from juli_backend.services.agent.playbooks.optimize_product import (
     OPTIMIZE_PRODUCT_PLAYBOOK,
-    WORKFLOW_KEY,
 )
-from juli_backend.services.agent.prompts.composer import compose, production_version
+from juli_backend.services.agent.prompts.composer import (
+    compose,
+    production_version,
+    registered_workflow_keys,
+)
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
 from juli_backend.services.agent.tools.registry import (
@@ -140,12 +153,14 @@ def _real_full_tool_registry() -> ToolRegistry:
 
 
 def _real_bound_playbooks() -> tuple:
-    """Every `Playbook` reachable through the composer's own explicit
-    `workflow_key` -> binding map -- the same source `compose()` itself
-    reads, so this check and production code can never define "the current
-    playbooks" two different ways.
+    """Every `Playbook` a registered prompt binding composes -- resolved the
+    same two-step way `compose()` itself resolves it (module docstring), so
+    this check and production code can never define "the current playbooks"
+    two different ways.
     """
-    return tuple(binding.playbook for binding in compose_module._WORKFLOW_BINDINGS.values())
+    return tuple(
+        playbooks_module.get_playbook(workflow_key) for workflow_key in registered_workflow_keys()
+    )
 
 
 def _tool_name_shaped_tokens(text: str) -> set[str]:
@@ -172,18 +187,30 @@ def _assert_every_tool_name_shaped_token_is_a_real_playbook_tool(
     )
 
 
-def test_every_tool_name_shaped_token_in_the_real_composed_prompt_is_in_the_playbook():
-    composed = compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY))
+_WORKFLOW_KEYS = list(registered_workflow_keys())
+
+
+def test_the_gate_has_a_case_for_every_registered_workflow():
+    """A parametrisation that collected nothing would pass in silence."""
+    assert _WORKFLOW_KEYS, "the playbook consistency gate collected no workflow cases"
+
+
+@pytest.mark.parametrize("workflow_key", _WORKFLOW_KEYS)
+def test_every_tool_name_shaped_token_in_the_real_composed_prompt_is_in_the_playbook(
+    workflow_key: str,
+):
+    composed = compose(workflow_key, production_version(workflow_key))
     _assert_every_tool_name_shaped_token_is_a_real_playbook_tool(
-        composed, _playbook_tool_names(OPTIMIZE_PRODUCT_PLAYBOOK)
+        composed, _playbook_tool_names(playbooks_module.get_playbook(workflow_key))
     )
 
 
-def test_the_real_composed_prompt_actually_contains_tool_name_shaped_tokens():
+@pytest.mark.parametrize("workflow_key", _WORKFLOW_KEYS)
+def test_the_real_composed_prompt_actually_contains_tool_name_shaped_tokens(workflow_key: str):
     """Sanity check the extraction isn't vacuously finding zero tokens."""
-    composed = compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY))
+    composed = compose(workflow_key, production_version(workflow_key))
     found = _tool_name_shaped_tokens(composed)
-    assert found == _playbook_tool_names(OPTIMIZE_PRODUCT_PLAYBOOK)
+    assert found == _playbook_tool_names(playbooks_module.get_playbook(workflow_key))
 
 
 class TestForwardDirectionSyntheticDrift:

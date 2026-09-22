@@ -87,12 +87,12 @@ def prompt_binding_registered_for_test(playbook: Playbook) -> Iterator[None]:
     """Give `playbook` a prompt binding and a production version pin for the
     duration of the block.
 
-    The playbook registry and the PROMPT registry
+    The playbook registry and the PROMPT binding registry
     (`services/agent/prompts/composer.py`) are two separate maps on purpose
     (ADR-072 d.2: the workflow-key namespace and the prompt-directory
-    namespace are not derived from one another), and #1702 deliberately does
-    not merge them -- per-workflow prompts are #1705 (P-SHARED-5). So a
-    test-only playbook has no prose file of its own, and
+    namespace are not derived from one another), and #1705 kept them apart
+    when it gave each workflow its own binding entry. So a test-only
+    playbook still has no prose directory of its own, and
     `approve_action_card` cannot compute its `(prompt_version,
     prompt_sha256)` pin without one.
 
@@ -100,9 +100,13 @@ def prompt_binding_registered_for_test(playbook: Playbook) -> Iterator[None]:
     computable. The prose CONTENT is irrelevant to everything these tests
     assert -- they assert which playbook and which subject the run carries,
     never what the prompt says -- and nothing here writes a file or mutates
-    a released prompt. `prompt_sha256` recomposes on every call, so the
-    borrowed prose renders the TEST playbook's steps and the pin differs
-    from Optimize Product's, which is honest: it is a different prompt.
+    a released prompt. Since #1705 the binding carries no `Playbook` of its
+    own: `compose()` resolves it from the playbook registry, so this helper
+    requires `playbook` to be registered there (via
+    `playbooks.playbook_registered_for_test`) for the pin to compute. The
+    borrowed prose therefore renders the TEST playbook's steps and the pin
+    differs from Optimize Product's, which is honest: it is a different
+    prompt.
     """
     from juli_backend.services.agent.prompts import composer
 
@@ -111,15 +115,12 @@ def prompt_binding_registered_for_test(playbook: Playbook) -> Iterator[None]:
         f"workflow_key {key!r} already has a prompt binding; this helper "
         "never shadows a released one"
     )
+    optimize_product_binding = composer._WORKFLOW_BINDINGS["optimize_product_2"]
     composer._WORKFLOW_BINDINGS[key] = composer._WorkflowPromptBinding(
-        prompt_dir="optimize_product",
-        playbook=playbook,
+        prompt_dir=optimize_product_binding.prompt_dir,
+        production_version=optimize_product_binding.production_version,
     )
-    composer.PRODUCTION_PROMPT_VERSION[key] = composer.PRODUCTION_PROMPT_VERSION[
-        "optimize_product_2"
-    ]
     try:
         yield
     finally:
         del composer._WORKFLOW_BINDINGS[key]
-        del composer.PRODUCTION_PROMPT_VERSION[key]
