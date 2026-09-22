@@ -857,21 +857,35 @@ def test_bindable_subject_types_and_the_approval_wire_widen_together():
     bound to and then have a tool to act on, and a run created with a NULL
     `product_id` would fail in `workers/tasks/agent_workflow.py::_load_context`,
     which still loads a `Product` unconditionally. This test is the tripwire
-    that keeps the pair from being widened one at a time later: the day a
-    second subject-bound domain is registered, it goes red and names both
-    halves.
+    that keeps the halves from being widened one at a time later.
+
+    **#1703 added a THIRD copy of the same fact while this branch was open**:
+    `services/action_cards/subjects.py::BINDABLE_SUBJECT_TYPES`, the set the
+    card PRODUCER may emit, whose own comment says it is "kept identical to
+    `_BINDABLE_SUBJECT_TYPES`" and names widening as #1704's seam. Prose is
+    not a mechanism — three hand-maintained frozensets of the same fact are
+    exactly the duplicated-fact drift ADR-085 rejects — so this test now
+    binds all three. Producing a subject kind approve cannot bind, or binding
+    one no tool domain can act on, are both live failure modes the moment any
+    one of them moves alone.
     """
     import typing
 
+    from juli_backend.services.action_cards import subjects as card_subjects
+
     bindable = approval_module._BINDABLE_SUBJECT_TYPES
     domain_subjects = bindable_subject_types()
+    emittable = card_subjects.BINDABLE_SUBJECT_TYPES
 
-    assert bindable == domain_subjects == frozenset({PRODUCT_DOMAIN}), (
-        "a subject kind became bindable, or a second subject-bound tool domain "
-        "was registered. Widen the pair together: approval._BINDABLE_SUBJECT_TYPES, "
-        "ApprovalResult.product_id (-> uuid.UUID | None) and "
-        "DemoDecisionApproveData.product_id, plus _load_context's unconditional "
-        "Product load."
+    assert bindable == domain_subjects == emittable == frozenset({PRODUCT_DOMAIN}), (
+        "a subject kind became bindable, emittable, or a second subject-bound "
+        "tool domain was registered. These four move together or not at all: "
+        "approval._BINDABLE_SUBJECT_TYPES, "
+        "action_cards.subjects.BINDABLE_SUBJECT_TYPES (the producer, #1703), "
+        "the registered tool domains' own subject_types, and the wire — "
+        "ApprovalResult.product_id (-> uuid.UUID | None) with "
+        "DemoDecisionApproveData.product_id — plus _load_context's "
+        "unconditional Product load."
     )
 
     product_id_type = typing.get_type_hints(approval_module.ApprovalResult)["product_id"]

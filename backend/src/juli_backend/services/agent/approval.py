@@ -188,15 +188,20 @@ class CardSubjectNotApprovable(Exception):
 #: `workers/tasks/agent_workflow.py::_load_context` still loads a `Product`
 #: for every run unconditionally, so a run bound to a SKU set would be
 #: created and then fail in the worker. Widening this set therefore has
-#: three halves that move together, and
+#: four halves that move together, and
 #: `tests/unit/test_tool_dispatcher_domains.py
 #: ::test_bindable_subject_types_and_the_approval_wire_widen_together` is the
 #: tripwire that fails the day one of them moves alone:
 #:
 #: 1. this set, and `bindable_subject_types()` growing a second kind;
-#: 2. `ApprovalResult.product_id` -> `uuid.UUID | None`, and
+#: 2. `services/action_cards/subjects.py::BINDABLE_SUBJECT_TYPES` -- the set
+#:    the card PRODUCER may emit, added by #1703 after this note was first
+#:    written, and kept identical to this one by its own comment rather than
+#:    by anything mechanical. Emitting a subject kind approve cannot bind
+#:    would refuse every such card at approval;
+#: 3. `ApprovalResult.product_id` -> `uuid.UUID | None`, and
 #:    `DemoDecisionApproveData.product_id` with it (see that field's note);
-#: 3. `_load_context`'s unconditional `Product` load.
+#: 4. `_load_context`'s unconditional `Product` load.
 _BINDABLE_SUBJECT_TYPES: frozenset[str] = frozenset({"product"})
 
 #: `action_cards.subject_type`'s #1701 backfill value: "this card predates
@@ -216,7 +221,7 @@ class ApprovalResult:
     #: `DemoDecisionApproveData.product_id` is a non-optional `uuid.UUID` on
     #: the wire. #1704 did NOT widen the pair: it made the *precondition* for
     #: widening explicit and executable instead -- see
-    #: `_BINDABLE_SUBJECT_TYPES`' own note for the three halves that must move
+    #: `_BINDABLE_SUBJECT_TYPES`' own note for the four halves that must move
     #: together, and the tripwire test that fails if one moves alone.
     product_id: uuid.UUID
     workflow_key: str
