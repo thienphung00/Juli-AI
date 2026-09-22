@@ -1,9 +1,22 @@
-"""Budget gate -- issue #1039 (W2-A/P12-4, ADR-072 decision 6, gate 2 of 4).
+"""Budget gate -- issue #1039 (W2-A/P12-4, ADR-072 decision 6, gate 2 of 4),
+parametrised per workflow by issue #1705 (W9-A/P-SHARED-5).
 
 ADR-072 d.6: "Composed system prompt <= 3,000 tokens (tiktoken-measured...)".
-This module asserts that ceiling exactly once, as the single named
-constant `PROMPT_TOKEN_BUDGET_CEILING` below -- never re-asserted as a bare
-literal anywhere else in this gate.
+That ceiling is declared exactly once in the whole repository, as
+`composer.PROMPT_TOKEN_BUDGET_CEILING`, and imported here -- since #1705 it
+lives next to the composition it constrains rather than in this gate, because
+a workflow may register a different ceiling on its own prompt binding and the
+default has to be somewhere both the binding and this gate can read it. This
+module never re-asserts the number as a bare literal.
+
+## Per workflow, against that workflow's own ceiling (#1705)
+
+Each registered workflow is its own pytest parameter, measured at its own
+pinned production version against `token_budget_ceiling(workflow_key)` -- the
+value on its binding. A workflow whose prompt is over budget fails its own
+case naming itself; it can never be averaged away by another workflow's
+headroom, and a second workflow is covered the moment its binding is
+registered, with no edit here.
 
 ## Single-call measurement -- not a sum of separately-measured parts
 
@@ -18,26 +31,25 @@ accurate one, and it is the number this gate asserts against.
 
 ## Measured headroom (record, per issue #1039 acceptance criterion)
 
-`compose("optimize_product_2", 1)` measures **2,967** proxy tokens against
-this module's 3,000-token ceiling -- raw `v1.md` measures 2,687, so the
-`{playbook}` slot's rendered content costs 280 tokens once joined with the
-real `OPTIMIZE_PRODUCT_PLAYBOOK`. That leaves **28 tokens of headroom**:
-tight, but `v1.md` is immutable post-release (ADR-072 d.4) and this
-`Playbook` is a frozen, reviewed artifact (#1036), so no further margin is
-expected to be needed. This number is independently confirmed by two prior
-agents (per the #1039 issue thread) and reproduced by this module's own
-`test_composed_prompt_token_estimate_matches_the_recorded_measurement`.
+`RECORDED_COMPOSED_TOKEN_MEASUREMENT` below records, per workflow, the real
+composed prompt's proxy token count at its pinned production version, so a
+silent drift in either input is caught even while still under the ceiling.
+Updated 2026-09-22 (#1705): Optimize Product's production pin moves from v3
+to v4, whose composed bytes differ because the workflow-invariant prose of
+Sections 1, 2, 3 and 8 now arrives from `prompts/shared/<section>/v1.md`.
+v4 measures **2,944** proxy tokens against the 3,000 ceiling -- **56 tokens
+of headroom**, six more than v3's 50, because v4's file header comment is
+shorter than v3's and the extracted prose is otherwise near-identical.
 
 ## Retiring #1037's proxy ceiling (issue #1039 acceptance criterion)
 
 #1037 shipped a **proxy** budget test (`RAW_PROMPT_TOKEN_CEILING = 2720` in
 `tests/unit/test_agent_prompt_optimize_product_v1_contract.py`) measuring
 the raw, un-rendered `v1.md` file alone, as a stand-in for the real gate --
-`compose()` did not exist yet in that slice. That proxy is **retired** in
-this same change (the raw-file ceiling test and constant are removed from
-that file, with a docstring note pointing here) so the two ceilings can
-never drift apart and disagree about the same file: this module is now the
-single source of truth for the ADR-072 d.6 budget.
+`compose()` did not exist yet in that slice. That proxy is **retired** (the
+raw-file ceiling test and constant were removed from that file, with a
+docstring note pointing here) so the two ceilings can never drift apart and
+disagree about the same file.
 
 ## The known ADR divergence -- recorded here, not adapted around silently
 
@@ -56,10 +68,11 @@ per-tool-result ceiling. This is a real, intentional divergence from
 ADR-072 d.6's literal "tiktoken-measured" wording:
 
 - **What this gate actually proves:** the composed prompt's *proxy* token
-  estimate is at or under 3,000. The proxy over-counts (rounds up, ~4
-  characters/token), so a proxy pass is a safe, conservative upper bound.
+  estimate is at or under the registered ceiling. The proxy over-counts
+  (rounds up, ~4 characters/token), so a proxy pass is a safe, conservative
+  upper bound.
 - **What this gate does NOT prove:** the composed prompt's *true* GPT
-  tokenizer count is at or under 3,000 under every encoding. An
+  tokenizer count is at or under that ceiling under every encoding. An
   independent one-off `o200k_base` check (outside this test suite, not
   reproducible in CI, `tiktoken` never added to any dependency file) put
   the pre-trim prompt's real count at ~3,510 against a proxy estimate of
@@ -76,33 +89,34 @@ from pathlib import Path
 
 import pytest
 
-import juli_backend.services.agent.prompts.composer as compose_module
+import juli_backend.services.agent.playbooks as playbooks_module
 from juli_backend.services.agent.playbooks.base import Playbook
 from juli_backend.services.agent.playbooks.optimize_product import (
     OPTIMIZE_PRODUCT_PLAYBOOK,
     WORKFLOW_KEY,
 )
-from juli_backend.services.agent.prompts.composer import compose, production_version
+from juli_backend.services.agent.prompts.composer import (
+    PROMPT_TOKEN_BUDGET_CEILING,
+    compose,
+    production_version,
+    registered_workflow_keys,
+    token_budget_ceiling,
+)
 from juli_backend.services.agent.sanitize.caps import estimate_tokens
 
-#: ADR-072 d.6's ceiling -- the single named constant this whole gate exists
-#: to assert. Never scatter a second "3000" literal anywhere else in this
-#: module or elsewhere in the test suite for this gate.
-PROMPT_TOKEN_BUDGET_CEILING = 3000
-
-#: Updated 2026-08-26 (#1367 fix round): v3 with prose-only worked example
-#: and restored safety content is 2950 tokens. Headroom is **50 tokens**
-#: against 3000 ceiling. Recorded measurement (see module docstring
-#: "Measured headroom") -- the real composed prompt's proxy token count
-#: against the real, released v3.md + OPTIMIZE_PRODUCT_PLAYBOOK pair.
-#: Asserted directly below so a silent drift in either input is caught even
-#: if it stays under the ceiling.
-RECORDED_COMPOSED_TOKEN_MEASUREMENT = 2950
-RECORDED_HEADROOM = PROMPT_TOKEN_BUDGET_CEILING - RECORDED_COMPOSED_TOKEN_MEASUREMENT
+#: The real composed prompt's proxy token count at each workflow's pinned
+#: production version (see module docstring "Measured headroom"). Asserted
+#: directly below so a silent drift in the prose, a shared section or the
+#: `Playbook` is caught even if it stays under the ceiling.
+RECORDED_COMPOSED_TOKEN_MEASUREMENT: dict[str, int] = {
+    "optimize_product_2": 2944,
+}
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_PYPROJECT_PATH = REPO_ROOT / "backend" / "pyproject.toml"
 BACKEND_CONSTRAINTS_PATH = REPO_ROOT / "backend" / "constraints.txt"
+
+_WORKFLOW_KEYS = list(registered_workflow_keys())
 
 
 def _assert_composed_prompt_within_budget(composed: str, *, ceiling: int) -> int:
@@ -124,14 +138,19 @@ def _assert_composed_prompt_within_budget(composed: str, *, ceiling: int) -> int
 
 
 # ---------------------------------------------------------------------------
-# The real gate: the composed prompt's single-call proxy estimate is at/
-# under the ceiling.
+# The real gate, once per registered workflow against its own ceiling.
 # ---------------------------------------------------------------------------
 
 
-def test_composed_prompt_is_at_or_under_the_token_budget_ceiling():
-    composed = compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY))
-    _assert_composed_prompt_within_budget(composed, ceiling=PROMPT_TOKEN_BUDGET_CEILING)
+def test_the_gate_has_a_case_for_every_registered_workflow():
+    """A parametrisation that collected nothing would pass in silence."""
+    assert _WORKFLOW_KEYS, "the budget gate collected no workflow cases"
+
+
+@pytest.mark.parametrize("workflow_key", _WORKFLOW_KEYS)
+def test_composed_prompt_is_at_or_under_the_token_budget_ceiling(workflow_key: str):
+    composed = compose(workflow_key, production_version(workflow_key))
+    _assert_composed_prompt_within_budget(composed, ceiling=token_budget_ceiling(workflow_key))
 
 
 def test_the_ceiling_is_a_single_named_constant_not_a_bare_literal():
@@ -139,37 +158,59 @@ def test_the_ceiling_is_a_single_named_constant_not_a_bare_literal():
     assert PROMPT_TOKEN_BUDGET_CEILING == 3000
 
 
-def test_composed_prompt_token_estimate_matches_the_recorded_measurement():
+@pytest.mark.parametrize("workflow_key", _WORKFLOW_KEYS)
+def test_every_registered_workflow_has_a_ceiling_at_or_under_the_adr_default(workflow_key: str):
+    """A binding may narrow the ADR-072 d.6 budget for its own workflow; it
+    may not quietly widen it. Raising the architectural ceiling is an ADR
+    amendment, not a registry edit."""
+    assert token_budget_ceiling(workflow_key) <= PROMPT_TOKEN_BUDGET_CEILING
+
+
+@pytest.mark.parametrize("workflow_key", _WORKFLOW_KEYS)
+def test_composed_prompt_token_estimate_matches_the_recorded_measurement(workflow_key: str):
     """Pins the real measured value (module docstring) so a silent drift in
-    v1.md's prose or the Playbook's rendered size is caught even while
-    still under budget -- not just a >= 0 sanity check."""
-    composed = compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY))
-    estimated = estimate_tokens(composed)
-    assert estimated == RECORDED_COMPOSED_TOKEN_MEASUREMENT, (
-        f"composed prompt now measures {estimated} tokens, but this module "
-        f"records {RECORDED_COMPOSED_TOKEN_MEASUREMENT} as the real, "
-        "independently-confirmed measurement -- if v3.md or the Playbook "
-        "changed intentionally, update this recorded value and the "
-        "headroom note in the module docstring together"
+    the prose, a shared section or the `Playbook`'s rendered size is caught
+    even while still under budget -- not just a <= ceiling check."""
+    assert workflow_key in RECORDED_COMPOSED_TOKEN_MEASUREMENT, (
+        f"workflow_key {workflow_key!r} is registered but this gate records no "
+        "measured token count for it; measure the composed prompt and record it "
+        "here in the same reviewed commit that registers the binding"
     )
-    assert RECORDED_HEADROOM == 50
+    recorded = RECORDED_COMPOSED_TOKEN_MEASUREMENT[workflow_key]
+    estimated = estimate_tokens(compose(workflow_key, production_version(workflow_key)))
+    assert estimated == recorded, (
+        f"composed prompt for {workflow_key!r} now measures {estimated} tokens, but "
+        f"this module records {recorded} as the real measurement -- if the prose, a "
+        "shared section or the Playbook changed intentionally, update this recorded "
+        "value and the headroom note in the module docstring together"
+    )
+
+
+def test_the_recorded_measurements_name_no_unregistered_workflow():
+    """The reverse direction: a recorded number for a workflow that is no
+    longer registered is a measurement nothing checks."""
+    assert set(RECORDED_COMPOSED_TOKEN_MEASUREMENT) == set(_WORKFLOW_KEYS)
+
+
+def test_optimize_products_recorded_headroom_is_the_documented_number():
+    headroom = PROMPT_TOKEN_BUDGET_CEILING - RECORDED_COMPOSED_TOKEN_MEASUREMENT[WORKFLOW_KEY]
+    assert headroom == 56
 
 
 # ---------------------------------------------------------------------------
 # Mutation proof: an over-budget *composition* is caught -- without editing
-# the real, immutable v1.md (ADR-072 d.4). A synthetic oversized Playbook is
-# swapped in via the same monkeypatch seam test_agent_prompt_compose.py
-# already uses (`_WORKFLOW_BINDINGS`), so compose() runs its real rendering
-# path end to end and this gate's check runs against real compose() output,
-# not a hand-built string standing in for one.
+# the real, immutable prose files (ADR-072 d.4). A synthetic oversized
+# Playbook is swapped into the playbook registry `compose()` really resolves
+# through, so compose() runs its real rendering path end to end and this
+# gate's check runs against real compose() output, not a hand-built string.
 # ---------------------------------------------------------------------------
 
 
 def _oversized_playbook() -> Playbook:
     """A Playbook with one step whose `intent` is padded far past any
-    realistic prose length -- large enough that joining it into v1.md's
-    real `{playbook}` slot alone pushes the composed total over the
-    3,000-token ceiling, without touching v1.md itself.
+    realistic prose length -- large enough that joining it into the real
+    `{playbook}` slot alone pushes the composed total over the ceiling,
+    without touching any prose file.
     """
     padded_step = dataclasses.replace(
         OPTIMIZE_PRODUCT_PLAYBOOK.steps[0],
@@ -185,13 +226,8 @@ class TestSyntheticOverBudgetCompositionIsCaught:
     def test_an_oversized_playbook_composes_over_the_ceiling_and_is_caught(
         self, monkeypatch: pytest.MonkeyPatch
     ):
-        binding = compose_module._binding_for(WORKFLOW_KEY)
         monkeypatch.setitem(
-            compose_module._WORKFLOW_BINDINGS,
-            WORKFLOW_KEY,
-            compose_module._WorkflowPromptBinding(
-                prompt_dir=binding.prompt_dir, playbook=_oversized_playbook()
-            ),
+            playbooks_module._PLAYBOOK_REGISTRY, WORKFLOW_KEY, _oversized_playbook()
         )
 
         # compose() itself still succeeds -- rendering a large intent string
@@ -199,33 +235,30 @@ class TestSyntheticOverBudgetCompositionIsCaught:
         # exactly the gap this gate exists to catch (compose() has no
         # opinion on prompt size; only this gate does).
         oversized_composed = compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY))
-        assert estimate_tokens(oversized_composed) > PROMPT_TOKEN_BUDGET_CEILING
+        assert estimate_tokens(oversized_composed) > token_budget_ceiling(WORKFLOW_KEY)
 
         with pytest.raises(AssertionError, match="over the 3000-token ceiling"):
             _assert_composed_prompt_within_budget(
-                oversized_composed, ceiling=PROMPT_TOKEN_BUDGET_CEILING
+                oversized_composed, ceiling=token_budget_ceiling(WORKFLOW_KEY)
             )
 
-    def test_the_real_v1_md_file_is_untouched_by_the_oversized_playbook_mutation(
+    def test_the_real_prose_files_are_untouched_by_the_oversized_playbook_mutation(
         self, monkeypatch: pytest.MonkeyPatch
     ):
-        """The mutation above swaps the *Playbook*, never the prose file --
-        confirms v1.md's real bytes never move during the mutation proof."""
-        binding = compose_module._binding_for(WORKFLOW_KEY)
-        v1_path = compose_module._prose_path(binding.prompt_dir, 1)
-        before = v1_path.read_bytes()
+        """The mutation above swaps the *Playbook*, never a prose file --
+        confirms the released bytes never move during the mutation proof."""
+        import juli_backend.services.agent.prompts.composer as compose_module
+
+        prompt_dir = compose_module._binding_for(WORKFLOW_KEY).prompt_dir
+        path = compose_module._prose_path(prompt_dir, production_version(WORKFLOW_KEY))
+        before = path.read_bytes()
 
         monkeypatch.setitem(
-            compose_module._WORKFLOW_BINDINGS,
-            WORKFLOW_KEY,
-            compose_module._WorkflowPromptBinding(
-                prompt_dir=binding.prompt_dir, playbook=_oversized_playbook()
-            ),
+            playbooks_module._PLAYBOOK_REGISTRY, WORKFLOW_KEY, _oversized_playbook()
         )
         compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY))
 
-        after = v1_path.read_bytes()
-        assert before == after
+        assert path.read_bytes() == before
 
 
 def test_synthetic_over_budget_text_is_caught_by_the_same_estimator():

@@ -29,6 +29,7 @@ from pathlib import Path
 
 import pytest
 
+import juli_backend.services.agent.playbooks as playbooks_module
 import juli_backend.services.agent.prompts.composer as compose_module
 from juli_backend.services.agent.playbooks.optimize_product import (
     OPTIMIZE_PRODUCT_PLAYBOOK,
@@ -154,20 +155,14 @@ def test_prompt_sha256_is_stable_across_repeated_calls():
 def test_prompt_sha256_changes_when_composed_bytes_change(monkeypatch):
     """Reverse direction of the hash-changes-iff-bytes-change contract:
     swap in a `Playbook` that renders differently (same prose file, one
-    fewer step) via the same explicit binding surface `compose()` reads,
-    and confirm the hash moves."""
+    fewer step) through the same playbook registry `compose()` resolves
+    against (#1705), and confirm the hash moves."""
     baseline_hash = prompt_sha256(WORKFLOW_KEY, 1)
 
     shorter_playbook = dataclasses.replace(
         OPTIMIZE_PRODUCT_PLAYBOOK, steps=OPTIMIZE_PRODUCT_PLAYBOOK.steps[:-1]
     )
-    monkeypatch.setitem(
-        compose_module._WORKFLOW_BINDINGS,
-        WORKFLOW_KEY,
-        compose_module._WorkflowPromptBinding(
-            prompt_dir="optimize_product", playbook=shorter_playbook
-        ),
-    )
+    monkeypatch.setitem(playbooks_module._PLAYBOOK_REGISTRY, WORKFLOW_KEY, shorter_playbook)
 
     changed_hash = prompt_sha256(WORKFLOW_KEY, 1)
     assert changed_hash != baseline_hash
@@ -222,12 +217,16 @@ class TestNoEnvironmentConfiguration:
         assert compose(WORKFLOW_KEY, 1) == baseline
         assert production_version(WORKFLOW_KEY) == baseline_version
 
-    def test_production_prompt_version_is_a_plain_module_level_dict(self):
-        assert isinstance(compose_module.PRODUCTION_PROMPT_VERSION, dict)
-        assert compose_module.PRODUCTION_PROMPT_VERSION[WORKFLOW_KEY] == 3
+    def test_the_production_pin_is_a_plain_field_on_a_plain_module_level_dict(self):
+        """#1705 folded the pin onto the binding: one registry entry per
+        workflow rather than two dicts keyed the same way. It is still a
+        plain literal in module source, which is the property that matters
+        (ADR-072 d.4: "what runs is what was reviewed")."""
+        assert isinstance(compose_module._WORKFLOW_BINDINGS, dict)
+        assert compose_module._WORKFLOW_BINDINGS[WORKFLOW_KEY].production_version == 4
 
     def test_production_version_helper_returns_the_pinned_constant(self):
-        assert production_version(WORKFLOW_KEY) == 3
+        assert production_version(WORKFLOW_KEY) == 4
 
 
 # ---------------------------------------------------------------------------
@@ -239,7 +238,15 @@ class TestWorkflowKeyToPromptDirectoryMapping:
     def test_real_workflow_key_maps_to_the_optimize_product_prompt_directory(self):
         binding = compose_module._binding_for(WORKFLOW_KEY)
         assert binding.prompt_dir == "optimize_product"
-        assert binding.playbook is OPTIMIZE_PRODUCT_PLAYBOOK
+
+    def test_the_binding_carries_no_playbook_of_its_own(self):
+        """#1705: the prompt binding and the playbook registry stay separate
+        namespaces (ADR-072 d.2), but the playbook is resolved from the
+        registry rather than duplicated onto the binding -- so the playbook
+        the model is shown is the object the executor enforces."""
+        binding = compose_module._binding_for(WORKFLOW_KEY)
+        assert not hasattr(binding, "playbook")
+        assert playbooks_module.get_playbook(WORKFLOW_KEY) is OPTIMIZE_PRODUCT_PLAYBOOK
 
     def test_prompt_directory_name_differs_from_the_workflow_key(self):
         """Pins the exact namespace split ADR-072 decision 2 calls out:
@@ -277,7 +284,7 @@ class TestUnreleasedVersionRaisesLoudly:
 
     def test_unreleased_version_never_silently_falls_back_to_production_version(self):
         with pytest.raises(UnreleasedPromptVersionError):
-            compose(WORKFLOW_KEY, 4)
+            compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY) + 1)
 
     def test_invalid_version_type_or_value_raises(self):
         with pytest.raises(ValueError):
@@ -301,9 +308,10 @@ class TestComposeIntegrityGuards:
         monkeypatch.setitem(
             compose_module._WORKFLOW_BINDINGS,
             "fake_workflow_key",
-            compose_module._WorkflowPromptBinding(
-                prompt_dir="fake_workflow", playbook=OPTIMIZE_PRODUCT_PLAYBOOK
-            ),
+            compose_module._WorkflowPromptBinding(prompt_dir="fake_workflow", production_version=1),
+        )
+        monkeypatch.setitem(
+            playbooks_module._PLAYBOOK_REGISTRY, "fake_workflow_key", OPTIMIZE_PRODUCT_PLAYBOOK
         )
 
         with pytest.raises(ComposeIntegrityError):
