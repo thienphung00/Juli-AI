@@ -78,10 +78,14 @@ UNDOCUMENTED_REASON = (
     "example (#1859 AC5) and is absent from this list. Each symbol is "
     "removable on its own, by documenting it. Burn-down is tracked in #1963. "
     "Regenerated wholesale on 2026-09-21 (#1703, PR #2076), which documented the "
-    "five scoring result types this side had been excusing; and again on "
-    "2026-09-22 (#1706, PR for issue 1706), which documented "
-    "ExecutionErrorCategory -- a cross-module import the boundary gate refused "
-    "the moment a diff touched the importing file; 790 entries now."
+    "five scoring result types this side had been excusing. Two more came off on "
+    "2026-09-22 for the same reason as each other: #1704 documented "
+    "screen_and_reencode_image and #1706 documented ExecutionErrorCategory, both "
+    "cross-module imports that had been in the tree for months and that the "
+    "boundary gate refused the moment a diff first touched the importing file "
+    "since #1859 made that gate non-vacuous. 783 entries now -- counted from this "
+    "dict rather than carried forward, because the number this sentence used to "
+    "quote had drifted from the list it describes."
 )
 
 
