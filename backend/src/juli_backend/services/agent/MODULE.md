@@ -167,6 +167,69 @@ juli_backend.services.agent import approval`):
   for a product, so "this shop has no products" stopped being a reason it
   can fail.
 
+### Prompt composition (#1038, #1705 — ADR-072)
+
+```python
+from juli_backend.services.agent.prompts import (
+    PROMPT_TOKEN_BUDGET_CEILING,
+    SHARED_SECTIONS,
+    SHARED_SECTION_NAMES,
+    ComposeIntegrityError,
+    UnknownWorkflowKeyError,
+    UnreleasedPromptVersionError,
+    compose,
+    production_version,
+    prompt_sha256,
+    prompt_version,
+    registered_workflow_keys,
+    released_versions,
+    shared_section_text,
+    token_budget_ceiling,
+)
+```
+
+- `compose(workflow_key, version) -> str` — the one place a workflow's
+  version-addressed prose file, the workflow-invariant shared sections it
+  names, and the playbook the runtime executes join into one system prompt.
+  Pure: a function of bytes already in the repo, no environment read, no
+  network. The playbook is resolved through the playbook registry, never
+  duplicated onto the prompt binding, so the text the model reads and the
+  allowlist the executor enforces cannot disagree.
+- `prompt_version(workflow_key, version) -> str` — the version-addressed
+  identifier a run records, in the prompt-directory namespace rather than the
+  workflow-key namespace.
+- `prompt_sha256(workflow_key, version) -> str` — digest of the composed
+  bytes, recomputed on every call so it can never drift from what it
+  describes.
+- `registered_workflow_keys() -> tuple[str, ...]` — every workflow with a
+  registered prompt binding, read at call time. The three prompt gates
+  parametrise over it.
+- `production_version(workflow_key) -> int` — the pinned released version
+  production composes. A code constant on the workflow's binding, never
+  environment-configurable.
+- `released_versions(workflow_key) -> tuple[int, ...]` — every released prose
+  version on disk, ascending. Derived from the files rather than a hand-kept
+  list, so a version added without its golden fails the snapshot gate.
+- `token_budget_ceiling(workflow_key) -> int` — the composed-prompt token
+  ceiling registered for one workflow; defaults to the architectural budget.
+- `PROMPT_TOKEN_BUDGET_CEILING` — that architectural default, 3,000 tokens,
+  declared once beside the composition it constrains.
+- `SHARED_SECTIONS` — the registered workflow-invariant sections, one explicit
+  literal with no discovery. A prose file uses every registered section or
+  none of them.
+- `SHARED_SECTION_NAMES` — those sections' names in registry order.
+- `shared_section_text(name, version) -> str` — one shared section's prose,
+  trailing newlines stripped.
+- `UnknownWorkflowKeyError` — raised for a workflow with no registered prompt
+  binding, naming it and the known keys; never a silent fallback to a default
+  prompt directory.
+- `UnreleasedPromptVersionError` — raised for a version whose prose file does
+  not exist, naming both; never a silent fallback to an earlier version.
+- `ComposeIntegrityError` — raised when composition itself would violate the
+  contract: a missing or duplicated playbook slot, an incomplete or
+  unregistered set of shared sections, a shared section file that is missing
+  or itself carries a slot, or a slot surviving rendering.
+
 ## Dependencies
 
 - stdlib only (`json`, `re`, `pathlib`, `dataclasses`, `functools`, `math`,
