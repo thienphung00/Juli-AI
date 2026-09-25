@@ -206,7 +206,7 @@ scipy==1.18.1
     #   xgboost
 six==1.17.0
     # via python-dateutil
-sqlalchemy==2.0.53
+sqlalchemy==2.0.54
     # via
     #   alembic
     #   juli-backend (pyproject.toml)
