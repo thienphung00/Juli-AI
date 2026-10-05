@@ -1,21 +1,22 @@
 """CONTRACT step for #1972: null out the phone numbers Juli fabricated
 
-Revision ID: 072_users_placeholder_phone_cleanup
-Revises: 071_sync_state_last_outcome
+Revision ID: 074_users_placeholder_phone_cleanup
+Revises: 073_waiting_external
 Create Date: 2026-09-20
 
 **This file is deliberately NOT in ``versions/``. Do not move it there until it
 has been applied to production.** Read the next three sections before touching
 it.
 
-Renumbered THREE times now, for the same reason every time
------------------------------------------------------------
+Renumbered FOUR times now, for the same reason every time
+----------------------------------------------------------
 This step must stay the **tail** of the chain, so every new ``versions/``
 revision takes over as its parent and it is renumbered above that revision.
 It was 064's child when #1972 landed it, became
 ``066``/``065_users_email``'s child with #1973, then
-``070``/``069_act_records_and_checklists``'s child with #1712, and is now
-``072``/``071_sync_state_last_outcome``'s child with #1950. Nothing about its
+``070``/``069_act_records_and_checklists``'s child with #1712, then
+``072``/``071_sync_state_last_outcome``'s child with #1950, and is now
+``074``/``073_waiting_external``'s child with #1706. Nothing about its
 predicate or its preconditions has changed on any move -- only the two revision
 identifiers below and the constants in
 ``tests/unit/test_users_phone_placeholder_cleanup.py`` that pin them.
@@ -29,10 +30,13 @@ which put 070 below it -- so this file moved again. A number chosen to sit
 above a sibling is not protection; only being re-parented onto the actual head
 is.
 
-THIS IS THE THIRD HAND-RENUMBER (065->066, 066->068, 070->072), and each one
-was discovered by a red test after a merge race rather than prevented. It
-should be a pre-commit mechanism that re-parents this file whenever
-``versions/`` gains a revision. See #1950's PR body and review artifact.
+THIS IS THE FOURTH HAND-RENUMBER (065->066, 066->068, 070->072, 072->074),
+and each one was discovered by a red test after a merge race rather than
+prevented -- except this one, which #1706 was told to do deliberately, up
+front, by the issue that dispatched it. That is an improvement in process and
+not in mechanism: it should be a pre-commit hook that re-parents this file
+whenever ``versions/`` gains a revision. See #1950's PR body and review
+artifact.
 
 Why it is parked here
 ---------------------
@@ -102,13 +106,12 @@ the VPS, against the release directory that is *currently serving*:
 
 1. Confirm the serving release contains ``064_users_phone_nullable`` (and so
    the code that stopped fabricating) and that ``alembic current`` reports
-   ``071_sync_state_last_outcome``. If it reports anything earlier, STOP: an
-   older release would immediately mint fresh placeholders behind this
-   cleanup.
+   ``073_waiting_external``. If it reports anything earlier, STOP: an older
+   release would immediately mint fresh placeholders behind this cleanup.
 
-   This file has been renumbered three times (065 -> 066 -> 070 -> 072) as
-   #1973, #1712 and #1950 each added a revision to ``versions/``; see
-   "Renumbered THREE times now" above for why. Nothing else about it has
+   This file has been renumbered four times (065 -> 066 -> 070 -> 072 -> 074)
+   as #1973, #1712, #1950 and #1706 each added a revision to ``versions/``;
+   see "Renumbered FOUR times now" above for why. Nothing else about it has
    changed, and it has not been applied anywhere.
 2. Take the backup (``infra/scripts/safe-alembic-upgrade.sh`` does this).
 3. Copy this file into that release's ``versions/`` directory and LEAVE IT
@@ -131,8 +134,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "072_users_placeholder_phone_cleanup"
-down_revision: str | None = "071_sync_state_last_outcome"
+revision: str = "074_users_placeholder_phone_cleanup"
+down_revision: str | None = "073_waiting_external"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -184,6 +187,6 @@ def downgrade() -> None:
     backup taken in the procedure above.
     """
     raise NotImplementedError(
-        "072 is not reversible: re-deriving a phone number from a user id is "
+        "074 is not reversible: re-deriving a phone number from a user id is "
         "the defect #1972 removed. Restore from the pre-migration backup."
     )

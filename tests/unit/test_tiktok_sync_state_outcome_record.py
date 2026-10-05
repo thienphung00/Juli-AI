@@ -296,7 +296,11 @@ class TestTheMigrationMatchesTheModel:
 
         parents = {down for down in revisions.values() if down}
         heads = sorted(rev for rev in revisions if rev not in parents)
-        assert heads == ["071_sync_state_last_outcome"], heads
+        # The one constant this pair carries, and the only one it can: a head
+        # is a name, and naming it is what makes "exactly one" checkable. Each
+        # new `versions/` revision moves it forward by one line. #1706 moved it
+        # from `071_sync_state_last_outcome` to `073_waiting_external`.
+        assert heads == ["073_waiting_external"], heads
 
     def test_every_model_column_is_added_by_the_migration(self):
         """The two lists must agree, or SQLite-backed tests pass over a schema

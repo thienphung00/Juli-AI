@@ -105,7 +105,10 @@ class RunState:
       accumulate sub-second deltas per iteration; `workflow_runs`'s own
       `running_seconds_elapsed` integer column (#1117) is a separate,
       denormalized mirror the runner writes from this value — not this
-      field itself.
+      field itself. The clock is paused in exactly the same way while
+      `waiting_external` (issue #1706): nothing accumulates between
+      `enter_external_wait` and the resume that follows it, so a 72-hour
+      supplier wait costs a run none of its running budget.
     - `prompt_version`: the prompt version string executed by this run
       (populated by ConversationStore.load from the workflow_runs row,
       issue #1359). Used by resume() to ensure the resumed run executes the
@@ -144,6 +147,18 @@ class RunState:
     tool_call_count: int = 0
     rows_affected: int = 0
     started_at: str | None = None  # ISO8601 string, set once in run(), not reset on resume()
+    #: Issue #1706 (W9-A/P-SHARED-6, ADR-091 d.4): the named condition this
+    #: run is waiting on the world for, set by
+    #: `WorkflowRunner.enter_external_wait` and `None` at every other moment.
+    #: It lives here, on the durable state blob, rather than travelling as a
+    #: new `ConversationStore.persist` keyword: `persist` is a protocol with
+    #: several real implementations and doubles, and the reason is a fact
+    #: ABOUT the run's state, not an instruction to the store.
+    #: `JsonbConversationStore.persist` copies it onto the
+    #: `workflow_runs.external_wait_reason` column when it stamps the status,
+    #: so #1708's dispatcher can match a webhook signal to the waiting run in
+    #: SQL rather than by scanning JSONB.
+    external_wait_reason: str | None = None
 
     # Fields present on a deserialized blob that this version of RunState
     # does not recognize (ADR-073 decision 5, the P-CS forward-compat
@@ -213,6 +228,8 @@ class RunState:
             blob["rows_affected"] = self.rows_affected
         if self.started_at is not None:
             blob["started_at"] = self.started_at
+        if self.external_wait_reason is not None:
+            blob["external_wait_reason"] = self.external_wait_reason
         blob.update(self.unknown_fields)
         return blob
 
@@ -247,6 +264,7 @@ class RunState:
             "tool_call_count",  # issue #1653
             "rows_affected",  # issue #1653
             "started_at",  # issue #1653
+            "external_wait_reason",  # issue #1706
         }
         unknown = {
             key: value
@@ -269,5 +287,6 @@ class RunState:
             tool_call_count=blob.get("tool_call_count", 0),
             rows_affected=blob.get("rows_affected", 0),
             started_at=blob.get("started_at"),
+            external_wait_reason=blob.get("external_wait_reason"),
             unknown_fields=unknown,
         )

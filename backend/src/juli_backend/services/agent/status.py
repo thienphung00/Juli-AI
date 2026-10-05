@@ -37,10 +37,38 @@ states a run occupies *before* any loop iteration has stopped, so no
 `stop_reason` ever targets them structurally, by definition of what a
 `stop_reason` records. `NON_TERMINAL_STATUSES` names exactly those two
 members; every *other* `WorkflowRunStatus` member (the five ADR-073's
-decision-2 table actually lists as targets) has at least one `StopReason`
-mapping to it, and the mapping test in
+decision-2 table actually lists as targets, plus `WAITING_EXTERNAL` from
+#1706) has at least one `StopReason` mapping to it, and the mapping test in
 `tests/unit/test_workflow_run_status_mapping.py` asserts that precise shape
 in both directions — not a vacuous "some status somewhere" check.
+
+**`WAITING_EXTERNAL`, `PAUSED_FOR_EXTERNAL_WAIT` and `EXTERNAL_WAIT_EXPIRED`
+(ADR-091 decision 4, ADR-093 decision 2, issue #1706, W9-A/P-SHARED-6).** A
+run can now be suspended on the world, not only on a person. The three names
+land together on purpose, because any two of them without the third is a
+vocabulary that cannot pass its own totality test:
+
+- `WAITING_EXTERNAL` is a *suspended* status — neither pre-stop nor terminal,
+  exactly like `WAITING_APPROVAL`. It is deliberately NOT added to
+  `NON_TERMINAL_STATUSES`: that set means "no `stop_reason` can structurally
+  target this", which is a statement about `QUEUED`/`RUNNING` and would be
+  false here.
+- `PAUSED_FOR_EXTERNAL_WAIT` is what targets it, the analogue of
+  `PAUSED_FOR_CONFIRMATION`. Without it the reverse-totality assertion would
+  have to grow an exception, which would be the wrong repair.
+- `EXTERNAL_WAIT_EXPIRED` is the reaper's terminal cause when the wait runs
+  out, mapped to `TIMED_OUT` — the status every other elapsed-deadline reason
+  (`WALL_CLOCK_TIMEOUT`, `ITERATION_CAP_EXCEEDED`) already lands on. It is not
+  `CANCELLED`: `CONFIRMATION_EXPIRED` earns that because a seller's consent
+  window lapsing cancels the consent, and there is no consent to cancel here.
+
+The clock that judges a `WAITING_EXTERNAL` run is
+`TerminationPolicy.external_wait_timeout_h` and never `approval_timeout_h`
+— see `workers/tasks/reaper.py`. A workflow whose policy leaves that field
+`None` cannot enter the state at all
+(`runner/core.py::WorkflowRunner.enter_external_wait` refuses with
+`ExternalWaitNotPermitted`), so `optimize_product_2` is unaffected by
+construction rather than by convention.
 
 `OUTPUT_VALIDATION_FAILED` is reserved for P7 (structured output) per ADR-073
 decision 5: present in the enum and mapped to `FAILED` now, so P7 adds no new
@@ -77,13 +105,22 @@ from types import MappingProxyType
 
 
 class WorkflowRunStatus(StrEnum):
-    """The seven states a `workflow_runs` row can occupy (ADR-073, amending
+    """The eight states a `workflow_runs` row can occupy (ADR-073, amending
     ADR-068's original eight-state list by dropping `created` — a run row is
-    only ever inserted already `queued`)."""
+    only ever inserted already `queued` — plus ADR-091's `waiting_external`,
+    added by issue #1706)."""
 
     QUEUED = "queued"
     RUNNING = "running"
     WAITING_APPROVAL = "waiting_approval"
+    #: ADR-091 / ADR-093, issue #1706 (W9-A/P-SHARED-6). The run is suspended
+    #: on the WORLD rather than on a person: a discount window running down, a
+    #: supplier delivery, a campaign expiring. Suspended, not pre-stop and not
+    #: terminal — the same shape as `WAITING_APPROVAL`, judged by a different
+    #: clock (`TerminationPolicy.external_wait_timeout_h`, never
+    #: `approval_timeout_h`, whose four hours are a consent-expiry rule).
+    #: 16 characters, inside `workflow_runs.status`'s `String(20)`.
+    WAITING_EXTERNAL = "waiting_external"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
     TIMED_OUT = "timed_out"
@@ -99,6 +136,21 @@ class StopReason(StrEnum):
     PAUSED_FOR_CONFIRMATION = "paused_for_confirmation"
     CANCELLED_BY_SELLER = "cancelled_by_seller"
     CONFIRMATION_EXPIRED = "confirmation_expired"
+    # ADR-091 d.4 / ADR-093 d.2, issue #1706: the suspending reason that
+    # targets `WAITING_EXTERNAL`, the exact analogue of
+    # `PAUSED_FOR_CONFIRMATION` targeting `WAITING_APPROVAL`. Recorded when a
+    # run hands control back to the world; `waiting_external` therefore has a
+    # stop_reason of its own and the reverse-totality test needs no widened
+    # exception set. 24 characters, inside String(32).
+    PAUSED_FOR_EXTERNAL_WAIT = "paused_for_external_wait"
+    # ADR-091 d.4, issue #1706: the reaper's terminal cause for a run whose
+    # own workflow's `external_wait_timeout_h` elapsed with no signal ever
+    # arriving. Distinct in kind from `CONFIRMATION_EXPIRED` (a PERSON did not
+    # answer within a consent window) and from `WALL_CLOCK_TIMEOUT` (the run's
+    # own RUNNING budget), and it must stay distinct: the execution-quality
+    # metric has to tell "the world never reported back" apart from both.
+    # 21 characters, inside String(32).
+    EXTERNAL_WAIT_EXPIRED = "external_wait_expired"
     # ADR-073 amendment (ADR-075 decision 2, #1224 review round 3): the
     # confirmation a seller consented to no longer matches what is about to
     # execute -- "divergence" is ADR-075 decision 2's own word. 21
@@ -143,12 +195,14 @@ STOP_REASON_TO_STATUS: MappingProxyType[StopReason, WorkflowRunStatus] = Mapping
         StopReason.CONFIRMATION_DECLINED: WorkflowRunStatus.COMPLETED,
         StopReason.CONCLUDED_WITHOUT_CHANGES: WorkflowRunStatus.COMPLETED,
         StopReason.PAUSED_FOR_CONFIRMATION: WorkflowRunStatus.WAITING_APPROVAL,
+        StopReason.PAUSED_FOR_EXTERNAL_WAIT: WorkflowRunStatus.WAITING_EXTERNAL,
         StopReason.CANCELLED_BY_SELLER: WorkflowRunStatus.CANCELLED,
         StopReason.CONFIRMATION_EXPIRED: WorkflowRunStatus.CANCELLED,
         StopReason.CONFIRMATION_DIVERGED: WorkflowRunStatus.FAILED,
         StopReason.PROMPT_VERSION_UNRECOVERABLE: WorkflowRunStatus.FAILED,
         StopReason.ITERATION_CAP_EXCEEDED: WorkflowRunStatus.TIMED_OUT,
         StopReason.WALL_CLOCK_TIMEOUT: WorkflowRunStatus.TIMED_OUT,
+        StopReason.EXTERNAL_WAIT_EXPIRED: WorkflowRunStatus.TIMED_OUT,
         StopReason.TOOL_ERROR_UNRECOVERABLE: WorkflowRunStatus.FAILED,
         StopReason.LLM_ERROR: WorkflowRunStatus.FAILED,
         StopReason.CONCURRENCY_CONFLICT: WorkflowRunStatus.FAILED,
@@ -165,6 +219,24 @@ STOP_REASON_TO_STATUS: MappingProxyType[StopReason, WorkflowRunStatus] = Mapping
 # losing every mapped reason).
 NON_TERMINAL_STATUSES: frozenset[WorkflowRunStatus] = frozenset(
     {WorkflowRunStatus.QUEUED, WorkflowRunStatus.RUNNING}
+)
+
+# The SUSPENDED members: a run parked on something outside the loop, which
+# will come back and can still gain facts. Neither pre-stop (a stop_reason
+# targets each of these) nor terminal (no `completed_at`, the stream stays
+# open, the subject stays held).
+#
+# Named here, in the vocabulary module, because TWO packages need the same
+# answer and were each computing it as "everything minus NON_TERMINAL_STATUSES
+# minus WAITING_APPROVAL" -- `runner/conversation_store.py::_TERMINAL_STATUSES`
+# and `services/agent_runs/events.py::TERMINAL_RUN_STATUSES`. Both derivations
+# are written to update themselves when this enum grows, and both would have
+# absorbed `WAITING_EXTERNAL` as *terminal* (issue #1706): a run merely
+# waiting on a supplier would have had `completed_at` stamped and its SSE
+# stream closed. The membership question is a product fact about each status,
+# not something the enum's shape can answer, so it is written down once.
+SUSPENDED_STATUSES: frozenset[WorkflowRunStatus] = frozenset(
+    {WorkflowRunStatus.WAITING_APPROVAL, WorkflowRunStatus.WAITING_EXTERNAL}
 )
 
 

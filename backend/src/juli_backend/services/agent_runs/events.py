@@ -40,7 +40,11 @@ from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 from juli_backend.services.agent.events.envelope import WorkflowCompletedEvent, WorkflowFailedEvent
 from juli_backend.services.agent.events.persisting_sink import run_events_channel
-from juli_backend.services.agent.status import NON_TERMINAL_STATUSES, WorkflowRunStatus
+from juli_backend.services.agent.status import (
+    NON_TERMINAL_STATUSES,
+    SUSPENDED_STATUSES,
+    WorkflowRunStatus,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +59,17 @@ TERMINAL_EVENT_TYPES: frozenset[str] = frozenset(
     }
 )
 
-# Statuses a run never leaves. WAITING_APPROVAL is mid-run (a CONFIRM pause),
-# so it is neither in NON_TERMINAL_STATUSES nor terminal.
+# Statuses a run never leaves. The SUSPENDED members (WAITING_APPROVAL, and
+# WAITING_EXTERNAL since #1706) are mid-run pauses -- on a person and on the
+# world respectively -- so they are neither in NON_TERMINAL_STATUSES nor
+# terminal, and the stream must stay open across them. Read from
+# `status.py::SUSPENDED_STATUSES` rather than re-spelled here: this subtraction
+# used to name WAITING_APPROVAL as a literal and would have closed the stream
+# on a run that was still going the moment the vocabulary grew.
 TERMINAL_RUN_STATUSES: frozenset[str] = frozenset(
     status.value
     for status in WorkflowRunStatus
-    if status not in NON_TERMINAL_STATUSES and status is not WorkflowRunStatus.WAITING_APPROVAL
+    if status not in NON_TERMINAL_STATUSES and status not in SUSPENDED_STATUSES
 )
 
 # `workflow_run_events.sequence_number` is int4. A cursor above this overflows

@@ -32,6 +32,14 @@ sandbox write guard contract, idempotency key threading, and error taxonomy.
 - `POST /v1/executions` — enqueue approved tool (202); optional `idempotency_key`
 - `GET /v1/executions/{id}` — query status, outcome, `error`, `error_category`
 - Celery task `juli_backend.execute_approved_tool`
+- `ExecutionErrorCategory` — the coarse failure taxonomy persisted on
+  `ToolExecution.error_category` and enumerated under "Error taxonomy" below.
+  Recorded here as public because it is imported across a module boundary and
+  always has been: the agent runner names it when it translates a guard
+  rejection into a tool-result error envelope
+  (`services/agent/runner/core.py`). It was reachable but undeclared, so the
+  import read as a reach past this module's stated surface rather than as the
+  ordinary use of a vocabulary type it is (#1706).
 
 ## Workflow → tool routing
 
