@@ -1,0 +1,313 @@
+name: Fast-track deploy
+
+# Manual production deploy for the fast-track branch (fasttrack/ DECISIONS D2, D8;
+# ACCEPTANCE AC-0.5). `main` is frozen while the fast track runs, so release.yml
+# (push-to-main) never fires; this is the only way the branch reaches production.
+#
+# Strictly sequential — each job `needs` the previous one, so a failure anywhere
+# stops everything after it:
+#   validate -> backup -> check -> deploy
+#
+#   validate  the SHA is a full commit SHA on the fast-track branch. No secrets.
+#   backup    pg_dump of the production database ON THE VPS, verified (non-empty,
+#             above a size floor, `pg_restore --list` readable, and the TOC carries
+#             the data of alembic_version / users / shops / tiktok_credentials).
+#             Any failure fails the job, so check and deploy never run and no
+#             migration is attempted. The dump never leaves the VPS (ADR-027).
+#   check     fasttrack/check.sh on the SHA, with a throwaway Postgres service.
+#   deploy    the existing VPS path: infra/scripts/deploy.sh <sha> over SSH, exactly
+#             as release.yml's `deploy` job runs it (same secrets, same environment).
+#             Migrations run inside deploy.sh (additive gate + safe-alembic-upgrade.sh,
+#             which takes its own second pre-migration dump) — only after backup and
+#             check succeeded.
+#
+# Never triggers on push.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full 40-character commit SHA on the fast-track branch to deploy.
+        required: true
+        type: string
+      since:
+        description: >-
+          Base ref for check.sh's "changed files" (ruff + pytest). Default is the
+          branch point, so every fast-track change is re-checked on every deploy.
+        required: false
+        default: origin/main
+        type: string
+
+# Shared with release.yml (push to main => group release-refs/heads/main) and
+# rollback.yml: all three mutate the same VPS release pool and nginx upstreams, so
+# none of them may overlap. Never cancel a deploy mid-flight.
+concurrency:
+  group: release-refs/heads/main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  FASTTRACK_BRANCH: fasttrack/optimize-product
+
+jobs:
+  validate:
+    name: Validate the requested SHA
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.FASTTRACK_BRANCH }}
+          fetch-depth: 0
+      - name: SHA is a full commit on the fast-track branch
+        env:
+          SHA: ${{ inputs.sha }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          # The workflow definition itself must come from the fast-track branch, so a
+          # stale copy dispatched from another ref cannot deploy.
+          if [ "${REF}" != "refs/heads/${FASTTRACK_BRANCH}" ]; then
+            echo "::error::dispatch this workflow from ${FASTTRACK_BRANCH} (got ${REF})"
+            exit 1
+          fi
+          # Full SHA only: it is interpolated into the VPS script, and a short or
+          # symbolic ref could resolve differently on the VPS than here.
+          if ! [[ "${SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::sha must be a full lowercase 40-character commit SHA (got '${SHA}')"
+            exit 1
+          fi
+          git cat-file -e "${SHA}^{commit}" || {
+            echo "::error::${SHA} is not a commit in this repository"; exit 1; }
+          if ! git merge-base --is-ancestor "${SHA}" "origin/${FASTTRACK_BRANCH}"; then
+            echo "::error::${SHA} is not on origin/${FASTTRACK_BRANCH} — push it to the branch first"
+            exit 1
+          fi
+          echo "OK: ${SHA} is on ${FASTTRACK_BRANCH}"
+          git log -1 --format='%H %s' "${SHA}"
+
+  # D8 step 1. Runs on the VPS because that is where production DB access lives:
+  # /etc/juli/api.env holds the URLs, and safe-alembic-upgrade.sh / restore-drill.sh
+  # already dump and restore there. Reuses the LIVE release's venv and its
+  # safe_alembic_helpers.py, so the owner-role check and URL resolution are exactly
+  # the ones the migration path uses (#1575: never dump as the RLS-bound runtime
+  # role, which "succeeds" with zero rows). The file is named juli-pre-migrate-*.dump
+  # in ~/backups so the existing rotation and the weekly restore drill cover it.
+  backup:
+    name: Back up the production database
+    runs-on: ubuntu-latest
+    needs: validate
+    environment: production
+    steps:
+      - name: pg_dump on the VPS and verify it
+        uses: appleboy/ssh-action@v1.2.5
+        env:
+          SHA: ${{ inputs.sha }}
+        with:
+          host: ${{ secrets.VPS_SSH_HOST }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          script_stop: true
+          command_timeout: 30m
+          envs: SHA
+          script: |
+            set -euo pipefail
+            umask 077
+            fail() { echo "BACKUP FAILED: $*" >&2; exit 1; }
+
+            API_ENV_FILE=/etc/juli/api.env
+            BACKUP_DIR="${HOME}/backups"
+            MIN_MB=1
+            LIVE="$(readlink -f "${HOME}/releases/current" || true)"
+            [ -n "${LIVE}" ] && [ -d "${LIVE}" ] || fail "no live API release at ~/releases/current"
+            PY="${LIVE}/.venv/bin/python"
+            HELPER="${LIVE}/infra/scripts/safe_alembic_helpers.py"
+            [ -x "${PY}" ] || fail "live release venv python missing: ${PY}"
+            [ -f "${HELPER}" ] || fail "helper missing: ${HELPER}"
+            [ -f "${API_ENV_FILE}" ] || fail "${API_ENV_FILE} missing"
+            command -v pg_dump >/dev/null || fail "pg_dump not installed"
+            command -v pg_restore >/dev/null || fail "pg_restore not installed"
+
+            set -a; . "${API_ENV_FILE}"; set +a
+            export PYTHONPATH="${LIVE}/infra/scripts:${PYTHONPATH:-}"
+
+            # Owner role or nothing: under RLS a runtime-role dump is valid and empty.
+            PRIV="$("${PY}" "${HELPER}" verify-migration-privileges 2>&1)" || fail "${PRIV}"
+            echo "migration privileges: ${PRIV}"
+
+            DB_BYTES="$("${PY}" "${HELPER}" estimate-db-bytes)" || fail "could not reach the database"
+            mkdir -p "${BACKUP_DIR}"
+            NEED=$(( DB_BYTES * 3 / 2 + 512 * 1024 * 1024 ))
+            HAVE=$(( $(df -Pk "${BACKUP_DIR}" | awk 'NR==2 {print $4}') * 1024 ))
+            echo "database ~$(( DB_BYTES / 1048576 )) MiB; need ~$(( NEED / 1048576 )) MiB free, have ~$(( HAVE / 1048576 )) MiB"
+            [ "${HAVE}" -ge "${NEED}" ] || fail "insufficient disk space in ${BACKUP_DIR}"
+
+            URL="$("${PY}" "${HELPER}" migration-db-url)"
+            TS="$(date -u +%Y%m%dT%H%M%SZ)"
+            FILE="${BACKUP_DIR}/juli-pre-migrate-${TS}-fasttrack-${SHA:0:7}.dump"
+            PARTIAL="${FILE}.partial"
+            trap 'rm -f "${PARTIAL}" "${PARTIAL}.toc"' EXIT
+            echo "pg_dump -Fc -> ${FILE}"
+            pg_dump -Fc -f "${PARTIAL}" "${URL}" || fail "pg_dump exited non-zero"
+
+            # Verify before the file earns its final name.
+            [ -s "${PARTIAL}" ] || fail "dump is empty"
+            BYTES="$(wc -c < "${PARTIAL}" | tr -d ' ')"
+            "${PY}" "${HELPER}" verify-backup-size-floor --bytes "${BYTES}" --min-mb "${MIN_MB}" \
+              || fail "dump is ${BYTES} bytes, below the ${MIN_MB} MB floor"
+            pg_restore --list "${PARTIAL}" > "${PARTIAL}.toc" || fail "pg_restore --list cannot read the dump"
+            DATA_ENTRIES="$(grep -c ' TABLE DATA ' "${PARTIAL}.toc" || true)"
+            [ "${DATA_ENTRIES}" -ge 10 ] || fail "dump TOC has only ${DATA_ENTRIES} TABLE DATA entries"
+            for t in alembic_version users shops tiktok_credentials; do
+              grep -qE " TABLE DATA public ${t} " "${PARTIAL}.toc" \
+                || fail "dump TOC has no data for public.${t}"
+            done
+            mv -f "${PARTIAL}" "${FILE}"
+            ( cd "${BACKUP_DIR}" && sha256sum "$(basename "${FILE}")" > "$(basename "${FILE}").sha256" )
+            echo "BACKUP OK: ${FILE} (${BYTES} bytes, ${DATA_ENTRIES} TABLE DATA entries)"
+            echo "sha256: $(cut -d' ' -f1 "${FILE}.sha256")"
+            echo "restore (owner, see safe-alembic-upgrade.sh): pg_restore -e -d \"\${DATABASE_DIRECT_URL}\" --clean --if-exists ${FILE}"
+
+  check:
+    name: fasttrack/check.sh
+    runs-on: ubuntu-latest
+    needs: backup
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: check_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # Created for this job and destroyed with it — check.sh wipes it.
+      CHECK_DATABASE_URL: postgresql://postgres:test@localhost:5432/check_db
+      GITLEAKS_VERSION: 8.21.2
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
+          # check.sh diffs against merge-base(--since, HEAD) and gitleaks scans that
+          # commit range, so full history is needed.
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      # Contract tests in the pytest step shell out to node + typescript in
+      # packages/contracts (same reason release.yml's build job installs this).
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install contracts dependency graph
+        run: pnpm install --frozen-lockfile --filter "./packages/contracts..."
+      - name: Install backend
+        run: |
+          pip install -e "./backend[dev]" -c backend/constraints.txt
+          pip freeze | sort
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          curl -sSfL -o /tmp/gitleaks.tgz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tgz -C /usr/local/bin gitleaks
+          gitleaks version
+      - name: Run check.sh
+        env:
+          SINCE: ${{ inputs.since }}
+        run: PYTHON="$(command -v python)" ./fasttrack/check.sh --since "${SINCE}"
+
+  deploy:
+    name: Deploy to the VPS
+    runs-on: ubuntu-latest
+    needs: check
+    environment: production
+    steps:
+      # Same SSH action, secrets and entry point as release.yml's `deploy` job. The
+      # differences, all forced by deploying a branch SHA instead of main's HEAD:
+      #   - fetch the fast-track branch (the SHA is not on main), and refuse a SHA
+      #     that is not on it;
+      #   - check the canonical clone out at the SHA (detached), so deploy.sh, the
+      #     systemd units it installs and the gates it runs are the versions being
+      #     deployed — the property release.yml gets from `git pull` on main.
+      #     release.yml / rollback.yml start with `git checkout main`, so they still
+      #     work from a detached clone;
+      #   - refuse up front if the Demo or Landing lane would run: those lanes
+      #     download prebuilt artifacts from a *release.yml* run for the SHA, which a
+      #     branch SHA never has. deploy.sh runs the API lane first, so without this
+      #     preflight it would ship the API and then fail half-deployed.
+      - name: Deploy on the VPS via infra/scripts/deploy.sh
+        uses: appleboy/ssh-action@v1.2.5
+        env:
+          SHA: ${{ inputs.sha }}
+        with:
+          host: ${{ secrets.VPS_SSH_HOST }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          script_stop: true
+          command_timeout: 45m
+          envs: SHA,FASTTRACK_BRANCH
+          script: |
+            set -euo pipefail
+            cd ~/Juli-AI-v2
+            if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+              echo "FAIL: ~/Juli-AI-v2 has local modifications to tracked files; refusing to move it" >&2
+              git status --short --untracked-files=no >&2
+              exit 1
+            fi
+            git fetch origin main "+refs/heads/${FASTTRACK_BRANCH}:refs/remotes/origin/${FASTTRACK_BRANCH}"
+            git cat-file -e "${SHA}^{commit}"
+            if ! git merge-base --is-ancestor "${SHA}" "origin/${FASTTRACK_BRANCH}"; then
+              echo "FAIL: ${SHA} is not on origin/${FASTTRACK_BRANCH}" >&2
+              exit 1
+            fi
+            git checkout --detach "${SHA}"
+
+            # Preflight: which lanes would deploy.sh run? Uses deploy.sh's own
+            # lane_changed (sourced, not executed).
+            DEPLOY_SOURCE_ONLY=1 . ./infra/scripts/deploy.sh
+            blocked=""
+            for lane in demo landing; do
+              if lane_changed "${lane}" "${SHA}"; then blocked="${blocked} ${lane}"; fi
+            done
+            if [ -n "${blocked}" ]; then
+              echo "FAIL: this SHA changes the${blocked} lane(s). Their artifacts come only from a" >&2
+              echo "      release.yml run on main, which a fast-track SHA does not have. Nothing was" >&2
+              echo "      deployed; deploy frontends separately (see infra/scripts/deploy-demo-release.sh," >&2
+              echo "      DEMO_ARTIFACT_TARBALL / LANDING_ARTIFACT_TARBALL)." >&2
+              exit 1
+            fi
+
+            ./infra/scripts/deploy.sh "${SHA}"
+            echo "live API release: $(readlink -f ~/releases/current)"
+
+      # deploy.sh already verifies the candidate (/health shape + core routes), cuts
+      # over, and rolls back automatically if the public check fails. This is the
+      # runner's independent look from outside the VPS.
+      - name: Post-deploy health check (public)
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 10); do
+            body="$(curl -sS -m 10 https://api.app-juli.com/health || true)"
+            if python3 -c 'import json,sys; sys.exit(0 if json.loads(sys.argv[1]).get("status") == "ok" else 1)' "${body}" 2>/dev/null; then
+              echo "PASS: https://api.app-juli.com/health -> ${body}"
+              exit 0
+            fi
+            sleep 6
+          done
+          echo "::error::https://api.app-juli.com/health did not report status=ok after deploy (last: ${body:-<none>})"
+          exit 1
