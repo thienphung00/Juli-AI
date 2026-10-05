@@ -385,7 +385,9 @@ class TestTheAdditiveGateAcceptsIt:
         result = evaluate_migration_paths([deferred])
         assert not result.accepted
         body = deferred.read_text(encoding="utf-8")
-        assert f'down_revision: str | None = "{REVISION}"' in body
+        # Still the tail: its parent is the CURRENT head of versions/, which
+        # moved past this revision when fast track P1-B added 074.
+        assert 'down_revision: str | None = "075_analytics_breakdown"' in body
 
 
 # ---------------------------------------------------------------------------

@@ -298,6 +298,14 @@ GRANT_REQUIRED: tuple[MutationSite, ...] = (
         '_lookup_attrs = ("snapshot_key",)',
         "upsert re-applies a re-synced interval snapshot (granted by 043)",
     ),
+    MutationSite(
+        "public",
+        "shop_ingestion_state",
+        "UPDATE",
+        "backend/src/juli_backend/repositories/ingestion_state.py",
+        "state.history_earliest_date = earliest_date",
+        "bootstrap phase transitions and history/analytics cursors (granted by 074)",
+    ),
 )
 
 #: Scan hits that are provably NOT database writes. Each is pinned to its

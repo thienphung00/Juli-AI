@@ -299,8 +299,9 @@ class TestTheMigrationMatchesTheModel:
         # The one constant this pair carries, and the only one it can: a head
         # is a name, and naming it is what makes "exactly one" checkable. Each
         # new `versions/` revision moves it forward by one line. #1706 moved it
-        # from `071_sync_state_last_outcome` to `073_waiting_external`;
-        # P1-A moved it to `075_analytics_breakdown`.
+        # from `071_sync_state_last_outcome` to `073_waiting_external`; fast
+        # track P1-B added `074_shop_ingestion_state` and P1-A
+        # `075_analytics_breakdown` on top of it.
         assert heads == ["075_analytics_breakdown"], heads
 
     def test_every_model_column_is_added_by_the_migration(self):

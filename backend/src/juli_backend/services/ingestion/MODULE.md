@@ -11,6 +11,9 @@ Producers (webhook, polling) do not import broker clients; they call an injected
 - `HandoffFn` — `async (channel, shop_key, payload: bytes) -> None`
 - `DlqHandoffFn` — same signature for DLQ envelopes
 - `make_etl_handoff(consumer, *, clock=time.time) -> HandoffFn`
+- `BootstrapDispatcher` — port: `enqueue(shop_id, *, connect_committed_at, enqueued_at) -> task id`; the Celery adapter is bound by `workers/dispatch_binding.py` (fast track P1-B)
+- `set_bootstrap_dispatcher(dispatcher)` / `get_bootstrap_dispatcher()` — bind / read the port
+- `enqueue_shop_bootstrap(shop_id, *, connect_committed_at=None) -> str | None` — called by the OAuth callback AFTER its commit; never raises (an enqueue failure is logged as `shop_bootstrap_enqueue_failed` and the fan-out beat bootstraps the shop later)
 
 ## Dependencies
 

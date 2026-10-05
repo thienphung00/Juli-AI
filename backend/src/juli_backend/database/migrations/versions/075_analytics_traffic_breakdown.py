@@ -1,7 +1,7 @@
 """Product-grain click and per-content-type breakdown columns.
 
 Revision ID: 075_analytics_breakdown
-Revises: 073_waiting_external
+Revises: 074_shop_ingestion_state
 Create Date: 2026-10-05
 
 Adds nullable ``clicks`` (derived: round(impressions * ctr)), ``traffic_breakdown``
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "075_analytics_breakdown"
-down_revision: str | None = "073_waiting_external"
+down_revision: str | None = "074_shop_ingestion_state"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

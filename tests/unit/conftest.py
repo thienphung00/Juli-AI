@@ -50,10 +50,12 @@ def bind_celery_dispatchers_for_unit_tests():
     from juli_backend.services.execution.outcome_port import (
         set_workflow_outcome_recorder,
     )
+    from juli_backend.services.ingestion import set_bootstrap_dispatcher
     from juli_backend.workers.dispatch_binding import bind_celery_dispatchers
 
     bind_celery_dispatchers()
     yield
+    set_bootstrap_dispatcher(None)
     set_refresh_dispatcher(None)
     set_task_dispatcher(None)
     set_workflow_outcome_recorder(None)

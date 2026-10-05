@@ -10,6 +10,7 @@ import asyncio
 import logging
 import os
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +28,7 @@ from juli_backend.integrations.tiktok import (
     TikTokAuth,
 )
 from juli_backend.repositories.repos import UsersRepo
+from juli_backend.services.ingestion import enqueue_shop_bootstrap
 from juli_backend.services.tiktok.credential_binding import make_binding_verifier
 from juli_backend.services.tiktok.schemas import (
     TikTokOAuthCallbackResult,
@@ -229,6 +231,7 @@ async def complete_tiktok_oauth_callback(
         facade = build_partner_oauth_facade(session, service)
         shop = await facade.provision_shop_and_credentials(token_data, user_id=owner_id)
         await session.commit()
+        _after_connect_committed(shop.id)
         return TikTokOAuthCallbackResult(
             status="ok",
             message="OAuth callback accepted; shop provisioned via Auth facade",
@@ -255,9 +258,34 @@ async def complete_tiktok_oauth_callback(
     owner_id = callback_user_id or _app_review_user_id()
     await UsersRepo(session).get_or_create(owner_id, APP_REVIEW_USER_PHONE)
     facade = build_partner_oauth_facade(session, service)
-    await facade.provision_shop_and_credentials(token_data, user_id=owner_id)
+    shop = await facade.provision_shop_and_credentials(token_data, user_id=owner_id)
     await session.commit()
+    _after_connect_committed(shop.id)
     return result
+
+
+def _after_connect_committed(shop_id: uuid.UUID) -> None:
+    """Log the commit and enqueue the shop's bootstrap (fast track SPEC §3.1, AC-1.1).
+
+    Runs strictly AFTER `session.commit()`: a bootstrap task picked up before
+    the commit would not see the shop it was enqueued for. Never raises -- the
+    connect is already durable, and `enqueue_shop_bootstrap` logs and swallows
+    an enqueue failure; the per-shop fan-out beat bootstraps any shop whose
+    fast phase never completed.
+    """
+    connect_committed_at = datetime.now(UTC).replace(tzinfo=None)
+    logger.info(
+        "shop_connect_committed",
+        extra={"shop_id": str(shop_id), "at": connect_committed_at.isoformat()},
+    )
+    try:
+        enqueue_shop_bootstrap(shop_id, connect_committed_at=connect_committed_at)
+    except Exception:  # pragma: no cover - enqueue_shop_bootstrap never raises
+        logger.error(
+            "shop_bootstrap_enqueue_failed",
+            extra={"shop_id": str(shop_id), "reason": "unexpected"},
+            exc_info=True,
+        )
 
 
 class TikTokOAuthInfrastructureService:

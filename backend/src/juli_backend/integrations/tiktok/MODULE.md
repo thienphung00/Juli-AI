@@ -66,7 +66,9 @@ Matches ``__all__`` — re-exports only:
   ``expand_analytics_product_list_item``, ``expand_analytics_shop_performance``,
   ``expand_analytics_shop_performance_per_hour``, ``expand_analytics_sku_detail``,
   ``expand_analytics_sku_list_item``, ``expand_inventory_search``,
-  ``expand_order_line_items``, ``normalize_cancellation``, ``normalize_creator``,
+  ``expand_order_line_items``, ``merge_product_analytics_rows`` (fills a
+  product-day detail row's missing keys from the A-34 list row, never
+  overwriting a value), ``normalize_cancellation``, ``normalize_creator``,
   ``normalize_inventory``, ``normalize_livestream``, ``normalize_order``,
   ``normalize_product``, ``normalize_return``, ``normalize_statement``
 - **Resources** — ``strip_nones``, ``AnalyticsResource``, ``AuthorizationResource``,

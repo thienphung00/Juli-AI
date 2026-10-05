@@ -259,6 +259,9 @@ _SHARED_STATE_MODULES = frozenset(
         # Reason 2 again: seeds two tenants for #1513 (mock_analytics_reconcile per-shop
         # context via with_shop_scope).
         "test_mock_analytics_reconcile_two_tenant.py",
+        # Reason 2 again: seeds two tenants for fast track P1-B (per-shop
+        # ingestion as juli_app, AC-1.12).
+        "test_shop_ingestion_two_tenant.py",
     }
 )
 
@@ -421,10 +424,23 @@ def _isolated_migration_database(request):
     # defect as #1121 and #1131 (see test_agent_runner_concurrency.py).
     previous = os.environ["DATABASE_URL"]
     os.environ["DATABASE_URL"] = isolated.render_as_string(hide_password=False)
+    # DATABASE_DIRECT_URL too, whenever it is set. Alembic's env.py resolves its
+    # URL through `migration_database_url`, which PREFERS DATABASE_DIRECT_URL
+    # (#1575) over the `sqlalchemy.url` a test's own Config sets. Swapping only
+    # DATABASE_URL sent every `command.upgrade`/`downgrade` in an isolated module
+    # to the SHARED database while the module's engine read the empty private one
+    # -- "relation public.workflow_runs does not exist" right after
+    # `postgres_at_head`. CI never set DATABASE_DIRECT_URL, so it never showed;
+    # fasttrack/check.sh pins both (so a .env cannot point alembic at production).
+    previous_direct = os.environ.get("DATABASE_DIRECT_URL")
+    if previous_direct:
+        os.environ["DATABASE_DIRECT_URL"] = os.environ["DATABASE_URL"]
     try:
         yield
     finally:
         os.environ["DATABASE_URL"] = previous
+        if previous_direct:
+            os.environ["DATABASE_DIRECT_URL"] = previous_direct
         admin = create_engine(admin_url, isolation_level="AUTOCOMMIT")
         with admin.connect() as conn:
             # Terminate stragglers first: a leaked connection makes DROP DATABASE

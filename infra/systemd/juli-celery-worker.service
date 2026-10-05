@@ -43,8 +43,13 @@ EnvironmentFile=/etc/juli/api.env
 #
 # If a queue is ever added to task_routes, it must be added here too; nothing else
 # reconciles the two.
+#
+# Fast track P1-B adds `ingest_priority` (bootstrap_shop -- a new shop's fast phase) and
+# `ingest_backfill` (shop_history_backfill -- the low-priority history walk). One worker
+# consuming every queue gives no strict priority between them; a dedicated
+# `-Q ingest_priority` worker is the follow-up if connects ever queue behind history.
 ExecStart=/root/releases/current/.venv/bin/celery -A juli_backend.workers.celery_app worker \
-    -Q celery,agent_runs,credentials \
+    -Q celery,agent_runs,credentials,ingest_priority,ingest_backfill \
     --loglevel=info
 Restart=on-failure
 RestartSec=5
