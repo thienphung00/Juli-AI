@@ -29,7 +29,6 @@ Not started. See SPEC §4. P2 is blocked on the FastMoss API trial (owner).
 - FastMoss REST API trial + 1,000-request minimum (blocks P2).
 - Confirm Fujiwa's TikTok authorisation allows product writes (blocks P5).
 - Consent screen #2061 (launch, not this branch).
-- Deploy trigger: land `fasttrack-deploy.yml` on `main` once, or add a tag-push trigger (`fasttrack-deploy-*`). Blocks the first fast-track deploy.
 - Dependabot keeps reopening PRs because its config is read from `main`
   (frozen). Either accept periodic closes, or allow a one-line change on `main`
   setting `open-pull-requests-limit: 0`.

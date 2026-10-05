@@ -21,9 +21,19 @@ name: Fast-track deploy
 #             which takes its own second pre-migration dump) — only after backup and
 #             check succeeded.
 #
-# Never triggers on push.
+# Triggers:
+#   - pushing a tag `fasttrack-deploy-*` (owner decision, 2026-10-05). A push
+#     trigger runs the workflow file from the pushed commit, so this works while
+#     `main` -- the default branch -- is frozen. The tagged commit must be on the
+#     fast-track branch (validate + the VPS re-check refuse anything else).
+#       git tag fasttrack-deploy-$(date -u +%Y%m%dT%H%MZ) <sha> && git push origin <tag>
+#   - workflow_dispatch, once this file exists on the default branch.
+# Never triggers on a branch push.
 
 on:
+  push:
+    tags:
+      - "fasttrack-deploy-*"
   workflow_dispatch:
     inputs:
       sha:
@@ -62,16 +72,21 @@ jobs:
           fetch-depth: 0
       - name: SHA is a full commit on the fast-track branch
         env:
-          SHA: ${{ inputs.sha }}
+          SHA: ${{ inputs.sha || github.sha }}
           REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           # The workflow definition itself must come from the fast-track branch, so a
-          # stale copy dispatched from another ref cannot deploy.
-          if [ "${REF}" != "refs/heads/${FASTTRACK_BRANCH}" ]; then
-            echo "::error::dispatch this workflow from ${FASTTRACK_BRANCH} (got ${REF})"
-            exit 1
-          fi
+          # stale copy dispatched from another ref cannot deploy. A tag push runs the
+          # file from the tagged commit, which the ancestry check below pins to the
+          # fast-track branch -- so a fasttrack-deploy-* tag carries the same guarantee.
+          case "${REF}" in
+            "refs/heads/${FASTTRACK_BRANCH}"|refs/tags/fasttrack-deploy-*) ;;
+            *)
+              echo "::error::run from ${FASTTRACK_BRANCH} or a fasttrack-deploy-* tag (got ${REF})"
+              exit 1
+              ;;
+          esac
           # Full SHA only: it is interpolated into the VPS script, and a short or
           # symbolic ref could resolve differently on the VPS than here.
           if ! [[ "${SHA}" =~ ^[0-9a-f]{40}$ ]]; then
@@ -103,7 +118,7 @@ jobs:
       - name: pg_dump on the VPS and verify it
         uses: appleboy/ssh-action@v1.2.5
         env:
-          SHA: ${{ inputs.sha }}
+          SHA: ${{ inputs.sha || github.sha }}
         with:
           host: ${{ secrets.VPS_SSH_HOST }}
           username: ${{ secrets.VPS_SSH_USER }}
@@ -195,7 +210,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.sha }}
+          ref: ${{ inputs.sha || github.sha }}
           # check.sh diffs against merge-base(--since, HEAD) and gitleaks scans that
           # commit range, so full history is needed.
           fetch-depth: 0
@@ -227,7 +242,7 @@ jobs:
           gitleaks version
       - name: Run check.sh
         env:
-          SINCE: ${{ inputs.since }}
+          SINCE: ${{ inputs.since || 'origin/main' }}
         run: PYTHON="$(command -v python)" ./fasttrack/check.sh --since "${SINCE}"
 
   deploy:
@@ -252,7 +267,7 @@ jobs:
       - name: Deploy on the VPS via infra/scripts/deploy.sh
         uses: appleboy/ssh-action@v1.2.5
         env:
-          SHA: ${{ inputs.sha }}
+          SHA: ${{ inputs.sha || github.sha }}
         with:
           host: ${{ secrets.VPS_SSH_HOST }}
           username: ${{ secrets.VPS_SSH_USER }}

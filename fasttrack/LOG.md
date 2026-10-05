@@ -60,3 +60,12 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
 - Deviations from SPEC (accepted): latest_available_date probed via one A-36
   call; bestseller/promotion calls dropped from the scheduled path; CVR lands
   only from single-day (daily incremental) windows, not multi-day backfill.
+
+## 2026-10-05 — orchestrator (Claude Opus) — deploy trigger
+
+- Owner decision: deploys trigger on pushing a `fasttrack-deploy-*` tag (push
+  triggers use the workflow file from the tagged commit, so this works while
+  `main` is frozen). Validate now accepts `refs/tags/fasttrack-deploy-*`; the
+  existing ancestry check still refuses any commit not on the fast-track
+  branch, and the VPS re-checks it. `workflow_dispatch` kept for after merge.
+  actionlint clean. Not yet run.

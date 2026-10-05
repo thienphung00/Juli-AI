@@ -16,7 +16,7 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
 - [x] **AC-0.5** A manual (`workflow_dispatch`) deploy workflow for this branch:
   takes a commit SHA; **backs up the production database first and aborts
   before any migration if the backup fails or is empty**; runs `check.sh`;
-  then deploys using the existing VPS deploy path. Never triggers on push. — evidence: 596f9d0b; actionlint clean. CAVEAT: dispatch needs the file on the default branch — see LOG OPEN item
+  then deploys using the existing VPS deploy path. Never triggers on push. — evidence: 596f9d0b; actionlint clean. plus tag-push trigger `fasttrack-deploy-*` (owner decision 2026-10-05) so it runs while main is frozen
 - [x] **AC-0.6** Open Dependabot PRs closed with a comment pointing at D3. — evidence: 19 Dependabot PRs closed 2026-10-05
 
 ## P1 — data layer

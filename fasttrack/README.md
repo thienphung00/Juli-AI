@@ -33,6 +33,16 @@ and the log, all in one place.
 - **Production safety rules still apply** (D8): anything touching the database,
   credentials, tenant isolation or TikTok writes needs a test.
 
+## Deploying to production
+
+Owner only. Tag a commit that is already on `fasttrack/optimize-product` and
+push the tag; `.github/workflows/fasttrack-deploy.yml` then backs up the
+production DB (abort on failure), runs `check.sh`, and deploys:
+
+```bash
+git tag fasttrack-deploy-$(date -u +%Y%m%dT%H%MZ) <full-sha> && git push origin <that-tag>
+```
+
 ## Running checks locally
 
 ```bash

@@ -110,3 +110,9 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   `/product/v1/salesTrend`, `/product/v1/reviewList`; optional
   `/rank/topSelling`, `/rank/newListed`). MCP/CLI not used for the pipeline.
 - No in-house scraping of TikTok Shop (risk to Juli's TikTok Partner app).
+
+## Later decisions
+
+- **D20** — Production deploys from the fast track are triggered by pushing a
+  `fasttrack-deploy-*` tag on a commit already on `fasttrack/optimize-product`
+  (2026-10-05). `workflow_dispatch` stays for use after the merge into `main`.
