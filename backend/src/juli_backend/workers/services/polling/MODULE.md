@@ -28,6 +28,71 @@ shop. Fujiwa production-read orchestration is the Phase 2 P2-A1 entry point.
 - `ProductIdsFn` — `Callable[[], Awaitable[list[str]]]`; the shop's already-synced TikTok product ids that `sync_inventory` batches through, `page_size` at a time
 - `DEFAULT_INVENTORY_PAGE_SIZE` — product ids per Search Inventory request (30; the only batch size confirmed against the live endpoint)
 
+### Per-shop ingestion (fast track P1-B)
+
+- `run_bootstrap_fast_phase(*, session, config, shop_id, rate_limiter, handoff_fn, ...)` — a connecting shop's fast phase: commerce cold start + the last `fast_days()` (env `FAST_DAYS_ENV`, default 30) days of analytics as one date-range pass, then scoring + card persistence through the injected `ScoreFn`; writes the shop's bootstrap state row and emits the bootstrap latency events. Returns `FastPhaseResult`
+- `run_history_chunks(...)` — walks analytics backwards in `history_chunk_days()` chunks from the earliest stored day until `history_empty_chunks_to_stop()` empty chunks, an out-of-range refusal (the window is narrowed to the limit) or `history_max_lookback_days()`; resumable, a rate-limited chunk is not recorded, stops between chunks when `history_budget_seconds()` runs low. Returns `HistoryResult`
+- `run_shop_cycle(...)` — the scheduled cycle: the four commerce steps every time; analytics at most once per UTC day, from the last fully-fetched day + 1 to the probed latest available date, zero detail calls when nothing is new; re-scores after a day's pass (D11). Returns `ShopCycleResult` (`needs_bootstrap=True`, without polling, for a shop whose fast phase never completed)
+- `enumerate_pollable_shops(session) -> list[PollableShop]` — the fan-out work list (migration 074's definer function on Postgres)
+- `sync_analytics_range(...)` — A-31/A-33/A-36 over a date range with bounded-parallel detail calls (`detail_concurrency()`, default 5) in worker threads; handoffs stay on the event loop; never stores a non-daily row. Returns `AnalyticsRangeResult`
+- `RedisShopIngestLock` / `ShopIngestLock` — per-shop mutexes and enqueue de-duplication markers (`LockName`)
+
+All three entrypoints resolve the shop's own credential (under that shop's
+plain scope), assert it, then hold the sticky shop scope for the run. Celery
+wrappers: `workers/tasks/shop_ingestion.py`.
+
+```python
+from juli_backend.workers.services.polling.analytics_range import (
+    AnalyticsRangeResult,
+    DeadlineLike,
+    DETAIL_CONCURRENCY_ENV,
+    MAX_RANGE_DAYS_ENV,
+    MergeListRowFn,
+    acquire_or_wait,
+    detail_concurrency,
+    iter_windows,
+    max_range_days,
+    parse_vendor_date,
+    probe_latest_available_date,
+    sync_analytics_range,
+    utc_today,
+)
+from juli_backend.workers.services.polling.ingestion import (
+    BOOTSTRAP_BUDGET_SECONDS_ENV,
+    FAST_DAYS_ENV,
+    HISTORY_BUDGET_SECONDS_ENV,
+    HISTORY_CHUNKS_PER_TASK_ENV,
+    HISTORY_CHUNK_DAYS_ENV,
+    HISTORY_EMPTY_CHUNKS_TO_STOP_ENV,
+    HISTORY_MAX_LOOKBACK_DAYS_ENV,
+    FastPhaseResult,
+    HistoryResult,
+    PollableShop,
+    ScoreFn,
+    ShopCycleResult,
+    bootstrap_budget_seconds,
+    enumerate_pollable_shops,
+    fast_days,
+    history_budget_seconds,
+    history_chunk_days,
+    history_chunks_per_task,
+    history_empty_chunks_to_stop,
+    history_max_lookback_days,
+    log_transition,
+    max_stored_analytics_day,
+    run_bootstrap_fast_phase,
+    run_history_chunks,
+    run_shop_cycle,
+)
+from juli_backend.workers.services.polling.shop_lock import (
+    InMemoryShopIngestLock,
+    LockName,
+    RedisShopIngestLock,
+    ShopIngestLock,
+    shop_lock_key,
+)
+```
+
 Out-of-scope workers removed (Phase 2 cleanup): `sync_livestreams`,
 `sync_settlements`. Incremental inventory changes use webhook `#68 INVENTORY_CHANGED`
 (catalog → `tiktok.inventory.raw`); poll remains the reconciliation backstop.
