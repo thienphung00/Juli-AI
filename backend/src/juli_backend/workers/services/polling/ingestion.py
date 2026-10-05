@@ -88,7 +88,7 @@ from juli_backend.models.models import (
     TikTokCredential,
 )
 from juli_backend.repositories import ShopIngestionStateRepo, TikTokSyncStateRepo, utc_now_naive
-from juli_backend.services.ingestion.handoff import HandoffFn
+from juli_backend.services.ingestion import HandoffFn
 from juli_backend.workers.services.polling.analytics_range import (
     AnalyticsRangeResult,
     probe_latest_available_date,
@@ -711,7 +711,7 @@ async def run_history_chunks(
                     # budget raises, while one never started costs nothing.
                     result.reason = "budget"
                     break
-                state = await repo.get_or_create(shop_id)
+                state = await repo.ensure(shop_id)
                 end = state.history_earliest_date or (today - timedelta(days=fast_days()))
                 if end <= floor:
                     await _finish_history(run, reason="max_lookback")
@@ -782,7 +782,7 @@ async def run_history_chunks(
             await _mark_failed(run, phase="history", error=exc)
             raise
 
-        state = await repo.get_or_create(shop_id)
+        state = await repo.ensure(shop_id)
         result.earliest_date = state.history_earliest_date
         return result
 

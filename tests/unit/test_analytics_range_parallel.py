@@ -203,8 +203,8 @@ async def test_aggregate_intervals_are_never_stored_as_a_day():
             },
         }
 
-    analytics.get_product_performance = aggregate_product  # type: ignore[method-assign]
-    analytics.get_shop_performance = aggregate_shop  # type: ignore[method-assign]
+    setattr(analytics, "get_product_performance", aggregate_product)
+    setattr(analytics, "get_shop_performance", aggregate_shop)
     handoff = _Handoff()
     result = await _run(analytics, handoff=handoff)
 

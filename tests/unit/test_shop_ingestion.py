@@ -18,6 +18,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
+from unittest.mock import call
 
 import pytest
 import pytest_asyncio
@@ -460,9 +461,12 @@ class TestFastPhase:
             now=NOW,
             score_fn=_count_score,
         )
-        resources.orders.search_all.assert_called_once_with(update_time_from=None)
-        resources.products.search_all.assert_called_once_with(update_time_from=None)
-        resources.returns.search_returns_all.assert_called_once_with(update_time_from=None)
+        for search in (
+            resources.orders.search_all,
+            resources.products.search_all,
+            resources.returns.search_returns_all,
+        ):
+            assert search.call_args_list == [call(update_time_from=None)], "cold start"
 
     @pytest.mark.asyncio
     async def test_emits_a_structured_event_at_each_transition(self, session, caplog):
@@ -521,7 +525,7 @@ class TestFastPhase:
         def explode(**_kwargs):
             raise RuntimeError("vendor exploded")
 
-        analytics.list_product_performance_all = explode  # type: ignore[method-assign]
+        setattr(analytics, "list_product_performance_all", explode)
         with pytest.raises(RuntimeError, match="vendor exploded"):
             await _fast(session, shop, analytics, score_fn=_count_score)
         state = await _state(session, shop.id)
@@ -970,7 +974,9 @@ class TestCadence:
         )
         resources = make_resources(analytics)
         await _cycle(session, shop, analytics, now=NOW, resources=resources)
-        resources.orders.search_all.assert_called_once_with(update_time_from=1_784_000_000)
+        assert resources.orders.search_all.call_args_list == [
+            call(update_time_from=1_784_000_000)
+        ], "the watermark from the fast phase drives the next read"
 
 
 # ---------------------------------------------------------------------------

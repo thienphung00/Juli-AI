@@ -141,7 +141,7 @@ async def score_and_persist_cards(session: AsyncSession, shop_id: uuid.UUID) -> 
     `run_action_card_refresh(poll=False)`: score -> persist -> commit ->
     emission budget, exactly as the manual refresh runs it after its poll.
     """
-    from juli_backend.services.action_cards.refresh import run_action_card_refresh
+    from juli_backend.services.action_cards import run_action_card_refresh
 
     return await run_action_card_refresh(session, shop_id, poll=False)
 

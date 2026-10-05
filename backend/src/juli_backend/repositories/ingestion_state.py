@@ -35,14 +35,14 @@ ONCE_COLUMNS: frozenset[str] = frozenset(
 
 
 class ShopIngestionStateRepo(SessionRepo):
-    """One ``shop_ingestion_state`` row per shop, created on first touch."""
+    """One ``shop_ingestion_state`` row per shop, created on first touch by ``ensure``."""
 
     async def find(self, shop_id: uuid.UUID) -> ShopIngestionState | None:
         return await self._one_or_none(
             select(ShopIngestionState).where(ShopIngestionState.shop_id == shop_id)
         )
 
-    async def get_or_create(self, shop_id: uuid.UUID) -> ShopIngestionState:
+    async def ensure(self, shop_id: uuid.UUID) -> ShopIngestionState:
         state = await self.find(shop_id)
         if state is not None:
             return state
@@ -56,7 +56,7 @@ class ShopIngestionStateRepo(SessionRepo):
 
     async def update(self, shop_id: uuid.UUID, **values: Any) -> ShopIngestionState:
         """Set columns on the shop's row (creating it), then flush."""
-        state = await self.get_or_create(shop_id)
+        state = await self.ensure(shop_id)
         for name, value in values.items():
             if name == "last_error" and value is not None:
                 value = str(value)[:_LAST_ERROR_LIMIT]
@@ -77,7 +77,7 @@ class ShopIngestionStateRepo(SessionRepo):
         """
         if column not in ONCE_COLUMNS:
             raise ValueError(f"{column!r} is not a once-only timestamp column")
-        state = await self.get_or_create(shop_id)
+        state = await self.ensure(shop_id)
         written = False
         if getattr(state, column) is None:
             setattr(state, column, at or utc_now_naive())
@@ -97,7 +97,7 @@ class ShopIngestionStateRepo(SessionRepo):
         had_data: bool,
     ) -> ShopIngestionState:
         """Advance the history cursor past one completed chunk."""
-        state = await self.get_or_create(shop_id)
+        state = await self.ensure(shop_id)
         state.history_earliest_date = earliest_date
         state.history_chunks_done = (state.history_chunks_done or 0) + 1
         state.history_empty_chunks = 0 if had_data else (state.history_empty_chunks or 0) + 1

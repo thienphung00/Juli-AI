@@ -48,6 +48,8 @@
     "backend/src/juli_backend/workers/dispatch_binding.py|juli_backend.services.action_cards.dispatch|deep_import",
     "backend/src/juli_backend/workers/dispatch_binding.py|juli_backend.services.execution.dispatch|deep_import",
     "backend/src/juli_backend/workers/dispatch_binding.py|juli_backend.services.execution.outcome_port|deep_import",
+    "backend/src/juli_backend/workers/services/polling/analytics_range.py|juli_backend.integrations.tiktok|forbidden_edge",
+    "backend/src/juli_backend/workers/services/polling/ingestion.py|juli_backend.integrations.tiktok|forbidden_edge",
     "backend/src/juli_backend/workers/services/polling/orchestrate.py|juli_backend.core.security.credential_resolver|deep_import",
     "backend/src/juli_backend/workers/services/polling/orchestrate.py|juli_backend.core.security.tiktok_oauth|deep_import",
     "backend/src/juli_backend/workers/services/polling/orchestrate.py|juli_backend.integrations.tiktok|forbidden_edge",

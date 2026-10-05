@@ -69,7 +69,8 @@ CLEANUP_REVISION = "074_users_placeholder_phone_cleanup"
 #: that dispatched it said to. Better process, same missing mechanism: it
 #: should be a pre-commit hook that re-parents the file whenever `versions/`
 #: gains a revision -- see #1950's PR body.
-PHONE_REVISION = "073_waiting_external"
+#: Fast track P1-B re-parented it (not renamed) onto `074_shop_ingestion_state`.
+PHONE_REVISION = "074_shop_ingestion_state"
 
 _SCHEMA = "phone_cleanup_074"
 
