@@ -22,6 +22,7 @@ contract applied to one aggregate:
 ``workflow``                webhook intake and the tool-execution audit trail
 ``backfill``                resumable analytics backfill partitions
 ``production_write``        single-use production mutation authorizations
+``ingestion_state``         per-shop bootstrap phase, latency stamps, cursors
 ==========================  =====================================================
 
 ``repos.py`` re-exports everything for callers written before the split.
@@ -61,6 +62,7 @@ from juli_backend.repositories.decisions import (
 )
 from juli_backend.repositories.graph import GraphRepo
 from juli_backend.repositories.identity import ShopsRepo, UsersRepo
+from juli_backend.repositories.ingestion_state import ShopIngestionStateRepo
 from juli_backend.repositories.production_write import ProductionWriteAuthorizationsRepo
 from juli_backend.repositories.tiktok_credentials import TikTokCredentialRepo, TikTokSyncStateRepo
 from juli_backend.repositories.workflow import (
@@ -95,6 +97,7 @@ __all__ = [
     "ReturnsRepo",
     "SessionRepo",
     "SettlementsRepo",
+    "ShopIngestionStateRepo",
     "ShopScopedRepo",
     "ShopsRepo",
     "TikTokCredentialRepo",
