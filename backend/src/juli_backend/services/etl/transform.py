@@ -381,6 +381,9 @@ def _transform_analytics(body: dict[str, Any]) -> dict[str, Any]:
         "customers": _optional_int,
         "visitors": _optional_int,
         "impressions": _optional_int,
+        "clicks": _optional_int,
+        "traffic_breakdown": _optional_json_dict,
+        "sales_breakdown": _optional_json_dict,
         # Shop-grain LIVE rollup fields (#880, A-28 live_hours) — absent from
         # per-product/per-session rows, present only on the derived shop rollup.
         "live_hours": _optional_decimal,
@@ -399,6 +402,10 @@ def _optional_int(value: Any) -> int | None:
     if value is None:
         return None
     return _coerce_int(value)
+
+
+def _optional_json_dict(value: Any) -> dict[str, Any] | None:
+    return value if isinstance(value, dict) and value else None
 
 
 def _channel_allowed(channel: str) -> bool:
