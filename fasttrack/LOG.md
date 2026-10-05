@@ -39,3 +39,24 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   file on `main` once, or add a tag-push trigger (`fasttrack-deploy-*`). The
   orchestrator's attempt to add the tag trigger was blocked pending owner
   decision.
+
+## 2026-10-05 — orchestrator (Claude Opus) — P1 integrated
+
+- P1-B done (Opus) @ add4abd1..ea0142ee: `shop_ingestion_state` table (074),
+  `bootstrap_shop` on `ingest_priority`, `shop_history_backfill` on
+  `ingest_backfill`, beat `shop-poll-fanout` replaces `fujiwa-poll-cycle`,
+  Redis per-shop lock, daily analytics ranges up to `latest_available_date`,
+  bounded parallel detail calls, latency events. OAuth callback enqueues
+  bootstrap after commit.
+- Merged P0, P1-A, P1-B into `fasttrack/optimize-product` (merge 728f67d1).
+  Re-chained migrations 073 → 074 → 075 → deferred phone cleanup.
+- Found + fixed a latent test-isolation bug: `_isolated_migration_database`
+  swapped only DATABASE_URL while alembic prefers DATABASE_DIRECT_URL.
+- `fasttrack/check.sh` on a fresh throwaway PG16: all 5 steps PASS. Full
+  unit+harness vs base: the only real new failure (MODULE.md allowlist) fixed;
+  four others were flaky from running during concurrent edits and pass on
+  rerun.
+- All P0 + P1 ACs ticked. P2 waits on the FastMoss API trial.
+- Deviations from SPEC (accepted): latest_available_date probed via one A-36
+  call; bestseller/promotion calls dropped from the scheduled path; CVR lands
+  only from single-day (daily incremental) windows, not multi-day backfill.

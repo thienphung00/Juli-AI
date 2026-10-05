@@ -17,12 +17,12 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 | Task | ACs | Status | Owner |
 |---|---|---|---|
 | P1-A Mapper fixes (analytics breakdowns, CVR, price, category) + migration | 1.8, 1.9 | done | P1-A agent (Sonnet) |
-| P1-B Bootstrap on connect, per-shop schedule, cadence split, date-range backfill, parallel calls, latency events | 1.1–1.7, 1.10, 1.12 | doing | P1-B agent (Opus) |
-| P1 integration: merge A + B, full test pass, check.sh | 1.11 | todo | orchestrator |
+| P1-B Bootstrap on connect, per-shop schedule, cadence split, date-range backfill, parallel calls, latency events | 1.1–1.7, 1.10, 1.12 | done | P1-B agent (Opus) |
+| P1 integration: merge A + B, full test pass, check.sh | 1.11 | done | orchestrator |
 
 ## P2–P6
 
-Not started. See SPEC §4.
+Not started. See SPEC §4. P2 is blocked on the FastMoss API trial (owner).
 
 ## Owner actions (not for agents)
 

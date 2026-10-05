@@ -25,3 +25,24 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] `release.yml` release artifact / browser checks / GitHub release not
   produced for fasttrack deploys — speed — first deploy from `main` after merge
   runs the full release.
+
+## P1 shortcuts and open risks
+
+- [ ] A-33/A-31/A-36 returning daily intervals over a multi-day range is
+  assumed, not verified against live TikTok — guarded (non-single-day rows are
+  dropped and logged at ERROR) — verify on Fujiwa after first deploy.
+- [ ] One `requests.Session` shared by 5 threads in parallel detail calls —
+  works via urllib3's pool but not formally guaranteed — per-thread sessions if
+  any flakiness shows.
+- [ ] One Celery worker consumes all queues, so `ingest_priority` isn't truly
+  ahead of `ingest_backfill` — add a dedicated worker if connects queue.
+- [ ] Analytics list calls keep the 20-page incremental cap: catalogs > 1,000
+  products are truncated with a warning.
+- [ ] Partial ETL row rejections still advance the daily analytics cursor.
+- [ ] First deploy bootstraps every already-connected shop (Fujiwa included):
+  30-day fetch + history walk = a burst of vendor calls. Watch rate limits.
+- [ ] Multi-day backfill windows carry no `conversion_rate` (list row only
+  merged for single-day windows) — CVR history only from the daily pass;
+  backfill it per day later if the model needs it.
+- [ ] `fujiwa_poll_cycle` task still registered but unscheduled — delete
+  after the fan-out is proven in production.

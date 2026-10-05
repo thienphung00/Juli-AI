@@ -21,27 +21,27 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
 
 ## P1 — data layer
 
-- [ ] **AC-1.1** OAuth callback enqueues `bootstrap_shop(shop_id)` after commit
+- [x] **AC-1.1** OAuth callback enqueues `bootstrap_shop(shop_id)` after commit
   on a high-priority queue; an enqueue failure is logged and does not fail the
-  callback. Test covers both.
-- [ ] **AC-1.2** Fast phase: commerce cold start + last 30 days of analytics
+  callback. Test covers both. — evidence: 728f67d1 (P1-B add4abd1..ea0142ee); tests/unit/test_shop_ingestion.py
+- [x] **AC-1.2** Fast phase: commerce cold start + last 30 days of analytics
   via date-range detail calls, then scoring + card persistence for that shop.
   Test with a fake TikTok resource shows rows written for 30 distinct days and
-  a card persisted.
-- [ ] **AC-1.3** History phase runs on a low-priority queue after the fast
+  a card persisted. — evidence: 728f67d1; test_shop_ingestion.py runs real ETL + real scoring, 30 distinct days + ≥1 card persisted
+- [x] **AC-1.3** History phase runs on a low-priority queue after the fast
   phase, walks back in chunks until no data, records the earliest date, and is
-  resumable (re-running doesn't refetch completed chunks). Tested.
-- [ ] **AC-1.4** Per-shop bootstrap state + timestamps persisted (migration).
-- [ ] **AC-1.5** One beat entry fans out one task per connected shop with a
+  resumable (re-running doesn't refetch completed chunks). Tested. — evidence: 728f67d1; test_shop_ingestion.py (resume, empty-chunk stop, range-refusal halving)
+- [x] **AC-1.4** Per-shop bootstrap state + timestamps persisted (migration). — evidence: 728f67d1; migration 074_shop_ingestion_state (RLS, juli_app grants)
+- [x] **AC-1.5** One beat entry fans out one task per connected shop with a
   usable read credential (production merchant and `SELLER_CONNECT` shops);
   shops without a completed fast phase get `bootstrap_shop`; a per-shop mutex
-  prevents overlap. Tested with ≥2 shops.
-- [ ] **AC-1.6** Commerce stays incremental every 15 min; analytics runs at
+  prevents overlap. Tested with ≥2 shops. — evidence: 728f67d1; beat shop-poll-fanout; two-shop tests in test_shop_ingestion.py
+- [x] **AC-1.6** Commerce stays incremental every 15 min; analytics runs at
   most once per day per shop and fetches every missing day up to
   `latest_available_date`; a cycle with nothing new makes zero analytics
-  detail calls. Tested.
-- [ ] **AC-1.7** Product/SKU detail calls run concurrently (bounded) and still
-  respect the rate limiter and cycle budget. Tested.
+  detail calls. Tested. — evidence: 728f67d1; test_shop_ingestion.py (nothing new → 1 probe, 0 detail calls)
+- [x] **AC-1.7** Product/SKU detail calls run concurrently (bounded) and still
+  respect the rate limiter and cycle budget. Tested. — evidence: 728f67d1; tests/unit/test_analytics_range_parallel.py
 - [x] **AC-1.8** Mapper: product-grain rows carry `impressions`, per-content-type
   breakdown, `ctr`, derived clicks, and `conversion_rate` (from
   `click_order_rate`); fixture built from the contract samples in
@@ -49,10 +49,11 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
 - [x] **AC-1.9** `products.price` filled from `tax_exclusive_price`;
   `products.category`/`category_id` filled from the `category_chains` leaf.
   Tested against `docs/integrations/tiktok_api/samples/`. — evidence: 4010fece; same test file (samples products-{search,detail}-response.json)
-- [ ] **AC-1.10** Latency events/timestamps exist for connect → bootstrap
-  enqueued → fast done → first card → history done.
-- [ ] **AC-1.11** All new/changed backend tests pass; `fasttrack/check.sh`
-  passes locally (minus the production backup step).
-- [ ] **AC-1.12** Shop isolation holds: new per-shop tasks run under the
+- [x] **AC-1.10** Latency events/timestamps exist for connect → bootstrap
+  enqueued → fast done → first card → history done. — evidence: 728f67d1; shop_ingestion_state timestamps + shop_* log events with seconds_since_connect
+- [x] **AC-1.11** All new/changed backend tests pass; `fasttrack/check.sh`
+  passes locally (minus the production backup step). — evidence: 728f67d1; check.sh on fresh PG16: migrations/isolation/gitleaks/ruff/pytest all PASS (180 passed, 1 skipped). Full unit+harness: no new failures vs base after fixes (base pre-existing failures: node_modules contract tests et al.)
+- [x] **AC-1.12** Shop isolation holds: new per-shop tasks run under the
   correct shop scope (sticky scope where ETL commits mid-cycle, as #1967).
   Tested with two shops.
+ — evidence: 728f67d1; tests/integration/test_shop_ingestion_two_tenant.py as juli_app with real commits (fails if sticky scope removed)
