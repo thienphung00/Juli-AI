@@ -259,6 +259,9 @@ _SHARED_STATE_MODULES = frozenset(
         # Reason 2 again: seeds two tenants for #1513 (mock_analytics_reconcile per-shop
         # context via with_shop_scope).
         "test_mock_analytics_reconcile_two_tenant.py",
+        # Reason 2 again: seeds two tenants for fast track P1-B (per-shop
+        # ingestion as juli_app, AC-1.12).
+        "test_shop_ingestion_two_tenant.py",
     }
 )
 
