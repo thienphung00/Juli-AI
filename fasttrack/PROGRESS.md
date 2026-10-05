@@ -1,0 +1,34 @@
+# Progress
+
+Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
+
+## P0 — setup
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Cut branch + worktree | 0.1 | done | orchestrator |
+| Write fasttrack/ docs | 0.2 | done | orchestrator |
+| Disable edit hooks + executor-cache pre-commit gate | 0.3 | todo | orchestrator |
+| `check.sh` + manual deploy workflow | 0.4, 0.5 | todo | P0 agent |
+| Close Dependabot PRs | 0.6 | todo | orchestrator |
+
+## P1 — data layer
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P1-A Mapper fixes (analytics breakdowns, CVR, price, category) + migration | 1.8, 1.9 | todo | P1-A agent |
+| P1-B Bootstrap on connect, per-shop schedule, cadence split, date-range backfill, parallel calls, latency events | 1.1–1.7, 1.10, 1.12 | todo | P1-B agent |
+| P1 integration: merge A + B, full test pass, check.sh | 1.11 | todo | orchestrator |
+
+## P2–P6
+
+Not started. See SPEC §4.
+
+## Owner actions (not for agents)
+
+- FastMoss REST API trial + 1,000-request minimum (blocks P2).
+- Confirm Fujiwa's TikTok authorisation allows product writes (blocks P5).
+- Consent screen #2061 (launch, not this branch).
+- Dependabot keeps reopening PRs because its config is read from `main`
+  (frozen). Either accept periodic closes, or allow a one-line change on `main`
+  setting `open-pull-requests-limit: 0`.

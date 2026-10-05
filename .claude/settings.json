@@ -46,23 +46,6 @@
       "Bash(gh pr merge:*)"
     ]
   },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/checkout_preflight_gate.py\""
-          },
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/executor_cache_gate.py\""
-          }
-        ]
-      }
-    ]
-  },
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true
   }
