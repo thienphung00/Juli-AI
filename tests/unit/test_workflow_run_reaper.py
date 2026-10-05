@@ -825,7 +825,8 @@ def test_beat_schedule_has_exactly_the_seven_expected_entries():
         "daily-impact-reader",
         "reap-abandoned-workflow-runs",
         "credential-refresh-beat",
-        "fujiwa-poll-cycle",
+        # Fast track P1-B replaced `fujiwa-poll-cycle` with the per-shop fan-out.
+        "shop-poll-fanout",
     }
 
 

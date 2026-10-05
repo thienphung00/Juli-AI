@@ -36,6 +36,12 @@ celery_app.conf.update(
         "juli_backend.run_agent_workflow": {"queue": "agent_runs"},
         "juli_backend.resume_agent_workflow": {"queue": "agent_runs"},
         "juli_backend.credential_refresh_beat": {"queue": "credentials"},
+        # Fast track P1-B (SPEC §3.1, D10): a connecting shop's fast phase must
+        # never queue behind the history backfill, nor behind the fleet's
+        # 15-minute cycles on the default queue. Two dedicated queues, both in
+        # the worker unit's -Q (#1205's trap -- see the note above).
+        "juli_backend.bootstrap_shop": {"queue": "ingest_priority"},
+        "juli_backend.shop_history_backfill": {"queue": "ingest_backfill"},
     },
     beat_schedule={
         # ADR-038 §5 — Mock-mode hourly reconciliation for DEMO_REFERENCE_SHOP_ID only (#533).
@@ -127,8 +133,17 @@ celery_app.conf.update(
         # the one entry every other beat already "collides" with by design
         # and is excluded from this reasoning for the same reason it is
         # excluded from #1659's own daily-beat check.
-        "fujiwa-poll-cycle": {
-            "task": "juli_backend.fujiwa_poll_cycle",
+        #
+        # Fast track P1-B (SPEC §3.2, D7/D9.4): the single-merchant
+        # `fujiwa-poll-cycle` entry is REPLACED by a fan-out that enqueues one
+        # task per connected shop with a usable read credential -- the
+        # production merchant and SELLER_CONNECT shops alike -- and
+        # `bootstrap_shop` for any shop whose fast phase never completed. Same
+        # fire minutes, for the collision reasoning above.
+        # `juli_backend.fujiwa_poll_cycle` stays registered (manual use) but is
+        # no longer scheduled.
+        "shop-poll-fanout": {
+            "task": "juli_backend.shop_poll_fanout",
             "schedule": crontab(minute="7,22,37,52"),
         },
     },

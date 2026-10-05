@@ -11,6 +11,7 @@ from juli_backend.models.models import ToolExecution
 from juli_backend.services.action_cards.dispatch import set_refresh_dispatcher
 from juli_backend.services.execution.dispatch import set_task_dispatcher
 from juli_backend.services.execution.outcome_port import set_workflow_outcome_recorder
+from juli_backend.services.ingestion import set_bootstrap_dispatcher
 
 
 @dataclass
@@ -22,6 +23,24 @@ class CeleryRefreshDispatcher:
 
         async_result = refresh_action_cards.delay(shop_id)
         return async_result.id
+
+
+@dataclass
+class CeleryBootstrapDispatcher:
+    """Enqueue a shop's bootstrap on the high-priority queue (fast track SPEC §3.1)."""
+
+    def enqueue(
+        self,
+        shop_id: str,
+        *,
+        connect_committed_at: str | None,
+        enqueued_at: str | None,
+    ) -> str:
+        from juli_backend.workers.tasks.shop_ingestion import enqueue_bootstrap
+
+        return enqueue_bootstrap(
+            shop_id, connect_committed_at=connect_committed_at, enqueued_at=enqueued_at
+        )
 
 
 @dataclass
@@ -60,5 +79,6 @@ class OperationsWorkflowOutcomeRecorder:
 def bind_celery_dispatchers() -> None:
     """Register production Celery adapters on domain injectors (API + worker startup)."""
     set_refresh_dispatcher(CeleryRefreshDispatcher())
+    set_bootstrap_dispatcher(CeleryBootstrapDispatcher())
     set_task_dispatcher(CeleryTaskDispatcher())
     set_workflow_outcome_recorder(OperationsWorkflowOutcomeRecorder())

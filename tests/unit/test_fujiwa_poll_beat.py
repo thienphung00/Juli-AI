@@ -53,16 +53,20 @@ def registered_task_names() -> set[str]:
 
 
 class TestBeatScheduleEntry:
-    def test_fujiwa_poll_cycle_entry_registered(self):
+    """Fast track P1-B (SPEC §3.2): the single-merchant entry is REPLACED by the
+    per-shop fan-out on the same fire minutes. The task stays registered."""
+
+    def test_fujiwa_poll_cycle_entry_is_replaced_by_the_fanout(self):
         from juli_backend.workers.celery_app import celery_app
 
-        assert "fujiwa-poll-cycle" in celery_app.conf.beat_schedule
+        assert "fujiwa-poll-cycle" not in celery_app.conf.beat_schedule
+        assert "shop-poll-fanout" in celery_app.conf.beat_schedule
 
-    def test_fujiwa_poll_cycle_entry_targets_correct_task_name(self):
+    def test_fanout_entry_targets_correct_task_name(self):
         from juli_backend.workers.celery_app import celery_app
 
-        entry = celery_app.conf.beat_schedule["fujiwa-poll-cycle"]
-        assert entry["task"] == "juli_backend.fujiwa_poll_cycle"
+        entry = celery_app.conf.beat_schedule["shop-poll-fanout"]
+        assert entry["task"] == "juli_backend.shop_poll_fanout"
 
     def test_fujiwa_poll_cycle_task_is_registered_on_the_worker(
         self, registered_task_names: set[str]
@@ -94,18 +98,18 @@ class TestNoCrontabCollision:
         from juli_backend.workers.celery_app import celery_app
 
         schedule = celery_app.conf.beat_schedule
-        mine = _fire_slots(schedule["fujiwa-poll-cycle"]["schedule"])
+        mine = _fire_slots(schedule["shop-poll-fanout"]["schedule"])
 
         offenders: dict[str, set[tuple[int, int]]] = {}
         for name, entry in schedule.items():
-            if name in ("fujiwa-poll-cycle", "cdp-batch-staggered-reconcile"):
+            if name in ("shop-poll-fanout", "cdp-batch-staggered-reconcile"):
                 continue
             shared = mine & _fire_slots(entry["schedule"])
             if shared:
                 offenders[name] = shared
 
         assert not offenders, (
-            f"fujiwa-poll-cycle shares a fire slot with: {offenders}. "
+            f"shop-poll-fanout shares a fire slot with: {offenders}. "
             "That is the #1659 collision shape -- pick a minute untaken by "
             "every other entry's hour(s)."
         )
