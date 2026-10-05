@@ -136,7 +136,29 @@ def normalize_product(raw: dict[str, Any]) -> dict[str, Any]:
     if result.get("price_currency") is None:
         result["price_currency"] = "VND"
 
+    if not result.get("category_id") or not result.get("category"):
+        leaf = _category_leaf(result.get("category_chains"))
+        if leaf is not None:
+            if not result.get("category_id") and leaf.get("id") is not None:
+                result["category_id"] = str(leaf["id"])
+            name = leaf.get("local_name") or leaf.get("name")
+            if not result.get("category") and name:
+                result["category"] = str(name)
+
     return result
+
+
+def _category_leaf(chains: Any) -> dict[str, Any] | None:
+    """Leaf of ``category_chains`` (``is_leaf`` true, else the last element)."""
+    if not isinstance(chains, list):
+        return None
+    dicts = [c for c in chains if isinstance(c, dict)]
+    if not dicts:
+        return None
+    for chain in dicts:
+        if chain.get("is_leaf") is True:
+            return chain
+    return dicts[-1]
 
 
 def _first_dict(value: Any) -> dict[str, Any] | None:
@@ -151,7 +173,8 @@ def _extract_sku_price(sku: dict[str, Any]) -> Any:
     price = sku.get("price")
     if isinstance(price, dict):
         return (
-            price.get("sale_price")
+            price.get("tax_exclusive_price")
+            or price.get("sale_price")
             or price.get("list_price")
             or price.get("original_price")
             or price.get("amount")
@@ -753,8 +776,33 @@ def expand_analytics_product_list_item(
             "customers": _optional_int(total.get("estimated_customers")),
             "ctr": _optional_rate(total.get("ctr")),
             "click_order_rate": _optional_rate(total.get("click_order_rate")),
+            "conversion_rate": _optional_rate(total.get("click_order_rate")),
         },
     )
+
+
+def merge_product_analytics_rows(
+    detail_rows: list[dict[str, Any]], list_row: dict[str, Any] | None
+) -> list[dict[str, Any]]:
+    """Fill gaps in A-33 detail rows from the A-34 list row of the same product.
+
+    Detail values win; list values only fill keys that are missing or ``None``
+    (e.g. ``click_order_rate`` / ``conversion_rate``), and only for the row
+    covering the same date window. Neither side ever overwrites a non-null
+    value with null.
+    """
+    if list_row is None:
+        return detail_rows
+    for row in detail_rows:
+        if (row.get("start_date"), row.get("end_date")) != (
+            list_row.get("start_date"),
+            list_row.get("end_date"),
+        ):
+            continue
+        for key, value in list_row.items():
+            if value is not None and row.get(key) is None:
+                row[key] = value
+    return detail_rows
 
 
 def expand_analytics_product_detail(
@@ -782,14 +830,21 @@ def expand_analytics_product_detail(
         sales = _as_dict(interval.get("sales"))
         traffic = _as_dict(interval.get("traffic"))
         gmv_amount, gmv_currency = _extract_gmv(sales.get("gmv"))
+        traffic_breakdown, impressions, clicks = _product_traffic_breakdown(
+            traffic.get("breakdowns")
+        )
+        sales_breakdown = _product_sales_breakdown(sales.get("breakdowns"))
         ctr = None
-        traffic_breakdowns = traffic.get("breakdowns")
-        if isinstance(traffic_breakdowns, list) and traffic_breakdowns:
-            first = traffic_breakdowns[0]
-            if isinstance(first, dict):
-                nested = first.get("traffic")
-                if isinstance(nested, dict):
-                    ctr = _optional_rate(nested.get("ctr"))
+        if impressions:
+            ctr = format(Decimal(clicks) / Decimal(impressions), ".6f")
+        else:
+            traffic_breakdowns = traffic.get("breakdowns")
+            if isinstance(traffic_breakdowns, list) and traffic_breakdowns:
+                first = traffic_breakdowns[0]
+                if isinstance(first, dict):
+                    nested = first.get("traffic")
+                    if isinstance(nested, dict):
+                        ctr = _optional_rate(nested.get("ctr"))
         payload = _base_analytics_payload(
             grain="product",
             start_date=str(start_date),
@@ -805,10 +860,74 @@ def expand_analytics_product_detail(
                 "orders_count": _optional_int(sales.get("orders")),
                 "items_sold": _optional_int(sales.get("items_sold")),
                 "ctr": ctr,
+                "impressions": impressions,
+                "clicks": clicks if impressions else None,
+                "traffic_breakdown": traffic_breakdown or None,
+                "sales_breakdown": sales_breakdown or None,
             },
         )
         rows.append(payload)
     return rows
+
+
+def _product_traffic_breakdown(
+    breakdowns: Any,
+) -> tuple[dict[str, dict[str, Any]], int | None, int]:
+    """Per-content-type ``{impressions, ctr, clicks}`` plus total impressions/clicks.
+
+    ``clicks`` is derived (``round(impressions * ctr)``) because A-33 reports
+    only impressions and ctr. ``ctr`` may arrive as a string such as ``"0.05"``.
+    """
+    result: dict[str, dict[str, Any]] = {}
+    total_impressions = 0
+    total_clicks = 0
+    seen = False
+    if not isinstance(breakdowns, list):
+        return result, None, 0
+    for entry in breakdowns:
+        if not isinstance(entry, dict):
+            continue
+        content_type = entry.get("content_type")
+        nested = entry.get("traffic")
+        if not content_type or not isinstance(nested, dict):
+            continue
+        impressions = _optional_int(nested.get("impressions"))
+        if impressions is None:
+            continue
+        ctr_raw = _optional_rate(nested.get("ctr"))
+        try:
+            ctr_value = float(ctr_raw) if ctr_raw is not None else None
+        except (TypeError, ValueError):
+            ctr_value = None
+        clicks = round(impressions * ctr_value) if ctr_value is not None else None
+        result[str(content_type)] = {
+            "impressions": impressions,
+            "ctr": ctr_value,
+            "clicks": clicks,
+        }
+        total_impressions += impressions
+        total_clicks += clicks or 0
+        seen = True
+    return result, (total_impressions if seen else None), total_clicks
+
+
+def _product_sales_breakdown(breakdowns: Any) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    if not isinstance(breakdowns, list):
+        return result
+    for entry in breakdowns:
+        if not isinstance(entry, dict):
+            continue
+        content_type = entry.get("content_type")
+        nested = entry.get("sales")
+        if not content_type or not isinstance(nested, dict):
+            continue
+        amount, _currency = _extract_gmv(nested.get("gmv"))
+        result[str(content_type)] = {
+            "gmv": str(amount) if amount is not None else None,
+            "items_sold": _optional_int(nested.get("items_sold")),
+        }
+    return result
 
 
 def expand_analytics_live_session(
