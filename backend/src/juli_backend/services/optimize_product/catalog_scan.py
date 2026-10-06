@@ -229,7 +229,7 @@ def write_report(
     lines.append("| KPI | Trung bình | Số sản phẩm đủ volume |\n|---|---|---|")
     for name, value in (("CTR", medians.ctr), ("CTOR", medians.ctor), ("AOV", medians.aov)):
         shown = (
-            "— (dưới 5 sản phẩm)"
+            f"— (dưới {config.min_peers_for_median} sản phẩm)"
             if value is None
             else (
                 f"{(value * 100).quantize(Decimal('0.01'))} %"
