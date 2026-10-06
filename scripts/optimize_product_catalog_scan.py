@@ -37,7 +37,6 @@ async def _fetch_live(
     config: StageDiagnosisConfig,
     *,
     max_products: int,
-    with_a33: bool,
     sleep_s: float,
 ) -> None:
     """Pull A-34 (three windows), GetProduct and optionally A-33 per product. Read-only."""
@@ -88,21 +87,12 @@ async def _fetch_live(
         detail = resources.products.get_details(product_id)
         dump_json(snapshot / "products" / f"{product_id}.json", detail)
         time.sleep(sleep_s)
-        if with_a33:
-            for name in ("current", "prior"):
-                start, end = scan_windows[name]
-                payload = resources.analytics.get_product_performance(
-                    product_id=product_id, start_date_ge=start, end_date_lt=end
-                )
-                dump_json(snapshot / "a33" / f"{product_id}_{name}.json", payload)
-                time.sleep(sleep_s)
     dump_json(
         snapshot / "meta.json",
         {
             "as_of": as_of.isoformat(),
             "windows": scan_windows,
             "products_fetched": len(product_ids),
-            "with_a33": with_a33,
             "fetched_at": datetime.now().isoformat(timespec="seconds"),
             "source": "live (production_read, read-only guard)",
         },

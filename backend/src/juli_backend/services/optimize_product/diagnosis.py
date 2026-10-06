@@ -284,8 +284,8 @@ def diagnose_product(
     caveats: list[str] = []
     if product.channel_scope != "PRODUCT_CARD":
         caveats.append(
-            "CTR và CTOR tính trên mọi kênh (A-34); chưa có chuỗi thẻ sản phẩm (A-33) "
-            "nên góc độ listing cần xác nhận lại khi có dữ liệu theo kênh"
+            "CTR và CTOR tính trên mọi kênh (A-34 total); dòng này không có block "
+            "thẻ sản phẩm nên góc độ listing cần xác nhận lại"
         )
     if any(e.source.value == "local" for e in evidence):
         caveats.append(

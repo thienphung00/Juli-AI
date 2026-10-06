@@ -98,26 +98,45 @@ class FunnelWindow:
         )
 
     @classmethod
-    def from_a33_breakdown(cls, breakdown_traffic: dict, sales: dict, *, days: int) -> FunnelWindow:
-        """Build the PRODUCT_CARD-scoped window from one A-33 interval.
+    def from_a34_product_card(cls, item: dict, *, days: int) -> FunnelWindow | None:
+        """The PRODUCT_CARD-scoped window from one A-34 product row.
 
-        ``breakdown_traffic`` is the ``traffic`` object of the
-        ``content_type == "PRODUCT_CARD"`` entry (``impressions``,
-        ``page_views``, ``ctr``); ``sales`` is the interval's ``sales`` block.
-        Clicks are ``impressions × ctr`` (A-33 exposes no click count), and
-        orders stay all-channel because A-33 breaks sales down by GMV and
-        items, not by order count.
+        The live 202605 response carries per-channel blocks beside
+        ``total_performance``. TikTok's "Thẻ sản phẩm" is every non-LIVE,
+        non-video surface, which A-34 splits into
+        ``seller_product_card_performance`` (search, recommendation, shop
+        page) and ``shop_tab_performance`` (the Shop Tab). Both are summed
+        here. Each block carries its own impressions, clicks and ratios at
+        four decimals, so the funnel is exact for that channel — unlike the
+        A-33 breakdown, which gives per-channel traffic but all-channel
+        orders. Returns ``None`` when neither block is present.
         """
-        impressions = to_decimal(breakdown_traffic.get("impressions"))
-        ctr = to_decimal(breakdown_traffic.get("ctr"))
-        clicks = impressions * ctr
+        card = item.get("seller_product_card_performance")
+        tab = item.get("shop_tab_performance")
+        if not isinstance(card, dict) and not isinstance(tab, dict):
+            return None
+        card = card if isinstance(card, dict) else {}
+        tab = tab if isinstance(tab, dict) else {}
+        tab_clicks = to_decimal(tab.get("shop_tab_product_clicks"))
+        tab_orders = tab_clicks * to_decimal(tab.get("shop_tab_ctor_sku"))
         return cls(
             days=days,
-            impressions=impressions,
-            clicks=clicks,
-            sku_orders=to_decimal(sales.get("orders")),
-            items_sold=to_decimal(sales.get("items_sold")),
-            gmv=to_decimal((sales.get("gmv") or {}).get("amount")),
+            impressions=to_decimal(card.get("product_impressions"))
+            + to_decimal(tab.get("shop_tab_product_impressions")),
+            clicks=to_decimal(card.get("product_clicks")) + tab_clicks,
+            sku_orders=to_decimal(card.get("attributed_sku_orders")) + tab_orders,
+            items_sold=to_decimal(card.get("attributed_sold_items"))
+            + to_decimal(tab.get("shop_tab_sold_items")),
+            gmv=to_decimal(
+                (card.get("attributed_gmv") or {}).get("amount")
+                if isinstance(card.get("attributed_gmv"), dict)
+                else card.get("attributed_gmv")
+            )
+            + to_decimal(
+                (tab.get("shop_tab_gmv") or {}).get("amount")
+                if isinstance(tab.get("shop_tab_gmv"), dict)
+                else tab.get("shop_tab_gmv")
+            ),
         )
 
 
@@ -131,8 +150,9 @@ class ProductFunnel:
     prior: FunnelWindow | None = None
     gmv_28d: Decimal = ZERO
     age_days: int | None = None
-    #: Which series ``current`` came from — ``"PRODUCT_CARD"`` when A-33 was
-    #: available, ``"ALL_CHANNELS"`` when only A-34 was. Listing angles are
+    #: Which series ``current`` came from — ``"PRODUCT_CARD"`` when the A-34
+    #: channel blocks were present, ``"ALL_CHANNELS"`` when only
+    #: ``total_performance`` was. Listing angles are
     #: trusted on the former; the latter is reported as a caveat.
     channel_scope: str = "ALL_CHANNELS"
 
