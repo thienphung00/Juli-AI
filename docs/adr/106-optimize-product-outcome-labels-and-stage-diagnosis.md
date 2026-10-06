@@ -87,7 +87,19 @@ platform and one of its mechanics breaks Juli's own measurement:
    AOV = `gmv ÷ sku_orders` — and never a standalone "CR" or "Traffic". Content levers are
    diagnosed and measured on the **PRODUCT_CARD** series from A-33; price and basket levers on
    the all-channel A-34 aggregate, since a discount or BMSM applies everywhere. Video and LIVE
-   funnels belong to content workflows, not to Optimize Product. *Rejected:* keeping three
+   funnels belong to content workflows, not to Optimize Product. **The measurement formula of
+   Optimize Product is this identity applied to one product** — `GMV_sp = Impressions_sp ×
+   CTR_sp × CTOR_sp × AOV_sp` (owner, 2026-10-06): the workflow exists to optimise the product,
+   raise its conversion, and thereby raise its GMV, so the run's GMV is always read through the
+   four factors, never as a bare revenue delta. The workflow owns CTOR and AOV (decision 2);
+   CTR moves through the image and title levers under the CTOR label; Impressions is the
+   factor the workflow does not own and is reported so a traffic swing is never mistaken for
+   a listing effect. **The same identity is the
+   workflow's measurement formula** — there is no separate `GMV_sp`; product clicks are
+   `Impressions × CTR`, so a three-factor form `clicks × CTOR × AOV` is the same number, and
+   impressions never appear as an extra factor beside clicks (owner, 2026-10-06). Impressions
+   and CTR are reported beside the reading as the decomposition of traffic the workflow does not
+   own. *Rejected:* keeping three
    factors with CR = CTR × CTOR — arithmetically fine, but a number the seller cannot find on
    Seller Center, which OP-NFR-2 forbids Juli from asserting.
 
