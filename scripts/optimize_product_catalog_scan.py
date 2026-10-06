@@ -37,10 +37,10 @@ async def _fetch_live(
     config: StageDiagnosisConfig,
     *,
     max_products: int,
-    with_a33: bool,
     sleep_s: float,
 ) -> None:
     """Pull A-34 (three windows), GetProduct and optionally A-33 per product. Read-only."""
+    from juli_backend.core.async_db import async_database_url
     from juli_backend.core.config import require_env
     from juli_backend.core.security import resolve_production_read_credential
     from juli_backend.database.database import ensure_worker_session_factory
@@ -50,10 +50,13 @@ async def _fetch_live(
     )
     from juli_backend.integrations.tiktok.merchant import PRODUCTION_AUTH_ID
     from juli_backend.services.optimize_product.catalog_scan import dump_json, windows
-    from juli_backend.workers.tasks.database import get_async_database_url
 
     app_key, app_secret = require_env("TIKTOK_APP_KEY"), require_env("TIKTOK_APP_SECRET")
-    factory = ensure_worker_session_factory(get_async_database_url())
+    # Resolve the URL here rather than via ``workers.tasks.database``: importing
+    # ``workers.tasks`` boots the Celery app and asserts the full runtime
+    # config (SUPABASE_URL, broker), which a read-only scan has no business
+    # requiring.
+    factory = ensure_worker_session_factory(async_database_url(require_env("DATABASE_URL")))
     async with factory() as session:
         credential = await resolve_production_read_credential(session)
     resources = ProductionReadClientFactory().create_resources(
@@ -84,21 +87,12 @@ async def _fetch_live(
         detail = resources.products.get_details(product_id)
         dump_json(snapshot / "products" / f"{product_id}.json", detail)
         time.sleep(sleep_s)
-        if with_a33:
-            for name in ("current", "prior"):
-                start, end = scan_windows[name]
-                payload = resources.analytics.get_product_performance(
-                    product_id=product_id, start_date_ge=start, end_date_lt=end
-                )
-                dump_json(snapshot / "a33" / f"{product_id}_{name}.json", payload)
-                time.sleep(sleep_s)
     dump_json(
         snapshot / "meta.json",
         {
             "as_of": as_of.isoformat(),
             "windows": scan_windows,
             "products_fetched": len(product_ids),
-            "with_a33": with_a33,
             "fetched_at": datetime.now().isoformat(timespec="seconds"),
             "source": "live (production_read, read-only guard)",
         },

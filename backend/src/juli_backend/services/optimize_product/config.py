@@ -3,7 +3,8 @@
 Nothing in :mod:`juli_backend.services.optimize_product.diagnosis` carries a
 literal threshold; it reads this object. The defaults are ADR-106's: volume
 floors reuse ADR-077 decision 4, the gap threshold is 0.20 for both gap
-kinds, the shop median needs five peers above the floor, own-trend needs 42
+kinds, the shop median needs three peers above the floor (ADR-106 amendment
+2026-10-06, after the Fujiwa live scan — ADR-077's own control minimum), own-trend needs 42
 days of product age, and a shop holds at most five open cards.
 """
 
@@ -34,7 +35,12 @@ class StageDiagnosisConfig:
 
     #: The shop median counts only products above the floor and needs this
     #: many of them; fewer and ``gap_median`` is not computed for anyone.
-    min_peers_for_median: int = 5
+    #: Three is ADR-077 d.3's control-pool minimum; the first live scan
+    #: (Fujiwa, 37 listings, 4 real sellers) never reached the original five.
+    min_peers_for_median: int = 3
+    #: Below this many peers the card says "so với N sản phẩm đủ dữ liệu của
+    #: shop" instead of "so với trung bình shop".
+    full_median_peers: int = 5
     #: Products younger than this cannot have a prior window; ``gap_trend``
     #: is not computed for them.
     min_age_days_for_trend: int = 42

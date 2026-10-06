@@ -91,6 +91,8 @@ class Gap:
     gap_median: Decimal | None
     gap_trend: Decimal | None
     cleared_floor: bool
+    #: How many products above the floor formed ``median`` (0 when none).
+    median_peers: int = 0
 
     @property
     def gap(self) -> Decimal:
@@ -161,6 +163,7 @@ def _gap_for(
     cleared_floor: bool,
     *,
     trend_allowed: bool,
+    median_peers: int = 0,
 ) -> Gap:
     gap_median = None
     gap_trend = None
@@ -176,6 +179,7 @@ def _gap_for(
         gap_median=gap_median,
         gap_trend=gap_trend,
         cleared_floor=cleared_floor,
+        median_peers=median_peers,
     )
 
 
@@ -196,6 +200,7 @@ def compute_gaps(
             prior.ctr if prior else None,
             floors["ctr"],
             trend_allowed=trend_allowed,
+            median_peers=medians.peers.get("ctr", 0),
         ),
         "ctor": _gap_for(
             "ctor",
@@ -204,6 +209,7 @@ def compute_gaps(
             prior.ctor if prior else None,
             floors["ctor"],
             trend_allowed=trend_allowed,
+            median_peers=medians.peers.get("ctor", 0),
         ),
         "aov": _gap_for(
             "aov",
@@ -212,6 +218,7 @@ def compute_gaps(
             prior.aov if prior else None,
             floors["aov"],
             trend_allowed=trend_allowed,
+            median_peers=medians.peers.get("aov", 0),
         ),
     }
 
@@ -284,8 +291,8 @@ def diagnose_product(
     caveats: list[str] = []
     if product.channel_scope != "PRODUCT_CARD":
         caveats.append(
-            "CTR và CTOR tính trên mọi kênh (A-34); chưa có chuỗi thẻ sản phẩm (A-33) "
-            "nên góc độ listing cần xác nhận lại khi có dữ liệu theo kênh"
+            "CTR và CTOR tính trên mọi kênh (A-34 total); dòng này không có block "
+            "thẻ sản phẩm nên góc độ listing cần xác nhận lại"
         )
     if any(e.source.value == "local" for e in evidence):
         caveats.append(

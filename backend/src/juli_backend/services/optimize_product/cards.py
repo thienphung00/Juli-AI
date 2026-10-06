@@ -82,14 +82,23 @@ class TestCard:
         return asdict(self)
 
 
-def reason_sentence(diag: Diagnosis) -> str:
-    """One sentence, one trigger. Never a blended number."""
+def reason_sentence(diag: Diagnosis, *, full_median_peers: int = 5) -> str:
+    """One sentence, one trigger. Never a blended number.
+
+    Under ``full_median_peers`` products above the floor the sentence names the
+    peer count instead of claiming a "trung bình shop" (ADR-106 amendment).
+    """
     kpi = "CTOR" if diag.label is Label.CTOR else "AOV"
     fired = diag.gap
     if fired.factor == "ctr":
         kpi = "CTR thẻ sản phẩm"
     pct = _pct(fired.gap)
     if diag.trigger is Trigger.SHOP_MEDIAN:
+        if fired.median_peers < full_median_peers:
+            return (
+                f"{kpi} ước tính thấp hơn {pct} so với {fired.median_peers} sản phẩm đủ dữ liệu "
+                "của shop trong 14 ngày qua"
+            )
         return f"{kpi} ước tính thấp hơn {pct} so với trung bình shop trong 14 ngày qua"
     return f"{kpi} ước tính giảm {pct} so với 4 tuần trước"
 
@@ -132,7 +141,7 @@ def build_cards(diagnoses: list[Diagnosis], config: StageDiagnosisConfig) -> lis
                 title=diag.title,
                 main_kpi="CTOR" if diag.label is Label.CTOR else "AOV",
                 main_kpi_value=kpi_value,
-                reason=reason_sentence(diag),
+                reason=reason_sentence(diag, full_median_peers=config.full_median_peers),
                 trigger=diag.trigger.value,
                 angle=diag.angle.value,
                 action=angle_sentence(diag),

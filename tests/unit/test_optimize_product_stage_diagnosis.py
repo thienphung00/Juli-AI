@@ -113,8 +113,21 @@ def test_shop_medians_are_computed_over_peers_above_floor() -> None:
 
 
 def test_too_few_peers_means_no_median() -> None:
-    few = ShopMedians.from_products(PEERS[:3], CONFIG)
+    few = ShopMedians.from_products(PEERS[: CONFIG.min_peers_for_median - 1], CONFIG)
     assert few.ctr is None and few.ctor is None and few.aov is None
+    enough = ShopMedians.from_products(PEERS[: CONFIG.min_peers_for_median], CONFIG)
+    assert enough.ctor == PEER.ctor
+
+
+def test_small_shop_copy_names_the_peer_count() -> None:
+    small = ShopMedians.from_products(PEERS[:3], CONFIG)
+    weak_ctr = _window(impressions=5000, ctr="0.04", ctor="0.10", aov="200000")
+    evidence = [Evidence("MAIN_IMG_NUMBER_LESS_THAN_FIVE", EvidenceSource.LOCAL, "1 ảnh chính")]
+    result = diagnose_product(_product("p", "Small shop", weak_ctr), small, evidence, CONFIG)
+    assert isinstance(result, Diagnosis)
+    [card] = build_cards([result], CONFIG)
+    assert "so với 3 sản phẩm đủ dữ liệu của shop" in card.reason
+    assert "trung bình shop" not in card.reason
 
 
 def test_gift_listing_is_excluded_before_any_gap() -> None:
@@ -309,8 +322,8 @@ def test_a34_window_reconstructs_counts_from_ratios() -> None:
     assert window.ctor.quantize(Decimal("0.0001")) == Decimal("0.1064")
 
 
-@pytest.mark.parametrize("with_a33", [False, True])
-def test_catalog_scan_runs_from_a_snapshot(tmp_path: Path, with_a33: bool) -> None:
+@pytest.mark.parametrize("with_channel_blocks", [False, True])
+def test_catalog_scan_runs_from_a_snapshot(tmp_path: Path, with_channel_blocks: bool) -> None:
     from juli_backend.services.optimize_product import catalog_scan as module
 
     def a34(pid: str, ctr: str, ctor: str, orders: int, gmv: str) -> dict:
@@ -347,37 +360,32 @@ def test_catalog_scan_runs_from_a_snapshot(tmp_path: Path, with_a33: bool) -> No
                 }
             )
         )
-    if with_a33:
-        (snapshot / "a33").mkdir()
-        payload = {
-            "data": {
-                "performance": {
-                    "intervals": [
-                        {
-                            "sales": {
-                                "gmv": {"amount": "40000000"},
-                                "orders": 200,
-                                "items_sold": 200,
-                            },
-                            "traffic": {
-                                "breakdowns": [
-                                    {
-                                        "content_type": "PRODUCT_CARD",
-                                        "traffic": {"impressions": 30000, "ctr": "0.03"},
-                                    }
-                                ]
-                            },
-                        }
-                    ]
-                }
-            }
+    if with_channel_blocks:
+        # The live A-34 row carries per-channel blocks; the product-card scope
+        # is seller_product_card_performance + shop_tab_performance.
+        weak["seller_product_card_performance"] = {
+            "product_impressions": 20000,
+            "product_clicks": 600,
+            "ctr": "0.03",
+            "attributed_sku_orders": 60,
+            "attributed_sold_items": 60,
+            "attributed_gmv": {"amount": "12000000", "currency": "VND"},
+            "click_order_rate": "0.10",
         }
-        (snapshot / "a33" / "weak_current.json").write_text(json.dumps(payload))
+        weak["shop_tab_performance"] = {
+            "shop_tab_product_impressions": 10000,
+            "shop_tab_product_clicks": 300,
+            "shop_tab_ctr": "0.03",
+            "shop_tab_ctor_sku": "0.10",
+            "shop_tab_sold_items": 30,
+            "shop_tab_gmv": {"amount": "6000000", "currency": "VND"},
+        }
+        (snapshot / "a34_current.json").write_text(json.dumps({"products": peers + [weak]}))
 
     out = module.run_snapshot(snapshot, tmp_path / "out", CONFIG)
     assert (tmp_path / "out" / "report.md").exists()
     cards = out["cards"]
     assert [c["product_id"] for c in cards] == ["weak"]
     assert cards[0]["angle"] == Angle.ANH_BIA.value
-    assert cards[0]["channel_scope"] == ("PRODUCT_CARD" if with_a33 else "ALL_CHANNELS")
+    assert cards[0]["channel_scope"] == ("PRODUCT_CARD" if with_channel_blocks else "ALL_CHANNELS")
     assert all(s["reason"] == "no_gap_above_threshold" for s in out["skips"])
