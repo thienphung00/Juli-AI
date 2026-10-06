@@ -82,8 +82,12 @@ platform and one of its mechanics breaks Juli's own measurement:
 
 ## Decisions
 
-1. **The funnel identity is TikTok's: GMV = Impressions × CTR × CTOR × AOV, scoped by content
-   type.** Juli uses TikTok's metric names and definitions — CTOR = `click_order_rate`,
+1. **The funnel identity is derived from TikTok's metric definitions: GMV = Impressions × CTR ×
+   CTOR × AOV, scoped by content type.** TikTok publishes the stages (Lượt hiển thị → Lượt nhấp →
+   Đơn hàng SKU → Người mua) and each ratio's definition, but never GMV as a product of factors —
+   its only written GMV formula is the per-order one (original price − discounts + buyer-paid
+   fees); the product form is arithmetic over TikTok's own fields and holds exactly on A-33/A-34
+   data. Juli uses TikTok's metric names and definitions — CTOR = `click_order_rate`,
    AOV = `gmv ÷ sku_orders` — and never a standalone "CR" or "Traffic". Content levers are
    diagnosed and measured on the **PRODUCT_CARD** series from A-33; price and basket levers on
    the all-channel A-34 aggregate, since a discount or BMSM applies everywhere. Video and LIVE
