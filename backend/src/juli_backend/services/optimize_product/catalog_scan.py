@@ -8,7 +8,7 @@ whose transport guard rejects any non-read method before signing
 (``integrations/tiktok/guarded_client.py``).
 
 Two sources, one pipeline — ``live`` pulls A-34 (three windows), GetProduct
-and optionally A-33 per product and saves every raw response to a snapshot
+and GetProduct per product and saves every raw response to a snapshot
 directory; ``snapshot`` replays such a directory (which is also how the unit
 test drives it). The live fetcher is TikTok/DB wiring, which the services layer
 must not import (import-boundary gate), so it lives in the CLI wrapper
@@ -22,8 +22,6 @@ Snapshot layout (all JSON)::
     a34_prior.json              A-34 products over the prior 28-day window
     a34_last28.json             A-34 products over the last 28 days (GMV_28d)
     products/<id>.json          GetProduct payload (title, description, images, skus)
-    a33/<id>_current.json       optional, A-33 detail over the current window
-    a33/<id>_prior.json         optional, A-33 detail over the prior window
     diagnoses/<id>.json         optional, one data.products[] entry of the
                                 diagnoses endpoint when it has been captured
 
@@ -107,32 +105,6 @@ def _a34_index(payload: Any) -> dict[str, dict]:
     return {str(p["id"]): p for p in (products or []) if isinstance(p, dict) and p.get("id")}
 
 
-def _a33_product_card(payload: Any, *, days: int) -> FunnelWindow | None:
-    """The PRODUCT_CARD-scoped window from an A-33 payload, aggregated over its intervals."""
-    data = (payload or {}).get("data", payload) if isinstance(payload, dict) else None
-    intervals = ((data or {}).get("performance") or {}).get("intervals") or []
-    agg = FunnelWindow(days=days)
-    found = False
-    for interval in intervals:
-        sales = interval.get("sales") or {}
-        for breakdown in (interval.get("traffic") or {}).get("breakdowns") or []:
-            if breakdown.get("content_type") != PRODUCT_CARD:
-                continue
-            found = True
-            window = FunnelWindow.from_a33_breakdown(
-                breakdown.get("traffic") or {}, sales, days=days
-            )
-            agg = FunnelWindow(
-                days=days,
-                impressions=agg.impressions + window.impressions,
-                clicks=agg.clicks + window.clicks,
-                sku_orders=agg.sku_orders + window.sku_orders,
-                items_sold=agg.items_sold + window.items_sold,
-                gmv=agg.gmv + window.gmv,
-            )
-    return agg if found else None
-
-
 def build_inputs(
     snapshot: Path, config: StageDiagnosisConfig
 ) -> tuple[list[ProductFunnel], dict[str, dict], dict[str, list[Evidence]], dict[str, str]]:
@@ -176,15 +148,15 @@ def build_inputs(
             else None
         )
         scope = "ALL_CHANNELS"
-        a33_cur = _a33_product_card(
-            _load(snapshot / "a33" / f"{product_id}_current.json"), days=config.current_window_days
-        )
-        if a33_cur is not None:
-            cur_window, scope = a33_cur, PRODUCT_CARD
-            a33_prior = _a33_product_card(
-                _load(snapshot / "a33" / f"{product_id}_prior.json"), days=config.prior_window_days
+        card_cur = FunnelWindow.from_a34_product_card(item, days=config.current_window_days)
+        if card_cur is not None:
+            cur_window, scope = card_cur, PRODUCT_CARD
+            card_prior = (
+                FunnelWindow.from_a34_product_card(prior_item, days=config.prior_window_days)
+                if prior_item
+                else None
             )
-            prior_window = a33_prior if a33_prior is not None else prior_window
+            prior_window = card_prior if card_prior is not None else prior_window
 
         gmv_28 = FunnelWindow.from_a34_total_performance(
             (last28.get(product_id) or {}).get("total_performance") or {}, days=28
@@ -386,7 +358,6 @@ def main(argv: list[str] | None = None, *, live_fetcher: LiveFetcher | None = No
         "--as-of", type=date.fromisoformat, default=date.today() - timedelta(days=1)
     )
     parser.add_argument("--max-products", type=int, default=200)
-    parser.add_argument("--no-a33", action="store_true", help="skip the per-product A-33 calls")
     parser.add_argument("--sleep", type=float, default=0.3, help="seconds between live calls")
     args = parser.parse_args(argv)
     config = StageDiagnosisConfig()
@@ -401,7 +372,6 @@ def main(argv: list[str] | None = None, *, live_fetcher: LiveFetcher | None = No
                 args.as_of,
                 config,
                 max_products=args.max_products,
-                with_a33=not args.no_a33,
                 sleep_s=args.sleep,
             )
         )
