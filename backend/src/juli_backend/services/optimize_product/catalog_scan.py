@@ -10,7 +10,10 @@ whose transport guard rejects any non-read method before signing
 Two sources, one pipeline — ``live`` pulls A-34 (three windows), GetProduct
 and optionally A-33 per product and saves every raw response to a snapshot
 directory; ``snapshot`` replays such a directory (which is also how the unit
-test drives it). The CLI wrapper is ``scripts/optimize_product_catalog_scan.py``.
+test drives it). The live fetcher is TikTok/DB wiring, which the services layer
+must not import (import-boundary gate), so it lives in the CLI wrapper
+``scripts/optimize_product_catalog_scan.py`` and is passed to :func:`main` as
+``live_fetcher``.
 
 Snapshot layout (all JSON)::
 
@@ -34,8 +37,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import time
 from collections import Counter
+from collections.abc import Callable, Coroutine
 from dataclasses import asdict
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -65,11 +68,13 @@ from juli_backend.services.optimize_product.listing_signals import (
 
 PRODUCT_CARD = "PRODUCT_CARD"
 
+LiveFetcher = Callable[..., Coroutine[Any, Any, None]]
+
 
 # --------------------------------------------------------------------------- windows
 
 
-def _windows(as_of: date, config: StageDiagnosisConfig) -> dict[str, tuple[str, str]]:
+def windows(as_of: date, config: StageDiagnosisConfig) -> dict[str, tuple[str, str]]:
     """ISO ``[start_date_ge, end_date_lt)`` pairs; ``as_of`` is the last included day."""
     end_current = as_of + timedelta(days=1)
     start_current = end_current - timedelta(days=config.current_window_days)
@@ -82,85 +87,12 @@ def _windows(as_of: date, config: StageDiagnosisConfig) -> dict[str, tuple[str, 
     }
 
 
-# --------------------------------------------------------------------------- live source
+# --------------------------------------------------------------------------- snapshot writer
 
 
-def _dump(path: Path, payload: Any) -> None:
+def dump_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
-
-
-async def _fetch_live(
-    snapshot: Path,
-    as_of: date,
-    config: StageDiagnosisConfig,
-    *,
-    max_products: int,
-    with_a33: bool,
-    sleep_s: float,
-) -> None:
-    """Pull A-34 (three windows), GetProduct and optionally A-33 per product. Read-only."""
-    from juli_backend.core.config import require_env
-    from juli_backend.core.security import resolve_production_read_credential
-    from juli_backend.database.database import ensure_worker_session_factory
-    from juli_backend.integrations.tiktok.factories import (
-        ClientFactoryConfig,
-        ProductionReadClientFactory,
-    )
-    from juli_backend.integrations.tiktok.merchant import PRODUCTION_AUTH_ID
-    from juli_backend.workers.tasks.database import get_async_database_url
-
-    app_key, app_secret = require_env("TIKTOK_APP_KEY"), require_env("TIKTOK_APP_SECRET")
-    factory = ensure_worker_session_factory(get_async_database_url())
-    async with factory() as session:
-        credential = await resolve_production_read_credential(session)
-    resources = ProductionReadClientFactory().create_resources(
-        ClientFactoryConfig(
-            app_key=app_key,
-            app_secret=app_secret,
-            access_token=credential.access_token,
-            merchant_auth_id=PRODUCTION_AUTH_ID,
-            shop_cipher=credential.shop_cipher,
-        )
-    )
-    windows = _windows(as_of, config)
-    a34: dict[str, list[dict]] = {}
-    for name, (start, end) in windows.items():
-        a34[name] = resources.analytics.list_product_performance_all(
-            start_date_ge=start, end_date_lt=end
-        )
-        _dump(snapshot / f"a34_{name}.json", {"products": a34[name], "window": [start, end]})
-        time.sleep(sleep_s)
-
-    def _gmv(item: dict) -> Decimal:
-        total = item.get("total_performance") or {}
-        return Decimal(str((total.get("gmv") or {}).get("amount") or "0"))
-
-    ranked = sorted(a34["current"], key=_gmv, reverse=True)
-    product_ids = [str(p["id"]) for p in ranked if p.get("id")][:max_products]
-    for product_id in product_ids:
-        detail = resources.products.get_details(product_id)
-        _dump(snapshot / "products" / f"{product_id}.json", detail)
-        time.sleep(sleep_s)
-        if with_a33:
-            for name in ("current", "prior"):
-                start, end = windows[name]
-                payload = resources.analytics.get_product_performance(
-                    product_id=product_id, start_date_ge=start, end_date_lt=end
-                )
-                _dump(snapshot / "a33" / f"{product_id}_{name}.json", payload)
-                time.sleep(sleep_s)
-    _dump(
-        snapshot / "meta.json",
-        {
-            "as_of": as_of.isoformat(),
-            "windows": windows,
-            "products_fetched": len(product_ids),
-            "with_a33": with_a33,
-            "fetched_at": datetime.now().isoformat(timespec="seconds"),
-            "source": "live (production_read, read-only guard)",
-        },
-    )
 
 
 # --------------------------------------------------------------------------- snapshot → funnels
@@ -443,7 +375,7 @@ def run_snapshot(snapshot: Path, out_dir: Path, config: StageDiagnosisConfig) ->
     return payload
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, live_fetcher: LiveFetcher | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -459,8 +391,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     config = StageDiagnosisConfig()
     if args.source == "live":
+        if live_fetcher is None:
+            raise SystemExit(
+                "--source live needs a live fetcher; run scripts/optimize_product_catalog_scan.py"
+            )
         asyncio.run(
-            _fetch_live(
+            live_fetcher(
                 args.snapshot_dir,
                 args.as_of,
                 config,
