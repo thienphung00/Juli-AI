@@ -41,6 +41,7 @@ async def _fetch_live(
     sleep_s: float,
 ) -> None:
     """Pull A-34 (three windows), GetProduct and optionally A-33 per product. Read-only."""
+    from juli_backend.core.async_db import async_database_url
     from juli_backend.core.config import require_env
     from juli_backend.core.security import resolve_production_read_credential
     from juli_backend.database.database import ensure_worker_session_factory
@@ -50,10 +51,13 @@ async def _fetch_live(
     )
     from juli_backend.integrations.tiktok.merchant import PRODUCTION_AUTH_ID
     from juli_backend.services.optimize_product.catalog_scan import dump_json, windows
-    from juli_backend.workers.tasks.database import get_async_database_url
 
     app_key, app_secret = require_env("TIKTOK_APP_KEY"), require_env("TIKTOK_APP_SECRET")
-    factory = ensure_worker_session_factory(get_async_database_url())
+    # Resolve the URL here rather than via ``workers.tasks.database``: importing
+    # ``workers.tasks`` boots the Celery app and asserts the full runtime
+    # config (SUPABASE_URL, broker), which a read-only scan has no business
+    # requiring.
+    factory = ensure_worker_session_factory(async_database_url(require_env("DATABASE_URL")))
     async with factory() as session:
         credential = await resolve_production_read_credential(session)
     resources = ProductionReadClientFactory().create_resources(
