@@ -383,3 +383,69 @@ the amendment was written.
 inferred only from platform discount on orders. Ads and GMV Max sit behind the Business API, which
 the shop has not granted, and A-34 does not split paid from organic traffic, so paid traffic is
 mixed into the channels above.
+
+### Amendment 5 — 2026-10-07, order windows, price levers, Seller Center cards
+
+**1. Orders are windowed by creation time (a correction).** The earlier evidence pull filtered the
+order search by `update_time`, so the "recent" sample on Fujiwa was orders created 2026-01-08 to
+2026-07-07: every basket, discount-share and threshold figure described a span months before the
+report's 30-day windows. The live fetch now pulls orders by `create_time_ge` / `create_time_lt`
+over the previous and current 30 days (60 days to `as_of`), all pages, in 7-day slices so the
+resource's page cap is never reached; `meta.json` records orders per slice and whether any slice
+hit the cap. `OrdersResource.search` / `search_all` take `create_time_from` / `create_time_to`
+beside the unchanged `update_time_*`. Every order-derived figure (basket histogram and BMSM
+threshold, platform and seller discount share, buyer-paid shipping share, co-purchase pairs,
+14-day lowest price) reads only orders whose `create_time` (UTC+7) falls in its stated window;
+an order file holding older orders is never counted silently, and the technical notes print the
+actual first and last create date of the orders used and of those left out. With no orders in a
+window the figure reads "chưa đủ đơn trong khoảng thời gian" and BMSM falls back to the
+items-per-order rule. Replaying the Fujiwa snapshot (orders of 2026-01-08 to 2026-07-07) therefore
+uses none of its 1000 orders.
+
+**2. Seller shipping discount (page-branch angle "giảm phí vận chuyển").** `SHIPPING_DISCOUNT`
+activities at `product_level = PRODUCT`. Placed after "giảm giá sản phẩm" and "flash sale". Gate:
+in the current 30 days at least `shipping_lever_min_paid_share = 0.30` of the product's orders had
+`payment.shipping_fee > 0`, over at least `shipping_lever_min_orders = 20` orders. The depth stays
+within the seller's maximum discount setting, which every price lever requires.
+
+**3. Gift with purchase is the AOV fallback.** When the BMSM threshold is unreached
+(`bmsm_threshold_unreached`) Juli proposes a gift instead of dropping the product. Candidate: another
+live product of the shop, with more than `gift_min_stock = 50` units over its SKUs, sharing at least
+one `warehouse_id` with the main product's SKUs, sale price at most `gift_max_price_share = 0.15` of
+the main product's 30-day AOV and at most 1.500.000 ₫, not a gift or not-for-sale title; the one with
+the fewest reviews when `ratings.json` exists, else the cheapest. The buyer takes at least 2 items
+(`MINIMAL_ITEM_QUANTITY`). No candidate: the product goes to "Sản phẩm cần theo dõi" with "Không có
+sản phẩm phù hợp làm quà".
+
+**4. Shop flash sale, with guards (reverses the v1 exclusion).** ADR-106 left `FLASHSALE` out of v1,
+because a flash sale needs shop-level eligibility Juli cannot read and a deeper price than the shop
+tested. This amendment reverses that, narrowly: the angle "flash sale" comes after "giảm giá sản
+phẩm" and before "giảm phí vận chuyển" and is chosen only when the product discount is unavailable
+(a product discount from any source runs on the product per the promotion data, or Juli's 30-day
+cooldown) and every guard holds: no `FLASHSALE` on the product in the last 14 days (promotion data);
+proposed price at most the lowest unit price paid in the last 14 days (`sale_price − platform_discount`
+of the order lines) times `1 − 0.01`, rounded down to 100 ₫, with the implied discount against that
+SKU's list price within the seller's maximum discount; duration 1 to 3 days, default 3; maximum
+discount set. Without promotion data a flash sale is never proposed, and the notes say why. The
+violation-point score is not readable through the API, so the technical note says "cần xác nhận điểm
+vi phạm < 36 trước khi chạy" and the card copy tells the seller to confirm the shop's eligibility.
+The create-activity call has no LIVE-channel field.
+
+**5. Seller Center cards, status "Bạn tự làm trên Seller Center".** Levers Juli cannot create through
+the API, counted in the five cards, emitted only with data behind them: *voucher đánh giá* (live
+product, at least 1 order a day in 30 days, fewer than 20 reviews in `ratings.json`; skipped when the
+file is absent), *Ưu Đãi Theo Gói* (a pair in at least 3 orders of the current 30 days and at least
+5 % of either product's orders) and *voucher có mức chi tiêu tối thiểu* (shop-level: at least 5 % of
+orders with 2+ different products and shop AOV down at least 10 % against the previous 30 days; the
+level is the 30-day AOV times 1,2, rounded to 10.000 ₫). Juli measures their effect only if the
+seller records the start date. A product already holding another card is passed over.
+
+**6. Card order.** Juli tự đề xuất, Cần mức giảm giá tối đa, Thử nghiệm theo kế hoạch của bạn, Bạn tự
+làm trên Seller Center, Chưa hỏi TikTok; at most 5, the rest to "Sản phẩm cần theo dõi" with "Đủ điều
+kiện nhưng đã đủ 5 card". The legend says Seller Center cards are tools Juli cannot create through the
+API, which the seller creates on Seller Center following the card.
+
+**7. Capability map.** *Creatable through the API:* product discount, flash sale (no LIVE channel
+field), buy-more-save-more, gift, shipping discount. *Read-only:* coupons (search, get) and the order
+price detail. *Not available:* coupon creation, bundle deal, platform vouchers, platform
+buy-more-save-more and flash deals, platform campaigns, and ads (the Business API is ads-only).
