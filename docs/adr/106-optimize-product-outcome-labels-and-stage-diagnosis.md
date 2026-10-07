@@ -268,3 +268,184 @@ with a real gap but no listing evidence — every one of them has 8–9 images a
 91–117-character titles and 700–2,300-character descriptions with line breaks, so the local
 reading of the VN code table finds nothing. The diagnosis endpoint capture (decision 4's
 evidence source) is now the binding prerequisite for content cards on this shop.
+
+### Amendment 3 — 2026-10-07, report v2
+
+The first per-shop report on Fujiwa went to the owner, who corrected eight rules. Each is
+implemented in `optimize_product/` and the report; the rationale is the owner's.
+
+1. **The BMSM threshold comes from the real basket.** With an order export (`orders.json`) the
+   threshold is `q = median quantity + 1`, where quantity is the count of the product's non-gift
+   line items per non-cancelled order, and the card is emitted only when at least 5 % of those
+   orders already buy `q` (`bmsm_min_share_at_threshold`); otherwise the product is skipped as
+   `bmsm_threshold_unreached`. With no export, or fewer than 20 orders of the product
+   (`bmsm_min_orders_for_histogram`), it falls back to `floor(mean items per order) + 1`, never
+   below 2. This replaces `ceil(items per order) + bmsm_threshold_plus`. On Fujiwa only 1–3 % of
+   orders buy three cases while 10–19 % buy two, so the old rule asked customers for a basket
+   almost nobody builds; "from 2 items" asks for what a tenth of them already do.
+2. **A healthy CTR never routes to the card branch.** Under the CTOR label the card branch (cover
+   image, title) is considered only when the CTR gap fires; the page branch no longer falls back
+   to it, while the card branch may still fall back to the page branch. Without a description
+   code, a page-branch run proposes the product discount when the seller's maximum discount is
+   set and otherwise emits a card, "Cần mức giảm giá tối đa", that names the missing input. The
+   1250 mL case's CTR rose while its CTOR fell: a cover change would have targeted the stage
+   that was working.
+3. **A Main KPI below its measurement floor reads "chưa đủ dữ liệu".** If CTOR or AOV is under
+   its ADR-077 floor over the 14-day window, the card shows that instead of a number; the card
+   itself stands when the diagnostic that fired (CTR) clears its own floor. Fujiful showed CTOR
+   0 % on 24 clicks in 14 days, which a seller reads as a fact rather than as noise.
+4. **The pending status is split.** "Chưa hỏi TikTok" means the gap fires, no local evidence
+   exists and no diagnoses file exists for the product, so TikTok was never asked; the next full
+   run asks. If a diagnoses file exists but has no codes for the branch the run needs, the product
+   gets no card and is listed under "Sản phẩm cần theo dõi" with the reason "TikTok không thấy lỗi
+   ở trang sản phẩm". "Chờ TikTok chỉ ra lỗi" conflated "not asked" with "asked, found nothing",
+   which call for opposite next steps.
+5. **Channel shares total 100 %.** "Tỷ trọng kênh" divides each channel's attributed orders by the
+   sum over the five channel blocks, not by `sku_orders`, because TikTok attributes some orders
+   to more than one block. On Fujiwa the affiliate and shop channel blocks alone summed to about
+   121 %, which no reader can interpret.
+6. **An optional ratings filter.** `ratings.json` (`{"<product_id>": {"rating", "review_count"}}`,
+   entered by hand or taken from FastMoss) blocks every card for a product under
+   `min_rating_for_demand_levers = 4.0` stars; the product is listed under "Sản phẩm cần theo
+   dõi" with the rating. Without the file no filter applies and the technical notes say so. Ion
+   Speed sits at 3.6 stars: a discount or a new cover sells a product its buyers rate poorly.
+7. **Owner tests.** `owner_tests.json` (wrapper flag `--owner-tests`) lists tests the owner
+   chose: product, angle (the five angles or "quà tặng kèm"), optional gift product and note.
+   Each becomes a card with the status "Thử nghiệm theo kế hoạch của bạn", Main KPI AOV for the
+   basket angles and CTOR otherwise, the current 14-day value, and the owner's note as the reason
+   (a neutral sentence from the 30-day AOV and the share of multi-item orders when no note is
+   given). Juli does not argue with a test the owner has already decided to run; it records
+   where the product stands so the result can be read.
+8. **Card table composition.** At most `max_open_cards_per_shop` (5) rows: rule cards ("Juli tự
+   đề xuất", then "Cần mức giảm giá tối đa"), each group ranked by gap × GMV_28d; then owner tests
+   in file order; then "Chưa hỏi TikTok" cards fill the remaining rows. A product appears once,
+   and a rule card wins over an owner test on the same product (the technical notes say so).
+   Eligible products beyond five go to "Sản phẩm cần theo dõi" with the reason "Đủ điều kiện
+   nhưng đã đủ 5 card", so the owner sees what was left out and why.
+
+### Amendment 4 — 2026-10-07, traffic-source check
+
+A product's CTR can fall because a campaign, LIVE or affiliate video poured low-intent impressions
+onto it, and then rewriting the cover or title treats the wrong cause. Real Fujiwa data, Hydrogen
+270 mL, 30 days against the previous 30: impressions rose mostly from affiliate video (1.377 to
+4.283), yet CTR fell in every channel (product card 4,10 to 2,76 %, Shop Tab 3,72 to
+1,83 %, LIVE 4,66 to 3,14 %, affiliate video 4,79 to 2,73 %). A fall in every channel, including
+the ones that received no extra traffic, is a common cause (cover, price, title), so the cover card
+stands. The report now makes that distinction automatically and says where the traffic came from.
+
+**Verdict rule.** `services/optimize_product/traffic.py` reads six channel blocks of each A-34 row
+(product card, Shop Tab, shop video, shop LIVE, affiliate video, affiliate LIVE) for the current
+and previous 30 days and compares impressions per day and CTR per channel. A channel qualifies
+with at least `traffic_min_channel_impressions = 200` impressions in each window. The verdict is
+`đồng loạt` when CTR fell by at least `traffic_ctr_drop = 0.15` (relative) in at least two thirds of
+the qualifying channels, with at least two channels; `loãng traffic` when every channel whose CTR
+fell is a spiking channel (impressions per day at least `traffic_spike_ratio = 1.5` times the
+previous window) and every other qualifying channel's CTR is within `traffic_ctr_stable = 0.10`;
+and `không rõ` otherwise, including fewer than two qualifying channels. `đồng loạt` is tested
+first, so a product whose spiking channels are also two thirds of its channels reads as uniform.
+The four thresholds are the owner-approved defaults and live in `StageDiagnosisConfig`; they are
+adjustable. Each product also carries `top_impression_source`, the channel with the largest
+absolute gain in impressions per day.
+
+**Effect on cards.** Every CTR-triggered card (card branch: cover, title), rule or pending, and
+whichever trigger fired (shop median or own trend), is checked. Under `loãng traffic` the card is
+not emitted; the product goes to "Sản phẩm cần theo dõi" with "CTR giảm do lượt hiển thị tăng
+mạnh từ {kênh}, không phải do trang sản phẩm", and the freed slot goes to the next card. Under
+`đồng loạt` and `không rõ` the card stands; under `không rõ` the technical notes say the check was
+inconclusive. CTOR and AOV cards are not affected. Reasons gain short plain-Vietnamese clauses
+(biggest source of extra impressions, platform-discount share, a running promotion), each added
+only while the reason stays within 170 characters. The report gains a "Traffic đến từ đâu" section
+per card product (channel table, verdict, promotions, discount share, LIVE and video appearances).
+
+**Platform-discount share.** The Partner API has no read for platform campaigns, so the only trace
+is the discount on the orders themselves. Per product and window, the share of non-gift lines of
+non-cancelled orders with `platform_discount > 0` (and, separately, `seller_discount > 0`), placed
+by the order's `create_time` in UTC+7 because the order payload has no per-line timestamp. It
+appears in the top-5 table and on the card reason from `platform_discount_note_share = 0.5`, and
+is hidden under `platform_discount_min_lines = 10` lines in a window. It is a proxy: a campaign
+that changes no price on the order is invisible to it.
+
+**Promotion search attempt.** ADR-090 d.2 recorded Search Activities as unverified live. This
+amendment adds `POST /promotion/202309/activities/search` and `POST /promotion/202406/coupons/search`
+as exact-path production-read and sandbox entries (both are read-only searches), plus
+`PromotionResource.search_activities(_all)` and `search_coupons(_all)`. The live wrapper searches
+activities with status ONGOING, NOT_START and EXPIRED and all coupons, then calls Get Activity for
+the product list of every activity that overlaps the window and lacks one (at most 50 calls);
+`snapshot/promotions/_error.json` records any failure and the run continues. The search response
+carries no product list, and a product-specific coupon would need Get Coupon, which is not
+allowlisted, so those two cases are counted as unattributed rather than guessed. Shop LIVE sessions
+(top 10 by GMV) and shop videos (top 20 by GMV), with their per-product numbers, are fetched the same
+way into `snapshot/live` and `snapshot/videos`, through three analytics GET paths added to the
+production-read allowlist. Owners run live mode; none of this was exercised against TikTok when
+the amendment was written.
+
+**Blind spots, stated in the report.** Platform campaigns have no Partner API read, so they are
+inferred only from platform discount on orders. Ads and GMV Max sit behind the Business API, which
+the shop has not granted, and A-34 does not split paid from organic traffic, so paid traffic is
+mixed into the channels above.
+
+### Amendment 5 — 2026-10-07, order windows, price levers, Seller Center cards
+
+**1. Orders are windowed by creation time (a correction).** The earlier evidence pull filtered the
+order search by `update_time`, so the "recent" sample on Fujiwa was orders created 2026-01-08 to
+2026-07-07: every basket, discount-share and threshold figure described a span months before the
+report's 30-day windows. The live fetch now pulls orders by `create_time_ge` / `create_time_lt`
+over the previous and current 30 days (60 days to `as_of`), all pages, in 7-day slices so the
+resource's page cap is never reached; `meta.json` records orders per slice and whether any slice
+hit the cap. `OrdersResource.search` / `search_all` take `create_time_from` / `create_time_to`
+beside the unchanged `update_time_*`. Every order-derived figure (basket histogram and BMSM
+threshold, platform and seller discount share, buyer-paid shipping share, co-purchase pairs,
+14-day lowest price) reads only orders whose `create_time` (UTC+7) falls in its stated window;
+an order file holding older orders is never counted silently, and the technical notes print the
+actual first and last create date of the orders used and of those left out. With no orders in a
+window the figure reads "chưa đủ đơn trong khoảng thời gian" and BMSM falls back to the
+items-per-order rule. Replaying the Fujiwa snapshot (orders of 2026-01-08 to 2026-07-07) therefore
+uses none of its 1000 orders.
+
+**2. Seller shipping discount (page-branch angle "giảm phí vận chuyển").** `SHIPPING_DISCOUNT`
+activities at `product_level = PRODUCT`. Placed after "giảm giá sản phẩm" and "flash sale". Gate:
+in the current 30 days at least `shipping_lever_min_paid_share = 0.30` of the product's orders had
+`payment.shipping_fee > 0`, over at least `shipping_lever_min_orders = 20` orders. The depth stays
+within the seller's maximum discount setting, which every price lever requires.
+
+**3. Gift with purchase is the AOV fallback.** When the BMSM threshold is unreached
+(`bmsm_threshold_unreached`) Juli proposes a gift instead of dropping the product. Candidate: another
+live product of the shop, with more than `gift_min_stock = 50` units over its SKUs, sharing at least
+one `warehouse_id` with the main product's SKUs, sale price at most `gift_max_price_share = 0.15` of
+the main product's 30-day AOV and at most 1.500.000 ₫, not a gift or not-for-sale title; the one with
+the fewest reviews when `ratings.json` exists, else the cheapest. The buyer takes at least 2 items
+(`MINIMAL_ITEM_QUANTITY`). No candidate: the product goes to "Sản phẩm cần theo dõi" with "Không có
+sản phẩm phù hợp làm quà".
+
+**4. Shop flash sale, with guards (reverses the v1 exclusion).** ADR-106 left `FLASHSALE` out of v1,
+because a flash sale needs shop-level eligibility Juli cannot read and a deeper price than the shop
+tested. This amendment reverses that, narrowly: the angle "flash sale" comes after "giảm giá sản
+phẩm" and before "giảm phí vận chuyển" and is chosen only when the product discount is unavailable
+(a product discount from any source runs on the product per the promotion data, or Juli's 30-day
+cooldown) and every guard holds: no `FLASHSALE` on the product in the last 14 days (promotion data);
+proposed price at most the lowest unit price paid in the last 14 days (`sale_price − platform_discount`
+of the order lines) times `1 − 0.01`, rounded down to 100 ₫, with the implied discount against that
+SKU's list price within the seller's maximum discount; duration 1 to 3 days, default 3; maximum
+discount set. Without promotion data a flash sale is never proposed, and the notes say why. The
+violation-point score is not readable through the API, so the technical note says "cần xác nhận điểm
+vi phạm < 36 trước khi chạy" and the card copy tells the seller to confirm the shop's eligibility.
+The create-activity call has no LIVE-channel field.
+
+**5. Seller Center cards, status "Bạn tự làm trên Seller Center".** Levers Juli cannot create through
+the API, counted in the five cards, emitted only with data behind them: *voucher đánh giá* (live
+product, at least 1 order a day in 30 days, fewer than 20 reviews in `ratings.json`; skipped when the
+file is absent), *Ưu Đãi Theo Gói* (a pair in at least 3 orders of the current 30 days and at least
+5 % of either product's orders) and *voucher có mức chi tiêu tối thiểu* (shop-level: at least 5 % of
+orders with 2+ different products and shop AOV down at least 10 % against the previous 30 days; the
+level is the 30-day AOV times 1,2, rounded to 10.000 ₫). Juli measures their effect only if the
+seller records the start date. A product already holding another card is passed over.
+
+**6. Card order.** Juli tự đề xuất, Cần mức giảm giá tối đa, Thử nghiệm theo kế hoạch của bạn, Bạn tự
+làm trên Seller Center, Chưa hỏi TikTok; at most 5, the rest to "Sản phẩm cần theo dõi" with "Đủ điều
+kiện nhưng đã đủ 5 card". The legend says Seller Center cards are tools Juli cannot create through the
+API, which the seller creates on Seller Center following the card.
+
+**7. Capability map.** *Creatable through the API:* product discount, flash sale (no LIVE channel
+field), buy-more-save-more, gift, shipping discount. *Read-only:* coupons (search, get) and the order
+price detail. *Not available:* coupon creation, bundle deal, platform vouchers, platform
+buy-more-save-more and flash deals, platform campaigns, and ads (the Business API is ads-only).

@@ -11,6 +11,25 @@ from juli_backend.integrations.tiktok.resources import strip_nones
 from juli_backend.integrations.tiktok.schemas import OrdersSearchData, coerce_model
 
 
+def _search_body(
+    status: str | None,
+    update_time_from: int | None,
+    update_time_to: int | None,
+    create_time_from: int | None,
+    create_time_to: int | None,
+) -> dict:
+    """Order search filters; ``create_time_*`` and ``update_time_*`` are independent (half-open)."""
+    return strip_nones(
+        {
+            "order_status": status,
+            "update_time_ge": update_time_from,
+            "update_time_lt": update_time_to,
+            "create_time_ge": create_time_from,
+            "create_time_lt": create_time_to,
+        }
+    )
+
+
 class OrdersResource:
     """Search, paginate, and fetch order details from TikTok Shop."""
 
@@ -23,15 +42,13 @@ class OrdersResource:
         status: str | None = None,
         update_time_from: int | None = None,
         update_time_to: int | None = None,
+        create_time_from: int | None = None,
+        create_time_to: int | None = None,
         page_size: int | None = None,
         page_token: str | None = None,
     ) -> dict:
-        body = strip_nones(
-            {
-                "order_status": status,
-                "update_time_ge": update_time_from,
-                "update_time_lt": update_time_to,
-            }
+        body = _search_body(
+            status, update_time_from, update_time_to, create_time_from, create_time_to
         )
         params = strip_nones(
             {
@@ -58,14 +75,12 @@ class OrdersResource:
         status: str | None = None,
         update_time_from: int | None = None,
         update_time_to: int | None = None,
+        create_time_from: int | None = None,
+        create_time_to: int | None = None,
         page_size: int = 50,
     ) -> list[dict]:
-        body = strip_nones(
-            {
-                "order_status": status,
-                "update_time_ge": update_time_from,
-                "update_time_lt": update_time_to,
-            }
+        body = _search_body(
+            status, update_time_from, update_time_to, create_time_from, create_time_to
         )
         return self._client.get_all_pages(
             path=ORDER_SEARCH_PATH,

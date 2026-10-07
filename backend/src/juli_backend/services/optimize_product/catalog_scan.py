@@ -46,10 +46,12 @@ from typing import Any
 from juli_backend.services.optimize_product.cards import build_cards
 from juli_backend.services.optimize_product.config import StageDiagnosisConfig
 from juli_backend.services.optimize_product.diagnosis import (
-    ANGLE_CODES,
+    NO_LEVERS,
     Angle,
     Diagnosis,
+    PageLevers,
     Skip,
+    codes_for_angle,
     diagnose_product,
 )
 from juli_backend.services.optimize_product.funnel import (
@@ -96,23 +98,31 @@ def dump_json(path: Path, payload: Any) -> None:
 # --------------------------------------------------------------------------- snapshot → funnels
 
 
-def _load(path: Path) -> Any:
+def load_json(path: Path) -> Any:
     return json.loads(path.read_text()) if path.exists() else None
 
 
-def _a34_index(payload: Any) -> dict[str, dict]:
+def a34_index(payload: Any) -> dict[str, dict]:
     products = (payload or {}).get("products") if isinstance(payload, dict) else payload
     return {str(p["id"]): p for p in (products or []) if isinstance(p, dict) and p.get("id")}
+
+
+def asked_products(snapshot: Path) -> set[str]:
+    """Product ids with a diagnoses file: TikTok's diagnosis was requested for them."""
+    folder = snapshot / "diagnoses"
+    if not folder.is_dir():
+        return set()
+    return {p.stem for p in folder.glob("*.json") if not p.name.startswith("_")}
 
 
 def build_inputs(
     snapshot: Path, config: StageDiagnosisConfig
 ) -> tuple[list[ProductFunnel], dict[str, dict], dict[str, list[Evidence]], dict[str, str]]:
     """Funnels, listing signals, evidence and exclusion reasons for every product."""
-    current = _a34_index(_load(snapshot / "a34_current.json"))
-    prior = _a34_index(_load(snapshot / "a34_prior.json"))
-    last28 = _a34_index(_load(snapshot / "a34_last28.json"))
-    meta = _load(snapshot / "meta.json") or {}
+    current = a34_index(load_json(snapshot / "a34_current.json"))
+    prior = a34_index(load_json(snapshot / "a34_prior.json"))
+    last28 = a34_index(load_json(snapshot / "a34_last28.json"))
+    meta = load_json(snapshot / "meta.json") or {}
     as_of = date.fromisoformat(meta["as_of"]) if meta.get("as_of") else None
 
     funnels: list[ProductFunnel] = []
@@ -120,7 +130,7 @@ def build_inputs(
     evidence_by_id: dict[str, list[Evidence]] = {}
     excluded: dict[str, str] = {}
     for product_id, item in current.items():
-        detail = _load(snapshot / "products" / f"{product_id}.json") or {}
+        detail = load_json(snapshot / "products" / f"{product_id}.json") or {}
         detail = detail.get("data", detail) if "data" in detail else detail
         title = str(detail.get("title") or item.get("title") or product_id)
         signals = listing_signals_from_product({**detail, "id": product_id}, config)
@@ -131,7 +141,7 @@ def build_inputs(
             excluded.setdefault(product_id, f"status {signals.status}")
 
         evidence = derive_local_evidence(signals, config)
-        diag_entry = _load(snapshot / "diagnoses" / f"{product_id}.json")
+        diag_entry = load_json(snapshot / "diagnoses" / f"{product_id}.json")
         if isinstance(diag_entry, dict):
             evidence = parse_tiktok_diagnoses(diag_entry) + evidence
         evidence_by_id[product_id] = evidence
@@ -188,11 +198,11 @@ def angle_matrix(evidence: list[Evidence], funnel: ProductFunnel) -> dict[str, s
     codes = {e.code for e in evidence}
     row: dict[str, str] = {}
     for angle in (Angle.ANH_BIA, Angle.TIEU_DE, Angle.MO_TA):
-        hits = sorted(codes & ANGLE_CODES[angle])
+        hits = sorted(codes_for_angle(angle, codes))
         row[angle.value] = ", ".join(hits) if hits else "không có bằng chứng"
     row[Angle.GIAM_GIA.value] = (
         "chỉ khi không còn mã mô tả và shop đã đặt trần giảm giá"
-        if not (codes & ANGLE_CODES[Angle.MO_TA])
+        if not codes_for_angle(Angle.MO_TA, codes)
         else "chưa xét: mô tả còn mã"
     )
     ipo = funnel.current.items_per_order
@@ -293,8 +303,23 @@ def write_report(
     (out_dir / "report.md").write_text("\n".join(lines))
 
 
-def run_snapshot(snapshot: Path, out_dir: Path, config: StageDiagnosisConfig) -> dict:
-    funnels, signals_by_id, evidence_by_id, excluded = build_inputs(snapshot, config)
+def diagnose_all(
+    funnels: list[ProductFunnel],
+    evidence_by_id: dict[str, list[Evidence]],
+    excluded: dict[str, str],
+    config: StageDiagnosisConfig,
+    *,
+    asked: set[str] | None = None,
+    quantities: dict[str, list[int]] | None = None,
+    discount_cap_set: bool = False,
+    levers: dict[str, PageLevers] | None = None,
+) -> tuple[ShopMedians, list[Diagnosis], list[Skip]]:
+    """Shop medians over the non-excluded funnels, then the diagnosis of every product.
+
+    ``asked`` is the set of product ids whose diagnoses file exists (TikTok was
+    asked); ``quantities`` the per-product basket quantities from real orders; ``levers``
+    the per-product price-lever facts (shipping gate, flash-sale guards).
+    """
     medians = ShopMedians.from_products(
         (f for f in funnels if f.product_id not in excluded), config
     )
@@ -307,13 +332,25 @@ def run_snapshot(snapshot: Path, out_dir: Path, config: StageDiagnosisConfig) ->
             evidence_by_id.get(funnel.product_id, []),
             config,
             excluded_reason=excluded.get(funnel.product_id),
+            discount_cap_set=discount_cap_set,
+            diagnoses_asked=funnel.product_id in (asked or set()),
+            basket_quantities=(quantities or {}).get(funnel.product_id),
+            levers=(levers or {}).get(funnel.product_id, NO_LEVERS),
         )
         if isinstance(result, Diagnosis):
             diagnoses.append(result)
         else:
             skips.append(result)
+    return medians, diagnoses, skips
+
+
+def run_snapshot(snapshot: Path, out_dir: Path, config: StageDiagnosisConfig) -> dict:
+    funnels, signals_by_id, evidence_by_id, excluded = build_inputs(snapshot, config)
+    medians, diagnoses, skips = diagnose_all(
+        funnels, evidence_by_id, excluded, config, asked=asked_products(snapshot)
+    )
     cards = build_cards(diagnoses, config)
-    meta = _load(snapshot / "meta.json") or {}
+    meta = load_json(snapshot / "meta.json") or {}
     as_of = str(meta.get("as_of") or "?")
     out_dir.mkdir(parents=True, exist_ok=True)
     payload = {

@@ -45,6 +45,16 @@ Matches ``__all__`` — re-exports only:
   ``RETURN_SEARCH_PATH``,
   ``analytics_shop_performance_per_hour_path``, ``analytics_shop_product_performance_path``,
   ``analytics_shop_sku_performance_path``, ``promotion_activity_path``
+- **Optimize Product reads (ADR-090 d.3, ADR-106 Amendments 4–5)** — product
+  diagnosis: ``PRODUCT_DIAGNOSIS_API_VERSION``, ``PRODUCT_DIAGNOSES_PATH``,
+  ``PRODUCT_DIAGNOSE_OPTIMIZE_API_VERSION``, ``PRODUCT_DIAGNOSE_OPTIMIZE_PATH``
+  (the POST only scores a proposed listing and writes nothing, so it is on the
+  production-read allowlist); seller promotions: ``PROMOTION_ACTIVITIES_SEARCH_PATH``,
+  ``PROMOTION_COUPONS_SEARCH_PATH``, ``PROMOTION_COUPON_API_VERSION``,
+  ``SEARCH_MAX_PAGE_SIZE``; shop LIVE and video product performance:
+  ``ANALYTICS_LIVE_PRODUCTS_API_VERSION``, ``ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH``,
+  ``analytics_shop_live_products_performance_path``,
+  ``analytics_shop_video_products_performance_path``
 - **Client factories** — ``ClientFactoryConfig``, ``ProductionReadClientFactory``,
   ``ProductionReadResources``, ``SandboxWriteClientFactory``, ``SandboxWriteResources``.
   Since #1995 ``ProductionReadClientFactory.create`` admits **any** merchant auth id

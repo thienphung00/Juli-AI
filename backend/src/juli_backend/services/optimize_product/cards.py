@@ -18,6 +18,7 @@ from juli_backend.services.optimize_product.config import StageDiagnosisConfig
 from juli_backend.services.optimize_product.diagnosis import (
     Angle,
     Diagnosis,
+    Gap,
     Label,
     Trigger,
     rank_diagnoses,
@@ -32,14 +33,18 @@ MEASURE_BY_ANGLE: dict[Angle, tuple[str, ...]] = {
     Angle.MO_TA: ("click_order_rate",),
     Angle.GIAM_GIA: ("click_order_rate", "gmv"),
     Angle.MUA_NHIEU_GIAM_NHIEU: ("aov", "items_per_order"),
+    Angle.FLASH_SALE: ("click_order_rate", "gmv"),
+    Angle.GIAM_PHI_VAN_CHUYEN: ("click_order_rate", "gmv"),
 }
 
-_ANGLE_ACTION = {
+ANGLE_ACTION = {
     Angle.ANH_BIA: "Thay ảnh bìa",
     Angle.TIEU_DE: "Viết lại tiêu đề",
     Angle.MO_TA: "Viết lại mô tả",
     Angle.GIAM_GIA: "Tạo giảm giá sản phẩm 30 ngày",
     Angle.MUA_NHIEU_GIAM_NHIEU: "Tạo mua nhiều giảm nhiều một bậc",
+    Angle.FLASH_SALE: "Tạo flash sale 1 đến 3 ngày",
+    Angle.GIAM_PHI_VAN_CHUYEN: "Tạo giảm phí vận chuyển 30 ngày",
 }
 
 
@@ -82,29 +87,33 @@ class TestCard:
         return asdict(self)
 
 
-def reason_sentence(diag: Diagnosis, *, full_median_peers: int = 5) -> str:
-    """One sentence, one trigger. Never a blended number.
+def gap_reason_sentence(gap: Gap, trigger: Trigger, *, full_median_peers: int = 5) -> str:
+    """One sentence for one fired gap — the shared builder of every *lý do*.
 
     Under ``full_median_peers`` products above the floor the sentence names the
     peer count instead of claiming a "trung bình shop" (ADR-106 amendment).
     """
-    kpi = "CTOR" if diag.label is Label.CTOR else "AOV"
-    fired = diag.gap
-    if fired.factor == "ctr":
-        kpi = "CTR thẻ sản phẩm"
-    pct = _pct(fired.gap)
-    if diag.trigger is Trigger.SHOP_MEDIAN:
-        if fired.median_peers < full_median_peers:
+    kpi = {"ctr": "CTR thẻ sản phẩm", "ctor": "CTOR", "aov": "AOV"}.get(
+        gap.factor, gap.factor.upper()
+    )
+    pct = _pct(gap.gap)
+    if trigger is Trigger.SHOP_MEDIAN:
+        if gap.median_peers < full_median_peers:
             return (
-                f"{kpi} ước tính thấp hơn {pct} so với {fired.median_peers} sản phẩm đủ dữ liệu "
+                f"{kpi} ước tính thấp hơn {pct} so với {gap.median_peers} sản phẩm đủ dữ liệu "
                 "của shop trong 14 ngày qua"
             )
         return f"{kpi} ước tính thấp hơn {pct} so với trung bình shop trong 14 ngày qua"
     return f"{kpi} ước tính giảm {pct} so với 4 tuần trước"
 
 
+def reason_sentence(diag: Diagnosis, *, full_median_peers: int = 5) -> str:
+    """One sentence, one trigger. Never a blended number."""
+    return gap_reason_sentence(diag.gap, diag.trigger, full_median_peers=full_median_peers)
+
+
 def angle_sentence(diag: Diagnosis) -> str:
-    action = _ANGLE_ACTION[diag.angle]
+    action = ANGLE_ACTION[diag.angle]
     if diag.angle is Angle.MUA_NHIEU_GIAM_NHIEU and diag.bmsm:
         pct = (
             f"khoảng {diag.bmsm.percent} % (cần trần giảm giá của shop để chốt)"
@@ -112,8 +121,10 @@ def angle_sentence(diag: Diagnosis) -> str:
             else f"{diag.bmsm.percent} %"
         )
         return f"{action}: mua từ {diag.bmsm.threshold_items} món giảm {pct}, 30 ngày"
-    if diag.angle is Angle.GIAM_GIA:
+    if diag.angle in (Angle.GIAM_GIA, Angle.GIAM_PHI_VAN_CHUYEN):
         return f"{action}; độ sâu do rule tính trong trần giảm giá của shop"
+    if diag.angle is Angle.FLASH_SALE:
+        return f"{action}; shop cần xác nhận đủ điều kiện tham gia flash sale trước khi chạy"
     if not diag.evidence:
         return action
     tiktok = [e for e in diag.evidence if e.source is EvidenceSource.TIKTOK]
@@ -126,15 +137,27 @@ def angle_sentence(diag: Diagnosis) -> str:
     return f"{action}. " + " ".join(parts)
 
 
+NOT_ENOUGH_DATA = "chưa đủ dữ liệu"
+
+
+def main_kpi_value(diag: Diagnosis) -> str:
+    """The card's Main KPI value, or ``NOT_ENOUGH_DATA`` below its ADR-077 floor.
+
+    A CTOR built on a handful of clicks reads as 0,00 %, which a seller takes
+    for a fact; below the floor the card says so instead (Amendment 3).
+    """
+    if diag.label is Label.CTOR:
+        gap = diag.gaps["ctor"]
+        return _ratio(gap.value) if gap.cleared_floor else NOT_ENOUGH_DATA
+    gap = diag.gaps["aov"]
+    return _vnd(gap.value) if gap.cleared_floor else NOT_ENOUGH_DATA
+
+
 def build_cards(diagnoses: list[Diagnosis], config: StageDiagnosisConfig) -> list[TestCard]:
     """Rank, mark the open slots, and render copy for every diagnosis."""
     cards: list[TestCard] = []
     for index, diag in enumerate(rank_diagnoses(diagnoses), start=1):
-        kpi_value = (
-            _ratio(diag.gaps["ctor"].value)
-            if diag.label is Label.CTOR
-            else _vnd(diag.gaps["aov"].value)
-        )
+        kpi_value = main_kpi_value(diag)
         cards.append(
             TestCard(
                 product_id=diag.product_id,

@@ -31,7 +31,10 @@ class EvidenceSource(str, Enum):
 
 
 #: Field → codes, VN "Rest of World" table of the Partner Center
-#: listing-quality reference (read 2026-10-06).
+#: listing-quality reference (read 2026-10-06). These sets are documentation
+#: only: TikTok returns codes the published table does not list
+#: (``MAIN_IMG_FIRST_IMG_PSORIASIS``, ``DESCRIPTION_INCLUDE_INVALID_IMAGE``),
+#: so matching is by the prefix rules below, never by membership here.
 TITLE_CODES = frozenset({"TITLE_LESS_THAN_40_CHARACTERS", "SEO_DIAGNOSTIC_ITEM"})
 DESCRIPTION_CODES = frozenset({"DESC_LESS_THAN_FIVE_HUNDRED_CHARS", "DESC_NO_NEW_LINE"})
 FIRST_IMAGE_CODES = frozenset(
@@ -55,6 +58,25 @@ IMAGE_CODES = FIRST_IMAGE_CODES | IMAGE_SET_CODES
 #: Codes only TikTok's image understanding can produce.
 TIKTOK_ONLY_CODES = FIRST_IMAGE_CODES - {"MAIN_IMG_FIRST_IMG_LOW_QUALITY"} | {"SEO_DIAGNOSTIC_ITEM"}
 
+#: Prefix rules — the matching the diagnosis uses.
+IMAGE_PREFIXES = ("MAIN_IMG_",)
+TITLE_PREFIXES = ("TITLE_",)
+TITLE_EXACT = ("SEO_DIAGNOSTIC_ITEM",)
+DESCRIPTION_PREFIXES = ("DESC_", "DESCRIPTION_")
+
+
+def is_image_code(code: str) -> bool:
+    return code.startswith(IMAGE_PREFIXES)
+
+
+def is_title_code(code: str) -> bool:
+    return code.startswith(TITLE_PREFIXES) or code in TITLE_EXACT
+
+
+def is_description_code(code: str) -> bool:
+    return code.startswith(DESCRIPTION_PREFIXES)
+
+
 _TAG_RE = re.compile(r"<[^>]+>")
 _LINE_BREAK_RE = re.compile(r"<br\s*/?>|</p>|<p[\s>]|<li[\s>]|\n", re.IGNORECASE)
 
@@ -70,11 +92,11 @@ class Evidence:
 
     @property
     def field_name(self) -> str:
-        if self.code in TITLE_CODES:
+        if is_title_code(self.code):
             return "title"
-        if self.code in DESCRIPTION_CODES:
+        if is_description_code(self.code):
             return "description"
-        if self.code in IMAGE_CODES:
+        if is_image_code(self.code):
             return "image"
         return "other"
 

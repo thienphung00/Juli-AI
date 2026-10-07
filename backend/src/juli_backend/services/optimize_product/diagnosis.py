@@ -14,25 +14,30 @@ Order of operations, fixed:
    own prior window — ``gap = max(gap_median, gap_trend)``, trigger recorded;
 4. label: the larger gap of {CTOR, AOV}, AOV only when CTOR's gap is under
    its threshold;
-5. branch under CTOR: CTR gap ≥ CTOR gap → card branch, else page branch;
-6. angle: first angle in the branch's fixed order that has evidence; a
-   branch without evidence falls to the other branch; neither → Skip.
+5. branch under CTOR: CTR fires and its gap ≥ CTOR gap → card branch, else
+   page branch (Amendment 3: a healthy CTR never routes to the card branch);
+6. angle: first angle in the branch's fixed order that has evidence; the card
+   branch falls to the page branch when it has none, the page branch falls to
+   the card branch only when CTR fires; no branch left → Skip, named by why
+   (``tiktok_not_asked``, ``discount_cap_needed``, ``product_discount_running``,
+   ``tiktok_found_no_fault``).
 """
 
 from __future__ import annotations
 
-import math
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import Enum
 
+from juli_backend.services.optimize_product.basket import basket_threshold
 from juli_backend.services.optimize_product.config import StageDiagnosisConfig
 from juli_backend.services.optimize_product.funnel import ZERO, ProductFunnel, ShopMedians
 from juli_backend.services.optimize_product.listing_signals import (
-    DESCRIPTION_CODES,
-    IMAGE_CODES,
-    TITLE_CODES,
     Evidence,
+    is_description_code,
+    is_image_code,
+    is_title_code,
 )
 
 
@@ -57,27 +62,42 @@ class Branch(str, Enum):
 
 
 class Angle(str, Enum):
-    """The five angles a card may propose. Exactly one per card."""
+    """The angles a card may propose. Exactly one per card."""
 
     ANH_BIA = "ảnh bìa"
     TIEU_DE = "tiêu đề"
     MO_TA = "mô tả"
     GIAM_GIA = "giảm giá sản phẩm"
     MUA_NHIEU_GIAM_NHIEU = "mua nhiều giảm nhiều"
+    #: ADR-106 amendment 5: two more page-branch angles, after the discount.
+    FLASH_SALE = "flash sale"
+    GIAM_PHI_VAN_CHUYEN = "giảm phí vận chuyển"
 
 
 #: Fixed angle order inside each branch (decision 4).
 BRANCH_ORDER: dict[Branch, tuple[Angle, ...]] = {
     Branch.CARD: (Angle.ANH_BIA, Angle.TIEU_DE),
-    Branch.PAGE: (Angle.MO_TA, Angle.GIAM_GIA),
+    Branch.PAGE: (
+        Angle.MO_TA,
+        Angle.GIAM_GIA,
+        Angle.FLASH_SALE,
+        Angle.GIAM_PHI_VAN_CHUYEN,
+    ),
     Branch.BASKET: (Angle.MUA_NHIEU_GIAM_NHIEU,),
 }
 
-ANGLE_CODES: dict[Angle, frozenset[str]] = {
-    Angle.ANH_BIA: IMAGE_CODES,
-    Angle.TIEU_DE: TITLE_CODES,
-    Angle.MO_TA: DESCRIPTION_CODES,
+#: Prefix rule per angle (TikTok returns codes the published table lacks).
+ANGLE_MATCHERS: dict[Angle, Callable[[str], bool]] = {
+    Angle.ANH_BIA: is_image_code,
+    Angle.TIEU_DE: is_title_code,
+    Angle.MO_TA: is_description_code,
 }
+
+
+def codes_for_angle(angle: Angle, codes: Iterable[str]) -> set[str]:
+    """The codes among ``codes`` that belong to ``angle`` by prefix rule."""
+    matcher = ANGLE_MATCHERS.get(angle)
+    return {c for c in codes if matcher(c)} if matcher else set()
 
 
 @dataclass(frozen=True)
@@ -120,10 +140,33 @@ class Gap:
 
 
 @dataclass(frozen=True)
+class PageLevers:
+    """Per-product facts the caller computed for the price levers (ADR-106 amendment 5).
+
+    ``shipping_ok``: the shipping-discount gate holds. ``flash_ok``: every
+    flash-sale guard holds. ``product_discount_active``: a product discount from
+    any source runs on the product (promotion data), which makes Juli's own
+    product discount unavailable and lets the flash sale take its place.
+    """
+
+    shipping_ok: bool = False
+    flash_ok: bool = False
+    product_discount_active: bool = False
+
+
+NO_LEVERS = PageLevers()
+
+
+@dataclass(frozen=True)
 class BmsmProposal:
     threshold_items: int
     percent: int
     percent_is_estimate: bool
+    #: Where the threshold came from (``histogram`` or ``mean_fallback``), the
+    #: orders behind it and, for the histogram, the share already at it.
+    source: str = "mean_fallback"
+    orders: int = 0
+    share: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -229,23 +272,36 @@ def _angles_with_evidence(
     *,
     discount_cap_set: bool,
     active_promotion: bool,
+    levers: PageLevers = NO_LEVERS,
 ) -> list[Angle]:
     """Angles of ``branch`` that have evidence, in the branch's fixed order."""
     codes = {e.code for e in evidence}
+    price_levers_open = not codes_for_angle(Angle.MO_TA, codes) and discount_cap_set
     out: list[Angle] = []
     for angle in BRANCH_ORDER[branch]:
         if angle is Angle.GIAM_GIA:
             # Decision 4: a discount only when no description code remains and
             # the seller's maximum discount is set. Never while a Juli
-            # promotion is live on the product (OP-FR-4 cooldown).
-            if not (codes & DESCRIPTION_CODES) and discount_cap_set and not active_promotion:
+            # promotion is live on the product (OP-FR-4 cooldown), nor while a
+            # product discount from any source runs on it.
+            if price_levers_open and not active_promotion and not levers.product_discount_active:
+                out.append(angle)
+            continue
+        if angle is Angle.FLASH_SALE:
+            # Amendment 5: only in the discount's place, and only when every guard holds.
+            discount_unavailable = active_promotion or levers.product_discount_active
+            if price_levers_open and discount_unavailable and levers.flash_ok:
+                out.append(angle)
+            continue
+        if angle is Angle.GIAM_PHI_VAN_CHUYEN:
+            if price_levers_open and levers.shipping_ok:
                 out.append(angle)
             continue
         if angle is Angle.MUA_NHIEU_GIAM_NHIEU:
             if not active_promotion:
                 out.append(angle)
             continue
-        if codes & ANGLE_CODES[angle]:
+        if codes_for_angle(angle, codes):
             out.append(angle)
     return out
 
@@ -260,6 +316,9 @@ def diagnose_product(
     live: bool = True,
     discount_cap_set: bool = False,
     active_promotion: bool = False,
+    diagnoses_asked: bool = False,
+    basket_quantities: list[int] | None = None,
+    levers: PageLevers = NO_LEVERS,
 ) -> Diagnosis | Skip:
     """Decision 4 end to end for one product."""
     if excluded_reason:
@@ -308,11 +367,16 @@ def diagnose_product(
         )
         if not basket_angles:
             return Skip(product.product_id, product.title, "aov_lever_locked", gaps)
-        items = product.current.items_per_order or Decimal(1)
+        basket = basket_threshold(basket_quantities, product.current.items_per_order, config)
+        if not basket.reached:
+            return Skip(product.product_id, product.title, "bmsm_threshold_unreached", gaps)
         bmsm = BmsmProposal(
-            threshold_items=int(math.ceil(items)) + config.bmsm_threshold_plus,
+            threshold_items=basket.threshold_items,
             percent=config.bmsm_percent_default,
             percent_is_estimate=not discount_cap_set,
+            source=basket.source,
+            orders=basket.orders,
+            share=basket.share,
         )
         return Diagnosis(
             product_id=product.product_id,
@@ -331,32 +395,61 @@ def diagnose_product(
         )
 
     # Branch under CTOR (decision 4 step 5).
-    first = Branch.CARD if gaps["ctr"].gap >= gaps["ctor"].gap else Branch.PAGE
-    second = Branch.PAGE if first is Branch.CARD else Branch.CARD
+    first = Branch.CARD if ctr_fires and gaps["ctr"].gap >= gaps["ctor"].gap else Branch.PAGE
+    candidates = [first]
+    if first is Branch.CARD:
+        candidates.append(Branch.PAGE)
+    elif ctr_fires:
+        candidates.append(Branch.CARD)
     chosen_branch: Branch | None = None
     angles: list[Angle] = []
-    for branch in (first, second):
+    for branch in candidates:
         angles = _angles_with_evidence(
             branch,
             evidence,
             discount_cap_set=discount_cap_set,
             active_promotion=active_promotion,
+            levers=levers,
         )
         if angles:
             chosen_branch = branch
             break
     if chosen_branch is None:
-        return Skip(product.product_id, product.title, "no_diagnosis_codes", gaps)
+        codes = {e.code for e in evidence}
+        if not diagnoses_asked:
+            reason = "tiktok_not_asked"
+        elif (
+            Branch.PAGE in candidates
+            and not codes_for_angle(Angle.MO_TA, codes)
+            and not discount_cap_set
+            and not active_promotion
+        ):
+            reason = "discount_cap_needed"
+        elif (
+            Branch.PAGE in candidates
+            and not codes_for_angle(Angle.MO_TA, codes)
+            and discount_cap_set
+            and levers.product_discount_active
+        ):
+            # The discount is taken by a running promotion and the flash sale's
+            # guards (or its promotion data) do not allow its replacement.
+            reason = "product_discount_running"
+        else:
+            reason = "tiktok_found_no_fault"
+        return Skip(product.product_id, product.title, reason, gaps)
 
     angle = angles[0]
-    angle_evidence = tuple(e for e in evidence if e.code in ANGLE_CODES.get(angle, frozenset()))
+    angle_evidence = tuple(e for e in evidence if codes_for_angle(angle, [e.code]))
     other_branch = Branch.PAGE if chosen_branch is Branch.CARD else Branch.CARD
-    others = angles[1:] + _angles_with_evidence(
-        other_branch,
-        evidence,
-        discount_cap_set=discount_cap_set,
-        active_promotion=active_promotion,
-    )
+    others = angles[1:]
+    if other_branch in candidates:
+        others += _angles_with_evidence(
+            other_branch,
+            evidence,
+            discount_cap_set=discount_cap_set,
+            active_promotion=active_promotion,
+            levers=levers,
+        )
     if chosen_branch is Branch.PAGE and first is Branch.CARD:
         caveats.append("nhánh thẻ (ảnh, tiêu đề) không có bằng chứng; chuyển sang nhánh trang")
     if chosen_branch is Branch.CARD and first is Branch.PAGE:
