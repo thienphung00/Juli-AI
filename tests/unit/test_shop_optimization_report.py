@@ -455,5 +455,7 @@ def test_legend_lists_only_statuses_that_occur(tmp_path: Path) -> None:
 
 
 def test_bad_owner_test_angle_fails_loudly(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="owner test"):
+    with pytest.raises(ValueError, match="owner test") as raised:
         _with_files(tmp_path, owner_tests=[{"product_id": "weak", "angle": "đổi tên"}])
+    # The message must name the rejected angle so the owner can fix the file.
+    assert "đổi tên" in str(raised.value)
