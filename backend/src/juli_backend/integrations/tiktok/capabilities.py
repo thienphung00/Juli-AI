@@ -21,6 +21,7 @@ from juli_backend.integrations.tiktok.constants import (
     MARKETPLACE_CREATORS_SEARCH_PATH,
     ORDER_DETAIL_PATH,
     ORDER_SEARCH_PATH,
+    PRODUCT_DIAGNOSE_OPTIMIZE_PATH,
     PRODUCT_SEARCH_PATH,
     RETURN_SEARCH_PATH,
 )
@@ -58,6 +59,10 @@ PRODUCTION_READ_POST_PATHS: frozenset[str] = frozenset(
         CANCELLATION_SEARCH_PATH,
         INVENTORY_SEARCH_PATH,
         MARKETPLACE_CREATORS_SEARCH_PATH,
+        # Diagnose-optimize is a POST but a pure scoring call: it returns
+        # diagnoses for a candidate title/description/images and mutates
+        # nothing on the product (ADR-090 d.3). Exact path only.
+        PRODUCT_DIAGNOSE_OPTIMIZE_PATH,
     }
 )
 
@@ -91,6 +96,10 @@ PRODUCTION_READ_GET_PATTERNS: tuple[re.Pattern[str], ...] = (
     # by the #1124 live smoke once #1188 let runs execute at all.
     re.compile(r"^/product/\d+/products/seo_words$"),
     re.compile(r"^/product/\d+/products/suggestions$"),
+    # Listing-quality diagnoses read for the Optimize Product catalog scan
+    # (same precedent as seo_words/suggestions above): a pure GET that
+    # mutates nothing.
+    re.compile(r"^/product/\d+/products/diagnoses$"),
     re.compile(r"^/affiliate_seller/\d+/marketplace_creators/[^/]+$"),
     # A-31 SKU performance detail
     re.compile(r"^/analytics/\d+/shop_skus/[^/]+/performance$"),
@@ -157,6 +166,9 @@ SANDBOX_ALLOWED_REQUESTS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("GET", re.compile(r"^/product/\d+/products/\d+$")),
     ("GET", re.compile(r"^/product/\d+/products/seo_words$")),
     ("GET", re.compile(r"^/product/\d+/products/suggestions$")),
+    ("GET", re.compile(r"^/product/\d+/products/diagnoses$")),
+    # Scoring-only POST (ADR-090 d.3); mutates nothing on the product.
+    ("POST", re.compile(r"^/product/202411/products/diagnose_optimize$")),
     ("POST", re.compile(r"^/product/\d+/products/search$")),
     ("POST", re.compile(r"^/product/\d+/products/\d+/prices/update$")),
     ("GET", re.compile(r"^/fulfillment/\d+/combinable_packages/search$")),

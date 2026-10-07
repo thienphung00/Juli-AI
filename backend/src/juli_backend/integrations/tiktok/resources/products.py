@@ -9,6 +9,10 @@ from juli_backend.integrations.tiktok.constants import (
     PRODUCT_BRANDS_PATH,
     PRODUCT_CATEGORIES_PATH,
     PRODUCT_CREATE_PATH,
+    PRODUCT_DIAGNOSE_OPTIMIZE_API_VERSION,
+    PRODUCT_DIAGNOSE_OPTIMIZE_PATH,
+    PRODUCT_DIAGNOSES_PATH,
+    PRODUCT_DIAGNOSIS_API_VERSION,
     PRODUCT_FILE_UPLOAD_PATH,
     PRODUCT_IMAGE_UPLOAD_PATH,
     PRODUCT_PREREQUISITES_PATH,
@@ -27,6 +31,8 @@ from juli_backend.integrations.tiktok.schemas import (
     coerce_model,
 )
 
+_MAX_DIAGNOSIS_PRODUCT_IDS = 200
+
 
 class ProductsResource:
     """Search, paginate, and fetch product details from TikTok Shop."""
@@ -44,10 +50,12 @@ class ProductsResource:
         page_token: str | None = None,
     ) -> dict:
         body = strip_nones({"status": status})
-        params = strip_nones({
-            "page_size": str(page_size) if page_size is not None else None,
-            "page_token": page_token,
-        })
+        params = strip_nones(
+            {
+                "page_size": str(page_size) if page_size is not None else None,
+                "page_token": page_token,
+            }
+        )
         if update_time_from is not None:
             body["update_time_ge"] = update_time_from
         if update_time_to is not None:
@@ -125,14 +133,16 @@ class ProductsResource:
         page_token: str | None = None,
     ) -> dict:
         """Resolve brand_id when required (contract-collection.md §A-22a)."""
-        params = strip_nones({
-            "category_id": category_id,
-            "category_version": "v1",
-            "is_authorized": "false",
-            "brand_name": brand_name,
-            "page_size": str(page_size),
-            "page_token": page_token,
-        })
+        params = strip_nones(
+            {
+                "category_id": category_id,
+                "category_version": "v1",
+                "is_authorized": "false",
+                "brand_name": brand_name,
+                "page_size": str(page_size),
+                "page_token": page_token,
+            }
+        )
         return self._client.get(PRODUCT_BRANDS_PATH, params=params)
 
     def get_seo_words(self, *, product_ids: list[str]) -> dict:
@@ -147,6 +157,49 @@ class ProductsResource:
         return self._client.get(
             PRODUCT_SUGGESTIONS_PATH,
             params={"product_ids": ",".join(product_ids)},
+        )
+
+    def get_diagnoses(self, product_ids: list[str]) -> dict:
+        """Fetch listing-quality diagnoses for ACTIVATE products (max 200 ids)."""
+        if not product_ids:
+            raise ValueError("product_ids must not be empty")
+        if len(product_ids) > _MAX_DIAGNOSIS_PRODUCT_IDS:
+            raise ValueError(
+                f"product_ids exceeds the {_MAX_DIAGNOSIS_PRODUCT_IDS}-id limit: {len(product_ids)}"
+            )
+        return self._client.get(
+            PRODUCT_DIAGNOSES_PATH,
+            params={
+                "version": PRODUCT_DIAGNOSIS_API_VERSION,
+                "product_ids": ",".join(product_ids),
+            },
+        )
+
+    def diagnose_optimize(
+        self,
+        *,
+        product_id: str,
+        category_id: str,
+        optimization_fields: list[str],
+        title: str | None = None,
+        description: str | None = None,
+        main_images: list[dict[str, Any]] | None = None,
+    ) -> dict:
+        """Score a candidate listing edit. Writes nothing to the product."""
+        body = strip_nones(
+            {
+                "product_id": product_id,
+                "category_id": category_id,
+                "optimization_fields": optimization_fields,
+                "title": title,
+                "description": description,
+                "main_images": main_images,
+            }
+        )
+        return self._client.post(
+            PRODUCT_DIAGNOSE_OPTIMIZE_PATH,
+            body=body,
+            params={"version": PRODUCT_DIAGNOSE_OPTIMIZE_API_VERSION},
         )
 
     def upload_product_image(
