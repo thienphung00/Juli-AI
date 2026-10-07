@@ -44,66 +44,21 @@ METRIC_ROWS: tuple[tuple[str, str], ...] = (
 )
 
 
-def _dec(value: object) -> Decimal:
-    from juli_backend.services.optimize_product.funnel import to_decimal
-
-    return to_decimal(value)
-
-
-def _money(value: object) -> Decimal:
-    """``{amount, currency}`` dict or bare string/number -> Decimal."""
-    if isinstance(value, dict):
-        return _dec(value.get("amount"))
-    return _dec(value)
-
-
-def _ratio(num: Decimal, den: Decimal) -> Decimal | None:
-    return None if den <= 0 else num / den
-
-
 def window_metrics(item: dict[str, Any] | None, *, days: int = WINDOW_DAYS) -> dict[str, Any]:
-    """KPI block for one A-34 product row; ``None`` ratios mean a zero denominator."""
-    item = item or {}
-    total = item.get("total_performance") or {}
-    orders = _dec(total.get("sku_orders"))
-    gmv = _money(total.get("gmv"))
-    clicks = _dec(total.get("product_clicks"))
-    impressions = _dec(total.get("product_impressions"))
-    card = item.get("seller_product_card_performance") or {}
-    tab = item.get("shop_tab_performance") or {}
-    tab_clicks = _dec(tab.get("shop_tab_product_clicks"))
-    tab_orders = tab_clicks * _dec(tab.get("shop_tab_ctor_sku"))
-    card_impr = _dec(card.get("product_impressions")) + _dec(
-        tab.get("shop_tab_product_impressions")
-    )
-    card_clicks = _dec(card.get("product_clicks")) + tab_clicks
-    card_orders = _dec(card.get("attributed_sku_orders")) + tab_orders
-    card_gmv = _money(card.get("attributed_gmv")) + _money(tab.get("shop_tab_gmv"))
-    return {
-        "orders_per_day": orders / Decimal(days),
-        "orders": orders,
-        "gmv": gmv,
-        "aov": _ratio(gmv, orders),
-        "items_per_order": _ratio(_dec(total.get("items_sold")), orders),
-        "impressions": impressions,
-        "clicks": clicks,
-        "ctr": _ratio(clicks, impressions),
-        "add_to_cart_rate": _ratio(_dec(total.get("add_cart_count")), clicks),
-        "ctor": _ratio(orders, clicks),
-        "refund_share": _ratio(_money(total.get("refunds")), gmv),
-        "card_impressions": card_impr,
-        "card_clicks": card_clicks,
-        "card_orders": card_orders,
-        "card_gmv": card_gmv,
-        "card_ctr": _ratio(card_clicks, card_impr),
-        "card_ctor": _ratio(card_orders, card_clicks),
-    }
+    """KPI block for one A-34 product row; ``None`` ratios mean a zero denominator.
+
+    One implementation, shared with the shop report:
+    ``juli_backend.services.optimize_product.shop_report.window_metrics``.
+    """
+    from juli_backend.services.optimize_product.shop_report import window_metrics as impl
+
+    return impl(item, days=days)
 
 
 def _change(cur: Decimal | None, prev: Decimal | None) -> dict[str, Decimal | None]:
-    if cur is None or prev is None:
-        return {"abs": None, "pct": None}
-    return {"abs": cur - prev, "pct": None if prev == 0 else (cur - prev) / prev * 100}
+    from juli_backend.services.optimize_product.shop_report import change
+
+    return change(cur, prev)
 
 
 def compare_product(

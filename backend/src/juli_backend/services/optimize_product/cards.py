@@ -18,6 +18,7 @@ from juli_backend.services.optimize_product.config import StageDiagnosisConfig
 from juli_backend.services.optimize_product.diagnosis import (
     Angle,
     Diagnosis,
+    Gap,
     Label,
     Trigger,
     rank_diagnoses,
@@ -34,7 +35,7 @@ MEASURE_BY_ANGLE: dict[Angle, tuple[str, ...]] = {
     Angle.MUA_NHIEU_GIAM_NHIEU: ("aov", "items_per_order"),
 }
 
-_ANGLE_ACTION = {
+ANGLE_ACTION = {
     Angle.ANH_BIA: "Thay ảnh bìa",
     Angle.TIEU_DE: "Viết lại tiêu đề",
     Angle.MO_TA: "Viết lại mô tả",
@@ -82,29 +83,33 @@ class TestCard:
         return asdict(self)
 
 
-def reason_sentence(diag: Diagnosis, *, full_median_peers: int = 5) -> str:
-    """One sentence, one trigger. Never a blended number.
+def gap_reason_sentence(gap: Gap, trigger: Trigger, *, full_median_peers: int = 5) -> str:
+    """One sentence for one fired gap — the shared builder of every *lý do*.
 
     Under ``full_median_peers`` products above the floor the sentence names the
     peer count instead of claiming a "trung bình shop" (ADR-106 amendment).
     """
-    kpi = "CTOR" if diag.label is Label.CTOR else "AOV"
-    fired = diag.gap
-    if fired.factor == "ctr":
-        kpi = "CTR thẻ sản phẩm"
-    pct = _pct(fired.gap)
-    if diag.trigger is Trigger.SHOP_MEDIAN:
-        if fired.median_peers < full_median_peers:
+    kpi = {"ctr": "CTR thẻ sản phẩm", "ctor": "CTOR", "aov": "AOV"}.get(
+        gap.factor, gap.factor.upper()
+    )
+    pct = _pct(gap.gap)
+    if trigger is Trigger.SHOP_MEDIAN:
+        if gap.median_peers < full_median_peers:
             return (
-                f"{kpi} ước tính thấp hơn {pct} so với {fired.median_peers} sản phẩm đủ dữ liệu "
+                f"{kpi} ước tính thấp hơn {pct} so với {gap.median_peers} sản phẩm đủ dữ liệu "
                 "của shop trong 14 ngày qua"
             )
         return f"{kpi} ước tính thấp hơn {pct} so với trung bình shop trong 14 ngày qua"
     return f"{kpi} ước tính giảm {pct} so với 4 tuần trước"
 
 
+def reason_sentence(diag: Diagnosis, *, full_median_peers: int = 5) -> str:
+    """One sentence, one trigger. Never a blended number."""
+    return gap_reason_sentence(diag.gap, diag.trigger, full_median_peers=full_median_peers)
+
+
 def angle_sentence(diag: Diagnosis) -> str:
-    action = _ANGLE_ACTION[diag.angle]
+    action = ANGLE_ACTION[diag.angle]
     if diag.angle is Angle.MUA_NHIEU_GIAM_NHIEU and diag.bmsm:
         pct = (
             f"khoảng {diag.bmsm.percent} % (cần trần giảm giá của shop để chốt)"

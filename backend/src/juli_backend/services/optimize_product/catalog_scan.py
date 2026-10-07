@@ -96,11 +96,11 @@ def dump_json(path: Path, payload: Any) -> None:
 # --------------------------------------------------------------------------- snapshot → funnels
 
 
-def _load(path: Path) -> Any:
+def load_json(path: Path) -> Any:
     return json.loads(path.read_text()) if path.exists() else None
 
 
-def _a34_index(payload: Any) -> dict[str, dict]:
+def a34_index(payload: Any) -> dict[str, dict]:
     products = (payload or {}).get("products") if isinstance(payload, dict) else payload
     return {str(p["id"]): p for p in (products or []) if isinstance(p, dict) and p.get("id")}
 
@@ -109,10 +109,10 @@ def build_inputs(
     snapshot: Path, config: StageDiagnosisConfig
 ) -> tuple[list[ProductFunnel], dict[str, dict], dict[str, list[Evidence]], dict[str, str]]:
     """Funnels, listing signals, evidence and exclusion reasons for every product."""
-    current = _a34_index(_load(snapshot / "a34_current.json"))
-    prior = _a34_index(_load(snapshot / "a34_prior.json"))
-    last28 = _a34_index(_load(snapshot / "a34_last28.json"))
-    meta = _load(snapshot / "meta.json") or {}
+    current = a34_index(load_json(snapshot / "a34_current.json"))
+    prior = a34_index(load_json(snapshot / "a34_prior.json"))
+    last28 = a34_index(load_json(snapshot / "a34_last28.json"))
+    meta = load_json(snapshot / "meta.json") or {}
     as_of = date.fromisoformat(meta["as_of"]) if meta.get("as_of") else None
 
     funnels: list[ProductFunnel] = []
@@ -120,7 +120,7 @@ def build_inputs(
     evidence_by_id: dict[str, list[Evidence]] = {}
     excluded: dict[str, str] = {}
     for product_id, item in current.items():
-        detail = _load(snapshot / "products" / f"{product_id}.json") or {}
+        detail = load_json(snapshot / "products" / f"{product_id}.json") or {}
         detail = detail.get("data", detail) if "data" in detail else detail
         title = str(detail.get("title") or item.get("title") or product_id)
         signals = listing_signals_from_product({**detail, "id": product_id}, config)
@@ -131,7 +131,7 @@ def build_inputs(
             excluded.setdefault(product_id, f"status {signals.status}")
 
         evidence = derive_local_evidence(signals, config)
-        diag_entry = _load(snapshot / "diagnoses" / f"{product_id}.json")
+        diag_entry = load_json(snapshot / "diagnoses" / f"{product_id}.json")
         if isinstance(diag_entry, dict):
             evidence = parse_tiktok_diagnoses(diag_entry) + evidence
         evidence_by_id[product_id] = evidence
@@ -293,8 +293,13 @@ def write_report(
     (out_dir / "report.md").write_text("\n".join(lines))
 
 
-def run_snapshot(snapshot: Path, out_dir: Path, config: StageDiagnosisConfig) -> dict:
-    funnels, signals_by_id, evidence_by_id, excluded = build_inputs(snapshot, config)
+def diagnose_all(
+    funnels: list[ProductFunnel],
+    evidence_by_id: dict[str, list[Evidence]],
+    excluded: dict[str, str],
+    config: StageDiagnosisConfig,
+) -> tuple[ShopMedians, list[Diagnosis], list[Skip]]:
+    """Shop medians over the non-excluded funnels, then the diagnosis of every product."""
     medians = ShopMedians.from_products(
         (f for f in funnels if f.product_id not in excluded), config
     )
@@ -312,8 +317,14 @@ def run_snapshot(snapshot: Path, out_dir: Path, config: StageDiagnosisConfig) ->
             diagnoses.append(result)
         else:
             skips.append(result)
+    return medians, diagnoses, skips
+
+
+def run_snapshot(snapshot: Path, out_dir: Path, config: StageDiagnosisConfig) -> dict:
+    funnels, signals_by_id, evidence_by_id, excluded = build_inputs(snapshot, config)
+    medians, diagnoses, skips = diagnose_all(funnels, evidence_by_id, excluded, config)
     cards = build_cards(diagnoses, config)
-    meta = _load(snapshot / "meta.json") or {}
+    meta = load_json(snapshot / "meta.json") or {}
     as_of = str(meta.get("as_of") or "?")
     out_dir.mkdir(parents=True, exist_ok=True)
     payload = {
