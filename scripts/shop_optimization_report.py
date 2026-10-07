@@ -18,8 +18,19 @@ nothing is written to TikTok. Examples::
     python scripts/shop_optimization_report.py --replay --out-dir out/fujiwa-report \
         --owner-tests owner_tests.json
 
-Optional snapshot files (never fetched): ``orders.json`` (order search payloads,
-BMSM threshold), ``ratings.json`` (per-product star rating), ``owner_tests.json``.
+Optional snapshot files never fetched: ``orders.json`` (order search payloads, BMSM
+threshold and discount share), ``ratings.json`` (per-product star rating),
+``owner_tests.json``.
+
+Live mode also tries three optional enrichments for the traffic-source check
+(ADR-106 amendment 4); each tolerates failure by writing ``_error.json`` (class and
+message, no tokens) next to what it did save and moving on:
+
+* ``promotions/``: Search Activities (ONGOING, NOT_START, EXPIRED), Search Coupons
+  and, for activities overlapping the current window, Get Activity for the product
+  list (at most ``MAX_ACTIVITY_DETAIL_CALLS``);
+* ``live/``: the top ``TOP_LIVE_SESSIONS`` LIVE sessions by GMV and their products;
+* ``videos/``: the top ``TOP_VIDEOS`` shop videos by GMV and their products.
 """
 
 from __future__ import annotations
@@ -28,12 +39,21 @@ import argparse
 import asyncio
 import importlib.util
 import json
+import re
 import sys
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from pathlib import Path
 from types import ModuleType
 from typing import Any
+
+ACTIVITY_STATUSES = ("ONGOING", "NOT_START", "EXPIRED")
+MAX_ACTIVITY_DETAIL_CALLS = 50
+TOP_LIVE_SESSIONS = 10
+TOP_VIDEOS = 20
+SHOP_UTC_OFFSET_HOURS = 7
+MESSAGE_LIMIT = 300
 
 _SCAN_SCRIPT = Path(__file__).resolve().parent / "optimize_product_catalog_scan.py"
 
@@ -51,6 +71,120 @@ def _load_scan_script() -> ModuleType:
 def _write(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
+
+
+def _error_payload(exc: Exception) -> dict[str, str]:
+    """Class and message only; anything token-shaped is redacted and the text truncated."""
+    message = re.sub(
+        r"(?i)(access[_-]?token|app[_-]?secret|sign|authorization)(\W{0,3})[A-Za-z0-9._~+/=-]{8,}",
+        r"\1\2[redacted]",
+        str(exc),
+    )
+    return {"error_class": type(exc).__name__, "message": message[:MESSAGE_LIMIT]}
+
+
+def _window_seconds(first: str, end_lt: str) -> tuple[int, int]:
+    zone = timezone(timedelta(hours=SHOP_UTC_OFFSET_HOURS))
+
+    def at(day: str) -> int:
+        parsed = date.fromisoformat(day)
+        return int(datetime(parsed.year, parsed.month, parsed.day, tzinfo=zone).timestamp())
+
+    return at(first), at(end_lt)
+
+
+def _overlaps(activity: dict, window: tuple[int, int]) -> bool:
+    try:
+        begin = int(activity.get("begin_time") or 0)
+        end = int(activity.get("end_time") or 0)
+    except (TypeError, ValueError):
+        return True  # unreadable times: keep, the parser decides
+    return begin < window[1] and (end == 0 or end >= window[0])
+
+
+def _fetch_promotions(
+    resources: Any, snapshot: Path, first: str, end_lt: str, *, sleep_s: float
+) -> None:
+    """Search activities and coupons; fetch product lists for the activities in the window."""
+    folder = snapshot / "promotions"
+    try:
+        seen: dict[str, dict] = {}
+        for status in ACTIVITY_STATUSES:
+            for activity in resources.promotion.search_activities_all(status=status):
+                seen.setdefault(str(activity.get("id") or len(seen)), activity)
+            time.sleep(sleep_s)
+        activities = list(seen.values())
+        _write(folder / "activities.json", {"activities": activities})
+        _write(folder / "coupons.json", {"coupons": resources.promotion.search_coupons_all()})
+        time.sleep(sleep_s)
+        window = _window_seconds(first, end_lt)
+        details: dict[str, Any] = {}
+        for activity in activities:
+            if len(details) >= MAX_ACTIVITY_DETAIL_CALLS:
+                break
+            activity_id = str(activity.get("id") or "")
+            if activity_id and "products" not in activity and _overlaps(activity, window):
+                details[activity_id] = resources.promotion.get_activity(activity_id)
+                time.sleep(sleep_s)
+        _write(folder / "activity_details.json", details)
+    except Exception as exc:
+        _write(folder / "_error.json", _error_payload(exc))
+
+
+def _gmv_of(item: dict) -> Decimal:
+    for key in ("sales_performance", None):
+        block = item.get(key) if key else item
+        gmv = block.get("gmv") if isinstance(block, dict) else None
+        amount = gmv.get("amount") if isinstance(gmv, dict) else None
+        if amount is not None:
+            return Decimal(str(amount))
+    return Decimal(0)
+
+
+def _fetch_live_sessions(
+    resources: Any, snapshot: Path, first: str, end_lt: str, *, sleep_s: float
+) -> None:
+    folder = snapshot / "live"
+    try:
+        sessions = resources.analytics.list_live_performance_all(
+            start_date_ge=first, end_date_lt=end_lt
+        )
+        top = sorted(sessions, key=_gmv_of, reverse=True)[:TOP_LIVE_SESSIONS]
+        _write(folder / "sessions.json", {"sessions": top})
+        for session in top:
+            live_id = str(session.get("id") or "")
+            if live_id:
+                time.sleep(sleep_s)
+                _write(
+                    folder / "products" / f"{live_id}.json",
+                    resources.analytics.get_live_products_performance(live_id=live_id),
+                )
+    except Exception as exc:
+        _write(folder / "_error.json", _error_payload(exc))
+
+
+def _fetch_videos(
+    resources: Any, snapshot: Path, first: str, end_lt: str, *, sleep_s: float
+) -> None:
+    folder = snapshot / "videos"
+    try:
+        videos = resources.analytics.list_video_performance_all(
+            start_date_ge=first, end_date_lt=end_lt, sort_field="gmv"
+        )
+        top = sorted(videos, key=_gmv_of, reverse=True)[:TOP_VIDEOS]
+        _write(folder / "videos.json", {"videos": top})
+        for video in top:
+            video_id = str(video.get("id") or "")
+            if video_id:
+                time.sleep(sleep_s)
+                _write(
+                    folder / "products" / f"{video_id}.json",
+                    resources.analytics.get_video_products_performance(
+                        video_id=video_id, start_date_ge=first, end_date_lt=end_lt
+                    ),
+                )
+    except Exception as exc:
+        _write(folder / "_error.json", _error_payload(exc))
 
 
 async def _fetch_live(
@@ -97,6 +231,12 @@ async def _fetch_live(
             snapshot / "products" / f"{product_id}.json", resources.products.get_details(product_id)
         )
         time.sleep(sleep_s)
+
+    first, last = windows["current_30d"]
+    end_lt = (date.fromisoformat(last) + timedelta(days=1)).isoformat()
+    _fetch_promotions(resources, snapshot, first, end_lt, sleep_s=sleep_s)
+    _fetch_live_sessions(resources, snapshot, first, end_lt, sleep_s=sleep_s)
+    _fetch_videos(resources, snapshot, first, end_lt, sleep_s=sleep_s)
 
     meta_path = snapshot / "meta.json"
     meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}

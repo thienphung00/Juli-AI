@@ -30,6 +30,16 @@ Snapshot layout (a superset of :mod:`catalog_scan`'s)::
     orders.json             optional, {"orders": [...]} order search payloads (BMSM threshold)
     ratings.json            optional, {"<product_id>": {"rating": 4.8, "review_count": 601}}
     owner_tests.json        optional, the owner's own tests (see ``_owner_cards``)
+    promotions/activities.json       optional, {"activities": [...]} Search Activities pages
+    promotions/coupons.json          optional, {"coupons": [...]} Search Coupons pages
+    promotions/activity_details.json optional, {"<activity_id>": Get Activity payload}
+    promotions/_error.json           optional, {"error_class", "message"}
+    live/sessions.json               optional, {"sessions": [...]} top LIVE sessions by GMV
+    live/products/<id>.json          optional, one session's product performance
+    live/_error.json                 optional
+    videos/videos.json               optional, {"videos": [...]} top shop videos by GMV
+    videos/products/<id>.json        optional, one video's product performance
+    videos/_error.json               optional
 """
 
 from __future__ import annotations
@@ -43,6 +53,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
 
+from juli_backend.services.optimize_product import promotions as promo
 from juli_backend.services.optimize_product.basket import (
     CANCELLED,
     basket_threshold,
@@ -71,6 +82,12 @@ from juli_backend.services.optimize_product.diagnosis import (
     Gap,
     Trigger,
 )
+from juli_backend.services.optimize_product.discounts import (
+    DiscountPair,
+    WindowShare,
+    discount_shares,
+    empty_pair,
+)
 from juli_backend.services.optimize_product.funnel import (
     ZERO,
     FunnelWindow,
@@ -82,6 +99,17 @@ from juli_backend.services.optimize_product.listing_signals import (
     is_image_code,
     is_title_code,
     listing_signals_from_product,
+)
+from juli_backend.services.optimize_product.live_video import Appearance, parse_appearances
+from juli_backend.services.optimize_product.promotions import PromotionIndex, PromotionItem
+from juli_backend.services.optimize_product.traffic import (
+    DILUTION,
+    UNCLEAR,
+    UNIFORM,
+    TrafficAttribution,
+    attribute_traffic,
+    dilution_reason,
+    source_clause,
 )
 
 WINDOW_DAYS = 30
@@ -240,6 +268,8 @@ class ProductBlock:
     gmv_share: Delta
     #: Share of current-window orders by channel; only non-zero channels.
     channels: list[tuple[str, Decimal]]
+    #: Platform- and seller-discounted share of order lines, both windows.
+    discounts: DiscountPair
 
 
 @dataclass(frozen=True)
@@ -288,6 +318,36 @@ class DiagnosisRow:
 
 
 @dataclass(frozen=True)
+class TrafficChannelRow:
+    label: str
+    impressions_per_day_previous: Decimal
+    impressions_per_day_current: Decimal
+    ctr_previous: Decimal | None
+    ctr_current: Decimal | None
+    #: Enough impressions in both windows to count towards the verdict.
+    qualifies: bool
+    spiking: bool
+    ctr_dropped: bool
+
+
+@dataclass(frozen=True)
+class TrafficBlock:
+    """The "Traffic đến từ đâu" entry of one product."""
+
+    product_id: str
+    title: str
+    #: True when the product holds a card; False for a product whose card was
+    #: withheld because the CTR fall is dilution.
+    has_card: bool
+    verdict: str
+    top_impression_source: str
+    channels: list[TrafficChannelRow]
+    promotions: list[PromotionItem]
+    discounts: DiscountPair
+    appearances: list[Appearance]
+
+
+@dataclass(frozen=True)
 class ShopReport:
     shop_name: str
     as_of: str
@@ -301,6 +361,7 @@ class ShopReport:
     watch: list[WatchRow]
     diagnoses: list[DiagnosisRow]
     diagnoses_error: dict[str, str] | None
+    traffic: list[TrafficBlock]
     technical: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -520,6 +581,73 @@ def _load_owner_tests(snapshot: Path) -> list[dict]:
     return tests
 
 
+def _load_promotions(
+    snapshot: Path, window: tuple[date, date]
+) -> tuple[PromotionIndex | None, dict[str, Any]]:
+    """Promotion index (``None`` when not fetched) and the fetch status for the notes."""
+    folder = snapshot / "promotions"
+    error = load_json(folder / "_error.json")
+    activities = load_json(folder / "activities.json")
+    coupons = load_json(folder / "coupons.json")
+    details = load_json(folder / "activity_details.json")
+    status: dict[str, Any] = {"status": "skipped"}
+    if isinstance(error, dict):
+        status = {
+            "status": "error",
+            "detail": f"{error.get('error_class', '')}: {error.get('message', '')}",
+        }
+    if activities is None and coupons is None:
+        return None, status
+    index = promo.parse_promotions(
+        activities, coupons, details if isinstance(details, dict) else {}, window
+    )
+    if status["status"] == "skipped":
+        status = {"status": "ok"}
+    status.update(
+        {
+            "activities": len(promo.unwrap_list(activities, "activities")),
+            "coupons": len(promo.unwrap_list(coupons, "coupons")),
+            "details": len(details) if isinstance(details, dict) else 0,
+            "unattributed": index.unattributed,
+        }
+    )
+    return index, status
+
+
+def _load_appearances(snapshot: Path) -> tuple[dict[str, list[Appearance]], dict[str, Any]]:
+    """LIVE / video appearances per product and the fetch status of each source."""
+    status: dict[str, Any] = {}
+    sessions: list[dict] = []
+    videos: list[dict] = []
+    session_products: dict[str, object] = {}
+    video_products: dict[str, object] = {}
+    for name, key, bucket, products in (
+        ("live", "sessions", sessions, session_products),
+        ("videos", "videos", videos, video_products),
+    ):
+        folder = snapshot / name
+        error = load_json(folder / "_error.json")
+        raw = load_json(folder / f"{key}.json")
+        items = raw.get(key) if isinstance(raw, dict) else None
+        state: dict[str, Any] = {"status": "skipped"}
+        if isinstance(error, dict):
+            state = {
+                "status": "error",
+                "detail": f"{error.get('error_class', '')}: {error.get('message', '')}",
+            }
+        if isinstance(items, list):
+            bucket.extend(i for i in items if isinstance(i, dict))
+            for item in bucket:
+                payload = load_json(folder / "products" / f"{item.get('id')}.json")
+                if payload is not None:
+                    products[str(item.get("id"))] = payload
+            if state["status"] == "skipped":
+                state = {"status": "ok"}
+            state["count"] = len(bucket)
+        status[name] = state
+    return parse_appearances(sessions, session_products, videos, video_products), status
+
+
 def _kpi_value(funnel: ProductFunnel | None, config: StageDiagnosisConfig, *, aov: bool) -> str:
     """Current 14-day Main KPI, or "chưa đủ dữ liệu" below its ADR-077 floor (Amendment 3)."""
     if funnel is None:
@@ -600,12 +728,50 @@ def _owner_cards(
     return out
 
 
+REASON_MAX = 170
+
+
+@dataclass(frozen=True)
+class TrafficContext:
+    """What the traffic-source check and the reason clauses read, per product."""
+
+    attribution: dict[str, TrafficAttribution]
+    discounts: dict[str, DiscountPair]
+    promotions: PromotionIndex | None
+
+
+def _with_clauses(
+    reason: str,
+    product_id: str,
+    ctx: TrafficContext,
+    config: StageDiagnosisConfig,
+    *,
+    card_branch: bool,
+) -> str:
+    """Append the short source clauses that fit: traffic source, platform discount, promotion."""
+    clauses: list[str | None] = []
+    attribution = ctx.attribution.get(product_id)
+    if card_branch and attribution is not None:
+        clauses.append(source_clause(attribution))
+    pair = ctx.discounts.get(product_id)
+    share = pair.current.platform_share if pair else None
+    if share is not None and share >= config.platform_discount_note_share:
+        clauses.append(f"{_vn(share * 100, 0)} % đơn có giảm giá của sàn")
+    if ctx.promotions is not None:
+        clauses.append(promo.clause(ctx.promotions.for_product(product_id)))
+    for clause in clauses:
+        if clause and len(reason) + 2 + len(clause) <= REASON_MAX:
+            reason = f"{reason}; {clause}"
+    return reason
+
+
 def _cards(
     snapshot: Path,
     config: StageDiagnosisConfig,
     *,
     titles: dict[str, str],
     cur_items: dict[str, dict],
+    ctx: TrafficContext,
 ) -> tuple[list[ReportCard], list[WatchRow], dict[str, Any]]:
     """Cards in the owner's order, plus the products the report only watches.
 
@@ -646,11 +812,29 @@ def _cards(
         watch.append(WatchRow(product_id, titles.get(product_id, product_id), reason, detail))
         return True
 
+    diluted: list[str] = []
+
+    def blocked_by_dilution(product_id: str, detail: str) -> bool:
+        """A CTR-triggered card is withheld when the CTR fall is dilution (amendment 4)."""
+        attribution = ctx.attribution.get(product_id)
+        if attribution is None or attribution.verdict != DILUTION:
+            return False
+        watch.append(
+            WatchRow(
+                product_id, titles.get(product_id, product_id), dilution_reason(attribution), detail
+            )
+        )
+        diluted.append(product_id)
+        return True
+
     rule_cards: list[ReportCard] = []
     bmsm_details: dict[str, dict[str, Any]] = {}
     for scored in build_cards(diagnoses, config):
         diag = by_id[scored.product_id]
         if blocked_by_rating(scored.product_id, scored.reason):
+            continue
+        card_branch = diag.branch is Branch.CARD
+        if card_branch and blocked_by_dilution(scored.product_id, scored.reason):
             continue
         if diag.angle is Angle.MUA_NHIEU_GIAM_NHIEU and diag.bmsm:
             text = f"Mua nhiều giảm nhiều, từ {diag.bmsm.threshold_items} món"
@@ -669,7 +853,9 @@ def _cards(
                 title=scored.title,
                 main_kpi=scored.main_kpi,
                 main_kpi_value=main_kpi_value(diag),
-                reason=scored.reason,
+                reason=_with_clauses(
+                    scored.reason, scored.product_id, ctx, config, card_branch=card_branch
+                ),
                 change=text,
                 status=STATUS_RULE,
                 rank_score=diag.rank_score,
@@ -697,6 +883,8 @@ def _cards(
         score = gap.gap * funnel_by_id[skip.product_id].gmv_28d
         ctr, ctor = skip.gaps["ctr"], skip.gaps["ctor"]
         branch = Branch.CARD if ctr.fires(config) and ctr.gap >= ctor.gap else Branch.PAGE
+        if branch is Branch.CARD and blocked_by_dilution(skip.product_id, sentence):
+            continue
         needs = skip.reason == "discount_cap_needed"
         card = ReportCard(
             rank=0,
@@ -704,7 +892,9 @@ def _cards(
             title=skip.title,
             main_kpi="CTOR",
             main_kpi_value=_kpi_value(funnel_by_id[skip.product_id], config, aov=False),
-            reason=sentence,
+            reason=_with_clauses(
+                sentence, skip.product_id, ctx, config, card_branch=branch is Branch.CARD
+            ),
             change=(
                 "Giảm giá sản phẩm, sau khi shop đặt mức giảm giá tối đa"
                 if needs
@@ -770,6 +960,7 @@ def _cards(
         "rule_cards_found": len(rule_cards),
         "needs_cap_found": len(needs_cap),
         "not_asked_found": len(not_asked),
+        "traffic_diluted": diluted,
         "owner_tests": len(owner_tests),
         "owner_tests_dropped_rule_card_wins": dropped,
         "skip_reasons": dict(Counter(s.reason.split(":")[0] for s in skips)),
@@ -785,6 +976,42 @@ def _cards(
         "bmsm_min_share_at_threshold": config.bmsm_min_share_at_threshold,
     }
     return cards, watch, tech
+
+
+def _traffic_block(
+    product_id: str,
+    title: str,
+    *,
+    has_card: bool,
+    attribution: TrafficAttribution,
+    discounts: DiscountPair,
+    promotions: list[PromotionItem],
+    appearances: list[Appearance],
+) -> TrafficBlock:
+    return TrafficBlock(
+        product_id=product_id,
+        title=title,
+        has_card=has_card,
+        verdict=attribution.verdict,
+        top_impression_source=attribution.top_impression_source,
+        channels=[
+            TrafficChannelRow(
+                c.label,
+                c.impressions_per_day_previous,
+                c.impressions_per_day_current,
+                c.ctr_previous,
+                c.ctr_current,
+                c.qualifies,
+                c.spiking,
+                c.ctr_dropped,
+            )
+            for c in attribution.channels
+            if c.shown
+        ],
+        promotions=promotions,
+        discounts=discounts,
+        appearances=appearances,
+    )
 
 
 def build_shop_report(
@@ -871,6 +1098,25 @@ def build_shop_report(
         ),
     ]
 
+    windows = report_windows(as_of, config)
+    orders = _load_orders(snapshot)
+    first_cur, last_cur = (date.fromisoformat(d) for d in windows["current_30d"])
+    first_prev, last_prev = (date.fromisoformat(d) for d in windows["previous_30d"])
+    discounts = (
+        discount_shares(
+            orders, current=(first_cur, last_cur), previous=(first_prev, last_prev), config=config
+        )
+        if orders is not None
+        else {}
+    )
+    blank_discounts = empty_pair(config)
+    promotions, promotions_status = _load_promotions(snapshot, (first_cur, last_cur))
+    appearances, live_video_status = _load_appearances(snapshot)
+    attribution = {
+        i: attribute_traffic(i, cur_items.get(i), prev_items.get(i), config) for i in live
+    }
+    ctx = TrafficContext(attribution, discounts, promotions)
+
     top_products: list[ProductBlock] = []
     for product_id in top_ids:
         c, p = cur[product_id].metrics(), prev[product_id].metrics()
@@ -886,6 +1132,7 @@ def build_shop_report(
                     _ratio(prev[product_id].gmv, shop_prev.gmv),
                 ),
                 channels=channel_shares(cur_items.get(product_id) or {}),
+                discounts=discounts.get(product_id, blank_discounts),
             )
         )
 
@@ -908,10 +1155,46 @@ def build_shop_report(
             )
         )
 
-    cards, watch, tech = _cards(snapshot, config, titles=titles, cur_items=cur_items)
+    cards, watch, tech = _cards(snapshot, config, titles=titles, cur_items=cur_items, ctx=ctx)
     error = load_json(snapshot / "diagnoses" / "_error.json")
+    traffic_ids = list(dict.fromkeys([*(c.product_id for c in cards), *tech["traffic_diluted"]]))
+    traffic = [
+        _traffic_block(
+            product_id,
+            titles.get(product_id, product_id),
+            has_card=product_id not in tech["traffic_diluted"],
+            attribution=attribution.get(product_id)
+            or attribute_traffic(
+                product_id, cur_items.get(product_id), prev_items.get(product_id), config
+            ),
+            discounts=discounts.get(product_id, blank_discounts),
+            promotions=promotions.for_product(product_id) if promotions else [],
+            appearances=appearances.get(product_id, []),
+        )
+        for product_id in traffic_ids
+    ]
+    verdict_ids = list(dict.fromkeys([*traffic_ids, *top_ids]))
     tech.update(
         {
+            "traffic_verdicts": {
+                i: attribution[i].verdict if i in attribution else UNCLEAR for i in verdict_ids
+            },
+            "traffic_top_sources": {
+                i: attribution[i].top_impression_source if i in attribution else ""
+                for i in verdict_ids
+            },
+            "traffic_min_channel_impressions": config.traffic_min_channel_impressions,
+            "traffic_spike_ratio": config.traffic_spike_ratio,
+            "traffic_ctr_drop": config.traffic_ctr_drop,
+            "traffic_ctr_stable": config.traffic_ctr_stable,
+            "platform_discount_note_share": config.platform_discount_note_share,
+            "platform_discount_min_lines": config.platform_discount_min_lines,
+            "discount_window_orders": sum(
+                p.current.lines + p.previous.lines for p in discounts.values()
+            ),
+            "promotions_status": promotions_status,
+            "live_status": live_video_status["live"],
+            "videos_status": live_video_status["videos"],
             "universe": len(live) + len(excluded_ids),
             "live_products": len(live),
             "top_ids": top_ids,
@@ -931,7 +1214,7 @@ def build_shop_report(
     return ShopReport(
         shop_name=name,
         as_of=as_of.isoformat(),
-        windows=report_windows(as_of, config),
+        windows=windows,
         exclusions=counts,
         shop_rows=shop_rows,
         group_rows=group_rows,
@@ -943,6 +1226,7 @@ def build_shop_report(
         diagnoses_error=(
             {str(k): str(v) for k, v in error.items()} if isinstance(error, dict) else None
         ),
+        traffic=traffic,
         technical=tech,
     )
 
@@ -1189,6 +1473,21 @@ def _cell(kind: str, delta: Delta) -> str:
     )
 
 
+def _share_cell(pair: DiscountPair, *, platform: bool) -> str:
+    def part(window: WindowShare) -> tuple[Decimal | None, int]:
+        return (window.platform_share if platform else window.seller_share), window.lines
+
+    cur, cur_lines = part(pair.current)
+    prev, prev_lines = part(pair.previous)
+    head = "—" if cur is None else f"{_vn(cur * 100, 0)} %"
+    sub = "chưa đủ đơn" if cur is None else f"{cur_lines} món"
+    before = "—" if prev is None else f"{_vn(prev * 100, 0)} %"
+    return (
+        f'<td class="num"><b>{head}</b><span class="sub">trước {before} '
+        f"({sub}; trước đó {prev_lines} món)</span></td>"
+    )
+
+
 def _section(eyebrow: str, title: str, *parts: str) -> str:
     return (
         f'<section><div class="eyebrow">{eyebrow}</div><h2>{title}</h2>{"".join(parts)}</section>'
@@ -1232,6 +1531,132 @@ def _card_table(report: ShopReport) -> str:
         _table(head, body),
         '<p class="note">Card dùng số liệu 14 ngày gần nhất so với 4 tuần trước đó. Mỗi card chỉ '
         "thay đổi một thứ.</p>",
+    )
+
+
+VERDICT_TEXT = {
+    UNIFORM: "CTR giảm ở mọi kênh: nguyên nhân chung như ảnh bìa, giá hoặc tiêu đề",
+    DILUTION: (
+        "CTR chỉ giảm ở kênh có lượt hiển thị tăng mạnh: traffic loãng, chưa nên sửa trang sản phẩm"
+    ),
+    UNCLEAR: "Chưa đủ dữ liệu để kết luận",
+}
+VERDICT_PILL = {UNIFORM: "ok", DILUTION: "warn", UNCLEAR: "off"}
+
+
+def _dm(iso: str) -> str:
+    return date.fromisoformat(iso).strftime("%d/%m") if iso else ""
+
+
+def _per_day(value: Decimal) -> str:
+    return _vn(value, 0 if value >= 10 else 1)
+
+
+def _traffic_product(block: TrafficBlock) -> str:
+    rows = []
+    for c in block.channels:
+        marks = []
+        if not c.qualifies:
+            marks.append("ít lượt hiển thị, không dùng để kết luận")
+        elif c.spiking:
+            marks.append("lượt hiển thị tăng mạnh")
+        if c.qualifies and c.ctr_dropped:
+            marks.append("CTR giảm rõ")
+        note = f'<span class="sub">{_e("; ".join(marks))}</span>' if marks else ""
+        rows.append(
+            f"<tr><td>{_e(c.label)}{note}</td>"
+            f'<td class="num">{_per_day(c.impressions_per_day_previous)} → '
+            f"<b>{_per_day(c.impressions_per_day_current)}</b></td>"
+            f'<td class="num">{_e(fmt_value("ratio", c.ctr_previous))} → '
+            f"<b>{_e(fmt_value('ratio', c.ctr_current))}</b></td></tr>"
+        )
+    head = ["Kênh", "Lượt hiển thị mỗi ngày (trước → nay)", "CTR (trước → nay)"]
+    table = _table(head, rows) if rows else "<p>Chưa có lượt hiển thị theo kênh.</p>"
+    top = (
+        f"<p>Lượt hiển thị tăng nhiều nhất từ <b>{_e(block.top_impression_source)}</b>.</p>"
+        if block.top_impression_source
+        else ""
+    )
+    withheld = (
+        ""
+        if block.has_card
+        else '<p class="note"><b>Không có card cho sản phẩm này</b>; sản phẩm nằm trong danh sách '
+        "cần theo dõi.</p>"
+    )
+    promos = "".join(
+        f"<li>{_e(p.kind)}: {_e(p.title)}, {_e(_dm(p.begin))}"
+        + (f" – {_e(_dm(p.end))}" if p.end else " trở đi")
+        + (f", {_e(p.summary)}" if p.summary else "")
+        + "</li>"
+        for p in block.promotions
+    )
+    appear = "".join(
+        f"<li>{_e(a.kind)} {_e(_dm(a.day))}: {_e(_truncate(a.title, 90))}"
+        + (
+            f", {a.impressions} lượt hiển thị, {a.orders} đơn"
+            if a.kind == "LIVE" and a.impressions is not None
+            else (f", bán {a.orders} món" if a.orders is not None else "")
+        )
+        + "</li>"
+        for a in block.appearances
+    )
+    pair = block.discounts
+    if pair.current.lines == 0 and pair.previous.lines == 0:
+        discount_note = "Chưa có đơn trong dữ liệu để tính tỷ lệ giảm giá"
+    else:
+        discount_note = (
+            f"{_discount_text(pair.current.platform_share)} số món trong 30 ngày qua "
+            "có giảm giá của sàn (trước đó "
+            f"{_discount_text(pair.previous.platform_share)}); "
+            f"{_discount_text(pair.current.seller_share)} có giảm giá của shop"
+        )
+    promo_html = f"<ul class=plain>{promos}</ul>" if promos else "Không thấy"
+    appear_html = f"<ul class=plain>{appear}</ul>" if appear else "Không có"
+    fields = (
+        f"<dt>Khuyến mãi của shop</dt><dd>{promo_html}</dd>"
+        f"<dt>Giảm giá trên đơn</dt><dd>{_e(discount_note)}</dd>"
+        f"<dt>LIVE và video</dt><dd>{appear_html}</dd>"
+    )
+    return (
+        '<div class="card"><header>'
+        f"<h3>{_e(block.title)}</h3>"
+        f'<span class="pill {VERDICT_PILL[block.verdict]}">{_e(VERDICT_TEXT[block.verdict])}</span>'
+        f'</header>{top}{table}{withheld}<dl class="fields">{fields}</dl></div>'
+    )
+
+
+def _discount_text(share: Decimal | None) -> str:
+    return "chưa đủ đơn để tính" if share is None else f"{_vn(share * 100, 0)} %"
+
+
+def _traffic_section(report: ShopReport) -> str:
+    if not report.traffic:
+        return ""
+    t = report.technical
+    missing = [
+        text
+        for text, key in (
+            ("khuyến mãi của shop", "promotions_status"),
+            ("LIVE", "live_status"),
+            ("video", "videos_status"),
+        )
+        if t.get(key, {}).get("status") != "ok"
+    ]
+    notes = (
+        f'<p class="note">Lần này chưa lấy được {_e(", ".join(missing))}; chi tiết ở phần cuối '
+        "trang.</p>"
+        if missing
+        else ""
+    )
+    return _section(
+        "Traffic",
+        "Traffic đến từ đâu",
+        '<p class="note">Với mỗi sản phẩm có card, Juli so lượt hiển thị và CTR của từng kênh '
+        "trong 30 ngày qua với 30 ngày trước đó. Nếu CTR giảm ở hầu hết các kênh thì nguyên "
+        "nhân nằm ở chính sản phẩm; nếu chỉ giảm ở kênh vừa đổ nhiều lượt hiển thị vào thì "
+        "đó là traffic loãng và không nên sửa trang sản phẩm.</p>",
+        *(_traffic_product(b) for b in report.traffic),
+        notes,
     )
 
 
@@ -1317,12 +1742,16 @@ def _top_table(report: ShopReport) -> str:
     body.append(
         f'<tr><td class="rowlabel">Tỷ trọng kênh (30 ngày qua)</td>{"".join(channels)}</tr>'
     )
+    for label, platform in (("Đơn có giảm giá của sàn", True), ("Đơn có giảm giá của shop", False)):
+        cells = "".join(_share_cell(p.discounts, platform=platform) for p in report.top_products)
+        body.append(f'<tr><td class="rowlabel">{label}</td>{cells}</tr>')
     return _section(
         "Chủ lực",
         "Từng sản phẩm trong top 5",
         _table(head, body),
         '<p class="note">Mỗi ô ghi số 30 ngày qua và so với 30 ngày trước đó. Tỷ trọng kênh cho '
-        "biết đơn của sản phẩm đến từ đâu; năm kênh cộng lại là 100 %.</p>",
+        "biết đơn của sản phẩm đến từ đâu; năm kênh cộng lại là 100 %. Tỷ lệ đơn có giảm giá "
+        "tính trên số món bán ra; ô để trống khi cửa sổ đó chưa có đủ đơn trong dữ liệu.</p>",
     )
 
 
@@ -1378,6 +1807,92 @@ def _diagnosis_table(report: ShopReport) -> str:
         '<p class="note">Đây là lỗi do công cụ chẩn đoán của TikTok báo cho từng sản phẩm đang '
         "bán. Juli chỉ đề xuất sửa đúng chỗ TikTok chỉ ra.</p>",
     )
+
+
+def _fetch_text(state: dict[str, Any], code: Any) -> str:
+    status = state.get("status", "skipped")
+    word = {"ok": "ok", "error": "lỗi", "skipped": "bỏ qua (không lấy trong lần chạy này)"}.get(
+        status, status
+    )
+    extra = [f"{k}={v}" for k, v in state.items() if k not in ("status", "detail")]
+    detail = f" — {state['detail']}" if state.get("detail") else ""
+    return f"{code(status)} {word}" + (f" ({', '.join(extra)})" if extra else "") + _e(detail)
+
+
+def _tech_traffic(report: ShopReport, code: Any) -> list[str]:
+    t = report.technical
+    verdicts = t.get("traffic_verdicts", {})
+    sources = t.get("traffic_top_sources", {})
+    titles = {c.product_id: c.title for c in report.cards}
+    titles.update({p.product_id: p.title for p in report.top_products})
+    titles.update({b.product_id: b.title for b in report.traffic})
+    verdict_items = "".join(
+        f"<li>{_e(_truncate(titles.get(pid, pid), 60))} ({code(pid)}): {code(verdict)}"
+        + (
+            f", nguồn tăng lượt hiển thị nhiều nhất: {_e(sources.get(pid))}"
+            if sources.get(pid)
+            else ""
+        )
+        + "</li>"
+        for pid, verdict in verdicts.items()
+    )
+    diluted = t.get("traffic_diluted", [])
+    return [
+        "<h3>Kiểm tra nguồn traffic</h3><ol>",
+        "<li>Sáu kênh từ khối A-34: thẻ sản phẩm (seller_product_card_performance), Shop Tab "
+        "(shop_tab_performance), video của shop (seller_video_performance), LIVE của shop "
+        "(seller_live_performance), video affiliate (affiliate_video_performance), LIVE affiliate "
+        "(affiliate_live_performance); mỗi kênh so product_impressions và CTR giữa "
+        f"{code('a34_30d_current')} và {code('a34_30d_previous')}.</li>",
+        f"<li>Kênh được tính khi có từ {t.get('traffic_min_channel_impressions', 200)} lượt "
+        f"hiển thị trở lên ở cả hai cửa sổ ({code('traffic_min_channel_impressions')}). "
+        "Kênh &quot;tăng mạnh&quot; khi lượt hiển thị/ngày nay ÷ trước ≥ "
+        f"{t.get('traffic_spike_ratio', 1.5)} "
+        f"({code('traffic_spike_ratio')}). CTR &quot;giảm&quot; khi giảm tương đối ≥ "
+        f"{fmt_value('ratio', t.get('traffic_ctr_drop', 0.15))} ({code('traffic_ctr_drop')}); "
+        "&quot;ổn định&quot; khi lệch trong "
+        f"±{fmt_value('ratio', t.get('traffic_ctr_stable', 0.1))} "
+        f"({code('traffic_ctr_stable')}). Mặc định do chủ shop duyệt, chỉnh được trong "
+        f"{code('StageDiagnosisConfig')}.</li>",
+        f"<li>{code(UNIFORM)}: CTR giảm ở ≥ 2/3 số kênh được tính (tối thiểu 2 kênh); card vẫn "
+        f"được phép. {code(DILUTION)}: mọi kênh có CTR giảm đều là kênh tăng mạnh và mọi kênh "
+        f"còn lại ổn định; card theo CTR (ảnh bìa, tiêu đề) không được phát, sản phẩm vào danh "
+        f"sách theo dõi. {code(UNCLEAR)}: các trường hợp còn lại, kể cả dưới 2 kênh được tính; "
+        "card vẫn được phát và kiểm tra này không kết luận được. Kiểm tra áp dụng cho mọi card "
+        "nhánh thẻ và card chờ, dù trigger là median hay xu hướng; card CTOR/AOV không bị ảnh "
+        f"hưởng. Số sản phẩm bị giữ card vì traffic loãng: {len(diluted)}"
+        + (f" ({code(', '.join(diluted))})" if diluted else "")
+        + ".</li>",
+        f"<li>Kết quả theo sản phẩm (card và top {TOP_N}):"
+        f'<ul class="plain">{verdict_items}</ul></li>',
+        "<li>Tỷ lệ đơn có giảm giá: các dòng không phải quà tặng của đơn không hủy trong "
+        f"{code('orders.json')}, đặt vào cửa sổ theo {code('create_time')} của đơn (múi giờ "
+        f"UTC+7; payload không có thời gian theo từng dòng); platform_discount &gt; 0 hoặc "
+        f"seller_discount &gt; 0. Ghi lên card khi từ "
+        f"{fmt_value('ratio', t.get('platform_discount_note_share', 0.5))} "
+        f"({code('platform_discount_note_share')}); dưới "
+        f"{t.get('platform_discount_min_lines', 10)} dòng trong cửa sổ thì không hiển thị "
+        f"({code('platform_discount_min_lines')}). Số dòng đơn trong hai cửa sổ: "
+        f"{t.get('discount_window_orders', 0)}"
+        + (
+            ""
+            if t.get("orders_present") and t.get("discount_window_orders")
+            else " — snapshot không có đơn nào rơi vào hai cửa sổ này nên chưa tính được"
+        )
+        + ".</li>",
+        "<li><b>Điểm mù 1, chiến dịch của sàn:</b> Partner API không có endpoint đọc chiến dịch "
+        "của sàn (campaign), nên Juli chỉ suy ra gián tiếp từ phần giảm giá của sàn trên đơn "
+        "hàng; một chiến dịch không làm thay đổi giá trên đơn sẽ không thấy được.</li>",
+        "<li><b>Điểm mù 2, quảng cáo và GMV Max:</b> shop chưa cấp quyền Business API, và A-34 "
+        "không tách lưu lượng trả phí khỏi lưu lượng tự nhiên, nên quảng cáo và GMV Max nằm lẫn "
+        "trong các kênh trên.</li>",
+        f"<li>Khuyến mãi (Search Activities, Search Coupons, Get Activity): "
+        f"{_fetch_text(t.get('promotions_status', {}), code)}.</li>",
+        f"<li>LIVE của shop (danh sách phiên và sản phẩm theo phiên): "
+        f"{_fetch_text(t.get('live_status', {}), code)}.</li>",
+        f"<li>Video của shop (danh sách video và sản phẩm theo video): "
+        f"{_fetch_text(t.get('videos_status', {}), code)}.</li></ol>",
+    ]
 
 
 def _tech(report: ShopReport) -> str:
@@ -1495,6 +2010,7 @@ def _tech(report: ShopReport) -> str:
         "<li>Skip reasons: "
         + (", ".join(f"{code(k)} {v}" for k, v in sorted(skip.items())) or "không có")
         + ".</li></ol>",
+        *_tech_traffic(report, code),
         "<h3>Mã chẩn đoán của TikTok</h3><ol>",
         "<li>Khớp theo tiền tố, không theo danh sách cố định: ảnh bìa = "
         f"{code('MAIN_IMG_*')}; tiêu đề = {code('TITLE_*')} hoặc {code('SEO_DIAGNOSTIC_ITEM')}; "
@@ -1532,6 +2048,7 @@ def render_html(report: ShopReport) -> str:
         + header
         + _legend(report.cards)
         + _card_table(report)
+        + _traffic_section(report)
         + _watch_table(report)
         + _shop_table(report)
         + _group_table(report)

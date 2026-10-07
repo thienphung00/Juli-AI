@@ -78,3 +78,22 @@ class StageDiagnosisConfig:
     description_min_chars: int = 500
     main_images_min_count: int = 5
     first_image_min_side_px: int = 600
+
+    #: Traffic-source check (ADR-106 amendment 4, owner-approved defaults,
+    #: adjustable). A channel qualifies when its impressions reach this many in
+    #: *each* 30-day window; fewer is noise, not a verdict.
+    traffic_min_channel_impressions: int = 200
+    #: A channel "spikes" when impressions per day, current window over the
+    #: previous one, reach this ratio.
+    traffic_spike_ratio: Decimal = Decimal("1.5")
+    #: A channel's CTR "drops" when it falls by at least this share of its
+    #: previous value (relative, not percentage points).
+    traffic_ctr_drop: Decimal = Decimal("0.15")
+    #: A channel's CTR is "stable" within plus or minus this relative change.
+    traffic_ctr_stable: Decimal = Decimal("0.10")
+
+    #: The platform- or seller-discount share is quoted on a card once at
+    #: least this share of the product's order lines carry that discount.
+    platform_discount_note_share: Decimal = Decimal("0.5")
+    #: Below this many non-gift order lines in a window the share is not shown.
+    platform_discount_min_lines: int = 10
