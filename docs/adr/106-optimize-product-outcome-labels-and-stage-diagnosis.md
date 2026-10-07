@@ -268,3 +268,57 @@ with a real gap but no listing evidence — every one of them has 8–9 images a
 91–117-character titles and 700–2,300-character descriptions with line breaks, so the local
 reading of the VN code table finds nothing. The diagnosis endpoint capture (decision 4's
 evidence source) is now the binding prerequisite for content cards on this shop.
+
+### Amendment 3 — 2026-10-07, report v2
+
+The first per-shop report on Fujiwa went to the owner, who corrected eight rules. Each is
+implemented in `optimize_product/` and the report; the rationale is the owner's.
+
+1. **The BMSM threshold comes from the real basket.** With an order export (`orders.json`) the
+   threshold is `q = median quantity + 1`, where quantity is the count of the product's non-gift
+   line items per non-cancelled order, and the card is emitted only when at least 5 % of those
+   orders already buy `q` (`bmsm_min_share_at_threshold`); otherwise the product is skipped as
+   `bmsm_threshold_unreached`. With no export, or fewer than 20 orders of the product
+   (`bmsm_min_orders_for_histogram`), it falls back to `floor(mean items per order) + 1`, never
+   below 2. This replaces `ceil(items per order) + bmsm_threshold_plus`. On Fujiwa only 1–3 % of
+   orders buy three cases while 10–19 % buy two, so the old rule asked customers for a basket
+   almost nobody builds; "from 2 items" asks for what a tenth of them already do.
+2. **A healthy CTR never routes to the card branch.** Under the CTOR label the card branch (cover
+   image, title) is considered only when the CTR gap fires; the page branch no longer falls back
+   to it, while the card branch may still fall back to the page branch. Without a description
+   code, a page-branch run proposes the product discount when the seller's maximum discount is
+   set and otherwise emits a card, "Cần mức giảm giá tối đa", that names the missing input. The
+   1250 mL case's CTR rose while its CTOR fell: a cover change would have targeted the stage
+   that was working.
+3. **A Main KPI below its measurement floor reads "chưa đủ dữ liệu".** If CTOR or AOV is under
+   its ADR-077 floor over the 14-day window, the card shows that instead of a number; the card
+   itself stands when the diagnostic that fired (CTR) clears its own floor. Fujiful showed CTOR
+   0 % on 24 clicks in 14 days, which a seller reads as a fact rather than as noise.
+4. **The pending status is split.** "Chưa hỏi TikTok" means the gap fires, no local evidence
+   exists and no diagnoses file exists for the product, so TikTok was never asked; the next full
+   run asks. If a diagnoses file exists but has no codes for the branch the run needs, the product
+   gets no card and is listed under "Sản phẩm cần theo dõi" with the reason "TikTok không thấy lỗi
+   ở trang sản phẩm". "Chờ TikTok chỉ ra lỗi" conflated "not asked" with "asked, found nothing",
+   which call for opposite next steps.
+5. **Channel shares total 100 %.** "Tỷ trọng kênh" divides each channel's attributed orders by the
+   sum over the five channel blocks, not by `sku_orders`, because TikTok attributes some orders
+   to more than one block. On Fujiwa the affiliate and shop channel blocks alone summed to about
+   121 %, which no reader can interpret.
+6. **An optional ratings filter.** `ratings.json` (`{"<product_id>": {"rating", "review_count"}}`,
+   entered by hand or taken from FastMoss) blocks every card for a product under
+   `min_rating_for_demand_levers = 4.0` stars; the product is listed under "Sản phẩm cần theo
+   dõi" with the rating. Without the file no filter applies and the technical notes say so. Ion
+   Speed sits at 3.6 stars: a discount or a new cover sells a product its buyers rate poorly.
+7. **Owner tests.** `owner_tests.json` (wrapper flag `--owner-tests`) lists tests the owner
+   chose: product, angle (the five angles or "quà tặng kèm"), optional gift product and note.
+   Each becomes a card with the status "Thử nghiệm theo kế hoạch của bạn", Main KPI AOV for the
+   basket angles and CTOR otherwise, the current 14-day value, and the owner's note as the reason
+   (a neutral sentence from the 30-day AOV and the share of multi-item orders when no note is
+   given). Juli does not argue with a test the owner has already decided to run; it records
+   where the product stands so the result can be read.
+8. **Card table composition.** At most `max_open_cards_per_shop` (5) rows: rule cards ("Juli tự
+   đề xuất", then "Cần mức giảm giá tối đa"), each group ranked by gap × GMV_28d; then owner tests
+   in file order; then "Chưa hỏi TikTok" cards fill the remaining rows. A product appears once,
+   and a rule card wins over an owner test on the same product (the technical notes say so).
+   Eligible products beyond five go to "Sản phẩm cần theo dõi" with the reason "Đủ điều kiện
+   nhưng đã đủ 5 card", so the owner sees what was left out and why.
