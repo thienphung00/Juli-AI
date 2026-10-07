@@ -19,7 +19,8 @@ Order of operations, fixed:
 6. angle: first angle in the branch's fixed order that has evidence; the card
    branch falls to the page branch when it has none, the page branch falls to
    the card branch only when CTR fires; no branch left → Skip, named by why
-   (``tiktok_not_asked``, ``discount_cap_needed``, ``tiktok_found_no_fault``).
+   (``tiktok_not_asked``, ``discount_cap_needed``, ``product_discount_running``,
+   ``tiktok_found_no_fault``).
 """
 
 from __future__ import annotations
@@ -61,19 +62,27 @@ class Branch(str, Enum):
 
 
 class Angle(str, Enum):
-    """The five angles a card may propose. Exactly one per card."""
+    """The angles a card may propose. Exactly one per card."""
 
     ANH_BIA = "ảnh bìa"
     TIEU_DE = "tiêu đề"
     MO_TA = "mô tả"
     GIAM_GIA = "giảm giá sản phẩm"
     MUA_NHIEU_GIAM_NHIEU = "mua nhiều giảm nhiều"
+    #: ADR-106 amendment 5: two more page-branch angles, after the discount.
+    FLASH_SALE = "flash sale"
+    GIAM_PHI_VAN_CHUYEN = "giảm phí vận chuyển"
 
 
 #: Fixed angle order inside each branch (decision 4).
 BRANCH_ORDER: dict[Branch, tuple[Angle, ...]] = {
     Branch.CARD: (Angle.ANH_BIA, Angle.TIEU_DE),
-    Branch.PAGE: (Angle.MO_TA, Angle.GIAM_GIA),
+    Branch.PAGE: (
+        Angle.MO_TA,
+        Angle.GIAM_GIA,
+        Angle.FLASH_SALE,
+        Angle.GIAM_PHI_VAN_CHUYEN,
+    ),
     Branch.BASKET: (Angle.MUA_NHIEU_GIAM_NHIEU,),
 }
 
@@ -128,6 +137,24 @@ class Gap:
         if self.trigger is Trigger.OWN_TREND:
             return self.gap >= config.gap_threshold_trend
         return False
+
+
+@dataclass(frozen=True)
+class PageLevers:
+    """Per-product facts the caller computed for the price levers (ADR-106 amendment 5).
+
+    ``shipping_ok``: the shipping-discount gate holds. ``flash_ok``: every
+    flash-sale guard holds. ``product_discount_active``: a product discount from
+    any source runs on the product (promotion data), which makes Juli's own
+    product discount unavailable and lets the flash sale take its place.
+    """
+
+    shipping_ok: bool = False
+    flash_ok: bool = False
+    product_discount_active: bool = False
+
+
+NO_LEVERS = PageLevers()
 
 
 @dataclass(frozen=True)
@@ -245,20 +272,29 @@ def _angles_with_evidence(
     *,
     discount_cap_set: bool,
     active_promotion: bool,
+    levers: PageLevers = NO_LEVERS,
 ) -> list[Angle]:
     """Angles of ``branch`` that have evidence, in the branch's fixed order."""
     codes = {e.code for e in evidence}
+    price_levers_open = not codes_for_angle(Angle.MO_TA, codes) and discount_cap_set
     out: list[Angle] = []
     for angle in BRANCH_ORDER[branch]:
         if angle is Angle.GIAM_GIA:
             # Decision 4: a discount only when no description code remains and
             # the seller's maximum discount is set. Never while a Juli
-            # promotion is live on the product (OP-FR-4 cooldown).
-            if (
-                not codes_for_angle(Angle.MO_TA, codes)
-                and discount_cap_set
-                and not active_promotion
-            ):
+            # promotion is live on the product (OP-FR-4 cooldown), nor while a
+            # product discount from any source runs on it.
+            if price_levers_open and not active_promotion and not levers.product_discount_active:
+                out.append(angle)
+            continue
+        if angle is Angle.FLASH_SALE:
+            # Amendment 5: only in the discount's place, and only when every guard holds.
+            discount_unavailable = active_promotion or levers.product_discount_active
+            if price_levers_open and discount_unavailable and levers.flash_ok:
+                out.append(angle)
+            continue
+        if angle is Angle.GIAM_PHI_VAN_CHUYEN:
+            if price_levers_open and levers.shipping_ok:
                 out.append(angle)
             continue
         if angle is Angle.MUA_NHIEU_GIAM_NHIEU:
@@ -282,6 +318,7 @@ def diagnose_product(
     active_promotion: bool = False,
     diagnoses_asked: bool = False,
     basket_quantities: list[int] | None = None,
+    levers: PageLevers = NO_LEVERS,
 ) -> Diagnosis | Skip:
     """Decision 4 end to end for one product."""
     if excluded_reason:
@@ -372,6 +409,7 @@ def diagnose_product(
             evidence,
             discount_cap_set=discount_cap_set,
             active_promotion=active_promotion,
+            levers=levers,
         )
         if angles:
             chosen_branch = branch
@@ -387,6 +425,15 @@ def diagnose_product(
             and not active_promotion
         ):
             reason = "discount_cap_needed"
+        elif (
+            Branch.PAGE in candidates
+            and not codes_for_angle(Angle.MO_TA, codes)
+            and discount_cap_set
+            and levers.product_discount_active
+        ):
+            # The discount is taken by a running promotion and the flash sale's
+            # guards (or its promotion data) do not allow its replacement.
+            reason = "product_discount_running"
         else:
             reason = "tiktok_found_no_fault"
         return Skip(product.product_id, product.title, reason, gaps)
@@ -401,6 +448,7 @@ def diagnose_product(
             evidence,
             discount_cap_set=discount_cap_set,
             active_promotion=active_promotion,
+            levers=levers,
         )
     if chosen_branch is Branch.PAGE and first is Branch.CARD:
         caveats.append("nhánh thẻ (ảnh, tiêu đề) không có bằng chứng; chuyển sang nhánh trang")

@@ -46,8 +46,10 @@ from typing import Any
 from juli_backend.services.optimize_product.cards import build_cards
 from juli_backend.services.optimize_product.config import StageDiagnosisConfig
 from juli_backend.services.optimize_product.diagnosis import (
+    NO_LEVERS,
     Angle,
     Diagnosis,
+    PageLevers,
     Skip,
     codes_for_angle,
     diagnose_product,
@@ -310,11 +312,13 @@ def diagnose_all(
     asked: set[str] | None = None,
     quantities: dict[str, list[int]] | None = None,
     discount_cap_set: bool = False,
+    levers: dict[str, PageLevers] | None = None,
 ) -> tuple[ShopMedians, list[Diagnosis], list[Skip]]:
     """Shop medians over the non-excluded funnels, then the diagnosis of every product.
 
     ``asked`` is the set of product ids whose diagnoses file exists (TikTok was
-    asked); ``quantities`` the per-product basket quantities from real orders.
+    asked); ``quantities`` the per-product basket quantities from real orders; ``levers``
+    the per-product price-lever facts (shipping gate, flash-sale guards).
     """
     medians = ShopMedians.from_products(
         (f for f in funnels if f.product_id not in excluded), config
@@ -331,6 +335,7 @@ def diagnose_all(
             discount_cap_set=discount_cap_set,
             diagnoses_asked=funnel.product_id in (asked or set()),
             basket_quantities=(quantities or {}).get(funnel.product_id),
+            levers=(levers or {}).get(funnel.product_id, NO_LEVERS),
         )
         if isinstance(result, Diagnosis):
             diagnoses.append(result)

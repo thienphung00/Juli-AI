@@ -97,3 +97,47 @@ class StageDiagnosisConfig:
     platform_discount_note_share: Decimal = Decimal("0.5")
     #: Below this many non-gift order lines in a window the share is not shown.
     platform_discount_min_lines: int = 10
+
+    #: Seller shipping discount angle (ADR-106 amendment 5): proposed when, in
+    #: the current 30 days, at least this share of the product's orders had a
+    #: buyer-paid shipping fee, and the product has at least this many orders.
+    shipping_lever_min_paid_share: Decimal = Decimal("0.30")
+    shipping_lever_min_orders: int = 20
+
+    #: Gift with purchase, the AOV fallback when the BMSM threshold is
+    #: unreached. The gift is another live product of the shop, in stock
+    #: (SKU inventory above ``gift_min_stock``), in a shared warehouse, priced at
+    #: most ``gift_max_price_share`` of the main product's 30-day AOV and at most
+    #: ``gift_max_price_vnd``. The buyer must take ``gift_min_items`` items.
+    gift_min_stock: int = 50
+    gift_max_price_share: Decimal = Decimal("0.15")
+    gift_max_price_vnd: Decimal = Decimal("1500000")
+    gift_min_items: int = 2
+
+    #: Shop flash sale (ADR-106 amendment 5), proposed only while the product
+    #: discount is unavailable. Guards: no flash sale on the product in the last
+    #: ``flash_recent_days`` days; proposed price at most the lowest unit price
+    #: paid in the last ``flash_low_price_days`` days times
+    #: ``1 - flash_undercut``; duration within the min/max days (default days).
+    flash_recent_days: int = 14
+    flash_low_price_days: int = 14
+    flash_undercut: Decimal = Decimal("0.01")
+    flash_min_days: int = 1
+    flash_max_days: int = 3
+    flash_default_days: int = 3
+
+    #: Seller Center cards (ADR-106 amendment 5): levers Juli cannot create
+    #: through the API; the seller does them on Seller Center.
+    #: Review voucher: at least this many orders per day, fewer reviews than the cap.
+    review_voucher_min_orders_per_day: Decimal = Decimal("1")
+    review_voucher_max_reviews: int = 20
+    #: Bundle deal: a pair needs this many orders together and this share of
+    #: either product's orders.
+    bundle_min_pair_orders: int = 3
+    bundle_min_share: Decimal = Decimal("0.05")
+    #: Minimum-spend voucher: share of shop orders with 2+ different products,
+    #: shop AOV fall against the previous 30 days, the multiple of AOV and its rounding.
+    min_spend_min_multi_share: Decimal = Decimal("0.05")
+    min_spend_aov_drop: Decimal = Decimal("0.10")
+    min_spend_aov_multiple: Decimal = Decimal("1.2")
+    min_spend_round_vnd: int = 10000

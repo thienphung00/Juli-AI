@@ -33,6 +33,8 @@ MEASURE_BY_ANGLE: dict[Angle, tuple[str, ...]] = {
     Angle.MO_TA: ("click_order_rate",),
     Angle.GIAM_GIA: ("click_order_rate", "gmv"),
     Angle.MUA_NHIEU_GIAM_NHIEU: ("aov", "items_per_order"),
+    Angle.FLASH_SALE: ("click_order_rate", "gmv"),
+    Angle.GIAM_PHI_VAN_CHUYEN: ("click_order_rate", "gmv"),
 }
 
 ANGLE_ACTION = {
@@ -41,6 +43,8 @@ ANGLE_ACTION = {
     Angle.MO_TA: "Viết lại mô tả",
     Angle.GIAM_GIA: "Tạo giảm giá sản phẩm 30 ngày",
     Angle.MUA_NHIEU_GIAM_NHIEU: "Tạo mua nhiều giảm nhiều một bậc",
+    Angle.FLASH_SALE: "Tạo flash sale 1 đến 3 ngày",
+    Angle.GIAM_PHI_VAN_CHUYEN: "Tạo giảm phí vận chuyển 30 ngày",
 }
 
 
@@ -117,8 +121,10 @@ def angle_sentence(diag: Diagnosis) -> str:
             else f"{diag.bmsm.percent} %"
         )
         return f"{action}: mua từ {diag.bmsm.threshold_items} món giảm {pct}, 30 ngày"
-    if diag.angle is Angle.GIAM_GIA:
+    if diag.angle in (Angle.GIAM_GIA, Angle.GIAM_PHI_VAN_CHUYEN):
         return f"{action}; độ sâu do rule tính trong trần giảm giá của shop"
+    if diag.angle is Angle.FLASH_SALE:
+        return f"{action}; shop cần xác nhận đủ điều kiện tham gia flash sale trước khi chạy"
     if not diag.evidence:
         return action
     tiktok = [e for e in diag.evidence if e.source is EvidenceSource.TIKTOK]

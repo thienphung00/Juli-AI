@@ -27,8 +27,11 @@ Snapshot layout (a superset of :mod:`catalog_scan`'s)::
     products/<id>.json      GetProduct payload
     diagnoses/<id>.json     optional, one data.products[] entry of the diagnoses endpoint
     diagnoses/_error.json   optional
-    orders.json             optional, {"orders": [...]} order search payloads (BMSM threshold)
+    orders.json             optional, {"orders": [...]} order search payloads, fetched by creation
+                            time over the previous + current 30 days; every order-derived figure
+                            reads only the orders created in its own window (ADR-106 amendment 5)
     ratings.json            optional, {"<product_id>": {"rating": 4.8, "review_count": 601}}
+                            (the review count picks the gift product and the review-voucher card)
     owner_tests.json        optional, the owner's own tests (see ``_owner_cards``)
     promotions/activities.json       optional, {"activities": [...]} Search Activities pages
     promotions/coupons.json          optional, {"coupons": [...]} Search Coupons pages
@@ -47,6 +50,7 @@ from __future__ import annotations
 import html
 import json
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, replace
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -80,6 +84,7 @@ from juli_backend.services.optimize_product.diagnosis import (
     Angle,
     Branch,
     Gap,
+    PageLevers,
     Trigger,
 )
 from juli_backend.services.optimize_product.discounts import (
@@ -94,6 +99,19 @@ from juli_backend.services.optimize_product.funnel import (
     ProductFunnel,
     to_decimal,
 )
+from juli_backend.services.optimize_product.levers import (
+    FlashEval,
+    GiftSearch,
+    ProductStock,
+    ShippingEval,
+    bundle_pairs,
+    find_gift,
+    flash_eval,
+    min_spend_eval,
+    product_discount_active,
+    product_stock,
+    shipping_eval,
+)
 from juli_backend.services.optimize_product.listing_signals import (
     is_description_code,
     is_image_code,
@@ -101,6 +119,11 @@ from juli_backend.services.optimize_product.listing_signals import (
     listing_signals_from_product,
 )
 from juli_backend.services.optimize_product.live_video import Appearance, parse_appearances
+from juli_backend.services.optimize_product.order_windows import (
+    orders_between,
+    orders_by_product,
+    summarize,
+)
 from juli_backend.services.optimize_product.promotions import PromotionIndex, PromotionItem
 from juli_backend.services.optimize_product.traffic import (
     DILUTION,
@@ -121,9 +144,21 @@ STATUS_RULE = "Juli tự đề xuất"
 STATUS_NEEDS_CAP = "Cần mức giảm giá tối đa"
 STATUS_NOT_ASKED = "Chưa hỏi TikTok"
 STATUS_OWNER = "Thử nghiệm theo kế hoạch của bạn"
+STATUS_SC = "Bạn tự làm trên Seller Center"
 
 WATCH_NO_FAULT = "TikTok không thấy lỗi ở trang sản phẩm"
 WATCH_BASKET = "Rất ít đơn mua nhiều món cùng lúc, chưa nên làm mua nhiều giảm nhiều"
+WATCH_NO_GIFT = "Không có sản phẩm phù hợp làm quà"
+WATCH_DISCOUNT_RUNNING = "Đang có giảm giá sản phẩm và chưa đủ điều kiện làm flash sale"
+NO_ORDERS_IN_WINDOW = "chưa đủ đơn trong khoảng thời gian"
+
+#: Seller Center card kinds (``ReportCard.kind``).
+KIND_REVIEW = "voucher_danh_gia"
+KIND_BUNDLE = "uu_dai_theo_goi"
+KIND_MIN_SPEND = "voucher_chi_tieu_toi_thieu"
+KIND_GIFT = "gift_fallback"
+SHOP_WIDE = "Toàn shop"
+FLASH_CONFIRM = "cần xác nhận điểm vi phạm < 36 trước khi chạy"
 
 #: Owner-test angles beyond the five diagnosis angles.
 ANGLE_GIFT = "quà tặng kèm"
@@ -295,6 +330,8 @@ class ReportCard:
     change: str
     status: str
     rank_score: Decimal
+    #: Empty for diagnosis cards; a ``KIND_*`` for gift-fallback and Seller Center cards.
+    kind: str = ""
 
 
 @dataclass(frozen=True)
@@ -572,6 +609,20 @@ def _load_ratings(snapshot: Path) -> dict[str, Decimal] | None:
     return out
 
 
+def _load_review_counts(snapshot: Path) -> dict[str, int] | None:
+    """Review counts from ``ratings.json``; ``None`` when the file is absent."""
+    raw = load_json(snapshot / "ratings.json")
+    if not isinstance(raw, dict):
+        return None
+    return {
+        str(pid): int(to_decimal(entry["review_count"]))
+        for pid, entry in raw.items()
+        if isinstance(entry, dict)
+        and entry.get("review_count") is not None
+        and not str(pid).startswith("_")
+    }
+
+
 def _load_owner_tests(snapshot: Path) -> list[dict]:
     raw = load_json(snapshot / "owner_tests.json")
     tests = [t for t in raw if isinstance(t, dict)] if isinstance(raw, list) else []
@@ -729,6 +780,7 @@ def _owner_cards(
 
 
 REASON_MAX = 170
+KPI_NAMES = ("CTR", "CTOR", "AOV", "GMV")
 
 
 @dataclass(frozen=True)
@@ -747,9 +799,11 @@ def _with_clauses(
     config: StageDiagnosisConfig,
     *,
     card_branch: bool,
+    lead: str | None = None,
 ) -> str:
-    """Append the short source clauses that fit: traffic source, platform discount, promotion."""
-    clauses: list[str | None] = []
+    """Append the short source clauses that fit: the lever's own, traffic source, platform
+    discount, promotion."""
+    clauses: list[str | None] = [lead]
     attribution = ctx.attribution.get(product_id)
     if card_branch and attribution is not None:
         clauses.append(source_clause(attribution))
@@ -765,6 +819,254 @@ def _with_clauses(
     return reason
 
 
+FLASH_FAILURE_TEXT = {
+    "promotion_data_missing": "chưa lấy được dữ liệu khuyến mãi",
+    "flash_sale_in_last_14_days": "đã có flash sale trong 14 ngày qua",
+    "max_discount_not_set": "shop chưa đặt mức giảm giá tối đa",
+    "duration_out_of_range": "thời lượng nằm ngoài 1 đến 3 ngày",
+    "no_orders_in_window": NO_ORDERS_IN_WINDOW,
+    "list_price_unknown": "không đọc được giá niêm yết",
+    "discount_over_maximum": "mức giảm cần có vượt mức giảm giá tối đa của shop",
+}
+
+
+def _flash_failure_text(flash: FlashEval | None) -> str:
+    if flash is None or not flash.failed:
+        return "chưa đủ điều kiện"
+    return "; ".join(FLASH_FAILURE_TEXT.get(code, code) for code in flash.failed)
+
+
+def _flash_change(flash: FlashEval) -> str:
+    price = _vn(flash.proposed_price or ZERO, 0)
+    return (
+        f"Flash sale {flash.days} ngày, giá {price} ₫ (thấp hơn mức giá thấp nhất khách đã trả "
+        "trong 14 ngày qua); bạn cần xác nhận shop đủ điều kiện tham gia flash sale trước khi chạy"
+    )
+
+
+@dataclass(frozen=True)
+class LeverFacts:
+    """Per-product facts behind the shipping, gift and flash-sale levers."""
+
+    levers: dict[str, PageLevers]
+    shipping: dict[str, ShippingEval]
+    flash: dict[str, FlashEval]
+    stocks: dict[str, ProductStock]
+
+
+def _lever_facts(
+    snapshot: Path,
+    config: StageDiagnosisConfig,
+    *,
+    as_of: date,
+    live_ids: list[str],
+    orders_30: list[dict],
+    orders_14: list[dict],
+    promotions: PromotionIndex | None,
+    max_discount_percent: Decimal | None,
+) -> LeverFacts:
+    by_30 = orders_by_product(orders_30)
+    by_14 = orders_by_product(orders_14)
+    levers: dict[str, PageLevers] = {}
+    shipping: dict[str, ShippingEval] = {}
+    flash: dict[str, FlashEval] = {}
+    stocks: dict[str, ProductStock] = {}
+    for pid in live_ids:
+        stock = product_stock(pid, _detail(snapshot, pid))
+        if stock is not None:
+            stocks[pid] = stock
+        shipping[pid] = shipping_eval(by_30.get(pid, []), config)
+        flash[pid] = flash_eval(
+            product_id=pid,
+            orders_low_window=by_14.get(pid, []),
+            stock=stock,
+            promotions=promotions,
+            as_of=as_of,
+            max_discount_percent=max_discount_percent,
+            config=config,
+        )
+        levers[pid] = PageLevers(
+            shipping_ok=shipping[pid].ok,
+            flash_ok=flash[pid].ok,
+            product_discount_active=product_discount_active(promotions, pid),
+        )
+    return LeverFacts(levers, shipping, flash, stocks)
+
+
+def _gift_detail(search: GiftSearch) -> dict[str, Any]:
+    choice = search.choice
+    return {
+        "gift_product_id": choice.product_id if choice else None,
+        "gift_price": choice.price if choice else None,
+        "gift_stock": choice.stock if choice else None,
+        "gift_review_count": choice.review_count if choice else None,
+        "max_price": search.max_price,
+        "candidates_evaluated": search.evaluated,
+        "rejected": search.rejected,
+    }
+
+
+def _short(title: str, limit: int = 50) -> str:
+    return _truncate(title, limit)
+
+
+def _seller_center_cards(
+    config: StageDiagnosisConfig,
+    *,
+    titles: dict[str, str],
+    live_ids: list[str],
+    cur: dict[str, Counts],
+    shop_cur: Counts,
+    shop_prev: Counts,
+    orders_30: list[dict],
+    review_counts: dict[str, int] | None,
+    taken: set[str],
+    blocked_by_rating: Callable[[str, str], bool],
+) -> tuple[list[ReportCard], dict[str, Any]]:
+    """Seller Center cards, in the order review voucher, bundle deal, minimum-spend voucher.
+
+    Each kind is emitted only with data behind it; a product that already holds a
+    card is passed over (``taken`` is updated with the products these cards use).
+    """
+    cards: list[ReportCard] = []
+    dropped: list[str] = []
+    tech: dict[str, Any] = {}
+
+    # 1. Voucher đánh giá.
+    review_emitted = 0
+    if review_counts is None:
+        tech["review_voucher"] = {"status": "skipped", "detail": "không có ratings.json"}
+    else:
+        for pid in sorted(live_ids, key=lambda i: (cur[i].orders, i), reverse=True):
+            reviews = review_counts.get(pid)
+            per_day = cur[pid].orders / Decimal(WINDOW_DAYS)
+            if (
+                reviews is None
+                or reviews >= config.review_voucher_max_reviews
+                or per_day < config.review_voucher_min_orders_per_day
+            ):
+                continue
+            if pid in taken:
+                dropped.append(pid)
+                continue
+            reason = (
+                f"Bán trung bình {_vn(per_day, 1)} đơn mỗi ngày trong 30 ngày qua nhưng mới có "
+                f"{reviews} đánh giá"
+            )
+            taken.add(pid)
+            if blocked_by_rating(pid, reason):
+                continue
+            review_emitted += 1
+            cards.append(
+                ReportCard(
+                    rank=0,
+                    product_id=pid,
+                    title=titles.get(pid, pid),
+                    main_kpi="Đánh giá",
+                    main_kpi_value=str(reviews),
+                    reason=reason,
+                    change="Tạo voucher đánh giá trên Seller Center cho sản phẩm này",
+                    status=STATUS_SC,
+                    rank_score=per_day,
+                    kind=KIND_REVIEW,
+                )
+            )
+        tech["review_voucher"] = {"status": "ok", "emitted": review_emitted}
+
+    # 2. Ưu Đãi Theo Gói.
+    pairs = bundle_pairs(orders_30, set(live_ids), config)
+    bundle_emitted = 0
+    for pair in pairs:
+        if pair.first in taken or pair.second in taken:
+            dropped.extend(i for i in (pair.first, pair.second) if i in taken)
+            continue
+        main_id, other_id = (
+            (pair.first, pair.second)
+            if pair.orders_first >= pair.orders_second
+            else (pair.second, pair.first)
+        )
+        name_main, name_other = (
+            _short(titles.get(main_id, main_id)),
+            _short(titles.get(other_id, other_id)),
+        )
+        main_orders = max(pair.orders_first, pair.orders_second)
+        reason = (
+            f"{pair.together} đơn trong 30 ngày qua mua cả hai sản phẩm cùng lúc, bằng "
+            f"{_vn(Decimal(pair.together) / Decimal(main_orders) * 100, 0)} % số đơn của "
+            f"{name_main}"
+        )
+        if blocked_by_rating(main_id, reason) or blocked_by_rating(other_id, reason):
+            taken.update((main_id, other_id))
+            continue
+        taken.update((main_id, other_id))
+        bundle_emitted += 1
+        aov = cur[main_id].metrics()["aov"]
+        cards.append(
+            ReportCard(
+                rank=0,
+                product_id=main_id,
+                title=f"{name_main} + {name_other}",
+                main_kpi="AOV",
+                main_kpi_value=fmt_value("money", aov) if aov is not None else NOT_ENOUGH_DATA,
+                reason=reason,
+                change=f"Tạo ưu đãi theo gói {name_main} + {name_other} trên Seller Center",
+                status=STATUS_SC,
+                rank_score=Decimal(pair.together),
+                kind=KIND_BUNDLE,
+            )
+        )
+    tech["bundle"] = {
+        "orders": len(orders_30),
+        "pairs_found": len(pairs),
+        "emitted": bundle_emitted,
+        "status": "ok" if orders_30 else NO_ORDERS_IN_WINDOW,
+    }
+
+    # 3. Voucher có mức chi tiêu tối thiểu (shop-level).
+    shop_aov_cur, shop_aov_prev = shop_cur.metrics()["aov"], shop_prev.metrics()["aov"]
+    spend = min_spend_eval(orders_30, shop_aov_cur, shop_aov_prev, config)
+    tech["min_spend"] = {
+        "verdict": spend.verdict,
+        "orders": spend.orders,
+        "multi_orders": spend.multi_orders,
+        "multi_share": spend.multi_share,
+        "aov_current": spend.aov_current,
+        "aov_previous": spend.aov_previous,
+        "aov_drop": spend.aov_drop,
+        "level": spend.level,
+    }
+    if (
+        spend.ok
+        and spend.level is not None
+        and spend.multi_share is not None
+        and spend.aov_drop is not None
+        and shop_aov_cur is not None
+        and shop_aov_prev is not None
+    ):
+        cards.append(
+            ReportCard(
+                rank=0,
+                product_id="",
+                title=SHOP_WIDE,
+                main_kpi="AOV",
+                main_kpi_value=fmt_value("money", shop_aov_cur),
+                reason=(
+                    f"AOV của shop giảm {_vn(spend.aov_drop * 100, 0)} % so với 30 ngày trước "
+                    f"({fmt_value('money', shop_aov_cur)} so với "
+                    f"{fmt_value('money', shop_aov_prev)}); "
+                    f"{_vn(spend.multi_share * 100, 0)} % số đơn trong 30 ngày qua có từ 2 sản "
+                    "phẩm khác nhau"
+                ),
+                change=f"Tạo voucher giảm khi đơn từ {_vn(spend.level, 0)} ₫",
+                status=STATUS_SC,
+                rank_score=shop_cur.gmv,
+                kind=KIND_MIN_SPEND,
+            )
+        )
+    tech["dropped_product_has_card"] = sorted(set(dropped))
+    return cards, tech
+
+
 def _cards(
     snapshot: Path,
     config: StageDiagnosisConfig,
@@ -772,19 +1074,46 @@ def _cards(
     titles: dict[str, str],
     cur_items: dict[str, dict],
     ctx: TrafficContext,
+    as_of: date,
+    live_ids: list[str],
+    cur: dict[str, Counts],
+    shop_cur: Counts,
+    shop_prev: Counts,
 ) -> tuple[list[ReportCard], list[WatchRow], dict[str, Any]]:
     """Cards in the owner's order, plus the products the report only watches.
 
-    Order: rule cards, then cards that wait for a discount cap (each ranked by
-    gap × GMV_28d), then owner tests in file order, then "Chưa hỏi TikTok"
-    cards fill what is left of ``max_open_cards_per_shop``. A product holds one
-    card; a rule card wins over an owner test on the same product.
+    Order: rule cards (Juli tự đề xuất), then cards that wait for a discount cap
+    (each group ranked by gap × GMV_28d), then owner tests in file order, then
+    Seller Center cards, then "Chưa hỏi TikTok" cards fill what is left of
+    ``max_open_cards_per_shop``. A product holds one card; a rule card wins over an
+    owner test, and both win over a Seller Center card, on the same product.
     """
     funnels, _signals, evidence_by_id, excluded = build_inputs(snapshot, config)
-    orders = _load_orders(snapshot)
-    quantities = quantities_by_product(orders) if orders is not None else {}
+    windows = report_windows(as_of, config)
+    first_cur, last_cur = (date.fromisoformat(d) for d in windows["current_30d"])
+    first_prev = date.fromisoformat(windows["previous_30d"][0])
+    all_orders = _load_orders(snapshot)
+    order_window = summarize(all_orders, first_prev, last_cur)
+    # Every order-derived figure below reads only orders created in its own window.
+    orders_30 = orders_between(all_orders, first_cur, last_cur)
+    orders_14 = orders_between(
+        all_orders, as_of - timedelta(days=config.flash_low_price_days - 1), last_cur
+    )
+    quantities = quantities_by_product(orders_30)
     meta = load_json(snapshot / "meta.json") or {}
     cap_set = meta.get("max_discount_percent") is not None
+    max_discount_percent = to_decimal(meta["max_discount_percent"]) if cap_set else None
+    facts = _lever_facts(
+        snapshot,
+        config,
+        as_of=as_of,
+        live_ids=live_ids,
+        orders_30=orders_30,
+        orders_14=orders_14,
+        promotions=ctx.promotions,
+        max_discount_percent=max_discount_percent,
+    )
+    review_counts = _load_review_counts(snapshot)
     asked = asked_products(snapshot)
     medians, diagnoses, skips = diagnose_all(
         funnels,
@@ -794,6 +1123,7 @@ def _cards(
         asked=asked,
         quantities=quantities,
         discount_cap_set=cap_set,
+        levers=facts.levers,
     )
     by_id = {d.product_id: d for d in diagnoses}
     funnel_by_id = {f.product_id: f for f in funnels}
@@ -809,6 +1139,8 @@ def _cards(
         if product_id not in low:
             return False
         reason = f"Điểm đánh giá {_vn(low[product_id], 1)} sao, cần cải thiện sản phẩm trước"
+        if any(w.product_id == product_id and w.reason == reason for w in watch):
+            return True
         watch.append(WatchRow(product_id, titles.get(product_id, product_id), reason, detail))
         return True
 
@@ -829,6 +1161,8 @@ def _cards(
 
     rule_cards: list[ReportCard] = []
     bmsm_details: dict[str, dict[str, Any]] = {}
+    flash_details: dict[str, dict[str, Any]] = {}
+    gift_details: dict[str, dict[str, Any]] = {}
     for scored in build_cards(diagnoses, config):
         diag = by_id[scored.product_id]
         if blocked_by_rating(scored.product_id, scored.reason):
@@ -844,8 +1178,24 @@ def _cards(
                 "orders": diag.bmsm.orders,
                 "share_at_threshold": diag.bmsm.share,
             }
+        elif diag.angle is Angle.FLASH_SALE:
+            flash = facts.flash[scored.product_id]
+            text = _flash_change(flash)
+            flash_details[scored.product_id] = {
+                "days": flash.days,
+                "low_price_14d": flash.low_price,
+                "proposed_price": flash.proposed_price,
+                "implied_discount": flash.discount,
+                "note": FLASH_CONFIRM,
+            }
+        elif diag.angle is Angle.GIAM_PHI_VAN_CHUYEN:
+            text = "Giảm phí vận chuyển 30 ngày, trong mức giảm tối đa của shop"
         else:
             text = ANGLE_ACTION[diag.angle]
+        lead = None
+        if diag.angle is Angle.GIAM_PHI_VAN_CHUYEN:
+            ship = facts.shipping[scored.product_id]
+            lead = f"{_vn((ship.share or ZERO) * 100, 0)} % đơn khách tự trả phí vận chuyển"
         rule_cards.append(
             ReportCard(
                 rank=0,
@@ -854,7 +1204,12 @@ def _cards(
                 main_kpi=scored.main_kpi,
                 main_kpi_value=main_kpi_value(diag),
                 reason=_with_clauses(
-                    scored.reason, scored.product_id, ctx, config, card_branch=card_branch
+                    scored.reason,
+                    scored.product_id,
+                    ctx,
+                    config,
+                    card_branch=card_branch,
+                    lead=lead,
                 ),
                 change=text,
                 status=STATUS_RULE,
@@ -866,9 +1221,53 @@ def _cards(
     not_asked: list[ReportCard] = []
     for skip in skips:
         if skip.reason == "bmsm_threshold_unreached":
-            sentence = _gap_sentence(skip.gaps["aov"], config)
+            aov_gap = skip.gaps["aov"]
+            sentence = _gap_sentence(aov_gap, config)
+            if blocked_by_rating(skip.product_id, sentence):
+                continue
+            # AOV fallback (amendment 5): a gift with purchase instead of the tier.
+            search = find_gift(
+                facts.stocks.get(skip.product_id),
+                cur[skip.product_id].metrics()["aov"] if skip.product_id in cur else None,
+                [s for pid, s in facts.stocks.items() if pid != skip.product_id],
+                review_counts,
+                config,
+            )
+            gift_details[skip.product_id] = _gift_detail(search)
+            if search.choice is None:
+                watch.append(
+                    WatchRow(
+                        skip.product_id, skip.title, WATCH_NO_GIFT, f"{sentence}; {WATCH_BASKET}"
+                    )
+                )
+                continue
+            gift_name = _truncate(search.choice.title, 80)
+            rule_cards.append(
+                ReportCard(
+                    rank=0,
+                    product_id=skip.product_id,
+                    title=skip.title,
+                    main_kpi="AOV",
+                    main_kpi_value=(
+                        fmt_value("money", aov_gap.value)
+                        if aov_gap.cleared_floor
+                        else NOT_ENOUGH_DATA
+                    ),
+                    reason=_with_clauses(sentence, skip.product_id, ctx, config, card_branch=False),
+                    change=(f"Tặng kèm {gift_name} cho khách mua từ {config.gift_min_items} món"),
+                    status=STATUS_RULE,
+                    rank_score=aov_gap.gap * funnel_by_id[skip.product_id].gmv_28d,
+                    kind=KIND_GIFT,
+                )
+            )
+            continue
+        if skip.reason == "product_discount_running":
+            sentence = _gap_sentence(_firing_gap(skip.gaps, config), config)
             if not blocked_by_rating(skip.product_id, sentence):
-                watch.append(WatchRow(skip.product_id, skip.title, WATCH_BASKET, sentence))
+                note = f"{sentence}; flash sale chưa chạy được: " + _flash_failure_text(
+                    facts.flash.get(skip.product_id)
+                )
+                watch.append(WatchRow(skip.product_id, skip.title, WATCH_DISCOUNT_RUNNING, note))
             continue
         if skip.reason not in ("tiktok_not_asked", "discount_cap_needed", "tiktok_found_no_fault"):
             continue
@@ -904,6 +1303,7 @@ def _cards(
             rank_score=score,
         )
         (needs_cap if needs else not_asked).append(card)
+    rule_cards.sort(key=lambda c: c.rank_score, reverse=True)
     needs_cap.sort(key=lambda c: c.rank_score, reverse=True)
     not_asked.sort(key=lambda c: c.rank_score, reverse=True)
 
@@ -923,7 +1323,7 @@ def _cards(
         funnels=funnel_by_id,
         titles=titles,
         quantities=quantities,
-        orders_present=orders is not None,
+        orders_present=bool(orders_30),
         cur_items=cur_items,
         config=config,
     ):
@@ -934,9 +1334,21 @@ def _cards(
         else:
             taken.add(card.product_id)
             owner_cards.append(card)
+    sc_cards, sc_tech = _seller_center_cards(
+        config,
+        titles=titles,
+        live_ids=live_ids,
+        cur=cur,
+        shop_cur=shop_cur,
+        shop_prev=shop_prev,
+        orders_30=orders_30,
+        review_counts=review_counts,
+        taken=taken,
+        blocked_by_rating=blocked_by_rating,
+    )
     fill = [c for c in not_asked if c.product_id not in taken]
 
-    ordered = [*rule_cards, *needs_cap, *owner_cards, *fill]
+    ordered = [*rule_cards, *needs_cap, *owner_cards, *sc_cards, *fill]
     limit = config.max_open_cards_per_shop
     cards = [replace(c, rank=i) for i, c in enumerate(ordered[:limit], start=1)]
     for card in ordered[limit:]:
@@ -964,8 +1376,66 @@ def _cards(
         "owner_tests": len(owner_tests),
         "owner_tests_dropped_rule_card_wins": dropped,
         "skip_reasons": dict(Counter(s.reason.split(":")[0] for s in skips)),
-        "orders_present": orders is not None,
-        "orders_counted": sum(1 for o in orders or [] if str(o.get("status") or "") != CANCELLED),
+        "orders_present": bool(orders_30),
+        "orders_counted": sum(1 for o in orders_30 if str(o.get("status") or "") != CANCELLED),
+        "order_window": {
+            "file_present": order_window.present,
+            "in_file": order_window.total,
+            "used": order_window.used,
+            "excluded_out_of_window": order_window.excluded,
+            "used_first": order_window.used_first.isoformat() if order_window.used_first else None,
+            "used_last": order_window.used_last.isoformat() if order_window.used_last else None,
+            "excluded_first": (
+                order_window.excluded_first.isoformat() if order_window.excluded_first else None
+            ),
+            "excluded_last": (
+                order_window.excluded_last.isoformat() if order_window.excluded_last else None
+            ),
+            "fetch": meta.get("orders_fetch"),
+            "current_30d_orders": len(orders_30),
+            "last_14d_orders": len(orders_14),
+        },
+        "shipping_lever": {
+            "min_paid_share": config.shipping_lever_min_paid_share,
+            "min_orders": config.shipping_lever_min_orders,
+            "evaluated": len(facts.shipping),
+            "insufficient_orders": sum(
+                1 for e in facts.shipping.values() if e.verdict == "insufficient_orders"
+            ),
+            "passed": {
+                pid: {"orders": e.orders, "paid_share": e.share}
+                for pid, e in facts.shipping.items()
+                if e.ok
+            },
+        },
+        "gift": {
+            "min_stock": config.gift_min_stock,
+            "max_price_share": config.gift_max_price_share,
+            "max_price_vnd": config.gift_max_price_vnd,
+            "min_items": config.gift_min_items,
+            "products": gift_details,
+        },
+        "flash_sale": {
+            "promotions_fetched": ctx.promotions is not None,
+            "max_discount_percent": max_discount_percent,
+            "undercut": config.flash_undercut,
+            "recent_days": config.flash_recent_days,
+            "low_price_days": config.flash_low_price_days,
+            "default_days": config.flash_default_days,
+            "chosen": flash_details,
+            "blocked_by": dict(
+                Counter(
+                    code
+                    for pid, e in facts.flash.items()
+                    if facts.levers[pid].product_discount_active
+                    for code in e.failed
+                )
+            ),
+            "product_discount_running": sorted(
+                pid for pid, lv in facts.levers.items() if lv.product_discount_active
+            ),
+        },
+        "seller_center": {**sc_tech, "emitted": len(sc_cards)},
         "bmsm": bmsm_details,
         "discount_cap_set": cap_set,
         "ratings_applied": ratings is not None,
@@ -1155,9 +1625,22 @@ def build_shop_report(
             )
         )
 
-    cards, watch, tech = _cards(snapshot, config, titles=titles, cur_items=cur_items, ctx=ctx)
+    cards, watch, tech = _cards(
+        snapshot,
+        config,
+        titles=titles,
+        cur_items=cur_items,
+        ctx=ctx,
+        as_of=as_of,
+        live_ids=live,
+        cur=cur,
+        shop_cur=shop_cur,
+        shop_prev=shop_prev,
+    )
     error = load_json(snapshot / "diagnoses" / "_error.json")
-    traffic_ids = list(dict.fromkeys([*(c.product_id for c in cards), *tech["traffic_diluted"]]))
+    traffic_ids = list(
+        dict.fromkeys([*(c.product_id for c in cards if c.product_id), *tech["traffic_diluted"]])
+    )
     traffic = [
         _traffic_block(
             product_id,
@@ -1307,6 +1790,7 @@ td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 .pill.ok{background:var(--ok-soft);color:var(--ok)}
 .pill.warn{background:var(--warn-soft);color:var(--warn)}
 .pill.off{background:var(--off-soft);color:var(--off)}
+.pill.sc{background:var(--accent-soft);color:var(--accent)}
 .legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
 .legend div{
   background:var(--surface);
@@ -1444,8 +1928,13 @@ _LEGEND = {
         "Thử nghiệm do bạn tự đặt ra. Juli không tự đề xuất card này, chỉ ghi lại số liệu hiện "
         "tại để so sánh sau khi thử.",
     ),
+    STATUS_SC: (
+        "sc",
+        "Juli không tạo được công cụ này qua API; bạn tạo trên Seller Center theo hướng dẫn "
+        "trên card. Card chỉ xuất hiện khi số liệu của shop cho thấy công cụ này có lý do để dùng.",
+    ),
 }
-_COUNT_WORD = {1: "Một", 2: "Hai", 3: "Ba", 4: "Bốn"}
+_COUNT_WORD = {1: "Một", 2: "Hai", 3: "Ba", 4: "Bốn", 5: "Năm"}
 
 
 def _e(text: object) -> str:
@@ -1480,7 +1969,7 @@ def _share_cell(pair: DiscountPair, *, platform: bool) -> str:
     cur, cur_lines = part(pair.current)
     prev, prev_lines = part(pair.previous)
     head = "—" if cur is None else f"{_vn(cur * 100, 0)} %"
-    sub = "chưa đủ đơn" if cur is None else f"{cur_lines} món"
+    sub = NO_ORDERS_IN_WINDOW if cur is None else f"{cur_lines} món"
     before = "—" if prev is None else f"{_vn(prev * 100, 0)} %"
     return (
         f'<td class="num"><b>{head}</b><span class="sub">trước {before} '
@@ -1517,7 +2006,8 @@ def _card_table(report: ShopReport) -> str:
     body = []
     for c in report.cards:
         pill = _LEGEND[c.status][0]
-        value = f"· {c.main_kpi_value}" if c.main_kpi_value == NOT_ENOUGH_DATA else c.main_kpi_value
+        dotted = c.main_kpi_value == NOT_ENOUGH_DATA or c.main_kpi not in KPI_NAMES
+        value = f"· {c.main_kpi_value}" if dotted else c.main_kpi_value
         body.append(
             f'<tr><td class="num">{c.rank}</td><td class="name">{_e(c.title)}</td>'
             f'<td class="kpiv"><span class="pill kpi">{_e(c.main_kpi)}</span> '
@@ -1895,6 +2385,173 @@ def _tech_traffic(report: ShopReport, code: Any) -> list[str]:
     ]
 
 
+def _dec(value: object, kind: str = "ratio") -> str:
+    return "—" if value is None else fmt_value(kind, to_decimal(value))
+
+
+def _gift_line(pid: str, d: dict[str, Any], code: Any) -> str:
+    if d.get("gift_product_id"):
+        reviews = d["gift_review_count"]
+        shown = "chưa rõ số" if reviews is None else str(reviews)
+        what = (
+            f"chọn {code(d['gift_product_id'])}, giá {_dec(d['gift_price'], 'money')}, "
+            f"tồn {d['gift_stock']}, {shown} đánh giá"
+        )
+    else:
+        why = ", ".join(f"{k} {v}" for k, v in d.get("rejected", {}).items()) or "không có ứng viên"
+        what = (
+            f"không có sản phẩm phù hợp (trần giá {_dec(d.get('max_price'), 'money')}; "
+            f"loại do {why})"
+        )
+    return f"<li>Quà cho {code(pid)}: {what}</li>"
+
+
+def _tech_levers(report: ShopReport, code: Any) -> list[str]:
+    t = report.technical
+    cfg = StageDiagnosisConfig()
+    win = t.get("order_window", {})
+    ship = t.get("shipping_lever", {})
+    gift = t.get("gift", {})
+    flash = t.get("flash_sale", {})
+    sc = t.get("seller_center", {})
+    first_cur, last_cur = (date.fromisoformat(d) for d in report.windows["current_30d"])
+
+    def dmy(iso: object) -> str:
+        return _dmy(str(iso)) if iso else "—"
+
+    if win.get("used"):
+        used = (
+            f"{win['used']} đơn trong khoảng thời gian, tạo từ {dmy(win.get('used_first'))} đến "
+            f"{dmy(win.get('used_last'))}"
+        )
+    else:
+        used = f"0 đơn trong khoảng thời gian ({NO_ORDERS_IN_WINDOW})"
+    left_out = (
+        f"; bỏ {win['excluded_out_of_window']} đơn tạo ngoài khoảng "
+        f"{dmy(win.get('excluded_first'))} đến {dmy(win.get('excluded_last'))}"
+        if win.get("excluded_out_of_window")
+        else ""
+    )
+    fetch = win.get("fetch")
+    if isinstance(fetch, dict) and fetch.get("slices"):
+        per_slice = ", ".join(
+            f"{x['from']}: {x['orders']}" + (" (chạm giới hạn trang)" if x["hit_page_cap"] else "")
+            for x in fetch["slices"]
+        )
+        fetch_text = f"Lấy theo lát 7 ngày, số đơn mỗi lát: {per_slice}; " + (
+            "có lát chạm giới hạn trang."
+            if fetch.get("any_slice_hit_cap")
+            else "không lát nào chạm giới hạn trang."
+        )
+    else:
+        fetch_text = "Không có bản ghi lấy đơn trực tiếp (chạy lại từ snapshot)."
+    out = [
+        "<h3>Đòn bẩy giá và Seller Center</h3><ol>",
+        f"<li><b>Cửa sổ đơn hàng:</b> mọi số liệu từ đơn đọc {code('orders.json')} và chỉ tính "
+        f"đơn có {code('create_time')} (UTC+7) trong cửa sổ của nó: 30 ngày qua "
+        f"{_dmy(first_cur.isoformat())} – {_dmy(last_cur.isoformat())} cho phân bố số món, "
+        "ngưỡng mua nhiều giảm nhiều, tỷ lệ phí vận chuyển, quà tặng, cặp sản phẩm và voucher mức "
+        "chi tiêu; 30 ngày trước đó cho so sánh giảm giá; "
+        f"{flash.get('low_price_days', 14)} ngày cuối cho giá thấp nhất. Đơn đã dùng (60 ngày): "
+        f"{used}{left_out}. Bản lấy trực tiếp lọc đơn theo {code('create_time_ge')} / "
+        f"{code('create_time_lt')}, không theo {code('update_time')}. {fetch_text}</li>",
+        f"<li><b>Giảm phí vận chuyển</b> ({code('SHIPPING_DISCOUNT')}, "
+        f"{code('product_level = PRODUCT')}): sản phẩm cần từ {ship.get('min_orders', 20)} đơn "
+        f"trong 30 ngày qua ({code('shipping_lever_min_orders')}) và từ "
+        f"{_dec(ship.get('min_paid_share', 0.3))} số đơn có {code('payment.shipping_fee')} &gt; 0 "
+        f"({code('shipping_lever_min_paid_share')}). Có {len(ship.get('passed', {}))} sản phẩm "
+        f"đạt; {ship.get('insufficient_orders', 0)}/{ship.get('evaluated', 0)} sản phẩm "
+        f"{NO_ORDERS_IN_WINDOW}. Thứ tự trong nhánh trang: mô tả, giảm giá sản phẩm, flash sale, "
+        "giảm phí vận chuyển; mọi đòn bẩy giá cần shop đã đặt mức giảm giá tối đa.</li>",
+        f"<li><b>Quà tặng kèm</b> ({code('gift_discount')}) thay mua nhiều giảm nhiều khi "
+        f"{code('bmsm_threshold_unreached')}: sản phẩm khác của shop, còn hàng (tổng tồn kho SKU "
+        f"&gt; {gift.get('min_stock', 50)}), chung ít nhất một {code('warehouse_id')} với sản "
+        f"phẩm chính, giá bán ≤ {_dec(gift.get('max_price_share', 0.15))} AOV 30 ngày của sản "
+        f"phẩm chính và ≤ {_dec(gift.get('max_price_vnd', 1500000), 'money')}, không phải hàng "
+        "tặng hoặc không bán; ưu tiên sản phẩm ít đánh giá nhất nếu có ratings.json, nếu không "
+        f"thì rẻ nhất. Ngưỡng: mua từ {gift.get('min_items', 2)} món "
+        f"({code('MINIMAL_ITEM_QUANTITY')}).</li>",
+        *(_gift_line(pid, d, code) for pid, d in gift.get("products", {}).items()),
+    ]
+    promo_note = (
+        "dữ liệu khuyến mãi đã lấy"
+        if flash.get("promotions_fetched")
+        else "chưa lấy được dữ liệu khuyến mãi nên không bao giờ đề xuất flash sale"
+    )
+    out += [
+        f"<li><b>Flash sale</b> ({code('FLASHSALE')}; ADR-106 bản đầu loại flash sale khỏi v1, "
+        "amendment 5 đảo lại với các điều kiện): chỉ chọn khi giảm giá sản phẩm không dùng được "
+        "(đang có giảm giá sản phẩm từ bất kỳ nguồn nào theo dữ liệu khuyến mãi, hoặc Juli đang "
+        "trong 30 ngày chờ) và đủ mọi điều kiện: không có flash sale của sản phẩm trong "
+        f"{flash.get('recent_days', 14)} ngày qua; giá đề xuất = giá thấp nhất khách đã trả trong "
+        f"{flash.get('low_price_days', 14)} ngày × (1 − {_dec(flash.get('undercut', 0.01))}), "
+        "làm tròn xuống 100 ₫, và mức giảm so với giá niêm yết của SKU đó không vượt mức giảm "
+        f"giá tối đa của shop ({_dec(flash.get('max_discount_percent'), 'pct')}); thời lượng "
+        f"1–3 ngày, mặc định {flash.get('default_days', 3)}. Giá khách đã trả = "
+        f"{code('sale_price')} − {code('platform_discount')} của dòng đơn. Trạng thái: "
+        f"{promo_note}. Điểm vi phạm không đọc được qua API: {code(FLASH_CONFIRM)}. Kênh LIVE "
+        "không có trường khi tạo qua API.</li>",
+    ]
+    for pid, d in flash.get("chosen", {}).items():
+        out.append(
+            f"<li>Flash sale cho {code(pid)}: giá thấp nhất 14 ngày "
+            f"{_dec(d['low_price_14d'], 'money')}, giá đề xuất "
+            f"{_dec(d['proposed_price'], 'money')}, mức giảm {_dec(d['implied_discount'])}, "
+            f"{d['days']} ngày; {code(d['note'])}.</li>"
+        )
+    blocked = flash.get("blocked_by", {})
+    if flash.get("product_discount_running"):
+        out.append(
+            f"<li>Sản phẩm đang có giảm giá: {len(flash['product_discount_running'])}; điều kiện "
+            "flash sale chưa đạt: "
+            + (", ".join(f"{code(k)} {v}" for k, v in sorted(blocked.items())) or "không có")
+            + ".</li>"
+        )
+    spend = sc.get("min_spend", {})
+    review = sc.get("review_voucher", {})
+    bundle = sc.get("bundle", {})
+    spend_text = {
+        "ok": "đạt điều kiện",
+        "no_orders": NO_ORDERS_IN_WINDOW,
+        "few_multi": f"dưới {_dec(cfg.min_spend_min_multi_share)} số đơn có từ 2 sản phẩm",
+        "aov_not_down": "AOV của shop không giảm đủ so với 30 ngày trước",
+    }.get(str(spend.get("verdict")), "")
+    review_text = (
+        f" (đã phát {review.get('emitted', 0)})"
+        if review.get("status") == "ok"
+        else " (bỏ qua: không có ratings.json)"
+    )
+    dropped = (
+        f" (bỏ qua: {code(', '.join(sc['dropped_product_has_card']))})"
+        if sc.get("dropped_product_has_card")
+        else ""
+    )
+    no_orders = "" if bundle.get("orders") else f"; {NO_ORDERS_IN_WINDOW}"
+    out += [
+        f"<li><b>Card Seller Center</b> ({sc.get('emitted', 0)} card). Voucher đánh giá: sản "
+        f"phẩm đang bán có từ 1 đơn/ngày trong 30 ngày và dưới {cfg.review_voucher_max_reviews} "
+        f"đánh giá trong {code('ratings.json')}{review_text}. Ưu Đãi Theo Gói: cặp sản phẩm có "
+        f"trong từ {cfg.bundle_min_pair_orders} đơn cùng nhau và từ "
+        f"{_dec(cfg.bundle_min_share)} số đơn của một trong hai sản phẩm, tính trên "
+        f"{bundle.get('orders', 0)} đơn của 30 ngày qua (đã tìm {bundle.get('pairs_found', 0)} "
+        f"cặp, phát {bundle.get('emitted', 0)}){no_orders}. Voucher có mức chi tiêu tối thiểu: "
+        f"từ {_dec(cfg.min_spend_min_multi_share)} số đơn của shop có từ 2 sản phẩm khác nhau và "
+        f"AOV shop giảm từ {_dec(cfg.min_spend_aov_drop)} so với 30 ngày trước; mức = AOV 30 "
+        f"ngày × {cfg.min_spend_aov_multiple}, làm tròn {cfg.min_spend_round_vnd} ₫. Hiện tại: "
+        f"{spend_text} (đơn {spend.get('orders', 0)}, đơn nhiều sản phẩm "
+        f"{spend.get('multi_orders', 0)}). Mỗi sản phẩm chỉ có một card: card đã có thì card "
+        f"Seller Center nhường{dropped}.</li>",
+        "<li><b>Đo kết quả card Seller Center:</b> Juli chỉ đo được nếu bạn ghi lại ngày bắt đầu "
+        "chạy công cụ trên Seller Center.</li>",
+        "<li><b>Năng lực API:</b> tạo được qua API: giảm giá sản phẩm, flash sale (không có "
+        "trường kênh LIVE), mua nhiều giảm nhiều, quà tặng kèm, giảm phí vận chuyển. Chỉ đọc: "
+        "coupon (search, get), chi tiết giá đơn hàng. Không có: tạo coupon, bundle deal, "
+        "voucher / mua nhiều giảm nhiều / flash deal của sàn, chiến dịch của sàn, quảng cáo "
+        "(Business API chỉ cho quảng cáo).</li></ol>",
+    ]
+    return out
+
+
 def _tech(report: ShopReport) -> str:
     t = report.technical
     w = report.windows
@@ -1973,17 +2630,22 @@ def _tech(report: ShopReport) -> str:
             else ""
         )
         + f". Tối đa {t.get('max_open_cards_per_shop', 5)} card; phần vượt vào danh sách "
-        "theo dõi.</li>",
+        "theo dõi. Thứ tự: Juli tự đề xuất, Cần mức giảm giá tối đa, Thử nghiệm theo kế hoạch "
+        "của bạn, Bạn tự làm trên Seller Center, Chưa hỏi TikTok.</li>",
+        f"<li>{code(STATUS_SC)}: {t.get('seller_center', {}).get('emitted', 0)} card; xem mục "
+        "&quot;Đòn bẩy giá và Seller Center&quot; bên dưới.</li>",
         "<li>Ngưỡng mua nhiều giảm nhiều: "
         + (
-            f"{t.get('orders_counted', 0)} đơn không hủy từ {code('orders.json')}; số lượng = số "
+            f"{t.get('orders_counted', 0)} đơn không hủy tạo trong 30 ngày qua từ "
+            f"{code('orders.json')}; số lượng = số "
             f"dòng không phải quà tặng của sản phẩm trong đơn; q = trung vị số lượng + 1, chỉ phát "
             f"card khi ít nhất {fmt_value('ratio', t.get('bmsm_min_share_at_threshold', 0.05))} "
             f"đơn đã mua từ q (skip reason {code('bmsm_threshold_unreached')}); dưới "
             f"{t.get('bmsm_min_orders_for_histogram', 20)} đơn của sản phẩm thì "
             "q = floor(món/đơn trung bình) + 1, tối thiểu 2."
             if t.get("orders_present")
-            else "không có orders.json nên mọi sản phẩm dùng q = floor(món/đơn trung bình) + 1, "
+            else f"{NO_ORDERS_IN_WINDOW} (không có đơn nào tạo trong 30 ngày qua trong "
+            f"{code('orders.json')}) nên mọi sản phẩm dùng q = floor(món/đơn trung bình) + 1, "
             "tối thiểu 2."
         )
         + "".join(
@@ -2010,6 +2672,7 @@ def _tech(report: ShopReport) -> str:
         "<li>Skip reasons: "
         + (", ".join(f"{code(k)} {v}" for k, v in sorted(skip.items())) or "không có")
         + ".</li></ol>",
+        *_tech_levers(report, code),
         *_tech_traffic(report, code),
         "<h3>Mã chẩn đoán của TikTok</h3><ol>",
         "<li>Khớp theo tiền tố, không theo danh sách cố định: ảnh bìa = "

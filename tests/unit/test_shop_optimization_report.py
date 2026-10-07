@@ -38,6 +38,7 @@ TECH_HEADING = "Chú thích kỹ thuật"
 CARD_HEADERS = ["#", "Sản phẩm", "Chỉ số chính", "Lý do", "Thay đổi đề xuất", "Trạng thái"]
 TRICKY_TITLE = 'Kem <b>X</b> & Co "Premium" chống nắng cao cấp SPF50 dung tích lớn'
 PSORIASIS = "MAIN_IMG_FIRST_IMG_PSORIASIS"
+IN_WINDOW = 1_790_000_000  # 2026-09-21 UTC+7
 
 
 def _row(pid: str, impressions: int, ctr: str, ctor: str, aov: int) -> dict:
@@ -338,6 +339,7 @@ def _with_files(tmp_path: Path, *, diagnosis: bool = True, **files: object) -> S
 def _order(product_id: str, quantity: int, status: str = "COMPLETED") -> dict:
     return {
         "status": status,
+        "create_time": IN_WINDOW,  # inside the current 30 days of the fixture's as_of
         "line_items": [{"product_id": product_id, "is_gift": False}] * quantity,
     }
 
