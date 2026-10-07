@@ -18,9 +18,11 @@ nothing is written to TikTok. Examples::
     python scripts/shop_optimization_report.py --replay --out-dir out/fujiwa-report \
         --owner-tests owner_tests.json
 
-Optional snapshot files never fetched: ``orders.json`` (order search payloads, BMSM
-threshold and discount share), ``ratings.json`` (per-product star rating),
-``owner_tests.json``.
+Live mode also fetches ``orders.json``: orders *created* in the previous + current
+30 days (``create_time_ge`` / ``create_time_lt``, never ``update_time``), in 7-day
+slices so the page cap is never hit. ``meta.json`` records per slice how many orders
+came back and whether the cap was hit. Optional snapshot files never fetched:
+``ratings.json`` (per-product star rating and review count), ``owner_tests.json``.
 
 Live mode also tries three optional enrichments for the traffic-source check
 (ADR-106 amendment 4); each tolerates failure by writing ``_error.json`` (class and
@@ -48,6 +50,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+ORDER_SLICE_DAYS = 7
 ACTIVITY_STATUSES = ("ONGOING", "NOT_START", "EXPIRED")
 MAX_ACTIVITY_DETAIL_CALLS = 50
 TOP_LIVE_SESSIONS = 10
@@ -129,6 +132,46 @@ def _fetch_promotions(
         _write(folder / "activity_details.json", details)
     except Exception as exc:
         _write(folder / "_error.json", _error_payload(exc))
+
+
+def _fetch_orders(
+    resources: Any, snapshot: Path, first: str, end_lt: str, *, sleep_s: float
+) -> dict[str, Any]:
+    """Orders created in ``[first, end_lt)``, by 7-day slices; returns the fetch record."""
+    from juli_backend.integrations.tiktok import pagination_scope
+
+    slices: list[dict[str, Any]] = []
+    orders: dict[str, dict] = {}
+    try:
+        start = date.fromisoformat(first)
+        stop = date.fromisoformat(end_lt)
+        while start < stop:
+            nxt = min(start + timedelta(days=ORDER_SLICE_DAYS), stop)
+            lo, hi = _window_seconds(start.isoformat(), nxt.isoformat())
+            with pagination_scope() as scope:
+                batch = resources.orders.search_all(create_time_from=lo, create_time_to=hi)
+            for order in batch:
+                orders[str(order.get("id") or len(orders))] = order
+            slices.append(
+                {
+                    "from": start.isoformat(),
+                    "to_exclusive": nxt.isoformat(),
+                    "orders": len(batch),
+                    "hit_page_cap": bool(scope.truncated),
+                }
+            )
+            start = nxt
+            time.sleep(sleep_s)
+        _write(snapshot / "orders.json", {"orders": list(orders.values())})
+        return {
+            "status": "ok",
+            "window": [first, end_lt],
+            "slices": slices,
+            "any_slice_hit_cap": any(x["hit_page_cap"] for x in slices),
+            "orders": len(orders),
+        }
+    except Exception as exc:
+        return {"status": "error", "slices": slices, **_error_payload(exc)}
 
 
 def _gmv_of(item: dict) -> Decimal:
@@ -234,13 +277,22 @@ async def _fetch_live(
 
     first, last = windows["current_30d"]
     end_lt = (date.fromisoformat(last) + timedelta(days=1)).isoformat()
+    orders_record = _fetch_orders(
+        resources, snapshot, windows["previous_30d"][0], end_lt, sleep_s=sleep_s
+    )
     _fetch_promotions(resources, snapshot, first, end_lt, sleep_s=sleep_s)
     _fetch_live_sessions(resources, snapshot, first, end_lt, sleep_s=sleep_s)
     _fetch_videos(resources, snapshot, first, end_lt, sleep_s=sleep_s)
 
     meta_path = snapshot / "meta.json"
     meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
-    meta.update({"as_of": as_of.isoformat(), "windows_30d": {k: windows[k] for k in fetched}})
+    meta.update(
+        {
+            "as_of": as_of.isoformat(),
+            "windows_30d": {k: windows[k] for k in fetched},
+            "orders_fetch": orders_record,
+        }
+    )
     if shop_name:
         meta["shop_name"] = shop_name
     _write(meta_path, meta)
