@@ -22,6 +22,7 @@ Order of operations, fixed:
 from __future__ import annotations
 
 import math
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import Enum
@@ -29,10 +30,10 @@ from enum import Enum
 from juli_backend.services.optimize_product.config import StageDiagnosisConfig
 from juli_backend.services.optimize_product.funnel import ZERO, ProductFunnel, ShopMedians
 from juli_backend.services.optimize_product.listing_signals import (
-    DESCRIPTION_CODES,
-    IMAGE_CODES,
-    TITLE_CODES,
     Evidence,
+    is_description_code,
+    is_image_code,
+    is_title_code,
 )
 
 
@@ -73,11 +74,18 @@ BRANCH_ORDER: dict[Branch, tuple[Angle, ...]] = {
     Branch.BASKET: (Angle.MUA_NHIEU_GIAM_NHIEU,),
 }
 
-ANGLE_CODES: dict[Angle, frozenset[str]] = {
-    Angle.ANH_BIA: IMAGE_CODES,
-    Angle.TIEU_DE: TITLE_CODES,
-    Angle.MO_TA: DESCRIPTION_CODES,
+#: Prefix rule per angle (TikTok returns codes the published table lacks).
+ANGLE_MATCHERS: dict[Angle, Callable[[str], bool]] = {
+    Angle.ANH_BIA: is_image_code,
+    Angle.TIEU_DE: is_title_code,
+    Angle.MO_TA: is_description_code,
 }
+
+
+def codes_for_angle(angle: Angle, codes: Iterable[str]) -> set[str]:
+    """The codes among ``codes`` that belong to ``angle`` by prefix rule."""
+    matcher = ANGLE_MATCHERS.get(angle)
+    return {c for c in codes if matcher(c)} if matcher else set()
 
 
 @dataclass(frozen=True)
@@ -238,14 +246,18 @@ def _angles_with_evidence(
             # Decision 4: a discount only when no description code remains and
             # the seller's maximum discount is set. Never while a Juli
             # promotion is live on the product (OP-FR-4 cooldown).
-            if not (codes & DESCRIPTION_CODES) and discount_cap_set and not active_promotion:
+            if (
+                not codes_for_angle(Angle.MO_TA, codes)
+                and discount_cap_set
+                and not active_promotion
+            ):
                 out.append(angle)
             continue
         if angle is Angle.MUA_NHIEU_GIAM_NHIEU:
             if not active_promotion:
                 out.append(angle)
             continue
-        if codes & ANGLE_CODES[angle]:
+        if codes_for_angle(angle, codes):
             out.append(angle)
     return out
 
@@ -349,7 +361,7 @@ def diagnose_product(
         return Skip(product.product_id, product.title, "no_diagnosis_codes", gaps)
 
     angle = angles[0]
-    angle_evidence = tuple(e for e in evidence if e.code in ANGLE_CODES.get(angle, frozenset()))
+    angle_evidence = tuple(e for e in evidence if codes_for_angle(angle, [e.code]))
     other_branch = Branch.PAGE if chosen_branch is Branch.CARD else Branch.CARD
     others = angles[1:] + _angles_with_evidence(
         other_branch,

@@ -46,10 +46,10 @@ from typing import Any
 from juli_backend.services.optimize_product.cards import build_cards
 from juli_backend.services.optimize_product.config import StageDiagnosisConfig
 from juli_backend.services.optimize_product.diagnosis import (
-    ANGLE_CODES,
     Angle,
     Diagnosis,
     Skip,
+    codes_for_angle,
     diagnose_product,
 )
 from juli_backend.services.optimize_product.funnel import (
@@ -188,11 +188,11 @@ def angle_matrix(evidence: list[Evidence], funnel: ProductFunnel) -> dict[str, s
     codes = {e.code for e in evidence}
     row: dict[str, str] = {}
     for angle in (Angle.ANH_BIA, Angle.TIEU_DE, Angle.MO_TA):
-        hits = sorted(codes & ANGLE_CODES[angle])
+        hits = sorted(codes_for_angle(angle, codes))
         row[angle.value] = ", ".join(hits) if hits else "không có bằng chứng"
     row[Angle.GIAM_GIA.value] = (
         "chỉ khi không còn mã mô tả và shop đã đặt trần giảm giá"
-        if not (codes & ANGLE_CODES[Angle.MO_TA])
+        if not codes_for_angle(Angle.MO_TA, codes)
         else "chưa xét: mô tả còn mã"
     )
     ipo = funnel.current.items_per_order

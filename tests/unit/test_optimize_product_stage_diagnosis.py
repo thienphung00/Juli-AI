@@ -37,6 +37,7 @@ from juli_backend.services.optimize_product import (
     listing_signals_from_product,
     parse_tiktok_diagnoses,
 )
+from juli_backend.services.optimize_product.diagnosis import codes_for_angle
 
 
 def _load_banned_patterns():
@@ -305,6 +306,32 @@ def test_parse_tiktok_diagnoses_keeps_source_and_fix() -> None:
     }
     [evidence] = parse_tiktok_diagnoses(entry)
     assert evidence.source is EvidenceSource.TIKTOK and evidence.how_to_solve == "Thêm từ khóa"
+
+
+@pytest.mark.parametrize(
+    ("code", "field", "angle"),
+    [
+        ("MAIN_IMG_FIRST_IMG_PSORIASIS", "image", Angle.ANH_BIA),
+        ("DESCRIPTION_INCLUDE_INVALID_IMAGE", "description", Angle.MO_TA),
+        ("TITLE_LESS_THAN_40_CHARACTERS", "title", Angle.TIEU_DE),
+        ("SEO_DIAGNOSTIC_ITEM", "title", Angle.TIEU_DE),
+        ("DESC_NO_NEW_LINE", "description", Angle.MO_TA),
+    ],
+)
+def test_unlisted_tiktok_codes_match_by_prefix(code: str, field: str, angle: Angle) -> None:
+    evidence = Evidence(code, EvidenceSource.TIKTOK)
+    assert evidence.field_name == field
+    assert codes_for_angle(angle, [code, "UNRELATED_CODE"]) == {code}
+    assert Evidence("UNRELATED_CODE", EvidenceSource.TIKTOK).field_name == "other"
+
+
+def test_psoriasis_image_code_drives_the_image_angle() -> None:
+    weak_ctr = _window(impressions=5000, ctr="0.04", ctor="0.10", aov="200000")
+    evidence = [Evidence("MAIN_IMG_FIRST_IMG_PSORIASIS", EvidenceSource.TIKTOK)]
+    result = diagnose_product(_product("p", "Weak CTR", weak_ctr), MEDIANS, evidence, CONFIG)
+    assert isinstance(result, Diagnosis)
+    assert result.angle is Angle.ANH_BIA
+    assert [e.code for e in result.evidence] == ["MAIN_IMG_FIRST_IMG_PSORIASIS"]
 
 
 def test_a34_window_reconstructs_counts_from_ratios() -> None:
