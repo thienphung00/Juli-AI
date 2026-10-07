@@ -322,3 +322,64 @@ implemented in `optimize_product/` and the report; the rationale is the owner's.
    and a rule card wins over an owner test on the same product (the technical notes say so).
    Eligible products beyond five go to "Sản phẩm cần theo dõi" with the reason "Đủ điều kiện
    nhưng đã đủ 5 card", so the owner sees what was left out and why.
+
+### Amendment 4 — 2026-10-07, traffic-source check
+
+A product's CTR can fall because a campaign, LIVE or affiliate video poured low-intent impressions
+onto it, and then rewriting the cover or title treats the wrong cause. Real Fujiwa data, Hydrogen
+270 mL, 30 days against the previous 30: impressions rose mostly from affiliate video (1.377 to
+4.283), yet CTR fell in every channel (product card 4,10 to 2,76 %, Shop Tab 3,72 to
+1,83 %, LIVE 4,66 to 3,14 %, affiliate video 4,79 to 2,73 %). A fall in every channel, including
+the ones that received no extra traffic, is a common cause (cover, price, title), so the cover card
+stands. The report now makes that distinction automatically and says where the traffic came from.
+
+**Verdict rule.** `services/optimize_product/traffic.py` reads six channel blocks of each A-34 row
+(product card, Shop Tab, shop video, shop LIVE, affiliate video, affiliate LIVE) for the current
+and previous 30 days and compares impressions per day and CTR per channel. A channel qualifies
+with at least `traffic_min_channel_impressions = 200` impressions in each window. The verdict is
+`đồng loạt` when CTR fell by at least `traffic_ctr_drop = 0.15` (relative) in at least two thirds of
+the qualifying channels, with at least two channels; `loãng traffic` when every channel whose CTR
+fell is a spiking channel (impressions per day at least `traffic_spike_ratio = 1.5` times the
+previous window) and every other qualifying channel's CTR is within `traffic_ctr_stable = 0.10`;
+and `không rõ` otherwise, including fewer than two qualifying channels. `đồng loạt` is tested
+first, so a product whose spiking channels are also two thirds of its channels reads as uniform.
+The four thresholds are the owner-approved defaults and live in `StageDiagnosisConfig`; they are
+adjustable. Each product also carries `top_impression_source`, the channel with the largest
+absolute gain in impressions per day.
+
+**Effect on cards.** Every CTR-triggered card (card branch: cover, title), rule or pending, and
+whichever trigger fired (shop median or own trend), is checked. Under `loãng traffic` the card is
+not emitted; the product goes to "Sản phẩm cần theo dõi" with "CTR giảm do lượt hiển thị tăng
+mạnh từ {kênh}, không phải do trang sản phẩm", and the freed slot goes to the next card. Under
+`đồng loạt` and `không rõ` the card stands; under `không rõ` the technical notes say the check was
+inconclusive. CTOR and AOV cards are not affected. Reasons gain short plain-Vietnamese clauses
+(biggest source of extra impressions, platform-discount share, a running promotion), each added
+only while the reason stays within 170 characters. The report gains a "Traffic đến từ đâu" section
+per card product (channel table, verdict, promotions, discount share, LIVE and video appearances).
+
+**Platform-discount share.** The Partner API has no read for platform campaigns, so the only trace
+is the discount on the orders themselves. Per product and window, the share of non-gift lines of
+non-cancelled orders with `platform_discount > 0` (and, separately, `seller_discount > 0`), placed
+by the order's `create_time` in UTC+7 because the order payload has no per-line timestamp. It
+appears in the top-5 table and on the card reason from `platform_discount_note_share = 0.5`, and
+is hidden under `platform_discount_min_lines = 10` lines in a window. It is a proxy: a campaign
+that changes no price on the order is invisible to it.
+
+**Promotion search attempt.** ADR-090 d.2 recorded Search Activities as unverified live. This
+amendment adds `POST /promotion/202309/activities/search` and `POST /promotion/202406/coupons/search`
+as exact-path production-read and sandbox entries (both are read-only searches), plus
+`PromotionResource.search_activities(_all)` and `search_coupons(_all)`. The live wrapper searches
+activities with status ONGOING, NOT_START and EXPIRED and all coupons, then calls Get Activity for
+the product list of every activity that overlaps the window and lacks one (at most 50 calls);
+`snapshot/promotions/_error.json` records any failure and the run continues. The search response
+carries no product list, and a product-specific coupon would need Get Coupon, which is not
+allowlisted, so those two cases are counted as unattributed rather than guessed. Shop LIVE sessions
+(top 10 by GMV) and shop videos (top 20 by GMV), with their per-product numbers, are fetched the same
+way into `snapshot/live` and `snapshot/videos`, through three analytics GET paths added to the
+production-read allowlist. Owners run live mode; none of this was exercised against TikTok when
+the amendment was written.
+
+**Blind spots, stated in the report.** Platform campaigns have no Partner API read, so they are
+inferred only from platform discount on orders. Ads and GMV Max sit behind the Business API, which
+the shop has not granted, and A-34 does not split paid from organic traffic, so paid traffic is
+mixed into the channels above.
