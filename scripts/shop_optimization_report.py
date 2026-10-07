@@ -13,8 +13,13 @@ nothing is written to TikTok. Examples::
     python scripts/shop_optimization_report.py --as-of 2026-10-05 \
         --out-dir out/fujiwa-report --shop-name "Fujiwa Vietnam Store"
 
-    # rebuild from a snapshot already in <out-dir>/snapshot, no network
-    python scripts/shop_optimization_report.py --replay --out-dir out/fujiwa-report
+    # rebuild from a snapshot already in <out-dir>/snapshot, no network;
+    # --owner-tests copies the owner's own tests into the snapshot
+    python scripts/shop_optimization_report.py --replay --out-dir out/fujiwa-report \
+        --owner-tests owner_tests.json
+
+Optional snapshot files (never fetched): ``orders.json`` (order search payloads,
+BMSM threshold), ``ratings.json`` (per-product star rating), ``owner_tests.json``.
 """
 
 from __future__ import annotations
@@ -113,6 +118,13 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--max-products", type=int, default=200)
     parser.add_argument("--sleep", type=float, default=0.4, help="seconds between live calls")
     parser.add_argument("--replay", action="store_true", help="skip network; use out-dir/snapshot")
+    parser.add_argument(
+        "--owner-tests",
+        type=Path,
+        default=None,
+        help='JSON list of {"product_id", "angle", "gift_product_id"?, "note"?}; '
+        "copied to <out-dir>/snapshot/owner_tests.json",
+    )
     return parser.parse_args(argv)
 
 
@@ -133,6 +145,8 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif not (snapshot / "meta.json").exists():
         raise SystemExit(f"--replay needs a snapshot at {snapshot}")
+    if args.owner_tests is not None:
+        _write(snapshot / "owner_tests.json", json.loads(args.owner_tests.read_text()))
     report = build_shop_report(snapshot, shop_name=args.shop_name)
     args.out_dir.mkdir(parents=True, exist_ok=True)
     (args.out_dir / "report.json").write_text(report.to_json())

@@ -37,6 +37,7 @@ from juli_backend.services.optimize_product import (
     listing_signals_from_product,
     parse_tiktok_diagnoses,
 )
+from juli_backend.services.optimize_product.basket import basket_threshold, quantities_by_product
 from juli_backend.services.optimize_product.diagnosis import codes_for_angle
 
 
@@ -181,14 +182,104 @@ def test_weak_ctor_with_healthy_ctr_routes_to_description() -> None:
 def test_discount_requires_no_description_code_and_a_cap() -> None:
     weak_ctor = _window(impressions=5000, ctr="0.08", ctor="0.05", aov="200000")
     product = _product("p", "Weak CTOR", weak_ctor)
-    without_cap = diagnose_product(product, MEDIANS, [], CONFIG)
-    assert isinstance(without_cap, Skip) and without_cap.reason == "no_diagnosis_codes"
+    not_asked = diagnose_product(product, MEDIANS, [], CONFIG)
+    assert isinstance(not_asked, Skip) and not_asked.reason == "tiktok_not_asked"
+    without_cap = diagnose_product(product, MEDIANS, [], CONFIG, diagnoses_asked=True)
+    assert isinstance(without_cap, Skip) and without_cap.reason == "discount_cap_needed"
     with_cap = diagnose_product(product, MEDIANS, [], CONFIG, discount_cap_set=True)
     assert isinstance(with_cap, Diagnosis) and with_cap.angle is Angle.GIAM_GIA
     locked = diagnose_product(
         product, MEDIANS, [], CONFIG, discount_cap_set=True, active_promotion=True
     )
     assert isinstance(locked, Skip)
+    locked_asked = diagnose_product(
+        product,
+        MEDIANS,
+        [],
+        CONFIG,
+        discount_cap_set=True,
+        active_promotion=True,
+        diagnoses_asked=True,
+    )
+    assert isinstance(locked_asked, Skip) and locked_asked.reason == "tiktok_found_no_fault"
+
+
+def test_healthy_ctr_never_falls_back_to_the_card_branch() -> None:
+    weak_ctor = _window(impressions=5000, ctr="0.08", ctor="0.05", aov="200000")
+    product = _product("p", "Weak CTOR", weak_ctor)
+    image_only = [Evidence("MAIN_IMG_NUMBER_LESS_THAN_FIVE", EvidenceSource.LOCAL, "1 ảnh chính")]
+    needs_cap = diagnose_product(product, MEDIANS, image_only, CONFIG, diagnoses_asked=True)
+    assert isinstance(needs_cap, Skip) and needs_cap.reason == "discount_cap_needed"
+    discount = diagnose_product(
+        product, MEDIANS, image_only, CONFIG, diagnoses_asked=True, discount_cap_set=True
+    )
+    assert isinstance(discount, Diagnosis)
+    assert discount.branch is Branch.PAGE and discount.angle is Angle.GIAM_GIA
+    assert discount.other_angles == ()
+
+
+def test_main_kpi_below_its_floor_reads_not_enough_data() -> None:
+    # 5000 impressions in 14 days clears the CTR floor; 200 clicks (14 a day) misses CTOR's.
+    weak_ctr = _window(impressions=5000, ctr="0.04", ctor="0.10", aov="200000")
+    evidence = [Evidence("MAIN_IMG_NUMBER_LESS_THAN_FIVE", EvidenceSource.LOCAL, "1 ảnh chính")]
+    result = diagnose_product(_product("p", "Few clicks", weak_ctr), MEDIANS, evidence, CONFIG)
+    assert isinstance(result, Diagnosis)
+    assert result.gaps["ctr"].cleared_floor and not result.gaps["ctor"].cleared_floor
+    [card] = build_cards([result], CONFIG)
+    assert card.main_kpi == "CTOR" and card.main_kpi_value == "chưa đủ dữ liệu"
+
+
+def _orders(quantities: list[int], product_id: str = "p", status: str = "COMPLETED") -> list[dict]:
+    return [
+        {"status": status, "line_items": [{"product_id": product_id, "is_gift": False}] * q}
+        for q in quantities
+    ]
+
+
+def test_quantities_count_non_gift_lines_and_skip_cancelled_orders() -> None:
+    orders = [
+        *_orders([2, 1]),
+        *_orders([5], status="CANCELLED"),
+        {
+            "status": "COMPLETED",
+            "line_items": [
+                {"product_id": "p", "is_gift": False},
+                {"product_id": "p", "is_gift": True},
+                {"product_id": "other", "is_gift": False},
+            ],
+        },
+    ]
+    assert quantities_by_product(orders) == {"p": [2, 1, 1], "other": [1]}
+
+
+def test_bmsm_threshold_is_median_plus_one_when_enough_share_buys_it() -> None:
+    quantities = [1] * 17 + [2] * 3  # 20 orders, median 1 → q = 2, 15 % buy ≥ 2
+    threshold = basket_threshold(quantities, Decimal("1.1"), CONFIG)
+    assert (threshold.threshold_items, threshold.source) == (2, "histogram")
+    assert threshold.share == Decimal(3) / Decimal(20) and threshold.reached
+
+
+def test_bmsm_threshold_unreached_when_too_few_buy_it() -> None:
+    quantities = [1] * 39 + [2]  # 2.5 % buy ≥ 2, under the 5 % share
+    assert not basket_threshold(quantities, Decimal("1.0"), CONFIG).reached
+    weak_aov = _window(
+        impressions=5000, ctr="0.08", ctor="0.10", aov="120000", items_per_order="1.4"
+    )
+    result = diagnose_product(
+        _product("p", "Weak AOV", weak_aov), MEDIANS, [], CONFIG, basket_quantities=quantities
+    )
+    assert isinstance(result, Skip) and result.reason == "bmsm_threshold_unreached"
+
+
+def test_bmsm_threshold_falls_back_to_the_mean_below_twenty_orders() -> None:
+    few = basket_threshold([1] * 19, Decimal("2.6"), CONFIG)
+    assert (few.threshold_items, few.source, few.reached) == (3, "mean_fallback", True)
+    assert basket_threshold(None, Decimal("0.4"), CONFIG).threshold_items == 2  # never below 2
+
+
+def test_bmsm_histogram_beats_the_mean() -> None:
+    quantities = [2] * 12 + [3] * 8  # median 2 → q = 3; 40 % buy ≥ 3
+    assert basket_threshold(quantities, Decimal("1.0"), CONFIG).threshold_items == 3
 
 
 def test_card_branch_without_evidence_falls_to_page_branch() -> None:
@@ -236,7 +327,8 @@ def test_weak_aov_with_healthy_ctor_is_a_bmsm_card() -> None:
     assert isinstance(result, Diagnosis)
     assert result.label is Label.AOV and result.angle is Angle.MUA_NHIEU_GIAM_NHIEU
     assert result.bmsm is not None
-    assert result.bmsm.threshold_items == 2 + CONFIG.bmsm_threshold_plus  # ceil(1.4) + 1
+    assert result.bmsm.threshold_items == 2  # floor(1.4) + 1, no order histogram
+    assert result.bmsm.source == "mean_fallback"
     assert result.bmsm.percent_is_estimate is True
 
 

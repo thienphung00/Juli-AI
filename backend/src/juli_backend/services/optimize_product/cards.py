@@ -131,15 +131,27 @@ def angle_sentence(diag: Diagnosis) -> str:
     return f"{action}. " + " ".join(parts)
 
 
+NOT_ENOUGH_DATA = "chưa đủ dữ liệu"
+
+
+def main_kpi_value(diag: Diagnosis) -> str:
+    """The card's Main KPI value, or ``NOT_ENOUGH_DATA`` below its ADR-077 floor.
+
+    A CTOR built on a handful of clicks reads as 0,00 %, which a seller takes
+    for a fact; below the floor the card says so instead (Amendment 3).
+    """
+    if diag.label is Label.CTOR:
+        gap = diag.gaps["ctor"]
+        return _ratio(gap.value) if gap.cleared_floor else NOT_ENOUGH_DATA
+    gap = diag.gaps["aov"]
+    return _vnd(gap.value) if gap.cleared_floor else NOT_ENOUGH_DATA
+
+
 def build_cards(diagnoses: list[Diagnosis], config: StageDiagnosisConfig) -> list[TestCard]:
     """Rank, mark the open slots, and render copy for every diagnosis."""
     cards: list[TestCard] = []
     for index, diag in enumerate(rank_diagnoses(diagnoses), start=1):
-        kpi_value = (
-            _ratio(diag.gaps["ctor"].value)
-            if diag.label is Label.CTOR
-            else _vnd(diag.gaps["aov"].value)
-        )
+        kpi_value = main_kpi_value(diag)
         cards.append(
             TestCard(
                 product_id=diag.product_id,

@@ -48,8 +48,17 @@ class StageDiagnosisConfig:
     #: Decision 6: open Optimize Product cards per shop.
     max_open_cards_per_shop: int = 5
 
-    #: Decision 5: BMSM threshold = ceil(mean items per SKU order) + this.
-    bmsm_threshold_plus: int = 1
+    #: Decision 5 (Amendment 3): BMSM threshold from the real basket. With
+    #: at least ``bmsm_min_orders_for_histogram`` orders of the product the
+    #: threshold is ``median quantity + 1`` and the card is emitted only when
+    #: at least ``bmsm_min_share_at_threshold`` of those orders already buy
+    #: that many; otherwise ``floor(mean items per order) + 1``, never below
+    #: ``bmsm_min_threshold_items``.
+    bmsm_min_orders_for_histogram: int = 20
+    bmsm_min_share_at_threshold: Decimal = Decimal("0.05")
+    bmsm_min_threshold_items: int = 2
+    #: Amendment 3: below this star rating no demand lever is proposed.
+    min_rating_for_demand_levers: Decimal = Decimal("4.0")
     #: Decision 5: BMSM percentage is bounded by the seller's maximum
     #: discount (OP-FR-4). When the scan does not know the cap it proposes
     #: this value and labels it an estimate.

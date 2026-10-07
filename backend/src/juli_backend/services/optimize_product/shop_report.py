@@ -27,6 +27,9 @@ Snapshot layout (a superset of :mod:`catalog_scan`'s)::
     products/<id>.json      GetProduct payload
     diagnoses/<id>.json     optional, one data.products[] entry of the diagnoses endpoint
     diagnoses/_error.json   optional
+    orders.json             optional, {"orders": [...]} order search payloads (BMSM threshold)
+    ratings.json            optional, {"<product_id>": {"rating": 4.8, "review_count": 601}}
+    owner_tests.json        optional, the owner's own tests (see ``_owner_cards``)
 """
 
 from __future__ import annotations
@@ -34,19 +37,28 @@ from __future__ import annotations
 import html
 import json
 from collections import Counter
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
 
+from juli_backend.services.optimize_product.basket import (
+    CANCELLED,
+    basket_threshold,
+    quantities_by_product,
+    share_with_at_least,
+)
 from juli_backend.services.optimize_product.cards import (
     ANGLE_ACTION,
+    NOT_ENOUGH_DATA,
     build_cards,
     gap_reason_sentence,
+    main_kpi_value,
 )
 from juli_backend.services.optimize_product.catalog_scan import (
     a34_index,
+    asked_products,
     build_inputs,
     diagnose_all,
     load_json,
@@ -57,11 +69,14 @@ from juli_backend.services.optimize_product.diagnosis import (
     Angle,
     Branch,
     Gap,
-    Label,
-    Skip,
     Trigger,
 )
-from juli_backend.services.optimize_product.funnel import ZERO, FunnelWindow, to_decimal
+from juli_backend.services.optimize_product.funnel import (
+    ZERO,
+    FunnelWindow,
+    ProductFunnel,
+    to_decimal,
+)
 from juli_backend.services.optimize_product.listing_signals import (
     is_description_code,
     is_image_code,
@@ -75,7 +90,17 @@ REST_ROWS = 10
 HOW_TO_SOLVE_MAX = 140
 
 STATUS_RULE = "Juli tự đề xuất"
-STATUS_PENDING = "Chờ TikTok chỉ ra lỗi"
+STATUS_NEEDS_CAP = "Cần mức giảm giá tối đa"
+STATUS_NOT_ASKED = "Chưa hỏi TikTok"
+STATUS_OWNER = "Thử nghiệm theo kế hoạch của bạn"
+
+WATCH_NO_FAULT = "TikTok không thấy lỗi ở trang sản phẩm"
+WATCH_BASKET = "Rất ít đơn mua nhiều món cùng lúc, chưa nên làm mua nhiều giảm nhiều"
+
+#: Owner-test angles beyond the five diagnosis angles.
+ANGLE_GIFT = "quà tặng kèm"
+OWNER_ANGLES = (*(a.value for a in Angle), ANGLE_GIFT)
+BASKET_ANGLES = (Angle.MUA_NHIEU_GIAM_NHIEU.value, ANGLE_GIFT)
 
 # --------------------------------------------------------------------------- metrics
 
@@ -243,6 +268,16 @@ class ReportCard:
 
 
 @dataclass(frozen=True)
+class WatchRow:
+    """A product the report names but proposes nothing for, and why."""
+
+    product_id: str
+    title: str
+    reason: str
+    detail: str
+
+
+@dataclass(frozen=True)
 class DiagnosisRow:
     product_id: str
     title: str
@@ -263,6 +298,7 @@ class ShopReport:
     top_products: list[ProductBlock]
     rest_products: list[RestRow]
     cards: list[ReportCard]
+    watch: list[WatchRow]
     diagnoses: list[DiagnosisRow]
     diagnoses_error: dict[str, str] | None
     technical: dict[str, Any] = field(default_factory=dict)
@@ -361,15 +397,16 @@ def _detail(snapshot: Path, product_id: str) -> dict | None:
 
 
 def channel_shares(item: dict) -> list[tuple[str, Decimal]]:
-    """Share (%) of a product's orders by channel, non-zero channels only."""
+    """Share (%) of a product's channel-attributed orders, non-zero channels only.
+
+    TikTok attributes some orders to more than one channel block, so the shares
+    are normalised over the sum of the five blocks and always total 100 %.
+    """
 
     def block(name: str) -> dict:
         value = item.get(name)
         return value if isinstance(value, dict) else {}
 
-    total = to_decimal((item.get("total_performance") or {}).get("sku_orders"))
-    if total <= 0:
-        return []
     tab = block("shop_tab_performance")
     orders = (
         (
@@ -394,6 +431,9 @@ def channel_shares(item: dict) -> list[tuple[str, Decimal]]:
             to_decimal(block("affiliate_total_performance").get("attributed_sku_orders")),
         ),
     )
+    total = sum((n for _label, n in orders), ZERO)
+    if total <= 0:
+        return []
     return [(label, n / total * 100) for label, n in orders if n > 0]
 
 
@@ -453,69 +493,269 @@ def _diagnosis_rows(snapshot: Path, titles: dict[str, str], skip: set[str]) -> l
     return rows
 
 
-def _cards(snapshot: Path, config: StageDiagnosisConfig) -> tuple[list[ReportCard], dict[str, Any]]:
-    """Rule cards, then pending cards, through the one shared pipeline."""
+def _load_orders(snapshot: Path) -> list[dict] | None:
+    raw = load_json(snapshot / "orders.json")
+    orders = raw.get("orders") if isinstance(raw, dict) else raw
+    return [o for o in orders if isinstance(o, dict)] if isinstance(orders, list) else None
+
+
+def _load_ratings(snapshot: Path) -> dict[str, Decimal] | None:
+    raw = load_json(snapshot / "ratings.json")
+    if not isinstance(raw, dict):
+        return None
+    out: dict[str, Decimal] = {}
+    for product_id, entry in raw.items():
+        value = entry.get("rating") if isinstance(entry, dict) else entry
+        if not str(product_id).startswith("_") and value is not None:
+            out[str(product_id)] = to_decimal(value)
+    return out
+
+
+def _load_owner_tests(snapshot: Path) -> list[dict]:
+    raw = load_json(snapshot / "owner_tests.json")
+    tests = [t for t in raw if isinstance(t, dict)] if isinstance(raw, list) else []
+    for test in tests:
+        if test.get("angle") not in OWNER_ANGLES or not test.get("product_id"):
+            raise ValueError(f"owner test needs product_id and one of {OWNER_ANGLES}: {test}")
+    return tests
+
+
+def _kpi_value(funnel: ProductFunnel | None, config: StageDiagnosisConfig, *, aov: bool) -> str:
+    """Current 14-day Main KPI, or "chưa đủ dữ liệu" below its ADR-077 floor (Amendment 3)."""
+    if funnel is None:
+        return NOT_ENOUGH_DATA
+    floors = funnel.clears_floor(config)
+    if aov:
+        return fmt_value("money", funnel.current.aov) if floors["aov"] else NOT_ENOUGH_DATA
+    return fmt_value("ratio", funnel.current.ctor) if floors["ctor"] else NOT_ENOUGH_DATA
+
+
+def _firing_gap(gaps: dict[str, Gap], config: StageDiagnosisConfig) -> Gap:
+    """The larger fired gap of CTR and CTOR — the one a pending card's reason names."""
+    firing = [g for g in (gaps["ctr"], gaps["ctor"]) if g.fires(config)]
+    return max(firing, key=lambda g: g.gap)
+
+
+def _gap_sentence(gap: Gap, config: StageDiagnosisConfig) -> str:
+    return gap_reason_sentence(
+        gap, gap.trigger or Trigger.SHOP_MEDIAN, full_median_peers=config.full_median_peers
+    )
+
+
+def _owner_cards(
+    tests: list[dict],
+    *,
+    funnels: dict[str, ProductFunnel],
+    titles: dict[str, str],
+    quantities: dict[str, list[int]],
+    orders_present: bool,
+    cur_items: dict[str, dict],
+    config: StageDiagnosisConfig,
+) -> list[ReportCard]:
+    """One card per owner test, in file order, with a placeholder rank."""
+    out: list[ReportCard] = []
+    for test in tests:
+        product_id, angle = str(test["product_id"]), str(test["angle"])
+        funnel = funnels.get(product_id)
+        basket = angle in BASKET_ANGLES
+        note = str(test.get("note") or "").strip()
+        if not note:
+            aov = Counts.from_item(cur_items.get(product_id)).metrics()["aov"]
+            note = (
+                "Chưa đủ đơn trong 30 ngày để tính AOV"
+                if aov is None
+                else f"AOV 30 ngày qua là {fmt_value('money', aov)}"
+            )
+            share = share_with_at_least(quantities.get(product_id), 2) if orders_present else None
+            if share is not None:
+                note += f"; {_vn(share * 100, 0)} % số đơn có từ 2 món"
+        threshold = basket_threshold(
+            quantities.get(product_id), funnel.current.items_per_order if funnel else None, config
+        ).threshold_items
+        if angle == Angle.MUA_NHIEU_GIAM_NHIEU.value:
+            change = f"Mua nhiều giảm nhiều, từ {threshold} món"
+        elif angle == ANGLE_GIFT:
+            gift_id = str(test.get("gift_product_id") or "")
+            gift = _truncate(titles.get(gift_id, gift_id), 80)
+            change = (
+                f"Tặng kèm {gift} cho khách mua từ {threshold} món"
+                if gift_id
+                else f"Tặng quà kèm cho khách mua từ {threshold} món"
+            )
+        else:
+            change = ANGLE_ACTION[Angle(angle)]
+        out.append(
+            ReportCard(
+                rank=0,
+                product_id=product_id,
+                title=titles.get(product_id, product_id),
+                main_kpi="AOV" if basket else "CTOR",
+                main_kpi_value=_kpi_value(funnel, config, aov=basket),
+                reason=note,
+                change=change,
+                status=STATUS_OWNER,
+                rank_score=ZERO,
+            )
+        )
+    return out
+
+
+def _cards(
+    snapshot: Path,
+    config: StageDiagnosisConfig,
+    *,
+    titles: dict[str, str],
+    cur_items: dict[str, dict],
+) -> tuple[list[ReportCard], list[WatchRow], dict[str, Any]]:
+    """Cards in the owner's order, plus the products the report only watches.
+
+    Order: rule cards, then cards that wait for a discount cap (each ranked by
+    gap × GMV_28d), then owner tests in file order, then "Chưa hỏi TikTok"
+    cards fill what is left of ``max_open_cards_per_shop``. A product holds one
+    card; a rule card wins over an owner test on the same product.
+    """
     funnels, _signals, evidence_by_id, excluded = build_inputs(snapshot, config)
-    medians, diagnoses, skips = diagnose_all(funnels, evidence_by_id, excluded, config)
+    orders = _load_orders(snapshot)
+    quantities = quantities_by_product(orders) if orders is not None else {}
+    meta = load_json(snapshot / "meta.json") or {}
+    cap_set = meta.get("max_discount_percent") is not None
+    asked = asked_products(snapshot)
+    medians, diagnoses, skips = diagnose_all(
+        funnels,
+        evidence_by_id,
+        excluded,
+        config,
+        asked=asked,
+        quantities=quantities,
+        discount_cap_set=cap_set,
+    )
     by_id = {d.product_id: d for d in diagnoses}
     funnel_by_id = {f.product_id: f for f in funnels}
-    limit = config.max_open_cards_per_shop
+    ratings = _load_ratings(snapshot)
+    low = {
+        pid: rating
+        for pid, rating in (ratings or {}).items()
+        if rating < config.min_rating_for_demand_levers
+    }
+    watch: list[WatchRow] = []
 
-    cards: list[ReportCard] = []
-    for card in build_cards(diagnoses, config)[:limit]:
-        diag = by_id[card.product_id]
-        if diag.label is Label.CTOR:
-            kpi, value = "CTOR", fmt_value("ratio", diag.gaps["ctor"].value)
-        else:
-            kpi, value = "AOV", fmt_value("money", diag.gaps["aov"].value)
+    def blocked_by_rating(product_id: str, detail: str) -> bool:
+        if product_id not in low:
+            return False
+        reason = f"Điểm đánh giá {_vn(low[product_id], 1)} sao, cần cải thiện sản phẩm trước"
+        watch.append(WatchRow(product_id, titles.get(product_id, product_id), reason, detail))
+        return True
+
+    rule_cards: list[ReportCard] = []
+    bmsm_details: dict[str, dict[str, Any]] = {}
+    for scored in build_cards(diagnoses, config):
+        diag = by_id[scored.product_id]
+        if blocked_by_rating(scored.product_id, scored.reason):
+            continue
         if diag.angle is Angle.MUA_NHIEU_GIAM_NHIEU and diag.bmsm:
             text = f"Mua nhiều giảm nhiều, từ {diag.bmsm.threshold_items} món"
+            bmsm_details[scored.product_id] = {
+                "threshold_items": diag.bmsm.threshold_items,
+                "source": diag.bmsm.source,
+                "orders": diag.bmsm.orders,
+                "share_at_threshold": diag.bmsm.share,
+            }
         else:
             text = ANGLE_ACTION[diag.angle]
-        cards.append(
+        rule_cards.append(
             ReportCard(
-                rank=len(cards) + 1,
-                product_id=card.product_id,
-                title=card.title,
-                main_kpi=kpi,
-                main_kpi_value=value,
-                reason=card.reason,
+                rank=0,
+                product_id=scored.product_id,
+                title=scored.title,
+                main_kpi=scored.main_kpi,
+                main_kpi_value=main_kpi_value(diag),
+                reason=scored.reason,
                 change=text,
                 status=STATUS_RULE,
                 rank_score=diag.rank_score,
             )
         )
 
-    pending: list[tuple[Decimal, Decimal, Gap, Skip]] = []
+    needs_cap: list[ReportCard] = []
+    not_asked: list[ReportCard] = []
     for skip in skips:
-        if skip.reason != "no_diagnosis_codes":
+        if skip.reason == "bmsm_threshold_unreached":
+            sentence = _gap_sentence(skip.gaps["aov"], config)
+            if not blocked_by_rating(skip.product_id, sentence):
+                watch.append(WatchRow(skip.product_id, skip.title, WATCH_BASKET, sentence))
             continue
-        # This skip only arises under the CTOR label, whose gaps are CTR and CTOR.
-        firing = [g for g in (skip.gaps["ctr"], skip.gaps["ctor"]) if g.fires(config)]
-        if not firing:
+        if skip.reason not in ("tiktok_not_asked", "discount_cap_needed", "tiktok_found_no_fault"):
             continue
-        gap = max(firing, key=lambda g: g.gap)
-        pending.append((gap.gap * funnel_by_id[skip.product_id].gmv_28d, gap.gap, gap, skip))
-    pending.sort(key=lambda row: (row[0], row[1]), reverse=True)
-    for score, _size, gap, skip in pending[: max(limit - len(cards), 0)]:
-        gaps = skip.gaps
-        branch = Branch.CARD if gaps["ctr"].gap >= gaps["ctor"].gap else Branch.PAGE
-        first = BRANCH_ORDER[branch][0]
-        cards.append(
-            ReportCard(
-                rank=len(cards) + 1,
-                product_id=skip.product_id,
-                title=skip.title,
-                main_kpi="CTOR",
-                main_kpi_value=fmt_value("ratio", gaps["ctor"].value),
-                reason=gap_reason_sentence(
-                    gap,
-                    gap.trigger or Trigger.SHOP_MEDIAN,
-                    full_median_peers=config.full_median_peers,
-                ),
-                change=f"{ANGLE_ACTION[first]}, nếu TikTok chỉ ra lỗi",
-                status=STATUS_PENDING,
-                rank_score=score,
+        # These skips arise only under the CTOR label, whose gaps are CTR and CTOR.
+        gap = _firing_gap(skip.gaps, config)
+        sentence = _gap_sentence(gap, config)
+        if blocked_by_rating(skip.product_id, sentence):
+            continue
+        if skip.reason == "tiktok_found_no_fault":
+            watch.append(WatchRow(skip.product_id, skip.title, WATCH_NO_FAULT, sentence))
+            continue
+        score = gap.gap * funnel_by_id[skip.product_id].gmv_28d
+        ctr, ctor = skip.gaps["ctr"], skip.gaps["ctor"]
+        branch = Branch.CARD if ctr.fires(config) and ctr.gap >= ctor.gap else Branch.PAGE
+        needs = skip.reason == "discount_cap_needed"
+        card = ReportCard(
+            rank=0,
+            product_id=skip.product_id,
+            title=skip.title,
+            main_kpi="CTOR",
+            main_kpi_value=_kpi_value(funnel_by_id[skip.product_id], config, aov=False),
+            reason=sentence,
+            change=(
+                "Giảm giá sản phẩm, sau khi shop đặt mức giảm giá tối đa"
+                if needs
+                else f"{ANGLE_ACTION[BRANCH_ORDER[branch][0]]}, nếu TikTok chỉ ra lỗi"
+            ),
+            status=STATUS_NEEDS_CAP if needs else STATUS_NOT_ASKED,
+            rank_score=score,
+        )
+        (needs_cap if needs else not_asked).append(card)
+    needs_cap.sort(key=lambda c: c.rank_score, reverse=True)
+    not_asked.sort(key=lambda c: c.rank_score, reverse=True)
+
+    owner_tests = _load_owner_tests(snapshot)
+    titles = dict(titles)
+    for test in owner_tests:
+        for key in ("product_id", "gift_product_id"):
+            pid = str(test.get(key) or "")
+            detail = _detail(snapshot, pid) if pid and pid not in titles else None
+            if detail and detail.get("title"):
+                titles[pid] = str(detail["title"])
+    taken = {c.product_id for c in (*rule_cards, *needs_cap)}
+    dropped: list[str] = []
+    owner_cards: list[ReportCard] = []
+    for card in _owner_cards(
+        owner_tests,
+        funnels=funnel_by_id,
+        titles=titles,
+        quantities=quantities,
+        orders_present=orders is not None,
+        cur_items=cur_items,
+        config=config,
+    ):
+        if card.product_id in taken:
+            dropped.append(card.product_id)
+        elif blocked_by_rating(card.product_id, card.reason):
+            taken.add(card.product_id)
+        else:
+            taken.add(card.product_id)
+            owner_cards.append(card)
+    fill = [c for c in not_asked if c.product_id not in taken]
+
+    ordered = [*rule_cards, *needs_cap, *owner_cards, *fill]
+    limit = config.max_open_cards_per_shop
+    cards = [replace(c, rank=i) for i, c in enumerate(ordered[:limit], start=1)]
+    for card in ordered[limit:]:
+        watch.append(
+            WatchRow(
+                card.product_id,
+                card.title,
+                f"Đủ điều kiện nhưng đã đủ {limit} card",
+                card.reason,
             )
         )
     tech = {
@@ -527,11 +767,24 @@ def _cards(snapshot: Path, config: StageDiagnosisConfig) -> tuple[list[ReportCar
         },
         "card_products": len(funnels),
         "card_excluded": len(excluded),
-        "rule_cards_found": len(diagnoses),
-        "pending_cards_found": len(pending),
+        "rule_cards_found": len(rule_cards),
+        "needs_cap_found": len(needs_cap),
+        "not_asked_found": len(not_asked),
+        "owner_tests": len(owner_tests),
+        "owner_tests_dropped_rule_card_wins": dropped,
         "skip_reasons": dict(Counter(s.reason.split(":")[0] for s in skips)),
+        "orders_present": orders is not None,
+        "orders_counted": sum(1 for o in orders or [] if str(o.get("status") or "") != CANCELLED),
+        "bmsm": bmsm_details,
+        "discount_cap_set": cap_set,
+        "ratings_applied": ratings is not None,
+        "ratings_count": len(ratings or {}),
+        "ratings_below_min": sorted(low),
+        "min_rating_for_demand_levers": config.min_rating_for_demand_levers,
+        "bmsm_min_orders_for_histogram": config.bmsm_min_orders_for_histogram,
+        "bmsm_min_share_at_threshold": config.bmsm_min_share_at_threshold,
     }
-    return cards, tech
+    return cards, watch, tech
 
 
 def build_shop_report(
@@ -655,7 +908,7 @@ def build_shop_report(
             )
         )
 
-    cards, tech = _cards(snapshot, config)
+    cards, watch, tech = _cards(snapshot, config, titles=titles, cur_items=cur_items)
     error = load_json(snapshot / "diagnoses" / "_error.json")
     tech.update(
         {
@@ -685,6 +938,7 @@ def build_shop_report(
         top_products=top_products,
         rest_products=rest_products,
         cards=cards,
+        watch=watch,
         diagnoses=diagnosis_rows,
         diagnoses_error=(
             {str(k): str(v) for k, v in error.items()} if isinstance(error, dict) else None
@@ -889,14 +1143,25 @@ _LEGEND = {
         "Juli thấy một chỉ số của sản phẩm tụt rõ (từ 20 % trở lên) và có đủ dữ liệu để đo kết "
         "quả sau khi thay đổi. Card này đi ra tự động mỗi đêm, bạn chỉ cần duyệt.",
     ),
-    STATUS_PENDING: (
+    STATUS_NEEDS_CAP: (
         "warn",
-        "Số liệu cho thấy sản phẩm có vấn đề, nhưng Juli kiểm tra trang sản phẩm chưa thấy lỗi "
-        "nào. Juli sẽ không sửa đoán. Card chờ công cụ chẩn đoán của TikTok báo lỗi cụ thể (ảnh, "
-        "tiêu đề, mô tả) rồi mới đề xuất sửa đúng chỗ đó.",
+        "Số liệu cho thấy sản phẩm có vấn đề ở bước từ lúc khách bấm vào đến lúc đặt đơn, và "
+        "trang sản phẩm không có lỗi nào để sửa. Juli chỉ đề xuất giảm giá khi shop đã cho biết "
+        "mức giảm tối đa chấp nhận được.",
+    ),
+    STATUS_NOT_ASKED: (
+        "warn",
+        "Số liệu cho thấy sản phẩm có vấn đề, nhưng công cụ chẩn đoán của TikTok chưa được chạy "
+        "cho sản phẩm này; lần chạy đầy đủ tiếp theo sẽ hỏi. Juli sẽ không sửa đoán, nên chỉ "
+        "đề xuất sau khi TikTok chỉ ra lỗi cụ thể.",
+    ),
+    STATUS_OWNER: (
+        "off",
+        "Thử nghiệm do bạn tự đặt ra. Juli không tự đề xuất card này, chỉ ghi lại số liệu hiện "
+        "tại để so sánh sau khi thử.",
     ),
 }
-_COUNT_WORD = {1: "Một", 2: "Hai", 3: "Ba"}
+_COUNT_WORD = {1: "Một", 2: "Hai", 3: "Ba", 4: "Bốn"}
 
 
 def _e(text: object) -> str:
@@ -952,11 +1217,12 @@ def _card_table(report: ShopReport) -> str:
         )
     body = []
     for c in report.cards:
-        pill = "ok" if c.status == STATUS_RULE else "warn"
+        pill = _LEGEND[c.status][0]
+        value = f"· {c.main_kpi_value}" if c.main_kpi_value == NOT_ENOUGH_DATA else c.main_kpi_value
         body.append(
             f'<tr><td class="num">{c.rank}</td><td class="name">{_e(c.title)}</td>'
             f'<td class="kpiv"><span class="pill kpi">{_e(c.main_kpi)}</span> '
-            f"{_e(c.main_kpi_value)}</td><td>{_e(c.reason)}</td><td>{_e(c.change)}</td>"
+            f"{_e(value)}</td><td>{_e(c.reason)}</td><td>{_e(c.change)}</td>"
             f'<td><span class="pill {pill}">{_e(c.status)}</span></td></tr>'
         )
     head = ["#", "Sản phẩm", "Chỉ số chính", "Lý do", "Thay đổi đề xuất", "Trạng thái"]
@@ -966,6 +1232,23 @@ def _card_table(report: ShopReport) -> str:
         _table(head, body),
         '<p class="note">Card dùng số liệu 14 ngày gần nhất so với 4 tuần trước đó. Mỗi card chỉ '
         "thay đổi một thứ.</p>",
+    )
+
+
+def _watch_table(report: ShopReport) -> str:
+    if not report.watch:
+        return ""
+    body = [
+        f'<tr><td class="name">{_e(w.title)}</td><td>{_e(w.reason)}</td>'
+        f"<td>{_e(w.detail)}</td></tr>"
+        for w in report.watch
+    ]
+    return _section(
+        "Theo dõi",
+        "Sản phẩm cần theo dõi",
+        _table(["Sản phẩm", "Lý do chưa có card", "Số liệu"], body),
+        '<p class="note">Những sản phẩm này có tín hiệu đáng chú ý nhưng Juli không đề xuất thay '
+        "đổi lúc này.</p>",
     )
 
 
@@ -1031,14 +1314,15 @@ def _top_table(report: ShopReport) -> str:
             for label, share in p.channels
         ]
         channels.append(f"<td>{'<br>'.join(parts) or '—'}</td>")
-    body.append(f'<tr><td class="rowlabel">Kênh ra đơn (30 ngày qua)</td>{"".join(channels)}</tr>')
+    body.append(
+        f'<tr><td class="rowlabel">Tỷ trọng kênh (30 ngày qua)</td>{"".join(channels)}</tr>'
+    )
     return _section(
         "Chủ lực",
         "Từng sản phẩm trong top 5",
         _table(head, body),
-        '<p class="note">Mỗi ô ghi số 30 ngày qua và so với 30 ngày trước đó. Kênh ra đơn cho biết '
-        "đơn của sản phẩm đến từ đâu; các kênh có thể chồng lên nhau nên tổng không nhất thiết là "
-        "100 %.</p>",
+        '<p class="note">Mỗi ô ghi số 30 ngày qua và so với 30 ngày trước đó. Tỷ trọng kênh cho '
+        "biết đơn của sản phẩm đến từ đâu; năm kênh cộng lại là 100 %.</p>",
     )
 
 
@@ -1137,10 +1421,11 @@ def _tech(report: ShopReport) -> str:
         "<li>Kênh thẻ sản phẩm = seller_product_card_performance + shop_tab_performance "
         "(impressions, clicks và attributed_sku_orders cộng lại; đơn Shop Tab = "
         "shop_tab_product_clicks × shop_tab_ctor_sku).</li>",
-        "<li>Kênh ra đơn = đơn gán cho từng kênh ÷ sku_orders của total_performance: thẻ sản phẩm "
+        "<li>Tỷ trọng kênh = đơn gán cho từng kênh ÷ tổng đơn gán của năm kênh: thẻ sản phẩm "
         "(seller_product_card_performance), Shop Tab, video của shop (seller_video_performance), "
         "LIVE của shop (seller_live_performance), affiliate "
-        "(affiliate_total_performance).</li></ol>",
+        "(affiliate_total_performance). Tỷ trọng được chuẩn hóa trên năm khối kênh vì TikTok gán "
+        "một số đơn cho nhiều hơn một khối, nên chia cho sku_orders sẽ vượt 100 %.</li></ol>",
         "<h3>Loại trừ</h3><ol>",
         f"<li>{ex['gift']} sản phẩm bị loại vì tiêu đề chứa một trong "
         f"{code(', '.join(t.get('exclude_title_patterns', [])))}; "
@@ -1152,14 +1437,56 @@ def _tech(report: ShopReport) -> str:
         f"<li>{code(STATUS_RULE)}: stage diagnosis của ADR-106 phát card khi một yếu tố vượt "
         "volume floor (ADR-077 d.4) và max(gap_median, gap_trend) ≥ "
         f"{t.get('gap_threshold_median', 0.2)}. Tìm thấy "
-        f"{t.get('rule_cards_found', 0)} sản phẩm như "
-        f"vậy; tối đa {t.get('max_open_cards_per_shop', 5)} card.</li>",
-        f"<li>{code(STATUS_PENDING)}: gap vượt ngưỡng nhưng không có mã chẩn đoán "
-        f"(skip reason {code('no_diagnosis_codes')}, ADR-090 d.3). Tìm thấy "
-        f"{t.get('pending_cards_found', 0)} sản phẩm, xếp theo gap × GMV 28 ngày, lấp chỗ "
-        "còn trống. "
-        "Lý do lấy gap lớn nhất trong CTR thẻ sản phẩm và CTOR; đề xuất là góc độ đầu tiên của "
-        "nhánh tương ứng.</li>",
+        f"{t.get('rule_cards_found', 0)} sản phẩm như vậy. Dưới CTR khỏe, nhánh trang không rơi "
+        "sang nhánh thẻ (ảnh bìa, tiêu đề); nhánh thẻ vẫn rơi sang nhánh trang.</li>",
+        f"<li>{code(STATUS_NEEDS_CAP)}: gap vượt ngưỡng, đã có file chẩn đoán, không có mã mô tả "
+        f"và shop chưa đặt mức giảm giá tối đa (skip reason {code('discount_cap_needed')}; mức "
+        f"giảm tối đa: {'đã đặt' if t.get('discount_cap_set') else 'chưa đặt'}). Tìm thấy "
+        f"{t.get('needs_cap_found', 0)} sản phẩm.</li>",
+        f"<li>{code(STATUS_NOT_ASKED)}: gap vượt ngưỡng, không có bằng chứng cục bộ và không có "
+        f"file chẩn đoán cho sản phẩm (skip reason {code('tiktok_not_asked')}, ADR-090 d.3). Tìm "
+        f"thấy {t.get('not_asked_found', 0)} sản phẩm, xếp theo gap × GMV 28 ngày, chỉ lấp chỗ "
+        "còn trống. Lý do lấy gap lớn nhất trong CTR thẻ sản phẩm và CTOR. Có file chẩn đoán "
+        f"nhưng không có mã cho nhánh cần sửa: không card, vào danh sách theo dõi (skip reason "
+        f"{code('tiktok_found_no_fault')}).</li>",
+        f"<li>{code(STATUS_OWNER)}: {t.get('owner_tests', 0)} thử nghiệm từ "
+        f"{code('owner_tests.json')}, xếp sau card của Juli theo thứ tự trong file. Một sản phẩm "
+        "chỉ có một card; card của Juli thắng thử nghiệm của chủ shop trên cùng sản phẩm"
+        + (
+            f" (bỏ thử nghiệm: {code(', '.join(t['owner_tests_dropped_rule_card_wins']))})"
+            if t.get("owner_tests_dropped_rule_card_wins")
+            else ""
+        )
+        + f". Tối đa {t.get('max_open_cards_per_shop', 5)} card; phần vượt vào danh sách "
+        "theo dõi.</li>",
+        "<li>Ngưỡng mua nhiều giảm nhiều: "
+        + (
+            f"{t.get('orders_counted', 0)} đơn không hủy từ {code('orders.json')}; số lượng = số "
+            f"dòng không phải quà tặng của sản phẩm trong đơn; q = trung vị số lượng + 1, chỉ phát "
+            f"card khi ít nhất {fmt_value('ratio', t.get('bmsm_min_share_at_threshold', 0.05))} "
+            f"đơn đã mua từ q (skip reason {code('bmsm_threshold_unreached')}); dưới "
+            f"{t.get('bmsm_min_orders_for_histogram', 20)} đơn của sản phẩm thì "
+            "q = floor(món/đơn trung bình) + 1, tối thiểu 2."
+            if t.get("orders_present")
+            else "không có orders.json nên mọi sản phẩm dùng q = floor(món/đơn trung bình) + 1, "
+            "tối thiểu 2."
+        )
+        + "".join(
+            f" {code(pid)}: q = {d['threshold_items']} ({_e(d['source'])}, {d['orders']} đơn)."
+            for pid, d in t.get("bmsm", {}).items()
+        )
+        + "</li>",
+        "<li>Điểm đánh giá: "
+        + (
+            f"đã áp dụng {t.get('ratings_count', 0)} sản phẩm từ {code('ratings.json')} (nguồn: "
+            f"nhập tay / FastMoss); dưới {t.get('min_rating_for_demand_levers')} sao không có "
+            "card ở mọi góc độ."
+            if t.get("ratings_applied")
+            else "không áp dụng (không có ratings.json)."
+        )
+        + "</li>",
+        "<li>Chỉ số chính dưới volume floor của 14 ngày hiển thị "
+        f"{code(NOT_ENOUGH_DATA)} thay vì một con số.</li>",
         f"<li>Shop median: {med_text('ctr', 'ratio')}, {med_text('ctor', 'ratio')}, "
         f"{med_text('aov', 'money')} "
         f"(cần ≥ {t.get('min_peers_for_median', 3)} peers vượt volume floor, ADR-106 Amendment 1). "
@@ -1205,6 +1532,7 @@ def render_html(report: ShopReport) -> str:
         + header
         + _legend(report.cards)
         + _card_table(report)
+        + _watch_table(report)
         + _shop_table(report)
         + _group_table(report)
         + _top_table(report)

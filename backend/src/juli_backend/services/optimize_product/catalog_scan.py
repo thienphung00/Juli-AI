@@ -105,6 +105,14 @@ def a34_index(payload: Any) -> dict[str, dict]:
     return {str(p["id"]): p for p in (products or []) if isinstance(p, dict) and p.get("id")}
 
 
+def asked_products(snapshot: Path) -> set[str]:
+    """Product ids with a diagnoses file: TikTok's diagnosis was requested for them."""
+    folder = snapshot / "diagnoses"
+    if not folder.is_dir():
+        return set()
+    return {p.stem for p in folder.glob("*.json") if not p.name.startswith("_")}
+
+
 def build_inputs(
     snapshot: Path, config: StageDiagnosisConfig
 ) -> tuple[list[ProductFunnel], dict[str, dict], dict[str, list[Evidence]], dict[str, str]]:
@@ -298,8 +306,16 @@ def diagnose_all(
     evidence_by_id: dict[str, list[Evidence]],
     excluded: dict[str, str],
     config: StageDiagnosisConfig,
+    *,
+    asked: set[str] | None = None,
+    quantities: dict[str, list[int]] | None = None,
+    discount_cap_set: bool = False,
 ) -> tuple[ShopMedians, list[Diagnosis], list[Skip]]:
-    """Shop medians over the non-excluded funnels, then the diagnosis of every product."""
+    """Shop medians over the non-excluded funnels, then the diagnosis of every product.
+
+    ``asked`` is the set of product ids whose diagnoses file exists (TikTok was
+    asked); ``quantities`` the per-product basket quantities from real orders.
+    """
     medians = ShopMedians.from_products(
         (f for f in funnels if f.product_id not in excluded), config
     )
@@ -312,6 +328,9 @@ def diagnose_all(
             evidence_by_id.get(funnel.product_id, []),
             config,
             excluded_reason=excluded.get(funnel.product_id),
+            discount_cap_set=discount_cap_set,
+            diagnoses_asked=funnel.product_id in (asked or set()),
+            basket_quantities=(quantities or {}).get(funnel.product_id),
         )
         if isinstance(result, Diagnosis):
             diagnoses.append(result)
@@ -322,7 +341,9 @@ def diagnose_all(
 
 def run_snapshot(snapshot: Path, out_dir: Path, config: StageDiagnosisConfig) -> dict:
     funnels, signals_by_id, evidence_by_id, excluded = build_inputs(snapshot, config)
-    medians, diagnoses, skips = diagnose_all(funnels, evidence_by_id, excluded, config)
+    medians, diagnoses, skips = diagnose_all(
+        funnels, evidence_by_id, excluded, config, asked=asked_products(snapshot)
+    )
     cards = build_cards(diagnoses, config)
     meta = load_json(snapshot / "meta.json") or {}
     as_of = str(meta.get("as_of") or "?")

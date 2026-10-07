@@ -14,19 +14,22 @@ Order of operations, fixed:
    own prior window — ``gap = max(gap_median, gap_trend)``, trigger recorded;
 4. label: the larger gap of {CTOR, AOV}, AOV only when CTOR's gap is under
    its threshold;
-5. branch under CTOR: CTR gap ≥ CTOR gap → card branch, else page branch;
-6. angle: first angle in the branch's fixed order that has evidence; a
-   branch without evidence falls to the other branch; neither → Skip.
+5. branch under CTOR: CTR fires and its gap ≥ CTOR gap → card branch, else
+   page branch (Amendment 3: a healthy CTR never routes to the card branch);
+6. angle: first angle in the branch's fixed order that has evidence; the card
+   branch falls to the page branch when it has none, the page branch falls to
+   the card branch only when CTR fires; no branch left → Skip, named by why
+   (``tiktok_not_asked``, ``discount_cap_needed``, ``tiktok_found_no_fault``).
 """
 
 from __future__ import annotations
 
-import math
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import Enum
 
+from juli_backend.services.optimize_product.basket import basket_threshold
 from juli_backend.services.optimize_product.config import StageDiagnosisConfig
 from juli_backend.services.optimize_product.funnel import ZERO, ProductFunnel, ShopMedians
 from juli_backend.services.optimize_product.listing_signals import (
@@ -132,6 +135,11 @@ class BmsmProposal:
     threshold_items: int
     percent: int
     percent_is_estimate: bool
+    #: Where the threshold came from (``histogram`` or ``mean_fallback``), the
+    #: orders behind it and, for the histogram, the share already at it.
+    source: str = "mean_fallback"
+    orders: int = 0
+    share: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -272,6 +280,8 @@ def diagnose_product(
     live: bool = True,
     discount_cap_set: bool = False,
     active_promotion: bool = False,
+    diagnoses_asked: bool = False,
+    basket_quantities: list[int] | None = None,
 ) -> Diagnosis | Skip:
     """Decision 4 end to end for one product."""
     if excluded_reason:
@@ -320,11 +330,16 @@ def diagnose_product(
         )
         if not basket_angles:
             return Skip(product.product_id, product.title, "aov_lever_locked", gaps)
-        items = product.current.items_per_order or Decimal(1)
+        basket = basket_threshold(basket_quantities, product.current.items_per_order, config)
+        if not basket.reached:
+            return Skip(product.product_id, product.title, "bmsm_threshold_unreached", gaps)
         bmsm = BmsmProposal(
-            threshold_items=int(math.ceil(items)) + config.bmsm_threshold_plus,
+            threshold_items=basket.threshold_items,
             percent=config.bmsm_percent_default,
             percent_is_estimate=not discount_cap_set,
+            source=basket.source,
+            orders=basket.orders,
+            share=basket.share,
         )
         return Diagnosis(
             product_id=product.product_id,
@@ -343,11 +358,15 @@ def diagnose_product(
         )
 
     # Branch under CTOR (decision 4 step 5).
-    first = Branch.CARD if gaps["ctr"].gap >= gaps["ctor"].gap else Branch.PAGE
-    second = Branch.PAGE if first is Branch.CARD else Branch.CARD
+    first = Branch.CARD if ctr_fires and gaps["ctr"].gap >= gaps["ctor"].gap else Branch.PAGE
+    candidates = [first]
+    if first is Branch.CARD:
+        candidates.append(Branch.PAGE)
+    elif ctr_fires:
+        candidates.append(Branch.CARD)
     chosen_branch: Branch | None = None
     angles: list[Angle] = []
-    for branch in (first, second):
+    for branch in candidates:
         angles = _angles_with_evidence(
             branch,
             evidence,
@@ -358,17 +377,31 @@ def diagnose_product(
             chosen_branch = branch
             break
     if chosen_branch is None:
-        return Skip(product.product_id, product.title, "no_diagnosis_codes", gaps)
+        codes = {e.code for e in evidence}
+        if not diagnoses_asked:
+            reason = "tiktok_not_asked"
+        elif (
+            Branch.PAGE in candidates
+            and not codes_for_angle(Angle.MO_TA, codes)
+            and not discount_cap_set
+            and not active_promotion
+        ):
+            reason = "discount_cap_needed"
+        else:
+            reason = "tiktok_found_no_fault"
+        return Skip(product.product_id, product.title, reason, gaps)
 
     angle = angles[0]
     angle_evidence = tuple(e for e in evidence if codes_for_angle(angle, [e.code]))
     other_branch = Branch.PAGE if chosen_branch is Branch.CARD else Branch.CARD
-    others = angles[1:] + _angles_with_evidence(
-        other_branch,
-        evidence,
-        discount_cap_set=discount_cap_set,
-        active_promotion=active_promotion,
-    )
+    others = angles[1:]
+    if other_branch in candidates:
+        others += _angles_with_evidence(
+            other_branch,
+            evidence,
+            discount_cap_set=discount_cap_set,
+            active_promotion=active_promotion,
+        )
     if chosen_branch is Branch.PAGE and first is Branch.CARD:
         caveats.append("nhánh thẻ (ảnh, tiêu đề) không có bằng chứng; chuyển sang nhánh trang")
     if chosen_branch is Branch.CARD and first is Branch.PAGE:

@@ -21,7 +21,9 @@ import pytest
 
 from juli_backend.services.optimize_product.config import StageDiagnosisConfig
 from juli_backend.services.optimize_product.shop_report import (
-    STATUS_PENDING,
+    STATUS_NEEDS_CAP,
+    STATUS_NOT_ASKED,
+    STATUS_OWNER,
     STATUS_RULE,
     TOP_N,
     ShopReport,
@@ -229,13 +231,22 @@ def test_channel_share_uses_attributed_orders(pending_report: ShopReport) -> Non
     orders = Decimal(item["total_performance"]["sku_orders"])
     live = Decimal(item["seller_live_performance"]["attributed_sku_orders"])
     shares = dict(block.channels)
-    assert shares["LIVE của shop"] == live / orders * 100
+    attributed = sum(
+        Decimal(item[name]["attributed_sku_orders"])
+        for name in ("seller_live_performance", "affiliate_total_performance")
+    ) + Decimal(item["seller_product_card_performance"]["attributed_sku_orders"])
+    attributed += Decimal(item["shop_tab_performance"]["shop_tab_product_clicks"]) * Decimal(
+        item["shop_tab_performance"]["shop_tab_ctor_sku"]
+    )
+    assert attributed > orders  # the fixture over-attributes, as TikTok does
+    assert shares["LIVE của shop"] == live / attributed * 100
+    assert sum(shares.values()) == 100  # normalised over the five blocks
     assert "Video của shop" not in shares  # zero channels are not shown
 
 
-def test_pending_card_when_gap_fires_without_evidence(pending_report: ShopReport) -> None:
+def test_not_asked_card_when_gap_fires_without_evidence(pending_report: ShopReport) -> None:
     weak = next(c for c in pending_report.cards if c.product_id == "weak")
-    assert weak.status == STATUS_PENDING
+    assert weak.status == STATUS_NOT_ASKED
     assert weak.main_kpi == "CTOR"
     assert weak.reason.startswith("CTR thẻ sản phẩm ước tính thấp hơn")
     assert weak.change == "Thay ảnh bìa, nếu TikTok chỉ ra lỗi"
@@ -315,3 +326,132 @@ def test_wrapper_script_keeps_import_discipline() -> None:
     ]
     assert not any("juli_backend" in line for line in top_level)
     assert "juli_backend.workers" not in script.read_text()
+
+
+def _with_files(tmp_path: Path, *, diagnosis: bool = True, **files: object) -> ShopReport:
+    snap, _ = _snapshot(tmp_path, with_diagnosis=diagnosis)
+    for name, payload in files.items():
+        _write(snap / f"{name}.json", payload)
+    return build_shop_report(snap)
+
+
+def _order(product_id: str, quantity: int, status: str = "COMPLETED") -> dict:
+    return {
+        "status": status,
+        "line_items": [{"product_id": product_id, "is_gift": False}] * quantity,
+    }
+
+
+def test_channel_shares_total_one_hundred_and_copy_says_so(rule_report: ShopReport) -> None:
+    for block in rule_report.top_products:
+        assert sum(share for _, share in block.channels) == 100
+    text = render_html(rule_report)
+    above, below = text.split(TECH_HEADING)
+    assert "Tỷ trọng kênh" in above and "Kênh ra đơn" not in text
+    assert "chồng lên nhau" not in above
+    assert "chuẩn hóa" in below
+
+
+def test_ratings_below_four_stars_block_every_card(tmp_path: Path) -> None:
+    ratings = {"weak": {"rating": 3.6, "review_count": 8}, "peer-0": {"rating": 4.8}}
+    report = _with_files(tmp_path, ratings=ratings)
+    assert all(c.product_id != "weak" for c in report.cards)
+    [row] = [w for w in report.watch if w.product_id == "weak"]
+    assert row.reason == "Điểm đánh giá 3,6 sao, cần cải thiện sản phẩm trước"
+    assert report.technical["ratings_applied"] is True
+    text = render_html(report)
+    assert "Sản phẩm cần theo dõi" in text and "nhập tay / FastMoss" in text.split(TECH_HEADING)[1]
+
+
+def test_absent_ratings_file_applies_no_filter(rule_report: ShopReport) -> None:
+    assert any(c.product_id == "weak" for c in rule_report.cards)
+    assert rule_report.technical["ratings_applied"] is False
+    assert "không áp dụng" in render_html(rule_report).split(TECH_HEADING)[1]
+
+
+def test_owner_tests_become_cards_after_rule_cards(tmp_path: Path) -> None:
+    orders = [_order("peer-0", q) for q in [1] * 20 + [2] * 5] + [_order("peer-0", 4, "CANCELLED")]
+    tests = [
+        {"product_id": "peer-0", "angle": "mua nhiều giảm nhiều"},
+        {
+            "product_id": "peer-1",
+            "angle": "quà tặng kèm",
+            "gift_product_id": "peer-2",
+            "note": "Thử quà cho khách mua nhiều",
+        },
+        {"product_id": "peer-3", "angle": "ảnh bìa"},
+    ]
+    report = _with_files(tmp_path, orders={"orders": orders}, owner_tests=tests)
+    statuses = [c.status for c in report.cards]
+    assert (
+        statuses
+        == [STATUS_RULE, STATUS_OWNER, STATUS_OWNER, STATUS_OWNER, STATUS_NOT_ASKED][
+            : len(statuses)
+        ]
+    )
+    assert statuses[0] == STATUS_RULE and statuses.count(STATUS_OWNER) == 3
+    bmsm, gift, cover = (c for c in report.cards if c.status == STATUS_OWNER)
+    assert (bmsm.main_kpi, gift.main_kpi, cover.main_kpi) == ("AOV", "AOV", "CTOR")
+    assert bmsm.change == "Mua nhiều giảm nhiều, từ 2 món"  # median 1 + 1
+    assert "20 %" in bmsm.reason  # 5 of 25 orders; neutral reason from the orders
+    assert "AOV 30 ngày qua" in bmsm.reason
+    assert gift.reason == "Thử quà cho khách mua nhiều"
+    assert "Sản phẩm peer-2" in gift.change and "từ 2 món" in gift.change
+    assert cover.change == "Thay ảnh bìa"
+    assert [c.rank for c in report.cards] == list(range(1, len(report.cards) + 1))
+
+
+def test_rule_card_wins_over_an_owner_test_on_the_same_product(tmp_path: Path) -> None:
+    tests = [{"product_id": "weak", "angle": "tiêu đề"}]
+    report = _with_files(tmp_path, owner_tests=tests)
+    assert [c.status for c in report.cards if c.product_id == "weak"] == [STATUS_RULE]
+    assert report.technical["owner_tests_dropped_rule_card_wins"] == ["weak"]
+    assert "card của Juli thắng" in render_html(report).split(TECH_HEADING)[1]
+
+
+def test_extra_cards_go_to_the_watch_list(tmp_path: Path) -> None:
+    tests = [{"product_id": f"peer-{i}", "angle": "tiêu đề"} for i in range(6)]
+    report = _with_files(tmp_path, diagnosis=False, owner_tests=tests)
+    assert len(report.cards) == CONFIG.max_open_cards_per_shop
+    assert [c.status for c in report.cards] == [STATUS_OWNER] * 5
+    # The sixth owner test and the "Chưa hỏi TikTok" card both lose their row.
+    overflow = {w.product_id for w in report.watch if w.reason.startswith("Đủ điều kiện")}
+    assert overflow == {"peer-5", "weak"}
+
+
+def test_discount_cap_needed_card_when_ctr_is_healthy(tmp_path: Path) -> None:
+    snap, rows = _snapshot(tmp_path, with_diagnosis=True)
+    # Weak CTOR, healthy CTR on a product whose diagnosis file lists no description code.
+    for name in ("a34_current", "a34_prior", "a34_last28"):
+        data = json.loads((snap / f"{name}.json").read_text())
+        data["products"] = [
+            _row("weak", 10000 if name == "a34_current" else 20000, "0.08", "0.04", 200000)
+            if p["id"] == "weak"
+            else p
+            for p in data["products"]
+        ]
+        _write(snap / f"{name}.json", data)
+    report = build_shop_report(snap)
+    [card] = [c for c in report.cards if c.product_id == "weak"]
+    assert card.status == STATUS_NEEDS_CAP
+    assert card.change == "Giảm giá sản phẩm, sau khi shop đặt mức giảm giá tối đa"
+    assert card.reason.startswith("CTOR ước tính")
+    _write(snap / "meta.json", {"as_of": "2026-10-05", "max_discount_percent": 15})
+    capped = build_shop_report(snap)
+    [card] = [c for c in capped.cards if c.product_id == "weak"]
+    assert card.status == STATUS_RULE and card.change == "Tạo giảm giá sản phẩm 30 ngày"
+
+
+def test_legend_lists_only_statuses_that_occur(tmp_path: Path) -> None:
+    report = _with_files(
+        tmp_path, diagnosis=False, owner_tests=[{"product_id": "peer-0", "angle": "tiêu đề"}]
+    )
+    above = render_html(report).split(TECH_HEADING)[0]
+    assert "Chưa hỏi TikTok" in above and "Thử nghiệm theo kế hoạch của bạn" in above
+    assert "Cần mức giảm giá tối đa" not in above and "Chờ TikTok" not in above
+    assert "công cụ chẩn đoán của TikTok chưa được chạy" in above
+
+
+def test_bad_owner_test_angle_fails_loudly(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="owner test"):
+        _with_files(tmp_path, owner_tests=[{"product_id": "weak", "angle": "đổi tên"}])
