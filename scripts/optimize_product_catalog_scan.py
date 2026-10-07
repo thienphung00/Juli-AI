@@ -30,6 +30,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from juli_backend.services.optimize_product.config import StageDiagnosisConfig
 
+_DIAGNOSES_CHUNK = 50
+
 
 async def _fetch_live(
     snapshot: Path,
@@ -83,10 +85,28 @@ async def _fetch_live(
 
     ranked = sorted(a34["current"], key=_gmv, reverse=True)
     product_ids = [str(p["id"]) for p in ranked if p.get("id")][:max_products]
+    active_ids: list[str] = []
     for product_id in product_ids:
         detail = resources.products.get_details(product_id)
         dump_json(snapshot / "products" / f"{product_id}.json", detail)
+        if str(detail.get("status") or "") == "ACTIVATE":
+            active_ids.append(product_id)
         time.sleep(sleep_s)
+    # Diagnoses need the product.read scope and ACTIVATE products. A TikTok
+    # error here (e.g. a missing scope) must not kill an otherwise good scan.
+    try:
+        for offset in range(0, len(active_ids), _DIAGNOSES_CHUNK):
+            chunk = active_ids[offset : offset + _DIAGNOSES_CHUNK]
+            payload = resources.products.get_diagnoses(chunk)
+            for entry in payload.get("products") or []:
+                if isinstance(entry, dict) and entry.get("id"):
+                    dump_json(snapshot / "diagnoses" / f"{entry['id']}.json", entry)
+            time.sleep(sleep_s)
+    except Exception as exc:
+        dump_json(
+            snapshot / "diagnoses" / "_error.json",
+            {"error_class": type(exc).__name__, "message": str(exc)},
+        )
     dump_json(
         snapshot / "meta.json",
         {
