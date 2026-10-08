@@ -13,10 +13,11 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] `.claude` edit hooks and executor-cache pre-commit gate disabled —
   speed — restore `.claude/settings.json` hooks and `.pre-commit-config.yaml`
   entry from `main` in the merge PR.
-- [ ] `fasttrack-deploy.yml` refuses SHAs that would redeploy `apps/demo`,
-  `apps/landing`, `packages/` or `pnpm-lock.yaml` (those lanes need a
-  `release.yml` build artifact) — fast-track frontend changes can't be deployed
-  until merge, or until the workflow builds those artifacts itself.
+- [ ] `fasttrack-deploy.yml` refuses SHAs that would redeploy `apps/landing`
+  (or a `packages/`/`pnpm-lock.yaml` change that also touches landing) — landing
+  needs a `release.yml` build artifact — fast-track landing changes can't be
+  deployed until merge, or until the workflow builds that artifact too.
+  ~~Demo half~~ repaid by AC-7.9: the workflow now builds and deploys the demo lane.
 - [ ] Deploy leaves the VPS clone `~/Juli-AI-v2` detached at the fast-track SHA
   — `release.yml`/`rollback.yml` re-checkout `main` first, but verify after the
   first fast-track deploy.

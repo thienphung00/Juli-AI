@@ -94,6 +94,9 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
   only where the restyle intentionally changes them.
 
 ### P7-D Deploy
-- [ ] **AC-7.9** `fasttrack-deploy.yml` builds the demo artifact (Supabase env
+- [x] **AC-7.9** `fasttrack-deploy.yml` builds the demo artifact (Supabase env
   at build) and deploys the demo lane instead of refusing it; landing stays
   blocked. actionlint clean.
+  Evidence: new `build` job + deploy changes in `.github/workflows/fasttrack-deploy.yml`
+  (see commit on `fasttrack/p7d-deploy`); `actionlint` exit 0; not yet run on
+  GitHub (first tag deploy is the live proof).
