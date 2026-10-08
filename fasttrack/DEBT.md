@@ -118,9 +118,27 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Inter font is named in the stack but not loaded (mock imports Google
   Fonts) — no network at build — add `next/font` if the owner wants Inter
   everywhere.
-- [ ] Demo header keeps the old mode switcher / "Làm mới Demo" controls inside
-  the kit header (mobile alignment of "Đăng nhập" is off, pre-existing) —
-  out of scope — redesign the header actions with the owner.
+- [x] ~~Demo header keeps the old mode switcher / "Làm mới Demo" controls inside
+  the kit header~~ — repaid by P8-D (AC-8.5): header follows ADR-109 d.7; the
+  mode switcher is gone, Đăng nhập / Làm mới Demo / Cài đặt sit in the
+  shop-avatar menu.
 - [x] ~~e2e: static-asset-render ×3 and accessibility "Analytics chart…" failed after the D21 restyle~~ — repaid: specs follow D21 (flat kit background, gradient wordmark, KPI dashboard at `/analytics/gmv-tiktok`); 18/18 pass on both projects.
 - [ ] vitest needs Node 20 locally: under Node 26 jsdom's `localStorage` is
   shadowed (270 failures on untouched main) — env — pin `.nvmrc` to 20.
+
+## P8-D shell + Trang chủ (2026-10-08)
+
+- [ ] Header subline shows only "TikTok Shop": no API exposes the shop's ngành
+  or SKU count — no data — add both to `GET /v1/demo/analysis` (or `/v1/shops`)
+  and pass them to `shopSubline`.
+- [ ] Signed-in Trang chủ + header read `/v1/demo/analysis` once in the shell;
+  Phân tích still fetches its own copy (ranking toggle) — two requests on a
+  visit to /analytics — P8-E can read `useShopReport()` for the default ranking.
+- [ ] Dead code after the shell swap: `recommendationContext` in `demo-state`
+  (fed only the retired assistance aside), the persisted `juli_demo_mode`, and
+  the old `.demo-header/.demo-assistance/.demo-mode-switcher/.juli-primary-nav/
+  .demo-launchers` rules in `globals.css` — scope — delete in a cleanup commit.
+- [ ] Signed-in shell/Home are covered by vitest (injected loader, stubbed
+  fetch) and a stubbed-route screenshot, not by an e2e against a real backend.
+- [ ] Juli (locked) and the shop menu are a plain disclosure, not an ARIA
+  `menu` with arrow-key roving — simpler — upgrade if user testing asks.

@@ -11,20 +11,57 @@ Invariants below.
 
 ## Public interface
 
-- `/` — sparse Home launcher with exactly two cards: Quyết định and Phân tích.
-- `/decisions`, `/analytics`, `/settings` — discoverable shell destinations;
-  content is delivered by later vertical slices.
-- `DemoShell` — responsive four-destination application frame. **Exception
-  (#1910, PUI-DESIGN.md §2, owner amendment 2026-09-14):** the real run route
-  (`/decisions/in-progress/<id>` where `looksLikeRunId(id)`, the one matcher in
-  `lib/run-surface/run-id.ts`) renders WITHOUT the shell chrome — no
-  `demo-header`, no `demo-feedback` strip, no `demo-assistance` aside, no mode
-  toggle — while the `PrimaryNavigation` rail STAYS; the run surface owns the
-  whole region to the rail's right. `RunStagedView` supplies the §2 header row
-  itself (`RunHeader`: `← Hành động` back control to `/decisions`, the
-  `RUN_WORKFLOW_TITLE` heading, and a dictionary-governed status chip — never
-  a raw `stop_reason`). Legacy mock `exec-*` execution details keep the full
-  shell.
+- `/` — `HomePageClient`: a signed-in seller gets their shop's Trang chủ
+  (`SignedInHome`); anyone else gets the two-door landing (`DemoLanding`),
+  whose "Dùng thử Demo" door reveals the sample Trang chủ (`SampleHome`).
+- **Trang chủ (AC-8.5, ADR-109 d.3).** `components/home/home-overview.tsx`
+  (`HomeOverview`, `StreamMatrix`) renders one ADR-108 envelope: GMV / Đơn /
+  AOV cards ("trước … ▲/▼ %") and the 5-stream matrix (Thẻ sản phẩm, Tab cửa
+  hàng | Video của shop, LIVE của shop | Liên kết greyed "chỉ theo dõi"; columns
+  Lượt hiển thị sản phẩm/ngày, CTR, CTOR, AOV; cells tinted by direction).
+  `lib/shop-report/home-metrics.ts` (`buildHomeOverview`) is the one mapping
+  (daily averages × window days; a missing stream → "Chưa có dữ liệu"; Tab
+  cửa hàng CTOR/AOV flagged "ước tính"). Each non-affiliate cell links to
+  `/analytics?tab=san-pham|noi-dung&stream=the-san-pham|tab-cua-hang|video|live&metric=hien-thi|ctr|ctor|aov`
+  (`analyticsCellHref`) — **P8-E reads this query** for its sub-tabs.
+- `/decisions`, `/analytics`, `/settings` — pages inside the shell; `/settings`
+  is reached from the shop-avatar menu, not the nav.
+- **App shell (AC-8.5, ADR-109 d.1/d.7/d.8) — `DemoShell`
+  (`components/demo-shell.tsx`).** Layout every page renders in:
+  `AppNavigation` (`components/app-shell/app-navigation.tsx`) — Trang chủ /
+  Quyết định / Phân tích / **Juli locked** (`<span role="link"
+  aria-disabled="true">`, lock mark, tooltip "Sắp có: nhật ký 24 giờ"; list
+  in `lib/app-navigation.ts`) — a left rail with the Juli. wordmark from 768px,
+  a bottom bar below (ONE `<nav>`, CSS-only switch); `ShopHeader`
+  (`components/app-shell/shop-header.tsx`) — avatar initials, shop name,
+  "TikTok Shop · ngành · N SKU" (parts only when known; the report carries
+  neither yet), and "Juli đang chạy · cập nhật HH:MM" from the report's
+  `built_at` (omitted when no report; anonymous shows "Dữ liệu mẫu · cập nhật
+  HH:MM" plus a "Bản minh họa" badge). The avatar opens the shop menu: Cài
+  đặt, Đổi shop / Kết nối TikTok Shop, Đăng xuất (signed in) or Cài đặt,
+  Đăng nhập, Làm mới Demo (anonymous). **No global stepper** (d.8: it lives
+  inside Quyết định). No assistance aside, no mode toggle (retired by AC-8.5).
+  **The slot:** the page is `children` of `<main class="app-content">`; a page
+  just renders its own content.
+- **Page header (for P8-E / P8-F).** `AppPageHeader`
+  (`components/app-shell/page-header.tsx`): `eyebrow` (pink uppercase, e.g.
+  "PHÂN TÍCH · SẢN PHẨM"), `title` (large conclusion-style h1 — the finding,
+  not the page name), optional `lede`, `actions` (right side) and `titleId`
+  (for `<section aria-labelledby>`). Classes `.eyebrow`, `.page-title`,
+  `.page-lede` are reusable on their own.
+- **Shop report context.** `ShopReportProvider` / `useShopReport()`
+  (`lib/shop-report/shop-report-context.tsx`, mounted by the shell) resolves
+  the session once and holds the acting shop's latest `GET /v1/demo/analysis`
+  envelope (`resolving | anonymous | no-shop | loading | empty | error |
+  ready`; anonymous = the bundled sample, lazy-loaded, no request). Header and
+  Trang chủ read it; later pages may too (Phân tích keeps its own fetch for
+  the ranking toggle).
+- **Run route exception** (#1910, PUI-DESIGN.md §2, owner amendment
+  2026-09-14): the real run route (`/decisions/in-progress/<id>` where
+  `looksLikeRunId(id)`) renders WITHOUT the shop header and feedback region
+  while the nav rail STAYS; the run surface owns the region to its right.
+  `RunStagedView` supplies the §2 header row itself (`RunHeader`). Legacy mock
+  `exec-*` execution details keep the full shell.
 - `DemoStateProvider` / `useDemoState` — single owner for mutable mock state,
   persisted Mock mode, disabled Sign-in feedback, deterministic reset, and
   `startExecution(workflowKey)` for approved workflow records.
@@ -72,7 +109,8 @@ Invariants below.
   recoverable GMV and the funnel table only when `diagnosis` is present.
 - **Look (D21, AC-7.5).** `globals.css` carries the `colors_and_type.css` kit
   (tokens, `.card`, `.btn-primary`, `.badge`, `.app-header` …) after the older
-  rules; navigation is a bottom bar at every width.
+  rules. AC-8.5 appends the shell/Trang chủ block (rail, header, `.eyebrow`,
+  matrix) drawn only from those kit tokens — one token source.
 - `AnalyticsDataProvider` / `fetchDemoAnalytics` — Phase 2.10-A live Analytics read via `GET /v1/demo/analytics` (Home/Settings/Decisions remain mock).
 - **The staged run view (issues #1316/#1317/#1319/#1752/#1909, ADR-076 decision 3/4, ADR-094).** `RunDetailRoute` (`components/run-detail-route.tsx`) dispatches on whether a bearer `token` is present — the same absence-as-signal `useRunStream` itself gates on. Since issue #1909 that token is actually supplied: the `[executionId]` page's `RunDetailDoor` reads `readAuthSession()` and passes `token` (plus the acting shop's `shopId`) when a session is stored — before #1909 no caller passed one, so the signed-in door below was unreachable from any browser:
   - **Signed-in (token present):** `SignedInRunDetail` calls `fetchDemoRuns` (`lib/run-ledger/api-client.ts`, real `GET /v1/demo/runs`) to resolve the run, then `useRunStream(runId)` (`lib/run-surface/use-run-stream.ts`) opens the real SSE transport (`lib/agent-event-stream.ts`) with reconnect/backoff via `Last-Event-ID`. `RunStagedView` renders the live event fold; `OptionPicker`'s confirm/decline calls `submitConfirmationDecision` (`lib/run-surface/confirmation-client.ts`), a real bearer-authenticated `POST /v1/demo/runs/{id}/confirmations/{tool_call_id}`. This path is live-backed end to end.
@@ -89,15 +127,15 @@ Invariants below.
 
 - `@juli/contracts` — execution, review stage, and Demo Analytics envelope types.
 - `@juli/theme` — semantic tokens.
-- `@juli/ui` — accessible destination cards and primary navigation.
+- `@juli/ui` — buttons, cards and shared primitives (the demo renders its own nav since AC-8.5).
 - `@juli/utils` — Vietnamese date/number formatting.
 - `@juli/tiktok-events` — TikTok pixel, event vocabulary, and the relay handler.
 
 ## Invariants
 
-- Home contains no KPI, recommendation action, execution queue, template, or threshold.
+- Home (Trang chủ) shows the shop report overview (cards + 5-stream matrix, ADR-109 d.3) and no recommendation action, execution queue, template, or threshold.
 - User-visible copy is Vietnamese with correct diacritics.
-- Analytics (`/analytics`) performs read-only `GET /v1/demo/analytics` (no force-recompute); Home, Settings, and Decisions remain mock fixtures.
+- The KPI dashboard (`/analytics/[metricKey]`) performs read-only `GET /v1/demo/analytics` (no force-recompute). Signed-in Trang chủ reads `GET /v1/demo/analysis` once via the shell's `ShopReportProvider`; anonymous Trang chủ issues no request.
 - **The TikTok channel is loaded only for a visitor who arrived from a TikTok
   ad** — a `ttclid` on the landing URL, or one stored from an earlier visit
   (`components/tiktok-tracking.tsx`, and the same gate in
@@ -194,8 +232,6 @@ Invariants below.
   permanently expired for every visitor. Not fixed here — out of this
   issue's file boundary; worked around for test determinism only via a
   pinned fake clock in the e2e spec, never in production source.
-- Contextual Juli assistance explains the active destination and never
-  authorizes approval, rejection, or execution.
 - Every navigation target is keyboard accessible with a visible focus state and
   at least a 44×44px target.
 - The app never imports a sibling app.
