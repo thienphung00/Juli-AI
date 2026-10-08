@@ -39,9 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop
 from juli_backend.database import Shop, get_session
-from juli_backend.services.shop_diagnosis import Ranking
-from juli_backend.services.shop_diagnosis.channels import Channel
-from juli_backend.services.shop_diagnosis.rankings import STREAM_METRICS, Metric
+from juli_backend.services.shop_diagnosis import STREAM_METRICS, Channel, Metric, Ranking
 from juli_backend.services.shop_diagnosis_daily import (
     latest_metric_ranking,
     latest_shop_diagnosis,

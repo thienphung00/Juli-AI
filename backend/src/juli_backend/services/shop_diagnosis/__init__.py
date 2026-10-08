@@ -12,14 +12,19 @@ Shop Tab mapping), :mod:`.decomposition` (four-factor split, decision tree),
 :mod:`.render`, :mod:`.message`; every threshold lives in :mod:`.config`.
 """
 
+from juli_backend.services.shop_diagnosis.channels import Channel
 from juli_backend.services.shop_diagnosis.config import ShopDiagnosisConfig
 from juli_backend.services.shop_diagnosis.heroes import Ranking
 from juli_backend.services.shop_diagnosis.message import build_message
+from juli_backend.services.shop_diagnosis.rankings import STREAM_METRICS, Metric
 from juli_backend.services.shop_diagnosis.render import render_html
 from juli_backend.services.shop_diagnosis.report import ShopDiagnosis, build_report
 from juli_backend.services.shop_diagnosis.snapshot import Snapshot, load_snapshot
 
 __all__ = [
+    "STREAM_METRICS",
+    "Channel",
+    "Metric",
     "Ranking",
     "ShopDiagnosis",
     "ShopDiagnosisConfig",
