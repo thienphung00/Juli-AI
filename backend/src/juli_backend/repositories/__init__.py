@@ -23,7 +23,8 @@ contract applied to one aggregate:
 ``backfill``                resumable analytics backfill partitions
 ``production_write``        single-use production mutation authorizations
 ``ingestion_state``         per-shop bootstrap phase, latency stamps, cursors
-``shop_diagnosis``          stored ADR-108 shop diagnosis reports
+``shop_diagnosis``          stored ADR-108 shop diagnosis reports and ADR-109
+                            metric rankings
 ==========================  =====================================================
 
 ``repos.py`` re-exports everything for callers written before the split.
@@ -65,7 +66,10 @@ from juli_backend.repositories.graph import GraphRepo
 from juli_backend.repositories.identity import ShopsRepo, UsersRepo
 from juli_backend.repositories.ingestion_state import ShopIngestionStateRepo
 from juli_backend.repositories.production_write import ProductionWriteAuthorizationsRepo
-from juli_backend.repositories.shop_diagnosis import ShopDiagnosisReportsRepo
+from juli_backend.repositories.shop_diagnosis import (
+    ShopDiagnosisReportsRepo,
+    ShopMetricRankingsRepo,
+)
 from juli_backend.repositories.tiktok_credentials import TikTokCredentialRepo, TikTokSyncStateRepo
 from juli_backend.repositories.workflow import (
     ToolExecutionsRepo,
@@ -101,6 +105,7 @@ __all__ = [
     "SettlementsRepo",
     "ShopDiagnosisReportsRepo",
     "ShopIngestionStateRepo",
+    "ShopMetricRankingsRepo",
     "ShopScopedRepo",
     "ShopsRepo",
     "TikTokCredentialRepo",
