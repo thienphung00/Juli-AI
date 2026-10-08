@@ -91,6 +91,128 @@ class DemoDecisionReasoning(BaseModel):
     source_kpi_ids: list[str] = []
 
 
+class DemoDecisionStage(BaseModel):
+    code: str
+    label: str
+
+
+class DemoDecisionLeverEvidence(BaseModel):
+    code: str
+    source: str
+    detail: str | None = None
+
+
+class DemoDecisionLever(BaseModel):
+    code: str
+    label: str
+    action: str
+    detail: str | None = None
+    confirmed: bool = False
+    evidence: list[DemoDecisionLeverEvidence] = []
+
+
+class DemoDecisionMainKpi(BaseModel):
+    key: str
+    label: str
+    value: str
+    raw: float | None = None
+
+
+class DemoDecisionTrigger(BaseModel):
+    code: str
+    gap: float
+    sentence: str
+
+
+class DemoDecisionGap(BaseModel):
+    value: float | None = None
+    shop_median: float | None = None
+    prior: float | None = None
+    gap_vs_median: float | None = None
+    gap_vs_prior: float | None = None
+    median_peers: int = 0
+    cleared_floor: bool = False
+
+
+class DemoDecisionShopMedians(BaseModel):
+    ctr: float | None = None
+    ctor: float | None = None
+    aov: float | None = None
+    peers: dict[str, int] = {}
+
+
+class DemoDecisionBmsm(BaseModel):
+    threshold_items: int
+    percent: int
+    percent_is_estimate: bool
+    source: str | None = None
+    orders: int | None = None
+    window_days: int | None = None
+
+
+class DemoDecisionRecoverableBasis(BaseModel):
+    label: str
+    stage_rate: str
+    current_rate: float
+    reference_rate: float
+    reference: str
+    volume_per_day: float
+    aov: float | None = None
+    window_days: int
+
+
+class DemoDecisionDiagnosis(BaseModel):
+    """ADR-106 stage diagnosis of one product (Optimize Product cards only)."""
+
+    version: str
+    as_of: str
+    rank: int
+    status: str
+    status_label: str
+    stage: DemoDecisionStage
+    lever: DemoDecisionLever
+    main_kpi: DemoDecisionMainKpi
+    trigger: DemoDecisionTrigger
+    gaps: dict[str, DemoDecisionGap] = {}
+    shop_medians: DemoDecisionShopMedians | None = None
+    bmsm: DemoDecisionBmsm | None = None
+    caveats: list[str] = []
+    channel_scope: str | None = None
+    recoverable_gmv_per_day: float | None = None
+    recoverable_gmv_basis: DemoDecisionRecoverableBasis | None = None
+    product_title: str | None = None
+    tiktok_product_id: str | None = None
+
+
+class DemoDecisionWindow(BaseModel):
+    start: str
+    end: str
+    days_with_data: int
+
+
+class DemoDecisionMetric(BaseModel):
+    key: str
+    label: str
+    unit: str
+    definition: str | None = None
+    current: float | None = None
+    previous: float | None = None
+    change: float | None = None
+    confidence: str | None = None
+    note: str | None = None
+
+
+class DemoDecisionEvidence(BaseModel):
+    """The product's funnel, last 30 days vs the 30 before (TikTok's KPI names)."""
+
+    window_days: int
+    current: DemoDecisionWindow
+    previous: DemoDecisionWindow
+    channel_scope: str | None = None
+    metrics: list[DemoDecisionMetric] = []
+    notes: list[str] = []
+
+
 class DemoDecisionRecommendation(BaseModel):
     workflow_name: str | None = None
     priority: int | None = None
@@ -100,6 +222,8 @@ class DemoDecisionRecommendation(BaseModel):
     user_action_required: bool | None = None
     source_kpi_ids: list[str] = []
     reasoning: DemoDecisionReasoning | None = None
+    diagnosis: DemoDecisionDiagnosis | None = None
+    evidence: DemoDecisionEvidence | None = None
 
 
 class DemoDecisionItem(BaseModel):

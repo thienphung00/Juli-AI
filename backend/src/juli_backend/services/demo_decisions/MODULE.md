@@ -71,6 +71,15 @@ allowlist, not a blocklist, precisely so a new field added upstream to
 `recommendation_payload` does not leak by default; it only reaches the
 public response once someone explicitly adds it to the allowlist here.
 
+**ADR-106 Optimize Product cards (fasttrack P7-B).** Two more top-level keys
+are allowlisted: `diagnosis` (version, as_of, rank, status, status_label,
+stage, lever, main_kpi, trigger, gaps, shop_medians, bmsm, caveats,
+channel_scope, recoverable_gmv_per_day, recoverable_gmv_basis, product_title,
+tiktok_product_id) and `evidence` (window_days, current, previous,
+channel_scope, metrics, notes), each key by key; the typed route models
+(`api/routes/demo_decisions.py`) drop anything nested they do not declare. The
+product's internal UUID (`subject`) is still never forwarded.
+
 `title` / `description` are forwarded as-is. They are rules-engine-generated
 Decision copy (`WorkflowRecommendation.workflow_name` /
 `WorkflowReasoningCopy.why` / `.rationale` at persist time — see
