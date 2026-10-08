@@ -436,6 +436,38 @@ _Avoid_: extending a window because the result looks close (peeking), per-card v
 The judgement of a change type (workflow × change kind × metric) across many cards and shops: inverse-variance-weighted mean of each card's control-adjusted log-ratio effect, reported only once the pooled sample reaches the 30 % MDE requirement ("đang tích lũy dữ liệu" before). CTR cards enter only if they pass the traffic-chain check (channel mix, dilution, promotions, platform discount, price/stock, LIVE/affiliate); search-vs-recommendation and ads are named blind spots.
 _Avoid_: summing raw clicks or orders across products, pooling different metrics or change kinds
 
+**Shop diagnosis report**:
+The per-shop, Vietnamese-only internal page plus a seller-message draft, both built from one snapshot ([ADR-108](docs/adr/108-shop-diagnosis-report.md)). Order: shop GMV split into TikTok's five channels → each channel's funnel from Lượt hiển thị sản phẩm to GMV with the change split into Impressions / CTR / CTOR / AOV contributions → the event timeline → five hero-product profiles ending in a conclusion and *Cần xem tiếp*. Tables compare daily averages over the last 30 days vs the prior 30; refreshed once a day to the same link. KPI and channel names are TikTok's Vietnamese wording; no backend field or endpoint appears on the page. Renders no cards.
+_Avoid_: mixing it with the ADR-106 card report, day-by-day change tables, English or code identifiers on the page, CTOR from orders instead of SKU orders
+
+**Nhóm khách tự tìm đến** (self-search group):
+Thẻ sản phẩm của người bán + Tab Cửa hàng — the channels where listing, price and voucher work acts; CTOR is their main KPI and the hero-product decision tree runs on this group. Tab Cửa hàng has no add-to-cart data and its SKU orders are derived (CTOR × clicks, labelled *ước tính*).
+_Avoid_: judging the listing from all-channel CTOR, where affiliate and LIVE mask this group
+
+**Nhóm nội dung** (content group):
+Video của người bán, LIVE của người bán and Liên kết (affiliate, with Video liên kết / LIVE liên kết sub-rows). Lượt hiển thị sản phẩm and GMV are the main KPIs; CTOR is reference only because buyers often order without a cart or a click. Liên kết explains the whole shop and never drives a product conclusion.
+_Avoid_: reading a LIVE CTOR rise as a conversion gain
+
+**Event timeline**:
+The report's only daily view: per channel, 7-day rolling averages of Lượt hiển thị sản phẩm, CTR, CTOR and AOV over 60 days, with flash sales, product discounts and vouchers drawn as date bands, each showing how many of its days fall in each 30-day window.
+_Avoid_: raw daily lines on small shops, judging a promotion without its dates
+
+**Giá một món phổ biến** (common single-item price):
+The median value of single-item orders in the last 30 days; the yardstick that classifies a voucher by its threshold — Chốt đơn, Nâng giá trị đơn, Đơn nhiều món (≥ 1.8×) — plus Cá nhân / bù khách and Riêng sản phẩm.
+_Avoid_: fixed money thresholds across shops, classifying a voucher by its seller-written title
+
+**Flash sale coverage / true depth**:
+Coverage = the share of time a flash sale runs, per day and per week (a flash day is ≥ 50 % covered). True depth = the flash price against the price already discounted by a running product discount, not against list price. Together with order-per-add-to-cart on pre-flash, flash and non-flash days they raise three flags: Flash gần như liên tục, Flash quá nông, Khách chờ flash.
+_Avoid_: measuring flash depth from list price, calling flash sales effective from flash-day GMV alone
+
+**Confidence label**:
+Every comparison in the shop diagnosis report reads *Rõ* (≥ 30 orders a side and the 90 % interval excludes 0), *Tham khảo* (10–29 orders, or inside the noise band) or *Chưa đủ dữ liệu* (< 10). A main story is only chosen from Rõ factors; the seller message uses Rõ numbers, and Tham khảo numbers only with the word "dấu hiệu".
+_Avoid_: a conclusion from a 13-order cell, unlabelled percentages in seller copy
+
+**Shop snapshot**:
+The read-only fetch output for one shop and end date — 60 daily A-34 files, orders by create time, promotions, vouchers, flash-sale details, LIVE and video lists — stored outside the repo because orders carry buyer data. The report build runs offline from it; the daily refresh adds one day.
+_Avoid_: committing snapshots, rebuilding by re-calling the API
+
 **Workflow run event**:
 The canonical record of one observable step in an agent run (ADR-074 pending): `{workflow_run_id, sequence_number, event_type, timestamp, payload, v}` persisted to `workflow_run_events` — **the event log is the stream**: Postgres is the replay authority, Redis pub/sub is best-effort delivery only. Sequence numbers are minted by the run's single writer (`WorkflowRunner`, counter in the run-state blob); the unique `(run_id, seq)` index makes crash-replays no-ops. Clients reconnect with `Last-Event-ID: <sequence_number>` and the SSE endpoint replays from Postgres, then re-attaches live (subscribe-before-replay, server-side dedupe). Eight event types shared as a discriminated union in `packages/contracts` with golden fixtures tested by both Pydantic and TS.
 _Avoid_: treating Redis as the event source of truth, client-side deduplication, global DB sequences (gaps break exact replay)
