@@ -13,6 +13,7 @@ model reads beside the raw code. It never carries vendor free text.
 from __future__ import annotations
 
 import re
+from typing import TypeGuard
 
 #: Exact code -> label. Keep each label short enough for a one-line summary.
 DIAGNOSIS_CODE_LABELS_VI: dict[str, str] = {
@@ -52,7 +53,7 @@ UNKNOWN_CODE_LABEL_VI = "Vấn đề khác TikTok nêu"
 _CODE_PATTERN = re.compile(r"^[A-Z0-9_]{1,80}$")
 
 
-def is_diagnosis_code(value: object) -> bool:
+def is_diagnosis_code(value: object) -> TypeGuard[str]:
     return isinstance(value, str) and _CODE_PATTERN.fullmatch(value) is not None
 
 
