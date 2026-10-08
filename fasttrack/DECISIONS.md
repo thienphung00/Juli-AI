@@ -116,3 +116,15 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
 - **D20** — Production deploys from the fast track are triggered by pushing a
   `fasttrack-deploy-*` tag on a commit already on `fasttrack/optimize-product`
   (2026-10-05). `workflow_dispatch` stays for use after the merge into `main`.
+
+- **D21** — The demo becomes the product (owner, 2026-10-08). demo.app-juli.com is
+  replaced by the fast-track app; it had no real data worth keeping.
+  - **Quyết định** (tab label restored; overrides #1910's "Hành động") shows the
+    shop's Optimize Product cards from the ADR-106 pipeline on real P1 data
+    (rule-based stage diagnosis) until the P3 model replaces the ranking.
+  - **Phân tích** shows the ADR-108 shop diagnosis report for the signed-in shop,
+    refreshed once a day; the report JSON (`shop_diagnosis` `report.json` shape)
+    is the API contract.
+  - UI follows `docs/product/design/ui_kits/app/index.html` + `colors_and_type.css`.
+  - The fast-track deploy builds and ships the demo lane itself (repays the
+    demo/landing block in DEBT).

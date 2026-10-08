@@ -57,3 +57,43 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
   correct shop scope (sticky scope where ETL commits mid-cycle, as #1967).
   Tested with two shops.
  — evidence: 728f67d1; tests/integration/test_shop_ingestion_two_tenant.py as juli_app with real commits (fails if sticky scope removed)
+## P7 — Quyết định + Phân tích on demo.app-juli.com (D21)
+
+### P7-A Phân tích backend
+- [ ] **AC-7.1** A daily per-shop job builds the ADR-108 report from TikTok
+  reads (read-only, per-shop credential via `resolve_read_credential_for_shop`,
+  429 backoff) and stores the report JSON + `as_of` per shop (new table,
+  migration revision id ≤ 32 chars, RLS/two-tenant safe). Runs after the daily
+  analytics pass and once after bootstrap fast phase. Buyer-level order data is
+  never persisted beyond what the report needs (aggregates only).
+- [ ] **AC-7.2** `GET /v1/demo/analysis` (auth + `X-Shop-Id`, same guards as
+  `/v1/demo/decisions`) returns the latest report for the caller's shop, 404
+  when none. Two-tenant test proves shop A never sees shop B's report.
+
+### P7-B Quyết định backend
+- [ ] **AC-7.3** Optimize Product cards come from the ADR-106 pipeline for every
+  shop: top-10 ranked, ≤ 5 active, one card per product, scored after bootstrap
+  fast phase and after the daily analytics pass (D11). Each card carries the
+  diagnosed stage, the lever, and the product's funnel evidence (impressions,
+  CTR, add-to-cart rate, CTOR, AOV — TikTok's definitions) in
+  `/v1/demo/decisions`.
+- [ ] **AC-7.4** Approve still creates a real run of the Optimize Product
+  playbook with CONFIRM before any write (no change to write policy, D13).
+
+### P7-C UI
+- [ ] **AC-7.5** apps/demo restyled to the index.html mock (tokens from
+  `colors_and_type.css`, card/button/badge classes, nav "Trang chủ / Quyết định /
+  Phân tích / Cài đặt"). Vietnamese only; KPI names as TikTok writes them.
+- [ ] **AC-7.6** Quyết định (signed in) renders real cards with the stage,
+  lever and funnel evidence; approve → run view still works.
+- [ ] **AC-7.7** Phân tích (signed in) renders the report: 5-channel split with
+  "GMV trung bình mỗi ngày" 30 vs 30, per-channel funnel, hero profiles,
+  event timeline, promotions; Shop Tab shown as missing when absent; no
+  backend/endpoint names in the UI. Anonymous visitors see a synthetic sample.
+- [ ] **AC-7.8** `pnpm lint`, `type-check`, vitest green; guard tests updated
+  only where the restyle intentionally changes them.
+
+### P7-D Deploy
+- [ ] **AC-7.9** `fasttrack-deploy.yml` builds the demo artifact (Supabase env
+  at build) and deploys the demo lane instead of refusing it; landing stays
+  blocked. actionlint clean.
