@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 
 const PRIMARY_DESTINATIONS = [
   "Trang chủ",
-  "Hành động",
+  "Quyết định",
   "Phân tích",
   "Cài đặt",
 ] as const;

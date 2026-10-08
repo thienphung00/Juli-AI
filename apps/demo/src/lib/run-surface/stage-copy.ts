@@ -36,9 +36,9 @@ export const RUN_PRODUCT_BINDING_LABEL = "Sản phẩm đang xử lý";
 export const RUN_WORKFLOW_TITLE = "Tối ưu sản phẩm";
 
 /** `run.back_to_actions` -- the run header's back control, returning to the
- *  Hành động tab (`/decisions`). Owner amendment on #1910 (2026-09-14): the
- *  destination tab's name is Hành động, and the back control reads the
- *  same -- never "Quay lại" or a route path. Derived from the ONE
+ *  Quyết định tab (`/decisions`). The destination tab's name (restored by
+ *  owner decision D21) and the back control read the same -- never
+ *  "Quay lại" or a route path. Derived from the ONE
  *  destination-label constant so the rail and this control cannot drift. */
 export const RUN_HEADER_BACK_LABEL: typeof ACTIONS_DESTINATION_LABEL =
   ACTIONS_DESTINATION_LABEL;

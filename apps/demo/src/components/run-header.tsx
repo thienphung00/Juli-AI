@@ -3,7 +3,7 @@
 /**
  * The run page's header row (issue #1910, PUI-DESIGN.md §2):
  *
- *   │ ← Hành động        Tối ưu sản phẩm     ● Đang chạy │
+ *   │ ← Quyết định        Tối ưu sản phẩm     ● Đang chạy │
  *
  * Rendered by `RunStagedView` above the stepper -- the first tab stop on
  * the run surface, before any stepper tab.

@@ -11,7 +11,7 @@ Invariants below.
 
 ## Public interface
 
-- `/` — sparse Home launcher with exactly two cards: Hành động and Phân tích.
+- `/` — sparse Home launcher with exactly two cards: Quyết định and Phân tích.
 - `/decisions`, `/analytics`, `/settings` — discoverable shell destinations;
   content is delivered by later vertical slices.
 - `DemoShell` — responsive four-destination application frame. **Exception
@@ -55,6 +55,22 @@ Invariants below.
   `DecisionsPageClient` selects it when `readAuthSession()` finds a stored
   session; with none, the anonymous `RecommendationsView` renders
   unchanged.
+- **Phân tích (D21, AC-7.7).** `/analytics` renders `AnalysisPageClient`: a
+  stored session selects `SignedInShopAnalysis` (`GET /v1/demo/analysis` via
+  `lib/shop-analysis/api-client.ts`, bearer + `X-Shop-Id`, `?ranking=60d|30d`,
+  404 → honest empty state, never the sample); no session renders
+  `SampleShopAnalysis`, a bundled synthetic ADR-108 report (invented shop) that
+  issues no request (an entry of `replay-module-graph.test.ts`).
+  `ShopAnalysisView` renders the report JSON (`lib/shop-analysis/types.ts`;
+  rates recomputed in `derive.ts`), wording mirrored from
+  `shop_diagnosis/render.py`. The KPI dashboard below stays at
+  `/analytics/[metricKey]`, linked from the report.
+- **Quyết định evidence (AC-7.6).** `lib/decision-evidence.ts` is the one
+  tolerant mapper for the additive stage / lever / funnel-evidence fields of a
+  decision item; `DecisionEvidenceBlock` renders it only when present.
+- **Look (D21, AC-7.5).** `globals.css` carries the `colors_and_type.css` kit
+  (tokens, `.card`, `.btn-primary`, `.badge`, `.app-header` …) after the older
+  rules; navigation is a bottom bar at every width.
 - `AnalyticsDataProvider` / `fetchDemoAnalytics` — Phase 2.10-A live Analytics read via `GET /v1/demo/analytics` (Home/Settings/Decisions remain mock).
 - **The staged run view (issues #1316/#1317/#1319/#1752/#1909, ADR-076 decision 3/4, ADR-094).** `RunDetailRoute` (`components/run-detail-route.tsx`) dispatches on whether a bearer `token` is present — the same absence-as-signal `useRunStream` itself gates on. Since issue #1909 that token is actually supplied: the `[executionId]` page's `RunDetailDoor` reads `readAuthSession()` and passes `token` (plus the acting shop's `shopId`) when a session is stored — before #1909 no caller passed one, so the signed-in door below was unreachable from any browser:
   - **Signed-in (token present):** `SignedInRunDetail` calls `fetchDemoRuns` (`lib/run-ledger/api-client.ts`, real `GET /v1/demo/runs`) to resolve the run, then `useRunStream(runId)` (`lib/run-surface/use-run-stream.ts`) opens the real SSE transport (`lib/agent-event-stream.ts`) with reconnect/backoff via `Last-Event-ID`. `RunStagedView` renders the live event fold; `OptionPicker`'s confirm/decline calls `submitConfirmationDecision` (`lib/run-surface/confirmation-client.ts`), a real bearer-authenticated `POST /v1/demo/runs/{id}/confirmations/{tool_call_id}`. This path is live-backed end to end.

@@ -27,16 +27,7 @@
  */
 
 import type { DemoDecisionItem } from "@juli/contracts";
-import {
-  Badge,
-  Button,
-  Card,
-  CardBody,
-  CardHeader,
-  CardTitle,
-  ConfirmDialog,
-  type BadgeVariant,
-} from "@juli/ui";
+import { ConfirmDialog } from "@juli/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
@@ -48,6 +39,8 @@ import {
 import { DemoDecisionApproveError } from "../lib/recommendations-api-client";
 import { readActiveShop } from "../lib/shop-session";
 import { ACTIONS_DESTINATION_LABEL } from "../lib/destination-copy";
+import { mapDecisionEvidence } from "../lib/decision-evidence";
+import { DecisionEvidenceBlock } from "./decision-evidence-block";
 import { InProgressPanel } from "./in-progress-panel";
 
 /** dictionary.md `decisions.signed_in.no_shop` */
@@ -83,17 +76,28 @@ function describeApproveError(error: unknown): string {
   return "Không thể kết nối. Vui lòng kiểm tra mạng và thử lại.";
 }
 
-function severityBadge(severity: string): { label: string; variant: BadgeVariant } {
+function severityBadge(severity: string): { label: string; className: string } {
   switch (severity) {
     case "critical":
-      return { label: "Khẩn cấp", variant: "destructive" };
+      return { label: "Khẩn cấp", className: "badge badge-danger" };
     case "high":
-      return { label: "Ưu tiên cao", variant: "warning" };
+      return { label: "Ưu tiên cao", className: "badge badge-warning" };
     case "warning":
-      return { label: "Chú ý", variant: "info" };
+      return { label: "Chú ý", className: "badge badge-info" };
     default:
-      return { label: "Thông tin", variant: "info" };
+      return { label: "Thông tin", className: "badge badge-info" };
   }
+}
+
+/** Shown once the seller has declined at least one card this session. */
+const REJECTED_COPY =
+  "Đã gỡ đề xuất bạn từ chối khỏi danh sách. Lựa chọn này chưa được lưu, nên đề xuất có thể xuất hiện lại khi bạn tải lại trang.";
+
+function visibleItems(
+  items: readonly DemoDecisionItem[],
+  rejected: ReadonlySet<string>,
+): readonly DemoDecisionItem[] {
+  return items.filter((item) => !rejected.has(item.id));
 }
 
 type LoadState =
@@ -129,6 +133,11 @@ export function SignedInDecisions({
   const [pendingApproval, setPendingApproval] = useState<DemoDecisionItem | null>(null);
   const [approving, setApproving] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
+  // "Từ chối" has no backend route yet (DEBT): the card is removed from this
+  // session's list only, and the copy says so.
+  const [rejectedIds, setRejectedIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const approveErrorRef = useRef<HTMLParagraphElement | null>(null);
 
   // The error renders above the list; the seller who just clicked Phê duyệt
@@ -285,7 +294,13 @@ export function SignedInDecisions({
             </section>
           )}
 
-          {loadState.status === "ready" && loadState.items.length === 0 && (
+          {rejectedIds.size > 0 && (
+            <p className="decision-card__rejected-note" role="status">
+              {REJECTED_COPY}
+            </p>
+          )}
+
+          {loadState.status === "ready" && visibleItems(loadState.items, rejectedIds).length === 0 && rejectedIds.size === 0 && (
             <section aria-label="Đề xuất" className="demo-decisions__empty" role="status">
               <p className="demo-kicker">Chưa có dữ liệu</p>
               {/* dictionary.md `empty.decisions.waiting_data` */}
@@ -296,15 +311,18 @@ export function SignedInDecisions({
             </section>
           )}
 
-          {loadState.status === "ready" && loadState.items.length > 0 && (
+          {loadState.status === "ready" && visibleItems(loadState.items, rejectedIds).length > 0 && (
             <ul className="demo-decisions__list">
-              {loadState.items.map((item) => (
+              {visibleItems(loadState.items, rejectedIds).map((item) => (
                 <li key={item.id}>
                   <SignedInDecisionCard
                     item={item}
                     onApprove={() => {
                       setApproveError(null);
                       setPendingApproval(item);
+                    }}
+                    onReject={() => {
+                      setRejectedIds((ids) => new Set(ids).add(item.id));
                     }}
                   />
                 </li>
@@ -341,60 +359,102 @@ export function SignedInDecisions({
 function SignedInDecisionCard({
   item,
   onApprove,
+  onReject,
 }: {
   readonly item: DemoDecisionItem;
   readonly onApprove: () => void;
+  readonly onReject: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const severity = severityBadge(item.severity);
   const reasoning = item.recommendation.reasoning ?? null;
+  const evidence = mapDecisionEvidence(item);
+  const reasoningId = `reasoning-${item.id}`;
+  const hasReasoning = Boolean(
+    reasoning?.why ||
+      item.recommendation.rationale ||
+      (reasoning && reasoning.next_steps.length > 0),
+  );
 
   return (
-    <Card data-decision-id={item.id}>
-      <CardHeader>
-        <div className="execution-card__header-row">
-          <CardTitle>{item.title}</CardTitle>
-          <Badge variant={severity.variant}>{severity.label}</Badge>
+    <article
+      className="card decision-card"
+      data-decision-id={item.id}
+      data-testid="recommendation-card"
+    >
+      <div className="decision-card__head">
+        <p className="decision-card__kicker">
+          <svg
+            aria-hidden="true"
+            fill="none"
+            height="16"
+            stroke="currentColor"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+            width="16"
+          >
+            <path
+              d="M12 3v4M12 17v4M5 12H3M21 12h-2M6.5 6.5l1.5 1.5M16 16l1.5 1.5M17.5 6.5L16 8M8 16l-1.5 1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+          Đề xuất
+        </p>
+        <span className={severity.className}>{severity.label}</span>
+      </div>
+      <h2 className="decision-card__headline">{item.title}</h2>
+      <p className="decision-card__description">{item.description}</p>
+      {reasoning?.expected_impact && (
+        <p className="decision-card__impact">
+          Tác động dự kiến: <strong>{reasoning.expected_impact}</strong>
+        </p>
+      )}
+      {evidence && <DecisionEvidenceBlock evidence={evidence} />}
+      {expanded && hasReasoning && (
+        <div className="decision-card__reasoning" id={reasoningId}>
+          <strong>Lý do đề xuất</strong>
+          {reasoning?.why && <p>{reasoning.why}</p>}
+          {item.recommendation.rationale && <p>{item.recommendation.rationale}</p>}
+          {reasoning && reasoning.next_steps.length > 0 && (
+            <>
+              <p className="decision-card__label" id={`steps-${item.id}`}>
+                Các bước tiếp theo
+              </p>
+              <ol aria-labelledby={`steps-${item.id}`} className="decision-card__steps">
+                {reasoning.next_steps.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+            </>
+          )}
         </div>
-      </CardHeader>
-      <CardBody>
-        <p className="signed-in-decision__description">{item.description}</p>
-        {(item.recommendation.rationale || reasoning?.why) && (
-          <div className="signed-in-decision__section">
-            <p className="signed-in-decision__label">Vì sao</p>
-            {reasoning?.why && <p>{reasoning.why}</p>}
-            {item.recommendation.rationale && <p>{item.recommendation.rationale}</p>}
-          </div>
+      )}
+      {!item.is_executable && (
+        <p className="signed-in-decision__manual-note">
+          Đề xuất này cần bạn thực hiện thủ công — Juli chưa tự thực thi được.
+        </p>
+      )}
+      <div className="decision-card__actions">
+        {item.is_executable && (
+          <button className="btn-primary" onClick={onApprove} type="button">
+            Phê duyệt
+          </button>
         )}
-        {reasoning?.expected_impact && (
-          <div className="signed-in-decision__section">
-            <p className="signed-in-decision__label">Tác động kỳ vọng</p>
-            <p>{reasoning.expected_impact}</p>
-          </div>
+        <button className="btn-secondary" onClick={onReject} type="button">
+          Từ chối
+        </button>
+        {hasReasoning && (
+          <button
+            aria-controls={expanded ? reasoningId : undefined}
+            aria-expanded={expanded}
+            className="btn-secondary decision-card__expand"
+            onClick={() => setExpanded((value) => !value)}
+            type="button"
+          >
+            {expanded ? "Thu gọn" : "Mở rộng"}
+          </button>
         )}
-        {reasoning && reasoning.next_steps.length > 0 && (
-          <div className="signed-in-decision__section">
-            <p className="signed-in-decision__label" id={`steps-${item.id}`}>
-              Các bước tiếp theo
-            </p>
-            <ol aria-labelledby={`steps-${item.id}`} className="signed-in-decision__steps">
-              {reasoning.next_steps.map((step) => (
-                <li key={step}>{step}</li>
-              ))}
-            </ol>
-          </div>
-        )}
-        {item.is_executable ? (
-          <div className="execution-card__actions">
-            <Button onClick={onApprove} variant="primary">
-              Phê duyệt
-            </Button>
-          </div>
-        ) : (
-          <p className="signed-in-decision__manual-note">
-            Đề xuất này cần bạn thực hiện thủ công — Juli chưa tự thực thi được.
-          </p>
-        )}
-      </CardBody>
-    </Card>
+      </div>
+    </article>
   );
 }

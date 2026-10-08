@@ -18,48 +18,36 @@ import {
 const REPO_ROOT = resolve(__dirname, "../../../..");
 
 /**
- * Issue #1959. #1910 renamed the destination tab to `Hành động`, but the
- * governed body strings that *name that destination* still said `Quyết định`,
- * so one screen showed two names for one place.
+ * Issue #1959, re-pointed by owner decision D21 (fast track, 2026-10-08).
+ * #1910 had renamed the destination tab to `Hành động`; D21 restores
+ * `Quyết định`. The guard keeps its shape — one name for one place — and now
+ * denies the RETIRED interim name, `Hành động`, so one screen can never show
+ * two names for the tab again.
  *
  * This guard is DEFAULT-DENY. It does not hunt for known-bad phrasings —
- * that was the first design, and review disproved it by injecting
- * "Chuyển sang Quyết định", a destination use in wording no pattern list
- * happened to carry, which sailed through green. A list of five literals
- * cannot enumerate the ways Vietnamese can point at a tab.
- *
- * So instead: EVERY capitalised `Quyết định` in the scanned surface is a
- * failure unless it appears below with a reason. The capitalised form is the
- * tab's proper name; the ordinary noun `quyết định` is lowercase, ubiquitous,
- * and deliberately not scanned. Adding a line here is a decision someone makes
- * on purpose, which is the point — it cannot be reached by accident.
+ * a list of literals cannot enumerate the ways Vietnamese can point at a tab.
+ * EVERY capitalised `Hành động` in the scanned surface is a failure unless it
+ * appears below with a reason. The capitalised form is the retired tab's
+ * proper name; the ordinary noun `hành động` is lowercase and deliberately not
+ * scanned. Adding a line here is a decision someone makes on purpose.
  *
  * The scan covers all three layers of the cascade #1937 learned about the hard
- * way (three CI rounds, one layer at a time): demo source, the e2e spec
- * source, and the Python contract tests that grep spec source text.
+ * way: demo source, the e2e spec source, and the Python contract tests that
+ * grep spec source text.
  */
 
 /**
- * WHAT THIS GUARD CANNOT DO, stated rather than discovered in a fifth round.
- *
- * It reads source text. Three evasions were found against earlier drafts and
- * are now closed — novel phrasing, a line split, JSX expression containers,
- * and NFD decomposition — but the class itself has a floor: a value ASSEMBLED
- * AT RUNTIME is invisible to any scan of the source that produces it. A name
- * built from a variable, concatenated from fragments held in an array, or
- * returned by an API cannot be seen here, because at rest the source contains
- * no such string.
- *
- * Closing that last case needs an assertion on RENDERED OUTPUT, not on source
- * — the fourth test below is the beginning of one, checking the six governed
- * constants' resolved values. Extending it to every surface is a larger change
- * than this issue, and is named here as a known limit rather than left for a
- * reviewer to find.
- *
- * The practical scope this guard does cover is the one that actually recurs:
- * somebody typing the retired name, in ordinary code, by hand.
+ * WHAT THIS GUARD CANNOT DO: it reads source text. A value ASSEMBLED AT
+ * RUNTIME (built from a variable, concatenated from fragments, returned by an
+ * API) is invisible to any scan of the source that produces it. The fourth
+ * test below checks the six governed constants' resolved values; extending a
+ * rendered-output assertion to every surface is a larger change, named here
+ * as a known limit.
  */
-const RETIRED_DESTINATION_NAME = "Quyết định";
+const RETIRED_DESTINATION_NAME = "Hành động";
+
+/** The restored name every destination use must resolve to. */
+const DESTINATION_NAME = "Quyết định";
 
 /**
  * Every legitimate capitalised use, with why it survives. Paths are relative
@@ -71,59 +59,19 @@ const ALLOWED_USES: ReadonlyArray<{
   readonly reason: string;
 }> = [
   {
-    path: "apps/demo/src/components/home-launcher.tsx",
-    snippet: "Quyết định nhanh, hiểu rõ shop.",
-    reason: "AC2: the home tagline — the ordinary noun, sentence-initial.",
-  },
-  {
     path: "apps/demo/src/lib/destination-copy.ts",
-    snippet: 'Hành động — superseding the earlier "Quyết định" label.',
+    snippet: 'overriding #1910\'s interim "Hành động" label.',
     reason: "The docblock that records the retirement; the one place it must survive.",
   },
   {
-    path: "apps/demo/src/lib/recommendations.ts",
-    snippet: "Quyết định sớm giúp giữ đơn hoặc giải phóng hàng đúng hạn.",
-    reason: "AC2: ordinary noun, sentence-initial.",
+    path: "apps/demo/src/lib/review-seller-copy.ts",
+    snippet: "Hành động sẽ chuyển sang Đang thực hiện.",
+    reason: "Ordinary noun, sentence-initial (\"this action will move to…\").",
   },
   {
-    path: "apps/demo/src/lib/recommendations.ts",
-    snippet: "Quyết định hoàn tiền đúng hạn giúp tránh leo thang tranh chấp.",
-    reason: "AC2: ordinary noun, sentence-initial.",
-  },
-  {
-    path: "apps/demo/src/lib/workflows/prevent-cancellation/plan.ts",
-    snippet: "Quyết định cho yêu cầu huỷ",
-    reason: "AC2: a workflow field label — the shop's decision, not the tab.",
-  },
-  {
-    path: "apps/demo/src/lib/workflows/prevent-refund/plan.ts",
-    snippet: "Quyết định cho yêu cầu hoàn tiền",
-    reason: "AC2: a workflow field label.",
-  },
-  {
-    path: "apps/demo/src/lib/workflows/prevent-return/plan.ts",
-    snippet: "Quyết định cho yêu cầu trả hàng",
-    reason: "AC2: a workflow field label.",
-  },
-  {
-    path: "apps/demo/src/lib/workflows/prevent-cancellation/review.ts",
-    snippet: "Quyết định của shop (Phê duyệt / Từ chối)",
-    reason: "AC2: a workflow field label.",
-  },
-  {
-    path: "apps/demo/src/lib/workflows/prevent-refund/review.ts",
-    snippet: "Quyết định của shop (Phê duyệt / Từ chối)",
-    reason: "AC2: a workflow field label.",
-  },
-  {
-    path: "apps/demo/src/lib/workflows/prevent-return/review.ts",
-    snippet: "Quyết định của shop (Phê duyệt / Từ chối)",
-    reason: "AC2: a workflow field label.",
-  },
-  {
-    path: "tests/unit/test_issue_397_demo_workspace_contract.py",
-    snippet: "Quyết định nhanh, hiểu rõ shop.",
-    reason: "AC4: the contract test asserts the home tagline's source text; it tracks the allowed use above.",
+    path: "apps/demo/src/components/in-progress-panel.tsx",
+    snippet: 'action: "Hành động",',
+    reason: "Timeline step-kind label (an action step), not the tab.",
   },
 ];
 
@@ -240,7 +188,7 @@ describe("the destination has one name", () => {
 
   it("leaves every allowed ordinary-noun use in place", () => {
     // The other direction: an over-eager sweep that renames the ordinary noun
-    // must fail too. `Quyết định` is the Vietnamese for a decision, and is
+    // must fail too. `Hành động` is the Vietnamese for an action, and is
     // only wrong when it names the tab.
     for (const { path, snippet } of ALLOWED_USES) {
       expect(readFileSync(join(REPO_ROOT, path), "utf8")).toContain(snippet);
@@ -257,6 +205,7 @@ describe("the destination has one name", () => {
       describeConfirmationRejection("params_sha_mismatch"),
     ];
     expect(destinationStrings.length).toBe(6);
+    expect(ACTIONS_DESTINATION_LABEL).toBe(DESTINATION_NAME);
     for (const value of destinationStrings) {
       expect(value).toContain(ACTIONS_DESTINATION_LABEL);
       expect(value).not.toContain(RETIRED_DESTINATION_NAME);

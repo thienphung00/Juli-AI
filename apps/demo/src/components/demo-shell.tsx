@@ -144,8 +144,8 @@ function DemoShellContent({ children }: { children: ReactNode }) {
 
   return (
     <div className="demo-shell">
-      <header className="demo-header">
-        <Link className="demo-wordmark" href="/" aria-label="Juli — Trang chủ">
+      <header className="demo-header app-header">
+        <Link className="demo-wordmark brand-wordmark brand-wordmark-sm" href="/" aria-label="Juli — Trang chủ">
           Juli
         </Link>
         <div className="demo-header__actions">
