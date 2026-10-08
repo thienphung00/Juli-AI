@@ -24,7 +24,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
+from sqlalchemy import insert, select
 
 from juli_backend.core.config import DecisionEmissionConfig
 from juli_backend.integrations.tiktok.mapping import (
@@ -97,6 +97,7 @@ async def _seed_shop(session, label: str, *, catalog=CATALOG, cart_days: int = 5
     session.add(shop)
     await session.flush()
     now = _now()
+    rows: list[dict] = []
     for index, (suffix, ctr, ctor, short) in enumerate(catalog):
         tiktok_id = f"{label}-{suffix}"
         title = f"{label} {suffix}" if short else f"{LONG_TITLE} {label} {suffix}"
@@ -122,8 +123,9 @@ async def _seed_shop(session, label: str, *, catalog=CATALOG, cart_days: int = 5
                 if offset < cart_days
                 else None
             )
-            session.add(
-                AnalyticsPerformanceInterval(
+            rows.append(
+                dict(
+                    id=uuid.uuid4(),
                     shop_id=shop.id,
                     snapshot_key=f"product:{tiktok_id}:{day.isoformat()}",
                     grain="product",
@@ -142,8 +144,9 @@ async def _seed_shop(session, label: str, *, catalog=CATALOG, cart_days: int = 5
             )
             if offset >= cart_days:
                 # Multi-day backfill days: SKU orders arrive on the SKU grain.
-                session.add(
-                    AnalyticsPerformanceInterval(
+                rows.append(
+                    dict(
+                        id=uuid.uuid4(),
                         shop_id=shop.id,
                         snapshot_key=f"sku:{tiktok_id}-s1:{day.isoformat()}",
                         grain="sku",
@@ -170,8 +173,9 @@ async def _seed_shop(session, label: str, *, catalog=CATALOG, cart_days: int = 5
     )
     for offset in range(DAYS):
         day = AS_OF - timedelta(days=offset)
-        session.add(
-            AnalyticsPerformanceInterval(
+        rows.append(
+            dict(
+                id=uuid.uuid4(),
                 shop_id=shop.id,
                 snapshot_key=f"product:{gift}:{day.isoformat()}",
                 grain="product",
@@ -185,6 +189,9 @@ async def _seed_shop(session, label: str, *, catalog=CATALOG, cart_days: int = 5
                 update_time=now,
             )
         )
+    await session.flush()
+    # One bulk statement: ~3 000 ORM adds took > 30 s on a loaded machine.
+    await session.execute(insert(AnalyticsPerformanceInterval), rows)
     await session.flush()
     return shop
 
@@ -683,3 +690,17 @@ def test_a34_add_to_cart_joins_the_detail_row():
         "clicks": 50,
         "impressions": 1000,
     }
+
+
+@pytest.mark.asyncio
+async def test_the_p1_scoring_hook_produces_the_adr106_cards(session, shop_a):
+    """D11: bootstrap fast phase and the daily analytics pass call
+    ``score_and_persist_cards``; that path now yields the ranked product cards."""
+    from juli_backend.workers.tasks.shop_ingestion import score_and_persist_cards
+
+    await score_and_persist_cards(session, shop_a.id)
+
+    cards = await _optimize_cards(session, shop_a.id)
+    assert len(cards) == 10
+    assert len([c for c in cards if c.surfaced_at is not None]) == 5
+    assert all("diagnosis" in json.loads(c.recommendation_payload) for c in cards)
