@@ -156,3 +156,8 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   - **FastMoss (P2)** becomes optional: competitor price (D13, D19) and
     market/category context as a control. The market model (D16) waits for
     multiple shops and cleaned FastMoss data.
+
+- **D23** — UI follows the sales demo video; decisions recorded in
+  [ADR-109](../docs/adr/109-demo-app-follows-the-sales-demo-video.md) at the
+  owner's request (an exception to D4's no-ADR rule) (owner, 2026-10-08).
+  Grill in progress; open points listed in the ADR.
