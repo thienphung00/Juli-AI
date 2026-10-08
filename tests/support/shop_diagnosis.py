@@ -181,3 +181,87 @@ def write_snapshot(
     for pid, detail in (products or {}).items():
         dump(folder / "products" / f"{pid}.json", {"data": detail})
     return folder
+
+
+#: Buyer-level values planted in the fake orders; a stored report must never contain them.
+BUYER_MARKERS = ("buyer-marker@example.invalid", "Người Mua Bí Mật")
+
+
+def synthetic_rows(day: date, products: int = 6) -> list[DayRow]:
+    """A stable synthetic catalogue for one day (no randomness)."""
+    return [
+        DayRow(
+            f"p{n}",
+            card=Block(400 + 10 * n, 40 + n, 8, 2 + n % 3, 150_000 * (n + 1)),
+            tab=TabBlock(50, 5, "0.2", 20_000),
+            seller_video=Block(200, 10, 2, 1, 90_000),
+            affiliate_video=Block(300, 12, 3, 1, 80_000),
+        )
+        for n in range(products)
+    ]
+
+
+class FakeTikTokReadResources:
+    """Production-read resources shaped like the guarded client, for the daily job.
+
+    Records every call in ``calls``; only read methods exist. ``fail_a34`` makes
+    the A-34 list raise, to prove a failed build stores nothing.
+    """
+
+    def __init__(self, *, end: date = END, fail_a34: bool = False) -> None:
+        self.calls: list[tuple] = []
+        self.end = end
+        self.fail_a34 = fail_a34
+        outer = self
+
+        class Analytics:
+            def list_product_performance_all(self, *, start_date_ge: str, end_date_lt: str):
+                outer.calls.append(("a34", start_date_ge))
+                if outer.fail_a34:
+                    raise RuntimeError("analytics unavailable")
+                return [a34_row(r) for r in synthetic_rows(date.fromisoformat(start_date_ge))]
+
+            def list_live_performance_all(self, **_kwargs: str):
+                outer.calls.append(("live",))
+                return []
+
+            def get_live_products_performance(self, **_kwargs: str):
+                raise AssertionError("no LIVE was listed")
+
+            def list_video_performance_all(self, **_kwargs: str):
+                outer.calls.append(("videos",))
+                return []
+
+            def get_video_products_performance(self, **_kwargs: str):
+                raise AssertionError("no video was listed")
+
+        class Orders:
+            def search_all(self, *, create_time_from: int, create_time_to: int):
+                outer.calls.append(("orders", create_time_from))
+                day = datetime.fromtimestamp(create_time_from, ZONE).date()
+                placed = order(f"o-{day.isoformat()}", day, ["p0", "p1"], 300_000)
+                placed["buyer_email"] = BUYER_MARKERS[0]
+                placed["recipient_address"] = {"name": BUYER_MARKERS[1]}
+                return [placed]
+
+        class Promotion:
+            def search_activities_all(self, *, status: str):
+                outer.calls.append(("activities", status))
+                return []
+
+            def search_coupons_all(self):
+                outer.calls.append(("coupons",))
+                return []
+
+            def get_activity(self, activity_id: str):
+                raise AssertionError("no activity was listed")
+
+        class Products:
+            def get_details(self, product_id: str):
+                outer.calls.append(("product", product_id))
+                return {"data": {"id": product_id, "title": f"Sản phẩm {product_id}"}}
+
+        self.analytics = Analytics()
+        self.orders = Orders()
+        self.promotion = Promotion()
+        self.products = Products()
