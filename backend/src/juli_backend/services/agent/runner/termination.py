@@ -85,16 +85,17 @@ iteration) can notice the budget was exceeded mid-iteration. This is
 `LLMConfig.request_timeout_seconds` (default `DEFAULT_REQUEST_TIMEOUT_SECONDS`
 = 30s, `llm/config.py`), and each tool call within it is bounded by its own
 `ToolSpec.timeout_seconds` (`tools/registry.py`). For the Optimize Product
-playbook specifically (`playbooks/optimize_product.py`), the six registered
-tools carry `timeout_seconds` of 10 (`get_product_information`), 15
+playbook specifically (`playbooks/optimize_product.py`), the seven registered
+tools carry `timeout_seconds` of 10 (`get_product_diagnoses`), 10
+(`get_product_information`), 15
 (`get_seo_keywords`), 30 (`upload_product_image`), 20
 (`update_product_listing`), 20 (`update_product_price`), and 10
-(`check_product_status`) — summing to 105s if a single turn's blocks
+(`check_product_status`) — summing to 115s if a single turn's blocks
 dispatched every one of them. So the true worst-case overshoot for one
 iteration is `request_timeout_seconds + Σ(tool timeouts dispatched that
-turn)` ≤ 30 + 105 = 135s, and the true worst-case total run duration before
+turn)` ≤ 30 + 115 = 145s, and the true worst-case total run duration before
 `wall_clock_timeout` can be observed is `wall_clock_timeout_s +
-(request_timeout_seconds + Σtool timeouts)` ≤ 300 + 135 = 435s for this
+(request_timeout_seconds + Σtool timeouts)` ≤ 300 + 145 = 445s for this
 playbook — bounded by the LLM/tool timeout configuration, just not by this
 module. `tests/unit/test_agent_runner_termination.py`'s
 `TestWallClockOvershootBound` computes this figure independently from the

@@ -52,6 +52,7 @@ class _RecordingClient:
 #: failure below rather than a silent omission.
 _READ_TOOL_VENDOR_CALLS = {
     "get_product_information": lambda r: r.get_details("123"),
+    "get_product_diagnoses": lambda r: r.get_diagnoses(["123"]),
     "get_seo_keywords": lambda r: r.get_seo_words(product_ids=["123"]),
     "check_product_status": lambda r: r.get_details("123"),
     # #1208: inspect_product_image re-reads the product to resolve the hero

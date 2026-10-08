@@ -163,6 +163,7 @@ class TestRegistration:
             "check_product_status",
             # #1208: the image step became a READ inspection.
             "inspect_product_image",
+            "get_product_diagnoses",
         }
 
     def test_registered_specs_are_the_module_level_spec_objects(self):
@@ -465,6 +466,7 @@ class TestHandlerRegistry:
             "get_seo_keywords",
             "check_product_status",
             "inspect_product_image",
+            "get_product_diagnoses",
         }
         assert (
             PRODUCT_READ_TOOL_HANDLERS["get_product_information"] is handle_get_product_information

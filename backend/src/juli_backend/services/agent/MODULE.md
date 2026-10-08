@@ -258,6 +258,19 @@ from juli_backend.services.agent.runner import ExternalWaitNotPermitted
   is what makes the capability declarative — a workflow acquires it by putting
   a number on its own policy and by no other means.
 
+### Product diagnoses read tool (AC-8.4, P8-G)
+
+- `GET_PRODUCT_DIAGNOSES_SPEC`, `GetProductDiagnosesInput`, `GetProductDiagnosesOutput`,
+  `handle_get_product_diagnoses` (`tools/product.py`) — the READ / AUTO tool that returns
+  TikTok's diagnosis codes for the bound product, each with a short Vietnamese label;
+  the Optimize Product playbook's first step.
+- `DIAGNOSIS_CODE_LABELS_VI`, `UNKNOWN_CODE_LABEL_VI`, `diagnosis_label_vi(code)`,
+  `is_diagnosis_code(value)` (`tools/diagnosis_labels.py`) — the code -> label table and
+  its prefix / generic fallbacks; a non-token string is never treated as a code.
+- `tool_completed_summary(tool_name, result) -> str` (`runner/seller_facing_copy.py`) —
+  the seller-facing `tool.completed.summary`: `Hoàn tất` for every tool except
+  `get_product_diagnoses` (`Có mã: "…"` / `Không có mã chẩn đoán`).
+
 ## Dependencies
 
 - stdlib only (`json`, `re`, `pathlib`, `dataclasses`, `functools`, `math`,

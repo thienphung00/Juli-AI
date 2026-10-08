@@ -69,6 +69,11 @@ EXPECTED_DESCRIPTIONS: dict[str, str] = {
         "Read the bound product's listing: title, description, status, "
         "last-updated time, SKU count and prices, total inventory, and image sizes."
     ),
+    "get_product_diagnoses": (
+        "Read the diagnosis codes TikTok has raised for the bound product's listing, "
+        "each with a short Vietnamese label. An empty list means TikTok flagged no issue. "
+        "Read this before the listing itself."
+    ),
     "get_seo_keywords": (
         "Get SEO keyword suggestions and title/description suggestions for the "
         "bound product, combined into one result."

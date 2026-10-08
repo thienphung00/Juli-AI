@@ -276,6 +276,7 @@ from juli_backend.services.agent.runner.seller_facing_copy import (
     SellerFacingCompletionReason,
     SellerFacingDeclinedReason,
     SellerFacingRefusalReason,
+    tool_completed_summary,
 )
 from juli_backend.services.agent.runner.state import ConversationMessage, RollupValues, RunState
 from juli_backend.services.agent.runner.termination import (
@@ -1117,7 +1118,7 @@ class WorkflowRunner:
                 tool_name=tool_name,
                 ok=ok,
                 summary=(
-                    SellerFacingCompletionReason.COMPLETED.value
+                    tool_completed_summary(tool_name, raw_result)
                     if ok
                     else SellerFacingCompletionReason.BLOCKED_BY_GUARD.value
                 ),
@@ -1770,7 +1771,7 @@ class WorkflowRunner:
                 tool_name=block.tool_name,
                 ok=ok,
                 summary=(
-                    SellerFacingCompletionReason.COMPLETED.value
+                    tool_completed_summary(block.tool_name, raw_result)
                     if ok
                     else SellerFacingCompletionReason.BLOCKED_BY_GUARD.value
                 ),

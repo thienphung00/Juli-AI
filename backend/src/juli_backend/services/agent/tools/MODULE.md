@@ -7,8 +7,9 @@ capability definitions for the LLM-driven agent execution loop and renders each
 definition's model-facing JSON schema straight from its declared Pydantic input model,
 so schema and validation cannot drift.
 
-Handlers register here: `product.py` (4 READ), `product_write.py` (3 WRITE) and
-`terminal.py` (`conclude_without_changes`, ADR-088) — eight tools. No marketplace
+Handlers register here: `product.py` (5 READ), `product_write.py` (3 WRITE) and
+`terminal.py` (`conclude_without_changes`, ADR-088) — nine tools. `diagnosis_labels.py`
+holds the TikTok diagnosis code -> short Vietnamese label table (pure data). No marketplace
 client or I/O lives in this module. Distinct from the legacy Celery tool
 registry (`services/execution/runner.py`), which is name -> callable with no metadata and
 stays untouched.
@@ -33,8 +34,8 @@ stays untouched.
 
 ## Domain-grouped handlers (added #981/#982, wired to the sanitizer #996)
 
-`product.py` registers the four Optimize Product READ capabilities
-(`get_product_information`, `get_seo_keywords`, `check_product_status`,
+`product.py` registers the five Optimize Product READ capabilities
+(`get_product_diagnoses` (AC-8.4, the playbook's first step), `get_product_information`, `get_seo_keywords`, `check_product_status`,
 `inspect_product_image`);
 `product_write.py` registers the three WRITE capabilities (`upload_product_image`,
 `update_product_listing`, `update_product_price`). Both take the bound product

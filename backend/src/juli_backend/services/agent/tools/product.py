@@ -80,6 +80,10 @@ from juli_backend.services.agent.sanitize import (
     sanitize_images,
     to_json_safe,
 )
+from juli_backend.services.agent.tools.diagnosis_labels import (
+    diagnosis_label_vi,
+    is_diagnosis_code,
+)
 from juli_backend.services.agent.tools.domains import PRODUCT_DOMAIN
 from juli_backend.services.agent.tools.registry import (
     ToolClassification,
@@ -414,6 +418,89 @@ CHECK_PRODUCT_STATUS_SPEC = ToolSpec(
 )
 
 
+# --- get_product_diagnoses ----------------------------------------------------
+
+
+class GetProductDiagnosesInput(BaseModel):
+    # Rationale: see module docstring, "Context-bound identity" section.
+    """No parameters — reads TikTok's listing diagnoses for the product
+    already selected for this run."""
+
+
+class GetProductDiagnosesOutput(BaseModel):
+    """`codes` lists each diagnosis TikTok raised for the listing, as
+    `{code, label_vi, field, how_to_solve}`: `code` is TikTok's machine code
+    (validated as an upper-case token, anything else dropped), `label_vi` the
+    short Vietnamese label, `field` the listing field TikTok attached it to
+    (a plain machine value), `how_to_solve` TikTok's advice as a provenance
+    envelope (vendor free text, decision 3) or `None`. `count` is the number
+    of codes. An empty `codes` means TikTok flagged nothing."""
+
+    codes: list[dict[str, Any]] = Field(default_factory=list)
+    count: int = 0
+
+
+def _diagnosis_entries(raw: dict[str, Any], *, product_id: str) -> list[dict[str, Any]]:
+    """The `diagnoses` entries for this product from the endpoint payload."""
+    entries: list[dict[str, Any]] = []
+    for product in raw.get("products") or []:
+        if not isinstance(product, dict) or str(product.get("id")) != product_id:
+            continue
+        entries.extend(d for d in product.get("diagnoses") or [] if isinstance(d, dict))
+    return entries
+
+
+def handle_get_product_diagnoses(
+    resources: ProductionReadResources | SandboxWriteResources,
+    context: ProductToolContext,
+    params: GetProductDiagnosesInput,
+) -> GetProductDiagnosesOutput:
+    del params  # No fields: nothing to consume.
+    raw = resources.products.get_diagnoses([context.product_id])
+
+    codes: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for entry in _diagnosis_entries(raw, product_id=context.product_id):
+        field_name = entry.get("field")
+        for result in entry.get("diagnosis_results") or []:
+            if not isinstance(result, dict):
+                continue
+            code = result.get("code")
+            if not is_diagnosis_code(code) or code in seen:
+                continue
+            seen.add(code)
+            how_to_solve = result.get("how_to_solve")
+            codes.append(
+                {
+                    "code": code,
+                    "label_vi": diagnosis_label_vi(code),
+                    "field": field_name if is_diagnosis_code(field_name) else None,
+                    "how_to_solve": (
+                        _vendor_text_field(how_to_solve) if isinstance(how_to_solve, str) else None
+                    ),
+                }
+            )
+    capped = cap_list(codes)
+    return GetProductDiagnosesOutput(codes=list(capped.items), count=len(codes))
+
+
+GET_PRODUCT_DIAGNOSES_SPEC = ToolSpec(
+    name="get_product_diagnoses",
+    description=(
+        "Read the diagnosis codes TikTok has raised for the bound product's listing, "
+        "each with a short Vietnamese label. An empty list means TikTok flagged no issue. "
+        "Read this before the listing itself."
+    ),
+    seller_rationale_vi="Xem TikTok đã chỉ ra vấn đề nào ở sản phẩm này.",
+    input_model=GetProductDiagnosesInput,
+    output_model=GetProductDiagnosesOutput,
+    classification=ToolClassification.READ,
+    policy=ToolPolicy.AUTO,
+    timeout_seconds=10,
+    domain=PRODUCT_DOMAIN,
+)
+
+
 # --- inspect_product_image ----------------------------------------------------
 
 
@@ -531,13 +618,15 @@ PRODUCT_READ_TOOL_HANDLERS: dict[
     GET_PRODUCT_INFORMATION_SPEC.name: handle_get_product_information,
     GET_SEO_KEYWORDS_SPEC.name: handle_get_seo_keywords,
     CHECK_PRODUCT_STATUS_SPEC.name: handle_check_product_status,
+    GET_PRODUCT_DIAGNOSES_SPEC.name: handle_get_product_diagnoses,
     INSPECT_PRODUCT_IMAGE_SPEC.name: handle_inspect_product_image,
 }
 
 
 def register_product_read_tools(registry: ToolRegistry) -> None:
-    """Register the three Optimize Product READ capabilities."""
+    """Register the Optimize Product READ capabilities."""
     registry.register(GET_PRODUCT_INFORMATION_SPEC)
     registry.register(GET_SEO_KEYWORDS_SPEC)
     registry.register(CHECK_PRODUCT_STATUS_SPEC)
+    registry.register(GET_PRODUCT_DIAGNOSES_SPEC)
     registry.register(INSPECT_PRODUCT_IMAGE_SPEC)
