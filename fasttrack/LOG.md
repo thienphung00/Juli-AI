@@ -123,3 +123,15 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
 - Next: UI agent consumes the fields; DEBT P7-B lists data gaps (channel blocks,
   diagnoses endpoint, add-to-cart backfill).
 
+## 2026-10-08 — P7-D agent (Claude Opus) — demo lane in fasttrack-deploy
+
+- `fasttrack-deploy.yml`: new `build` job (needs validate, parallel to
+  backup/check) checks out the SHA, sets up pnpm/node 20 like release.yml, runs
+  `build-release-artifact.sh --app demo` with the NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY
+  secrets (build-time verify via `pnpm build`), asserts commit traceability,
+  uploads `juli-demo-<short7>`. `deploy` now needs check + build, downloads it,
+  scp's it to `~/fasttrack-artifacts/`, and runs deploy.sh with
+  DEMO_ARTIFACT_TARBALL so the demo lane runs after the API lane. Preflight now
+  refuses only the landing lane. No infra script changed.
+- actionlint clean. Not run on GitHub. README deploy section, DEBT (demo half
+  struck, landing kept) and AC-7.9 updated.

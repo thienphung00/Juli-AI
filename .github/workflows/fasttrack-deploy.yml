@@ -4,9 +4,9 @@ name: Fast-track deploy
 # ACCEPTANCE AC-0.5). `main` is frozen while the fast track runs, so release.yml
 # (push-to-main) never fires; this is the only way the branch reaches production.
 #
-# Strictly sequential — each job `needs` the previous one, so a failure anywhere
-# stops everything after it:
+# Each job `needs` its predecessor, so a failure anywhere stops everything after it:
 #   validate -> backup -> check -> deploy
+#   validate -> build ----------------^   (build runs in parallel with backup/check)
 #
 #   validate  the SHA is a full commit SHA on the fast-track branch. No secrets.
 #   backup    pg_dump of the production database ON THE VPS, verified (non-empty,
@@ -15,11 +15,18 @@ name: Fast-track deploy
 #             Any failure fails the job, so check and deploy never run and no
 #             migration is attempted. The dump never leaves the VPS (ADR-027).
 #   check     fasttrack/check.sh on the SHA, with a throwaway Postgres service.
+#   build     the demo release artifact, built here because a branch SHA has no
+#             release.yml run to download one from (AC-7.9). Same script, same
+#             Supabase build-time secrets and same tarball as release.yml's
+#             app-release-artifact job. Touches nothing in production.
 #   deploy    the existing VPS path: infra/scripts/deploy.sh <sha> over SSH, exactly
 #             as release.yml's `deploy` job runs it (same secrets, same environment).
 #             Migrations run inside deploy.sh (additive gate + safe-alembic-upgrade.sh,
 #             which takes its own second pre-migration dump) — only after backup and
-#             check succeeded.
+#             check succeeded. If the demo lane changed, the built tarball is copied
+#             to the VPS and handed to deploy.sh as DEMO_ARTIFACT_TARBALL, so the demo
+#             lane (deploy-demo-release.sh) runs after the API lane, as in release.yml.
+#             The landing lane stays refused: it has no artifact here.
 #
 # Triggers:
 #   - pushing a tag `fasttrack-deploy-*` (owner decision, 2026-10-05). A push
@@ -101,6 +108,76 @@ jobs:
           fi
           echo "OK: ${SHA} is on ${FASTTRACK_BRANCH}"
           git log -1 --format='%H %s' "${SHA}"
+
+  # AC-7.9. The demo lane normally downloads a juli-demo-<short-sha> tarball from a
+  # release.yml run for the SHA; a fast-track SHA never has one, so build it here
+  # with release.yml's own script (infra/scripts/build-release-artifact.sh) and the
+  # same toolchain setup. Needs only `validate`: it neither reads nor changes
+  # production, so it can run beside backup/check, but `deploy` needs it AND check.
+  build:
+    name: Build the demo release artifact
+    runs-on: ubuntu-latest
+    needs: validate
+    outputs:
+      short: ${{ steps.paths.outputs.short }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Resolve artifact paths
+        id: paths
+        env:
+          SHA: ${{ inputs.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          short="${SHA::7}"
+          {
+            echo "short=${short}"
+            echo "out=${GITHUB_WORKSPACE}/dist/release"
+            echo "stage=${GITHUB_WORKSPACE}/dist/release/juli-demo-${short}"
+            echo "tarball=${GITHUB_WORKSPACE}/dist/release/juli-demo-${short}.tar.gz"
+          } >> "$GITHUB_OUTPUT"
+      # NEXT_PUBLIC_* are inlined at `next build` time only (issue #1905), so the
+      # Supabase sign-in door exists only if these two secrets are present for THIS
+      # step. apps/demo's `pnpm build` ends with verify-supabase-env-in-build.mjs,
+      # which fails the step non-zero if they did not make it into the build.
+      - name: Build release artifact
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SHA: ${{ inputs.sha || github.sha }}
+          OUT: ${{ steps.paths.outputs.out }}
+        run: |
+          ./infra/scripts/build-release-artifact.sh --app demo --commit "${SHA}" --out "${OUT}"
+      - name: Assert the artifact is traceable to this commit
+        env:
+          SHA: ${{ inputs.sha || github.sha }}
+          TARBALL: ${{ steps.paths.outputs.tarball }}
+          STAGE: ${{ steps.paths.outputs.stage }}
+        run: |
+          set -euo pipefail
+          test -f "${TARBALL}"
+          recorded="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["commit"])' \
+            "${STAGE}/release-artifact.json")"
+          if [[ "${recorded}" != "${SHA}" ]]; then
+            echo "FAIL: artifact records commit ${recorded}, not ${SHA}" >&2
+            exit 1
+          fi
+          echo "PASS: artifact is traceable to ${recorded}"
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: juli-demo-${{ steps.paths.outputs.short }}
+          path: ${{ steps.paths.outputs.tarball }}
+          if-no-files-found: error
 
   # D8 step 1. Runs on the VPS because that is where production DB access lives:
   # /etc/juli/api.env holds the URLs, and safe-alembic-upgrade.sh / restore-drill.sh
@@ -248,9 +325,28 @@ jobs:
   deploy:
     name: Deploy to the VPS
     runs-on: ubuntu-latest
-    needs: check
+    needs: [check, build]
     environment: production
     steps:
+      # The demo tarball built above, copied to the VPS with the same host/user/key/
+      # port secrets the SSH step below uses. Placed in ~/fasttrack-artifacts; it is
+      # only used if the demo lane turns out to have changed.
+      - name: Download the demo artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: juli-demo-${{ needs.build.outputs.short }}
+          path: dist/release
+      - name: Copy the demo artifact to the VPS
+        uses: appleboy/scp-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_SSH_HOST }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          source: dist/release/juli-demo-*.tar.gz
+          target: fasttrack-artifacts
+          strip_components: 2
+          overwrite: true
       # Same SSH action, secrets and entry point as release.yml's `deploy` job. The
       # differences, all forced by deploying a branch SHA instead of main's HEAD:
       #   - fetch the fast-track branch (the SHA is not on main), and refuse a SHA
@@ -260,14 +356,17 @@ jobs:
       #     deployed — the property release.yml gets from `git pull` on main.
       #     release.yml / rollback.yml start with `git checkout main`, so they still
       #     work from a detached clone;
-      #   - refuse up front if the Demo or Landing lane would run: those lanes
-      #     download prebuilt artifacts from a *release.yml* run for the SHA, which a
-      #     branch SHA never has. deploy.sh runs the API lane first, so without this
-      #     preflight it would ship the API and then fail half-deployed.
+      #   - run the demo lane from the artifact built above (DEMO_ARTIFACT_TARBALL, which
+      #     deploy.sh passes through to deploy-demo-release.sh) instead of downloading
+      #     one from a release.yml run, and refuse up front if the Landing lane would
+      #     run: it still needs a release.yml artifact. deploy.sh runs the API lane
+      #     first, so without that preflight it would ship the API and then fail
+      #     half-deployed.
       - name: Deploy on the VPS via infra/scripts/deploy.sh
         uses: appleboy/ssh-action@v1.2.5
         env:
           SHA: ${{ inputs.sha || github.sha }}
+          SHORT: ${{ needs.build.outputs.short }}
         with:
           host: ${{ secrets.VPS_SSH_HOST }}
           username: ${{ secrets.VPS_SSH_USER }}
@@ -275,7 +374,7 @@ jobs:
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
           script_stop: true
           command_timeout: 45m
-          envs: SHA,FASTTRACK_BRANCH
+          envs: SHA,SHORT,FASTTRACK_BRANCH
           script: |
             set -euo pipefail
             cd ~/Juli-AI-v2
@@ -292,20 +391,23 @@ jobs:
             fi
             git checkout --detach "${SHA}"
 
-            # Preflight: which lanes would deploy.sh run? Uses deploy.sh's own
-            # lane_changed (sourced, not executed).
+            # Preflight: would deploy.sh run the landing lane? Uses deploy.sh's own
+            # lane_changed (sourced, not executed). Landing has no artifact here.
             DEPLOY_SOURCE_ONLY=1 . ./infra/scripts/deploy.sh
-            blocked=""
-            for lane in demo landing; do
-              if lane_changed "${lane}" "${SHA}"; then blocked="${blocked} ${lane}"; fi
-            done
-            if [ -n "${blocked}" ]; then
-              echo "FAIL: this SHA changes the${blocked} lane(s). Their artifacts come only from a" >&2
+            if lane_changed landing "${SHA}"; then
+              echo "FAIL: this SHA changes the landing lane. Its artifact comes only from a" >&2
               echo "      release.yml run on main, which a fast-track SHA does not have. Nothing was" >&2
-              echo "      deployed; deploy frontends separately (see infra/scripts/deploy-demo-release.sh," >&2
-              echo "      DEMO_ARTIFACT_TARBALL / LANDING_ARTIFACT_TARBALL)." >&2
+              echo "      deployed (see infra/scripts/deploy.sh, LANDING_ARTIFACT_TARBALL)." >&2
               exit 1
             fi
+
+            # The demo tarball copied by the previous step. deploy.sh runs the demo lane
+            # (after the API lane) only if it changed, and then deploy-demo-release.sh
+            # uses this tarball instead of `gh run download`. It refuses any tarball
+            # whose recorded commit is not ${SHA}.
+            DEMO_ARTIFACT_TARBALL="${HOME}/fasttrack-artifacts/juli-demo-${SHORT}.tar.gz"
+            [ -f "${DEMO_ARTIFACT_TARBALL}" ] || { echo "FAIL: ${DEMO_ARTIFACT_TARBALL} missing" >&2; exit 1; }
+            export DEMO_ARTIFACT_TARBALL
 
             ./infra/scripts/deploy.sh "${SHA}"
             echo "live API release: $(readlink -f ~/releases/current)"

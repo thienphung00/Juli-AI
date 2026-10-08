@@ -37,7 +37,13 @@ and the log, all in one place.
 
 Owner only. Tag a commit that is already on `fasttrack/optimize-product` and
 push the tag; `.github/workflows/fasttrack-deploy.yml` then backs up the
-production DB (abort on failure), runs `check.sh`, and deploys:
+production DB (abort on failure), runs `check.sh`, and deploys. In parallel it
+builds the demo artifact itself (`infra/scripts/build-release-artifact.sh`, the
+`NEXT_PUBLIC_SUPABASE_*` repo secrets inlined at build, verified by
+`verify-supabase-env-in-build.mjs`); if the demo lane changed, that tarball is
+copied to the VPS and `deploy.sh` runs the demo lane after the API lane via
+`DEMO_ARTIFACT_TARBALL`. A SHA that changes `apps/landing` is still refused
+(no landing artifact) before anything deploys:
 
 ```bash
 git tag fasttrack-deploy-$(date -u +%Y%m%dT%H%MZ) <full-sha> && git push origin <that-tag>
