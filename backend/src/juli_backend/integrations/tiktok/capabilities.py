@@ -121,6 +121,9 @@ PRODUCTION_READ_GET_PATTERNS: tuple[re.Pattern[str], ...] = (
     # Shop video / LIVE product performance (GET, analytics only): one video's
     # or one LIVE session's per-product numbers for the optimization report.
     re.compile(r"^/analytics/\d+/shop_videos/[^/]+/products/performance$"),
+    # Shop video performance details (GET, analytics only): one video's daily
+    # product impressions / clicks / GMV for the 30-vs-30 video ranking (P8-B).
+    re.compile(r"^/analytics/\d+/shop_videos/[^/]+/performance$"),
     re.compile(r"^/analytics/\d+/shop/[^/]+/products_performance$"),
     # A-25 Get Promotion Activity (production-read)
     re.compile(r"^/promotion/\d+/activities/[^/]+$"),

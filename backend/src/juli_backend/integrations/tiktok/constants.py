@@ -92,6 +92,11 @@ def analytics_shop_video_products_performance_path(video_id: str) -> str:
     return f"/analytics/{ANALYTICS_API_VERSION}/shop_videos/{video_id}/products/performance"
 
 
+def analytics_shop_video_performance_path(video_id: str) -> str:
+    """Get Shop Video Performance Details: one video's metrics per day (``granularity=1D``)."""
+    return f"/analytics/{ANALYTICS_API_VERSION}/shop_videos/{video_id}/performance"
+
+
 def analytics_shop_live_products_performance_path(live_id: str) -> str:
     """Get Shop LIVE Products Performance List."""
     return f"/analytics/{ANALYTICS_LIVE_PRODUCTS_API_VERSION}/shop/{live_id}/products_performance"

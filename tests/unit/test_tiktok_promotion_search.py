@@ -178,3 +178,28 @@ def test_analytics_resource_request_shapes() -> None:
     assert video[1] == analytics_shop_video_products_performance_path("v1")
     assert video[2]["params"]["start_date_ge"] == "2026-09-06"
     assert live[1] == analytics_shop_live_products_performance_path("l1")
+
+
+def test_video_performance_details_is_a_production_read_get_only() -> None:
+    from juli_backend.integrations.tiktok.constants import analytics_shop_video_performance_path
+
+    path = analytics_shop_video_performance_path("v1")
+    assert path == "/analytics/202509/shop_videos/v1/performance"
+    assert is_production_read_allowed("GET", path)
+    assert not is_production_read_allowed("POST", path)
+    assert not path_contains_write_marker(path)
+    assert not is_production_read_allowed("GET", "/analytics/202509/shop_videos/v1/x/performance")
+
+
+def test_video_performance_details_asks_for_daily_intervals() -> None:
+    from juli_backend.integrations.tiktok.constants import analytics_shop_video_performance_path
+
+    resource, client = _analytics()
+    resource.get_video_performance(
+        video_id="v1", start_date_ge="2026-08-08", end_date_lt="2026-10-07"
+    )
+    [(kind, path, kwargs)] = client.calls
+    assert (kind, path) == ("GET", analytics_shop_video_performance_path("v1"))
+    assert kwargs["params"]["granularity"] == "1D"
+    assert kwargs["params"]["start_date_ge"] == "2026-08-08"
+    assert kwargs["params"]["end_date_lt"] == "2026-10-07"
