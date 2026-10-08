@@ -108,6 +108,23 @@ describe("verify-supabase-env-in-build — the build-time env contract (issue #1
     expect(result.stderr).toMatch(/project-ref\.supabase\.co/);
   });
 
+  it("fails non-zero when the URL is the database host, not the project API", () => {
+    const buildDir = makeBuildDirWithChunk(
+      'const authorizeUrl = "https://db.projectref.supabase.co/auth/v1/authorize";',
+    );
+
+    const result = runCheck(
+      {
+        NEXT_PUBLIC_SUPABASE_URL: "https://db.projectref.supabase.co",
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key-value",
+      },
+      buildDir,
+    );
+
+    expect(result.status, result.stderr).not.toBe(0);
+    expect(result.stderr).toMatch(/https:\/\/projectref\.supabase\.co/);
+  });
+
   it("passes when env is configured and the resolved host is present in the built output", () => {
     const buildDir = makeBuildDirWithChunk(
       'const authorizeUrl = "https://project-ref.supabase.co/auth/v1/authorize";',

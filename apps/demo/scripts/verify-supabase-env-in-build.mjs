@@ -146,6 +146,20 @@ function main() {
     process.exit(1);
   }
 
+  // 2026-10-08: the secret held the Postgres host (db.<ref>.supabase.co), which
+  // has no auth API and no matching TLS certificate -- the Google door opened a
+  // browser certificate error. The Supabase JS client needs the project API
+  // URL, https://<ref>.supabase.co.
+  if (/^db\.[a-z0-9]+\.supabase\.(co|in)$/i.test(host)) {
+    const apiHost = host.replace(/^db\./i, "");
+    console.error(
+      "[verify-supabase-env-in-build] FAILED: NEXT_PUBLIC_SUPABASE_URL points at " +
+        `the database host "${host}", not the project API. Use ` +
+        `"https://${apiHost}" (Supabase dashboard > Project Settings > API > Project URL).`,
+    );
+    process.exit(1);
+  }
+
   let buildDirExists = true;
   try {
     statSync(BUILD_DIR);
