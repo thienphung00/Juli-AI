@@ -54,6 +54,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.workers.celery_app import celery_app
 from juli_backend.workers.tasks.database import get_async_database_url
+from juli_backend.workers.tasks.shop_diagnosis import enqueue_shop_diagnosis
 
 logger = logging.getLogger(__name__)
 
@@ -193,11 +194,13 @@ def enqueue_poll_shop(shop_id: str) -> str:
 
 @dataclass
 class Enqueuers:
-    """The three enqueue calls, injectable so tests never touch a broker."""
+    """The enqueue calls, injectable so tests never touch a broker."""
 
     bootstrap: Callable[..., str] = enqueue_bootstrap
     history: Callable[..., str] = enqueue_history
     poll: Callable[[str], str] = enqueue_poll_shop
+    #: P7-A: the ADR-108 shop diagnosis report (``workers/tasks/shop_diagnosis.py``).
+    diagnosis: Callable[[str], str | None] = enqueue_shop_diagnosis
 
 
 def _now_iso() -> str:
@@ -240,6 +243,27 @@ def maybe_enqueue_history(
         "history_queued",
         lambda token: enqueuers.history(shop_id, marker_token=token, countdown=countdown),
     )
+
+
+def maybe_enqueue_diagnosis(shop_id: str, enqueuers: Enqueuers, *, after: str) -> str | None:
+    """Fast track P7-A: rebuild the shop's diagnosis report. Never raises.
+
+    The build is its own task (idempotent per shop and report end date), so a
+    failure there -- or here -- never touches the poll cycle.
+    """
+    try:
+        task_id = enqueuers.diagnosis(shop_id)
+    except Exception:
+        logger.error(
+            "shop_diagnosis_enqueue_failed",
+            extra={"shop_id": shop_id, "after": after},
+            exc_info=True,
+        )
+        return None
+    logger.info(
+        "shop_diagnosis_enqueued", extra={"shop_id": shop_id, "after": after, "task_id": task_id}
+    )
+    return task_id
 
 
 def maybe_enqueue_bootstrap(lock: Any, shop_id: str, enqueuers: Enqueuers) -> str | None:
@@ -376,6 +400,8 @@ async def run_bootstrap_task(
         # Fast phase finished now, or had already: either way the history
         # phase is next. De-duplicated, so a re-run never stacks a second one.
         maybe_enqueue_history(lock, shop_id, enqueuers)
+        if not getattr(result, "skipped", False):
+            maybe_enqueue_diagnosis(shop_id, enqueuers, after="bootstrap_fast")
     return result
 
 
@@ -443,6 +469,8 @@ async def run_poll_shop_task(
     ran, result = await _with_cycle_lock(lock, shop_id, "cycle", ttl, body)
     if not ran or result is None:
         return result
+    if getattr(result, "analytics_ran", False):
+        maybe_enqueue_diagnosis(shop_id, enqueuers, after="daily_analytics")
     if result.needs_bootstrap:
         maybe_enqueue_bootstrap(lock, shop_id, enqueuers)
     elif not result.history_done and not lock.is_held(shop_id, "history"):
@@ -591,6 +619,7 @@ __all__ = [
     "bootstrap_shop",
     "enqueue_bootstrap",
     "maybe_enqueue_bootstrap",
+    "maybe_enqueue_diagnosis",
     "maybe_enqueue_history",
     "poll_shop",
     "run_bootstrap_task",

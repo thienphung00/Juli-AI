@@ -78,3 +78,25 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
 - Owner confirmed D22: three-tier recommendation (diagnosis → recoverable-GMV
   ranking → day-14 calibration); P3 = TikTok-only shop model for ranking;
   FastMoss (P2) optional. SPEC §4 P2/P3/P6 and PROGRESS updated.
+
+## 2026-10-08 — P7-A agent (Claude Opus) — Phân tích backend
+
+- ADR-108 report is now a backend product. `services/shop_diagnosis_daily/`
+  holds the read-only fetch (moved from `scripts/shop_diagnosis_fetch.py`,
+  which now wraps it; 429 backoff on every call), the job (per-shop read
+  credential, temp-dir snapshot deleted after the build, both rankings built,
+  aggregates stored) and the read for the route. The pure `shop_diagnosis`
+  package is unchanged, so the `report.json` shape is unchanged.
+- Table `shop_diagnosis_reports` (migration `076_shop_diagnosis_reports` onto
+  075; deferred phone cleanup re-parented onto 076; classified tenant_direct).
+- Task `juli_backend.build_shop_diagnosis` (default queue), enqueued by
+  `maybe_enqueue_diagnosis` after a poll cycle whose daily analytics pass ran
+  and after the bootstrap fast phase. Idempotent per (shop, end date); end date
+  = `analytics_through_date` capped at yesterday UTC+7.
+- `GET /v1/demo/analysis` → `{as_of, built_at, ranking, report}`, 404 if none.
+- check.sh on a throwaway PG16 (gitleaks not installed locally): all other
+  steps PASS. Guard tests (import boundaries, ratchets, route auth invariant,
+  grants, beat/routed task registration, chain tail pins) pass.
+- Merge note: P7-B may add a migration on 075 too — re-chain whichever lands
+  second, and keep the deferred phone cleanup as the tail. Both may touch
+  `Enqueuers` in `workers/tasks/shop_ingestion.py` (one added field here).

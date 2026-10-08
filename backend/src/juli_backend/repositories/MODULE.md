@@ -26,6 +26,7 @@ Import from the package root: `from juli_backend.repositories import OrdersRepo`
 | `workflow` | `WorkflowWebhookSignalsRepo`, `WebhookRawEventsRepo`, `ToolExecutionsRepo`, `WorkflowOutcomeRecordsRepo` |
 | `backfill` | `AnalyticsBackfillPartitionsRepo`, `redact_secrets` |
 | `production_write` | `ProductionWriteAuthorizationsRepo` |
+| `shop_diagnosis` | `ShopDiagnosisReportsRepo` (stored ADR-108 reports, one per shop / end date / ranking) |
 
 ## Adding a repository
 

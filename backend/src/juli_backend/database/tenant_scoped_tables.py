@@ -70,6 +70,8 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "run_checklist_items"): "tenant_direct",
     # Fast track P1-B, migration 074: per-shop bootstrap state, keyed on shop_id.
     ("public", "shop_ingestion_state"): "tenant_direct",
+    # Fast track P7-A, migration 076: stored ADR-108 shop diagnosis reports.
+    ("public", "shop_diagnosis_reports"): "tenant_direct",
     # Via-parent tenant-scoped tables
     ("public", "workflow_run_events"): "tenant_via_parent",
     ("public", "run_confirmations"): "tenant_via_parent",

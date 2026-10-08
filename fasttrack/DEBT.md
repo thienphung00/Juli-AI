@@ -46,3 +46,20 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   backfill it per day later if the model needs it.
 - [ ] `fujiwa_poll_cycle` task still registered but unscheduled — delete
   after the fan-out is proven in production.
+
+## P7-A shortcuts
+
+- [ ] The daily diagnosis refetches all 60 A-34 days (plus orders, promotions,
+  LIVE/video lists, product details: ~150–250 calls) per shop per day; the
+  script's "days on disk are not refetched" cache is lost with the temp dir —
+  cache daily A-34 rows (they are aggregates) or build from
+  `analytics_performance_intervals` once its channel blocks are stored.
+- [ ] The diagnosis fetch paces with `sleep 0.4 s` + 429 backoff, not the shared
+  Redis per-endpoint rate limiter the poll path uses — wire it in if 429s show.
+- [ ] No per-shop lock on `build_shop_diagnosis`; two concurrent builds for one
+  shop would both fetch (the unique key keeps one row) — add a lock name if
+  duplicate enqueues are seen.
+- [ ] `fasttrack/check.sh` gitleaks step not run locally (binary not
+  installed) — the deploy runs it.
+- [ ] The timeout (`SHOP_DIAGNOSIS_BUDGET_SECONDS`, default 1800 s) cancels the
+  await but cannot stop the fetch thread mid-call.
