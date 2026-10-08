@@ -1,6 +1,6 @@
 # ADR-109: The Demo app follows the sales demo video — Analysis splits into Sản phẩm and Nội dung, every metric cell opens a GMV-attributed ranking
 
-**Status:** Proposed (grill in progress — see Open)
+**Status:** Proposed
 **Date:** 2026-10-08
 **Deciders:** grill session, owner + Claude (Opus).
 
@@ -75,6 +75,11 @@ TikTok's diagnosis per row. Customers who saw the video should find the same pro
      đơn hàng SKU for CTOR and AOV. Rõ first, then Tham khảo; below 10 on both sides →
      not listed individually.
    - At most 10 listed rows; rows under 1 % of the stream's change are folded.
+   - **Videos and LIVE sessions are new rows, not the same row in two windows.** A video or
+     session has no "prior 30 days" of its own, so its effect on a metric is measured
+     against the stream's prior-window rate: e.g. a session's CTOR effect =
+     its clicks/day × (its CTOR − LIVE CTOR in the prior 30 days) × prior AOV. Rows sum to
+     the stream's change through the same closing rows (decision 5).
    - Three closing rows make the table add up to the cell's GMV figure: **N sản phẩm ít
      đơn**, **Các sản phẩm khác**, **Thay đổi cơ cấu sản phẩm** (stream factor minus the sum
      of row factors — the mix effect).
@@ -142,20 +147,40 @@ TikTok's diagnosis per row. Customers who saw the video should find the same pro
     behalf and tests the system with them; each value records that it was set by the team.
     Handing over to the seller is a later step (the same screen, the seller's own login).
 
-## Open (next grill questions)
-
-- Đo lường / Kết quả screen (before → after, hours saved) while P6 is not built.
+13. **Quyết định has three sub-tabs: Đề xuất, Đang thực hiện, Đo lường.**
+    - **Đề xuất** — the grouped cards of decision 6.
+    - **Đang thực hiện** — the video's execution screen (master cut 1:23), **UI only on the
+      existing agent-workflow-execution backend** (runs, SSE event stream, confirmations,
+      replay — no backend change for this view). Left: the selected run as a vertical step
+      timeline with timestamps (done ✓ / current / upcoming greyed), each step's one-line
+      result from the run's events, the consent step inline. Right: "Hàng chờ thẻ tối ưu" —
+      the queue with each run's status. The ledger's sections stay: **Đang chờ bạn / Đang
+      chạy / Hoàn tất**, with honest terminal states and replay of finished runs.
+    - **Đo lường** — one row per executed run: the product's metrics before → after against
+      the expected outcome; before day 7 it says "Đang chờ đủ 7 ngày dữ liệu · đo lúc
+      DD/MM" (no invented numbers). Day-7 guardrail breaches (decision 11) surface here
+      with the "Hoàn tác?" question. "Giờ nhân sự lấy lại" is **not shown** until it can be
+      measured. Readings come from P6.
 
 ## Consequences
 
 - **Backend work.** Decision 5 needs per-product, per-channel daily metrics for the whole
   catalogue (A-34 channel blocks), not only the five hero profiles of ADR-108 nor the
   all-channel ADR-106 diagnosis; and per-video / per-LIVE-session impressions, CTR and CTOR.
-  Whether the current fetch has these per video and per session is to be verified before
-  building.
+  Checked on the Fujiwa snapshot (2026-10-06):
+  - **Products:** 60 daily A-34 files with channel blocks → per-product, per-channel
+    30 vs 30 is computable for the whole catalogue.
+  - **LIVE:** each session has product impressions, product clicks, CTR, CTOR (SKU),
+    SKU orders and GMV, with start time → complete.
+  - **Video:** the list carries views, CTR, SKU orders and GMV **since posting**; per
+    video × product detail has product impressions and clicks, but not split by the two
+    30-day windows. Needs a date-ranged per-video fetch (to verify against the API), or
+    videos posted inside each window only.
 - The ranking and the card ranking share one unit (₫/day), so a row in Phân tích and a card in
   Quyết định can be compared directly.
 - e2e specs that pin the bottom bar on desktop and the Cài đặt destination change again.
+- Decision 13's Đang thực hiện is UI-only. Decision 9's before/after values and the
+  Hoàn tác run are the one addition to that backend.
 - **New backend work for decisions 9–12:** before/after values on every write, a revert
   run, a per-shop rule store with set-by/set-at (team vs seller), a guardrail check at the
   day-7 reading that raises an "undo?" question, and a rules screen usable by the team.
