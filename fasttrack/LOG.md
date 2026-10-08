@@ -206,3 +206,17 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   clone is left detached at 6edac8b6 (no migration ran).
 - Fix: the build job also builds the landing artifact; deploy copies both and
   exports LANDING_ARTIFACT_TARBALL. actionlint clean.
+
+## 2026-10-08 — orchestrator (Claude Opus) — first fast-track deploy LIVE
+
+- Run 37751703616 (tag fasttrack-deploy-20261008T0843Z, d86a1d34): validate,
+  build (demo + landing), backup, check, deploy all success. Migrations
+  073 → 074 → 075 → 076 applied. API live at releases/d86a1d34, /health ok;
+  demo and landing cut over, all asset/route checks passed.
+- Found: through https://demo.app-juli.com every `/v1/*` path (decisions,
+  analysis, analytics) returns the Next.js 404 — the live nginx vhost lacks
+  the `/v1/demo/`, `/v1/auth/`, `/v1/` proxy blocks that the repo's
+  `infra/nginx/demo.app-juli.com.conf` has (vhosts are installed only by
+  `provision-nginx.sh`, never by deploy). api.app-juli.com answers (401
+  without auth). Pre-existing, not caused by P7. Owner action: diff and
+  re-run provision-nginx.sh on the VPS.
