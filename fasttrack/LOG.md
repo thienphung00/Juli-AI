@@ -220,3 +220,14 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   `provision-nginx.sh`, never by deploy). api.app-juli.com answers (401
   without auth). Pre-existing, not caused by P7. Owner action: diff and
   re-run provision-nginx.sh on the VPS.
+
+## 2026-10-08 — orchestrator (Claude Opus) — nginx reprovisioned; login host bug
+
+- Owner re-ran provision-nginx.sh: demo `/v1/*` now reaches the API (401
+  unauth on decisions/auth, 200 on analytics). www.app-juli.com answered 526:
+  the repo vhost had no 443 block for www. Added one (redirect to apex); the
+  cert must be expanded to www once with certbot.
+- Google sign-in opened https://db.<ref>.supabase.co/auth/v1/authorize →
+  certificate error: the NEXT_PUBLIC_SUPABASE_URL repo secret holds the
+  Postgres host, not the project API URL (https://<ref>.supabase.co). Owner
+  fixes the secret; the demo build now fails on a db.* host.
