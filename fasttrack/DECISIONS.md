@@ -134,9 +134,18 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   1. **Diagnosis** — ADR-106 funnel-stage diagnosis per product (impressions →
      clicks → add-to-cart → orders) against the shop's peers and the prior 30
      days; the weak stage picks the lever. TikTok API data only.
-  2. **Ranking** — priority = recoverable GMV: gap to the peer-median rate ×
-     the stage's volume (impressions or clicks) × AOV. Cards say it is a
-     rule-based estimate until the model replaces it.
+  2. **Ranking** — priority = recoverable GMV per day, built from TikTok's own
+     decomposition GMV = Lượt hiển thị sản phẩm × CTR × CTOR × AOV (SKU)
+     (TikTok Academy VN, "Lưu lượng truy cập sản phẩm": CTR = lượt nhấp ÷
+     lượt hiển thị; CTOR = đơn hàng SKU ÷ lượt nhấp; AOV (SKU) = GMV ÷ đơn
+     hàng SKU):
+     - CTR stage: impressions × (reference CTR − current CTR) × the product's
+       CTOR × AOV (SKU) — extra clicks only become GMV through CTOR.
+     - CTOR stage: clicks × (reference CTOR − current CTOR) × AOV (SKU).
+     Reference = peer median, else the product's own prior 30 days; daily
+     averages over the last 30 days. Cards say it is a rule-based estimate
+     until the model replaces it. (Amended 2026-10-08, owner: the first text
+     omitted CTOR at the CTR stage.)
   3. **Learning** — every executed change is measured at day 7 / day 14
      (ADR-077/106). Per-lever calibration (realised ÷ expected, starting at 0.5)
      updates from day-14 readings; a learned uplift model only once enough

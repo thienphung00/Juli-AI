@@ -131,7 +131,8 @@ For every connected shop, automatically:
   impressions/CTR, add-to-cart rate, CTOR, AOV, price, stock, promotions);
   shop model (LightGBM, orders per product-day) used for **ranking only**;
   offline quality bar (D17). Expected gain per lever = ADR-106 rule estimate
-  (recoverable GMV: gap to peer median × stage volume × AOV) × per-lever
+  (recoverable GMV per D22: impressions × ΔCTR × CTOR × AOV at the CTR stage;
+  clicks × ΔCTOR × AOV at the CTOR stage) × per-lever
   calibration (start 0.5, updated by day-14 readings). Learned uplift model
   only once enough measured changes exist.
 - **P4 Cards**: top-10 ranked / ≤5 active Optimize Product cards; per-category

@@ -188,3 +188,9 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   accessibility KPI-chart test (`/analytics/gmv-tiktok`). Both specs 18/18
   passed on desktop + mobile-web. Remaining e2e from the integration run: 82
   passed before, so the full suite should now be green; not re-run in full.
+
+## 2026-10-08 — orchestrator (Claude Opus) — D22 formula amended
+
+- Owner confirmed: recoverable GMV follows TikTok's decomposition; at the CTR
+  stage extra clicks are multiplied by the product's CTOR. Matches the P7-B
+  code. DECISIONS D22 and SPEC §4 P3 updated. Branch pushed to origin.
