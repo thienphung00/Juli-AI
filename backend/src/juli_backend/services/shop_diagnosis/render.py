@@ -572,6 +572,12 @@ def _flash_count(bands: Iterable[Band]) -> str:
     )
 
 
+def _depth(true_depth: float | None) -> str:
+    if true_depth is not None and true_depth < 0:
+        return f"<b>giá flash cao hơn giá đang giảm sẵn {pct(-true_depth, 1)}</b>"
+    return f"<b>{pct(true_depth, 1)}</b>"
+
+
 def _flash_section(flash: FlashAnalysis, bands: Iterable[Band], shop_level: bool) -> str:
     weekly = "".join(
         f"<tr><td>tuần từ {_d(monday)}</td><td>{pct(share, 0)}</td></tr>"
@@ -598,13 +604,16 @@ def _flash_section(flash: FlashAnalysis, bands: Iterable[Band], shop_level: bool
         if flash.unattributed
         else ""
     )
+    days = (
+        f"30 ngày trước: {flash.flash_days_prior} ngày flash; "
+        f"30 ngày gần đây: {flash.flash_days_last} ngày flash"
+    )
     return f"""
 <h4>Flash sale ({scope})</h4>
 <p>{escape(_flash_count(bands))} Thời gian có flash sale: {pct(flash.coverage_prior, 0)} của 30
 ngày trước,
-{pct(flash.coverage_last, 0)} của 30 ngày gần đây ({flash.flash_days_prior} và
-{flash.flash_days_last} ngày flash).
-Độ sâu thật (giá flash so với giá đã giảm sẵn): <b>{pct(flash.true_depth, 1)}</b>; so với giá
+{pct(flash.coverage_last, 0)} của 30 ngày gần đây ({days}).
+Độ sâu thật (giá flash so với giá đã giảm sẵn): {_depth(flash.true_depth)}; so với giá
 niêm yết:
 {pct(flash.list_depth, 1)}.</p>
 <div class="tags">{flags}</div>{unattributed}
@@ -857,9 +866,17 @@ def _discount_table(prior: OrderDiscountShare, last: OrderDiscountShare) -> str:
     )
 
 
+def _slash_date(iso_day: str) -> str:
+    """``2025-11-03`` → ``03/11/2025``; anything else is shown as given."""
+    try:
+        return _dy(date.fromisoformat(iso_day))
+    except ValueError:
+        return iso_day
+
+
 def _appearance_list(title: str, items: Iterable[Appearance], none_count: int, unit: str) -> str:
     rows = "".join(
-        f"<tr><td>{escape(a.title) or '(không tên)'}</td><td>{escape(a.day)}</td>"
+        f"<tr><td>{escape(a.title) or '(không tên)'}</td><td>{escape(_slash_date(a.day))}</td>"
         f"<td>{a.orders}</td></tr>"
         for a in items
     )
@@ -905,7 +922,7 @@ vào thay đổi GMV:</p>
 {_discount_table(profile.discounts_prior, profile.discounts_last)}
 <h3>6. LIVE và video có nhiều đơn nhất</h3>
 {_appearance_list("Phiên LIVE", a.top_live, a.live_without_orders, "Đơn hàng SKU")}
-{_appearance_list("Video", a.top_videos, a.videos_without_orders, "Số món bán")}
+{_appearance_list("Video", a.top_videos, a.videos_without_orders, "Số món bán (từ khi đăng)")}
 </section>"""
 
 

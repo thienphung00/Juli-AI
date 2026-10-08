@@ -201,6 +201,18 @@ def parse_activities(activities: list[dict], details: dict[str, dict]) -> list[P
     return out
 
 
+def total_claim_limit(limits: dict) -> int | None:
+    """Total claims a coupon allows: ``total_claim_limit``, else ``redemption_limit``.
+
+    The per-buyer limit is a different thing and never read here.
+    """
+    for key in ("total_claim_limit", "redemption_limit"):
+        value = int(to_float(limits.get(key)))
+        if value > 0:
+            return value
+    return None
+
+
 def parse_vouchers(coupons: list[dict]) -> list[Voucher]:
     out: list[Voucher] = []
     seen: set[str] = set()
@@ -222,7 +234,7 @@ def parse_vouchers(coupons: list[dict]) -> list[Voucher]:
         amount = to_float((discount or {}).get("reduction_amount")) or None
         percent = to_float((discount or {}).get("percentage")) or None
         limits = coupon.get("usage_limits") if isinstance(coupon.get("usage_limits"), dict) else {}
-        claim_limit = int(to_float((limits or {}).get("redemption_limit"))) or None
+        claim_limit = total_claim_limit(limits or {})
         out.append(
             Voucher(
                 coupon_id,
@@ -647,6 +659,10 @@ def analyse_vouchers(
             if (d := create_day(o)) is not None and start <= d < start + mix
         ]
         above = [v for v in values if v >= threshold]
+        # Orders above the threshold are an upper bound; the coupon's own claim cap
+        # (when it has one) bounds it further, keeping the costliest orders.
+        cap = voucher.claim_limit
+        counted = sorted(above, reverse=True)[:cap] if cap is not None else above
         near = [v for v in values if threshold * (1 - config.near_threshold_band) <= v < threshold]
         base_discount = _discount_amount(voucher, stick.common_price)
         live.append(
@@ -662,8 +678,8 @@ def analyse_vouchers(
                 if start >= days[0]
                 else None,
                 _share(sum(1 for v in after if v >= threshold), len(after)),
-                len(above),
-                sum(_discount_amount(voucher, v) for v in above),
+                len(counted),
+                sum(_discount_amount(voucher, v) for v in counted),
                 any(start <= d < start + mix for d in flash_days),
             )
         )
