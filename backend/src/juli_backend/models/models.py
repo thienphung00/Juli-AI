@@ -737,6 +737,10 @@ class WorkflowRun(Base):
     #: false data. Nothing writes this column yet; #1222's approve
     #: transaction is the first writer.
     action_card_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("action_cards.id"))
+    #: Fast track P8-C (migration 078, ADR-109 d.9): set on a "Hoàn tác" run --
+    #: the finished run whose writes this run restores. NULL for every other run.
+    #: A revert run is itself never reverted (``services/run_changes``).
+    reverts_run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("workflow_runs.id"))
     #: Per-run rollup (issue #1653, W8-A / P10-1): token counts summed from all
     #: `AssistantTurn.usage` records returned by `LLMService.complete()` calls
     #: during this run. Nullable, no backfill — runs pre-dating this feature stay
