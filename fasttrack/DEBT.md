@@ -133,10 +133,13 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   the next analytics day, or a `force=True` rebuild — idempotency key kept
   on the report — add a "rankings missing" check to `_plan` if the first day
   matters.
-- [ ] `video_metrics` (P8-B's per-video window metrics) is a parameter of
+- [x] ~~`video_metrics` (P8-B's per-video window metrics) is a parameter of
   `build_and_store_shop_diagnosis` only; the worker task
   (`workers/tasks/shop_diagnosis.py`) does not pass it yet, so production
-  stores no video rankings — P8-B / integration wires it.
+  stores no video rankings — P8-B / integration wires it.~~ — repaid (P8
+  integration, fe21ec7b): the worker body passes `fetch_ranking_videos`; tests
+  `test_the_worker_body_fetches_video_windows_with_the_snapshots_resources`,
+  `test_a_failed_video_fetch_stores_the_report_and_the_other_13`.
 - [ ] Interpretations of ADR-109 d.5 made without the owner: impressions use a
   single 1,000 floor for both "listed" and "Rõ" (ADR-108's 10 / 30 floors scaled
   to one number); "not listed" = under the floor on BOTH sides (max), "Rõ" =
@@ -160,9 +163,9 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Date-range answer is from the spec only — no live call from the agent —
   owner runs `python scripts/shop_diagnosis_fetch.py --shop fujiwa --end 2026-10-06 --video-windows`
   and checks `basis=date_range` and plausible per-window impressions.
-- [ ] `fetch_video_windows` is not called by `job.py` yet — P8-A owns the ranking
+- [x] ~~`fetch_video_windows` is not called by `job.py` yet — P8-A owns the ranking
   job — orchestrator wires it after `fetch_snapshot` (same resources, same
-  `load_snapshot`), passes the result to the ranking.
+  `load_snapshot`), passes the result to the ranking.~~ — repaid (P8 integration, fe21ec7b): `job.fetch_ranking_videos` calls it in the fetch thread with the snapshot's rate-limited resources; `video_windows.ranking_videos` converts to the ranking's `VideoWindowCounts`.
 - [ ] Whole run falls back to `posted_in_window` when the FIRST details call
   fails (assumed to mean scope/endpoint refused); a single bad first video
   therefore degrades the day — heuristic — fall back only on scope/permission
@@ -184,6 +187,21 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] ADR-109 Consequences says the video list carries totals "since posting";
   the spec says the list is date-ranged — doc — correct the ADR line when the
   live check confirms.
+
+## P8 integration (2026-10-08)
+
+- [ ] Every daily build now adds P8-B's video reads (2 list walks + ≤ 40
+  details calls, 0.4 s pacing ≈ 17 s plus Redis-gate waits) inside the same
+  1,800 s task budget — unmeasured on a live shop — check one build's
+  `shop_video_windows_fetched` log (`calls`, `basis`) after the deploy.
+- [ ] `ranking_videos` drops a window side whose product impressions are
+  unknown (P8-B fallback without the snapshot's per-video file) or that has no
+  activity; such videos land in "Thay đổi cơ cấu video". A run with zero
+  usable videos still stores the two Video tables (closing rows only) —
+  interpretation — confirm with the owner whether an empty table should be
+  stored or skipped.
+- [ ] `check_import_boundaries --strict` still reports the base's 56
+  violations (P8-A's two new ones fixed in fc07b873); not run by check.sh.
 
 ## P8-G get_product_diagnoses (2026-10-08)
 
