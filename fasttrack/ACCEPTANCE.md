@@ -71,14 +71,23 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
   when none. Two-tenant test proves shop A never sees shop B's report.
 
 ### P7-B Quyết định backend
-- [ ] **AC-7.3** Optimize Product cards come from the ADR-106 pipeline for every
+- [x] **AC-7.3** Optimize Product cards come from the ADR-106 pipeline for every
   shop: top-10 ranked, ≤ 5 active, one card per product, scored after bootstrap
   fast phase and after the daily analytics pass (D11). Each card carries the
   diagnosed stage, the lever, and the product's funnel evidence (impressions,
   CTR, add-to-cart rate, CTOR, AOV — TikTok's definitions) in
-  `/v1/demo/decisions`.
-- [ ] **AC-7.4** Approve still creates a real run of the Optimize Product
-  playbook with CONFIRM before any write (no change to write policy, D13).
+  `/v1/demo/decisions`. — evidence: 7ee7f1e4..HEAD (P7-B); tests/unit/test_optimize_product_decision_cards.py
+  (13 passed): `test_whole_catalog_is_scored_and_the_top_ten_ranked`,
+  `test_scoring_writes_one_card_per_product_and_surfaces_at_most_five`,
+  `test_two_shops_are_scored_in_isolation`, `test_the_p1_scoring_hook_produces_the_adr106_cards`
+  (the `score_and_persist_cards` hook P1 calls after the fast phase and the daily pass),
+  `test_decisions_endpoint_returns_diagnosis_and_evidence`. Caveat: add-to-cart only on
+  single-day-fetched days (DEBT P7-B).
+- [x] **AC-7.4** Approve still creates a real run of the Optimize Product
+  playbook with CONFIRM before any write (no change to write policy, D13). — evidence:
+  `test_approving_an_adr106_card_creates_an_optimize_product_run` (202, queued
+  `optimize_product_2` run bound to the card's product; write step policy CONFIRM);
+  tests/unit/test_api_demo_execution.py unchanged and passing; no tool/policy code touched.
 
 ### P7-C UI
 - [ ] **AC-7.5** apps/demo restyled to the index.html mock (tokens from
