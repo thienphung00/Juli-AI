@@ -26,7 +26,8 @@ name: Fast-track deploy
 #             check succeeded. If the demo lane changed, the built tarball is copied
 #             to the VPS and handed to deploy.sh as DEMO_ARTIFACT_TARBALL, so the demo
 #             lane (deploy-demo-release.sh) runs after the API lane, as in release.yml.
-#             The landing lane stays refused: it has no artifact here.
+#             Landing is built and handed over the same way (LANDING_ARTIFACT_TARBALL),
+#             because it shares packages/ and pnpm-lock.yaml with demo.
 #
 # Triggers:
 #   - pushing a tag `fasttrack-deploy-*` (owner decision, 2026-10-05). A push
@@ -115,7 +116,7 @@ jobs:
   # same toolchain setup. Needs only `validate`: it neither reads nor changes
   # production, so it can run beside backup/check, but `deploy` needs it AND check.
   build:
-    name: Build the demo release artifact
+    name: Build the demo and landing release artifacts
     runs-on: ubuntu-latest
     needs: validate
     outputs:
@@ -177,6 +178,36 @@ jobs:
         with:
           name: juli-demo-${{ steps.paths.outputs.short }}
           path: ${{ steps.paths.outputs.tarball }}
+          if-no-files-found: error
+      # Landing shares packages/ and pnpm-lock.yaml with demo, so a fast-track SHA
+      # that touches those trips deploy.sh's landing lane too. Build it the same
+      # way release.yml does (no Supabase env: apps/landing does not use it).
+      - name: Build landing release artifact
+        env:
+          SHA: ${{ inputs.sha || github.sha }}
+          OUT: ${{ steps.paths.outputs.out }}
+        run: |
+          ./infra/scripts/build-release-artifact.sh --app landing --commit "${SHA}" --out "${OUT}"
+      - name: Assert the landing artifact is traceable to this commit
+        env:
+          SHA: ${{ inputs.sha || github.sha }}
+          OUT: ${{ steps.paths.outputs.out }}
+          SHORT: ${{ steps.paths.outputs.short }}
+        run: |
+          set -euo pipefail
+          test -f "${OUT}/juli-landing-${SHORT}.tar.gz"
+          recorded="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["commit"])' \
+            "${OUT}/juli-landing-${SHORT}/release-artifact.json")"
+          if [[ "${recorded}" != "${SHA}" ]]; then
+            echo "FAIL: landing artifact records commit ${recorded}, not ${SHA}" >&2
+            exit 1
+          fi
+          echo "PASS: landing artifact is traceable to ${recorded}"
+      - name: Upload landing release artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: juli-landing-${{ steps.paths.outputs.short }}
+          path: ${{ steps.paths.outputs.out }}/juli-landing-${{ steps.paths.outputs.short }}.tar.gz
           if-no-files-found: error
 
   # D8 step 1. Runs on the VPS because that is where production DB access lives:
@@ -336,6 +367,11 @@ jobs:
         with:
           name: juli-demo-${{ needs.build.outputs.short }}
           path: dist/release
+      - name: Download the landing artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: juli-landing-${{ needs.build.outputs.short }}
+          path: dist/release
       - name: Copy the demo artifact to the VPS
         uses: appleboy/scp-action@v1.0.0
         with:
@@ -343,7 +379,7 @@ jobs:
           username: ${{ secrets.VPS_SSH_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
-          source: dist/release/juli-demo-*.tar.gz
+          source: "dist/release/juli-demo-*.tar.gz,dist/release/juli-landing-*.tar.gz"
           target: fasttrack-artifacts
           strip_components: 2
           overwrite: true
@@ -391,15 +427,12 @@ jobs:
             fi
             git checkout --detach "${SHA}"
 
-            # Preflight: would deploy.sh run the landing lane? Uses deploy.sh's own
-            # lane_changed (sourced, not executed). Landing has no artifact here.
-            DEPLOY_SOURCE_ONLY=1 . ./infra/scripts/deploy.sh
-            if lane_changed landing "${SHA}"; then
-              echo "FAIL: this SHA changes the landing lane. Its artifact comes only from a" >&2
-              echo "      release.yml run on main, which a fast-track SHA does not have. Nothing was" >&2
-              echo "      deployed (see infra/scripts/deploy.sh, LANDING_ARTIFACT_TARBALL)." >&2
-              exit 1
-            fi
+            # Landing shares packages/ and pnpm-lock.yaml with demo, so deploy.sh may
+            # run its lane too; it uses the tarball built above (same commit check as
+            # release.yml's artifact) instead of a release.yml run.
+            LANDING_ARTIFACT_TARBALL="${HOME}/fasttrack-artifacts/juli-landing-${SHORT}.tar.gz"
+            [ -f "${LANDING_ARTIFACT_TARBALL}" ] || { echo "FAIL: ${LANDING_ARTIFACT_TARBALL} missing" >&2; exit 1; }
+            export LANDING_ARTIFACT_TARBALL
 
             # The demo tarball copied by the previous step. deploy.sh runs the demo lane
             # (after the API lane) only if it changed, and then deploy-demo-release.sh

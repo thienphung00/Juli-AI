@@ -194,3 +194,15 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
 - Owner confirmed: recoverable GMV follows TikTok's decomposition; at the CTR
   stage extra clicks are multiplied by the product's CTOR. Matches the P7-B
   code. DECISIONS D22 and SPEC §4 P3 updated. Branch pushed to origin.
+
+## 2026-10-08 — orchestrator (Claude Opus) — first fast-track deploy run
+
+- Tag fasttrack-deploy-20261008T0819Z did not trigger (pushed with 16 other
+  tags via `git push --tags`; GitHub creates no tag events when > 3 tags are
+  pushed at once). fasttrack-deploy-20261008T0821Z ran (run 37749344234):
+  validate, build, backup (verified), check all passed; deploy failed at the
+  landing preflight because P7 changed `packages/contracts` and
+  `pnpm-lock.yaml`, which the landing lane watches. Nothing deployed; the VPS
+  clone is left detached at 6edac8b6 (no migration ran).
+- Fix: the build job also builds the landing artifact; deploy copies both and
+  exports LANDING_ARTIFACT_TARBALL. actionlint clean.
