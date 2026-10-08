@@ -128,3 +128,22 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   - UI follows `docs/product/design/ui_kits/app/index.html` + `colors_and_type.css`.
   - The fast-track deploy builds and ships the demo lane itself (repays the
     demo/landing block in DEBT).
+
+- **D22** — Optimize Product recommends in three tiers; FastMoss is not a
+  prerequisite for the model (owner, 2026-10-08). Amends D15–D17 and P2/P3.
+  1. **Diagnosis** — ADR-106 funnel-stage diagnosis per product (impressions →
+     clicks → add-to-cart → orders) against the shop's peers and the prior 30
+     days; the weak stage picks the lever. TikTok API data only.
+  2. **Ranking** — priority = recoverable GMV: gap to the peer-median rate ×
+     the stage's volume (impressions or clicks) × AOV. Cards say it is a
+     rule-based estimate until the model replaces it.
+  3. **Learning** — every executed change is measured at day 7 / day 14
+     (ADR-077/106). Per-lever calibration (realised ÷ expected, starting at 0.5)
+     updates from day-14 readings; a learned uplift model only once enough
+     measured changes exist.
+  - **Model v1 (P3)** is the shop model only (LightGBM, orders per
+    product-day, TikTok features), used for ranking — not for counterfactual
+    "set category to P75" gains, which observational data cannot support.
+  - **FastMoss (P2)** becomes optional: competitor price (D13, D19) and
+    market/category context as a control. The market model (D16) waits for
+    multiple shops and cleaned FastMoss data.

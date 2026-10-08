@@ -33,11 +33,11 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 
 ## P2–P6
 
-Not started. See SPEC §4. P2 is blocked on the FastMoss API trial (owner).
+Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
 
 ## Owner actions (not for agents)
 
-- FastMoss REST API trial + 1,000-request minimum (blocks P2).
+- FastMoss REST API trial + 1,000-request minimum (P2, optional since D22).
 - Confirm Fujiwa's TikTok authorisation allows product writes (blocks P5).
 - Consent screen #2061 (launch, not this branch).
 - Dependabot keeps reopening PRs because its config is read from `main`

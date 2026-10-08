@@ -123,17 +123,24 @@ For every connected shop, automatically:
 
 ## 4. Target — later phases (outline; detailed when the phase starts)
 
-- **P2 External data**: FastMoss REST client (VN); test run; Fujiwa accuracy
-  check; full extract; competitor matching (D19); seller cost input + CSV (D18).
-- **P3 Model**: product-day feature table; market model; shop model (LightGBM,
-  count target); expected gain per category; offline quality bar (D17).
+- **P2 External data (optional, D22)**: FastMoss REST client (VN) for
+  competitor price (D19) and market/category context; seller cost input + CSV
+  (D18). Not a prerequisite for P3. The market model (D16) waits for multiple
+  shops and cleaned FastMoss data.
+- **P3 Model (D22)**: product-day feature table from TikTok data (channel
+  impressions/CTR, add-to-cart rate, CTOR, AOV, price, stock, promotions);
+  shop model (LightGBM, orders per product-day) used for **ranking only**;
+  offline quality bar (D17). Expected gain per lever = ADR-106 rule estimate
+  (recoverable GMV: gap to peer median × stage volume × AOV) × per-lever
+  calibration (start 0.5, updated by day-14 readings). Learned uplift model
+  only once enough measured changes exist.
 - **P4 Cards**: top-10 ranked / ≤5 active Optimize Product cards; per-category
   scores; stored expected outcome; scoring cadence (D11); score visible before
   approval (D6).
 - **P5 Execute**: real-shop write client for `update_product_listing` and
   `upload_product_image`; `update_product_price` disabled (D13).
 - **P6 Measure**: product-grain impressions/CVR series; actual vs expected;
-  day-7 check-in / day-14 final (D14); per-category calibration (D16).
+  day-7 check-in / day-14 final (D14); per-lever calibration feeding P3 (D16, D22).
 
 ## 5. Latency targets (estimates until measured)
 

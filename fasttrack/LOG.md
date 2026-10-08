@@ -69,3 +69,12 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   existing ancestry check still refuses any commit not on the fast-track
   branch, and the VPS re-checks it. `workflow_dispatch` kept for after merge.
   actionlint clean. Not yet run.
+
+## 2026-10-08 — orchestrator (Claude Opus) — D21, D22
+
+- Synced main into the branch (7c31a0a4: ADR-106 amendments, ADR-108 shop
+  diagnosis). D21 + P7 tasks recorded; P7-A..D running on fasttrack/p7*
+  branches. P7-D done @ debb24d7 (not merged yet).
+- Owner confirmed D22: three-tier recommendation (diagnosis → recoverable-GMV
+  ranking → day-14 calibration); P3 = TikTok-only shop model for ranking;
+  FastMoss (P2) optional. SPEC §4 P2/P3/P6 and PROGRESS updated.
