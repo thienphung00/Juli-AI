@@ -1,52 +1,36 @@
 "use client";
 
-import { PrimaryNavigation } from "@juli/ui";
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
-import { DEMO_MODE_REPLAY_LABEL } from "../lib/demo-mode-copy";
-import { demoDestinations } from "../lib/mock-data";
-import { sanitizeSellerReviewText } from "../lib/review-seller-copy";
-import { looksLikeRunId } from "../lib/run-surface/run-id";
-import { ACTIONS_DESTINATION_LABEL } from "../lib/destination-copy";
 import { AnalyticsDataProvider, useAnalyticsData } from "../lib/analytics/analytics-data-context";
-import {
-  GOOGLE_SIGN_IN_UNAVAILABLE_COPY,
-  buildGoogleAuthorizeUrl,
-} from "../lib/supabase-auth";
+import { looksLikeRunId } from "../lib/run-surface/run-id";
+import { clearActiveShop } from "../lib/shop-session";
+import { ShopReportProvider, useShopReport } from "../lib/shop-report/shop-report-context";
+import { buildGoogleAuthorizeUrl, clearAuthSession } from "../lib/supabase-auth";
+import { AppNavigation } from "./app-shell/app-navigation";
+import { ShopHeader } from "./app-shell/shop-header";
 import { DemoStateProvider, useDemoState } from "./demo-state";
 
-const assistanceByPath = {
-  "/": {
-    destination: "Trang chủ",
-    message:
-      "Juli là trợ lý phân tích và tự động hóa của bạn, giúp bạn hiểu rõ dữ liệu cửa hàng và đưa ra quyết định tối ưu.",
-  },
-  "/decisions": {
-    destination: ACTIONS_DESTINATION_LABEL,
-    message:
-      "Juli sẽ giải thích lý do, bằng chứng và tác động của từng đề xuất để bạn tự đưa ra quyết định.",
-  },
-  "/analytics": {
-    destination: "Phân tích",
-    message:
-      "Juli sẽ giúp bạn đọc thay đổi của KPI, nguồn dữ liệu và điều đáng chú ý trong khoảng thời gian đang chọn.",
-  },
-  "/settings": {
-    destination: "Cài đặt",
-    message:
-      "Juli sẽ làm rõ cách mẫu quy trình và ngưỡng ảnh hưởng đến các đề xuất trong tương lai.",
-  },
-} as const;
-
 /**
- * True only for a REAL run's detail route (issue #1910): the path shape is
- * `/decisions/in-progress/<id>` AND the id is a run id (`looksLikeRunId`,
- * the ONE id matcher -- never a second UUID pattern here to drift). The
- * legacy mock execution detail (`exec-*` ids, #1320's mock layer) keeps
- * the full shell.
+ * The app shell (AC-8.5, ADR-109 decisions 1, 7, 8) — the layout every page
+ * renders inside, following the sales demo video:
+ *
+ *   ┌ rail ┐┌ ShopHeader (avatar menu · shop · "Juli đang chạy …") ┐
+ *   │ nav  ││ <main class="app-content">  ← the page (the slot)     │
+ *   └──────┘└────────────────────────────────────────────────────────┘
+ *
+ * Below 768px the rail becomes a bottom bar (CSS only, same `<nav>`).
+ * Pages fill the slot with their own content and start with
+ * `AppPageHeader` (`app-shell/page-header.tsx`) for the eyebrow + h1.
+ * No global stepper (decision 8), no assistance aside, no mode toggle: the
+ * former header controls (Đăng nhập, Làm mới Demo) and the former Cài đặt
+ * tab live in the shop-avatar menu.
+ *
+ * The real run route (`/decisions/in-progress/<run id>`, issue #1910) keeps
+ * only the rail; the run surface owns everything to its right.
  */
+
 const RUN_DETAIL_PATH_PATTERN = /^\/decisions\/in-progress\/([^/]+)\/?$/;
 
 function isRunFocusRoute(pathname: string): boolean {
@@ -55,69 +39,22 @@ function isRunFocusRoute(pathname: string): boolean {
 }
 
 function DemoShellContent({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/";
   const router = useRouter();
-  const {
-    feedback,
-    mode,
-    recommendationContext,
-    resetMockState,
-  } = useDemoState();
+  const { feedback, resetMockState } = useDemoState();
   const { refreshAnalytics } = useAnalyticsData();
+  const { state } = useShopReport();
 
-  // The header's "Đăng nhập" control (issue #1907) — the seller's only
-  // sign-in affordance once past the landing gate, so it must stay a real
-  // link to Supabase Auth rather than an internal `/` link that immediately
-  // short-circuits back to HomeLauncher for anyone who already entered the
-  // replay demo. Resolved on mount (never during SSR) via the same
-  // `buildGoogleAuthorizeUrl` DemoLanding uses — never a second URL builder.
-  const [googleHref, setGoogleHref] = useState<string | null | undefined>(
-    undefined,
-  );
+  // Đăng nhập (issue #1907) stays a real link to Supabase Auth, resolved on
+  // mount (never during SSR) with the same builder the landing door uses.
+  const [googleHref, setGoogleHref] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setGoogleHref(
-        buildGoogleAuthorizeUrl(`${window.location.origin}/auth/callback`),
-      );
+      setGoogleHref(buildGoogleAuthorizeUrl(`${window.location.origin}/auth/callback`));
     }, 0);
-
     return () => window.clearTimeout(timer);
   }, []);
-
-  const googleConfigured = googleHref !== null && googleHref !== undefined;
-
-  // Resolve assistance by prefix matching for nested routes
-  const getAssistance = () => {
-    if (pathname.startsWith("/decisions")) {
-      return assistanceByPath["/decisions"];
-    }
-    if (pathname.startsWith("/analytics")) {
-      return assistanceByPath["/analytics"];
-    }
-    if (pathname.startsWith("/settings")) {
-      return assistanceByPath["/settings"];
-    }
-    // Exact match for home or fallback
-    return (
-      assistanceByPath[pathname as keyof typeof assistanceByPath] ??
-      assistanceByPath["/"]
-    );
-  };
-
-  const assistance = getAssistance();
-
-  // Format recommendation context message with proper sanitization and spacing
-  const assistanceMessage =
-    pathname.startsWith("/decisions") && recommendationContext
-      ? [
-          recommendationContext.title,
-          sanitizeSellerReviewText(recommendationContext.evidence),
-          `Rủi ro: ${recommendationContext.risks}`,
-        ]
-          .filter((part) => part.trim())
-          .join("\n\n")
-      : assistance.message;
 
   const handleManualRefresh = () => {
     void refreshAnalytics();
@@ -125,90 +62,39 @@ function DemoShellContent({ children }: { children: ReactNode }) {
     router.replace("/decisions");
   };
 
-  // The run route is a FOCUS surface (issue #1910, PUI-DESIGN.md §2): the
-  // header, feedback strip, mode toggle and assistance aside all go, and
-  // the run owns the whole region right of the rail. The nav rail STAYS
-  // (owner amendment 2026-09-14) -- removing it would strand the seller.
+  const handleSignOut = () => {
+    clearAuthSession();
+    clearActiveShop();
+    // A full load, so every provider re-resolves the (now absent) session.
+    window.location.assign("/?entry=door");
+  };
+
   if (isRunFocusRoute(pathname)) {
     return (
-      <div className="demo-shell demo-shell--run">
-        <PrimaryNavigation
-          activePath={pathname}
-          destinations={demoDestinations}
-          label="Điều hướng chính"
-        />
-        <main className="demo-main demo-main--run">{children}</main>
+      <div className="app-shell app-shell--run">
+        <AppNavigation activePath={pathname} />
+        <div className="app-shell__main">
+          <main className="app-content app-content--run">{children}</main>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="demo-shell">
-      <header className="demo-header app-header">
-        <Link className="demo-wordmark brand-wordmark brand-wordmark-sm" href="/" aria-label="Juli — Trang chủ">
-          Juli
-        </Link>
-        <div className="demo-header__actions">
-          <div className="demo-mode-switcher" role="group" aria-label="Chế độ Demo">
-            <button
-              className="demo-mode-switcher__option"
-              type="button"
-              aria-pressed={mode === "mock"}
-            >
-              {DEMO_MODE_REPLAY_LABEL}
-            </button>
-            {googleConfigured ? (
-              <a className="demo-mode-switcher__option" href={googleHref}>
-                Đăng nhập
-              </a>
-            ) : (
-              <span
-                aria-disabled="true"
-                className="demo-mode-switcher__option"
-                role="link"
-                title={GOOGLE_SIGN_IN_UNAVAILABLE_COPY}
-              >
-                Đăng nhập
-              </span>
-            )}
-          </div>
-          <button
-            className="demo-refresh"
-            type="button"
-            aria-label="Làm mới Demo"
-            onClick={handleManualRefresh}
-          >
-            <span aria-hidden="true">↻</span>
-            <span className="demo-refresh__label">Làm mới Demo</span>
-          </button>
-        </div>
-      </header>
-      <p
-        className="demo-feedback"
-        role="status"
-        aria-label="Phản hồi Demo"
-        aria-live="polite"
-      >
-        {feedback}
-      </p>
-      <PrimaryNavigation
-        activePath={pathname}
-        destinations={demoDestinations}
-        label="Điều hướng chính"
-      />
-      <main className="demo-main">{children}</main>
-      <aside
-        className="demo-assistance"
-        aria-labelledby="demo-assistance-title"
-      >
-        <p className="demo-assistance__eyebrow">{assistance.destination}</p>
-        <h2 id="demo-assistance-title">Gợi ý từ Juli</h2>
-        <p>{assistanceMessage}</p>
-        <p className="demo-assistance__boundary">
-          Juli chỉ giải thích trong ngữ cảnh này. Mọi quyết định và thao tác vẫn
-          do bạn kiểm soát.
+    <div className="app-shell">
+      <AppNavigation activePath={pathname} />
+      <div className="app-shell__main">
+        <ShopHeader
+          googleHref={googleHref}
+          onRefreshDemo={handleManualRefresh}
+          onSignOut={handleSignOut}
+          state={state}
+        />
+        <p aria-label="Phản hồi Demo" aria-live="polite" className="juli-sr-only" role="status">
+          {feedback}
         </p>
-      </aside>
+        <main className="app-content">{children}</main>
+      </div>
     </div>
   );
 }
@@ -217,7 +103,9 @@ export function DemoShell({ children }: { children: ReactNode }) {
   return (
     <DemoStateProvider>
       <AnalyticsDataProvider>
-        <DemoShellContent>{children}</DemoShellContent>
+        <ShopReportProvider>
+          <DemoShellContent>{children}</DemoShellContent>
+        </ShopReportProvider>
       </AnalyticsDataProvider>
     </DemoStateProvider>
   );

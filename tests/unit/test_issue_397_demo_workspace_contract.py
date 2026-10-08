@@ -39,9 +39,10 @@ def _home_surface() -> str:
     parts: list[str] = []
 
     def walk(path: Path) -> None:
-        # Transitive, because the extraction is two levels deep: page.tsx renders
-        # DemoLanding, which renders HomeLauncher, which holds the destination
-        # grid and the Vietnamese copy. Following one level would still miss it.
+        # Transitive, because the extraction is several levels deep: page.tsx
+        # renders HomePageClient → DemoLanding → SampleHome → HomeOverview, which
+        # holds the matrix and the Vietnamese copy (AC-8.5). Following one level
+        # would still miss it.
         resolved = path.resolve()
         if resolved in seen or not resolved.is_file():
             return
@@ -164,16 +165,21 @@ def test_demo_is_private_app_router_typescript_tailwind_app() -> None:
     assert '@import "tailwindcss";' in globals_css
 
 
-def test_four_destinations_and_exactly_two_safe_home_launchers() -> None:
+def test_four_destinations_and_a_safe_home_overview() -> None:
+    """ADR-109 decision 7 / AC-8.5 (fast track) replaced the four-tab nav with
+    Trang chủ / Quyết định / Phân tích / Juli (locked) and moved Cài đặt into
+    the shop-avatar menu; decision 3 replaced the two Home launchers with the
+    report overview (GMV / Đơn / AOV + the 5-stream matrix). What stays
+    contractual: the routes, Juli has no route, and Home offers no
+    approve/reject or settings control."""
     demo_root = ROOT / "apps" / "demo" / "src"
-    fixtures = (demo_root / "lib/mock-data.ts").read_text(encoding="utf-8")
+    nav = (demo_root / "lib/app-navigation.ts").read_text(encoding="utf-8")
     home = _home_surface()
 
     for route in ('"/"', '"/decisions"', '"/analytics"', '"/settings"'):
-        assert route in fixtures
-    assert fixtures.count("...decisionsDestination") == 1
-    assert fixtures.count("...analyticsDestination") == 1
-    assert "homeDestinations.map" in home
+        assert route in nav
+    assert 'label: "Juli", icon: "juli", href: null, locked: true' in nav
+    assert "StreamMatrix" in home and "buildHomeOverview" in home
     assert not re.search(r"Phê duyệt|Từ chối|Mẫu quy trình|Ngưỡng|ROAS|CSAT", home)
 
 
@@ -185,7 +191,11 @@ def test_theme_and_shared_home_primitives_are_consumed_by_demo() -> None:
     assert '@import "@juli/theme/tokens.css";' in globals_css
     assert '@import "@juli/ui/styles.css";' in globals_css
     assert 'from "@juli/ui"' in home
-    assert 'from "@juli/utils"' in home
+    # AC-8.5: Home's figures come from the ADR-108 report and are formatted
+    # by `lib/vn-format.ts`, which mirrors the report page's own formatters
+    # (backend `shop_diagnosis/render.py`) — not `@juli/utils`, whose mock-era
+    # formatters no longer reach Home.
+    assert 'from "../../lib/vn-format"' in home
 
 
 def test_shared_formatters_and_mock_fixtures_run_without_network() -> None:
@@ -213,7 +223,7 @@ def test_home_responsive_focus_touch_vietnamese_and_reduced_motion_contract() ->
     ui_css = (ROOT / "packages/ui/styles.css").read_text(encoding="utf-8")
     tokens_css = (ROOT / "packages/theme/tokens.css").read_text(encoding="utf-8")
     home = _home_surface()
-    fixtures = (ROOT / "apps/demo/src/lib/mock-data.ts").read_text(encoding="utf-8")
+    nav = (ROOT / "apps/demo/src/lib/app-navigation.ts").read_text(encoding="utf-8")
     destination_copy = (ROOT / "apps/demo/src/lib/destination-copy.ts").read_text(encoding="utf-8")
 
     assert "@media (min-width: 42rem)" in globals_css
@@ -222,8 +232,8 @@ def test_home_responsive_focus_touch_vietnamese_and_reduced_motion_contract() ->
     assert ":focus-visible" in ui_css
     assert "--juli-touch-target: 44px" in tokens_css
     assert "@media (prefers-reduced-motion: reduce)" in globals_css
-    assert "Quyết định nhanh, hiểu rõ shop." in home
-    assert "Quyết định" in destination_copy and "Phân tích" in fixtures
+    assert "Lượt hiển thị sản phẩm/ngày" in home
+    assert "Quyết định" in destination_copy and "Phân tích" in nav
 
 
 def test_workspace_import_boundaries_are_acyclic_and_app_isolated() -> None:

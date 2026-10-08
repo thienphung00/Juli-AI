@@ -8,7 +8,6 @@ import { GOLDEN_DEMO_DECISION_EXECUTABLE } from "@juli/contracts";
 
 import { DecisionsPageClient } from "../components/decisions-page-client";
 import { DemoStateProvider } from "../components/demo-state";
-import { DemoShell } from "../components/demo-shell";
 import { RecommendationsView } from "../components/recommendations-view";
 import { recommendationFixtures } from "../lib/recommendations";
 import { storeActiveShop } from "../lib/shop-session";
@@ -346,26 +345,10 @@ describe("Decisions — Recommendations", () => {
     );
   });
 
-  it("supplies active recommendation evidence and risks to contextual assistance", async () => {
-    const target = recommendationFixtures[4];
-    mockHighlight(`highlight=${target.workflowKey}`);
-
-    render(
-      <DemoShell>
-        <RecommendationsView />
-      </DemoShell>,
-    );
-
-    const assistance = screen.getByRole("complementary", {
-      name: "Gợi ý từ Juli",
-    });
-
-    await waitFor(() => {
-      expect(assistance).toHaveTextContent(target.title);
-      expect(assistance).toHaveTextContent(target.evidence);
-      expect(assistance).toHaveTextContent(target.risks);
-    });
-  });
+  // "supplies active recommendation evidence and risks to contextual
+  // assistance" was retired with the assistance aside (AC-8.5, ADR-109 d.1:
+  // the shell follows the sales demo video, which has no aside). The card's
+  // own "Xem thêm" detail still shows evidence and risks beside the list.
 
   it("focuses and visibly marks the matching card for ?highlight=<workflow_key>", () => {
     const target = recommendationFixtures[4];

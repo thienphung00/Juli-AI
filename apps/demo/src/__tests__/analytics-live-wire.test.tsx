@@ -118,6 +118,8 @@ describe("Analytics live wire (#534)", () => {
 
     await user.click(screen.getByRole("tab", { name: "90 ngày" }));
     await user.click(screen.getByLabelText("So sánh kỳ trước"));
+    // Làm mới Demo lives in the shop-avatar menu since AC-8.5.
+    await user.click(screen.getByRole("button", { name: /^Menu shop/ }));
     await user.click(screen.getByRole("button", { name: "Làm mới Demo" }));
 
     await waitFor(() => {

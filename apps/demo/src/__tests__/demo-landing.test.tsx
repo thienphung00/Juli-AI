@@ -103,7 +103,7 @@ describe("DemoLanding — the two doors", () => {
     await user.click(screen.getByRole("button", { name: /Dùng thử Demo/ }));
 
     expect(
-      screen.getByRole("region", { name: "Điểm đến chính" }),
+      screen.getByRole("region", { name: "Ma trận 5 luồng truy cập" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("mock-data-notice")).toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -119,7 +119,7 @@ describe("DemoLanding — the two doors", () => {
     render(<DemoLanding />);
 
     expect(
-      await screen.findByRole("region", { name: "Điểm đến chính" }),
+      await screen.findByRole("region", { name: "Ma trận 5 luồng truy cập" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Dùng thử Demo/ }),
@@ -128,7 +128,7 @@ describe("DemoLanding — the two doors", () => {
 
   // Issue #1907: the sign-in door was unreachable once a visitor entered the
   // replay demo, by any navigation, because `/` always short-circuited back
-  // to HomeLauncher. `/?entry=door` is the explicit escape.
+  // to the replay Home. `/?entry=door` is the explicit escape.
   it("renders both doors at /?entry=door even with replay stored — the explicit escape from the short-circuit", async () => {
     window.sessionStorage.setItem(ENTRY_MODE_STORAGE_KEY, "replay");
     window.history.replaceState(null, "", "/?entry=door");
@@ -153,17 +153,17 @@ describe("DemoLanding — the two doors", () => {
       screen.getByRole("link", { name: /Đăng nhập với Google/ }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("region", { name: "Điểm đến chính" }),
+      screen.queryByRole("region", { name: "Ma trận 5 luồng truy cập" }),
     ).not.toBeInTheDocument();
   });
 
-  it("still renders HomeLauncher on a bare / with replay stored — existing behaviour preserved, not replaced", async () => {
+  it("still renders the sample Home (AC-8.5) on a bare / with replay stored — existing behaviour preserved, not replaced", async () => {
     window.sessionStorage.setItem(ENTRY_MODE_STORAGE_KEY, "replay");
 
     render(<DemoLanding />);
 
     expect(
-      await screen.findByRole("region", { name: "Điểm đến chính" }),
+      await screen.findByRole("region", { name: "Ma trận 5 luồng truy cập" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Dùng thử Demo/ }),

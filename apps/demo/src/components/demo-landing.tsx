@@ -9,7 +9,7 @@ import {
   GOOGLE_SIGN_IN_UNAVAILABLE_COPY,
   buildGoogleAuthorizeUrl,
 } from "../lib/supabase-auth";
-import { HomeLauncher } from "./home-launcher";
+import { SampleHome } from "./home/sample-home";
 
 /**
  * The landing's two deliberately asymmetric doors (ADR-094, PUI-DESIGN §1).
@@ -24,7 +24,7 @@ import { HomeLauncher } from "./home-launcher";
  * "Dùng thử Demo", the Google door became unreachable for the rest of the
  * tab session by any navigation back to `/`. This does not remove the
  * short-circuit: a bare `/` visit with replay stored still goes straight to
- * `HomeLauncher`, unchanged.
+ * the sample Home (`SampleHome`, AC-8.5), unchanged.
  *
  * The param is read from `window.location.search` inside the same deferred
  * client-only read as the entry mode, NOT via `useSearchParams` — that hook
@@ -49,7 +49,7 @@ export function DemoLanding() {
     const timer = window.setTimeout(() => {
       // Both reads land in the same deferred callback (one React batch), so
       // the launcher-vs-doors decision below is made once — never a flash
-      // of HomeLauncher before the escape param is honoured.
+      // of the sample Home before the escape param is honoured.
       setForceDoorEntry(
         new URLSearchParams(window.location.search).get("entry") === "door",
       );
@@ -72,7 +72,7 @@ export function DemoLanding() {
   }, []);
 
   if (hasEnteredReplay && !forceDoorEntry) {
-    return <HomeLauncher />;
+    return <SampleHome />;
   }
 
   const handleEnterReplay = () => {
