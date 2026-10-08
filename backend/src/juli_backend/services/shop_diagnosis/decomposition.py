@@ -236,6 +236,14 @@ def cart_side(card: FunnelComparison, falling: bool) -> CartSide | None:
     return CartSide.BEFORE if cart > after else CartSide.AFTER
 
 
+SELF_SEARCH_SCOPE = "Ở nhóm khách tự tìm đến (Thẻ sản phẩm và Tab Cửa hàng)"
+
+
+def _scoped(body: str) -> str:
+    """A GMV statement of the decision tree always names the group it was measured on."""
+    return f"{SELF_SEARCH_SCOPE}: {body}"
+
+
 def _pct(share: float | None, signed: bool = True) -> str:
     if share is None:
         return ""
@@ -263,7 +271,7 @@ def decide(
             None,
             None,
             share,
-            f"Ổn định: GMV đổi {_pct(share)}",
+            _scoped(f"GMV đổi {_pct(share)}, ổn định"),
             LOOK_NEXT[Verdict.STABLE],
         )
     falling = group.gmv_change < 0
@@ -282,8 +290,10 @@ def decide(
             reference,
             None,
             share,
-            f"Chưa rõ nguyên nhân: GMV {verb} {_pct(share, False)}, không yếu tố nào thay đổi "
-            f"rõ{hint}",
+            _scoped(
+                f"GMV {verb} {_pct(share, False)}. Chưa rõ nguyên nhân: không yếu tố nào thay đổi "
+                f"rõ{hint}"
+            ),
             LOOK_NEXT[Verdict.UNCLEAR],
         )
     main = clear[0]
@@ -294,8 +304,10 @@ def decide(
                 Factor.IMPRESSIONS,
                 None,
                 share,
-                f"GMV {verb} {_pct(share, False)} chủ yếu do lượt hiển thị sản phẩm; "
-                "sửa trang sản phẩm ít tác động đến yếu tố này",
+                _scoped(
+                    f"GMV {verb} {_pct(share, False)} chủ yếu do lượt hiển thị sản phẩm; "
+                    "sửa trang sản phẩm ít tác động đến yếu tố này"
+                ),
                 LOOK_NEXT[Verdict.IMPRESSIONS_ONLY],
             )
         main = clear[1]
@@ -307,7 +319,9 @@ def decide(
         main.factor,
         side,
         share,
-        f"GMV {verb} {_pct(share, False)}, nguyên nhân chính: {FACTOR_LABELS[main.factor]} "
-        f"{verb}{where}",
+        _scoped(
+            f"GMV {verb} {_pct(share, False)}, nguyên nhân chính: {FACTOR_LABELS[main.factor]} "
+            f"{verb}{where}"
+        ),
         look,
     )

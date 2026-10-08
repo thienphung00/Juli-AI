@@ -10,8 +10,10 @@ from __future__ import annotations
 
 from juli_backend.services.shop_diagnosis.channels import CHANNEL_LABELS
 from juli_backend.services.shop_diagnosis.confidence import Confidence
+from juli_backend.services.shop_diagnosis.config import ShopDiagnosisConfig
 from juli_backend.services.shop_diagnosis.decomposition import (
     FACTOR_LABELS,
+    SELF_SEARCH_SCOPE,
     FunnelComparison,
     Verdict,
 )
@@ -26,6 +28,8 @@ def _qualified(text: str, label: Confidence | None) -> str | None:
     if label is Confidence.CLEAR:
         return text
     if label is Confidence.REFERENCE:
+        if text.startswith(SELF_SEARCH_SCOPE):  # a sentence opener, not an acronym
+            text = f"{SELF_SEARCH_SCOPE[0].lower()}{text[1:]}"
         return f"{HINT} {text}"
     return None
 
@@ -42,20 +46,26 @@ def _gmv_sentence(subject: str, comparison: FunnelComparison) -> str | None:
     return _qualified(text, comparison.gmv_confidence)
 
 
-def _factor_sentence(comparison: FunnelComparison) -> str | None:
+def _factor_sentence(comparison: FunnelComparison, config: ShopDiagnosisConfig) -> str | None:
     parts = []
     for factor in comparison.factors:
         if factor.prior is None or factor.last is None or factor.prior == factor.last:
             continue
-        verb = "tăng" if factor.last > factor.prior else "giảm"
+        noise = (
+            factor.confidence is not Confidence.CLEAR
+            and factor.prior != 0
+            and abs(factor.last / factor.prior - 1) < config.noise_relative_change
+        )
+        verb = "gần như không đổi" if noise else ("tăng" if factor.last > factor.prior else "giảm")
         text = _qualified(f"{FACTOR_LABELS[factor.factor]} {verb}", factor.confidence)
         if text:
             parts.append(text)
     return ", ".join(parts) if parts else None
 
 
-def build_message(report: ShopDiagnosis) -> str:
+def build_message(report: ShopDiagnosis, config: ShopDiagnosisConfig | None = None) -> str:
     """Markdown draft; every number in it carries a Rõ or Tham khảo label on the page."""
+    config = config or ShopDiagnosisConfig()
     w = report.windows
     lines = [
         f"# Gửi {report.shop_name or 'shop'} — tình hình 30 ngày gần đây",
@@ -68,7 +78,7 @@ def build_message(report: ShopDiagnosis) -> str:
     overall = _gmv_sentence("toàn shop", report.total)
     if overall:
         lines.append(f"- {overall[0].upper()}{overall[1:]}.")
-    factors = _factor_sentence(report.total)
+    factors = _factor_sentence(report.total, config)
     if factors:
         lines.append(f"- Theo phễu toàn shop: {factors}.")
     for row in report.channels:

@@ -155,6 +155,110 @@ def test_fetch_defaults(fetch) -> None:
     assert str(fetch.SNAPSHOT_ROOT).startswith(str(Path.home()))
 
 
+class _RateLimited(Exception):
+    """Shaped like the client's API error: TikTok code 36009002, "Too many requests"."""
+
+    code = 36009002
+
+    def __init__(self) -> None:
+        super().__init__("[36009002] Too many requests")
+
+
+class _CouponsFlaky(_Promotion):
+    """Coupon search throttles ``failures`` times, then answers."""
+
+    def __init__(self, calls: list[tuple], failures: int) -> None:
+        super().__init__(calls)
+        self.failures = failures
+
+    def search_coupons_all(self) -> list[dict]:
+        self.calls.append(("coupons",))
+        if self.failures > 0:
+            self.failures -= 1
+            raise _RateLimited()
+        return [{"id": "c1"}]
+
+
+def _promotions(fetch, resources, folder: Path, sleeps: list[float]) -> None:
+    fetch.fetch_promotions(
+        resources,
+        folder,
+        "2026-08-08",
+        "2026-10-07",
+        fetch._load("shop_optimization_report"),
+        sleep_s=0,
+        backoff_sleep=sleeps.append,
+    )
+
+
+def test_throttled_coupons_do_not_stop_activities_or_details(tmp_path: Path, fetch) -> None:
+    resources = FakeResources()
+    resources.promotion = _CouponsFlaky(resources.calls, failures=99)
+    sleeps: list[float] = []
+
+    _promotions(fetch, resources, tmp_path, sleeps)
+
+    target = tmp_path / "promotions"
+    assert sleeps == [2, 4, 8]
+    assert (target / "_error_coupons.json").exists()
+    assert not (target / "coupons.json").exists()
+    assert json.loads((target / "activities.json").read_text())["activities"]
+    assert "a-ONGOING" in json.loads((target / "activity_details.json").read_text())
+    assert not (target / "_error_activities.json").exists()
+    assert not (target / "_error_details.json").exists()
+
+
+def test_a_throttled_call_is_retried_with_exponential_backoff(tmp_path: Path, fetch) -> None:
+    resources = FakeResources()
+    resources.promotion = _CouponsFlaky(resources.calls, failures=2)
+    sleeps: list[float] = []
+
+    _promotions(fetch, resources, tmp_path, sleeps)
+
+    target = tmp_path / "promotions"
+    assert sleeps == [2, 4]
+    assert json.loads((target / "coupons.json").read_text()) == {"coupons": [{"id": "c1"}]}
+    assert not (target / "_error_coupons.json").exists()
+
+
+def test_failures_other_than_throttling_are_not_retried(tmp_path: Path, fetch) -> None:
+    class Broken(_Promotion):
+        def search_coupons_all(self) -> list[dict]:
+            raise ValueError("bad request")
+
+    resources = FakeResources()
+    resources.promotion = Broken(resources.calls)
+    sleeps: list[float] = []
+
+    _promotions(fetch, resources, tmp_path, sleeps)
+
+    assert sleeps == []
+    assert (tmp_path / "promotions" / "_error_coupons.json").exists()
+    assert (tmp_path / "promotions" / "activity_details.json").exists()
+
+
+def test_a_failing_activity_detail_does_not_lose_the_others(tmp_path: Path, fetch) -> None:
+    class OneBadDetail(_Promotion):
+        def search_activities_all(self, *, status: str) -> list[dict]:
+            if status == "ONGOING":
+                return [{"id": "a1", "begin_time": 1, "end_time": 0}, {"id": "a2", "begin_time": 1}]
+            return []
+
+        def get_activity(self, activity_id: str) -> dict:
+            if activity_id == "a1":
+                raise ValueError("gone")
+            return {"data": {"products": []}}
+
+    resources = FakeResources()
+    resources.promotion = OneBadDetail(resources.calls)
+
+    _promotions(fetch, resources, tmp_path, [])
+
+    target = tmp_path / "promotions"
+    assert list(json.loads((target / "activity_details.json").read_text())) == ["a2"]
+    assert (target / "_error_details.json").exists()
+
+
 def _snapshot(folder: Path) -> Path:
     daily = {
         day: [DayRow(f"p{n}", card=Block(100, 10, 2, 1 + n, 100_000 * (n + 1))) for n in range(6)]

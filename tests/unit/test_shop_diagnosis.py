@@ -6,6 +6,7 @@ are derived from the fixture rows rather than restated as opaque literals.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 import re
 from datetime import date, timedelta
@@ -13,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from juli_backend.services.optimize_product.live_video import Appearance
 from juli_backend.services.shop_diagnosis import (
     Ranking,
     ShopDiagnosisConfig,
@@ -45,15 +47,19 @@ from juli_backend.services.shop_diagnosis.decomposition import (
 )
 from juli_backend.services.shop_diagnosis.heroes import DROPPED, ENTERED, select_heroes
 from juli_backend.services.shop_diagnosis.promotions import (
+    FlashAnalysis,
     FlashFlag,
     VoucherClass,
     analyse_flash,
+    analyse_vouchers,
     classify_voucher,
     coverage_by_day,
     parse_activities,
     parse_vouchers,
     yardstick,
 )
+from juli_backend.services.shop_diagnosis.render import _flash_section
+from juli_backend.services.shop_diagnosis.report import Appearances
 from juli_backend.services.shop_diagnosis.snapshot import Snapshot, Windows
 from tests.support.shop_diagnosis import (
     END,
@@ -625,3 +631,148 @@ def test_json_holds_every_section(report) -> None:
     assert {"total", "channels", "profiles", "shop_flash", "vouchers", "timelines"} <= data.keys()
     assert data["ranking"] == "60d"
     assert math.isclose(data["total"]["last"]["gmv"], report.total.last.gmv)
+
+
+# --------------------------------------------------------------------------
+# fixes after the first real run
+# --------------------------------------------------------------------------
+
+SCOPE = "Ở nhóm khách tự tìm đến (Thẻ sản phẩm và Tab Cửa hàng)"
+
+
+def test_conclusion_headlines_name_the_self_search_scope() -> None:
+    story = _comparison((100, 60), 80, {Factor.CTR: (-40, CLEAR)})
+    unclear = _comparison((100, 60), 80, {Factor.CTOR: (-30, REF)})
+    flat = _comparison((100, 105), 80, {Factor.CTR: (5, CLEAR)})
+
+    headlines = [decide(c, c, CONFIG).headline for c in (story, unclear, flat)]
+
+    assert headlines[0].startswith(f"{SCOPE}: GMV giảm 40 %")
+    assert all(h.startswith(f"{SCOPE}: ") for h in headlines)
+
+
+def test_rest_conclusion_and_message_line_name_the_scope(report) -> None:
+    rest = report.rest_conclusion
+    if rest.verdict is not Verdict.INSUFFICIENT:
+        assert rest.headline.startswith(SCOPE)
+    for profile in report.profiles:
+        if profile.conclusion.verdict is not Verdict.INSUFFICIENT:
+            assert profile.conclusion.headline.startswith(SCOPE)
+    # A hint-qualified story keeps the scope in the message line.
+    story = dataclasses.replace(
+        report.profiles[0].conclusion, verdict=Verdict.STABLE, headline=f"{SCOPE}: GMV đổi +2 %"
+    )
+    profiles = (dataclasses.replace(report.profiles[0], conclusion=story),)
+    message = build_message(dataclasses.replace(report, profiles=profiles))
+    assert f"{SCOPE}: GMV đổi +2 %" in message
+
+
+def _factor(kind: Factor, prior: float, last: float, label: Confidence) -> FactorChange:
+    return FactorChange(kind, prior, last, None, label)
+
+
+def test_message_calls_a_change_inside_the_noise_band_unchanged(report) -> None:
+    total = dataclasses.replace(
+        report.total,
+        factors=(
+            _factor(Factor.CTOR, 0.0500, 0.0504, REF),  # +0.8 %, Tham khảo
+            _factor(Factor.CTR, 0.0400, 0.0300, REF),  # -25 %, Tham khảo
+            _factor(Factor.AOV, 100_000, 100_100, CLEAR),  # Rõ keeps its direction
+            _factor(Factor.IMPRESSIONS, 1000, 1100, REF),
+        ),
+    )
+    message = build_message(dataclasses.replace(report, total=total))
+    line = next(x for x in message.splitlines() if x.startswith("- Theo phễu"))
+
+    assert "dấu hiệu CTOR gần như không đổi" in line
+    assert "dấu hiệu CTR (Tỷ lệ nhấp) giảm" in line
+    assert "AOV (SKU) tăng" in line and "dấu hiệu AOV" not in line
+    assert "dấu hiệu CTOR tăng" not in line
+
+
+def test_flash_summary_names_each_window_in_words() -> None:
+    html = render_flash_section(_flash_analysis(true_depth=0.02))
+
+    assert "(30 ngày trước: 0 ngày flash; 30 ngày gần đây: 21 ngày flash)" in html
+    assert "0 và 21" not in html
+
+
+def test_negative_true_depth_is_stated_and_still_flagged_shallow() -> None:
+    html = render_flash_section(_flash_analysis(true_depth=-0.011))
+
+    assert "giá flash cao hơn giá đang giảm sẵn 1,1 %" in html
+    assert "-1,1 %" not in html
+    assert FlashFlag.SHALLOW.value in html
+
+
+def test_vouchers_read_the_total_claim_limit_and_cap_usage() -> None:
+    values = [float(v) for v in range(100_000, 200_001, 10_000)]
+    orders = [
+        order(f"v{i}", d, ["p1"], value)
+        for i, (d, value) in enumerate(zip(WINDOWS.last_days() * 3, values * 3, strict=False))
+    ]
+    orders += [order(f"w{i}", WINDOWS.last_days()[i % 30], ["p1"], 150_000) for i in range(40)]
+
+    def coupon(coupon_id: str, limits: dict) -> dict:
+        return {
+            "id": coupon_id,
+            "title": "Đền bù",
+            "status": "ONGOING",
+            "claim_duration": {"start_time": seconds(WINDOWS.last_first)},
+            "discount": {"reduction_amount": {"amount": "50000"}},
+            "product_scope": "FULL_SHOP",
+            "usage_limits": limits,
+        }
+
+    vouchers = parse_vouchers(
+        [
+            coupon("a", {"single_buyer_claim_limit": 1, "total_claim_limit": 1}),
+            coupon("b", {"redemption_limit": 2, "display_type": "CHAT"}),
+            coupon("c", {"total_claim_limit": 5, "single_buyer_claim_limit": 1}),
+            coupon("d", {"single_buyer_claim_limit": 1}),
+        ]
+    )
+    summary = analyse_vouchers(vouchers, orders, WINDOWS, set(), CONFIG)
+    by_id = {a.voucher.coupon_id: a for a in summary.live}
+
+    assert by_id["a"].voucher_class is VoucherClass.PERSONAL
+    assert by_id["b"].voucher_class is VoucherClass.PERSONAL
+    assert by_id["c"].voucher_class is not VoucherClass.PERSONAL
+    assert by_id["d"].voucher_class is not VoucherClass.PERSONAL
+    assert by_id["a"].redemptions_upper == 1 and by_id["a"].cost_upper == 50_000
+    assert by_id["b"].redemptions_upper == 2
+    assert by_id["c"].redemptions_upper == 5
+    assert by_id["d"].redemptions_upper > 5
+
+
+def test_profile_tables_use_slash_dates_and_the_lifetime_label(report) -> None:
+    video = Appearance("video", "Video thử", "2025-11-03", 10, 7)
+    live = Appearance("live", "LIVE thử", "2026-10-02", 10, 3)
+    appearances = Appearances((live,), 0, (video,), 0)
+    profile = dataclasses.replace(report.profiles[0], appearances=appearances)
+    html = render_html(dataclasses.replace(report, profiles=(profile,)))
+
+    assert "Số món bán (từ khi đăng)" in html
+    assert "<th>Số món bán</th>" not in html
+    assert "03/11/2025" in html and "2025-11-03" not in html
+    assert "02/10/2026" in html and "2026-10-02" not in html
+
+
+def _flash_analysis(true_depth: float) -> FlashAnalysis:
+    return FlashAnalysis(
+        coverage={},
+        weekly=(),
+        coverage_last=0.68,
+        coverage_prior=0.0,
+        flash_days_last=21,
+        flash_days_prior=0,
+        true_depth=true_depth,
+        list_depth=0.05,
+        cells=(),
+        flags=(FlashFlag.SHALLOW,),
+        unattributed=0,
+    )
+
+
+def render_flash_section(flash: FlashAnalysis) -> str:
+    return _flash_section(flash, [], False)

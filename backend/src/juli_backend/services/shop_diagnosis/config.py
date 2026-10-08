@@ -39,6 +39,10 @@ class ShopDiagnosisConfig:
     clear_min_orders: int = 30
     reference_min_orders: int = 10
 
+    #: The seller message calls a factor "gần như không đổi" when it is not *Rõ* and its
+    #: relative change is under this share either way.
+    noise_relative_change: float = 0.05
+
     #: d.8 part 3: channel tags on a hero product's funnel.
     low_impressions_per_day: float = 50.0
     impressions_surge: float = 0.50

@@ -16,7 +16,7 @@ Writes the snapshot layout documented in
 ``~/.juli-shop-snapshots/<shop>/<end>/`` (outside the repo — orders carry buyer
 data), or ``--out``. Daily A-34 files already on disk are not refetched, so a
 morning run adds only yesterday; orders, promotions, LIVE and video lists are
-refreshed each run. Each optional part that fails writes ``_error.json`` (class
+refreshed each run. Each optional part that fails writes its own ``_error*.json`` (class
 and message, tokens redacted) and the run moves on. Then build offline with
 ``scripts/shop_diagnosis_report.py``.
 """
@@ -30,6 +30,7 @@ import json
 import re
 import sys
 import time
+from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 from types import ModuleType
@@ -91,35 +92,116 @@ def fetch_daily(resources: Any, folder: Path, first: date, end: date, *, sleep_s
     return fetched
 
 
-def fetch_promotions(
-    resources: Any, folder: Path, first: str, end_lt: str, report: ModuleType, *, sleep_s: float
+BACKOFF_SECONDS = (2.0, 4.0, 8.0)
+#: TikTok's "Too many requests" code (HTTP 429); 100005 is the generic throttle code.
+THROTTLE_CODES = (36009002, 100005)
+
+
+def is_throttled(exc: BaseException) -> bool:
+    """True for a 429 / "Too many requests" failure, however the client surfaced it."""
+    if getattr(exc, "code", None) in THROTTLE_CODES:
+        return True
+    response = getattr(exc, "response", None)
+    if getattr(response, "status_code", None) == 429 or getattr(exc, "status_code", None) == 429:
+        return True
+    return "too many requests" in str(exc).lower()
+
+
+def with_backoff(call: Callable[[], Any], backoff_sleep: Callable[[float], Any]) -> Any:
+    """Run ``call``; on a throttle wait 2 s, 4 s, then 8 s and retry (up to 4 calls in all)."""
+    for delay in BACKOFF_SECONDS:
+        try:
+            return call()
+        except Exception as exc:
+            if not is_throttled(exc):
+                raise
+            backoff_sleep(delay)
+    return call()
+
+
+def _fetch_activities(
+    resources: Any, target: Path, report: ModuleType, sleep_s: float, backoff_sleep: Any
+) -> list[dict]:
+    """Activities of every status; one status the API rejects must not lose the others."""
+    seen: dict[str, dict] = {}
+    for status in ACTIVITY_STATUSES:
+        try:
+            found = with_backoff(
+                lambda status=status: resources.promotion.search_activities_all(status=status),
+                backoff_sleep,
+            )
+            for activity in found:
+                seen.setdefault(str(activity.get("id") or len(seen)), activity)
+        except Exception as exc:
+            _write(target / f"_error_{status.lower()}.json", report._error_payload(exc))
+        time.sleep(sleep_s)
+    activities = list(seen.values())
+    _write(target / "activities.json", {"activities": activities})
+    return activities
+
+
+def _fetch_details(
+    resources: Any,
+    target: Path,
+    activities: list[dict],
+    window: tuple[int, int],
+    report: ModuleType,
+    sleep_s: float,
+    backoff_sleep: Any,
 ) -> None:
-    """Activities of every status, coupons, and details of activities overlapping the 60 days."""
+    """Details of activities overlapping the window; a failed one is recorded, the rest kept."""
+    details: dict[str, Any] = {}
+    failed: dict[str, dict[str, str]] = {}
+    for activity in activities:
+        if len(details) >= MAX_ACTIVITY_DETAIL_CALLS:
+            break
+        activity_id = str(activity.get("id") or "")
+        if not activity_id or not report._overlaps(activity, window):
+            continue
+        try:
+            details[activity_id] = with_backoff(
+                lambda activity_id=activity_id: resources.promotion.get_activity(activity_id),
+                backoff_sleep,
+            )
+        except Exception as exc:
+            failed[activity_id] = report._error_payload(exc)
+        time.sleep(sleep_s)
+    _write(target / "activity_details.json", details)
+    if failed:
+        _write(target / "_error_details.json", failed)
+
+
+def fetch_promotions(
+    resources: Any,
+    folder: Path,
+    first: str,
+    end_lt: str,
+    report: ModuleType,
+    *,
+    sleep_s: float,
+    backoff_sleep: Callable[[float], Any] = time.sleep,
+) -> None:
+    """Activities, coupons and activity details as three independent parts.
+
+    Each part that fails writes its own ``_error_*.json`` and the others still run; a
+    429 is retried with exponential backoff (``backoff_sleep`` is injectable for tests).
+    """
     target = folder / "promotions"
+    activities: list[dict] = []
     try:
-        seen: dict[str, dict] = {}
-        for status in ACTIVITY_STATUSES:
-            try:
-                for activity in resources.promotion.search_activities_all(status=status):
-                    seen.setdefault(str(activity.get("id") or len(seen)), activity)
-            except Exception as exc:  # one status the API rejects must not lose the others
-                _write(target / f"_error_{status.lower()}.json", report._error_payload(exc))
-            time.sleep(sleep_s)
-        activities = list(seen.values())
-        _write(target / "activities.json", {"activities": activities})
-        _write(target / "coupons.json", {"coupons": resources.promotion.search_coupons_all()})
-        window = report._window_seconds(first, end_lt)
-        details: dict[str, Any] = {}
-        for activity in activities:
-            if len(details) >= MAX_ACTIVITY_DETAIL_CALLS:
-                break
-            activity_id = str(activity.get("id") or "")
-            if activity_id and report._overlaps(activity, window):
-                details[activity_id] = resources.promotion.get_activity(activity_id)
-                time.sleep(sleep_s)
-        _write(target / "activity_details.json", details)
+        activities = _fetch_activities(resources, target, report, sleep_s, backoff_sleep)
     except Exception as exc:
-        _write(target / "_error.json", report._error_payload(exc))
+        _write(target / "_error_activities.json", report._error_payload(exc))
+    try:
+        coupons = with_backoff(resources.promotion.search_coupons_all, backoff_sleep)
+        _write(target / "coupons.json", {"coupons": coupons})
+    except Exception as exc:
+        _write(target / "_error_coupons.json", report._error_payload(exc))
+    try:
+        window = report._window_seconds(first, end_lt)
+        _fetch_details(resources, target, activities, window, report, sleep_s, backoff_sleep)
+    except Exception as exc:
+        _write(target / "_error_details.json", report._error_payload(exc))
 
 
 def fetch_live(
@@ -208,6 +290,7 @@ def fetch_snapshot(
     *,
     sleep_s: float = 0.4,
     max_products: int = MAX_PRODUCT_DETAILS,
+    backoff_sleep: Callable[[float], Any] = time.sleep,
 ) -> dict[str, Any]:
     """Fill ``folder`` with the 60-day snapshot ending ``end``; returns the meta record."""
     report = _load("shop_optimization_report")
@@ -217,7 +300,15 @@ def fetch_snapshot(
     orders_record = report._fetch_orders(
         resources, folder, first.isoformat(), end_lt, sleep_s=sleep_s
     )
-    fetch_promotions(resources, folder, first.isoformat(), end_lt, report, sleep_s=sleep_s)
+    fetch_promotions(
+        resources,
+        folder,
+        first.isoformat(),
+        end_lt,
+        report,
+        sleep_s=sleep_s,
+        backoff_sleep=backoff_sleep,
+    )
     fetch_live(resources, folder, first.isoformat(), end_lt, report, sleep_s=sleep_s)
     fetch_videos(resources, folder, first.isoformat(), end_lt, report, sleep_s=sleep_s)
     fetch_product_details(resources, folder, report, limit=max_products, sleep_s=sleep_s)
