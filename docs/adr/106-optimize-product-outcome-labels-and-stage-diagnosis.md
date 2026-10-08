@@ -449,3 +449,10 @@ API, which the seller creates on Seller Center following the card.
 field), buy-more-save-more, gift, shipping discount. *Read-only:* coupons (search, get) and the order
 price detail. *Not available:* coupon creation, bundle deal, platform vouchers, platform
 buy-more-save-more and flash deals, platform campaigns, and ads (the Business API is ads-only).
+
+### Pointer — 2026-10-08
+
+The planned Amendment 6 (top-5 focus, a 30-day decision tree, no TikTok-diagnosis gate) was
+not written here. Those decisions became part of the shop-level diagnostic report in
+[ADR-108](108-shop-diagnosis-report.md), which renders no cards; this ADR's card rules are
+unchanged.
