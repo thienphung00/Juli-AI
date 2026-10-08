@@ -69,3 +69,22 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   existing ancestry check still refuses any commit not on the fast-track
   branch, and the VPS re-checks it. `workflow_dispatch` kept for after merge.
   actionlint clean. Not yet run.
+
+## 2026-10-08 — P7-C agent (Claude Opus) — demo UI
+
+- Worktree `fasttrack/p7c-ui`, commits 93a6b445 (Quyết định label, D21),
+  17002419 (app-kit restyle), 24aca816 (decision cards + evidence mapper),
+  65c9c856 (Phân tích report view), plus this docs commit.
+- Restyle: kit tokens/classes appended to `apps/demo/src/app/globals.css`;
+  bottom nav at every width (rail retired), 1120px column, kit type scale.
+- Quyết định: mock recommendation cards; tolerant mapper for P7-B fields in
+  `apps/demo/src/lib/decision-evidence.ts` (assumed shape documented there).
+- Phân tích: `/analytics` renders the ADR-108 report (`components/shop-analysis/`);
+  signed in via `GET /v1/demo/analysis` (`{as_of, built_at, ranking, report}`,
+  `?ranking=60d|30d` toggle, 404 → empty state); anonymous → synthetic sample.
+  KPI dashboard kept at `/analytics/[metricKey]`, linked from the report footer
+  (its data source differs from the report, so it is secondary, not removed).
+- recharts added to apps/demo (same ^2.15.4 as @juli/ui) for the timeline.
+- Checks: lint/tsc/vitest green on Node 20 (Node 26 breaks jsdom storage —
+  pre-existing); `pnpm build:demo` OK with dummy Supabase env, `.next` removed.
+- Next: align evidence keys with P7-B; run demo e2e; reject endpoint.

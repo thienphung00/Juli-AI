@@ -81,17 +81,33 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
   playbook with CONFIRM before any write (no change to write policy, D13).
 
 ### P7-C UI
-- [ ] **AC-7.5** apps/demo restyled to the index.html mock (tokens from
+- [x] **AC-7.5** apps/demo restyled to the index.html mock (tokens from
   `colors_and_type.css`, card/button/badge classes, nav "Trang chủ / Quyết định /
   Phân tích / Cài đặt"). Vietnamese only; KPI names as TikTok writes them.
-- [ ] **AC-7.6** Quyết định (signed in) renders real cards with the stage,
+  — evidence: 93a6b445 (label restored, `destination-naming.test.ts` now denies
+  "Hành động"), 17002419 (kit tokens/classes + shell in `globals.css`);
+  screenshots in the P7-C session scratchpad (desktop/mobile, no horizontal scroll).
+- [x] **AC-7.6** Quyết định (signed in) renders real cards with the stage,
   lever and funnel evidence; approve → run view still works.
-- [ ] **AC-7.7** Phân tích (signed in) renders the report: 5-channel split with
+  — evidence: 24aca816; `signed-in-decisions.test.tsx` ("renders stage, lever
+  and the funnel evidence block…", approve → `/decisions/in-progress/{run_id}`
+  unchanged), `lib/__tests__/decision-evidence.test.ts`. Field names are
+  ASSUMED (top of `apps/demo/src/lib/decision-evidence.ts`) until P7-B lands.
+- [x] **AC-7.7** Phân tích (signed in) renders the report: 5-channel split with
   "GMV trung bình mỗi ngày" 30 vs 30, per-channel funnel, hero profiles,
   event timeline, promotions; Shop Tab shown as missing when absent; no
   backend/endpoint names in the UI. Anonymous visitors see a synthetic sample.
-- [ ] **AC-7.8** `pnpm lint`, `type-check`, vitest green; guard tests updated
+  — evidence: 65c9c856; `components/__tests__/shop-analysis-view.test.tsx`
+  (sections in order, funnels, heroes × 5 channels, missing Tab Cửa hàng →
+  "Chưa có dữ liệu", no snake_case//v1 in text, 404 → empty state, error never
+  falls back to the sample, client sends bearer + X-Shop-Id + ?ranking).
+- [x] **AC-7.8** `pnpm lint`, `type-check`, vitest green; guard tests updated
   only where the restyle intentionally changes them.
+  — evidence: apps/demo lint 0 errors (14 pre-existing warnings), tsc clean,
+  vitest 128 files / 1649 tests pass (Node 20); `pnpm build:demo` OK with dummy
+  Supabase env (not committed). Guards changed: `destination-naming.test.ts`
+  (D21 flips the retired name), `replay-module-graph.test.ts` (+1 entry:
+  the anonymous sample). Others untouched and green.
 
 ### P7-D Deploy
 - [ ] **AC-7.9** `fasttrack-deploy.yml` builds the demo artifact (Supabase env

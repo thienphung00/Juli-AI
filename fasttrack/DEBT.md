@@ -46,3 +46,27 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   backfill it per day later if the model needs it.
 - [ ] `fujiwa_poll_cycle` task still registered but unscheduled — delete
   after the fan-out is proven in production.
+
+## P7-C UI (2026-10-08)
+
+- [ ] Decision evidence field names are assumed (`apps/demo/src/lib/decision-evidence.ts`
+  header) — P7-B not landed when P7-C ran — align the candidate key lists with
+  P7-B's response and add one test on its real fixture.
+- [ ] "Từ chối" on a signed-in card only hides it for the session (no reject
+  route) — no backend endpoint — add `POST /v1/demo/decisions/{id}/reject` and
+  call it; the on-screen copy says the choice is not saved.
+- [ ] Anonymous Phân tích sample is a 100 KB bundled JSON
+  (`lib/shop-analysis/sample-report.json`, generated from a synthetic snapshot
+  via `tests/support/shop_diagnosis.py` + `build_report`; generator kept out of
+  the repo) — speed — commit the generator script or shrink the sample.
+- [ ] Inter font is named in the stack but not loaded (mock imports Google
+  Fonts) — no network at build — add `next/font` if the owner wants Inter
+  everywhere.
+- [ ] Demo header keeps the old mode switcher / "Làm mới Demo" controls inside
+  the kit header (mobile alignment of "Đăng nhập" is off, pre-existing) —
+  out of scope — redesign the header actions with the owner.
+- [ ] e2e (Playwright) specs only had the tab name updated; not run — no
+  server lane in P7-C — run `pnpm --filter @juli/demo test:e2e` before merge
+  (bottom nav at every width may move selectors that assumed the desktop rail).
+- [ ] vitest needs Node 20 locally: under Node 26 jsdom's `localStorage` is
+  shadowed (270 failures on untouched main) — env — pin `.nvmrc` to 20.
