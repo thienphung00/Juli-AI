@@ -262,6 +262,9 @@ _SHARED_STATE_MODULES = frozenset(
         # Reason 2 again: seeds two tenants for fast track P1-B (per-shop
         # ingestion as juli_app, AC-1.12).
         "test_shop_ingestion_two_tenant.py",
+        # Reason 2 again: seeds two tenants for fast track P8-C (write values,
+        # rules and revert questions as juli_app, AC-8.3).
+        "test_run_changes_two_tenant.py",
     }
 )
 

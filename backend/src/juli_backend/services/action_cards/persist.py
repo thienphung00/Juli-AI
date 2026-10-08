@@ -23,7 +23,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
@@ -475,9 +475,7 @@ async def emit_scoring_cards(
     decisions: list[CardEmission] = []
     computed_at = result.signals.computed_at
     computed_at_iso = computed_at.isoformat()
-    config = await _with_shop_card_cap(
-        session, shop_id, emission_config or decision_emission_config()
-    )
+    config = emission_config or decision_emission_config()
 
     # ADR-106 / D21: a shop with product analytics gets its Optimize Product
     # cards from the stage-diagnosis pipeline -- whole catalog scored, top 10
@@ -621,27 +619,6 @@ async def emit_scoring_cards(
 
 
 _OPTIMIZE_PRODUCT_WORKFLOW_KEY = "optimize_product_2"
-
-
-async def _with_shop_card_cap(
-    session: AsyncSession, shop_id: uuid.UUID, config: DecisionEmissionConfig
-) -> DecisionEmissionConfig:
-    """The seller's "Số thẻ mở cùng lúc" (ADR-109 d.12) as Optimize Product's cap.
-
-    Only when the shop has set one: an unset rule keeps the configured cap (5,
-    ADR-106 decision 6), environment overrides included.
-    """
-    from juli_backend.services import shop_rules
-
-    cap = await shop_rules.configured_max_open_cards(session, shop_id)
-    if cap is None:
-        return config
-    others = tuple(
-        (key, value)
-        for key, value in config.workflow_max_active
-        if key != _OPTIMIZE_PRODUCT_WORKFLOW_KEY
-    )
-    return replace(config, workflow_max_active=(*others, (_OPTIMIZE_PRODUCT_WORKFLOW_KEY, cap)))
 
 
 async def _plan_optimize_product(
