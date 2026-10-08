@@ -4005,19 +4005,20 @@ h4 {
   font-weight: 600;
 }
 
+/* Tiles wrap instead of scrolling: nothing is clipped at any width. */
 .funnel-flow {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(6.25rem, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
   gap: 4px;
   margin: 0;
-  overflow-x: auto;
-  padding: 0 0 4px;
+  padding: 0;
   list-style: none;
 }
 
 .funnel-box {
   display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
   justify-items: center;
   align-content: start;
   gap: 2px;
