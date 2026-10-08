@@ -156,6 +156,24 @@ TikTok's diagnosis per row. Customers who saw the video should find the same pro
       result from the run's events, the consent step inline. Right: "Hàng chờ thẻ tối ưu" —
       the queue with each run's status. The ledger's sections stay: **Đang chờ bạn / Đang
       chạy / Hoàn tất**, with honest terminal states and replay of finished runs.
+    - **The timeline is driven only by the run's SSE stream** (`GET /v1/demo/runs/{id}/events`,
+      envelope `{workflow_run_id, sequence_number, event_type, timestamp, payload}`), reusing
+      `use-run-stream.ts` / `reduce-run-view.ts`; finished runs use the replay endpoint. Each
+      step's time is the event `timestamp`; its one-line result is `tool.completed.summary`
+      (or `workflow.status.phase_narration` / `assistant.text`). Nothing is invented
+      client-side. Mapping of the video's steps to the Optimize Product playbook:
+
+      | Video step | SSE source |
+      |---|---|
+      | Đọc thông tin / chẩn đoán | `tool.started` / `tool.completed` for `get_product_information` (no TikTok-diagnosis tool exists in the playbook yet) |
+      | Phân tích từ khoá, ảnh | `tool.*` for `get_seo_keywords`, `inspect_product_image` |
+      | Xác nhận một lần | `workflow.approval_required` → confirmation POST → `workflow.status` |
+      | Ghi lên TikTok Shop | `tool.*` for `update_product_listing` / `upload_product_image` |
+      | TikTok duyệt lại trang sản phẩm | `tool.*` for `check_product_status` |
+      | Kết thúc · đặt lịch đo | `workflow.completed` / `workflow.failed`; day 7 / day 14 dates computed from the completion timestamp by the D14 rule |
+
+      The queue on the right is `GET /v1/demo/runs` (status per run).
+
     - **Đo lường** — one row per executed run: the product's metrics before → after against
       the expected outcome; before day 7 it says "Đang chờ đủ 7 ngày dữ liệu · đo lúc
       DD/MM" (no invented numbers). Day-7 guardrail breaches (decision 11) surface here
