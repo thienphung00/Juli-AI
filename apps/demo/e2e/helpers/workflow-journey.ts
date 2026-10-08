@@ -1,5 +1,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
+import { openShopMenu } from "./demo-navigation";
+
 /**
  * The approval affordance lives in one of two mutually exclusive footers.
  *
@@ -110,6 +112,8 @@ export async function approveFromRecommendations(
 }
 
 export async function resetDemo(page: Page) {
+  // Làm mới Demo lives in the shop-avatar menu since AC-8.5.
+  await openShopMenu(page);
   await page.getByRole("button", { name: "Làm mới Demo" }).click();
   await expect(page).toHaveURL(/\/decisions$/);
 }

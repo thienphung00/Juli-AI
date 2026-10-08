@@ -4213,3 +4213,745 @@ h4 {
   font-size: 1.125rem;
   letter-spacing: -0.02em;
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   App shell + Trang chủ (AC-8.5, ADR-109 decisions 1, 3, 7) — the sales
+   demo video's layout (left rail, shop header, eyebrow + conclusion h1,
+   5-stream matrix), drawn ONLY with the kit tokens above (one token
+   source: the colors_and_type.css block). Supersedes the bottom-nav-at-
+   every-width shell of AC-7.5: from 768px the nav is a left rail, below it
+   a bottom bar — the same <nav>, moved by CSS.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.app-shell {
+  min-height: 100vh;
+  padding-bottom: 84px; /* room for the bottom bar under 768px */
+}
+
+.app-shell__main {
+  min-width: 0;
+}
+
+.app-content {
+  width: min(100% - 32px, 1320px);
+  margin: 0 auto;
+  padding: 24px 0 32px;
+}
+
+/* ── Rail / bottom bar ─────────────────────────────────────────────── */
+
+.app-rail__wordmark {
+  display: none;
+}
+
+.app-nav {
+  position: fixed;
+  z-index: 50;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+
+.app-nav__list {
+  display: grid;
+  max-width: 520px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0 auto;
+  padding: 6px 8px 10px;
+  list-style: none;
+}
+
+.app-nav__item {
+  display: flex;
+  min-height: var(--juli-touch-target);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 14px;
+  padding: 6px 4px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.app-nav__item:hover {
+  color: var(--foreground);
+}
+
+.app-nav__item[aria-current="page"] {
+  background: var(--pink-background);
+  color: var(--pink-text);
+  font-weight: 600;
+}
+
+.app-nav__item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+}
+
+.app-nav__item--locked {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.app-nav__item--locked:hover {
+  color: var(--muted-foreground);
+}
+
+.app-nav__glyph {
+  position: relative;
+  display: inline-flex;
+}
+
+.app-nav__icon {
+  width: 24px;
+  height: 24px;
+}
+
+.app-nav__lock {
+  position: absolute;
+  right: -7px;
+  bottom: -3px;
+  width: 13px;
+  height: 13px;
+  border-radius: 4px;
+  background: var(--card);
+  padding: 1px;
+}
+
+@media (min-width: 768px) {
+  .app-shell {
+    display: grid;
+    grid-template-columns: 104px minmax(0, 1fr);
+    padding-bottom: 0;
+    /* The rail's right edge runs the full page height, past the sticky rail. */
+    background: linear-gradient(to right, transparent 103px, var(--border) 103px, var(--border) 104px, transparent 104px);
+  }
+
+  .app-rail {
+    position: sticky;
+    top: 0;
+    display: flex;
+    height: 100vh;
+    flex-direction: column;
+    align-items: center;
+    gap: 26px;
+    border-right: 1px solid var(--border);
+    background: var(--card);
+    padding: 26px 0;
+    box-sizing: border-box;
+  }
+
+  .app-rail__wordmark {
+    display: inline-block;
+    color: var(--foreground);
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    text-decoration: none;
+  }
+
+  .app-rail__wordmark span {
+    color: var(--pink-main);
+  }
+
+  .app-rail__wordmark:focus-visible {
+    border-radius: 8px;
+    outline: none;
+    box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+  }
+
+  .app-nav {
+    position: static;
+    border: 0;
+    background: transparent;
+  }
+
+  .app-nav__list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 0;
+  }
+
+  .app-nav__item {
+    width: 76px;
+    padding: 12px 0;
+    border-radius: 16px;
+    font-size: 13px;
+  }
+
+  .app-content {
+    width: min(100% - 96px, 1320px);
+    padding: 36px 0 40px;
+  }
+
+  .app-content--run {
+    padding-top: 24px;
+  }
+}
+
+/* ── Shop header ───────────────────────────────────────────────────── */
+
+.shop-header {
+  position: sticky;
+  z-index: 40;
+  top: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 24px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  backdrop-filter: blur(12px);
+  padding: 12px 16px;
+}
+
+.shop-header__shop {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.shop-avatar {
+  display: grid;
+  width: var(--juli-touch-target);
+  height: var(--juli-touch-target);
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 14px;
+  background: var(--brand-gradient);
+  color: #ffffff;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.shop-avatar:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+}
+
+.shop-header__identity {
+  min-width: 0;
+}
+
+.shop-header__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  overflow: hidden;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shop-header__sub {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.shop-header__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 4px var(--success-tint);
+}
+
+.status-dot--idle {
+  background: var(--chart-neutral);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--chart-neutral) 16%, transparent);
+}
+
+.shop-menu {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 220px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+}
+
+.shop-menu[hidden] {
+  display: none;
+}
+
+.shop-menu__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shop-menu__item {
+  display: flex;
+  width: 100%;
+  min-height: var(--juli-touch-target);
+  align-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  padding: 0 12px;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.shop-menu__item:hover {
+  background: var(--pink-background);
+}
+
+.shop-menu__item:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--focus-ring-color);
+}
+
+.shop-menu__item--disabled {
+  cursor: help;
+  opacity: 0.6;
+}
+
+@media (min-width: 768px) {
+  .shop-header {
+    min-height: 88px;
+    padding: 14px 48px;
+  }
+
+  .shop-avatar {
+    width: 48px;
+    height: 48px;
+    font-size: 19px;
+  }
+
+  .shop-header__name {
+    font-size: 20px;
+  }
+
+  .shop-header__sub,
+  .shop-header__status {
+    font-size: 14px;
+  }
+}
+
+/* ── Page title pattern: eyebrow + conclusion h1 ───────────────────── */
+
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.page-header__text {
+  min-width: 0;
+  max-width: 920px;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: var(--pink-text);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.page-lede {
+  margin: 8px 0 0;
+  color: var(--muted-foreground);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+@media (min-width: 768px) {
+  .page-title {
+    font-size: 34px;
+  }
+
+  .page-lede {
+    font-size: 17px;
+  }
+}
+
+/* ── Trang chủ ─────────────────────────────────────────────────────── */
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.sample-notice {
+  margin: -8px 0 20px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.home-state {
+  display: grid;
+  max-width: 640px;
+  justify-items: start;
+  gap: 12px;
+  padding: 20px;
+}
+
+.home-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.home-stat {
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+}
+
+.home-stat__label {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.home-stat__value {
+  margin: 6px 0 4px;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.home-stat__prior {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.change-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Direction is in the ▲/▼ and the sign too — never colour alone. Text is a
+   darker step of the status hue so it passes AA on its tint. */
+.change-pill--up {
+  background: var(--success-tint);
+  color: color-mix(in srgb, var(--success) 72%, #000000);
+}
+
+.change-pill--down {
+  background: var(--destructive-tint);
+  color: color-mix(in srgb, var(--destructive) 72%, #000000);
+}
+
+.change-pill--flat {
+  background: color-mix(in srgb, var(--chart-neutral) 12%, transparent);
+  color: var(--muted-foreground);
+}
+
+.stream-matrix-card {
+  border-radius: var(--radius-lg);
+  padding: 20px;
+}
+
+.gmv-formula {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 0 16px;
+  color: var(--muted-foreground);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.gmv-formula__term {
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--chart-neutral) 10%, transparent);
+  padding: 4px 10px;
+  color: var(--foreground);
+  font-weight: 700;
+}
+
+.gmv-formula__term--gmv {
+  background: var(--foreground);
+  color: var(--card);
+}
+
+.stream-matrix-wrap {
+  overflow-x: auto;
+}
+
+.stream-matrix-wrap:focus-visible {
+  border-radius: 12px;
+  outline: none;
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+}
+
+.stream-matrix {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: separate;
+  border-spacing: 8px;
+  margin: -8px;
+}
+
+.stream-matrix thead th {
+  padding: 0 6px 2px;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.stream-matrix thead th:first-child {
+  width: 220px;
+  text-align: left;
+}
+
+.stream-matrix__group-label {
+  padding: 10px 4px 0;
+  color: var(--pink-text);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.stream-matrix__group--affiliate .stream-matrix__group-label {
+  color: var(--muted-foreground);
+}
+
+.stream-matrix__stream {
+  padding-left: 4px;
+  font-size: 17px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.stream-matrix__stream span {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.matrix-cell {
+  height: 72px;
+  border-radius: 16px;
+  padding: 0;
+  text-align: center;
+}
+
+.matrix-cell__link,
+.matrix-cell__static {
+  display: flex;
+  height: 100%;
+  min-height: 72px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: 16px;
+  padding: 6px 8px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.matrix-cell__link {
+  transition: box-shadow 0.15s ease;
+}
+
+.matrix-cell__link:hover {
+  box-shadow: inset 0 0 0 2px var(--border-accent);
+}
+
+.matrix-cell__link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+}
+
+.matrix-cell b {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.matrix-cell__delta {
+  font-size: 12px;
+}
+
+.matrix-cell--up {
+  background: var(--success-tint);
+}
+
+.matrix-cell--up .matrix-cell__delta {
+  color: color-mix(in srgb, var(--success) 72%, #000000);
+}
+
+.matrix-cell--down {
+  background: var(--destructive-tint);
+}
+
+.matrix-cell--down .matrix-cell__delta {
+  color: color-mix(in srgb, var(--destructive) 72%, #000000);
+}
+
+.matrix-cell--flat,
+.matrix-cell--muted,
+.matrix-cell--missing {
+  background: color-mix(in srgb, var(--chart-neutral) 8%, transparent);
+}
+
+.matrix-cell--flat .matrix-cell__delta,
+.matrix-cell--muted .matrix-cell__delta {
+  color: var(--muted-foreground);
+}
+
+/* Liên kết: shown, greyed — Juli only watches it. */
+.matrix-cell--muted b,
+.stream-matrix__group--affiliate .stream-matrix__stream {
+  color: var(--muted-foreground);
+}
+
+.matrix-cell--missing {
+  color: var(--muted-foreground);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.matrix-cell__label {
+  display: none;
+}
+
+/* Under 768px each stream becomes a block: its name, then a 2 × 2 grid of
+   its four cells, each carrying its column label — no sideways scrolling. */
+@media (max-width: 767px) {
+  .stream-matrix-wrap {
+    overflow: visible;
+  }
+
+  .stream-matrix {
+    display: block;
+    min-width: 0;
+    margin: 0;
+    border-spacing: 0;
+  }
+
+  .stream-matrix thead {
+    display: none;
+  }
+
+  .stream-matrix tbody {
+    display: block;
+  }
+
+  .stream-matrix tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .stream-matrix__stream,
+  .stream-matrix__group-label {
+    display: block;
+    grid-column: 1 / -1;
+  }
+
+  .stream-matrix__group-label {
+    padding: 6px 0 0;
+  }
+
+  .matrix-cell {
+    display: block;
+    height: auto;
+  }
+
+  .matrix-cell--missing {
+    grid-column: 1 / -1;
+    padding: 16px;
+  }
+
+  .matrix-cell__label {
+    display: block;
+    color: var(--muted-foreground);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .matrix-cell b {
+    font-size: 18px;
+  }
+}
+
+@media (min-width: 768px) {
+  .home-stat__value {
+    font-size: 36px;
+  }
+
+  .stream-matrix-card {
+    padding: 24px 28px;
+  }
+
+  .gmv-formula {
+    font-size: 22px;
+  }
+
+  .gmv-formula__term {
+    padding: 6px 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .matrix-cell__link {
+    transition: none;
+  }
+}

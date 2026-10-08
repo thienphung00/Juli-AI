@@ -8,7 +8,8 @@ import { loadUiStyles } from "./test-utils";
 
 const styles = loadUiStyles();
 
-/** Mirrors `apps/demo/src/lib/mock-data.ts` `demoDestinations` — icon *names*
+/** The demo's pre-AC-8.5 four tabs (the demo now renders its own rail,
+ * `apps/demo/src/components/app-shell/app-navigation.tsx`) — icon *names*
  * for Decisions/Analytics, literal glyphs for Home/Settings. The W6 gate walk
  * (#1903) saw the names rendered as raw English text beside the Vietnamese
  * labels, so this fixture must keep using names, not glyphs. */

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { usePathname, useRouter } from "next/navigation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,22 +11,29 @@ import {
   useDemoState,
 } from "../components/demo-state";
 import { DestinationPlaceholder } from "../components/destination-placeholder";
+import { shopInitials, shopSubline } from "../components/app-shell/shop-header";
 import { buildGoogleAuthorizeUrl } from "../lib/supabase-auth";
+
+/**
+ * The app shell (AC-8.5, ADR-109 decisions 1, 7, 8). Replaces the Phase 2.6
+ * shell's header controls, assistance aside and bottom-nav-everywhere: the
+ * video's rail + shop header, with Đăng nhập / Làm mới Demo / Cài đặt moved
+ * into the shop-avatar menu.
+ */
 
 vi.mock("next/navigation", () => ({
   usePathname: vi.fn(),
   useRouter: vi.fn(),
 }));
 
-// Same idiom as demo-landing.test.tsx (#1905): mock the seam directly rather
-// than mutating the NEXT_PUBLIC_SUPABASE_* environment variables — CI now has
-// real values, so runtime env mutation cannot force either branch. (Worded
-// without the env-object property prefix on purpose: the issue-397 demo
-// workspace contract greps demo source for that pattern, comments included.)
+// Mock the seam directly rather than the NEXT_PUBLIC_SUPABASE_* variables
+// (#1905). Worded without the env-object property prefix on purpose: the
+// issue-397 demo workspace contract greps demo source for that pattern.
 const SUPABASE_ORIGIN_AUTHORIZE_URL =
   "https://placeholder-project-ref.supabase.co/auth/v1/authorize?provider=google&redirect_to=http%3A%2F%2Flocalhost%2Fauth%2Fcallback&apikey=anon-key-for-tests";
 
-vi.mock("../lib/supabase-auth", () => ({
+vi.mock("../lib/supabase-auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/supabase-auth")>()),
   buildGoogleAuthorizeUrl: vi.fn(),
   GOOGLE_SIGN_IN_UNAVAILABLE_COPY:
     "Đăng nhập với Google chưa sẵn sàng trong môi trường này.",
@@ -69,311 +76,221 @@ function MutableStateProbe() {
   );
 }
 
-describe("Demo shell controls", () => {
-  beforeEach(() => {
-    vi.mocked(usePathname).mockReturnValue("/analytics");
-    vi.mocked(useRouter).mockReturnValue({
-      back: vi.fn(),
-      forward: vi.fn(),
-      prefetch: vi.fn(),
-      push,
-      refresh: vi.fn(),
-      replace,
-    });
-    localStorage.clear();
-    window.sessionStorage.clear();
-    push.mockClear();
-    replace.mockClear();
-    mockedBuildGoogleAuthorizeUrl.mockReturnValue(SUPABASE_ORIGIN_AUTHORIZE_URL);
+function mockRouter() {
+  vi.mocked(useRouter).mockReturnValue({
+    back: vi.fn(),
+    forward: vi.fn(),
+    prefetch: vi.fn(),
+    push,
+    refresh: vi.fn(),
+    replace,
+  });
+}
+
+async function openShopMenu(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole("button", { name: /^Menu shop/ }));
+}
+
+function signIn(shopName = "Shop Thật") {
+  window.sessionStorage.setItem(
+    "juli_demo_auth_session",
+    JSON.stringify({ accessToken: "token-1", tokenType: "bearer" }),
+  );
+  window.sessionStorage.setItem(
+    "juli_demo_active_shop",
+    JSON.stringify({ id: "shop-1", name: shopName }),
+  );
+}
+
+beforeEach(() => {
+  vi.mocked(usePathname).mockReturnValue("/analytics");
+  mockRouter();
+  localStorage.clear();
+  window.sessionStorage.clear();
+  push.mockClear();
+  replace.mockClear();
+  mockedBuildGoogleAuthorizeUrl.mockReturnValue(SUPABASE_ORIGIN_AUTHORIZE_URL);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("App shell — rail, header, slot", () => {
+  it("renders the rail nav, the shop header and the page in the main slot", async () => {
+    render(<DemoShell>Nội dung trang</DemoShell>);
+
+    expect(screen.getByRole("navigation", { name: "Điều hướng chính" })).toBeInTheDocument();
+    expect(screen.getByTestId("shop-header")).toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveTextContent("Nội dung trang");
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("persists the replay mode as the default", async () => {
+  it("anonymous: names the sample shop, flags it as Bản minh họa, and shows its update time — not 'Juli đang chạy'", async () => {
     render(<DemoShell>Nội dung</DemoShell>);
+    const header = screen.getByTestId("shop-header");
 
-    expect(
-      screen.getByRole("button", { name: "Bản minh họa" }),
-    ).toHaveAttribute("aria-pressed", "true");
-
-    await waitFor(() => {
-      expect(localStorage.getItem("juli_demo_mode")).toBe("mock");
-    });
+    await waitFor(() => expect(header).toHaveTextContent("Cửa hàng Mẫu Hoa Mai"));
+    expect(header).toHaveTextContent("Bản minh họa");
+    expect(header).toHaveTextContent("TikTok Shop");
+    expect(header).toHaveTextContent("Dữ liệu mẫu · cập nhật 01:15");
+    expect(header).not.toHaveTextContent("Juli đang chạy");
+    expect(within(header).getByRole("button", { name: /^Menu shop/ })).toHaveTextContent("CH");
   });
 
-  it("keeps Manual Refresh available on every destination", () => {
-    for (const pathname of ["/", "/decisions", "/analytics", "/settings"]) {
-      vi.mocked(usePathname).mockReturnValue(pathname);
+  it("signed in: 'Juli đang chạy · cập nhật HH:MM' comes from the report's built_at", async () => {
+    signIn();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          as_of: "2026-10-07",
+          built_at: "2026-10-08T02:00:00+07:00",
+          ranking: "60d",
+          report: { shop_name: "Shop Thật", channels: [], windows: {} },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
 
-      const { unmount } = render(<DemoShell>Nội dung</DemoShell>);
+    render(<DemoShell>Nội dung</DemoShell>);
+    const header = screen.getByTestId("shop-header");
 
-      expect(
-        screen.getByRole("button", { name: "Làm mới Demo" }),
-      ).toBeInTheDocument();
-      unmount();
+    await waitFor(() => expect(header).toHaveTextContent("Juli đang chạy · cập nhật 02:00"));
+    expect(header).toHaveTextContent("Shop Thật");
+    expect(header).not.toHaveTextContent("Bản minh họa");
+  });
+
+  it("signed in without a report: omits the update time rather than inventing one", async () => {
+    signIn();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 404 }));
+
+    render(<DemoShell>Nội dung</DemoShell>);
+    const header = screen.getByTestId("shop-header");
+
+    await waitFor(() => expect(header).toHaveTextContent("Shop Thật"));
+    expect(header).not.toHaveTextContent("cập nhật");
+  });
+
+  it("has no five-stage stepper in the global header (ADR-109 decision 8)", async () => {
+    render(<DemoShell>Nội dung</DemoShell>);
+    const header = screen.getByTestId("shop-header");
+    await waitFor(() => expect(header).toHaveTextContent("Cửa hàng Mẫu Hoa Mai"));
+
+    for (const stage of ["Đề xuất", "Duyệt", "Thực thi", "Đo lường"]) {
+      expect(header).not.toHaveTextContent(stage);
     }
   });
 
-  it("the header's Đăng nhập control links directly to the Supabase authorize URL — reachable even after a visitor has entered the replay demo (issue #1907)", async () => {
-    window.sessionStorage.setItem("juli_demo_entry_mode", "replay");
+  it("contains no developer vocabulary — the literal string 'Mock' never appears", () => {
+    const { container } = render(<DemoShell>Nội dung</DemoShell>);
+    expect(container.textContent).not.toContain("Mock");
+  });
 
+  it("initials and subline helpers", () => {
+    expect(shopInitials("Mây Lam Skin")).toBe("ML");
+    expect(shopInitials("đồ gốm")).toBe("ĐG");
+    expect(shopInitials("")).toBe("J");
+    expect(shopSubline({})).toBe("TikTok Shop");
+    expect(shopSubline({ industry: "Mỹ phẩm", skuCount: 1200 })).toBe("TikTok Shop · Mỹ phẩm · 1.200 SKU");
+  });
+});
+
+describe("Shop-avatar menu", () => {
+  it("is closed until the avatar is pressed, and Escape closes it", async () => {
+    const user = userEvent.setup();
     render(<DemoShell>Nội dung</DemoShell>);
 
-    await waitFor(() => {
-      const signInLink = screen.getByRole("link", { name: "Đăng nhập" });
-      expect(signInLink).toHaveAttribute(
-        "href",
-        expect.stringContaining("placeholder-project-ref.supabase.co/auth/v1/authorize"),
-      );
-    });
+    const avatar = await screen.findByRole("button", { name: /^Menu shop/ });
+    expect(avatar).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "Cài đặt" })).toBeNull();
 
-    const signInLink = screen.getByRole("link", { name: "Đăng nhập" });
+    await user.click(avatar);
+    expect(avatar).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("link", { name: "Cài đặt" })).toHaveAttribute("href", "/settings");
+
+    await user.keyboard("{Escape}");
+    expect(avatar).toHaveAttribute("aria-expanded", "false");
+    expect(avatar).toHaveFocus();
+  });
+
+  it("anonymous: holds Cài đặt, a real Đăng nhập link to Supabase Auth (#1907) and Làm mới Demo", async () => {
+    const user = userEvent.setup();
+    window.sessionStorage.setItem("juli_demo_entry_mode", "replay");
+    render(<DemoShell>Nội dung</DemoShell>);
+    await openShopMenu(user);
+
+    const signInLink = await screen.findByRole("link", { name: "Đăng nhập" });
     expect(new URL(signInLink.getAttribute("href") as string).origin).toBe(
       "https://placeholder-project-ref.supabase.co",
     );
     expect(signInLink).not.toHaveAttribute("aria-disabled");
-    expect(signInLink).not.toHaveAttribute("href", "/");
-    expect(
-      screen.queryByRole("button", { name: "Sign-in" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Làm mới Demo" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Đăng xuất" })).toBeNull();
   });
 
-  it("renders the same honest disabled state and dictionary copy as the landing door when Supabase env is absent", async () => {
+  it("anonymous without Supabase env: the same honest disabled Đăng nhập as the landing door", async () => {
+    const user = userEvent.setup();
     mockedBuildGoogleAuthorizeUrl.mockReturnValue(null);
-
     render(<DemoShell>Nội dung</DemoShell>);
+    await openShopMenu(user);
 
     await waitFor(() => {
-      expect(
-        screen.getByRole("link", { name: "Đăng nhập" }),
-      ).toHaveAttribute("aria-disabled", "true");
+      expect(screen.getByRole("link", { name: "Đăng nhập" })).toHaveAttribute("aria-disabled", "true");
     });
-
     expect(
       screen.getByTitle("Đăng nhập với Google chưa sẵn sàng trong môi trường này."),
     ).toBeInTheDocument();
   });
 
-  it("contains no developer vocabulary — the literal string 'Mock' never appears", () => {
-    const { container } = render(<DemoShell>Nội dung</DemoShell>);
+  it("signed in: holds Cài đặt, Đổi shop and Đăng xuất; sign-out clears the session and shop", async () => {
+    const user = userEvent.setup();
+    signIn();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 404 }));
+    const assign = vi.fn();
+    vi.spyOn(window, "location", "get").mockReturnValue({
+      ...window.location,
+      assign,
+      origin: "http://localhost",
+    });
 
-    expect(container.textContent).not.toContain("Mock");
+    render(<DemoShell>Nội dung</DemoShell>);
+    await waitFor(() => expect(screen.getByTestId("shop-header")).toHaveTextContent("Shop Thật"));
+    await openShopMenu(user);
+
+    expect(screen.getByRole("link", { name: "Cài đặt" })).toHaveAttribute("href", "/settings");
+    expect(screen.getByRole("link", { name: "Đổi shop" })).toHaveAttribute("href", "/auth/connect-shop");
+    expect(screen.queryByRole("button", { name: "Làm mới Demo" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Đăng xuất" }));
+    expect(window.sessionStorage.getItem("juli_demo_auth_session")).toBeNull();
+    expect(window.sessionStorage.getItem("juli_demo_active_shop")).toBeNull();
+    expect(assign).toHaveBeenCalledWith("/?entry=door");
   });
 
-  it("resets every mutable mock-state category and opens Decisions", async () => {
+  it("Làm mới Demo resets every mutable mock-state category, opens Decisions and announces it", async () => {
     const user = userEvent.setup();
-
     render(
       <DemoShell>
         <MutableStateProbe />
       </DemoShell>,
     );
 
-    await user.click(
-      screen.getByRole("button", { name: "Thay đổi dữ liệu mẫu" }),
-    );
-    expect(screen.getByTestId("mutable-state")).toHaveTextContent(
-      "inventory-turnover",
-    );
+    await user.click(screen.getByRole("button", { name: "Thay đổi dữ liệu mẫu" }));
+    expect(screen.getByTestId("mutable-state")).toHaveTextContent("inventory-turnover");
 
-    await user.click(screen.getByRole("button", { name: "Làm mới Demo" }));
-
-    expect(screen.getByTestId("mutable-state")).toHaveTextContent(
-      JSON.stringify(DEFAULT_MUTABLE_MOCK_STATE),
-    );
-    expect(replace).toHaveBeenCalledWith("/decisions");
-    expect(
-      screen.getByRole("status", { name: "Phản hồi Demo" }),
-    ).toHaveTextContent("Demo đã trở về trạng thái ban đầu");
-  });
-
-  it("manual refresh clears unsaved settings edits and restores defaults", async () => {
-    const user = userEvent.setup();
-
-    render(
-      <DemoShell>
-        <MutableStateProbe />
-      </DemoShell>,
-    );
-
-    await user.click(
-      screen.getByRole("button", { name: "Thay đổi dữ liệu mẫu" }),
-    );
-    expect(screen.getByTestId("mutable-state")).toHaveTextContent("threshold");
-
+    await openShopMenu(user);
     await user.click(screen.getByRole("button", { name: "Làm mới Demo" }));
 
     expect(JSON.parse(screen.getByTestId("mutable-state").textContent ?? "{}")).toEqual(
       DEFAULT_MUTABLE_MOCK_STATE,
     );
+    expect(replace).toHaveBeenCalledWith("/decisions");
+    expect(screen.getByRole("status", { name: "Phản hồi Demo" })).toHaveTextContent(
+      "Demo đã trở về trạng thái ban đầu",
+    );
   });
+});
 
-  it("grounds contextual assistance in the active destination without decision or execution authority", () => {
-    render(<DemoShell>Nội dung</DemoShell>);
-
-    const assistance = screen.getByRole("complementary", {
-      name: "Gợi ý từ Juli",
-    });
-
-    expect(assistance).toHaveTextContent("Phân tích");
-    expect(assistance).not.toHaveTextContent(/Phê duyệt|Từ chối|Thực thi/);
-    expect(
-      screen.getByRole("navigation", { name: "Điều hướng chính" }).querySelectorAll(
-        "a",
-      ),
-    ).toHaveLength(4);
-  });
-
-  describe("assistance bar destination routing", () => {
-    it("routes Home assistance on / (root)", () => {
-      vi.mocked(usePathname).mockReturnValue("/");
-
-      render(<DemoShell>Nội dung</DemoShell>);
-
-      const assistance = screen.getByRole("complementary", {
-        name: "Gợi ý từ Juli",
-      });
-
-      expect(assistance).toHaveTextContent("Trang chủ");
-      expect(assistance).toHaveTextContent("Juli là trợ lý phân tích và tự động hóa");
-    });
-
-    it("routes Decisions assistance on /decisions (exact match)", () => {
-      vi.mocked(usePathname).mockReturnValue("/decisions");
-
-      render(<DemoShell>Nội dung</DemoShell>);
-
-      const assistance = screen.getByRole("complementary", {
-        name: "Gợi ý từ Juli",
-      });
-
-      expect(assistance).toHaveTextContent("Quyết định");
-      expect(assistance).toHaveTextContent("Juli sẽ giải thích lý do");
-    });
-
-    it("routes Decisions assistance on nested /decisions/recommendations/<key>", () => {
-      vi.mocked(usePathname).mockReturnValue("/decisions/recommendations/workflow-1");
-
-      render(<DemoShell>Nội dung</DemoShell>);
-
-      const assistance = screen.getByRole("complementary", {
-        name: "Gợi ý từ Juli",
-      });
-
-      expect(assistance).toHaveTextContent("Quyết định");
-      expect(assistance).not.toHaveTextContent("Trang chủ");
-    });
-
-    it("routes Decisions assistance on nested /decisions/in-progress/<id>", () => {
-      vi.mocked(usePathname).mockReturnValue("/decisions/in-progress/exec-workflow-1-1");
-
-      render(<DemoShell>Nội dung</DemoShell>);
-
-      const assistance = screen.getByRole("complementary", {
-        name: "Gợi ý từ Juli",
-      });
-
-      expect(assistance).toHaveTextContent("Quyết định");
-      expect(assistance).not.toHaveTextContent("Trang chủ");
-    });
-
-    it("routes Analytics assistance on /analytics (exact match)", () => {
-      vi.mocked(usePathname).mockReturnValue("/analytics");
-
-      render(<DemoShell>Nội dung</DemoShell>);
-
-      const assistance = screen.getByRole("complementary", {
-        name: "Gợi ý từ Juli",
-      });
-
-      expect(assistance).toHaveTextContent("Phân tích");
-      expect(assistance).toHaveTextContent("Juli sẽ giúp bạn đọc thay đổi");
-    });
-
-    it("routes Analytics assistance on nested /analytics/<metricKey>", () => {
-      vi.mocked(usePathname).mockReturnValue("/analytics/gmv-tiktok");
-
-      render(<DemoShell>Nội dung</DemoShell>);
-
-      const assistance = screen.getByRole("complementary", {
-        name: "Gợi ý từ Juli",
-      });
-
-      expect(assistance).toHaveTextContent("Phân tích");
-      expect(assistance).not.toHaveTextContent("Trang chủ");
-    });
-
-    it("routes Settings assistance on /settings (exact match)", () => {
-      vi.mocked(usePathname).mockReturnValue("/settings");
-
-      render(<DemoShell>Nội dung</DemoShell>);
-
-      const assistance = screen.getByRole("complementary", {
-        name: "Gợi ý từ Juli",
-      });
-
-      expect(assistance).toHaveTextContent("Cài đặt");
-      expect(assistance).toHaveTextContent("Juli sẽ làm rõ cách mẫu");
-    });
-
-    it("routes Settings assistance on nested /settings/workflows/<key>", () => {
-      vi.mocked(usePathname).mockReturnValue("/settings/workflows/workflow-1");
-
-      render(<DemoShell>Nội dung</DemoShell>);
-
-      const assistance = screen.getByRole("complementary", {
-        name: "Gợi ý từ Juli",
-      });
-
-      expect(assistance).toHaveTextContent("Cài đặt");
-      expect(assistance).not.toHaveTextContent("Trang chủ");
-    });
-
-    it("falls back to Home assistance on unknown paths", () => {
-      vi.mocked(usePathname).mockReturnValue("/unknown/deep/nested/path");
-
-      render(<DemoShell>Nội dung</DemoShell>);
-
-      const assistance = screen.getByRole("complementary", {
-        name: "Gợi ý từ Juli",
-      });
-
-      expect(assistance).toHaveTextContent("Trang chủ");
-      expect(assistance).not.toHaveTextContent(/Quyết định|Phân tích|Cài đặt/);
-    });
-
-    it("does not crash on empty path", () => {
-      vi.mocked(usePathname).mockReturnValue("");
-
-      render(<DemoShell>Nội dung</DemoShell>);
-
-      const assistance = screen.getByRole("complementary", {
-        name: "Gợi ý từ Juli",
-      });
-
-      expect(assistance).toHaveTextContent("Trang chủ");
-    });
-  });
-
-  describe("recommendation context message formatting", () => {
-    it("sanitizes backend vocabulary from evidence in recommendation message", () => {
-      vi.mocked(usePathname).mockReturnValue("/decisions");
-
-      const banPatterns = readFileSync(
-        "src/lib/review-seller-copy.ts",
-        "utf8",
-      );
-
-      render(<DemoShell>Nội dung</DemoShell>);
-
-      // Verify that sanitizeSellerReviewText is imported and used
-      expect(banPatterns).toContain("REVIEW_UI_BANNED_PATTERNS");
-      expect(banPatterns).toContain("sanitizeSellerReviewText");
-    });
-  });
-
+describe("Placeholders inside the shell", () => {
   it("labels preview content truthfully without trapping navigation", () => {
     render(
       <DemoShell>
@@ -387,13 +304,8 @@ describe("Demo shell controls", () => {
     expect(screen.getByRole("status", { name: "Phân tích" })).toHaveTextContent(
       "lát cắt Phân tích tiếp theo",
     );
-    expect(screen.getByRole("link", { name: "Về Trang chủ" })).toHaveAttribute(
-      "href",
-      "/",
-    );
-    expect(
-      screen.getByRole("navigation", { name: "Điều hướng chính" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Về Trang chủ" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("navigation", { name: "Điều hướng chính" })).toBeInTheDocument();
   });
 
   it("keeps loading, empty, and error placeholders truthful and recoverable", () => {
@@ -415,30 +327,16 @@ describe("Demo shell controls", () => {
       );
 
       const placeholder = screen.getByText(expectedLabel).closest("section");
-
       expect(placeholder).toHaveTextContent("Dữ liệu mẫu tạm thời chưa sẵn sàng.");
-      expect(
-        screen.getByRole("link", { name: "Về Trang chủ" }),
-      ).toHaveAttribute("href", "/");
+      expect(screen.getByRole("link", { name: "Về Trang chủ" })).toHaveAttribute("href", "/");
       unmount();
     }
   });
 
-  it("preserves desktop and mobile terminology, touch targets, focus-visible, and reduced motion", () => {
-    const css = readFileSync(
-      "src/app/globals.css",
-      "utf8",
-    );
+  it("the stylesheet keeps the rail ↔ bottom-bar switch at 768px, touch targets, focus-visible and reduced motion", () => {
+    const css = readFileSync("src/app/globals.css", "utf8");
 
-    render(<DemoShell>Nội dung</DemoShell>);
-
-    expect(
-      screen.getByRole("button", { name: "Bản minh họa" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Đăng nhập" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Làm mới Demo" }),
-    ).toBeInTheDocument();
+    expect(css).toContain("@media (min-width: 768px)");
     expect(css).toContain("min-height: var(--juli-touch-target)");
     expect(css).toContain(":focus-visible");
     expect(css).toContain("@media (max-width: 35rem)");
@@ -448,70 +346,37 @@ describe("Demo shell controls", () => {
 });
 
 describe("Run route framing (#1910) — the run owns the region right of the rail", () => {
-  // A UUID run id (`looksLikeRunId`), i.e. a real backend run — the same id
-  // shape the replay scenario uses. Legacy mock `exec-*` ids keep the shell.
   const RUN_PATH = "/decisions/in-progress/00000000-0000-0000-0000-00000000b453";
-  const CHROME_SELECTORS = [
-    ".demo-header",
-    ".demo-feedback",
-    ".juli-primary-nav",
-    ".demo-assistance",
-  ] as const;
 
-  beforeEach(() => {
-    vi.mocked(useRouter).mockReturnValue({
-      back: vi.fn(),
-      forward: vi.fn(),
-      prefetch: vi.fn(),
-      push,
-      refresh: vi.fn(),
-      replace,
-    });
-    mockedBuildGoogleAuthorizeUrl.mockReturnValue(SUPABASE_ORIGIN_AUTHORIZE_URL);
-  });
-
-  it("sheds the header, feedback strip and assistance aside on the run route", () => {
+  it("sheds the shop header and the feedback region on the run route", () => {
     vi.mocked(usePathname).mockReturnValue(RUN_PATH);
     const { container } = render(<DemoShell>Nội dung luồng</DemoShell>);
 
-    expect(container.querySelector(".demo-header")).toBeNull();
-    expect(container.querySelector(".demo-feedback")).toBeNull();
-    expect(container.querySelector(".demo-assistance")).toBeNull();
+    expect(container.querySelector(".shop-header")).toBeNull();
+    expect(screen.queryByRole("status", { name: "Phản hồi Demo" })).toBeNull();
     expect(screen.getByText("Nội dung luồng")).toBeInTheDocument();
   });
 
-  it("KEEPS the left nav rail on the run route — owner amendment 2026-09-14; removing it would strand the seller", () => {
+  it("KEEPS the nav rail on the run route — owner amendment 2026-09-14; removing it would strand the seller", () => {
     vi.mocked(usePathname).mockReturnValue(RUN_PATH);
-    const { container } = render(<DemoShell>Nội dung luồng</DemoShell>);
+    render(<DemoShell>Nội dung luồng</DemoShell>);
 
-    expect(container.querySelector(".juli-primary-nav")).not.toBeNull();
-    expect(
-      screen.getByRole("navigation", { name: "Điều hướng chính" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Điều hướng chính" })).toBeInTheDocument();
   });
 
-  it("keeps the full shell on a legacy mock execution detail — the id is not a run id", () => {
-    vi.mocked(usePathname).mockReturnValue(
+  it("keeps the full shell on a legacy mock execution detail and on every destination", () => {
+    for (const pathname of [
       "/decisions/in-progress/exec-optimize-1",
-    );
-    const { container } = render(<DemoShell>Nội dung</DemoShell>);
-
-    for (const selector of CHROME_SELECTORS) {
-      expect(container.querySelector(selector), `${selector} missing`).not.toBeNull();
-    }
-  });
-
-  it("keeps all four chrome elements on /, /decisions, /analytics and /settings — the suppression is route-scoped, not global", () => {
-    for (const pathname of ["/", "/decisions", "/analytics", "/settings"]) {
+      "/",
+      "/decisions",
+      "/analytics",
+      "/settings",
+    ]) {
       vi.mocked(usePathname).mockReturnValue(pathname);
       const { container, unmount } = render(<DemoShell>Nội dung</DemoShell>);
 
-      for (const selector of CHROME_SELECTORS) {
-        expect(
-          container.querySelector(selector),
-          `${selector} missing on ${pathname}`,
-        ).not.toBeNull();
-      }
+      expect(container.querySelector(".shop-header"), `header missing on ${pathname}`).not.toBeNull();
+      expect(container.querySelector(".app-nav"), `nav missing on ${pathname}`).not.toBeNull();
       unmount();
     }
   });

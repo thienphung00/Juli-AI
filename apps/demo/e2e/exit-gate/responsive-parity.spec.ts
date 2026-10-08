@@ -1,7 +1,11 @@
 import { expect, test } from "@playwright/test";
 
 import { RECOMMENDATION_WORKFLOWS } from "../fixtures/workflow-keys";
-import { expectFourDestinationShell } from "../helpers/demo-navigation";
+import {
+  HOME_MATRIX_REGION,
+  enterReplayDemo,
+  expectFourDestinationShell,
+} from "../helpers/demo-navigation";
 
 test.describe("Phase 2.6 exit gate — responsive IA parity", () => {
   test("Decisions journey preserves terminology and card order across breakpoints", async ({
@@ -40,22 +44,39 @@ test.describe("Phase 2.6 exit gate — responsive IA parity", () => {
     ).toBeVisible();
   });
 
-  test("Home launcher labels match on desktop and mobile-web", async ({
-    page,
-  }) => {
-    await page.goto("/");
-    const desktopLaunchers = await page
-      .getByRole("region", { name: "Điểm đến chính" })
-      .getByRole("link")
-      .allTextContents();
+  test("Home matrix labels match on desktop and mobile-web", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await enterReplayDemo(page);
+    const read = () =>
+      page.getByRole("region", { name: HOME_MATRIX_REGION }).locator("tr[data-channel] > th").allTextContents();
+    const desktop = await read();
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.reload();
-    const mobileLaunchers = await page
-      .getByRole("region", { name: "Điểm đến chính" })
-      .getByRole("link")
-      .allTextContents();
+    await expect(page.getByRole("region", { name: HOME_MATRIX_REGION })).toBeVisible();
+    expect(await read()).toEqual(desktop);
+  });
 
-    expect(mobileLaunchers).toEqual(desktopLaunchers);
+  // ADR-109 decision 7: a left rail from 768px, a bottom bar below it — the
+  // same <nav>, moved by CSS, with the same four items.
+  test("navigation is a left rail at 1440px and a bottom bar at 390px", async ({ page }) => {
+    const nav = page.getByRole("navigation", { name: "Điều hướng chính" });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/decisions");
+    await expectFourDestinationShell(page);
+    const rail = await nav.boundingBox();
+    expect(rail).not.toBeNull();
+    expect(rail!.x).toBeLessThan(120);
+    expect(rail!.height).toBeGreaterThan(rail!.width);
+    await expect(page.getByRole("link", { name: "Juli — Trang chủ" })).toBeVisible();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectFourDestinationShell(page);
+    const bar = await nav.boundingBox();
+    expect(bar).not.toBeNull();
+    expect(bar!.width).toBeGreaterThan(bar!.height);
+    expect(Math.round(bar!.y + bar!.height)).toBe(844);
+    await expect(page.getByRole("link", { name: "Juli — Trang chủ" })).toBeHidden();
   });
 });

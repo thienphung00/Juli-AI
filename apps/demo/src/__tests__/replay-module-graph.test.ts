@@ -78,7 +78,7 @@ const SRC_ROOT = resolve(__dirname, "..");
 
 const ENTRY_POINTS = [
   "components/demo-landing.tsx",
-  "components/home-launcher.tsx",
+  "components/home/sample-home.tsx",
   "app/decisions/recommendations/[recommendationId]/page.tsx",
   "components/replay-run-detail.tsx",
   // D21 / AC-7.7: the anonymous Phân tích sample is bundled, never fetched.

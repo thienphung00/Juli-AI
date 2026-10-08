@@ -298,3 +298,28 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   `codes=[]`, `unavailable=true`, logs WARNING `get_product_diagnoses_unavailable`;
   summary "Không đọc được chẩn đoán TikTok — tiếp tục với thông tin sản phẩm". Test: run
   continues to get_product_information. DEBT item struck.
+
+## 2026-10-08 — P8-D agent (Claude Opus) — app shell + Trang chủ (AC-8.5)
+
+- Branch fasttrack/p8d-shell: 165ce61d (mapping + ShopReportProvider),
+  80c6e118 (shell, header, Home, guard tests), f60ce932 (e2e), docs commit.
+- Shell (`components/demo-shell.tsx`): `AppNavigation` rail ≥ 768px / bottom
+  bar below (one `<nav>`), Juli shown but locked (aria-disabled, lock,
+  "Sắp có: nhật ký 24 giờ"); `ShopHeader` with avatar menu (Cài đặt, Đổi shop,
+  Đăng xuất; anonymous: Đăng nhập, Làm mới Demo) and "Juli đang chạy · cập nhật
+  HH:MM" from `built_at` (omitted without a report; sample says "Dữ liệu mẫu").
+  No global stepper. Retired: assistance aside, mode toggle, Cài đặt tab,
+  HomeLauncher, `lib/mock-data.ts`.
+- For P8-E/P8-F: page goes in the shell's `<main>` slot; start with
+  `AppPageHeader` (`components/app-shell/page-header.tsx`); Home cells link
+  `/analytics?tab=san-pham|noi-dung&stream=…&metric=hien-thi|ctr|ctor|aov`;
+  `useShopReport()` holds the acting shop's envelope. Documented in MODULE.md.
+- Trang chủ: GMV/Đơn/AOV (daily avg × window days; whole orders from
+  `orders_last`), 5-stream matrix tinted by direction, Liên kết greyed,
+  missing stream → "Chưa có dữ liệu", Tab cửa hàng CTOR/AOV "ước tính".
+- Guards changed on purpose: navigation/demo-shell/home tests rewritten,
+  demo-landing + replay-module-graph entry (sample-home), analytics-live-wire
+  (refresh via menu), assistance test removed, issue-397 contract
+  (nav in `lib/app-navigation.ts`, Home = overview), e2e helpers/specs.
+- Gates: see AC-8.5 evidence. Next: P8-E/P8-F build inside the shell; DEBT
+  P8-D lists ngành/SKU data, double analysis fetch, dead CSS/state cleanup.
