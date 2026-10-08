@@ -210,7 +210,7 @@ Running it *before* the expand release serves is pointless rather than
 dangerous: the old code would write the placeholders straight back. Its
 precondition is therefore that the serving release contains
 `064_users_phone_nullable` and `alembic current` reports
-`076_shop_diagnosis_reports` (fast track P1-B re-parented the step onto 075, P7-A onto 076). The step is idempotent, so an operator unsure
+`077_metric_rankings` (fast track P1-B re-parented the step onto 075, P7-A onto 076, P8-A onto 077). The step is idempotent, so an operator unsure
 whether it already ran may simply run it.
 
 > **This step has now been renumbered four times** — 065 → 066 (#1973),

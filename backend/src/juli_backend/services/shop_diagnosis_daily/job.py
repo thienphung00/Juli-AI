@@ -16,8 +16,14 @@ The daily worker job behind ``juli_backend.build_shop_diagnosis``:
 3. **Build** the report for both hero rankings from that one snapshot (pure
    ``shop_diagnosis`` package, no extra calls), then delete the directory:
    orders carry buyer data and are never kept.
+   From the same snapshot it builds the ADR-109 d.5 metric rankings
+   (``shop_diagnosis.rankings``; P8-A, AC-8.1): one table per stream ×
+   clickable metric, videos only when a ``video_metrics`` callable supplies
+   per-video window metrics. A ranking failure is logged and never blocks the
+   report.
 4. **Store** each report's ``to_dict()`` (aggregates only) under the shop's
-   scope, replacing a row for the same (shop, end date, ranking).
+   scope, replacing a row for the same (shop, end date, ranking), and each
+   metric ranking the same way per (shop, end date, stream, metric).
 
 TikTok is only ever read here: the resources come from
 ``ProductionReadClientFactory``, whose transport refuses non-read methods.
@@ -31,7 +37,7 @@ import math
 import tempfile
 import time
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
@@ -51,9 +57,15 @@ from juli_backend.models.models import Shop, TikTokCredential
 from juli_backend.repositories import (
     ShopDiagnosisReportsRepo,
     ShopIngestionStateRepo,
+    ShopMetricRankingsRepo,
     utc_now_naive,
 )
-from juli_backend.services.shop_diagnosis import Ranking, build_report, load_snapshot
+from juli_backend.services.shop_diagnosis import Ranking, Snapshot, build_report, load_snapshot
+from juli_backend.services.shop_diagnosis.rankings import (
+    MetricRanking,
+    VideoWindowMetrics,
+    build_rankings,
+)
 from juli_backend.services.shop_diagnosis_daily.fetch import fetch_snapshot, yesterday_local
 from juli_backend.services.shop_diagnosis_daily.pacing import (
     RateLimitedResources,
@@ -65,6 +77,9 @@ logger = logging.getLogger(__name__)
 ResolveCredentialFn = Callable[[AsyncSession, uuid.UUID], Awaitable[TikTokCredential]]
 CreateResourcesFn = Callable[[ClientFactoryConfig], Any]
 SessionFactory = Callable[[], Any]
+#: Per-video last-30 / prior-30 metrics for the video rankings, read from the
+#: fetched snapshot folder (P8-B); ``None`` (or no callable) skips video rankings.
+VideoMetricsFn = Callable[[Path, Snapshot], Sequence[VideoWindowMetrics] | None]
 
 #: Both rankings are stored; the default one decides idempotency.
 RANKINGS: tuple[Ranking, ...] = (Ranking.COMBINED_60D, Ranking.LAST_30D)
@@ -78,6 +93,8 @@ class DiagnosisBuildResult:
     built: bool = False
     skipped_reason: str | None = None
     rankings: list[str] = field(default_factory=list)
+    #: ``"<stream>/<metric>"`` of every stored ADR-109 metric ranking.
+    metric_rankings: list[str] = field(default_factory=list)
     new_daily_files: int = 0
 
 
@@ -163,14 +180,31 @@ async def _plan(
     return _Plan(shop_name=shop_name, end=end, config=config, shop_key=shop_key)
 
 
+def _metric_rankings(
+    folder: Path, snapshot: Snapshot, video_metrics: VideoMetricsFn | None, shop_id: str
+) -> list[MetricRanking]:
+    """ADR-109 d.5 rankings from the same snapshot; a failure is logged, not raised."""
+    try:
+        videos = video_metrics(folder, snapshot) if video_metrics is not None else None
+        return [
+            MetricRanking(r.stream, r.metric, json_safe(r.payload))
+            for r in build_rankings(snapshot, videos)
+        ]
+    except Exception:
+        logger.exception("shop_metric_rankings_failed", extra={"shop_id": shop_id})
+        return []
+
+
 def _fetch_and_build(
     resources: Any,
     plan: _Plan,
     *,
     tmp_root: Path | None,
     fetch_kwargs: dict[str, Any],
-) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
-    """Fetch into a temp dir, build every ranking, delete the dir. Runs in a thread."""
+    video_metrics: VideoMetricsFn | None = None,
+    shop_id: str = "",
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]], list[MetricRanking]]:
+    """Fetch into a temp dir, build every report and ranking, delete the dir. In a thread."""
     with tempfile.TemporaryDirectory(prefix="juli-shop-diagnosis-", dir=tmp_root) as tmp:
         folder = Path(tmp)
         meta = fetch_snapshot(resources, folder, plan.end, plan.shop_name, **fetch_kwargs)
@@ -179,7 +213,8 @@ def _fetch_and_build(
             ranking.value: json_safe(build_report(snapshot, ranking).to_dict())
             for ranking in RANKINGS
         }
-    return meta, reports
+        metric_rankings = _metric_rankings(folder, snapshot, video_metrics, shop_id)
+    return meta, reports, metric_rankings
 
 
 async def build_and_store_shop_diagnosis(
@@ -197,6 +232,7 @@ async def build_and_store_shop_diagnosis(
     backoff_sleep: Callable[[float], Any] = time.sleep,
     rate_limiter: Any | None = None,
     rate_limit_sleep: Callable[[float], Any] = time.sleep,
+    video_metrics: VideoMetricsFn | None = None,
 ) -> DiagnosisBuildResult:
     """Build the shop's report for its latest analytics day and store it. See module doc."""
     result = DiagnosisBuildResult(shop_id=shop_id)
@@ -229,12 +265,14 @@ async def build_and_store_shop_diagnosis(
                 sleep=rate_limit_sleep,
             ),
         )
-    meta, reports = await asyncio.to_thread(
+    meta, reports, metric_rankings = await asyncio.to_thread(
         _fetch_and_build,
         resources,
         plan,
         tmp_root=tmp_root,
         fetch_kwargs={"sleep_s": sleep_s, "backoff_sleep": backoff_sleep},
+        video_metrics=video_metrics,
+        shop_id=str(shop_id),
     )
     result.new_daily_files = int(meta.get("new_daily_files") or 0)
 
@@ -246,15 +284,27 @@ async def build_and_store_shop_diagnosis(
                 await repo.save(
                     shop_id, end_date=plan.end, ranking=ranking, report=report, built_at=built_at
                 )
+            rankings_repo = ShopMetricRankingsRepo(session)
+            for table in metric_rankings:
+                await rankings_repo.save(
+                    shop_id,
+                    end_date=plan.end,
+                    stream=table.stream.value,
+                    metric=table.metric.value,
+                    ranking=table.payload,
+                    built_at=built_at,
+                )
         await session.commit()
     result.built = True
     result.rankings = list(reports)
+    result.metric_rankings = [f"{t.stream.value}/{t.metric.value}" for t in metric_rankings]
     logger.info(
         "shop_diagnosis_built",
         extra={
             "shop_id": str(shop_id),
             "end_date": plan.end.isoformat(),
             "rankings": result.rankings,
+            "metric_rankings": len(result.metric_rankings),
             "new_daily_files": result.new_daily_files,
             "orders_fetch_status": (meta.get("orders_fetch") or {}).get("status"),
         },
@@ -266,6 +316,7 @@ __all__ = [
     "DEFAULT_RANKING",
     "RANKINGS",
     "DiagnosisBuildResult",
+    "VideoMetricsFn",
     "assert_read_credential_for",
     "build_and_store_shop_diagnosis",
     "json_safe",

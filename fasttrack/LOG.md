@@ -231,3 +231,22 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   certificate error: the NEXT_PUBLIC_SUPABASE_URL repo secret holds the
   Postgres host, not the project API URL (https://<ref>.supabase.co). Owner
   fixes the secret; the demo build now fails on a db.* host.
+
+## 2026-10-08 — P8-A agent (Claude Opus) — ADR-109 d.5 rankings, DB only
+
+- Branch fasttrack/p8a-rankings, commits 47ccfc4f, 0500f337, 4d7ee200,
+  f51da34b, dcd6af07 + the integration test and these notes.
+- Pure `services/shop_diagnosis/rankings.py`: per stream × clickable metric
+  (Thẻ sản phẩm ×6 incl. the two CTOR steps, Tab Cửa hàng ×4, LIVE ×3, Video ×2
+  when `VideoWindowMetrics` are given) GMV/day per row by log-share, sequential
+  at a zero side, prior median for missing prior rates; content rows vs the
+  stream's prior rate; ADR-108 labels on the metric's quantity; top 10 per
+  direction + few/others/mix closing rows reconciling to the stream factor.
+- Storage: migration `077_metric_rankings` → `shop_metric_rankings`, one row per
+  (shop, end_date, stream, metric) with the table's JSON; deferred phone
+  cleanup re-parented onto 077. Read: `read.latest_metric_ranking` +
+  `GET /v1/demo/analysis/rankings?stream=&metric=`.
+- check.sh (throwaway PG16, `--skip-gitleaks`): all steps PASS, 153 tests.
+- Fujiwa snapshot dry-run (local, not stored): 13 tables, all reconcile.
+- Next: P8-C's migration re-chains after 077 (or vice versa) at merge; P8-B
+  wires `video_metrics` in the worker task; P8-E reads the endpoint.

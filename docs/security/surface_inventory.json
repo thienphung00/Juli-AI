@@ -81,6 +81,14 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/analysis/rankings",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/demo/analytics",
       "methods": [
         "GET"

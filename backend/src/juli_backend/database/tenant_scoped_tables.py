@@ -72,6 +72,8 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "shop_ingestion_state"): "tenant_direct",
     # Fast track P7-A, migration 076: stored ADR-108 shop diagnosis reports.
     ("public", "shop_diagnosis_reports"): "tenant_direct",
+    # Fast track P8-A, migration 077: stored ADR-109 d.5 metric rankings.
+    ("public", "shop_metric_rankings"): "tenant_direct",
     # Via-parent tenant-scoped tables
     ("public", "workflow_run_events"): "tenant_via_parent",
     ("public", "run_confirmations"): "tenant_via_parent",

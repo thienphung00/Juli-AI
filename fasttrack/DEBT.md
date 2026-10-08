@@ -124,3 +124,32 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [x] ~~e2e: static-asset-render ×3 and accessibility "Analytics chart…" failed after the D21 restyle~~ — repaid: specs follow D21 (flat kit background, gradient wordmark, KPI dashboard at `/analytics/gmv-tiktok`); 18/18 pass on both projects.
 - [ ] vitest needs Node 20 locally: under Node 26 jsdom's `localStorage` is
   shadowed (270 failures on untouched main) — env — pin `.nvmrc` to 20.
+
+## P8-A Rankings (2026-10-08)
+
+- [ ] Rankings are built only when the job builds the report: a shop whose
+  report for the end date already exists (the deploy day) gets rankings from
+  the next analytics day, or a `force=True` rebuild — idempotency key kept
+  on the report — add a "rankings missing" check to `_plan` if the first day
+  matters.
+- [ ] `video_metrics` (P8-B's per-video window metrics) is a parameter of
+  `build_and_store_shop_diagnosis` only; the worker task
+  (`workers/tasks/shop_diagnosis.py`) does not pass it yet, so production
+  stores no video rankings — P8-B / integration wires it.
+- [ ] Interpretations of ADR-109 d.5 made without the owner: impressions use a
+  single 1,000 floor for both "listed" and "Rõ" (ADR-108's 10 / 30 floors scaled
+  to one number); "not listed" = under the floor on BOTH sides (max), "Rõ" =
+  ADR-108 `label()` on (min side, test); a content row's impressions are measured
+  against the prior window's mean per session / video; the fold threshold is 1 %
+  of the stream's ΔGMV (not of the factor); closing "ít đơn" reads "ít lượt
+  hiển thị" / "ít lượt bấm" on those metrics — confirm with the owner.
+- [ ] LIVE rows come from `live/sessions.json` (fetch keeps the top 60 sessions
+  by GMV over 60 days; session-level product impressions/clicks/SKU orders);
+  sessions beyond the cap and the difference to the A-34 LIVE block land in
+  "Thay đổi cơ cấu phiên LIVE". `live/products/*` is not read.
+- [ ] Products with SKU orders but zero add-to-cart on a side (buy-now) cannot
+  split CTOR into its two steps; they are left out of the step tables and sit
+  in their mix row.
+- [ ] New API symbols `DemoMetricRankingResponse` / `get_demo_metric_ranking`
+  added to `check_module_drift.py`'s allowlist (as P7 did for
+  `get_demo_analysis`) instead of documenting them in a backend/api MODULE.md.
