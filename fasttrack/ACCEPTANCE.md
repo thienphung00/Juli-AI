@@ -60,15 +60,33 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
 ## P7 — Quyết định + Phân tích on demo.app-juli.com (D21)
 
 ### P7-A Phân tích backend
-- [ ] **AC-7.1** A daily per-shop job builds the ADR-108 report from TikTok
+- [x] **AC-7.1** A daily per-shop job builds the ADR-108 report from TikTok
   reads (read-only, per-shop credential via `resolve_read_credential_for_shop`,
   429 backoff) and stores the report JSON + `as_of` per shop (new table,
   migration revision id ≤ 32 chars, RLS/two-tenant safe). Runs after the daily
   analytics pass and once after bootstrap fast phase. Buyer-level order data is
   never persisted beyond what the report needs (aggregates only).
-- [ ] **AC-7.2** `GET /v1/demo/analysis` (auth + `X-Shop-Id`, same guards as
+  Evidence (P7-A, `fasttrack/p7a-analysis`): 0a8e966a (table + migration
+  `076_shop_diagnosis_reports`, RLS per verb via `app_current_shop_id()`),
+  2e180371 (`services/shop_diagnosis_daily`: fetch moved from the script, job),
+  3d7978f0 (`juli_backend.build_shop_diagnosis`, enqueued from
+  `run_poll_shop_task` when `analytics_ran` and from `run_bootstrap_task`),
+  180963ba. Tests `tests/unit/test_shop_diagnosis_daily.py` (builds + stores from
+  a fake TikTok resource, idempotent per (shop, end), no buyer markers stored,
+  temp snapshot deleted, wrong-shop / missing credential refused before any
+  call, hooks enqueue after analytics + bootstrap, enqueue failure never breaks
+  the cycle) and `tests/integration/test_shop_diagnosis_two_tenant.py` (as
+  `juli_app` on PG16: A's job writes only A; B cannot read or insert A's rows).
+  `fasttrack/check.sh --since 3ecd5e48 --skip-gitleaks` on a throwaway PG16:
+  migrations up/down/up PASS, isolation 12 passed, ruff PASS, pytest 154 passed.
+- [x] **AC-7.2** `GET /v1/demo/analysis` (auth + `X-Shop-Id`, same guards as
   `/v1/demo/decisions`) returns the latest report for the caller's shop, 404
   when none. Two-tenant test proves shop A never sees shop B's report.
+  Evidence: a95ccd17 (`api/routes/demo_analysis.py`, `get_active_shop`;
+  response `{as_of, built_at, ranking, report}`, `?ranking=60d|30d`). Tests in
+  `test_shop_diagnosis_daily.py`: 200 latest + 30d + 422 bad ranking, 404 none,
+  401 without JWT, shop A gets 404 while only B has a report (and `?shop_id=`
+  is ignored); PG two-tenant read proof as above.
 
 ### P7-B Quyết định backend
 - [ ] **AC-7.3** Optimize Product cards come from the ADR-106 pipeline for every
