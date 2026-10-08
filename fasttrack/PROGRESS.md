@@ -25,11 +25,11 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 | Task | ACs | Status | Owner |
 |---|---|---|---|
 | Sync main (ADR-106/108 code) into the branch | — | done (7c31a0a4) | orchestrator |
-| P7-A Phân tích backend: daily shop diagnosis report per shop + `/v1/demo/analysis` | 7.1, 7.2 | doing | P7-A agent (Opus) |
-| P7-B Quyết định backend: ADR-106 Optimize Product cards per shop | 7.3, 7.4 | doing | P7-B agent (Opus) |
-| P7-C UI restyle to index.html + Quyết định / Phân tích screens | 7.5–7.8 | doing | P7-C agent (Opus) |
-| P7-D Deploy builds the demo lane | 7.9 | doing | P7-D agent (Sonnet) |
-| P7 integration: merge A–D, full test pass, check.sh | — | todo | orchestrator |
+| P7-A Phân tích backend: daily shop diagnosis report per shop + `/v1/demo/analysis` | 7.1, 7.2 | done (6a8e2324) | P7-A agent (Opus) |
+| P7-B Quyết định backend: ADR-106 Optimize Product cards per shop | 7.3, 7.4 | done (df673ced) | P7-B agent (Opus) |
+| P7-C UI restyle to index.html + Quyết định / Phân tích screens | 7.5–7.8 | done (8a857b04) | P7-C agent (Opus) |
+| P7-D Deploy builds the demo lane | 7.9 | done (d76e11bf) | P7-D agent (Sonnet) |
+| P7 integration: merge A–D, align UI to P7-B, funnel layout, repay P7-A lock + rate-limit debt, full test pass, check.sh | — | done (c446bb2d..HEAD; e2e: 8 restyle failures open in DEBT) | P7 integration agent (Opus) |
 
 ## P2–P6
 

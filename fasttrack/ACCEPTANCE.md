@@ -118,8 +118,12 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
   lever and funnel evidence; approve → run view still works.
   — evidence: 24aca816; `signed-in-decisions.test.tsx` ("renders stage, lever
   and the funnel evidence block…", approve → `/decisions/in-progress/{run_id}`
-  unchanged), `lib/__tests__/decision-evidence.test.ts`. Field names are
-  ASSUMED (top of `apps/demo/src/lib/decision-evidence.ts`) until P7-B lands.
+  unchanged), `lib/__tests__/decision-evidence.test.ts`. Aligned to P7-B's
+  real shape in c446bb2d (stage label, lever action, trigger, "Có thể lấy lại
+  khoảng X ₫ GMV mỗi ngày (ước tính theo quy tắc…)", metrics table with
+  backend labels + Rõ/Tham khảo/Chưa đủ dữ liệu); tests run on
+  `lib/__tests__/fixtures/adr106-decision-item.json`, captured from
+  `test_decisions_endpoint_returns_diagnosis_and_evidence`.
 - [x] **AC-7.7** Phân tích (signed in) renders the report: 5-channel split with
   "GMV trung bình mỗi ngày" 30 vs 30, per-channel funnel, hero profiles,
   event timeline, promotions; Shop Tab shown as missing when absent; no
@@ -128,6 +132,8 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
   (sections in order, funnels, heroes × 5 channels, missing Tab Cửa hàng →
   "Chưa có dữ liệu", no snake_case//v1 in text, 404 → empty state, error never
   falls back to the sample, client sends bearer + X-Shop-Id + ?ranking).
+  Funnel tiles wrap (auto-fit grid, 44b622ed): 0 of 9 tiles clipped per
+  channel at 1280px and 390px (was 6 of 9 out of view at 390px).
 - [x] **AC-7.8** `pnpm lint`, `type-check`, vitest green; guard tests updated
   only where the restyle intentionally changes them.
   — evidence: apps/demo lint 0 errors (14 pre-existing warnings), tsc clean,

@@ -154,3 +154,29 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
 - Checks: lint/tsc/vitest green on Node 20 (Node 26 breaks jsdom storage —
   pre-existing); `pnpm build:demo` OK with dummy Supabase env, `.next` removed.
 - Next: align evidence keys with P7-B; run demo e2e; reject endpoint.
+
+## 2026-10-08 — P7 integration agent (Claude Opus) — P7 integrated
+
+- On `fasttrack/optimize-product` after the A–D merges (8a857b04).
+- c446bb2d: Quyết định evidence mapper reads P7-B's real
+  `recommendation.diagnosis/evidence/expected_impact` (types added to
+  `@juli/contracts`); card shows stage, lever action, trigger, rule-based
+  recoverable GMV sentence and the metrics table. Guessed key lists removed;
+  fixture captured from the backend endpoint test.
+- 44b622ed: Phân tích funnel tiles wrap (auto-fit grid). Screenshots
+  before/after at 1280 and 390 in the integration session scratchpad `shots/`.
+- ebbe4df0: P7-A debts repaid — per-shop Redis lock `ingest:diagnosis:{shop}`
+  on `build_shop_diagnosis`; fetch reads take tokens from the poll's Redis
+  per-endpoint window (`shop_diagnosis_daily/pacing.py`, waits, 8 of 10).
+- 0041fe29: mypy errors from P7-A/B fixed (full `mypy backend/src/juli_backend`
+  clean, as on base). 2f162d25 + d057de8d: guard baselines (MODULE.md drift
+  allowlist, surface inventory, test-quality corpus) regenerated for P7.
+- Tests: unit+harness vs base 3ecd5e48 — base 9 failed; HEAD after fixes has
+  no new failures (pre-existing: agent_workflow_task_wiring ×7,
+  cross_tenant_probe, destructive_migration CI-config; full-run-only flakes
+  under CPU contention pass alone). check.sh `--since 0332c405` on a throwaway
+  PG16: migrations, isolation, ruff, pytest (745) PASS; gitleaks FAIL only on a
+  main-origin test false positive (clean vs origin/main). demo: lint 0 errors,
+  tsc clean, vitest 1650/1650 (Node 20), `build:demo` OK (dummy env, shell only).
+- e2e: 82 passed / 8 failed — restyle/route changes, not nav (see DEBT P7-C).
+- Next: owner decides the two e2e specs; deploy tag when ready.

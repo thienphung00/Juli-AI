@@ -55,13 +55,23 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   script's "days on disk are not refetched" cache is lost with the temp dir —
   cache daily A-34 rows (they are aggregates) or build from
   `analytics_performance_intervals` once its channel blocks are stored.
-- [ ] The diagnosis fetch paces with `sleep 0.4 s` + 429 backoff, not the shared
-  Redis per-endpoint rate limiter the poll path uses — wire it in if 429s show.
-- [ ] No per-shop lock on `build_shop_diagnosis`; two concurrent builds for one
-  shop would both fetch (the unique key keeps one row) — add a lock name if
-  duplicate enqueues are seen.
-- [ ] `fasttrack/check.sh` gitleaks step not run locally (binary not
-  installed) — the deploy runs it.
+- [x] ~~The diagnosis fetch paces with `sleep 0.4 s` + 429 backoff, not the shared
+  Redis per-endpoint rate limiter the poll path uses~~ — repaid (P7 integration,
+  ebbe4df0): `shop_diagnosis_daily/pacing.py` takes each read's token from the
+  poll's window (same key), waits instead of skipping, stops at 8 of 10.
+- [x] ~~No per-shop lock on `build_shop_diagnosis`~~ — repaid (P7 integration,
+  ebbe4df0): Redis lock `ingest:diagnosis:{shop}`, skip when held; a timed-out
+  build keeps it until the TTL (budget + 300 s).
+- [ ] The build task now skips (logs `shop_diagnosis_skipped reason=no_redis`)
+  when `REDIS_URL` is unset — lock and rate limit live in Redis — the poll needs
+  Redis too, so only a misconfigured worker hits it.
+- [x] ~~`fasttrack/check.sh` gitleaks step not run locally~~ — run in P7
+  integration (gitleaks 8.30.1): clean over origin/main..HEAD (the deploy's
+  default range). With `--since 0332c405` it flags one `generic-api-key` false
+  positive in `tests/unit/test_traffic_source_check.py:577` (a fake
+  `access_token=` string in a test, commit 686efe02 from `main` #2106).
+- [ ] That false positive fails a local `check.sh --since <pre-sync ref>` —
+  it came from main — allowlist it in `.gitleaks.toml` on the merge PR.
 - [ ] The timeout (`SHOP_DIAGNOSIS_BUDGET_SECONDS`, default 1800 s) cancels the
   await but cannot stop the fetch thread mid-call.
 
@@ -98,9 +108,10 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 
 ## P7-C UI (2026-10-08)
 
-- [ ] Decision evidence field names are assumed (`apps/demo/src/lib/decision-evidence.ts`
-  header) — P7-B not landed when P7-C ran — align the candidate key lists with
-  P7-B's response and add one test on its real fixture.
+- [x] ~~Decision evidence field names are assumed~~ — repaid (P7 integration,
+  c446bb2d): mapper reads `recommendation.diagnosis/evidence` (typed in
+  `@juli/contracts`), tested on a fixture captured from the backend endpoint test.
+  The fixture is a copy — re-capture it if `demo_decisions.py` models change.
 - [ ] "Từ chối" on a signed-in card only hides it for the session (no reject
   route) — no backend endpoint — add `POST /v1/demo/decisions/{id}/reject` and
   call it; the on-screen copy says the choice is not saved.
@@ -114,8 +125,14 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Demo header keeps the old mode switcher / "Làm mới Demo" controls inside
   the kit header (mobile alignment of "Đăng nhập" is off, pre-existing) —
   out of scope — redesign the header actions with the owner.
-- [ ] e2e (Playwright) specs only had the tab name updated; not run — no
-  server lane in P7-C — run `pnpm --filter @juli/demo test:e2e` before merge
-  (bottom nav at every width may move selectors that assumed the desktop rail).
+- [ ] e2e (Playwright) run in P7 integration against `next start` (dummy
+  Supabase env): 82 passed, 8 failed (4 × desktop + mobile). No nav/tab-name
+  selector broke. Failing for the restyle/route change, not fixed:
+  `static-asset-render.spec.ts` ×3 (expects a non-`none` body
+  background-image from the old brand CSS; the kit body has none) and
+  `accessibility.spec.ts` "Analytics chart equivalent…" (expects the KPI
+  dashboard at `/analytics`; it now lives at `/analytics/[metricKey]`, the
+  report took `/analytics`). — decide with the owner whether the specs follow
+  D21 or the look changes — update the two specs before merge.
 - [ ] vitest needs Node 20 locally: under Node 26 jsdom's `localStorage` is
   shadowed (270 failures on untouched main) — env — pin `.nvmrc` to 20.
