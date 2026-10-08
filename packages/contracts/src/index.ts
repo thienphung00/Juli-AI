@@ -8,11 +8,15 @@ export type {
 } from "./analytics";
 export type {
   DemoDecisionDetailResponse,
+  DemoDecisionDiagnosis,
+  DemoDecisionEvidence,
   DemoDecisionExpectedImpact,
   DemoDecisionItem,
   DemoDecisionListResponse,
+  DemoDecisionMetric,
   DemoDecisionReasoning,
   DemoDecisionRecommendation,
+  DemoDecisionWindow,
 } from "./decisions";
 export {
   GOLDEN_DEMO_DECISION_EXECUTABLE,

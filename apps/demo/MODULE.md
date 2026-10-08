@@ -66,8 +66,10 @@ Invariants below.
   `shop_diagnosis/render.py`. The KPI dashboard below stays at
   `/analytics/[metricKey]`, linked from the report.
 - **Quyết định evidence (AC-7.6).** `lib/decision-evidence.ts` is the one
-  tolerant mapper for the additive stage / lever / funnel-evidence fields of a
-  decision item; `DecisionEvidenceBlock` renders it only when present.
+  mapper for an Optimize Product item's `recommendation.diagnosis` /
+  `recommendation.evidence` (P7-B, typed in `@juli/contracts`);
+  `DecisionEvidenceBlock` renders stage, lever, trigger, the rule-based
+  recoverable GMV and the funnel table only when `diagnosis` is present.
 - **Look (D21, AC-7.5).** `globals.css` carries the `colors_and_type.css` kit
   (tokens, `.card`, `.btn-primary`, `.badge`, `.app-header` …) after the older
   rules; navigation is a bottom bar at every width.

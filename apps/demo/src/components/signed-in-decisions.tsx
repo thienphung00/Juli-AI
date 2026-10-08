@@ -404,7 +404,7 @@ function SignedInDecisionCard({
       </div>
       <h2 className="decision-card__headline">{item.title}</h2>
       <p className="decision-card__description">{item.description}</p>
-      {reasoning?.expected_impact && (
+      {reasoning?.expected_impact && !evidence && (
         <p className="decision-card__impact">
           Tác động dự kiến: <strong>{reasoning.expected_impact}</strong>
         </p>

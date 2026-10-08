@@ -40,6 +40,65 @@ export interface DemoDecisionRecommendation {
   user_action_required?: boolean | null;
   source_kpi_ids: string[];
   reasoning?: DemoDecisionReasoning | null;
+  /** ADR-106 stage diagnosis — Optimize Product cards only (P7-B, D21/D22). */
+  diagnosis?: DemoDecisionDiagnosis | null;
+  /** The product's funnel, last N days vs the N before (Optimize Product cards only). */
+  evidence?: DemoDecisionEvidence | null;
+}
+
+/** Subset of `DemoDecisionDiagnosis` (demo_decisions.py) the UI reads; extra
+ *  backend fields (gaps, shop_medians, bmsm, …) pass through untyped. */
+export interface DemoDecisionDiagnosis {
+  version: string;
+  as_of: string;
+  rank: number;
+  status: string;
+  status_label: string;
+  stage: { code: string; label: string };
+  lever: {
+    code: string;
+    label: string;
+    action: string;
+    detail?: string | null;
+    confirmed?: boolean;
+  };
+  main_kpi: { key: string; label: string; value: string; raw?: number | null };
+  trigger: { code: string; gap: number; sentence: string };
+  caveats?: string[];
+  channel_scope?: string | null;
+  recoverable_gmv_per_day?: number | null;
+  recoverable_gmv_basis?: { label: string; window_days: number } | null;
+  product_title?: string | null;
+}
+
+export interface DemoDecisionWindow {
+  start: string;
+  end: string;
+  days_with_data: number;
+}
+
+/** One funnel KPI. Ratios are fractions (0.02 = 2 %); `change` is relative
+ *  (current ÷ previous − 1). `unit`: ratio | count_per_day | vnd | vnd_per_day. */
+export interface DemoDecisionMetric {
+  key: string;
+  label: string;
+  unit: string;
+  definition?: string | null;
+  current?: number | null;
+  previous?: number | null;
+  change?: number | null;
+  /** ADR-108 label: "Rõ" | "Tham khảo" | "Chưa đủ dữ liệu", or null. */
+  confidence?: string | null;
+  note?: string | null;
+}
+
+export interface DemoDecisionEvidence {
+  window_days: number;
+  current: DemoDecisionWindow;
+  previous: DemoDecisionWindow;
+  channel_scope?: string | null;
+  metrics: DemoDecisionMetric[];
+  notes: string[];
 }
 
 export interface DemoDecisionItem {

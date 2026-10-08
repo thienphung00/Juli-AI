@@ -1,4 +1,8 @@
-import { GOLDEN_DEMO_DECISION_EXECUTABLE, GOLDEN_DEMO_DECISION_NON_EXECUTABLE } from "@juli/contracts";
+import {
+  GOLDEN_DEMO_DECISION_EXECUTABLE,
+  GOLDEN_DEMO_DECISION_NON_EXECUTABLE,
+  type DemoDecisionItem,
+} from "@juli/contracts";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +15,7 @@ import {
   type approveDemoDecision,
   type fetchRecommendations,
 } from "../lib/recommendations-api-client";
+import adr106Item from "../lib/__tests__/fixtures/adr106-decision-item.json";
 import { storeActiveShop } from "../lib/shop-session";
 
 const push = vi.fn();
@@ -193,39 +198,45 @@ describe("SignedInDecisions — mock recommendation card + funnel evidence (AC-7
     storeActiveShop(SHOP);
   });
 
-  it("renders stage, lever and the funnel evidence block when the item carries them", async () => {
-    const item = {
-      ...GOLDEN_DEMO_DECISION_EXECUTABLE,
-      diagnosis: { stage_label: "CTOR — sau giỏ", lever_label: "Voucher" },
-      funnel_evidence: {
-        metrics: [
-          { key: "impressions", prior: 2584.3, last: 3285.5, confidence: "Rõ" },
-          { key: "ctr", prior: 0.0446, last: 0.0448, confidence: "Tham khảo" },
-          { key: "add_to_cart_rate", prior: 0.135, last: 0.137, confidence: "Tham khảo" },
-          { key: "ctor", prior: 0.0628, last: 0.0367, confidence: "Rõ" },
-          { key: "aov", prior: 190440, last: 188240, confidence: "Chưa đủ dữ liệu" },
-        ],
-      },
-    };
+  it("renders stage, lever, trigger, recoverable GMV and the funnel table from the real P7-B item", async () => {
+    const item = adr106Item as unknown as DemoDecisionItem;
     renderSignedIn({ loadDecisions: vi.fn().mockResolvedValue([item]) });
 
     const block = await screen.findByTestId("decision-evidence");
-    expect(within(block).getByText("CTOR — sau giỏ")).toBeInTheDocument();
-    expect(within(block).getByText("Voucher")).toBeInTheDocument();
+    expect(within(block).getByText("Hiển thị → Nhấp (thẻ sản phẩm)")).toBeInTheDocument();
+    expect(within(block).getByText("Viết lại tiêu đề")).toBeInTheDocument();
+    expect(
+      within(block).getByText(/^CTR thẻ sản phẩm ước tính thấp hơn 60 %/),
+    ).toBeInTheDocument();
+    expect(within(block).getByTestId("decision-recoverable-gmv")).toHaveTextContent(
+      "Có thể lấy lại khoảng 1.200.000 ₫ GMV mỗi ngày (ước tính theo quy tắc, chưa phải mô hình)",
+    );
+    // The sentence is shown once (not again as the reasoning's expected impact).
+    expect(screen.getAllByText(/Có thể lấy lại khoảng/)).toHaveLength(1);
+    expect(within(block).getByRole("columnheader", { name: "30 ngày gần đây" })).toBeInTheDocument();
+    expect(within(block).getByRole("columnheader", { name: "30 ngày trước" })).toBeInTheDocument();
     for (const label of [
       "Lượt hiển thị sản phẩm",
-      "CTR (Tỷ lệ nhấp)",
-      "Tỷ lệ thêm vào giỏ hàng",
+      "CTR",
       "CTOR",
-      "AOV (SKU)",
+      "AOV",
+      "GMV trung bình mỗi ngày",
+      "Đơn hàng SKU mỗi ngày",
     ]) {
       expect(within(block).getByRole("rowheader", { name: label })).toBeInTheDocument();
     }
-    const ctor = within(block).getByRole("rowheader", { name: "CTOR" }).closest("tr");
-    expect(ctor).toHaveTextContent("6,28 %");
-    expect(ctor).toHaveTextContent("3,67 %");
-    expect(ctor).toHaveTextContent("Rõ");
-    expect(within(block).getByText("Chưa đủ dữ liệu")).toBeInTheDocument();
+    const ctr = within(block).getByRole("rowheader", { name: "CTR" }).closest("tr");
+    expect(ctr).toHaveTextContent("2,00 %");
+    expect(ctr).toHaveTextContent("Tham khảo");
+    const aov = within(block).getByRole("rowheader", { name: "AOV" }).closest("tr");
+    expect(aov).toHaveTextContent("200.000 ₫");
+    const cart = within(block)
+      .getByRole("rowheader", { name: /^Tỷ lệ thêm vào giỏ hàng/ })
+      .closest("tr");
+    expect(cart).toHaveTextContent("20,00 %");
+    expect(cart).toHaveTextContent("chỉ tính trên 5 ngày có số liệu");
+    // Codes never reach the seller.
+    expect(block).not.toHaveTextContent(/add_to_cart_rate|count_per_day|shop_median/);
   });
 
   it("renders no evidence block for an item without the new fields, and keeps Phê duyệt / Từ chối / Mở rộng", async () => {

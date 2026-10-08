@@ -1,55 +1,93 @@
-import { GOLDEN_DEMO_DECISION_EXECUTABLE } from "@juli/contracts";
+import { GOLDEN_DEMO_DECISION_EXECUTABLE, type DemoDecisionItem } from "@juli/contracts";
 import { describe, expect, it } from "vitest";
 
 import { mapDecisionEvidence } from "../decision-evidence";
+import realItem from "./fixtures/adr106-decision-item.json";
 
-const base = GOLDEN_DEMO_DECISION_EXECUTABLE;
+/**
+ * `fixtures/adr106-decision-item.json` is a verbatim item of a real
+ * `GET /v1/demo/decisions` response, captured from the backend test
+ * `tests/unit/test_optimize_product_decision_cards.py::
+ * test_decisions_endpoint_returns_diagnosis_and_evidence` (P7-B models in
+ * `api/routes/demo_decisions.py`). Re-capture it if those models change.
+ */
+const item = realItem as unknown as DemoDecisionItem;
 
-describe("mapDecisionEvidence — tolerant reader of the P7-B additive fields", () => {
-  it("returns null for an item without any of the new fields (today's envelope)", () => {
-    expect(mapDecisionEvidence(base)).toBeNull();
+describe("mapDecisionEvidence — P7-B Optimize Product fields", () => {
+  it("returns null for a card without a diagnosis (old rendering)", () => {
+    expect(mapDecisionEvidence(GOLDEN_DEMO_DECISION_EXECUTABLE)).toBeNull();
     expect(mapDecisionEvidence(null)).toBeNull();
+    expect(
+      mapDecisionEvidence({
+        ...item,
+        recommendation: { ...item.recommendation, diagnosis: null },
+      }),
+    ).toBeNull();
   });
 
-  it("reads the assumed shape: diagnosis labels + metrics array, in TikTok's order", () => {
-    const evidence = mapDecisionEvidence({
-      ...base,
-      diagnosis: { stage: "ctor", stage_label: "CTOR — sau giỏ", lever: "voucher" },
-      funnel_evidence: {
-        as_of: "2026-10-06",
-        metrics: [
-          { key: "aov", prior: 180000, last: 175000, confidence: "Tham khảo" },
-          { key: "impressions", prior: 2500, last: 3200, confidence: "Rõ" },
-          { key: "ctor", prior: 0.06, last: 0.038, confidence: "clear" },
-          { key: "mystery", prior: 1, last: 2 },
-        ],
-      },
+  it("maps the real backend item: stage, lever action, trigger, recoverable GMV", () => {
+    const evidence = mapDecisionEvidence(item);
+    expect(evidence).toMatchObject({
+      stage: "Hiển thị → Nhấp (thẻ sản phẩm)",
+      lever: "Viết lại tiêu đề",
+      trigger: "CTR thẻ sản phẩm ước tính thấp hơn 60 % so với trung bình shop trong 14 ngày qua",
+      recoverableGmvPerDay: 1200000,
+      windowDays: 30,
+      asOf: "2026-10-06",
+      notes: [],
     });
-    expect(evidence?.stage).toBe("CTOR — sau giỏ");
-    expect(evidence?.lever).toBe("Voucher");
-    expect(evidence?.asOf).toBe("2026-10-06");
-    expect(evidence?.metrics.map((m) => m.key)).toEqual(["impressions", "ctor", "aov"]);
-    expect(evidence?.metrics[1]).toMatchObject({ label: "CTOR", confidence: "Rõ" });
   });
 
-  it("accepts flat fields, an object of metrics and alternative value names", () => {
-    const evidence = mapDecisionEvidence({
-      ...base,
-      stage: "before_cart",
-      evidence: {
-        ctr: { previous: 0.04, current: 0.05, confidence: "insufficient" },
-        add_to_cart_rate: { prior_30d: "0.12", last_30d: "0.10" },
-      },
-    });
-    expect(evidence?.stage).toBe("Trước giỏ");
-    expect(evidence?.lever).toBeNull();
-    expect(evidence?.metrics).toEqual([
-      { key: "ctr", label: "CTR (Tỷ lệ nhấp)", prior: 0.04, last: 0.05, confidence: "Chưa đủ dữ liệu" },
-      { key: "add_to_cart_rate", label: "Tỷ lệ thêm vào giỏ hàng", prior: 0.12, last: 0.1, confidence: null },
+  it("keeps the backend's metrics, labels and order; ratios stay fractions", () => {
+    const evidence = mapDecisionEvidence(item);
+    expect(evidence?.metrics.map((m) => [m.key, m.label, m.unit])).toEqual([
+      ["impressions", "Lượt hiển thị sản phẩm", "count"],
+      ["ctr", "CTR", "ratio"],
+      ["add_to_cart_rate", "Tỷ lệ thêm vào giỏ hàng", "ratio"],
+      ["ctor", "CTOR", "ratio"],
+      ["aov", "AOV", "vnd"],
+      ["gmv", "GMV trung bình mỗi ngày", "vnd"],
+      ["sku_orders", "Đơn hàng SKU mỗi ngày", "count"],
     ]);
+    const ctr = evidence?.metrics.find((m) => m.key === "ctr");
+    expect(ctr).toMatchObject({ current: 0.02, previous: 0.02, change: 0, confidence: "Tham khảo" });
+    const cart = evidence?.metrics.find((m) => m.key === "add_to_cart_rate");
+    expect(cart).toMatchObject({ previous: null, change: null, confidence: null });
+    expect(cart?.note).toMatch(/5 ngày/);
   });
 
-  it("never surfaces an unknown snake_case code to the seller", () => {
-    expect(mapDecisionEvidence({ ...base, diagnosis: { stage: "weird_internal_code" } })).toBeNull();
+  it("falls back to expected_impact for the recoverable GMV and to the lever label", () => {
+    const recommendation = item.recommendation;
+    const diagnosis = recommendation.diagnosis!;
+    const evidence = mapDecisionEvidence({
+      ...item,
+      recommendation: {
+        ...recommendation,
+        evidence: null,
+        diagnosis: {
+          ...diagnosis,
+          recoverable_gmv_per_day: null,
+          lever: { ...diagnosis.lever, action: "" },
+        },
+      },
+    });
+    expect(evidence?.recoverableGmvPerDay).toBe(1200000);
+    expect(evidence?.lever).toBe("tiêu đề");
+    expect(evidence?.metrics).toEqual([]);
+  });
+
+  it("drops an unknown confidence value instead of showing it", () => {
+    const recommendation = item.recommendation;
+    const evidence = mapDecisionEvidence({
+      ...item,
+      recommendation: {
+        ...recommendation,
+        evidence: {
+          ...recommendation.evidence!,
+          metrics: [{ key: "ctr", label: "CTR", unit: "ratio", current: 0.1, confidence: "high" }],
+        },
+      },
+    });
+    expect(evidence?.metrics[0]?.confidence).toBeNull();
   });
 });

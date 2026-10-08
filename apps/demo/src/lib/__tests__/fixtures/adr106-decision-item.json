@@ -1,0 +1,220 @@
+{
+  "id": "29265901-dbeb-4b5a-b0af-27e7b3e4141a",
+  "title": "Viết lại tiêu đề · A weakctr02",
+  "description": "CTR thẻ sản phẩm ước tính thấp hơn 60 % so với trung bình shop trong 14 ngày qua. Viết lại tiêu đề. Juli đánh giá: tiêu đề 11 ký tự, chuẩn ≥ 40",
+  "severity": "warning",
+  "priority": 1,
+  "computed_at": "2026-10-07T08:00:00",
+  "surfaced_at": "2026-10-07T08:00:00",
+  "is_executable": true,
+  "recommendation": {
+    "workflow_name": "Tối ưu sản phẩm",
+    "priority": 1,
+    "rationale": "CTR thẻ sản phẩm ước tính thấp hơn 60 % so với trung bình shop trong 14 ngày qua",
+    "expected_impact": {
+      "metric": "recoverable_gmv_per_day",
+      "value": 1200000.0,
+      "confidence": "rule_based_estimate"
+    },
+    "preconditions_met": true,
+    "user_action_required": true,
+    "source_kpi_ids": [],
+    "reasoning": {
+      "copy_source": "adr106_stage_diagnosis",
+      "why": "CTR thẻ sản phẩm ước tính thấp hơn 60 % so với trung bình shop trong 14 ngày qua",
+      "expected_impact": "Có thể lấy lại khoảng 1.200.000 ₫ GMV mỗi ngày (ước tính theo quy tắc, chưa phải mô hình)",
+      "next_steps": [
+        "Viết lại tiêu đề. Juli đánh giá: tiêu đề 11 ký tự, chuẩn ≥ 40"
+      ],
+      "source_kpi_ids": []
+    },
+    "diagnosis": {
+      "version": "adr106-v1",
+      "as_of": "2026-10-06",
+      "rank": 1,
+      "status": "rule",
+      "status_label": "Juli tự đề xuất",
+      "stage": {
+        "code": "card",
+        "label": "Hiển thị → Nhấp (thẻ sản phẩm)"
+      },
+      "lever": {
+        "code": "title",
+        "label": "tiêu đề",
+        "action": "Viết lại tiêu đề",
+        "detail": "Viết lại tiêu đề. Juli đánh giá: tiêu đề 11 ký tự, chuẩn ≥ 40",
+        "confirmed": true,
+        "evidence": [
+          {
+            "code": "TITLE_LESS_THAN_40_CHARACTERS",
+            "source": "local",
+            "detail": "tiêu đề 11 ký tự, chuẩn ≥ 40"
+          }
+        ]
+      },
+      "main_kpi": {
+        "key": "ctor",
+        "label": "CTOR",
+        "value": "5.71 %",
+        "raw": 0.05714285714285714
+      },
+      "trigger": {
+        "code": "shop_median",
+        "gap": 0.6,
+        "sentence": "CTR thẻ sản phẩm ước tính thấp hơn 60 % so với trung bình shop trong 14 ngày qua"
+      },
+      "gaps": {
+        "ctr": {
+          "value": 0.02,
+          "shop_median": 0.05,
+          "prior": 0.02,
+          "gap_vs_median": 0.6,
+          "gap_vs_prior": 0.0,
+          "median_peers": 25,
+          "cleared_floor": true
+        },
+        "ctor": {
+          "value": 0.05714285714285714,
+          "shop_median": 0.05,
+          "prior": 0.05714285714285714,
+          "gap_vs_median": -0.14285714285714285,
+          "gap_vs_prior": 0.0,
+          "median_peers": 25,
+          "cleared_floor": true
+        },
+        "aov": {
+          "value": 200000.0,
+          "shop_median": 200000.0,
+          "prior": 200000.0,
+          "gap_vs_median": 0.0,
+          "gap_vs_prior": 0.0,
+          "median_peers": 25,
+          "cleared_floor": true
+        }
+      },
+      "shop_medians": {
+        "ctr": 0.05,
+        "ctor": 0.05,
+        "aov": 200000.0,
+        "peers": {
+          "ctr": 25,
+          "ctor": 25,
+          "aov": 25
+        }
+      },
+      "bmsm": null,
+      "caveats": [
+        "CTR và CTOR tính trên mọi kênh (A-34 total); dòng này không có block thẻ sản phẩm nên góc độ listing cần xác nhận lại",
+        "bằng chứng listing do Juli đánh giá từ dữ liệu sản phẩm, chưa phải mã chẩn đoán TikTok"
+      ],
+      "channel_scope": "ALL_CHANNELS",
+      "recoverable_gmv_per_day": 1200000.0,
+      "recoverable_gmv_basis": {
+        "label": "Ước tính theo quy tắc (chưa phải mô hình)",
+        "stage_rate": "ctr",
+        "current_rate": 0.02,
+        "reference_rate": 0.05,
+        "reference": "shop_median",
+        "volume_per_day": 3500.0,
+        "aov": 200000.0,
+        "window_days": 30
+      },
+      "product_title": "A weakctr02",
+      "tiktok_product_id": "A-weakctr02"
+    },
+    "evidence": {
+      "window_days": 30,
+      "current": {
+        "start": "2026-09-07",
+        "end": "2026-10-06",
+        "days_with_data": 30
+      },
+      "previous": {
+        "start": "2026-08-08",
+        "end": "2026-09-06",
+        "days_with_data": 30
+      },
+      "channel_scope": "ALL_CHANNELS",
+      "metrics": [
+        {
+          "key": "impressions",
+          "label": "Lượt hiển thị sản phẩm",
+          "unit": "count_per_day",
+          "definition": "Số lượt sản phẩm được hiển thị, trung bình mỗi ngày",
+          "current": 3500.0,
+          "previous": 3500.0,
+          "change": 0.0,
+          "confidence": "Tham khảo",
+          "note": null
+        },
+        {
+          "key": "ctr",
+          "label": "CTR",
+          "unit": "ratio",
+          "definition": "Lượt nhấp ÷ lượt hiển thị sản phẩm",
+          "current": 0.02,
+          "previous": 0.02,
+          "change": 0.0,
+          "confidence": "Tham khảo",
+          "note": null
+        },
+        {
+          "key": "add_to_cart_rate",
+          "label": "Tỷ lệ thêm vào giỏ hàng",
+          "unit": "ratio",
+          "definition": "Lượt thêm vào giỏ hàng ÷ lượt nhấp",
+          "current": 0.2,
+          "previous": null,
+          "change": null,
+          "confidence": null,
+          "note": "Tỷ lệ thêm vào giỏ hàng chỉ tính trên 5 ngày có số liệu"
+        },
+        {
+          "key": "ctor",
+          "label": "CTOR",
+          "unit": "ratio",
+          "definition": "Đơn hàng SKU ÷ lượt nhấp",
+          "current": 0.05714285714285714,
+          "previous": 0.05714285714285714,
+          "change": 0.0,
+          "confidence": "Tham khảo",
+          "note": null
+        },
+        {
+          "key": "aov",
+          "label": "AOV",
+          "unit": "vnd",
+          "definition": "GMV ÷ đơn hàng SKU",
+          "current": 200000.0,
+          "previous": 200000.0,
+          "change": 0.0,
+          "confidence": "Tham khảo",
+          "note": null
+        },
+        {
+          "key": "gmv",
+          "label": "GMV trung bình mỗi ngày",
+          "unit": "vnd_per_day",
+          "definition": "GMV ÷ số ngày",
+          "current": 800000.0,
+          "previous": 800000.0,
+          "change": 0.0,
+          "confidence": "Tham khảo",
+          "note": null
+        },
+        {
+          "key": "sku_orders",
+          "label": "Đơn hàng SKU mỗi ngày",
+          "unit": "count_per_day",
+          "definition": "Đơn hàng SKU ÷ số ngày",
+          "current": 4.0,
+          "previous": 4.0,
+          "change": 0.0,
+          "confidence": "Tham khảo",
+          "note": null
+        }
+      ],
+      "notes": []
+    }
+  }
+}

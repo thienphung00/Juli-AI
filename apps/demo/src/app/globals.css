@@ -3588,6 +3588,26 @@ h4 {
   font-weight: 600;
 }
 
+.decision-evidence__trigger {
+  margin: 0;
+  font-size: 13px;
+}
+
+.decision-evidence__note {
+  display: block;
+  max-width: 260px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  white-space: normal;
+}
+
+.decision-evidence__notes {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
 /* Change chip — direction is always carried by the sign in the text too. */
 .change-chip {
   display: inline-block;
