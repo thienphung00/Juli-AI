@@ -4976,6 +4976,18 @@ h4 {
   margin: 0;
 }
 
+.pt-page,
+.pt-panel,
+.pt-streams,
+.pt-stream,
+.pt-drill,
+.pt-ranking,
+.pt-detail,
+.pt-section,
+.pt-hero {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .pt-tabs {
   display: inline-flex;
   justify-self: start;
@@ -5000,8 +5012,24 @@ h4 {
 }
 
 .pt-tabs__tab[aria-selected="true"] {
-  background: var(--primary);
+  background: var(--pink-text);
   color: var(--primary-foreground);
+}
+
+/* Status text on its own tint needs the darker step (as `.change-pill`
+   does) to pass 4.5:1 at 11–12px; the kit's badge/chip use the raw hue. */
+.pt-page .change-pill--flat,
+.pt-page .change-chip--flat {
+  color: color-mix(in srgb, var(--muted-foreground) 70%, #000000);
+}
+
+.pt-page .badge-success,
+.pt-page .change-chip--up {
+  color: color-mix(in srgb, var(--success) 72%, #000000);
+}
+
+.pt-page .change-chip--down {
+  color: color-mix(in srgb, var(--destructive) 72%, #000000);
 }
 
 .pt-tabs__tab:focus-visible,
@@ -5117,7 +5145,7 @@ h4 {
   left: 50%;
   transform: translateX(-50%);
   border-radius: 999px;
-  background: var(--primary);
+  background: var(--pink-text);
   padding: 2px 10px;
   color: var(--primary-foreground);
   font-size: 11px;
