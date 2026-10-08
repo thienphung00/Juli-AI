@@ -63,8 +63,23 @@ TikTok's SKU orders.
    | GMV, Hoàn tiền | `attributed_gmv` / `gmv`, `refunds` |
    | Thẻ sản phẩm của người bán · Tab Cửa hàng · Video của người bán · LIVE của người bán · Liên kết (Video liên kết, LIVE liên kết) | the five A-34 channel blocks |
 
-   **CTOR uses SKU orders**, matching TikTok; the Fujiwa hand numbers used orders and will
-   shift slightly when regenerated.
+   **Every KPI uses TikTok's own calculation** (owner directive 2026-10-08):
+   - CTR = clicks ÷ impressions. Tỷ lệ thêm vào giỏ hàng = add-to-carts ÷ clicks, per TikTok's
+     2026 redefinition, which uses clicks rather than unique visitors.
+   - CTOR = **SKU orders** ÷ clicks. AOV (SKU) = GMV ÷ SKU orders.
+   - GMV is TikTok's GMV, which includes cancelled and refunded orders. Nothing is netted out.
+   - A rate over a window is the ratio of the window's totals, as Seller Center computes it
+     for a date range. It is never an average of daily rates.
+
+   Verified on Fujiwa, 07/09–06/10:
+   - Summing the 30 daily files reproduces TikTok's 30-day aggregate exactly for the top five
+     products: impressions, clicks, SKU orders, GMV and `click_order_rate`.
+   - TikTok's `aov` equals GMV ÷ SKU orders.
+   - SKU orders and orders are equal at product grain on the product-card channel. They differ
+     by ~1 % on the all-channel total (808 vs 799). Hand figures built on orders therefore
+     move by at most about 1 %.
+
+   A test pins the equality of daily sums and the aggregate on a synthetic fixture.
 
 2. **Data: daily A-34 for 60 days is the only source.** One file per day, ending **yesterday
    (UTC+7) by default, with an operator-chosen end date** (to step around a sale season). Days
