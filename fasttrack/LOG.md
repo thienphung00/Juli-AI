@@ -231,3 +231,28 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   certificate error: the NEXT_PUBLIC_SUPABASE_URL repo secret holds the
   Postgres host, not the project API URL (https://<ref>.supabase.co). Owner
   fixes the secret; the demo build now fails on a db.* host.
+
+## 2026-10-08 — P8-B agent (Claude Opus) — per-video 30/30 data (AC-8.2)
+
+- Spec answer (`tts-openapi-guide` OAS analytics, v202509): Get Shop Video
+  Performance List, Get Shop Video Performance Details and Get Shop Video
+  Product Performance List all REQUIRE `start_date_ge`/`end_date_lt`. The list's
+  `views` is "during the selected time range" and it has SKU orders/GMV but no
+  product impressions (its CTR is clicks ÷ views); details with
+  `granularity=1D` gives dated daily intervals with product impressions,
+  clicks, CTR, GMV, views, but no SKU orders. Today's fetch asks for the 60-day
+  window, so the snapshot's videos.json holds 60-day totals (Fujiwa: top-40
+  sum 99.8M ₫ ≤ 167.5M ₫ A-34 video GMV), not lifetime ones.
+- 5498e2ee: details endpoint (GET wrapper, production-read allowlist pattern,
+  shop-diagnosis rate-limit gate key) + tests.
+- 3e74be51: `services/shop_diagnosis_daily/video_windows.py` —
+  `fetch_video_windows(resources, snapshot)` → `VideoWindowMetrics` (per video:
+  id, title, posted_at, last/prior `WindowMetrics`, basis). 2 list walks + ≤ 40
+  details calls per shop/day (top 20 by window GMV per window, deduplicated).
+  Fallback `posted_in_window` when a list or the first details call fails.
+- 7542e04b: `scripts/shop_diagnosis_fetch.py --video-windows` for the owner's
+  live check.
+- Tests: video_windows 8, promotion_search 23, scripts 9, shop_diagnosis_daily +
+  two-tenant 58 passed (2 PG skips), allowlist/capability/module guards 146
+  passed; ruff + mypy clean.
+- Next: owner live check (DEBT P8-B); orchestrator wires it into job.py for P8-A.
