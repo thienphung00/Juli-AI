@@ -1358,20 +1358,32 @@ def reconcile_source(root: Path, source: str) -> tuple[str, dict[str, object]]:
     }
 
     edits = [
-        (f"MEASURED_TEST_FUNCTIONS = {MEASURED_TEST_FUNCTIONS}",
-         f"MEASURED_TEST_FUNCTIONS = {live.test_functions}"),
-        (f"MEASURED_TEST_MODULES = {MEASURED_TEST_MODULES}",
-         f"MEASURED_TEST_MODULES = {live.files}"),
-        (f'"no_assert_statement": {RECONCILIATION_LAYERS["no_assert_statement"]},',
-         f'"no_assert_statement": {layers["no_assert_statement"]},'),
-        (f"corpus of {MEASURED_TEST_FUNCTIONS:,} test functions",
-         f"corpus of {live.test_functions:,} test functions"),
+        (
+            f"MEASURED_TEST_FUNCTIONS = {MEASURED_TEST_FUNCTIONS}",
+            f"MEASURED_TEST_FUNCTIONS = {live.test_functions}",
+        ),
+        (
+            f"MEASURED_TEST_MODULES = {MEASURED_TEST_MODULES}",
+            f"MEASURED_TEST_MODULES = {live.files}",
+        ),
+        (
+            f'"no_assert_statement": {RECONCILIATION_LAYERS["no_assert_statement"]},',
+            f'"no_assert_statement": {layers["no_assert_statement"]},',
+        ),
+        (
+            f"corpus of {MEASURED_TEST_FUNCTIONS:,} test functions",
+            f"corpus of {live.test_functions:,} test functions",
+        ),
         (f"({MEASURED_TEST_MODULES} test modules)", f"({live.files} test modules)"),
-        (f"layer reads {RECONCILIATION_LAYERS[RECONCILIATION['priorFigureLayer']]} today",
-         f"layer reads {prior_layer} today"),
-        (f"({100 * REPORTED_ZERO_ASSERTION_TESTS / REPORTED_TEST_FUNCTIONS:.2f}% then, "
-         f"{100 * RECONCILIATION_LAYERS[RECONCILIATION['priorFigureLayer']] / MEASURED_TEST_FUNCTIONS:.2f}% now)",
-         f"({then_rate:.2f}% then, {now_rate:.2f}% now)"),
+        (
+            f"layer reads {RECONCILIATION_LAYERS[RECONCILIATION['priorFigureLayer']]} today",
+            f"layer reads {prior_layer} today",
+        ),
+        (
+            f"({100 * REPORTED_ZERO_ASSERTION_TESTS / REPORTED_TEST_FUNCTIONS:.2f}% then, "
+            f"{100 * RECONCILIATION_LAYERS[RECONCILIATION['priorFigureLayer']] / MEASURED_TEST_FUNCTIONS:.2f}% now)",
+            f"({then_rate:.2f}% then, {now_rate:.2f}% now)",
+        ),
     ]
     for old, new in edits:
         # The anchor is checked even when the value is unchanged. Checking only
