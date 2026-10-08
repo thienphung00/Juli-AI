@@ -39,12 +39,16 @@ Matches ``__all__`` — re-exports only:
   ``ANALYTICS_BESTSELLING_VIDEOS_PATH``, ``ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH``,
   ``ANALYTICS_LIVE_PERFORMANCE_LIST_PATH``, ``ANALYTICS_SHOP_PERFORMANCE_PATH``,
   ``ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH``, ``ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH``,
-  ``CANCELLATION_SEARCH_PATH``,
+  ``ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH``, ``CANCELLATION_SEARCH_PATH``,
   ``FINANCE_STATEMENTS_PATH``, ``INVENTORY_SEARCH_PATH``,
   ``MARKETPLACE_CREATORS_SEARCH_PATH``, ``ORDER_SEARCH_PATH``, ``PRODUCT_SEARCH_PATH``,
+  ``PROMOTION_ACTIVITIES_SEARCH_PATH``, ``PROMOTION_COUPONS_SEARCH_PATH``,
   ``RETURN_SEARCH_PATH``,
+  ``analytics_shop_live_products_performance_path``,
   ``analytics_shop_performance_per_hour_path``, ``analytics_shop_product_performance_path``,
-  ``analytics_shop_sku_performance_path``, ``promotion_activity_path``
+  ``analytics_shop_sku_performance_path``, ``analytics_shop_video_products_performance_path``,
+  ``product_detail_path``, ``promotion_activity_path`` (the last six keyed by the
+  shop diagnosis fetch's rate-limit gate, fast track P7-A)
 - **Optimize Product reads (ADR-090 d.3, ADR-106 Amendments 4–5)** — product
   diagnosis: ``PRODUCT_DIAGNOSIS_API_VERSION``, ``PRODUCT_DIAGNOSES_PATH``,
   ``PRODUCT_DIAGNOSE_OPTIMIZE_API_VERSION``, ``PRODUCT_DIAGNOSE_OPTIMIZE_PATH``

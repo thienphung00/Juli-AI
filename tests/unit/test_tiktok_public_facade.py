@@ -57,6 +57,13 @@ EXPECTED_PUBLIC_EXPORTS = frozenset(
         "analytics_shop_product_performance_path",
         "analytics_shop_sku_performance_path",
         "promotion_activity_path",
+        # Shop diagnosis fetch rate-limit gate (fast track P7-A debt)
+        "ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH",
+        "PROMOTION_ACTIVITIES_SEARCH_PATH",
+        "PROMOTION_COUPONS_SEARCH_PATH",
+        "analytics_shop_live_products_performance_path",
+        "analytics_shop_video_products_performance_path",
+        "product_detail_path",
         # Client factories
         "ClientFactoryConfig",
         "ProductionReadClientFactory",

@@ -27,8 +27,10 @@ from typing import Any, Literal, Protocol
 #: ``cycle`` / ``history`` are mutexes. ``bootstrap_queued`` / ``history_queued``
 #: are enqueue de-duplication markers: set when a task is enqueued, released
 #: by that task when it starts, so a backed-up queue never accumulates one
-#: copy per fan-out tick. Their TTL bounds a lost message.
-LockName = Literal["cycle", "history", "bootstrap_queued", "history_queued"]
+#: copy per fan-out tick. Their TTL bounds a lost message. ``diagnosis`` is the
+#: daily shop diagnosis build's own mutex (``workers/tasks/shop_diagnosis.py``):
+#: it reads TikTok only, so it may run beside a cycle but never beside itself.
+LockName = Literal["cycle", "history", "bootstrap_queued", "history_queued", "diagnosis"]
 
 _RELEASE_IF_OWNER_SCRIPT = """
 if redis.call('get', KEYS[1]) == ARGV[1] then

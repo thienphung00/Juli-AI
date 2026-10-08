@@ -413,6 +413,315 @@ def test_the_build_task_is_registered():
 
 
 # ---------------------------------------------------------------------------
+# P7-A debt -- one build per shop at a time (per-shop Redis lock)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_second_build_for_the_same_shop_is_skipped_while_one_holds_the_lock(
+    session, factory, tmp_path, caplog
+):
+    from juli_backend.workers.services.polling.shop_lock import InMemoryShopIngestLock
+    from juli_backend.workers.tasks.shop_diagnosis import LOCK_NAME, run_build_shop_diagnosis
+
+    shop = await _make_shop(session, label="locked")
+    other = await _make_shop(session, label="free")
+    lock = InMemoryShopIngestLock()
+    held = lock.try_acquire(str(shop.id), LOCK_NAME, ttl_seconds=600)
+    assert held is not None
+    resources = FakeTikTokReadResources()
+    kwargs = {
+        "session_factory": factory,
+        "app_key": "k",
+        "app_secret": "s",
+        "lock": lock,
+        "create_resources": lambda _c: resources,
+        "now": NOW,
+        "tmp_root": tmp_path,
+        "sleep_s": 0,
+        "backoff_sleep": lambda _s: None,
+    }
+
+    skipped = await run_build_shop_diagnosis(str(shop.id), **kwargs)
+
+    assert skipped is None
+    assert resources.calls == [], "a skipped build makes no TikTok call"
+    assert any(r.message == "shop_diagnosis_skipped_locked" for r in caplog.records)
+    assert await _rows(session, shop.id) == []
+
+    # Another shop is not blocked, and a finished build releases its lock.
+    built = await run_build_shop_diagnosis(str(other.id), **kwargs)
+    assert built is not None and built.built
+    assert not lock.is_held(str(other.id), LOCK_NAME)
+
+
+@pytest.mark.asyncio
+async def test_a_failed_build_still_releases_the_lock(session, factory, tmp_path):
+    from juli_backend.workers.services.polling.shop_lock import InMemoryShopIngestLock
+    from juli_backend.workers.tasks.shop_diagnosis import LOCK_NAME, run_build_shop_diagnosis
+
+    shop = await _make_shop(session, label="failrel")
+    lock = InMemoryShopIngestLock()
+    result = await run_build_shop_diagnosis(
+        str(shop.id),
+        session_factory=factory,
+        app_key="k",
+        app_secret="s",
+        lock=lock,
+        create_resources=lambda _c: FakeTikTokReadResources(fail_a34=True),
+        now=NOW,
+        tmp_root=tmp_path,
+        sleep_s=0,
+    )
+    assert result is None
+    assert not lock.is_held(str(shop.id), LOCK_NAME)
+
+
+@pytest.mark.asyncio
+async def test_a_timed_out_build_keeps_the_lock_until_its_ttl(session, factory, tmp_path):
+    """The fetch thread outlives the cancelled await; a second build must not start beside it."""
+    import asyncio
+    import threading
+
+    from juli_backend.workers.services.polling.shop_lock import InMemoryShopIngestLock
+    from juli_backend.workers.tasks.shop_diagnosis import (
+        LOCK_NAME,
+        lock_ttl_seconds,
+        run_build_shop_diagnosis,
+    )
+
+    shop = await _make_shop(session, label="timeout")
+    now = [0.0]
+    lock = InMemoryShopIngestLock(clock=lambda: now[0])
+    entered, release = threading.Event(), threading.Event()
+    resources = FakeTikTokReadResources()
+    real_a34 = resources.analytics.list_product_performance_all
+
+    def slow_a34(**kwargs):
+        entered.set()
+        release.wait(5)
+        return real_a34(**kwargs)
+
+    resources.analytics.list_product_performance_all = slow_a34
+    try:
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(
+                run_build_shop_diagnosis(
+                    str(shop.id),
+                    session_factory=factory,
+                    app_key="k",
+                    app_secret="s",
+                    lock=lock,
+                    create_resources=lambda _c: resources,
+                    now=NOW,
+                    tmp_root=tmp_path,
+                    sleep_s=0,
+                ),
+                timeout=0.5,
+            )
+        assert entered.is_set()
+        assert lock.is_held(str(shop.id), LOCK_NAME)
+        now[0] = lock_ttl_seconds() + 1.0
+        assert not lock.is_held(str(shop.id), LOCK_NAME), "the TTL bounds an orphaned build"
+    finally:
+        release.set()
+        await asyncio.sleep(0)
+
+
+# ---------------------------------------------------------------------------
+# P7-A debt -- the fetch draws from the poll's Redis per-endpoint window
+# ---------------------------------------------------------------------------
+
+
+class _FakeRedis:
+    """INCR / EXPIRE / GET / TTL with an injectable clock -- what ``RateLimiter`` uses."""
+
+    def __init__(self, clock) -> None:
+        self._clock = clock
+        self._data: dict[str, tuple[int, float | None]] = {}
+
+    def _live(self, key: str):
+        entry = self._data.get(key)
+        if entry is not None and entry[1] is not None and entry[1] <= self._clock():
+            del self._data[key]
+            return None
+        return entry
+
+    def incr(self, key: str) -> int:
+        entry = self._live(key)
+        value = (entry[0] if entry else 0) + 1
+        self._data[key] = (value, entry[1] if entry else None)
+        return value
+
+    def expire(self, key: str, seconds: int) -> None:
+        entry = self._live(key)
+        if entry is not None:
+            self._data[key] = (entry[0], self._clock() + seconds)
+
+    def get(self, key: str):
+        entry = self._live(key)
+        return None if entry is None else str(entry[0]).encode()
+
+    def ttl(self, key: str) -> int:
+        entry = self._live(key)
+        if entry is None:
+            return -2
+        if entry[1] is None:
+            return -1
+        return max(0, int(entry[1] - self._clock() + 0.999))
+
+
+def _limiter_with_clock():
+    from juli_backend.integrations.tiktok import RateLimiter
+
+    now = [0.0]
+    return RateLimiter(_FakeRedis(lambda: now[0])), now
+
+
+@pytest.mark.asyncio
+async def test_the_fetch_takes_its_tokens_from_the_polls_window_and_waits_instead_of_bursting(
+    session, factory, tmp_path
+):
+    from juli_backend.integrations.tiktok.constants import (
+        ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
+    )
+    from juli_backend.services.shop_diagnosis_daily.pacing import DIAGNOSIS_MAX_REQUESTS
+
+    shop = await _make_shop(session, label="paced")
+    limiter, now = _limiter_with_clock()
+    per_window: dict[int, int] = {}
+    waits: list[float] = []
+
+    class CountingResources(FakeTikTokReadResources):
+        pass
+
+    resources = CountingResources()
+    real_a34 = resources.analytics.list_product_performance_all
+
+    def counted_a34(**kwargs):
+        window = int(now[0] // 60)
+        per_window[window] = per_window.get(window, 0) + 1
+        return real_a34(**kwargs)
+
+    resources.analytics.list_product_performance_all = counted_a34
+
+    def fake_sleep(seconds: float) -> None:
+        waits.append(seconds)
+        now[0] += seconds
+
+    result, _ = await _build(
+        factory,
+        shop.id,
+        resources,
+        tmp_path,
+        rate_limiter=limiter,
+        rate_limit_sleep=fake_sleep,
+    )
+
+    assert result.built
+    assert sum(per_window.values()) == DAYS
+    # Never more than the diagnosis share of one window on the poll's endpoint key...
+    assert max(per_window.values()) <= DIAGNOSIS_MAX_REQUESTS
+    # ...so it waited for windows to reset rather than bursting 60 calls.
+    assert len(waits) >= DAYS // DIAGNOSIS_MAX_REQUESTS
+    # Same key as the poll (app key, TikTok shop id, endpoint path): a poll step in
+    # the last window still gets a token.
+    assert limiter.acquire(
+        "app-key",
+        shop.tiktok_shop_id,
+        ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
+        max_requests=10,
+        window_seconds=60,
+    )
+
+
+def test_the_gate_leaves_the_poll_its_headroom_and_never_spends_it_while_waiting():
+    from juli_backend.integrations.tiktok.constants import ORDER_SEARCH_PATH
+    from juli_backend.services.shop_diagnosis_daily.pacing import SharedWindowGate
+
+    limiter, now = _limiter_with_clock()
+    for _ in range(8):  # the poll already spent 8 of its 10 this minute
+        assert limiter.acquire("app", "tt-1", ORDER_SEARCH_PATH, max_requests=10, window_seconds=60)
+    slept: list[float] = []
+
+    def fake_sleep(seconds: float) -> None:
+        slept.append(seconds)
+        # While the diagnosis waits, the poll's own remaining 2 are still there.
+        if len(slept) == 1:
+            for _ in range(2):
+                assert limiter.acquire(
+                    "app", "tt-1", ORDER_SEARCH_PATH, max_requests=10, window_seconds=60
+                )
+        now[0] += seconds
+
+    gate = SharedWindowGate(limiter, app_id="app", shop_key="tt-1", sleep=fake_sleep)
+    gate(ORDER_SEARCH_PATH)
+
+    assert slept and sum(slept) >= 59, "it waited for the window to reset"
+    assert gate.waited_seconds == sum(slept)
+
+
+def test_the_gate_gives_up_after_its_max_wait():
+    from juli_backend.integrations.tiktok.constants import ORDER_SEARCH_PATH
+    from juli_backend.services.shop_diagnosis_daily.pacing import (
+        RateLimitWaitExceeded,
+        SharedWindowGate,
+    )
+
+    class AlwaysSpent:
+        def is_exhausted(self, *_a, **_k):
+            return True
+
+        def acquire(self, *_a, **_k):  # pragma: no cover - never reached
+            raise AssertionError("must not consume a token from a spent window")
+
+        def time_until_reset(self, *_a):
+            return 60
+
+    gate = SharedWindowGate(
+        AlwaysSpent(), app_id="a", shop_key="s", sleep=lambda _s: None, max_wait_seconds=120
+    )
+    with pytest.raises(RateLimitWaitExceeded):
+        gate(ORDER_SEARCH_PATH)
+
+
+def test_every_read_the_fetch_makes_is_gated_on_the_polls_endpoint_path():
+    from juli_backend.integrations.tiktok.constants import (
+        product_detail_path,
+        promotion_activity_path,
+    )
+    from juli_backend.services.shop_diagnosis_daily.pacing import ENDPOINTS, RateLimitedResources
+
+    seen: list[str] = []
+
+    class Group:
+        def __getattr__(self, name):
+            return lambda *a, **k: name
+
+    resources = SimpleNamespace(
+        analytics=Group(), orders=Group(), promotion=Group(), products=Group()
+    )
+    wrapped = RateLimitedResources(resources, seen.append)
+    assert wrapped.products.get_details("p-1") == "get_details"
+    assert wrapped.promotion.get_activity("act-9") == "get_activity"
+    assert seen == [product_detail_path("p-1"), promotion_activity_path("act-9")]
+
+    # Every TikTok method fetch.py calls has an endpoint mapping.
+    import inspect
+    import re
+
+    from juli_backend.services.shop_diagnosis_daily import fetch
+
+    called = set(
+        re.findall(
+            r"resources\.(analytics|orders|promotion|products)\.(\w+)", inspect.getsource(fetch)
+        )
+    )
+    assert called, "fetch.py reads through resources.<group>.<method>"
+    assert called <= set(ENDPOINTS), sorted(called - set(ENDPOINTS))
+
+
+# ---------------------------------------------------------------------------
 # AC-7.2 -- GET /v1/demo/analysis
 # ---------------------------------------------------------------------------
 

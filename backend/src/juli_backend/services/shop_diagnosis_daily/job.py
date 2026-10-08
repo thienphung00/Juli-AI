@@ -10,7 +10,9 @@ The daily worker job behind ``juli_backend.build_shop_diagnosis``:
    than yesterday in UTC+7. If the 60-day report for that date is already
    stored, stop (idempotent per shop and end date) -- no TikTok call.
 2. **Fetch** the 60-day snapshot read-only (``fetch.fetch_snapshot``, 429
-   backoff) into a temporary directory, with no database session open.
+   backoff) into a temporary directory, with no database session open. With a
+   ``rate_limiter`` (production), every read first takes a token from the
+   poll path's Redis per-endpoint window (``pacing.RateLimitedResources``).
 3. **Build** the report for both hero rankings from that one snapshot (pure
    ``shop_diagnosis`` package, no extra calls), then delete the directory:
    orders carry buyer data and are never kept.
@@ -53,6 +55,10 @@ from juli_backend.repositories import (
 )
 from juli_backend.services.shop_diagnosis import Ranking, build_report, load_snapshot
 from juli_backend.services.shop_diagnosis_daily.fetch import fetch_snapshot, yesterday_local
+from juli_backend.services.shop_diagnosis_daily.pacing import (
+    RateLimitedResources,
+    SharedWindowGate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +123,8 @@ class _Plan:
     shop_name: str
     end: date
     config: ClientFactoryConfig
+    #: The rate-limit key the poll uses for this shop (``_ShopRun.shop_key``).
+    shop_key: str
 
 
 async def _plan(
@@ -147,11 +155,12 @@ async def _plan(
             shop_cipher=credential.shop_cipher,
         )
         shop_name = shop.shop_name or ""
+        shop_key = shop.tiktok_shop_id or str(shop_id)
     # Close the read transaction before the long fetch.
     await session.commit()
     if existing is not None and not force:
         return "already_built"
-    return _Plan(shop_name=shop_name, end=end, config=config)
+    return _Plan(shop_name=shop_name, end=end, config=config, shop_key=shop_key)
 
 
 def _fetch_and_build(
@@ -186,6 +195,8 @@ async def build_and_store_shop_diagnosis(
     tmp_root: Path | None = None,
     sleep_s: float = 0.4,
     backoff_sleep: Callable[[float], Any] = time.sleep,
+    rate_limiter: Any | None = None,
+    rate_limit_sleep: Callable[[float], Any] = time.sleep,
 ) -> DiagnosisBuildResult:
     """Build the shop's report for its latest analytics day and store it. See module doc."""
     result = DiagnosisBuildResult(shop_id=shop_id)
@@ -208,6 +219,16 @@ async def build_and_store_shop_diagnosis(
 
     build = create_resources or ProductionReadClientFactory().create_resources
     resources = build(plan.config)
+    if rate_limiter is not None:
+        resources = RateLimitedResources(
+            resources,
+            SharedWindowGate(
+                rate_limiter,
+                app_id=app_key,
+                shop_key=plan.shop_key,
+                sleep=rate_limit_sleep,
+            ),
+        )
     meta, reports = await asyncio.to_thread(
         _fetch_and_build,
         resources,
