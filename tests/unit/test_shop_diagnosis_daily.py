@@ -681,8 +681,10 @@ def test_the_gate_gives_up_after_its_max_wait():
     gate = SharedWindowGate(
         AlwaysSpent(), app_id="a", shop_key="s", sleep=lambda _s: None, max_wait_seconds=120
     )
-    with pytest.raises(RateLimitWaitExceeded):
+    with pytest.raises(RateLimitWaitExceeded) as raised:
         gate(ORDER_SEARCH_PATH)
+    assert ORDER_SEARCH_PATH in str(raised.value)
+    assert gate.waited_seconds == 120
 
 
 def test_every_read_the_fetch_makes_is_gated_on_the_polls_endpoint_path():

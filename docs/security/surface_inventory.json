@@ -73,6 +73,14 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/analysis",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/demo/analytics",
       "methods": [
         "GET"
