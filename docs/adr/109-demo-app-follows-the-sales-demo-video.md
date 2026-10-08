@@ -1,6 +1,6 @@
 # ADR-109: The Demo app follows the sales demo video — Analysis splits into Sản phẩm and Nội dung, every metric cell opens a GMV-attributed ranking
 
-**Status:** Proposed (grill in progress — decisions 6+ open)
+**Status:** Proposed (grill in progress — see Open)
 **Date:** 2026-10-08
 **Deciders:** grill session, owner + Claude (Opus).
 
@@ -80,7 +80,15 @@ TikTok's diagnosis per row. Customers who saw the video should find the same pro
      of row factors — the mix effect).
 
 6. **Quyết định** keeps D22: cards focus on hero products and the largest GMV gain from
-   improving a metric. (Screen layout: open, see below.)
+   improving a metric. Layout as the video's P2 screen:
+   - Cards are **grouped by stream and weak stage** ("N thẻ tối ưu để nâng CTOR Thẻ sản
+     phẩm"). The group header shows the target (current → target rate, the sum of its
+     cards) and "GMV dự kiến" per month from D22's recoverable GMV/day × 30.
+   - Each compact card: product code + name, "KPI chính", Lý do, Mã TikTok (diagnosis),
+     Đòn bẩy, and the concrete change.
+   - **"Duyệt N thẻ"** approves the group and creates N runs that execute **one after
+     another** (the video's "Hàng chờ thẻ tối ưu"), never two changes on one product at
+     once. Single cards can still be approved or dropped.
 
 7. **Navigation.** Desktop: left rail Trang chủ / Quyết định / Phân tích / **Juli**.
    Mobile (< 768 px): bottom bar with the same four. **Juli** (24-hour activity log and the
@@ -89,12 +97,53 @@ TikTok's diagnosis per row. Customers who saw the video should find the same pro
    the header. The header carries the shop avatar, name, "TikTok Shop · ngành · N SKU" and
    "Juli đang chạy · cập nhật HH:MM" from the last sync.
 
+8. **Five-stage stepper** (Phân tích → Đề xuất → Duyệt → Thực thi → Đo lường) lives **inside
+   Quyết định only**, on a card group or a run, and shows **that card's / run's own
+   state**. It is not in the global header.
+
+9. **Quyết định keeps the agent-workflow-execution run model** ([PUI-DESIGN](../product/agent-workflow-execution/PUI-DESIGN.md)):
+   every approved card is a real `workflow_run` with the staged run view, the run ledger
+   (Đang chờ bạn / Đang chạy / Hoàn tất), honest terminal states and a frozen replay of each
+   finished run. "Duyệt N thẻ" queues N runs; each run still pauses at its Đề xuất stage for
+   the two-step consent before any write (P7 AC-7.4). **Every action is tracked and
+   undoable:**
+   - Each write records the field's value **before** and **after** (title, description,
+     attributes, image) on the run.
+   - A finished run that wrote something offers **"Hoàn tác"**: a new run that restores
+     the before-values, with the same consent step. A revert is itself tracked.
+   - If the seller or someone else changed the field after Juli's write, Hoàn tác refuses
+     and says so (S-FR-8: Juli does not overwrite an external change).
+
+10. **Price stays recommendation-only (D13).** A price card appears in its group with
+    "Bạn áp dụng trên Seller Center"; "Duyệt N thẻ" runs only the executable cards (title,
+    description, attributes, image).
+
+11. **Stability guardrail is the seller's number.** Before the first group runs, Juli asks
+    the seller the allowed swing for the metrics a change is not meant to move (Lượt hiển thị
+    sản phẩm, CTR, AOV…; suggested ±3 %). After a change, when a metric leaves that band at
+    the day-7 check-in (D14), Juli **asks whether to undo** (decision 9's Hoàn tác) — it
+    never undoes on its own.
+
+12. **Seller-set rules.** Everything in the video's "Quy tắc do bạn đặt" is set by the seller,
+    not chosen by Juli. The rule set Juli needs (stored per shop, each with who set it and
+    when):
+
+    | Rule | Used by | Default until set |
+    |---|---|---|
+    | Ngưỡng giữ ổn định per metric (±%) | decision 11, day-7 check-in | ask before first run |
+    | Giá vốn per product (or CSV) | gross-margin ranking (D18), price cards | revenue ranking; price cards hidden |
+    | Biên lợi nhuận tối thiểu (%) | price recommendations | no price recommendation |
+    | Trần giảm giá per SKU (%) | price recommendations | no price recommendation |
+    | Số thẻ mở cùng lúc (≤ 5) | emission budget | 5 |
+    | Đòn bẩy được phép tự thực thi (title / description / attributes / image) | run executor | all listing levers; price never (D13) |
+    | Từ / thông tin không được sửa (brand terms, claims) | listing writes | none |
+
+    **Operator phase first:** at the start the Juli team fills these inputs on the seller's
+    behalf and tests the system with them; each value records that it was set by the team.
+    Handing over to the seller is a later step (the same screen, the seller's own login).
+
 ## Open (next grill questions)
 
-- The five-stage header stepper: what it means in the product (shop's daily cycle vs one
-  card's state vs video only).
-- Quyết định layout: grouped cards per bottleneck with one target and "Duyệt N thẻ"
-  (video) vs per-card approve; run view as the video's step timeline + queue.
 - Đo lường / Kết quả screen (before → after, hours saved) while P6 is not built.
 
 ## Consequences
@@ -107,3 +156,6 @@ TikTok's diagnosis per row. Customers who saw the video should find the same pro
 - The ranking and the card ranking share one unit (₫/day), so a row in Phân tích and a card in
   Quyết định can be compared directly.
 - e2e specs that pin the bottom bar on desktop and the Cài đặt destination change again.
+- **New backend work for decisions 9–12:** before/after values on every write, a revert
+  run, a per-shop rule store with set-by/set-at (team vs seller), a guardrail check at the
+  day-7 reading that raises an "undo?" question, and a rules screen usable by the team.
