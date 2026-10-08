@@ -185,7 +185,6 @@ def _promotions(fetch, resources, folder: Path, sleeps: list[float]) -> None:
         folder,
         "2026-08-08",
         "2026-10-07",
-        fetch._load("shop_optimization_report"),
         sleep_s=0,
         backoff_sleep=sleeps.append,
     )
