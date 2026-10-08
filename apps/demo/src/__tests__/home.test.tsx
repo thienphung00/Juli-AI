@@ -38,7 +38,7 @@ describe("Demo Home (post Dùng thử Demo entry)", () => {
 
     expect(launchers).toHaveLength(2);
     expect(
-      screen.getByRole("link", { name: /Hành động/ }),
+      screen.getByRole("link", { name: /Quyết định/ }),
     ).toHaveAttribute("href", "/decisions");
     expect(
       screen.getByRole("link", { name: /Phân tích/ }),
@@ -99,7 +99,7 @@ describe("Demo Home (post Dùng thử Demo entry)", () => {
       ),
     ).toBe(true);
     expect(
-      screen.getByRole("link", { name: /Hành động/ }).querySelector(
+      screen.getByRole("link", { name: /Quyết định/ }).querySelector(
         ".juli-destination-icon",
       ),
     ).toBeInTheDocument();

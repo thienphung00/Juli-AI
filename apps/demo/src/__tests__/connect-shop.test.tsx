@@ -192,7 +192,7 @@ describe("ConnectShopView", () => {
     render(<ConnectShopView loadShops={loadShops} session={session} />);
 
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: "Đi tới Hành động" })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: "Đi tới Quyết định" })).toHaveAttribute(
         "href",
         "/decisions",
       );

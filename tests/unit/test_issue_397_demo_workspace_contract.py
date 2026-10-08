@@ -223,7 +223,7 @@ def test_home_responsive_focus_touch_vietnamese_and_reduced_motion_contract() ->
     assert "--juli-touch-target: 44px" in tokens_css
     assert "@media (prefers-reduced-motion: reduce)" in globals_css
     assert "Quyết định nhanh, hiểu rõ shop." in home
-    assert "Hành động" in destination_copy and "Phân tích" in fixtures
+    assert "Quyết định" in destination_copy and "Phân tích" in fixtures
 
 
 def test_workspace_import_boundaries_are_acyclic_and_app_isolated() -> None:
