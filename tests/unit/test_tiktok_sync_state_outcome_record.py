@@ -301,8 +301,9 @@ class TestTheMigrationMatchesTheModel:
         # new `versions/` revision moves it forward by one line. #1706 moved it
         # from `071_sync_state_last_outcome` to `073_waiting_external`; fast
         # track P1-B added `074_shop_ingestion_state` and P1-A
-        # `075_analytics_breakdown` on top of it.
-        assert heads == ["075_analytics_breakdown"], heads
+        # `075_analytics_breakdown` on top of it; P7-A
+        # `076_shop_diagnosis_reports`.
+        assert heads == ["076_shop_diagnosis_reports"], heads
 
     def test_every_model_column_is_added_by_the_migration(self):
         """The two lists must agree, or SQLite-backed tests pass over a schema
