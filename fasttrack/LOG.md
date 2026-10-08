@@ -323,3 +323,35 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   (nav in `lib/app-navigation.ts`, Home = overview), e2e helpers/specs.
 - Gates: see AC-8.5 evidence. Next: P8-E/P8-F build inside the shell; DEBT
   P8-D lists ngành/SKU data, double analysis fetch, dead CSS/state cleanup.
+
+## 2026-10-08 — P8 integration agent (Claude Opus) — video rankings wired; merged-head verification
+
+- fe21ec7b: the worker body (`workers/tasks/shop_diagnosis.py`) passes
+  `job.fetch_ranking_videos` as `video_metrics`; it runs P8-B's
+  `fetch_video_windows` in the fetch thread with the snapshot's own
+  rate-limited resources and pacing (one credential resolution; ≤ 2 list walks
+  + 40 details calls) and `video_windows.ranking_videos` converts the result.
+  A failing video fetch, or a ranking that fails only with videos, keeps the
+  other 13 tables. `VideoMetricsFn` is now `(resources, snapshot)`.
+- Type clash fixed: the ranking's per-video input is `rankings.VideoWindowCounts`
+  (was `VideoWindowMetrics`, `last` now optional); P8-B keeps
+  `VideoWindowMetrics` (container) of `VideoWindowRow` (per video) of
+  `WindowMetrics` (one window).
+- Merge regressions fixed: f3b5bffc mypy (P8-G `is_diagnosis_code` →
+  `TypeGuard[str]`); fc07b873 two new import-boundary deep imports in the
+  rankings route (back to the base's 56); 5fe28816 guard baselines
+  (surface_inventory `get_product_diagnoses`, TikTok facade export, test-quality
+  layer 449 → 452).
+- Verification vs base bd55f06b (tests/unit + tests/harness, no DATABASE_URL):
+  base 9 failed / 6362 passed; head 12 failed / 6433 passed before 5fe28816,
+  the 3 extra were the guard baselines above; the 9 shared are pre-existing
+  (agent_workflow_task_wiring ×7, cross_tenant_probe demo-runs-events 404,
+  destructive_migration_isolation CI-disposable). mypy clean (530 files), ruff
+  clean, credentials-in-url / cycles / ownership PASS.
+- check.sh --since bd55f06b (throwaway PG16 via initdb on a random port,
+  deleted afterwards; gitleaks run): OK — migrations up/down/up at 077, isolation
+  12 passed, gitleaks, ruff (54 files), pytest 55 files / 779 passed. A second
+  run on the same already-migrated database fails the privilege check by
+  design; use a fresh database per run.
+- Not done: merging fasttrack/p8c-undo-rules — the merge command was refused by
+  the session's permission policy; left for the owner/orchestrator.
