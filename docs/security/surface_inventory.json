@@ -113,6 +113,46 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/revert-questions",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/revert-questions/{question_id}/dismiss",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/rules",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/rules/{rule_key}",
+      "methods": [
+        "DELETE"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/rules/{rule_key}",
+      "methods": [
+        "PUT"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/demo/runs",
       "methods": [
         "GET"
@@ -129,6 +169,14 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/runs/{run_id}/changes",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/demo/runs/{run_id}/confirmations/{tool_call_id}",
       "methods": [
         "POST"
@@ -140,6 +188,14 @@
       "path": "/v1/demo/runs/{run_id}/events",
       "methods": [
         "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/runs/{run_id}/revert",
+      "methods": [
+        "POST"
       ],
       "requires_auth": true,
       "tenant_scoped": true

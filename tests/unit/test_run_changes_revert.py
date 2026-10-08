@@ -22,7 +22,7 @@ import copy
 import uuid
 from datetime import datetime
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import pytest_asyncio
@@ -94,12 +94,8 @@ class FakeProducts:
 
 
 def _resources(products: FakeProducts) -> SandboxWriteResources:
-    return SandboxWriteResources(
-        inventory=None,  # type: ignore[arg-type]
-        products=products,  # type: ignore[arg-type]
-        fulfillment=None,  # type: ignore[arg-type]
-        promotion=None,  # type: ignore[arg-type]
-    )
+    """The executor only ever touches `.products` on its resource bundles."""
+    return cast(SandboxWriteResources, SimpleNamespace(products=products))
 
 
 def _registry() -> ToolRegistry:

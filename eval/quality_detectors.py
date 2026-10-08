@@ -1268,7 +1268,11 @@ RECONCILIATION_LAYERS: dict[str, int] = {
     # that matters and the signature that nothing about this slice moved: the
     # second layer credits `pytest.raises`, so all eight drop out of it and the
     # headline is untouched at 49.
-    "no_assert_statement": 449,
+    # 449 -> 451 with fast track P8-C: two tests whose only verification is
+    # `pytest.raises` (`test_shop_rules.py::test_out_of_range_values_are_refused`
+    # and `test_run_changes_revert.py::test_another_shops_run_is_not_found`);
+    # every layer below is unchanged, so the headline stays 49.
+    "no_assert_statement": 451,
     "and_no_pytest_raises": 121,
     "and_no_mock_assert_called": 106,
     "and_no_unittest_self_assert": 106,
