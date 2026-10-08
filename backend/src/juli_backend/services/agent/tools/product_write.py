@@ -318,6 +318,10 @@ def _build_listing_edit_body(
                 "staged_image_uri in run context"
             )
         body["main_images"] = [{"uri": context.staged_image_uri}]
+    elif context.restore_main_image_uris:
+        # Fast track P8-C: a "Hoàn tác" run puts back the photos the listing
+        # had before Juli's write (server-held URIs, see ProductToolContext).
+        body["main_images"] = [{"uri": uri} for uri in context.restore_main_image_uris]
     else:
         body["main_images"] = _extract_main_image_refs(context.product_detail)
 

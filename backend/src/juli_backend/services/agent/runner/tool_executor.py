@@ -143,6 +143,15 @@ from juli_backend.services.agent.runner.ledger import (
     ToolExecutionLedger,
     ToolExecutionRequestPayload,
 )
+from juli_backend.services.agent.runner.write_capture import (
+    LISTING_OPERATION,
+    RECORDED_OPERATIONS,
+    RevertTargetChangedError,
+    WriteValueRecorder,
+    changed_fields,
+    diff_write,
+    field_values,
+)
 from juli_backend.services.agent.tools import ToolClassification, ToolRegistry, ToolSpec
 from juli_backend.services.agent.tools.domain_registry import get_tool_domain
 from juli_backend.services.agent.tools.domains import (
@@ -237,6 +246,7 @@ class DomainToolExecutor:
         self._ledger = ledger
         self._workflow_run_id = workflow_run_id
         self._concurrency_guard = concurrency_guard
+        self._current_call: tuple[str | None, BaseModel | None] = (None, None)
 
     @property
     def subject(self) -> RunSubject:
@@ -287,6 +297,10 @@ class DomainToolExecutor:
         self, *, tool_name: str, params: BaseModel, tool_call_id: str | None = None
     ) -> Mapping[str, Any]:
         spec = self._registry.get(tool_name)
+        # P8-C: the dispatch hooks below take no call arguments (their
+        # signatures predate the before/after capture), so the call they belong
+        # to is held here for the duration of this `execute`.
+        self._current_call = (tool_call_id, params)
 
         def _dispatch() -> Mapping[str, Any]:
             # Resolved inside the dispatch, not before the guard below, so a
@@ -390,6 +404,9 @@ class ProductToolExecutor(DomainToolExecutor):
         workflow_run_id: uuid.UUID | None = None,
         concurrency_guard: ConcurrencyGuard | None = None,
         subject: RunSubject | None = None,
+        write_value_recorder: WriteValueRecorder | None = None,
+        restore_main_image_uris: tuple[str, ...] | None = None,
+        revert_expected: Mapping[str, Any] | None = None,
     ) -> None:
         super().__init__(
             registry=registry,
@@ -412,6 +429,13 @@ class ProductToolExecutor(DomainToolExecutor):
         # forward so update_product_listing can derive required fields without
         # a second vendor call. Comes from RunState on the resume leg.
         self._product_detail = product_detail
+        # P8-C (ADR-109 d.9): before/after capture around every recorded WRITE,
+        # and -- on a "Hoàn tác" run only -- the image list to restore and the
+        # after-values the live listing must still hold before restoring.
+        self._write_value_recorder = write_value_recorder
+        self._restore_main_image_uris = restore_main_image_uris
+        self._revert_expected = dict(revert_expected) if revert_expected else None
+        self._before_raw: Mapping[str, Any] | None = None
 
     def _binding(self) -> ProductToolContext:
         """The `ProductToolContext` the product domain unwraps and hands to
@@ -427,7 +451,28 @@ class ProductToolExecutor(DomainToolExecutor):
             pending_image_bytes=self._pending_image_bytes,
             image_inspector=self._image_inspector,
             product_detail=self._product_detail,
+            restore_main_image_uris=self._restore_main_image_uris,
         )
+
+    def _captures_write(self, *, tool_name: str, spec: ToolSpec) -> bool:
+        return (
+            spec.classification is ToolClassification.WRITE
+            and tool_name in RECORDED_OPERATIONS
+            and self._write_resources is not None
+            and (self._write_value_recorder is not None or self._revert_expected is not None)
+        )
+
+    def _intended_values(self, tool_name: str) -> dict[str, Any]:
+        """The values this call sends, for the after-value fallback (write_capture)."""
+        _call_id, params = self._current_call
+        if tool_name != LISTING_OPERATION or not isinstance(params, UpdateProductListingInput):
+            return {}
+        intended: dict[str, Any] = {"title": params.title, "description": params.description}
+        if params.attach_staged_image and self._staged_image_uri:
+            intended["main_images"] = [self._staged_image_uri]
+        elif self._restore_main_image_uris:
+            intended["main_images"] = list(self._restore_main_image_uris)
+        return intended
 
     def _is_scoped_write(self, *, tool_name: str, spec: ToolSpec) -> bool:
         return (
@@ -448,11 +493,28 @@ class ProductToolExecutor(DomainToolExecutor):
         (mirroring `ToolExecutionUnrecoverableError`'s propagation) —
         `WorkflowRunner` (`core.py`) is what catches it and translates it
         into a terminal `stop_reason=concurrency_conflict` run (#1172)."""
+        raw: Mapping[str, Any] | None = None
+        self._before_raw = None
+        if self._captures_write(tool_name=tool_name, spec=spec):
+            assert self._write_resources is not None  # narrowed by _captures_write
+            # P8-C: the "before" read, immediately before the write.
+            raw = self._write_resources.products.get_details(self._product_id)
+            self._before_raw = raw
+            if self._revert_expected is not None:
+                # S-FR-8: a revert restores only what still holds Juli's write.
+                changed = changed_fields(
+                    tool_name,
+                    live=field_values(tool_name, raw),
+                    expected=self._revert_expected,
+                )
+                if changed:
+                    raise RevertTargetChangedError(operation=tool_name, fields=changed)
         if not self._is_scoped_write(tool_name=tool_name, spec=spec):
             return None
         assert self._write_resources is not None  # narrowed by _is_scoped_write
         assert self._concurrency_guard is not None
-        raw = self._write_resources.products.get_details(self._product_id)
+        if raw is None:
+            raw = self._write_resources.products.get_details(self._product_id)
         check = self._concurrency_guard.check_before_write(
             operation=tool_name, current_fields=extract_mutable_fields(raw)
         )
@@ -480,6 +542,27 @@ class ProductToolExecutor(DomainToolExecutor):
         self._concurrency_guard.set_product_detail(raw)
 
     def _after_dispatch(self, *, tool_name: str, spec: ToolSpec) -> None:
+        raw: Mapping[str, Any] | None = None
+        before = self._before_raw
+        self._before_raw = None
+        if before is not None and self._write_value_recorder is not None:
+            assert self._write_resources is not None
+            # P8-C: the "after" read, and the per-field diff against "before".
+            raw = self._write_resources.products.get_details(self._product_id)
+            writes = diff_write(
+                tool_name,
+                before=field_values(tool_name, before),
+                after=field_values(tool_name, raw),
+                intended=self._intended_values(tool_name),
+            )
+            call_id, _params = self._current_call
+            if writes and call_id is not None:
+                self._write_value_recorder.record(
+                    tool_name=tool_name,
+                    tool_call_id=call_id,
+                    tiktok_product_id=self._product_id,
+                    writes=writes,
+                )
         if not self._is_scoped_write(tool_name=tool_name, spec=spec):
             return
         assert self._write_resources is not None
@@ -487,7 +570,8 @@ class ProductToolExecutor(DomainToolExecutor):
         # Post-write basis refresh (concurrency.py's module docstring):
         # this run's own successful write must not be mistaken for a
         # competing edit on a later same-operation call.
-        raw = self._write_resources.products.get_details(self._product_id)
+        if raw is None:
+            raw = self._write_resources.products.get_details(self._product_id)
         self._concurrency_guard.record_basis(extract_mutable_fields(raw))
 
     def _build_request_payload(

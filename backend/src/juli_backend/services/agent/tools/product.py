@@ -140,6 +140,11 @@ class ProductToolContext:
     # inspector configured", which the handler reports as `inspected=False`
     # rather than raising.
     image_inspector: Any | None = None
+    # `restore_main_image_uris` -- fast track P8-C: set only on a "Hoàn tác"
+    # run whose original write changed the listing's photos. The image URIs
+    # the listing had before Juli's write, server-held (never LLM-supplied),
+    # which `update_product_listing` sends back as `main_images`.
+    restore_main_image_uris: tuple[str, ...] | None = None
 
 
 # --- sanitize helpers, shared by the READ handlers below (ADR-070) -----------
