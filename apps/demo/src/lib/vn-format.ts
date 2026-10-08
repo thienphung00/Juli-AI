@@ -70,3 +70,52 @@ export function shortDate(iso: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
   return match ? `${match[3]}/${match[2]}` : iso;
 }
+
+/**
+ * Short money for KPI cards and matrix cells, as the sales demo video prints
+ * it: `1,14 tỷ ₫`, `9,7 tr ₫`, `240k ₫`.
+ */
+export function compactMoney(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return DASH;
+  const abs = Math.abs(value);
+  if (abs >= 1e9) return `${grouped(value / 1e9, 2)} tỷ ₫`;
+  if (abs >= 1e6) return `${grouped(value / 1e6, 1)} tr ₫`;
+  if (abs >= 1e3) return `${grouped(Math.round(value / 1e3), 0)}k ₫`;
+  return money(value);
+}
+
+const VN_TIME_ZONE = "Asia/Ho_Chi_Minh";
+
+/** An ISO timestamp → `HH:MM` in Vietnam time; `null` when it does not parse. */
+export function vnClock(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const time = Date.parse(iso);
+  if (!Number.isFinite(time)) return null;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZone: VN_TIME_ZONE,
+  }).formatToParts(new Date(time));
+  const hour = parts.find((p) => p.type === "hour")?.value ?? "00";
+  const minute = parts.find((p) => p.type === "minute")?.value ?? "00";
+  return `${hour}:${minute}`;
+}
+
+const VN_WEEKDAYS = ["Chủ nhật", "Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy"];
+
+/** An ISO timestamp → `Thứ tư, 07/10` in Vietnam time; `null` when it does not parse. */
+export function vnWeekdayDate(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const time = Date.parse(iso);
+  if (!Number.isFinite(time)) return null;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: VN_TIME_ZONE,
+  }).formatToParts(new Date(time));
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  const weekday = new Date(Date.UTC(Number(get("year")), Number(get("month")) - 1, Number(get("day")))).getUTCDay();
+  return `${VN_WEEKDAYS[weekday]}, ${get("day")}/${get("month")}`;
+}
