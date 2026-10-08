@@ -194,8 +194,8 @@ async def load_product_days(
     out: dict[str, list[ProductDay]] = defaultdict(list)
     for key in set(product_rows) | set(sku_orders):
         product_id, day = key
-        row = product_rows.get(key)
-        if row is None:
+        product_row = product_rows.get(key)
+        if product_row is None:
             out[product_id].append(
                 ProductDay(
                     day=day,
@@ -205,21 +205,21 @@ async def load_product_days(
                 )
             )
             continue
-        if row.sku_orders is not None:
-            orders = _dec(row.sku_orders)
+        if product_row.sku_orders is not None:
+            orders = _dec(product_row.sku_orders)
         elif key in sku_orders:
             orders = sku_orders[key]
         else:
-            orders = _dec(row.orders_count)
-        add_cart, cart_clicks = _a34_cart(row)
+            orders = _dec(product_row.orders_count)
+        add_cart, cart_clicks = _a34_cart(product_row)
         out[product_id].append(
             ProductDay(
                 day=day,
-                impressions=_dec(row.impressions),
-                clicks=_dec(row.clicks),
+                impressions=_dec(product_row.impressions),
+                clicks=_dec(product_row.clicks),
                 sku_orders=orders,
-                items_sold=_dec(row.items_sold),
-                gmv=_dec(row.gmv),
+                items_sold=_dec(product_row.items_sold),
+                gmv=_dec(product_row.gmv),
                 add_to_cart=add_cart,
                 cart_clicks=cart_clicks,
             )

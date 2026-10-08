@@ -27,6 +27,7 @@ import time
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -141,8 +142,10 @@ def fetch_daily(
         if not path.exists():
             start, stop = day.isoformat(), (day + timedelta(days=1)).isoformat()
             products = with_backoff(
-                lambda start=start, stop=stop: resources.analytics.list_product_performance_all(
-                    start_date_ge=start, end_date_lt=stop
+                partial(
+                    resources.analytics.list_product_performance_all,
+                    start_date_ge=start,
+                    end_date_lt=stop,
                 ),
                 backoff_sleep,
             )
@@ -173,9 +176,7 @@ def fetch_orders(
             lo, hi = window_seconds(start.isoformat(), nxt.isoformat())
             with pagination_scope() as scope:
                 batch = with_backoff(
-                    lambda lo=lo, hi=hi: resources.orders.search_all(
-                        create_time_from=lo, create_time_to=hi
-                    ),
+                    partial(resources.orders.search_all, create_time_from=lo, create_time_to=hi),
                     backoff_sleep,
                 )
             for order in batch:
@@ -210,7 +211,7 @@ def _fetch_activities(
     for status in ACTIVITY_STATUSES:
         try:
             found = with_backoff(
-                lambda status=status: resources.promotion.search_activities_all(status=status),
+                partial(resources.promotion.search_activities_all, status=status),
                 backoff_sleep,
             )
             for activity in found:
@@ -242,7 +243,7 @@ def _fetch_details(
             continue
         try:
             details[activity_id] = with_backoff(
-                lambda activity_id=activity_id: resources.promotion.get_activity(activity_id),
+                partial(resources.promotion.get_activity, activity_id),
                 backoff_sleep,
             )
         except Exception as exc:
@@ -311,9 +312,7 @@ def fetch_live(
                 _write(
                     target / "products" / f"{live_id}.json",
                     with_backoff(
-                        lambda live_id=live_id: resources.analytics.get_live_products_performance(
-                            live_id=live_id
-                        ),
+                        partial(resources.analytics.get_live_products_performance, live_id=live_id),
                         backoff_sleep,
                     ),
                 )
@@ -347,10 +346,11 @@ def fetch_videos(
                 _write(
                     target / "products" / f"{video_id}.json",
                     with_backoff(
-                        lambda video_id=video_id: (
-                            resources.analytics.get_video_products_performance(
-                                video_id=video_id, start_date_ge=first, end_date_lt=end_lt
-                            )
+                        partial(
+                            resources.analytics.get_video_products_performance,
+                            video_id=video_id,
+                            start_date_ge=first,
+                            end_date_lt=end_lt,
                         ),
                         backoff_sleep,
                     ),
@@ -390,7 +390,7 @@ def fetch_product_details(
         try:
             _write(
                 path,
-                with_backoff(lambda pid=pid: resources.products.get_details(pid), backoff_sleep),
+                with_backoff(partial(resources.products.get_details, pid), backoff_sleep),
             )
         except Exception as exc:
             _write(folder / "products" / "_error.json", {"product": pid, **error_payload(exc)})
@@ -411,7 +411,7 @@ def fetch_snapshot(
     """Fill ``folder`` with the 60-day snapshot ending ``end``; returns the meta record."""
     first = end - timedelta(days=DAYS - 1)
     end_lt = (end + timedelta(days=1)).isoformat()
-    timing = {"sleep_s": sleep_s, "backoff_sleep": backoff_sleep}
+    timing: dict[str, Any] = {"sleep_s": sleep_s, "backoff_sleep": backoff_sleep}
     new_days = fetch_daily(resources, folder, first, end, **timing)
     orders_record = fetch_orders(resources, folder, first.isoformat(), end_lt, **timing)
     fetch_promotions(resources, folder, first.isoformat(), end_lt, **timing)

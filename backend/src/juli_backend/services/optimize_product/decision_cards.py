@@ -252,6 +252,7 @@ def recoverable_gmv_per_day(
     if delta <= 0:
         return None, None
     aov = last30.aov
+    value: Decimal | None
     if factor == "aov":
         volume = last30.per_day(last30.sku_orders)
         value = delta * volume
