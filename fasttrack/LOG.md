@@ -231,3 +231,28 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   certificate error: the NEXT_PUBLIC_SUPABASE_URL repo secret holds the
   Postgres host, not the project API URL (https://<ref>.supabase.co). Owner
   fixes the secret; the demo build now fails on a db.* host.
+
+## 2026-10-08 — P8-C agent (Claude Opus) — before/after + Hoàn tác, rule store, day-7 guardrail
+
+- Branch `fasttrack/p8c-undo-rules`, cd626005..HEAD. Migration
+  `078_rules_and_write_values` onto 076 (P8-A's 077 is parallel — re-chain at
+  integration); deferred phone cleanup re-parented onto 078 (tests updated).
+- Every recorded agent WRITE (`update_product_listing`, `update_product_price`)
+  stores per field the value read just before and just after (sent value when
+  TikTok still shows the old one) in `run_write_values`.
+- Hoàn tác: `POST /v1/demo/runs/{id}/revert` creates a normal `workflow_runs`
+  row (`reverts_run_id`) run by the same `WorkflowRunner` with a revert playbook
+  (read → CONFIRM restore → status) and a deterministic planner instead of the
+  LLM — SSE events, confirmation endpoint, ledger unchanged. Refuses in
+  Vietnamese (409) on external change (also re-checked at the write →
+  `concurrency_conflict`), unfinished run, nothing written, price, revert-of-revert,
+  already reverted.
+- Rules: `shop_rules` + `/v1/demo/rules`; max_open_cards drives Optimize
+  Product's surfacing cap, auto_levers decides executable/approvable cards
+  (promotion levers never). set_by from request (no team role exists → DEBT).
+- Day-7: the impact reader's preliminary pass raises a `run_revert_questions`
+  row when a non-target band metric exceeds the seller's ±%; never reverts.
+- Guard baselines regenerated (module drift allowlist, surface inventory,
+  test-quality layer 449→451). check.sh OK; full unit+harness only pre-existing
+  / node_modules failures. See DEBT "P8-C".
+- Next: P8-F reads `/changes`, `/revert`, `/revert-questions`, `/rules`.

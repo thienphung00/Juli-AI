@@ -154,7 +154,27 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
 
 - [ ] **AC-8.1 (P8-A)** Daily per-shop job computes ADR-109 d.5 rankings for every stream × clickable metric (products: Thẻ sản phẩm, Tab Cửa hàng × Hiển thị/CTR/CTOR/AOV; LIVE sessions × Hiển thị/CTR/CTOR; videos when P8-B data exists) — GMV/day per row by log-share (sequential at zero), content rows vs the stream's prior-window rate, confidence labels (1,000-impression floor), top-10 + closing rows (ít đơn / khác / cơ cấu) that reconcile to the stream factor. Stored in the DB (tenant-isolated); no report rendering. A read function + `GET /v1/demo/analysis/rankings` returns them on demand. Tests: reconciliation, zero sides, two-tenant.
 - [ ] **AC-8.2 (P8-B)** Verified (from the Partner API spec / a read-only live call by the owner) whether the shop video performance endpoints accept a date range; per-video metrics for the last-30 and prior-30 windows are fetched (date-ranged, or videos posted inside each window as fallback) and exposed to the ranking job. Read-only, rate-limited.
-- [ ] **AC-8.3 (P8-C)** Every write by an agent tool records the field's before and after values on the run; a "Hoàn tác" run restores them with the same CONFIRM consent, refuses when the field changed externally after Juli's write; per-shop rule store (ADR-109 d.12 table) with set_by (team/seller) + set_at, API to read/write; day-7 guardrail check raises a "Hoàn tác?" question when a seller-set band is exceeded (never auto-reverts). Tests incl. two-tenant.
+- [x] **AC-8.3 (P8-C)** Every write by an agent tool records the field's before and after values on the run; a "Hoàn tác" run restores them with the same CONFIRM consent, refuses when the field changed externally after Juli's write; per-shop rule store (ADR-109 d.12 table) with set_by (team/seller) + set_at, API to read/write; day-7 guardrail check raises a "Hoàn tác?" question when a seller-set band is exceeded (never auto-reverts). Tests incl. two-tenant.
+  Evidence: cd626005..bdcaea66 (P8-C). Migration `078_rules_and_write_values`
+  (run_write_values, shop_rules, run_revert_questions, workflow_runs.reverts_run_id;
+  RLS per verb, tenant_direct). Capture: `ProductToolExecutor` + `write_capture.py`
+  + `SqlWriteValueRecorder`; revert: `services/run_changes` (refusals in Vietnamese,
+  revert playbook + deterministic planner on the ordinary runner/SSE/CONFIRM),
+  `POST /v1/demo/runs/{id}/revert`, `GET /v1/demo/runs/{id}/changes`,
+  `/v1/demo/revert-questions`; rules: `services/shop_rules`, `GET/PUT/DELETE
+  /v1/demo/rules`, cap in `apply_emission_budget`, levers in decisions list +
+  approve; guardrail: `workers/impact_reader/pipeline._day7_guardrail`. Tests:
+  `tests/unit/test_run_changes_revert.py` (capture, revert happy path with CONFIRM,
+  refusal on external change at API and at write, decline, refusals, routes,
+  migration), `tests/unit/test_shop_rules.py` (CRUD + set_by, validation, CSV,
+  isolation, routes), `test_optimize_product_decision_cards.py` (cap from rule,
+  lever not executable/approvable), `test_worker_impact_reader_pipeline.py`
+  (question only above band; none without band / for a revert),
+  `tests/integration/test_run_changes_two_tenant.py` (juli_app, RLS). check.sh
+  `--since bd55f06b` on throwaway PG16: migrations up/down/up PASS (head 078),
+  isolation 12 passed, gitleaks PASS, ruff PASS, pytest 211 passed (incl. the PG
+  two-tenant module). Full unit+harness: 6360 passed; 29 failed = node_modules-less
+  TS contract tests + 2 pre-existing (cross_tenant_probe, destructive_migration CI config).
 - [ ] **AC-8.4 (P8-G)** Read tool `get_product_diagnoses` added to the Optimize Product playbook as the first step, emitting `tool.started`/`tool.completed` with a Vietnamese summary; read-only; tests.
 - [ ] **AC-8.5 (P8-D)** App shell per ADR-109 d.1/d.7: left rail (Trang chủ / Quyết định / Phân tích / Juli locked), bottom bar < 768px, shop header with avatar menu holding Cài đặt, "Juli đang chạy · cập nhật HH:MM"; Home 5-stream matrix + GMV/Đơn/AOV cards (from the ADR-108 report). lint/type-check/vitest/e2e green.
 - [ ] **AC-8.6 (P8-E)** Phân tích per ADR-109 d.2–5. **AC-8.7 (P8-F)** Quyết định per d.6, 8–13 (SSE-driven timeline).
