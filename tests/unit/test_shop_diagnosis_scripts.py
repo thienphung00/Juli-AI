@@ -295,3 +295,33 @@ def test_build_asks_the_ranking_and_defaults_to_sixty_days(tmp_path: Path) -> No
     assert len(prompts) == 1 and "60 ngày" in prompts[0]
     assert json.loads((out / "report.json").read_text())["ranking"] == "60d"
     assert build.ask_ranking(lambda _: "2") == "30d"
+
+
+def test_video_windows_mode_writes_windows_json_from_the_snapshot_on_disk(
+    tmp_path: Path, fetch, capsys
+) -> None:
+    folder = tmp_path / "snap"
+    end = date(2026, 10, 6)
+    day = folder / "daily" / f"a34_{end.isoformat()}.json"
+    day.parent.mkdir(parents=True)
+    day.write_text(json.dumps({"day": end.isoformat(), "products": []}))
+
+    class Analytics:
+        def list_video_performance_all(self, **_k: str) -> list[dict]:
+            return [{"id": "v1", "title": "t", "gmv": {"amount": "5"}, "sku_orders": 1}]
+
+        def get_video_performance(self, **_k: str) -> dict:
+            interval = {
+                "start_date": end.isoformat(),
+                "sales": {"overall": {"product_impressions": 10, "product_clicks": 2}},
+            }
+            return {"performance": {"intervals": [interval]}}
+
+    resources = type("R", (), {"analytics": Analytics()})()
+
+    assert fetch.video_windows(resources, folder, end, sleep_s=0) == 0
+
+    written = json.loads((folder / "videos" / "windows.json").read_text())
+    assert written["basis"] == "date_range"
+    assert written["videos"][0]["last"]["product_impressions"] == 10
+    assert "basis=date_range" in capsys.readouterr().out

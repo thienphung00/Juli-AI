@@ -12,6 +12,8 @@ pass through the agent (runbook step 1)::
     # needs DATABASE_URL, TIKTOK_APP_KEY, TIKTOK_APP_SECRET
     python scripts/shop_diagnosis_fetch.py --shop fujiwa            # ends yesterday (UTC+7)
     python scripts/shop_diagnosis_fetch.py --shop fujiwa --end 2026-10-06
+    # per-video last-30 / prior-30 metrics on that snapshot (P8-B), nothing else
+    python scripts/shop_diagnosis_fetch.py --shop fujiwa --end 2026-10-06 --video-windows
 
 Writes the snapshot layout documented in
 ``juli_backend.services.shop_diagnosis.snapshot`` to
@@ -29,6 +31,7 @@ import argparse
 import asyncio
 import importlib
 import importlib.util
+import json
 import re
 import sys
 from datetime import date
@@ -42,6 +45,8 @@ if _BACKEND_SRC not in sys.path:
 
 # Loaded after the path insert above (the script also runs without PYTHONPATH).
 _fetch = importlib.import_module("juli_backend.services.shop_diagnosis_daily.fetch")
+_video_windows = importlib.import_module("juli_backend.services.shop_diagnosis_daily.video_windows")
+_snapshot = importlib.import_module("juli_backend.services.shop_diagnosis.snapshot")
 BACKOFF_SECONDS = _fetch.BACKOFF_SECONDS
 DAYS = _fetch.DAYS
 MAX_PRODUCT_DETAILS = _fetch.MAX_PRODUCT_DETAILS
@@ -96,6 +101,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument("--sleep", type=float, default=0.4, help="seconds between calls")
     parser.add_argument("--max-products", type=int, default=MAX_PRODUCT_DETAILS)
+    parser.add_argument(
+        "--video-windows",
+        action="store_true",
+        help="only fetch per-video last-30/prior-30 metrics for the snapshot already on "
+        "disk; writes videos/windows.json",
+    )
     return parser.parse_args(argv)
 
 
@@ -105,10 +116,35 @@ def main(argv: list[str] | None = None) -> int:
     folder = args.out or SNAPSHOT_ROOT / slug(args.shop) / end.isoformat()
     scan = _load("optimize_product_catalog_scan")
     resources = asyncio.run(scan._build_resources())
+    if args.video_windows:
+        return video_windows(resources, folder, end, sleep_s=args.sleep)
     meta = fetch_snapshot(
         resources, folder, end, args.shop, sleep_s=args.sleep, max_products=args.max_products
     )
     print(f"snapshot {folder}: {meta['new_daily_files']} new daily files")
+    return 0
+
+
+def video_windows(resources, folder: Path, end: date, *, sleep_s: float) -> int:
+    """Per-video 30/30 metrics on the snapshot in ``folder``; prints what the owner checks."""
+    snapshot = _snapshot.load_snapshot(folder, end)
+    result = _video_windows.fetch_video_windows(resources, snapshot, sleep_s=sleep_s)
+    out = folder / "videos" / "windows.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(result.to_dict(), ensure_ascii=False, indent=1), encoding="utf-8")
+    print(
+        f"basis={result.basis} calls={result.calls} videos={len(result.videos)} "
+        f"failed={len(result.failed_video_ids)} fallback={result.fallback_reason}"
+    )
+    for row in result.videos[:5]:
+        for side in ("last", "prior"):
+            m = getattr(row, side)
+            if m is not None:
+                print(
+                    f"  {row.video_id} {side}: impressions={m.product_impressions} "
+                    f"clicks={m.product_clicks} sku_orders={m.sku_orders} gmv={m.gmv:.0f}"
+                )
+    print(f"wrote {out}")
     return 0
 
 

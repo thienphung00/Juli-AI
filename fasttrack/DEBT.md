@@ -153,3 +153,33 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] New API symbols `DemoMetricRankingResponse` / `get_demo_metric_ranking`
   added to `check_module_drift.py`'s allowlist (as P7 did for
   `get_demo_analysis`) instead of documenting them in a backend/api MODULE.md.
+
+## P8-B per-video 30/30 (2026-10-08)
+
+- [ ] Date-range answer is from the spec only — no live call from the agent —
+  owner runs `python scripts/shop_diagnosis_fetch.py --shop fujiwa --end 2026-10-06 --video-windows`
+  and checks `basis=date_range` and plausible per-window impressions.
+- [ ] `fetch_video_windows` is not called by `job.py` yet — P8-A owns the ranking
+  job — orchestrator wires it after `fetch_snapshot` (same resources, same
+  `load_snapshot`), passes the result to the ranking.
+- [ ] Whole run falls back to `posted_in_window` when the FIRST details call
+  fails (assumed to mean scope/endpoint refused); a single bad first video
+  therefore degrades the day — heuristic — fall back only on scope/permission
+  error codes once the live error shape is known.
+- [ ] Fallback prior-window rows use 60-day snapshot totals (include days after
+  the window) and impressions only where the snapshot's video-product file has
+  the undocumented `product_impressions` — approximation, flagged by `basis` —
+  drop the fallback once the live check confirms the date-ranged path.
+- [ ] SKU orders per window come from the list only (details has none); a video
+  missing from a window's list counts 0 even if the list hit its page cap —
+  spec gap — record `hit_page_cap` like `fetch_orders` does.
+- [ ] `video_post_time` is parsed as naive shop-local time (spec says ISO 8601,
+  no zone; Fujiwa shows "2025-10-28 13:28:37") — unverified — confirm in the
+  live output.
+- [ ] Details calls are keyed per video path in the poll's Redis window, so the
+  shared gate never slows them; pacing is `sleep_s` (0.4 s) — same as the
+  existing per-video product calls — key a shared bucket per endpoint family if
+  TikTok throttles.
+- [ ] ADR-109 Consequences says the video list carries totals "since posting";
+  the spec says the list is date-ranged — doc — correct the ADR line when the
+  live check confirms.

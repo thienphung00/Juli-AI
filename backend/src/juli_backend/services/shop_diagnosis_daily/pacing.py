@@ -34,6 +34,7 @@ from juli_backend.integrations.tiktok import (
     PROMOTION_COUPONS_SEARCH_PATH,
     RateLimiter,
     analytics_shop_live_products_performance_path,
+    analytics_shop_video_performance_path,
     analytics_shop_video_products_performance_path,
     product_detail_path,
     promotion_activity_path,
@@ -76,6 +77,9 @@ ENDPOINTS: dict[tuple[str, str], Callable[[tuple[Any, ...], dict[str, Any]], str
     ),
     ("analytics", "get_video_products_performance"): lambda a, k: (
         analytics_shop_video_products_performance_path(_first_arg(a, k, "video_id"))
+    ),
+    ("analytics", "get_video_performance"): lambda a, k: analytics_shop_video_performance_path(
+        _first_arg(a, k, "video_id")
     ),
     ("orders", "search_all"): lambda _a, _k: ORDER_SEARCH_PATH,
     ("promotion", "search_activities_all"): lambda _a, _k: PROMOTION_ACTIVITIES_SEARCH_PATH,

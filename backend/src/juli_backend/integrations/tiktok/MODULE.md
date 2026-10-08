@@ -58,7 +58,9 @@ Matches ``__all__`` — re-exports only:
   ``SEARCH_MAX_PAGE_SIZE``; shop LIVE and video product performance:
   ``ANALYTICS_LIVE_PRODUCTS_API_VERSION``, ``ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH``,
   ``analytics_shop_live_products_performance_path``,
-  ``analytics_shop_video_products_performance_path``
+  ``analytics_shop_video_products_performance_path``; one video's per-day
+  performance (product impressions / clicks, fast track P8-B):
+  ``analytics_shop_video_performance_path``
 - **Client factories** — ``ClientFactoryConfig``, ``ProductionReadClientFactory``,
   ``ProductionReadResources``, ``SandboxWriteClientFactory``, ``SandboxWriteResources``.
   Since #1995 ``ProductionReadClientFactory.create`` admits **any** merchant auth id

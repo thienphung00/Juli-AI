@@ -29,6 +29,7 @@ from juli_backend.integrations.tiktok.constants import (
     analytics_shop_performance_per_hour_path,
     analytics_shop_product_performance_path,
     analytics_shop_sku_performance_path,
+    analytics_shop_video_performance_path,
     analytics_shop_video_products_performance_path,
 )
 from juli_backend.integrations.tiktok.resources import strip_nones
@@ -300,6 +301,27 @@ class AnalyticsResource:
         return self._client.get(
             analytics_shop_video_products_performance_path(video_id), params=params
         )
+
+    def get_video_performance(
+        self,
+        *,
+        video_id: str,
+        start_date_ge: str,
+        end_date_lt: str,
+        granularity: str = "1D",
+    ) -> dict[str, Any]:
+        """Get Shop Video Performance Details: one video's sales and traffic per interval.
+
+        ``granularity="1D"`` returns one interval per day (``start_date``/``end_date``),
+        each with product impressions, product clicks, GMV and views.
+        """
+        params = {
+            "version": ANALYTICS_API_VERSION,
+            "start_date_ge": start_date_ge,
+            "end_date_lt": end_date_lt,
+            "granularity": granularity,
+        }
+        return self._client.get(analytics_shop_video_performance_path(video_id), params=params)
 
     def get_live_products_performance(self, *, live_id: str) -> dict[str, Any]:
         """Get Shop LIVE Products Performance List: per-product traffic and sales of one session."""
