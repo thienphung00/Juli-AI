@@ -6,13 +6,14 @@ prompt composer's `{playbook}` slot. Because all three read this one
 artifact, the text the model sees and the allowlist the executor enforces
 cannot disagree.
 
-Covers all six Optimize Product capabilities registered by W1-A
+Covers all seven Optimize Product capabilities registered by W1-A and P8-G
 (`register_product_read_tools`, `register_product_write_tools`), in
 ADR-069 decision 1's documented order, with its policy column reproduced
 exactly:
 
 | Step   | Tool                      | Class / policy                |
 |--------|---------------------------|--------------------------------|
+| 0      | get_product_diagnoses     | READ / AUTO (AC-8.4)           |
 | 1      | get_product_information   | READ / AUTO                    |
 | 2+3    | get_seo_keywords          | READ / AUTO (bundled)          |
 | 4, 4.5 | inspect_product_image     | READ / AUTO (#1208)            |
@@ -77,6 +78,15 @@ OPTIMIZE_PRODUCT_PLAYBOOK = Playbook(
     workflow_key=WORKFLOW_KEY,
     version=1,
     steps=(
+        PlaybookStep(
+            step_id="0",
+            intent=(
+                "Read TikTok's diagnosis codes for this listing first. Change no field "
+                "TikTok did not flag unless the action card's lever says to."
+            ),
+            tools=("get_product_diagnoses",),
+            policy=ToolPolicy.AUTO,
+        ),
         PlaybookStep(
             step_id="1",
             intent=(

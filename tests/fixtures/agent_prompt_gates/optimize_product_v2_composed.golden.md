@@ -121,6 +121,7 @@ step is not part of this run.
 
 | Step | Intent | Tools | Policy |
 |------|--------|-------|--------|
+| 0 | Read TikTok's diagnosis codes for this listing first. Change no field TikTok did not flag unless the action card's lever says to. | `get_product_diagnoses` | AUTO |
 | 1 | Read the product's current listing -- title, description, price, and images -- so every recommendation is grounded in what the seller already has, not invented. | `get_product_information` | AUTO |
 | 2+3 | Gather SEO keyword ideas and suggested title/description phrasing to inform the improved listing copy. | `get_seo_keywords` | AUTO |
 | 4, 4.5 | Check whether the product's main photo actually matches its title and description, and note any image changes worth making -- looking only, nothing is changed. | `inspect_product_image` | AUTO |

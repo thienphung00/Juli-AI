@@ -231,3 +231,19 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   certificate error: the NEXT_PUBLIC_SUPABASE_URL repo secret holds the
   Postgres host, not the project API URL (https://<ref>.supabase.co). Owner
   fixes the secret; the demo build now fails on a db.* host.
+
+## 2026-10-08 — P8-G agent (Claude Opus) — get_product_diagnoses read tool (AC-8.4)
+
+- Added READ/AUTO tool `get_product_diagnoses` (tools/product.py, labels in
+  tools/diagnosis_labels.py) and made it playbook step "0", before
+  `get_product_information`, with guidance: read TikTok's codes first, change no
+  unflagged field unless the card's lever says so.
+- `tool.completed.summary` is now per-tool via `tool_completed_summary`
+  (runner/seller_facing_copy.py): `Có mã: "Tiêu đề quá ngắn"` / `Không có mã chẩn đoán`;
+  every other tool still says `Hoàn tất`. SSE envelope and event types untouched.
+- Updated pinned tests: step list, registry/handler sets, descriptions, wall-clock
+  bound (105 -> 115s tools, 445s total), composed-prompt goldens, budget record
+  (2992/3000), golden scenario sha, dictionary.md rationale, MODULE.md.
+- Known env failures unchanged: agent_events_contract (node_modules missing),
+  agent_workflow_task_wiring x7 (pre-existing).
+- Next: owner reads one live product's codes to confirm labels (DEBT).

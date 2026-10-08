@@ -124,3 +124,21 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [x] ~~e2e: static-asset-render ×3 and accessibility "Analytics chart…" failed after the D21 restyle~~ — repaid: specs follow D21 (flat kit background, gradient wordmark, KPI dashboard at `/analytics/gmv-tiktok`); 18/18 pass on both projects.
 - [ ] vitest needs Node 20 locally: under Node 26 jsdom's `localStorage` is
   shadowed (270 failures on untouched main) — env — pin `.nvmrc` to 20.
+
+## P8-G get_product_diagnoses (2026-10-08)
+
+- [ ] A TikTok API error in `get_product_diagnoses` fails the run like every other
+  READ tool (propagates; no "diagnoses unavailable" fallback) — spec said follow
+  the existing pattern — consider degrading to a model-visible "unavailable" result
+  since diagnoses are advisory.
+- [ ] Label table covers only the codes in `listing_signals.py` plus prefix fallbacks
+  (TITLE_/DESC_/MAIN_IMG_/PRICE); no price-diagnosis code is confirmed in the corpus,
+  so "Giá kém cạnh tranh" is only the example wording — add exact labels once a
+  live read shows the codes.
+- [ ] Prompt budget headroom is 8 tokens (v3 composed = 2992 of 3000); frozen v1/v2
+  composed prompts now exceed 3000 (not gated, production pins v3) — any further
+  playbook text needs a v4 prompt or a trimmed table.
+- [ ] Guidance lives in the step intent (the playbook table), not in v3.md, because
+  released prompt prose is immutable (ADR-072 d.4).
+- [ ] Not run live against TikTok (no credentials in this task); response shape
+  (`products[].diagnoses[].diagnosis_results[]`) taken from `parse_tiktok_diagnoses`.

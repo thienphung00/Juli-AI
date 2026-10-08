@@ -30,6 +30,7 @@ from juli_backend.services.execution.tool_routing import WORKFLOW_TOOL_CATALOG
 # exactly here as this test's own independent pin (not read back off the
 # playbook under test).
 EXPECTED_STEP_ORDER: tuple[tuple[str, str, ToolPolicy], ...] = (
+    ("0", "get_product_diagnoses", ToolPolicy.AUTO),  # AC-8.4 (P8-G)
     ("1", "get_product_information", ToolPolicy.AUTO),
     ("2+3", "get_seo_keywords", ToolPolicy.AUTO),
     ("4, 4.5", "inspect_product_image", ToolPolicy.AUTO),
@@ -74,7 +75,7 @@ class TestPlaybookShape:
         assert OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key == WORKFLOW_KEY == "optimize_product_2"
         assert OPTIMIZE_PRODUCT_PLAYBOOK.version == 1
 
-    def test_six_steps_in_adr069_order_with_exact_policy_column(self):
+    def test_seven_steps_in_adr069_order_with_exact_policy_column(self):
         actual = tuple(
             (step.step_id, step.tools, step.policy) for step in OPTIMIZE_PRODUCT_PLAYBOOK.steps
         )
@@ -83,12 +84,13 @@ class TestPlaybookShape:
         )
         assert actual == expected
 
-    def test_covers_all_six_registered_capabilities_exactly_once(self):
+    def test_covers_all_seven_registered_capabilities_exactly_once(self):
         all_tool_names = [
             tool_name for step in OPTIMIZE_PRODUCT_PLAYBOOK.steps for tool_name in step.tools
         ]
         assert sorted(all_tool_names) == sorted(
             [
+                "get_product_diagnoses",
                 "get_product_information",
                 "get_seo_keywords",
                 "check_product_status",

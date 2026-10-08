@@ -171,6 +171,7 @@ class TestDefaultSeamsComposeRealCollaborators:
         assert isinstance(registry, ToolRegistry)
         names = {spec.name for spec in registry.list_all()}
         assert names == {
+            "get_product_diagnoses",  # AC-8.4 (P8-G)
             "get_product_information",
             "get_seo_keywords",
             "check_product_status",
