@@ -63,3 +63,34 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   installed) — the deploy runs it.
 - [ ] The timeout (`SHOP_DIAGNOSIS_BUDGET_SECONDS`, default 1800 s) cancels the
   await but cannot stop the fetch thread mid-call.
+
+## P7-B shortcuts and open risks
+
+- [ ] Add-to-cart rate exists only for days fetched as single-day windows (A-34
+  `add_cart_count` kept under `traffic_breakdown["A34_TOTAL"]`); the 30-day
+  bootstrap and history backfill carry none, so new shops show it as null with a
+  note for ~a month — fetch A-34 per day in the fast phase, or a column + backfill.
+- [ ] Card funnel is all-channel (A-33 sums): no PRODUCT_CARD scope, so the
+  ADR-106 amendment-2 channel-block funnel and the amendment-4 traffic-source
+  check are not applied on cards (caveat on every card) — persist A-34 channel
+  blocks per product-day.
+- [ ] Listing evidence is local and title-only (`products` stores no description
+  or images); most CTOR cards are "Chưa hỏi TikTok" until the diagnoses endpoint
+  is called at scoring time — wire `get_product_diagnosis` into the scoring pass.
+- [ ] Report-only levers not on cards: owner tests, Seller Center cards, gift
+  fallback, ratings filter, flash sale / shipping gates (need orders, promotions,
+  ratings in the store). BMSM threshold uses the mean-items fallback (no order
+  histogram). Discount cap is never set (no seller setting stored).
+- [ ] D22 recoverable GMV/day mixes the diagnosis's 14-day rate gap with 30-day
+  volume and AOV; CTR-stage value multiplies by the product's own CTOR (the
+  literal "gap × impressions × AOV" would price clicks as orders) — confirm with
+  the owner; replaced by the P3 model anyway.
+- [ ] A surfaced ADR-106 card keeps its evidence numbers from the day it was
+  surfaced (ADR-087: an offer is not rewritten) and stays until the seller acts,
+  even if the product leaves the top 10.
+- [ ] Legacy rule-pipeline `optimize_product_2` cards on a shop with product
+  analytics are rewritten in place (if their product ranks) or set to the new
+  status `withdrawn`, even when already surfaced — a status string with no DB
+  check constraint; readers that enumerate statuses should learn it.
+- [ ] Per-workflow cap is a code default + env (`CDP_DECISION_EMISSION_WORKFLOW_MAX_ACTIVE`),
+  not per-shop config.

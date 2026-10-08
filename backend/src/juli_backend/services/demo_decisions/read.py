@@ -55,6 +55,37 @@ _REASONING_ALLOWLIST: tuple[str, ...] = (
 )
 
 
+_DIAGNOSIS_ALLOWLIST: tuple[str, ...] = (
+    "version",
+    "as_of",
+    "rank",
+    "status",
+    "status_label",
+    "stage",
+    "lever",
+    "main_kpi",
+    "trigger",
+    "gaps",
+    "shop_medians",
+    "bmsm",
+    "caveats",
+    "channel_scope",
+    "recoverable_gmv_per_day",
+    "recoverable_gmv_basis",
+    "product_title",
+    "tiktok_product_id",
+)
+
+_EVIDENCE_ALLOWLIST: tuple[str, ...] = (
+    "window_days",
+    "current",
+    "previous",
+    "channel_scope",
+    "metrics",
+    "notes",
+)
+
+
 class DecisionNotFound(ValueError):
     """Raised when no emission-gated (surfaced) Decision matches the lookup."""
 
@@ -79,6 +110,19 @@ def _mask_recommendation_payload(payload: dict[str, Any]) -> dict[str, Any]:
         masked["reasoning"] = {
             key: reasoning[key] for key in _REASONING_ALLOWLIST if key in reasoning
         }
+
+    # ADR-106 Optimize Product cards (fasttrack P7-B): the diagnosed stage,
+    # the lever and the product's funnel evidence. Allowlisted key by key like
+    # everything above; the typed response models drop anything nested that
+    # they do not declare.
+    diagnosis = payload.get("diagnosis")
+    if isinstance(diagnosis, dict):
+        masked["diagnosis"] = {
+            key: diagnosis[key] for key in _DIAGNOSIS_ALLOWLIST if key in diagnosis
+        }
+    evidence = payload.get("evidence")
+    if isinstance(evidence, dict):
+        masked["evidence"] = {key: evidence[key] for key in _EVIDENCE_ALLOWLIST if key in evidence}
 
     return masked
 

@@ -777,8 +777,29 @@ def expand_analytics_product_list_item(
             "ctr": _optional_rate(total.get("ctr")),
             "click_order_rate": _optional_rate(total.get("click_order_rate")),
             "conversion_rate": _optional_rate(total.get("click_order_rate")),
+            "traffic_breakdown": _a34_total_block(total),
         },
     )
+
+
+#: ``traffic_breakdown`` key for the A-34 list row's own totals. Kept apart from
+#: the A-33 content-type keys (``VIDEO`` / ``PRODUCT_CARD`` / ``LIVE``) because
+#: the add-to-cart rate must divide ``add_cart_count`` by the clicks of the
+#: same response (ADR-108 "Tỷ lệ thêm vào giỏ hàng" = add-to-cart ÷ clicks).
+_A34_TOTAL_KEY = "A34_TOTAL"
+
+
+def _a34_total_block(total: dict[str, Any]) -> dict[str, Any] | None:
+    add_cart = _optional_int(total.get("add_cart_count"))
+    if add_cart is None:
+        return None
+    return {
+        _A34_TOTAL_KEY: {
+            "add_cart_count": add_cart,
+            "clicks": _optional_int(total.get("product_clicks")),
+            "impressions": _optional_int(total.get("product_impressions")),
+        }
+    }
 
 
 def merge_product_analytics_rows(
@@ -802,6 +823,14 @@ def merge_product_analytics_rows(
         for key, value in list_row.items():
             if value is not None and row.get(key) is None:
                 row[key] = value
+            elif (
+                key == "traffic_breakdown"
+                and isinstance(value, dict)
+                and isinstance(row.get(key), dict)
+            ):
+                # The list row's A34_TOTAL joins the detail row's content-type
+                # keys; a key both carry keeps the detail value.
+                row[key] = {**value, **row[key]}
     return detail_rows
 
 

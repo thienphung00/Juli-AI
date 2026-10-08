@@ -107,6 +107,30 @@ def _hash_field(field_name: str, value: Any) -> str:
     return hashlib.sha256(_canonical_json({field_name: value}).encode("utf-8")).hexdigest()
 
 
+def hash_basis_field(field_name: str, value: Any) -> str:
+    """Public form of the per-field fingerprint, for producers outside this
+    module that keep their own basis catalog (``optimize_product_cards``)."""
+    return _hash_field(field_name, value)
+
+
+async def product_basis_fields(
+    session: AsyncSession, shop_id: uuid.UUID, *, workflow_key: str, subject: CardSubject
+) -> dict[str, str]:
+    """The workflow's material subject fields for a product subject, hashed.
+
+    The same projection ``compute_card_basis`` applies (title, raw price,
+    listing status, in-stock as a boolean for ``optimize_product_2``); empty
+    when the subject is not a product of this shop.
+    """
+    fields = _SUBJECT_BASIS_FIELDS.get(workflow_key, ())
+    if not fields or subject.subject_type != SUBJECT_TYPE_PRODUCT:
+        return {}
+    product = await session.get(Product, uuid.UUID(subject.subject_id))
+    if product is None or product.shop_id != shop_id:
+        return {}
+    return {field.name: _hash_field(field.name, field.project(product)) for field in fields}
+
+
 def _signal_severities(
     result: DailyScoringResult, source_kpi_ids: tuple[str, ...]
 ) -> dict[str, str]:
@@ -198,5 +222,7 @@ __all__ = [
     "BasisField",
     "basis_unchanged",
     "compute_card_basis",
+    "hash_basis_field",
+    "product_basis_fields",
     "stored_basis",
 ]

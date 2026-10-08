@@ -25,9 +25,10 @@ import logging
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import cast
+from typing import Any, cast
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.config import DecisionEmissionConfig, decision_emission_config
@@ -476,8 +477,16 @@ async def emit_scoring_cards(
     computed_at_iso = computed_at.isoformat()
     config = emission_config or decision_emission_config()
 
+    # ADR-106 / D21: a shop with product analytics gets its Optimize Product
+    # cards from the stage-diagnosis pipeline -- whole catalog scored, top 10
+    # ranked, one card per product -- instead of the rule pipeline's single
+    # top-revenue card. `None` (no product analytics) keeps the rule card.
+    optimize_plan = await _plan_optimize_product(session, shop_id, now=computed_at)
+
     for recommendation in result.recommendations.recommended_workflows:
         workflow_key = recommendation.workflow_key
+        if optimize_plan is not None and workflow_key == _OPTIMIZE_PRODUCT_WORKFLOW_KEY:
+            continue
         subject = await resolve_card_subject(session, shop_id, workflow_key)
 
         latest = await _latest_revision(session, shop_id, workflow_key, subject)
@@ -591,7 +600,52 @@ async def emit_scoring_cards(
             )
         )
 
+    if optimize_plan is not None:
+        from juli_backend.services.action_cards.optimize_product_cards import (
+            emit_optimize_product_cards,
+        )
+
+        decisions.extend(
+            await emit_optimize_product_cards(
+                session,
+                shop_id,
+                optimize_plan,
+                computed_at=computed_at,
+                emission_config=config,
+            )
+        )
+
     return ScoringEmissionReport(decisions=tuple(decisions))
+
+
+_OPTIMIZE_PRODUCT_WORKFLOW_KEY = "optimize_product_2"
+
+
+async def _plan_optimize_product(
+    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime
+) -> Any:
+    """The shop's ADR-106 plan, or ``None`` to keep the rule pipeline's card.
+
+    Imported lazily: ``optimize_product_cards`` reuses this module's revision
+    ladder. A defect in the pure pipeline must not stop every other card of
+    the run, so it is logged and the rule card stands in; a database error is
+    not caught -- the transaction is unusable after it, and the caller's
+    failure domain owns that.
+    """
+    from juli_backend.services.action_cards.optimize_product_cards import (
+        plan_optimize_product_cards,
+    )
+
+    try:
+        return await plan_optimize_product_cards(session, shop_id, now=now)
+    except SQLAlchemyError:
+        raise
+    except Exception:
+        logger.exception(
+            "optimize_product_cards_plan_failed",
+            extra={"shop_id": str(shop_id)},
+        )
+        return None
 
 
 async def persist_scoring_result(

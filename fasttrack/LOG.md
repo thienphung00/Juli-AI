@@ -100,3 +100,26 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
 - Merge note: P7-B may add a migration on 075 too — re-chain whichever lands
   second, and keep the deferred phone cleanup as the tail. Both may touch
   `Enqueuers` in `workers/tasks/shop_ingestion.py` (one added field here).
+
+## 2026-10-08 — P7-B agent (Claude Opus) — Quyết định backend: ADR-106 cards per shop
+
+- `services/optimize_product/daily_funnel.py` + `decision_cards.py` (pure): P1's
+  daily product/SKU analytics → ProductFunnel (14 vs prior 28) and card evidence
+  (30 vs prior 30, TikTok KPI names, ADR-108 confidence); reuse of `diagnose_all`,
+  `build_cards`, report statuses; top 10 ranked by D22 recoverable GMV/day.
+- `services/action_cards/optimize_product_cards.py`: plan + emit via the ADR-087
+  ladder, withdraw unranked drafts. Hooked inside `emit_scoring_cards`, so the
+  P1 hook (`score_and_persist_cards`, unchanged), manual refresh and cdp_speed all
+  produce them; shops without product analytics keep the rule card.
+- Emission budget: `workflow_max_active` (optimize_product_2 = 5, one slot).
+- `/v1/demo/decisions`: `recommendation.diagnosis` / `recommendation.evidence` /
+  `expected_impact` (recoverable GMV, rule-based).
+- Mapper: A-34 `add_cart_count` under `traffic_breakdown.A34_TOTAL` (no migration).
+- Tests: new file 13 passed; related suites (57 files) 689 passed; full unit+harness
+  38 failed / 2 errors — 36 identical on base 3ecd5e48 (node_modules contracts etc.),
+  2 order-flaky (pass alone), 2 errors were my fixture timing out (fixed, bulk seed).
+  check.sh `--since 3ecd5e48 --skip-gitleaks`: ruff + pytest PASS; migrations/isolation
+  not run (docker daemon down, no gitleaks); no migration added.
+- Next: UI agent consumes the fields; DEBT P7-B lists data gaps (channel blocks,
+  diagnoses endpoint, add-to-cart backfill).
+

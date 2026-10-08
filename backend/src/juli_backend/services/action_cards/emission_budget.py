@@ -225,33 +225,57 @@ async def apply_emission_budget(
     within_quota: list[ActionCard] = []
     overflow: list[ActionCard] = []
     is_new_this_week: dict[uuid.UUID, bool] = {}
+    # A workflow with several cards (one per subject) is one novelty: its
+    # later cards follow the group its first card landed in.
+    quota_group: dict[str, bool] = {}
     for card in eligible:
         is_new = card.workflow_key not in already_novel_this_week
         is_new_this_week[card.id] = is_new
-        if is_new and novelty_used >= config.weekly_novelty_cap:
-            overflow.append(card)
+        if is_new and card.workflow_key in quota_group:
+            in_quota = quota_group[card.workflow_key]
+        elif is_new and novelty_used >= config.weekly_novelty_cap:
+            in_quota = False
         else:
-            within_quota.append(card)
+            in_quota = True
             if is_new:
                 novelty_used += 1
+        if is_new:
+            quota_group[card.workflow_key] = in_quota
+        (within_quota if in_quota else overflow).append(card)
 
     # Gate 3 (hard): active cap. within-quota candidates are offered a slot
     # before overflow candidates — the quota's only remaining effect is this
     # ordering — then whatever is left once max_active is reached is
     # suppressed as active_cap (the true, sole supply ceiling).
+    #
+    # A workflow with its own cap (``config.workflow_max_active``, e.g.
+    # Optimize Product's one card per product, up to 5) takes ONE slot for
+    # its first surfaced card and surfaces further cards up to its cap without
+    # taking more; every other workflow takes one slot per card. With no
+    # capped workflow among the candidates this is exactly the old rule
+    # (slots used == cards surfaced).
+    slots_used = 0
+    per_workflow: dict[str, int] = {}
     for card in within_quota + overflow:
-        if len(surfaced) >= config.max_active:
+        cap = config.cap_for(card.workflow_key)
+        already = per_workflow.get(card.workflow_key, 0)
+        needs_slot = cap is None or already == 0
+        fits = (not needs_slot or slots_used < config.max_active) and (cap is None or already < cap)
+        if not fits:
             card.surfaced_at = None
             card.suppressed_reason = SUPPRESSED_REASON_ACTIVE_CAP
             suppressed[SUPPRESSED_REASON_ACTIVE_CAP].append(card)
             _log_suppressed(shop_id_str, card, SUPPRESSED_REASON_ACTIVE_CAP)
             continue
+        if needs_slot:
+            slots_used += 1
+        per_workflow[card.workflow_key] = already + 1
 
         card.surfaced_at = now
         card.suppressed_reason = None
         surfaced.append(card)
 
-        if is_new_this_week[card.id]:
+        if is_new_this_week[card.id] and card.workflow_key not in already_novel_this_week:
             already_novel_this_week.add(card.workflow_key)
             session.add(
                 DecisionEmissionNoveltyLedger(

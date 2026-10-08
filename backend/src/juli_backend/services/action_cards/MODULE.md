@@ -73,6 +73,26 @@ slice — see "Out of scope".
 - `core.config.decision_emission_config()` / `DecisionEmissionConfig` —
   tunables consumed by both `persist_scoring_result` (cooldown-expiry
   supersede) and `apply_emission_budget` (cap / cooldown / novelty)
+- `plan_optimize_product_cards(session, shop_id, *, now)` → `OptimizeProductPlan | None`
+  (from `optimize_product_cards`, fasttrack P7-B, ADR-106, D21/D22) — reads the shop's
+  daily product/SKU analytics and `products`, scores the whole catalog, keeps the top
+  10 proposals ranked by recoverable GMV per day; `None` when the shop has no product
+  analytics (the rule pipeline's card then stands)
+- `emit_optimize_product_cards(session, shop_id, plan, *, computed_at, emission_config)`
+  → `list[CardEmission]` — one product-scoped `optimize_product_2` card per proposal
+  through the ADR-087 ladder, payload `diagnosis` + `evidence`; called by
+  `emit_scoring_cards`, which then skips the rule pipeline's `optimize_product_2`
+- `withdraw_unranked_cards(session, shop_id, *, keep_subject_ids)` → `list[ActionCard]`
+  — unranked drafts (and legacy rule cards) of this workflow move to `WITHDRAWN_STATUS`
+  (`"withdrawn"`); a surfaced ADR-106 card stays until the seller acts
+- `load_product_days(session, shop_id, first, last)`, `latest_product_analytics_day(...)`,
+  `build_card_payload(...)`, `is_adr106_card(card)`, `OPTIMIZE_PRODUCT_WORKFLOW_KEY` —
+  the pieces of the above, public for tests and the read side
+- `OptimizeProductPlan` / `WITHDRAWN_STATUS` — the plan one scoring run reads once per
+  shop, and the status of a withdrawn draft
+- `hash_basis_field(name, value)` / `product_basis_fields(session, shop_id, *,
+  workflow_key, subject)` (from `basis`) — the basis fingerprint pieces for a producer
+  with its own catalog
 - `refresh_cooldown.get_refresh_cooldown_gate()` / `RefreshCooldownGate` (#899,
   ADR-061 §2b) — per-shop cooldown gate on `POST /v1/action-cards/refresh`;
   see "Per-shop refresh cooldown" below
@@ -227,6 +247,16 @@ separate from `persist.py`: **surfacing and scoring are independently
 gated** — `apply_emission_budget` runs on its own cadence and never touches
 candidate content; `persist_scoring_result` runs on its own cadence and
 never touches the surfacing columns.
+
+### Per-workflow caps (fasttrack P7-B, ADR-106 decision 6)
+
+`DecisionEmissionConfig.workflow_max_active` (default `(("optimize_product_2", 5),)`,
+env `CDP_DECISION_EMISSION_WORKFLOW_MAX_ACTIVE=key=cap,...`) lets a workflow surface
+several cards — one per subject — while taking ONE of the `max_active` slots: its first
+surfaced card takes the slot, further cards surface up to its cap, the rest are
+`active_cap`. Any other workflow takes one slot per card, so with at most one card per
+workflow the budget behaves exactly as before. A multi-card workflow is one novelty for
+the weekly quota and gets one ledger row.
 
 ### Soft novelty quota = fill to cap (operator decision, #716 B-4 cycle 2)
 
