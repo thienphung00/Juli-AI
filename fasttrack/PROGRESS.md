@@ -31,6 +31,19 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 | P7-D Deploy builds the demo lane | 7.9 | done (d76e11bf) | P7-D agent (Sonnet) |
 | P7 integration: merge A–D, align UI to P7-B, funnel layout, repay P7-A lock + rate-limit debt, full test pass, check.sh | — | done (c446bb2d..HEAD; e2e: 8 restyle failures open in DEBT) | P7 integration agent (Opus) |
 
+## P8 — the app follows the sales demo video (ADR-109)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P8-A Rankings job, DB only, read on demand | 8.1 | doing | P8-A agent (Opus) |
+| P8-B Per-video 30/30 data | 8.2 | doing | P8-B agent (Opus) |
+| P8-C Before/after + Hoàn tác, rule store, day-7 guardrail | 8.3 | doing | P8-C agent (Opus) |
+| P8-G `get_product_diagnoses` playbook tool | 8.4 | doing | P8-G agent (Sonnet) |
+| P8-D App shell + Home | 8.5 | doing | P8-D agent (Opus) |
+| P8-E Phân tích UI | 8.6 | todo (after A, D) | — |
+| P8-F Quyết định UI | 8.7 | todo (after C, D, G) | — |
+| P8 integration + deploy | — | todo | orchestrator |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

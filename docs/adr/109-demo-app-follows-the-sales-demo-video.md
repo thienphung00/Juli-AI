@@ -63,7 +63,9 @@ TikTok's diagnosis per row. Customers who saw the video should find the same pro
        "phụ thuộc sản phẩm → xem tab Sản phẩm": after a click the buyer is on the product
        page, and AOV is set by which products are pinned, their price and bundles.
 
-5. **Ranking = GMV/day each row's change in the clicked metric moved.**
+5. **Ranking = GMV/day each row's change in the clicked metric moved.** Computed by the
+   backend once a day per shop (with the ADR-108 build) and **stored in the database
+   only** — no rendered report. Any report or screen reads it on demand.
    - Per row (product, video or LIVE session) within the stream, GMV/day over the last 30
      vs the prior 30 days is split across the four factors with ADR-108's log-share
      (`ΔGMV × ln(f₁/f₀) ÷ ln(GMV₁/GMV₀)`). When a side is zero, use sequential substitution
@@ -165,7 +167,7 @@ TikTok's diagnosis per row. Customers who saw the video should find the same pro
 
       | Video step | SSE source |
       |---|---|
-      | Đọc thông tin / chẩn đoán | `tool.started` / `tool.completed` for `get_product_information` (no TikTok-diagnosis tool exists in the playbook yet) |
+      | Đọc chẩn đoán TikTok | `tool.*` for a new read tool `get_product_diagnoses` (TikTok product diagnoses, read support from #2104), added as the playbook's first step, then `get_product_information` |
       | Phân tích từ khoá, ảnh | `tool.*` for `get_seo_keywords`, `inspect_product_image` |
       | Xác nhận một lần | `workflow.approval_required` → confirmation POST → `workflow.status` |
       | Ghi lên TikTok Shop | `tool.*` for `update_product_listing` / `upload_product_image` |

@@ -149,3 +149,12 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
   Evidence: new `build` job + deploy changes in `.github/workflows/fasttrack-deploy.yml`
   (see commit on `fasttrack/p7d-deploy`); `actionlint` exit 0; not yet run on
   GitHub (first tag deploy is the live proof).
+
+## P8 — the app follows the sales demo video (ADR-109)
+
+- [ ] **AC-8.1 (P8-A)** Daily per-shop job computes ADR-109 d.5 rankings for every stream × clickable metric (products: Thẻ sản phẩm, Tab Cửa hàng × Hiển thị/CTR/CTOR/AOV; LIVE sessions × Hiển thị/CTR/CTOR; videos when P8-B data exists) — GMV/day per row by log-share (sequential at zero), content rows vs the stream's prior-window rate, confidence labels (1,000-impression floor), top-10 + closing rows (ít đơn / khác / cơ cấu) that reconcile to the stream factor. Stored in the DB (tenant-isolated); no report rendering. A read function + `GET /v1/demo/analysis/rankings` returns them on demand. Tests: reconciliation, zero sides, two-tenant.
+- [ ] **AC-8.2 (P8-B)** Verified (from the Partner API spec / a read-only live call by the owner) whether the shop video performance endpoints accept a date range; per-video metrics for the last-30 and prior-30 windows are fetched (date-ranged, or videos posted inside each window as fallback) and exposed to the ranking job. Read-only, rate-limited.
+- [ ] **AC-8.3 (P8-C)** Every write by an agent tool records the field's before and after values on the run; a "Hoàn tác" run restores them with the same CONFIRM consent, refuses when the field changed externally after Juli's write; per-shop rule store (ADR-109 d.12 table) with set_by (team/seller) + set_at, API to read/write; day-7 guardrail check raises a "Hoàn tác?" question when a seller-set band is exceeded (never auto-reverts). Tests incl. two-tenant.
+- [ ] **AC-8.4 (P8-G)** Read tool `get_product_diagnoses` added to the Optimize Product playbook as the first step, emitting `tool.started`/`tool.completed` with a Vietnamese summary; read-only; tests.
+- [ ] **AC-8.5 (P8-D)** App shell per ADR-109 d.1/d.7: left rail (Trang chủ / Quyết định / Phân tích / Juli locked), bottom bar < 768px, shop header with avatar menu holding Cài đặt, "Juli đang chạy · cập nhật HH:MM"; Home 5-stream matrix + GMV/Đơn/AOV cards (from the ADR-108 report). lint/type-check/vitest/e2e green.
+- [ ] **AC-8.6 (P8-E)** Phân tích per ADR-109 d.2–5. **AC-8.7 (P8-F)** Quyết định per d.6, 8–13 (SSE-driven timeline).
