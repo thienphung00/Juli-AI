@@ -1,0 +1,458 @@
+# ADR-106: Optimize Product optimises a funnel factor — outcome labels, stage diagnosis, and a per-product cycle
+
+**Status:** Proposed
+**Date:** 2026-10-06
+**Deciders:** grill-with-docs (Architect) with the owner, grounded in the TikTok Academy VN
+corpus (≈ 25 pages read: product-card diagnosis, product traffic, Product Optimizer, promotion
+tools, GMV Max), the Partner API OpenAPI spec (`tts-openapi-guide`, 405 paths) and the
+Partner Center listing-quality code reference.
+
+**Amends:** [ADR-055](055-decision-plan-review.md) d.15 (one Main KPI per workflow → a Main
+KPI *set* per workflow, one member per card); [ADR-090](090-optimize-product-realignment.md)
+d.3–d.4 (diagnosis-first and one-lever stay; the lever is now *selected* by a deterministic
+stage diagnosis, and the lever set gains a one-tier BMSM for AOV); the v1 spec
+[`v1-workflow-spec.md`](../product/agent-workflow-execution/v1-workflow-spec.md) §2
+(OP-NFR-3's "CTOR is not a metric anywhere in the codebase" becomes a defect to fix, not a
+limitation to accept).
+**Does not change:** ADR-090 d.1 (discount-only reprice), d.2 (fail-safe lock detection),
+d.5 (single proposal), d.6 (no repeat consent), d.7 (honest end states, extended below);
+[ADR-077](077-incremental-impact-measurement.md)'s method; [`ml_layer.md`](../ml/ml_layer.md)'s technique selection
+(deterministic T7 ranker; learned-to-rank rejected).
+**Scope:** W9-A follow-on; the Optimize Product lane. Ads, platform campaigns and traffic
+acquisition are **out of scope** — they live on the TikTok Business API, which Juli does not
+hold, and on human-only Seller Center journeys.
+
+## Context
+
+**The owner's draft said GMV = Traffic × CR × AOV and planned four calendar weeks per
+product.** Checked against the corpus, two of its load-bearing terms do not exist on the
+platform and one of its mechanics breaks Juli's own measurement:
+
+1. TikTok has **no product-level "conversion rate"**. The product-traffic module (La bàn dữ
+   liệu, 06/2026) states that *"Tỷ lệ chuyển đổi"* was **renamed CTOR** — SKU orders ÷ product
+   clicks — "because every platform computes CVR differently". The per-product list endpoint
+   (A-34, `GET /analytics/202605/shop_products/performance`) returns exactly that as
+   `click_order_rate`, beside `ctr`, `gmv` and `sku_orders`. The only field literally named a
+   conversion rate (`avg_conversation_rate`, A-36) is **shop-grain**, page-view → buyer.
+2. TikTok attributes every impression, click and order to one of three **content types** —
+   `PRODUCT_CARD`, `VIDEO`, `LIVE` — and the detail endpoint (A-33,
+   `GET /analytics/202509/shop_products/{id}/performance`, `granularity=1D`) returns
+   `impressions`, `page_views`, `ctr` and `avg_conversion_rate` **per content type**, plus a
+   `cancel_and_refunds` block. Listing levers (first image, title, description) act on the
+   PRODUCT_CARD funnel only; a product sold mostly through LIVE has an all-channel CTR that
+   says nothing about its listing. Juli's backfill fetches A-34 only; the A-33 mapper exists
+   but reads one `ctr` and is never scheduled.
+3. The Academy prescribes **no field order**. Across the Product Optimizer, Title Optimizer,
+   Smart Suggestions, Price Diagnostics and the four-part product-card diagnosis series, the
+   one rule is *"find the stage where the card loses customers, then fix that stage"*:
+   impression → click weak ⇒ images and title; click → add-to-cart weak ⇒ description and
+   price; add-to-cart → payment weak ⇒ promotion tools. The draft's fixed sequence (ảnh bìa →
+   tiêu đề → mô tả → đánh giá → ảnh chi tiết → giá) has no source.
+4. **Weekly lever rotation on one product defeats ADR-077.** Its ratio-form DiD needs a
+   14-day pre window and 7/14-day post windows, and marks any reading `confounded` when a
+   second Juli run touches the product inside either window. Four levers in four weeks yields
+   four confounded readings and zero outcome labels — the opposite of what the owner wants
+   the labels for (training data for a later scorer).
+5. **The impact reader cannot read the metric it needs.** `METRIC_MAP` scores a description
+   edit on `conversion_rate` and a title edit on `impressions`, and `load_daily_series` reads
+   those two columns at product grain — where the product mapper never writes them (it
+   writes `ctr` and `click_order_rate`). Every content reading today lands on "Chưa đủ dữ
+   liệu" regardless of the data.
+6. **AOV is tied to the wrong workflow.** ADR-055 d.15 gives Clear Excess the AOV Main KPI,
+   but CE-NFR-3 records that the backend catalog ties it to `inventory_turnover`/`dsi` and that
+   its v1 measure is days of supply and goal progress. Clear Excess exists to draw down stock;
+   nothing in it raises basket size. The only basket lever with a Partner API surface is
+   Buy More Save More (`activity_type: BUY_MORE_SAVE_MORE` on `POST /promotion/202309/activities`,
+   ≤ 2 tiers, `MINIMAL_ITEM_QUANTITY` or `MINIMAL_ORDER_AMOUNT`, `PERCENTAGE_OFF` or
+   `AMOUNT_OFF`). Bundle deals (Ưu Đãi Theo Gói) have no `activity_type`; vouchers are
+   read-only (`coupons/search`); gift-with-purchase (`gift_discount`) exists but cannot
+   coexist with BMSM or a bundle on the same product in the same window.
+7. **Partner API evidence for VN content levers is concrete.** `GET /product/202405/products/diagnoses`
+   returns per-field codes for `TITLE`, `DESCRIPTION`, `IMAGE`, `ATTRIBUTE`, `SIZE_CHART` with
+   `how_to_solve` and auto-suggestions (`seo_words`, `smart_texts`, an optimised first image);
+   the "Rest of World" code table applicable to VN is `TITLE_LESS_THAN_40_CHARACTERS`,
+   `SEO_DIAGNOSTIC_ITEM`, `DESC_LESS_THAN_FIVE_HUNDRED_CHARS`, `DESC_NO_NEW_LINE`, thirteen
+   `MAIN_IMG_FIRST_IMG_*` codes, `MAIN_IMG_DUPLICATE`, `MAIN_IMG_NUMBER_LESS_THAN_FIVE`.
+   `POST /product/202411/products/diagnose_optimize` diagnoses a *proposed* rewrite before it
+   is written. `POST /product/202509/products/{id}/partial_edit` edits one top-level field and
+   leaves the rest untouched (Juli's tool today calls the full `EditProduct` with passthrough of
+   every other field, which is the right intent on the wrong endpoint). Listing-quality
+   *tiers* remain US-only, as ADR-090 d.3 already states. Neither diagnosis endpoint has been
+   captured on the sandbox yet; `seo_words` and `suggestions` were, and returned empty arrays.
+
+## Decisions
+
+1. **The funnel identity is derived from TikTok's metric definitions: GMV = Impressions × CTR ×
+   CTOR × AOV, scoped by content type.** TikTok publishes the stages (Lượt hiển thị → Lượt nhấp →
+   Đơn hàng SKU → Người mua) and each ratio's definition, but never GMV as a product of factors —
+   its only written GMV formula is the per-order one (original price − discounts + buyer-paid
+   fees); the product form is arithmetic over TikTok's own fields and holds exactly on A-33/A-34
+   data. Juli uses TikTok's metric names and definitions — CTOR = `click_order_rate`,
+   AOV = `gmv ÷ sku_orders` — and never a standalone "CR" or "Traffic". Content levers are
+   diagnosed and measured on the **PRODUCT_CARD** series (A-34's `seller_product_card_performance` + `shop_tab_performance` blocks — Amendment 2); price and basket levers on
+   the all-channel A-34 aggregate, since a discount or BMSM applies everywhere. Video and LIVE
+   funnels belong to content workflows, not to Optimize Product. **The measurement formula of
+   Optimize Product is this identity applied to one product** — `GMV_sp = Impressions_sp ×
+   CTR_sp × CTOR_sp × AOV_sp` (owner, 2026-10-06): the workflow exists to optimise the product,
+   raise its conversion, and thereby raise its GMV, so the run's GMV is always read through the
+   four factors, never as a bare revenue delta. The workflow owns CTOR and AOV (decision 2);
+   CTR moves through the image and title levers under the CTOR label; Impressions is the
+   factor the workflow does not own and is reported so a traffic swing is never mistaken for
+   a listing effect. **The same identity is the
+   workflow's measurement formula** — there is no separate `GMV_sp`; product clicks are
+   `Impressions × CTR`, so a three-factor form `clicks × CTOR × AOV` is the same number, and
+   impressions never appear as an extra factor beside clicks (owner, 2026-10-06). Impressions
+   and CTR are reported beside the reading as the decomposition of traffic the workflow does not
+   own. *Rejected:* keeping three
+   factors with CR = CTR × CTOR — arithmetically fine, but a number the seller cannot find on
+   Seller Center, which OP-NFR-2 forbids Juli from asserting.
+
+2. **Two outcome labels, which are the workflow's two Main KPIs; diagnostic KPIs branch the
+   lever.** Each card carries exactly one label, **Increase CTOR** or **Increase AOV**, and that
+   label is the card's Main KPI (ADR-055 d.15 amended: a workflow has a Main KPI *set*,
+   Optimize Product's is {CTOR, AOV}; Clear Excess's v1 measure stays as CE-NFR-3 wrote it and
+   AOV leaves it). **Impressions and CTR are diagnostic KPIs**: a weak PRODUCT_CARD CTR under
+   the CTOR label routes to the first image or the title, a weak CTOR with healthy CTR routes to
+   the description or a Product Discount. They never appear as a card KPI. The impact reading's
+   primary metric is the label's KPI; the diagnostic KPI the lever targeted (CTR for an image or
+   title edit) is the secondary metric. "Increase GMV" is the objective, not a label.
+   *Rejected:* AOV kept in Clear Excess (no basket lever there, and the tie is already
+   contradicted by the catalog); a twelfth "Optimize Basket" workflow (a whole playbook for one
+   lever, against the owner's one-structure rule); deferring AOV to v2 (loses one of the three
+   pillars of the draft and one label class of training data).
+
+3. **The cadence belongs to the product, not the calendar.** After one lever the product
+   leaves the diagnosis queue until its **final impact reading (T+14) is written or
+   `suppressed`**; only then is it re-diagnosed. The nightly scoring pass still emits new cards
+   every night, on other products, so "5 SKU" means five parallel cards on five products, never
+   five successive steps on one. A Product Discount occupies its product for its 30-day window
+   and cooldown (OP-FR-4) but does not block a content lever after T+14 — the discount is a
+   constant across that lever's pre and post windows, so the DiD stays valid. The draft's
+   "week 4: measure and re-optimise" becomes automatic: the preliminary reading (T+7) shows on
+   the card, the final reading re-opens the queue. *Rejected:* weekly rotation (every reading
+   confounded); re-diagnosis at T+7 on the preliminary reading alone (kept as a seller-selectable
+   v2 "fast mode", off in v1); bundling fields to move faster (ADR-090 d.4 and the
+   listing-repurposing fingerprint).
+
+4. **Stage diagnosis is a deterministic rule with every parameter in the T7 config.**
+   Over the last 14 days: **volume floors** reuse ADR-077 d.4 (≥ 50 PRODUCT_CARD
+   impressions/day for CTR, ≥ 20 clicks/day for CTOR, ≥ 1 order/day for AOV) — a factor below
+   its floor is neither diagnosed nor acted on, because it could not be measured afterwards.
+   **Two gaps per factor**: `gap_median = 1 − value_14d ÷ shop_median_14d` (the median over
+   products above the floor, requiring ≥ 3 of them — Amendment 1) and `gap_trend = 1 − value_14d ÷
+   value_prior_28d` (the 28 days before the window; not computable, hence ignored, under 42 days
+   of product age). `gap = max(gap_median, gap_trend)`, with **the trigger that fired recorded on
+   the card** so copy says "thấp hơn X % so với trung bình shop" *or* "giảm X % so với 4 tuần
+   trước", never a blend. Act only at gap ≥ 0.20 (config, one threshold per gap kind).
+   **Label** = the larger gap of {CTOR, AOV}, AOV only when CTOR's gap < 0.20. **Branch under
+   CTOR**: CTR gap ≥ CTOR gap → card branch, else page branch. **Lever order inside a branch is
+   fixed**: card branch `MAIN_IMG_FIRST_IMG_*` → `MAIN_IMG_NUMBER_LESS_THAN_FIVE` /
+   `MAIN_IMG_DUPLICATE` → `TITLE_LESS_THAN_40_CHARACTERS` / `SEO_DIAGNOSTIC_ITEM` (the first
+   image is the card's largest element and its fix is mechanical and verifiable by the code
+   disappearing; the title carries a character gate and `seo_words` returned empty on the
+   sandbox); page branch `DESC_*` first, a Product Discount only when **no description code
+   remains** (content costs no margin) **and** the seller's maximum discount is set, otherwise
+   `completed` with a new cause `discount_cap_unset`; AOV branch = one-tier BMSM. A branch with
+   no code falls to the other branch if that one has a code; neither → `no_diagnosis_codes`
+   (ADR-090 d.7). Ranking among eligible products: `gap × GMV_28d` — this is what the T7
+   ranker sorts on. *Rejected:* choosing the field with the most codes (count ≠ impact, and
+   unexplainable to a seller); shop median alone (misses a product that is falling); own trend
+   alone (misses a product that was always weak); FastMoss category benchmarks as the trigger
+   (no CTR/CTOR there — deferred to the benchmark role the feature catalog already gives it).
+
+5. **The AOV lever is a one-tier BMSM computed by rule.** `activity_type: BUY_MORE_SAVE_MORE`,
+   `product_level: PRODUCT`, one `tier`, `threshold_type: MINIMAL_ITEM_QUANTITY`,
+   `type: PERCENTAGE_OFF`, 30-day window, `participation_limit: BUYER_NO_LIMIT`,
+   `target_user_info: ALL_USER`. Threshold = the product's mean items per SKU order over 14
+   days, rounded up, plus one; percentage ≤ the seller's maximum discount (OP-FR-4); the model
+   chooses neither number. Precheck: no Juli-created activity on the product in the window
+   (Juli's ledger; `activities/search` becomes the primary check if it captures live, per
+   ADR-090 d.2), and the vendor's rejection — including the bundle/GWP collision TikTok
+   enforces — is the authoritative lock signal, ending the run `completed` with cause
+   `aov_lever_locked`. If the sandbox capture of BMSM fails, the AOV label degrades for v1 to a
+   checklist item ("tạo Ưu Đãi Theo Gói trên Seller Center") and the other decisions hold
+   unchanged — the unverified fact is isolated to this one decision, as ADR-090 isolated the
+   diagnosis scope.
+
+6. **Throughput: at most 5 open Optimize Product cards per shop**, a workflow-config value.
+   The sixth-ranked product waits in the nightly queue; a freed slot refills on the next
+   nightly pass, never mid-day. The PRODUCT_CARD series comes from the A-34 channel blocks the nightly
+   backfill already fetches for every product (Amendment 2), so a newly selected candidate
+   has its 14-day pre-window on the right channel from the first card. *Rejected:* uncapped emission and whole-catalog per-product detail calls (500
+   calls/day on a 500-SKU shop against an unknown rate limit — moot once A-34 carries the blocks); carded-products-only backfill
+   (the first card of every product would be diagnosed on the all-channel aggregate, against
+   decision 1).
+
+## Consequences
+
+- **Outcome labels are the training set.** Each run records `(outcome_label, trigger,
+  branch, lever, diagnosis codes cleared)`; `impact_readings` records the control-adjusted
+  delta on the label's KPI and on the diagnostic KPI. That pair is the labelled example a
+  future scorer would learn from. Per `ml_layer.md`'s technique selection nothing is trained now — T7 stays a weighted
+  deterministic sort — and a learned model, if ever, arrives through its own ADR once a few
+  hundred clean readings exist.
+- **Impact reader fix (defect, not feature):** `METRIC_MAP` → DESCRIPTION and PRICE primary
+  on `click_order_rate`, IMAGE and TITLE primary on `ctr` with `click_order_rate` secondary,
+  AOV on `gmv ÷ sku_orders`; `load_daily_series` reads `click_order_rate`, `ctr`,
+  `impressions`, `page_views` at product grain. OP-NFR-3's "CTOR reading is v2" is withdrawn.
+- **Backfill:** extend the A-34 product mapper to persist the channel blocks
+  (`seller_product_card_performance`, `shop_tab_performance`, video, LIVE, affiliate) with
+  their `product_impressions`, `product_clicks`, `click_order_rate`, `attributed_sku_orders`,
+  `attributed_gmv`, `add_cart_rate`, plus `total_performance`'s `refunds` — one row per
+  (product, channel) or a channel column, data-platform decides. A-33 is not scheduled.
+- **Tool-set delta (extends ADR-090's):** `update_product_listing` moves from `EditProduct`
+  to `POST /product/202509/products/{id}/partial_edit` with one field per call;
+  `get_product_diagnosis` and `check_listing_rewrite` as ADR-090 named them; new
+  `optimize_product_image` (`POST /product/202404/images/optimize`, `WHITE_BACKGROUND`,
+  READ/AUTO — it stages a URI, writes nothing); new `create_bmsm_activity` (WRITE/CONFIRM).
+- **Captures required before the first real run:** `diagnoses`, `diagnose_optimize`,
+  `partial_edit`, `DIRECT_DISCOUNT` create, `BUY_MORE_SAVE_MORE` create, and an attempt at `activities/search`. The owner confirms
+  the app holds `seller.product.optimize`.
+- **End-state causes added to ADR-090 d.7's table:** `audit_rejected` (partial_edit's v2
+  failed TikTok's re-audit; v1 stays live), `discount_cap_unset`, `aov_lever_locked`,
+  `below_volume_floor` (card emission should prevent it; if reached, say so).
+- **Card copy:** the label's KPI with its real current value and directional goal (ADR-055),
+  the trigger sentence (median or trend, never both), the code(s) the lever clears, and for
+  BMSM the threshold and percentage with the 30-day window. All through the ADR-070
+  banned-pattern guard.
+- **Title gate:** the diagnosis targets ≥ 40 characters (`TITLE_LESS_THAN_40_CHARACTERS`),
+  policy enforces ≥ 25 on the next edit, the API bounds VN titles to [25, 255]; Juli writes
+  toward 40 and never below 25.
+- **Out of scope, recorded so nobody re-derives it:** GMV Max is the only Shop Ads campaign
+  type since July 2025 and has no keyword control; it and campaign registration live on the
+  Business API and Seller Center respectively. Bundle deals, all vouchers (including the
+  review voucher), review replies and the Price Diagnostics tier have no Partner API write or
+  read; they appear only as seller checklist items.
+- **Risk.** Five endpoints are uncaptured. Decision 5 isolates BMSM; decision 4's content
+  branches depend on the diagnosis scope exactly as ADR-090 d.3 already does, with the same
+  degraded mode. Decisions 1–3 and 6 depend on nothing unverified.
+
+## Amendments — 2026-10-06, after the first live scan (Fujiwa, 37 listings)
+
+The read-only catalog scan (`scripts/optimize_product_catalog_scan.py`, PR #2101) ran the
+stage diagnosis over Fujiwa's live A-34 and GetProduct data. Two facts changed the design.
+
+1. **Shop median needs three peers, not five, and the copy says how many.** Fujiwa has four
+   products above the CTOR and AOV floors; it will never reach five, and shops of its size are
+   the launch customer, not the exception. `min_peers_for_median` becomes **3** (ADR-077 d.3's
+   own control-pool minimum). Below `full_median_peers = 5` the card's lý do names the count —
+   *"thấp hơn X % so với 4 sản phẩm đủ dữ liệu của shop"* — instead of claiming a "trung bình
+   shop" the seller would read as a larger sample. Decision 4's rule is otherwise unchanged.
+   *Rejected:* trend-only for small shops (misses a product that was always weak — on
+   Fujiwa the 1250 mL case's CTOR fell 23 % and the Hydrogen 270 mL CTR sat 33 % under its
+   peers; both are findable only with a peer comparison); FastMoss category benchmarks (no
+   CTR/CTOR there).
+
+2. **The PRODUCT_CARD series comes from A-34's channel blocks; A-33 is dropped.** The live
+   `GET /analytics/202605/shop_products/performance` row carries, beside `total_performance`,
+   the blocks `seller_product_card_performance`, `shop_tab_performance`,
+   `seller_video_performance`, `seller_live_performance` and three `affiliate_*` blocks, each
+   with its own `product_impressions`, `product_clicks`, `ctr`, `click_order_rate`,
+   `attributed_sku_orders`, `attributed_gmv`, `aov` and `add_cart_rate` at four decimals, plus
+   `refunds` on the total. TikTok's "Thẻ sản phẩm" is every non-LIVE, non-video surface, so
+   the PRODUCT_CARD series is **product-card + Shop Tab**. The A-33 detail endpoint breaks
+   traffic down per content type but reports orders all-channel, so a CTOR built from it is
+   wrong by construction — on Fujiwa's top seller it read 30 % where the A-34 block says
+   1.84 %. Decision 6's per-product A-33 backfill is therefore withdrawn; the nightly A-34
+   fetch already covers every product, and the mapper only has to persist the blocks.
+   Measured on Fujiwa's top seller, the same product converts at 1.84 % from the product
+   card, 7.1 % from the Shop Tab, 10.1 % from LIVE and 4.7 % from affiliate video — the
+   channel split is itself a diagnostic worth a later decision (`add_cart_rate` likewise
+   enables TikTok's click → add-to-cart vs add-to-cart → payment rule).
+
+**First live result, for the record:** 37 listings with impressions in the window; 4 real
+sellers; 14 below the volume floor; 8 deactivated or deleted but still reported; 4 gift
+listings excluded; medians CTR 4.25 % (11 peers), CTOR 5.12 % and AOV 207,837 ₫ (4 peers);
+**one card** (680 mL case, AOV −34 % vs its prior 28 days → one-tier BMSM) and five products
+with a real gap but no listing evidence — every one of them has 8–9 images at 1700 px,
+91–117-character titles and 700–2,300-character descriptions with line breaks, so the local
+reading of the VN code table finds nothing. The diagnosis endpoint capture (decision 4's
+evidence source) is now the binding prerequisite for content cards on this shop.
+
+### Amendment 3 — 2026-10-07, report v2
+
+The first per-shop report on Fujiwa went to the owner, who corrected eight rules. Each is
+implemented in `optimize_product/` and the report; the rationale is the owner's.
+
+1. **The BMSM threshold comes from the real basket.** With an order export (`orders.json`) the
+   threshold is `q = median quantity + 1`, where quantity is the count of the product's non-gift
+   line items per non-cancelled order, and the card is emitted only when at least 5 % of those
+   orders already buy `q` (`bmsm_min_share_at_threshold`); otherwise the product is skipped as
+   `bmsm_threshold_unreached`. With no export, or fewer than 20 orders of the product
+   (`bmsm_min_orders_for_histogram`), it falls back to `floor(mean items per order) + 1`, never
+   below 2. This replaces `ceil(items per order) + bmsm_threshold_plus`. On Fujiwa only 1–3 % of
+   orders buy three cases while 10–19 % buy two, so the old rule asked customers for a basket
+   almost nobody builds; "from 2 items" asks for what a tenth of them already do.
+2. **A healthy CTR never routes to the card branch.** Under the CTOR label the card branch (cover
+   image, title) is considered only when the CTR gap fires; the page branch no longer falls back
+   to it, while the card branch may still fall back to the page branch. Without a description
+   code, a page-branch run proposes the product discount when the seller's maximum discount is
+   set and otherwise emits a card, "Cần mức giảm giá tối đa", that names the missing input. The
+   1250 mL case's CTR rose while its CTOR fell: a cover change would have targeted the stage
+   that was working.
+3. **A Main KPI below its measurement floor reads "chưa đủ dữ liệu".** If CTOR or AOV is under
+   its ADR-077 floor over the 14-day window, the card shows that instead of a number; the card
+   itself stands when the diagnostic that fired (CTR) clears its own floor. Fujiful showed CTOR
+   0 % on 24 clicks in 14 days, which a seller reads as a fact rather than as noise.
+4. **The pending status is split.** "Chưa hỏi TikTok" means the gap fires, no local evidence
+   exists and no diagnoses file exists for the product, so TikTok was never asked; the next full
+   run asks. If a diagnoses file exists but has no codes for the branch the run needs, the product
+   gets no card and is listed under "Sản phẩm cần theo dõi" with the reason "TikTok không thấy lỗi
+   ở trang sản phẩm". "Chờ TikTok chỉ ra lỗi" conflated "not asked" with "asked, found nothing",
+   which call for opposite next steps.
+5. **Channel shares total 100 %.** "Tỷ trọng kênh" divides each channel's attributed orders by the
+   sum over the five channel blocks, not by `sku_orders`, because TikTok attributes some orders
+   to more than one block. On Fujiwa the affiliate and shop channel blocks alone summed to about
+   121 %, which no reader can interpret.
+6. **An optional ratings filter.** `ratings.json` (`{"<product_id>": {"rating", "review_count"}}`,
+   entered by hand or taken from FastMoss) blocks every card for a product under
+   `min_rating_for_demand_levers = 4.0` stars; the product is listed under "Sản phẩm cần theo
+   dõi" with the rating. Without the file no filter applies and the technical notes say so. Ion
+   Speed sits at 3.6 stars: a discount or a new cover sells a product its buyers rate poorly.
+7. **Owner tests.** `owner_tests.json` (wrapper flag `--owner-tests`) lists tests the owner
+   chose: product, angle (the five angles or "quà tặng kèm"), optional gift product and note.
+   Each becomes a card with the status "Thử nghiệm theo kế hoạch của bạn", Main KPI AOV for the
+   basket angles and CTOR otherwise, the current 14-day value, and the owner's note as the reason
+   (a neutral sentence from the 30-day AOV and the share of multi-item orders when no note is
+   given). Juli does not argue with a test the owner has already decided to run; it records
+   where the product stands so the result can be read.
+8. **Card table composition.** At most `max_open_cards_per_shop` (5) rows: rule cards ("Juli tự
+   đề xuất", then "Cần mức giảm giá tối đa"), each group ranked by gap × GMV_28d; then owner tests
+   in file order; then "Chưa hỏi TikTok" cards fill the remaining rows. A product appears once,
+   and a rule card wins over an owner test on the same product (the technical notes say so).
+   Eligible products beyond five go to "Sản phẩm cần theo dõi" with the reason "Đủ điều kiện
+   nhưng đã đủ 5 card", so the owner sees what was left out and why.
+
+### Amendment 4 — 2026-10-07, traffic-source check
+
+A product's CTR can fall because a campaign, LIVE or affiliate video poured low-intent impressions
+onto it, and then rewriting the cover or title treats the wrong cause. Real Fujiwa data, Hydrogen
+270 mL, 30 days against the previous 30: impressions rose mostly from affiliate video (1.377 to
+4.283), yet CTR fell in every channel (product card 4,10 to 2,76 %, Shop Tab 3,72 to
+1,83 %, LIVE 4,66 to 3,14 %, affiliate video 4,79 to 2,73 %). A fall in every channel, including
+the ones that received no extra traffic, is a common cause (cover, price, title), so the cover card
+stands. The report now makes that distinction automatically and says where the traffic came from.
+
+**Verdict rule.** `services/optimize_product/traffic.py` reads six channel blocks of each A-34 row
+(product card, Shop Tab, shop video, shop LIVE, affiliate video, affiliate LIVE) for the current
+and previous 30 days and compares impressions per day and CTR per channel. A channel qualifies
+with at least `traffic_min_channel_impressions = 200` impressions in each window. The verdict is
+`đồng loạt` when CTR fell by at least `traffic_ctr_drop = 0.15` (relative) in at least two thirds of
+the qualifying channels, with at least two channels; `loãng traffic` when every channel whose CTR
+fell is a spiking channel (impressions per day at least `traffic_spike_ratio = 1.5` times the
+previous window) and every other qualifying channel's CTR is within `traffic_ctr_stable = 0.10`;
+and `không rõ` otherwise, including fewer than two qualifying channels. `đồng loạt` is tested
+first, so a product whose spiking channels are also two thirds of its channels reads as uniform.
+The four thresholds are the owner-approved defaults and live in `StageDiagnosisConfig`; they are
+adjustable. Each product also carries `top_impression_source`, the channel with the largest
+absolute gain in impressions per day.
+
+**Effect on cards.** Every CTR-triggered card (card branch: cover, title), rule or pending, and
+whichever trigger fired (shop median or own trend), is checked. Under `loãng traffic` the card is
+not emitted; the product goes to "Sản phẩm cần theo dõi" with "CTR giảm do lượt hiển thị tăng
+mạnh từ {kênh}, không phải do trang sản phẩm", and the freed slot goes to the next card. Under
+`đồng loạt` and `không rõ` the card stands; under `không rõ` the technical notes say the check was
+inconclusive. CTOR and AOV cards are not affected. Reasons gain short plain-Vietnamese clauses
+(biggest source of extra impressions, platform-discount share, a running promotion), each added
+only while the reason stays within 170 characters. The report gains a "Traffic đến từ đâu" section
+per card product (channel table, verdict, promotions, discount share, LIVE and video appearances).
+
+**Platform-discount share.** The Partner API has no read for platform campaigns, so the only trace
+is the discount on the orders themselves. Per product and window, the share of non-gift lines of
+non-cancelled orders with `platform_discount > 0` (and, separately, `seller_discount > 0`), placed
+by the order's `create_time` in UTC+7 because the order payload has no per-line timestamp. It
+appears in the top-5 table and on the card reason from `platform_discount_note_share = 0.5`, and
+is hidden under `platform_discount_min_lines = 10` lines in a window. It is a proxy: a campaign
+that changes no price on the order is invisible to it.
+
+**Promotion search attempt.** ADR-090 d.2 recorded Search Activities as unverified live. This
+amendment adds `POST /promotion/202309/activities/search` and `POST /promotion/202406/coupons/search`
+as exact-path production-read and sandbox entries (both are read-only searches), plus
+`PromotionResource.search_activities(_all)` and `search_coupons(_all)`. The live wrapper searches
+activities with status ONGOING, NOT_START and EXPIRED and all coupons, then calls Get Activity for
+the product list of every activity that overlaps the window and lacks one (at most 50 calls);
+`snapshot/promotions/_error.json` records any failure and the run continues. The search response
+carries no product list, and a product-specific coupon would need Get Coupon, which is not
+allowlisted, so those two cases are counted as unattributed rather than guessed. Shop LIVE sessions
+(top 10 by GMV) and shop videos (top 20 by GMV), with their per-product numbers, are fetched the same
+way into `snapshot/live` and `snapshot/videos`, through three analytics GET paths added to the
+production-read allowlist. Owners run live mode; none of this was exercised against TikTok when
+the amendment was written.
+
+**Blind spots, stated in the report.** Platform campaigns have no Partner API read, so they are
+inferred only from platform discount on orders. Ads and GMV Max sit behind the Business API, which
+the shop has not granted, and A-34 does not split paid from organic traffic, so paid traffic is
+mixed into the channels above.
+
+### Amendment 5 — 2026-10-07, order windows, price levers, Seller Center cards
+
+**1. Orders are windowed by creation time (a correction).** The earlier evidence pull filtered the
+order search by `update_time`, so the "recent" sample on Fujiwa was orders created 2026-01-08 to
+2026-07-07: every basket, discount-share and threshold figure described a span months before the
+report's 30-day windows. The live fetch now pulls orders by `create_time_ge` / `create_time_lt`
+over the previous and current 30 days (60 days to `as_of`), all pages, in 7-day slices so the
+resource's page cap is never reached; `meta.json` records orders per slice and whether any slice
+hit the cap. `OrdersResource.search` / `search_all` take `create_time_from` / `create_time_to`
+beside the unchanged `update_time_*`. Every order-derived figure (basket histogram and BMSM
+threshold, platform and seller discount share, buyer-paid shipping share, co-purchase pairs,
+14-day lowest price) reads only orders whose `create_time` (UTC+7) falls in its stated window;
+an order file holding older orders is never counted silently, and the technical notes print the
+actual first and last create date of the orders used and of those left out. With no orders in a
+window the figure reads "chưa đủ đơn trong khoảng thời gian" and BMSM falls back to the
+items-per-order rule. Replaying the Fujiwa snapshot (orders of 2026-01-08 to 2026-07-07) therefore
+uses none of its 1000 orders.
+
+**2. Seller shipping discount (page-branch angle "giảm phí vận chuyển").** `SHIPPING_DISCOUNT`
+activities at `product_level = PRODUCT`. Placed after "giảm giá sản phẩm" and "flash sale". Gate:
+in the current 30 days at least `shipping_lever_min_paid_share = 0.30` of the product's orders had
+`payment.shipping_fee > 0`, over at least `shipping_lever_min_orders = 20` orders. The depth stays
+within the seller's maximum discount setting, which every price lever requires.
+
+**3. Gift with purchase is the AOV fallback.** When the BMSM threshold is unreached
+(`bmsm_threshold_unreached`) Juli proposes a gift instead of dropping the product. Candidate: another
+live product of the shop, with more than `gift_min_stock = 50` units over its SKUs, sharing at least
+one `warehouse_id` with the main product's SKUs, sale price at most `gift_max_price_share = 0.15` of
+the main product's 30-day AOV and at most 1.500.000 ₫, not a gift or not-for-sale title; the one with
+the fewest reviews when `ratings.json` exists, else the cheapest. The buyer takes at least 2 items
+(`MINIMAL_ITEM_QUANTITY`). No candidate: the product goes to "Sản phẩm cần theo dõi" with "Không có
+sản phẩm phù hợp làm quà".
+
+**4. Shop flash sale, with guards (reverses the v1 exclusion).** ADR-106 left `FLASHSALE` out of v1,
+because a flash sale needs shop-level eligibility Juli cannot read and a deeper price than the shop
+tested. This amendment reverses that, narrowly: the angle "flash sale" comes after "giảm giá sản
+phẩm" and before "giảm phí vận chuyển" and is chosen only when the product discount is unavailable
+(a product discount from any source runs on the product per the promotion data, or Juli's 30-day
+cooldown) and every guard holds: no `FLASHSALE` on the product in the last 14 days (promotion data);
+proposed price at most the lowest unit price paid in the last 14 days (`sale_price − platform_discount`
+of the order lines) times `1 − 0.01`, rounded down to 100 ₫, with the implied discount against that
+SKU's list price within the seller's maximum discount; duration 1 to 3 days, default 3; maximum
+discount set. Without promotion data a flash sale is never proposed, and the notes say why. The
+violation-point score is not readable through the API, so the technical note says "cần xác nhận điểm
+vi phạm < 36 trước khi chạy" and the card copy tells the seller to confirm the shop's eligibility.
+The create-activity call has no LIVE-channel field.
+
+**5. Seller Center cards, status "Bạn tự làm trên Seller Center".** Levers Juli cannot create through
+the API, counted in the five cards, emitted only with data behind them: *voucher đánh giá* (live
+product, at least 1 order a day in 30 days, fewer than 20 reviews in `ratings.json`; skipped when the
+file is absent), *Ưu Đãi Theo Gói* (a pair in at least 3 orders of the current 30 days and at least
+5 % of either product's orders) and *voucher có mức chi tiêu tối thiểu* (shop-level: at least 5 % of
+orders with 2+ different products and shop AOV down at least 10 % against the previous 30 days; the
+level is the 30-day AOV times 1,2, rounded to 10.000 ₫). Juli measures their effect only if the
+seller records the start date. A product already holding another card is passed over.
+
+**6. Card order.** Juli tự đề xuất, Cần mức giảm giá tối đa, Thử nghiệm theo kế hoạch của bạn, Bạn tự
+làm trên Seller Center, Chưa hỏi TikTok; at most 5, the rest to "Sản phẩm cần theo dõi" with "Đủ điều
+kiện nhưng đã đủ 5 card". The legend says Seller Center cards are tools Juli cannot create through the
+API, which the seller creates on Seller Center following the card.
+
+**7. Capability map.** *Creatable through the API:* product discount, flash sale (no LIVE channel
+field), buy-more-save-more, gift, shipping discount. *Read-only:* coupons (search, get) and the order
+price detail. *Not available:* coupon creation, bundle deal, platform vouchers, platform
+buy-more-save-more and flash deals, platform campaigns, and ads (the Business API is ads-only).
+
+### Pointer — 2026-10-08
+
+The planned Amendment 6 (top-5 focus, a 30-day decision tree, no TikTok-diagnosis gate) was
+not written here. Those decisions became part of the shop-level diagnostic report in
+[ADR-108](108-shop-diagnosis-report.md), which renders no cards; this ADR's card rules are
+unchanged.

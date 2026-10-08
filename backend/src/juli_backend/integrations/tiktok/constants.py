@@ -7,6 +7,8 @@ ORDER_DETAIL_API_VERSION = "202507"
 PRODUCT_API_VERSION = "202309"
 PRODUCT_LISTING_API_VERSION = "202312"
 PRODUCT_SEO_API_VERSION = "202405"
+PRODUCT_DIAGNOSIS_API_VERSION = "202405"
+PRODUCT_DIAGNOSE_OPTIMIZE_API_VERSION = "202411"
 PRODUCT_INVENTORY_API_VERSION = "202309"
 FULFILLMENT_API_VERSION = "202309"
 SUPPLY_CHAIN_API_VERSION = "202309"
@@ -16,6 +18,8 @@ AFFILIATE_SELLER_API_VERSION = "202406"
 AFFILIATE_CONTENT_API_VERSION = "202412"
 FINANCE_API_VERSION = "202309"
 PROMOTION_API_VERSION = "202309"
+PROMOTION_COUPON_API_VERSION = "202406"
+ANALYTICS_LIVE_PRODUCTS_API_VERSION = "202512"
 ANALYTICS_API_VERSION = "202509"
 ANALYTICS_SHOP_PERFORMANCE_PER_HOUR_API_VERSION = "202510"
 ANALYTICS_SHOP_PRODUCTS_LIST_API_VERSION = "202605"
@@ -31,16 +35,16 @@ PRODUCT_PREREQUISITES_PATH = f"/product/{PRODUCT_LISTING_API_VERSION}/prerequisi
 PRODUCT_BRANDS_PATH = f"/product/{PRODUCT_API_VERSION}/brands"
 PRODUCT_SEO_WORDS_PATH = f"/product/{PRODUCT_SEO_API_VERSION}/products/seo_words"
 PRODUCT_SUGGESTIONS_PATH = f"/product/{PRODUCT_SEO_API_VERSION}/products/suggestions"
+PRODUCT_DIAGNOSES_PATH = f"/product/{PRODUCT_DIAGNOSIS_API_VERSION}/products/diagnoses"
+PRODUCT_DIAGNOSE_OPTIMIZE_PATH = (
+    f"/product/{PRODUCT_DIAGNOSE_OPTIMIZE_API_VERSION}/products/diagnose_optimize"
+)
 PRODUCT_IMAGE_UPLOAD_PATH = f"/product/{PRODUCT_API_VERSION}/images/upload"
 PRODUCT_FILE_UPLOAD_PATH = f"/product/{PRODUCT_API_VERSION}/files/upload"
 INVENTORY_SEARCH_PATH = f"/product/{PRODUCT_INVENTORY_API_VERSION}/inventory/search"
 
-RETURN_SEARCH_PATH = (
-    f"/return_refund/{RETURN_REFUND_SEARCH_API_VERSION}/returns/search"
-)
-CANCELLATION_SEARCH_PATH = (
-    f"/return_refund/{RETURN_REFUND_SEARCH_API_VERSION}/cancellations/search"
-)
+RETURN_SEARCH_PATH = f"/return_refund/{RETURN_REFUND_SEARCH_API_VERSION}/returns/search"
+CANCELLATION_SEARCH_PATH = f"/return_refund/{RETURN_REFUND_SEARCH_API_VERSION}/cancellations/search"
 
 AUTHORIZED_SHOPS_PATH = f"/authorization/{AUTHORIZATION_API_VERSION}/shops"
 
@@ -53,11 +57,12 @@ CREATOR_CONTENT_DETAILS_PATH = (
 FINANCE_STATEMENTS_PATH = f"/finance/{FINANCE_API_VERSION}/statements"
 
 PROMOTION_CREATE_PATH = f"/promotion/{PROMOTION_API_VERSION}/activities"
+# Read-only searches (both are POSTs, neither mutates anything).
+PROMOTION_ACTIVITIES_SEARCH_PATH = f"/promotion/{PROMOTION_API_VERSION}/activities/search"
+PROMOTION_COUPONS_SEARCH_PATH = f"/promotion/{PROMOTION_COUPON_API_VERSION}/coupons/search"
 
 # Analytics GET paths — contract-collection.md §A-31–A-39 (wire set for #424).
-ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH = (
-    f"/analytics/{ANALYTICS_API_VERSION}/shop_skus/performance"
-)
+ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH = f"/analytics/{ANALYTICS_API_VERSION}/shop_skus/performance"
 ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH = (
     f"/analytics/{ANALYTICS_SHOP_PRODUCTS_LIST_API_VERSION}/shop_products/performance"
 )
@@ -69,14 +74,27 @@ ANALYTICS_BESTSELLING_VIDEOS_PATH = (
     f"/analytics/{ANALYTICS_BESTSELLING_API_VERSION}/videos/bestselling"
 )
 
-# LIVE analytics — A-28 is allowlisted for poll ETL (#425); A-26/A-27/A-29 remain deferred.
-ANALYTICS_LIVE_PERFORMANCE_LIST_PATH = (
-    f"/analytics/{ANALYTICS_API_VERSION}/shop_lives/performance"
+# Shop video analytics (GET): list with the products each video promotes.
+ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH = (
+    f"/analytics/{ANALYTICS_API_VERSION}/shop_videos/performance"
 )
+
+# LIVE analytics — A-28 is allowlisted for poll ETL (#425); A-26/A-27/A-29 remain deferred.
+ANALYTICS_LIVE_PERFORMANCE_LIST_PATH = f"/analytics/{ANALYTICS_API_VERSION}/shop_lives/performance"
 # Doc-sample / deferred LIVE paths (do not allowlist for poll).
 ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH = (
     f"/analytics/{ANALYTICS_API_VERSION}/shop_lives/overview_performance"
 )
+
+
+def analytics_shop_video_products_performance_path(video_id: str) -> str:
+    """Get Shop Video Product Performance List."""
+    return f"/analytics/{ANALYTICS_API_VERSION}/shop_videos/{video_id}/products/performance"
+
+
+def analytics_shop_live_products_performance_path(live_id: str) -> str:
+    """Get Shop LIVE Products Performance List."""
+    return f"/analytics/{ANALYTICS_LIVE_PRODUCTS_API_VERSION}/shop/{live_id}/products_performance"
 
 
 def promotion_activity_path(activity_id: str) -> str:
@@ -114,10 +132,7 @@ def product_detail_path(product_id: str) -> str:
 
 
 def product_inventory_update_path(product_id: str) -> str:
-    return (
-        f"/product/{PRODUCT_INVENTORY_API_VERSION}/products/"
-        f"{product_id}/inventory/update"
-    )
+    return f"/product/{PRODUCT_INVENTORY_API_VERSION}/products/{product_id}/inventory/update"
 
 
 def product_edit_path(product_id: str) -> str:
@@ -158,6 +173,5 @@ def supply_chain_confirm_shipment_path() -> str:
 
 def marketplace_creator_path(creator_user_id: str) -> str:
     return (
-        f"/affiliate_seller/{AFFILIATE_SELLER_API_VERSION}/marketplace_creators/"
-        f"{creator_user_id}"
+        f"/affiliate_seller/{AFFILIATE_SELLER_API_VERSION}/marketplace_creators/{creator_user_id}"
     )

@@ -18,14 +18,18 @@ from juli_backend.integrations.tiktok.constants import (
     ANALYTICS_BESTSELLING_VIDEOS_PATH,
     ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH,
     ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,
+    ANALYTICS_LIVE_PRODUCTS_API_VERSION,
     ANALYTICS_SHOP_PERFORMANCE_PATH,
     ANALYTICS_SHOP_PERFORMANCE_PER_HOUR_API_VERSION,
     ANALYTICS_SHOP_PRODUCTS_LIST_API_VERSION,
     ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
     ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
+    ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH,
+    analytics_shop_live_products_performance_path,
     analytics_shop_performance_per_hour_path,
     analytics_shop_product_performance_path,
     analytics_shop_sku_performance_path,
+    analytics_shop_video_products_performance_path,
 )
 from juli_backend.integrations.tiktok.resources import strip_nones
 
@@ -45,13 +49,15 @@ class AnalyticsResource:
         page_token: str | None = None,
     ) -> dict[str, Any]:
         """A-32 Get Shop SKU Performance List."""
-        params = strip_nones({
-            "version": ANALYTICS_API_VERSION,
-            "start_date_ge": start_date_ge,
-            "end_date_lt": end_date_lt,
-            "page_size": str(page_size) if page_size is not None else None,
-            "page_token": page_token,
-        })
+        params = strip_nones(
+            {
+                "version": ANALYTICS_API_VERSION,
+                "start_date_ge": start_date_ge,
+                "end_date_lt": end_date_lt,
+                "page_size": str(page_size) if page_size is not None else None,
+                "page_token": page_token,
+            }
+        )
         return self._client.get(ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH, params=params)
 
     def list_sku_performance_all(
@@ -101,13 +107,15 @@ class AnalyticsResource:
         page_token: str | None = None,
     ) -> dict[str, Any]:
         """A-34 Get Shop Product Performance List."""
-        params = strip_nones({
-            "version": ANALYTICS_SHOP_PRODUCTS_LIST_API_VERSION,
-            "start_date_ge": start_date_ge,
-            "end_date_lt": end_date_lt,
-            "page_size": str(page_size) if page_size is not None else None,
-            "page_token": page_token,
-        })
+        params = strip_nones(
+            {
+                "version": ANALYTICS_SHOP_PRODUCTS_LIST_API_VERSION,
+                "start_date_ge": start_date_ge,
+                "end_date_lt": end_date_lt,
+                "page_size": str(page_size) if page_size is not None else None,
+                "page_token": page_token,
+            }
+        )
         return self._client.get(ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH, params=params)
 
     def list_product_performance_all(
@@ -221,13 +229,15 @@ class AnalyticsResource:
         page_token: str | None = None,
     ) -> dict[str, Any]:
         """A-28 Get Shop LIVE Performance List."""
-        params = strip_nones({
-            "version": ANALYTICS_API_VERSION,
-            "start_date_ge": start_date_ge,
-            "end_date_lt": end_date_lt,
-            "page_size": str(page_size) if page_size is not None else None,
-            "page_token": page_token,
-        })
+        params = strip_nones(
+            {
+                "version": ANALYTICS_API_VERSION,
+                "start_date_ge": start_date_ge,
+                "end_date_lt": end_date_lt,
+                "page_size": str(page_size) if page_size is not None else None,
+                "page_token": page_token,
+            }
+        )
         return self._client.get(ANALYTICS_LIVE_PERFORMANCE_LIST_PATH, params=params)
 
     def list_live_performance_all(
@@ -248,4 +258,52 @@ class AnalyticsResource:
             params=params,
             items_key="live_stream_sessions",
             page_size=page_size,
+        )
+
+    def list_video_performance_all(
+        self,
+        *,
+        start_date_ge: str,
+        end_date_lt: str,
+        sort_field: str = "gmv",
+        page_size: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Get Shop Video Performance List, paginated; each video lists its products."""
+        params = {
+            "version": ANALYTICS_API_VERSION,
+            "start_date_ge": start_date_ge,
+            "end_date_lt": end_date_lt,
+            "sort_field": sort_field,
+            "sort_order": "DESC",
+        }
+        return self._client.get_all_pages_get(
+            ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH,
+            params=params,
+            items_key="videos",
+            page_size=page_size,
+        )
+
+    def get_video_products_performance(
+        self,
+        *,
+        video_id: str,
+        start_date_ge: str,
+        end_date_lt: str,
+    ) -> dict[str, Any]:
+        """Get Shop Video Product Performance List: per-product GMV and units for one video."""
+        params = {
+            "version": ANALYTICS_API_VERSION,
+            "start_date_ge": start_date_ge,
+            "end_date_lt": end_date_lt,
+            "page_size": "100",
+        }
+        return self._client.get(
+            analytics_shop_video_products_performance_path(video_id), params=params
+        )
+
+    def get_live_products_performance(self, *, live_id: str) -> dict[str, Any]:
+        """Get Shop LIVE Products Performance List: per-product traffic and sales of one session."""
+        params = {"version": ANALYTICS_LIVE_PRODUCTS_API_VERSION}
+        return self._client.get(
+            analytics_shop_live_products_performance_path(live_id), params=params
         )

@@ -13,6 +13,7 @@ from juli_backend.integrations.tiktok.constants import (
     ANALYTICS_SHOP_PERFORMANCE_PATH,
     ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
     ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
+    ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH,
     AUTHORIZED_SHOPS_PATH,
     CANCELLATION_SEARCH_PATH,
     CREATOR_CONTENT_DETAILS_PATH,
@@ -21,7 +22,10 @@ from juli_backend.integrations.tiktok.constants import (
     MARKETPLACE_CREATORS_SEARCH_PATH,
     ORDER_DETAIL_PATH,
     ORDER_SEARCH_PATH,
+    PRODUCT_DIAGNOSE_OPTIMIZE_PATH,
     PRODUCT_SEARCH_PATH,
+    PROMOTION_ACTIVITIES_SEARCH_PATH,
+    PROMOTION_COUPONS_SEARCH_PATH,
     RETURN_SEARCH_PATH,
 )
 
@@ -58,6 +62,16 @@ PRODUCTION_READ_POST_PATHS: frozenset[str] = frozenset(
         CANCELLATION_SEARCH_PATH,
         INVENTORY_SEARCH_PATH,
         MARKETPLACE_CREATORS_SEARCH_PATH,
+        # Diagnose-optimize is a POST but a pure scoring call: it returns
+        # diagnoses for a candidate title/description/images and mutates
+        # nothing on the product (ADR-090 d.3). Exact path only.
+        PRODUCT_DIAGNOSE_OPTIMIZE_PATH,
+        # Read-only promotion searches for the shop optimization report
+        # (ADR-106 amendment 4). Exact POST paths; they list activities and
+        # coupons and mutate nothing. ADR-090 d.2 recorded Search Activities as
+        # unverified live -- this is the attempt, run by the owner in live mode.
+        PROMOTION_ACTIVITIES_SEARCH_PATH,
+        PROMOTION_COUPONS_SEARCH_PATH,
     }
 )
 
@@ -76,6 +90,8 @@ PRODUCTION_READ_GET_EXACT: frozenset[str] = frozenset(
         ANALYTICS_BESTSELLING_VIDEOS_PATH,
         ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,  # A-28 live grain for ETL (#425)
         ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH,  # A-29 overview for backfill (#468)
+        # Shop video list (carries each video's products), report enrichment.
+        ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH,
     }
 )
 
@@ -91,6 +107,10 @@ PRODUCTION_READ_GET_PATTERNS: tuple[re.Pattern[str], ...] = (
     # by the #1124 live smoke once #1188 let runs execute at all.
     re.compile(r"^/product/\d+/products/seo_words$"),
     re.compile(r"^/product/\d+/products/suggestions$"),
+    # Listing-quality diagnoses read for the Optimize Product catalog scan
+    # (same precedent as seo_words/suggestions above): a pure GET that
+    # mutates nothing.
+    re.compile(r"^/product/\d+/products/diagnoses$"),
     re.compile(r"^/affiliate_seller/\d+/marketplace_creators/[^/]+$"),
     # A-31 SKU performance detail
     re.compile(r"^/analytics/\d+/shop_skus/[^/]+/performance$"),
@@ -98,6 +118,10 @@ PRODUCTION_READ_GET_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"^/analytics/\d+/shop_products/[^/]+/performance$"),
     # A-37 shop performance per hour
     re.compile(r"^/analytics/\d+/shop/performance/\d{4}-\d{2}-\d{2}/performance_per_hour$"),
+    # Shop video / LIVE product performance (GET, analytics only): one video's
+    # or one LIVE session's per-product numbers for the optimization report.
+    re.compile(r"^/analytics/\d+/shop_videos/[^/]+/products/performance$"),
+    re.compile(r"^/analytics/\d+/shop/[^/]+/products_performance$"),
     # A-25 Get Promotion Activity (production-read)
     re.compile(r"^/promotion/\d+/activities/[^/]+$"),
 )
@@ -140,6 +164,10 @@ SANDBOX_ALLOWED_REQUESTS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("POST", re.compile(r"^/return_refund/\d+/returns/\d+/reject$")),
     ("POST", re.compile(r"^/supply_chain/\d+/packages/sync$")),
     ("POST", re.compile(r"^/promotion/\d+/activities$")),
+    # Read-only searches (ADR-106 amendment 4; ADR-090 d.2 -- Search Activities
+    # was unverified live, this is the attempt). Exact paths, no mutation.
+    ("POST", re.compile(r"^/promotion/202309/activities/search$")),
+    ("POST", re.compile(r"^/promotion/202406/coupons/search$")),
     ("PUT", re.compile(r"^/promotion/\d+/activities/\d+$")),
     ("PUT", re.compile(r"^/promotion/\d+/activities/\d+/products$")),
     ("POST", re.compile(r"^/promotion/\d+/activities/\d+/deactivate$")),
@@ -157,6 +185,9 @@ SANDBOX_ALLOWED_REQUESTS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("GET", re.compile(r"^/product/\d+/products/\d+$")),
     ("GET", re.compile(r"^/product/\d+/products/seo_words$")),
     ("GET", re.compile(r"^/product/\d+/products/suggestions$")),
+    ("GET", re.compile(r"^/product/\d+/products/diagnoses$")),
+    # Scoring-only POST (ADR-090 d.3); mutates nothing on the product.
+    ("POST", re.compile(r"^/product/202411/products/diagnose_optimize$")),
     ("POST", re.compile(r"^/product/\d+/products/search$")),
     ("POST", re.compile(r"^/product/\d+/products/\d+/prices/update$")),
     ("GET", re.compile(r"^/fulfillment/\d+/combinable_packages/search$")),
