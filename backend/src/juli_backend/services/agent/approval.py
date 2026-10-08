@@ -412,6 +412,20 @@ async def approve_action_card(
         ) from exc
 
     # Captured BEFORE the flip below -- the audit is what was shown.
+    # Fast track P8-C (ADR-109 d.10/d.12): a card whose lever the seller has
+    # not allowed Juli to execute -- and every price/promotion lever (D13) --
+    # is refused here, by the same predicate the decisions list uses for
+    # `is_executable`.
+    from juli_backend.services import shop_rules
+
+    allowed_levers = await shop_rules.auto_levers(session, shop_id)
+    if not shop_rules.card_lever_allowed(
+        shop_rules.card_lever_code(card.recommendation_payload), allowed_levers
+    ):
+        raise WorkflowNotExecutable(
+            f"ActionCard {action_card_id}'s lever is not one this shop lets Juli execute"
+        )
+
     snapshot = _card_snapshot(card)
 
     approved_at = clock()

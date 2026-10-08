@@ -127,7 +127,9 @@ def _mask_recommendation_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return masked
 
 
-def mask_decision_payload(card: ActionCard) -> dict[str, Any]:
+def mask_decision_payload(
+    card: ActionCard, *, allowed_levers: frozenset[str] | None = None
+) -> dict[str, Any]:
     """Build the public Demo envelope dict for one surfaced ``ActionCard``.
 
     Exposes the card's own ``id`` as the stable per-card identifier (opaque
@@ -167,6 +169,15 @@ def mask_decision_payload(card: ActionCard) -> dict[str, Any]:
     is_executable = playbooks_module.is_workflow_executable(
         card.workflow_key
     ) and card_subject_is_bindable(card)
+    if allowed_levers is not None:
+        # Fast track P8-C (ADR-109 d.10/d.12): the seller's auto-executable
+        # levers decide which ADR-106 cards Juli may run; price/promotion
+        # levers never run. Approve answers from the same predicate.
+        from juli_backend.services import shop_rules
+
+        is_executable = is_executable and shop_rules.card_lever_allowed(
+            shop_rules.card_lever_code(raw_payload), allowed_levers
+        )
 
     return {
         "id": str(card.id),
