@@ -29,6 +29,7 @@ from juli_backend.workers.tasks import (
     impact_reader,
     mock_analytics_reconcile,
     reaper,
+    shop_diagnosis,
     shop_ingestion,
     tool_execution,
 )
@@ -43,6 +44,7 @@ __all__ = [
     "impact_reader",
     "mock_analytics_reconcile",
     "reaper",
+    "shop_diagnosis",
     "shop_ingestion",
     "tool_execution",
 ]
