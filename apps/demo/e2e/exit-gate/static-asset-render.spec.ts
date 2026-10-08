@@ -13,18 +13,20 @@ async function expectBrandedComputedStyles(page: Page) {
     const wordmarkStyles = wordmark ? getComputedStyle(wordmark) : null;
     return {
       bodyFontFamily: body.fontFamily,
-      bodyBackgroundImage: body.backgroundImage,
-      wordmarkColor: wordmarkStyles?.color ?? "",
+      bodyBackgroundColor: body.backgroundColor,
+      wordmarkBackgroundImage: wordmarkStyles?.backgroundImage ?? "",
       wordmarkFontWeight: wordmarkStyles?.fontWeight ?? "",
       wordmarkFontSize: wordmarkStyles?.fontSize ?? "",
     };
   });
 
   expect(styles.bodyFontFamily.toLowerCase()).toMatch(/inter/);
-  expect(styles.bodyBackgroundImage).not.toBe("none");
+  // D21 restyle: flat app-kit background instead of the brand gradient image.
+  expect(styles.bodyBackgroundColor).not.toBe("rgba(0, 0, 0, 0)");
   expect(styles.wordmarkFontWeight).toBe("800");
   expect(parseFloat(styles.wordmarkFontSize)).toBeGreaterThan(16);
-  expect(styles.wordmarkColor).toMatch(/232,\s*90,\s*148/);
+  // D21 app kit: the wordmark is gradient text (.brand-wordmark), not a flat pink.
+  expect(styles.wordmarkBackgroundImage).toMatch(/gradient/);
 }
 
 test.describe("Phase 2.6 exit gate — static asset render (ADR-035)", () => {

@@ -180,3 +180,11 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   tsc clean, vitest 1650/1650 (Node 20), `build:demo` OK (dummy env, shell only).
 - e2e: 82 passed / 8 failed — restyle/route changes, not nav (see DEBT P7-C).
 - Next: owner decides the two e2e specs; deploy tag when ready.
+
+## 2026-10-08 — orchestrator (Claude Opus) — P7 e2e specs follow D21
+
+- Updated `static-asset-render.spec.ts` (body background colour instead of
+  the old gradient image; wordmark asserted as gradient text) and the
+  accessibility KPI-chart test (`/analytics/gmv-tiktok`). Both specs 18/18
+  passed on desktop + mobile-web. Remaining e2e from the integration run: 82
+  passed before, so the full suite should now be green; not re-run in full.

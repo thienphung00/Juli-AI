@@ -125,14 +125,6 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Demo header keeps the old mode switcher / "Làm mới Demo" controls inside
   the kit header (mobile alignment of "Đăng nhập" is off, pre-existing) —
   out of scope — redesign the header actions with the owner.
-- [ ] e2e (Playwright) run in P7 integration against `next start` (dummy
-  Supabase env): 82 passed, 8 failed (4 × desktop + mobile). No nav/tab-name
-  selector broke. Failing for the restyle/route change, not fixed:
-  `static-asset-render.spec.ts` ×3 (expects a non-`none` body
-  background-image from the old brand CSS; the kit body has none) and
-  `accessibility.spec.ts` "Analytics chart equivalent…" (expects the KPI
-  dashboard at `/analytics`; it now lives at `/analytics/[metricKey]`, the
-  report took `/analytics`). — decide with the owner whether the specs follow
-  D21 or the look changes — update the two specs before merge.
+- [x] ~~e2e: static-asset-render ×3 and accessibility "Analytics chart…" failed after the D21 restyle~~ — repaid: specs follow D21 (flat kit background, gradient wordmark, KPI dashboard at `/analytics/gmv-tiktok`); 18/18 pass on both projects.
 - [ ] vitest needs Node 20 locally: under Node 26 jsdom's `localStorage` is
   shadowed (270 failures on untouched main) — env — pin `.nvmrc` to 20.

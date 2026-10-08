@@ -138,7 +138,8 @@ test.describe("Phase 2.6 exit gate — accessibility", () => {
       });
     });
 
-    await page.goto("/analytics");
+    // D21: /analytics is the shop report; the KPI dashboard lives per metric.
+    await page.goto("/analytics/gmv-tiktok");
     const unavailableCard = page.getByTestId("analytics-kpi-card-aov");
     await expect(
       unavailableCard.getByText("Chưa khả dụng", { exact: true }),
