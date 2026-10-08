@@ -2933,3 +2933,1262 @@ a {
   background: var(--juli-warning-tint);
   border: 1px solid color-mix(in srgb, var(--juli-warning) 45%, var(--juli-border));
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   Juli app kit (D21, AC-7.5) — the tokens and component classes of
+   docs/product/design/colors_and_type.css, adopted by the demo so it
+   follows docs/product/design/ui_kits/app/index.html. Values are copied
+   from that file; the one deliberate change is that pink TEXT always uses
+   --pink-text (#b0386a, ADR-054) — #f86ba5 is a fill/accent, never text.
+   Everything below this banner is layered over the earlier rules, so the
+   earlier --juli-* surfaces keep working while the shell, typography and
+   cards take the kit's look.
+   ══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --pink-main: #f86ba5;
+  --pink-background: #fef5f6;
+  --pink-light: #faa5c4;
+  --pink-dark: #e85a94;
+  --pink-text: #b0386a;
+  --brand-gradient: linear-gradient(135deg, #f86ba5 0%, #faa5c4 100%);
+
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #171717;
+  --muted: #ffffff;
+  --muted-foreground: #71717a;
+  --border: #f8d4dc;
+  --border-accent: rgba(248, 107, 165, 0.2);
+  --primary: var(--pink-main);
+  --primary-foreground: #ffffff;
+  --secondary: var(--pink-background);
+  --header-background: #ffffff;
+  --header-border: rgba(248, 107, 165, 0.18);
+
+  --chart-neutral: #71717a;
+  --success: #16a34a;
+  --success-tint: #16a34a20;
+  --destructive: #e5484d;
+  --destructive-tint: #e5484d20;
+  --warning: #f59e0b;
+  --warning-tint: #f59e0b20;
+  /* Warning as TEXT on light: the amber fill fails AA, so text uses the
+     darker step of the same hue (WCAG 1.4.3). */
+  --warning-text: #92400e;
+  --info: #2563eb;
+  --info-tint: #2563eb20;
+
+  --radius: 16px;
+  --radius-lg: 24px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.08);
+  --focus-ring-width: 3px;
+  --focus-ring-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  --touch-target-min: 44px;
+  --app-max-width: 1120px;
+}
+
+/* ── Kit component classes ──────────────────────────────────────────── */
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border-accent, var(--border));
+  border-radius: var(--radius);
+}
+
+.card-interactive {
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.card-interactive:hover {
+  border-color: var(--border-accent, var(--border));
+  box-shadow: var(--shadow-sm);
+}
+
+.card-interactive:active {
+  transform: scale(0.98);
+}
+
+.card-interactive:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+}
+
+.brand-wordmark {
+  display: inline-block;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.brand-wordmark-sm {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+}
+
+.app-header {
+  background: var(--header-background);
+  border-bottom: 1px solid var(--header-border);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 100px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-success {
+  background: var(--success-tint);
+  color: var(--success);
+}
+
+.badge-warning {
+  background: var(--warning-tint);
+  color: var(--warning-text);
+}
+
+.badge-danger {
+  background: var(--destructive-tint);
+  color: var(--destructive);
+}
+
+.badge-info {
+  background: var(--info-tint);
+  color: var(--info);
+}
+
+.badge-pink {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--pink-text);
+}
+
+.badge-neutral {
+  background: var(--secondary);
+  color: var(--muted-foreground);
+}
+
+.field-input {
+  background: var(--muted);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  border-radius: 10px;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field-input:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+}
+
+.field-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-primary,
+.btn-secondary {
+  min-height: var(--touch-target-min);
+  border-radius: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-primary {
+  color: var(--primary-foreground);
+  background: var(--brand-gradient);
+  border: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+  filter: brightness(0.95);
+}
+
+.btn-secondary {
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  background: transparent;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-secondary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-primary:focus-visible,
+.btn-secondary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+}
+
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.link-secondary {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link-secondary:hover {
+  color: var(--foreground);
+}
+
+.skeleton {
+  border-radius: var(--radius);
+  background: linear-gradient(90deg, var(--muted) 0%, var(--border) 50%, var(--muted) 100%);
+  background-size: 200% 100%;
+  animation: kit-skeleton-shimmer 1.2s ease-in-out infinite;
+}
+
+/* "Juli hỗ trợ" — contextual help, info-tinted, never a page wash. */
+.juli-assist {
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--info) 24%, var(--border));
+  background: color-mix(in srgb, var(--info) 6%, transparent);
+  padding: 12px;
+  font-size: 13px;
+}
+
+@keyframes kit-skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ── Shell: header, main column, bottom navigation ─────────────────── */
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.02em;
+}
+
+.demo-shell {
+  padding-bottom: 84px;
+}
+
+.demo-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  min-height: 3.5rem;
+  padding: 0 max(16px, (100vw - var(--app-max-width)) / 2);
+  border-bottom: 1px solid var(--header-border);
+  background: var(--header-background);
+  backdrop-filter: none;
+}
+
+.demo-wordmark.brand-wordmark {
+  font-size: 1.25rem;
+}
+
+.demo-main,
+.demo-feedback,
+.demo-assistance {
+  width: min(100% - 32px, var(--app-max-width));
+  padding-left: 0;
+}
+
+.demo-main {
+  padding: 20px 0 24px;
+}
+
+.demo-feedback {
+  border-color: var(--border);
+  border-radius: 12px;
+  background: var(--secondary);
+  font-size: 13px;
+}
+
+.demo-assistance {
+  margin-bottom: 24px;
+  border: 1px solid color-mix(in srgb, var(--info) 24%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--info) 6%, var(--card));
+  padding: 12px 16px;
+  box-shadow: none;
+  font-size: 13px;
+}
+
+.demo-assistance__eyebrow {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.demo-assistance h2 {
+  color: var(--info);
+  font-size: 13px;
+}
+
+.demo-assistance > p:not(.demo-assistance__eyebrow) {
+  margin-top: 4px;
+  color: var(--foreground);
+  font-size: 13px;
+}
+
+.demo-kicker {
+  margin-bottom: 6px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.demo-title {
+  max-width: none;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+
+.demo-intro {
+  margin-top: 6px;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.demo-notice {
+  margin-top: 12px;
+  font-size: 12px;
+}
+
+/* Home launcher cards — the mock's plain .card launcher. */
+.demo-launchers {
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.juli-destination-card {
+  min-height: 150px;
+  align-content: start;
+  border-color: var(--border-accent);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: none;
+}
+
+.juli-destination-card::before {
+  content: none;
+}
+
+.juli-destination-card:hover {
+  border-color: var(--border-accent);
+  box-shadow: var(--shadow-sm);
+  transform: none;
+}
+
+/* Bottom navigation at every width — the mock's NavBar. */
+.juli-primary-nav {
+  position: fixed;
+  z-index: 50;
+  top: auto;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: auto;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--card);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.juli-primary-nav__list {
+  max-width: 480px;
+  margin: 0 auto;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  padding: 8px 8px 12px;
+}
+
+.juli-primary-nav__link {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.juli-primary-nav__link[aria-current="page"] {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--pink-text);
+  font-weight: 700;
+}
+
+.juli-primary-nav__link[aria-current="page"]::after {
+  content: none;
+}
+
+.juli-primary-nav__icon .juli-destination-icon {
+  width: 22px;
+  height: 22px;
+}
+
+/* Decisions sub-tabs: the mock's underline tabs. */
+.demo-decisions__tabs {
+  display: flex;
+  margin-top: 16px;
+  gap: 8px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.demo-decisions__tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  padding: 8px 4px;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.demo-decisions__tab[aria-pressed="true"] {
+  border-bottom-color: var(--primary);
+  background: transparent;
+  color: var(--pink-text);
+}
+
+/* The run route: the bottom bar replaced the rail, so the run surface is
+   centred in the same column as every other page. */
+.demo-shell--run {
+  padding-bottom: 84px;
+}
+
+.demo-main--run {
+  width: min(100% - 32px, var(--app-max-width));
+  margin: 0 auto;
+  padding: 20px 0 24px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+
+  .btn-primary,
+  .btn-secondary,
+  .card-interactive {
+    transition: none;
+  }
+}
+
+/* ── Quyết định: recommendation cards (AC-7.6) — the mock's
+   HomeAiRecommendationCard, plus the funnel evidence block. ─────────── */
+
+.decision-card {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+.decision-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.decision-card__kicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--pink-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.decision-card__headline {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.decision-card__description,
+.decision-card__impact {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.decision-card__impact strong {
+  color: var(--foreground);
+}
+
+.decision-card__reasoning {
+  display: grid;
+  gap: 6px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--info) 24%, var(--border));
+  background: color-mix(in srgb, var(--info) 6%, transparent);
+  padding: 12px;
+  font-size: 13px;
+}
+
+.decision-card__reasoning > strong {
+  color: var(--info);
+}
+
+.decision-card__reasoning p {
+  margin: 0;
+}
+
+.decision-card__label {
+  font-weight: 600;
+}
+
+.decision-card__steps {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.decision-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.decision-card__actions > button {
+  flex: 1;
+}
+
+.decision-card__actions > .decision-card__expand {
+  flex-basis: 100%;
+}
+
+.decision-card__rejected-note {
+  margin: 12px 0 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.decision-evidence {
+  display: grid;
+  gap: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+}
+
+.decision-evidence__diagnosis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.decision-evidence__diagnosis dt {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.decision-evidence__diagnosis dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.decision-evidence__table-wrap {
+  overflow-x: auto;
+}
+
+.decision-evidence__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.decision-evidence__table caption {
+  padding-bottom: 6px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.decision-evidence__table th,
+.decision-evidence__table td {
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.decision-evidence__table th:first-child {
+  text-align: left;
+  font-weight: 500;
+}
+
+.decision-evidence__table thead th {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Change chip — direction is always carried by the sign in the text too. */
+.change-chip {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.change-chip--up {
+  background: var(--success-tint);
+  color: var(--success);
+}
+
+.change-chip--down {
+  background: var(--destructive-tint);
+  color: var(--destructive);
+}
+
+.change-chip--flat {
+  background: var(--secondary);
+  color: var(--muted-foreground);
+}
+
+/* ── Phân tích: the shop diagnosis report (AC-7.7) ───────────────────── */
+
+.analysis-page {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.analysis-header {
+  display: grid;
+  gap: 10px;
+}
+
+.analysis-header__shop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.analysis-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.analysis-toc a {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 12px;
+  color: var(--foreground);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.analysis-toc a:hover {
+  border-color: var(--primary);
+}
+
+.analysis-toc a:focus-visible,
+.analysis-segmented button:focus-visible,
+.analysis-table-wrap:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+}
+
+.analysis-section {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px;
+  scroll-margin-top: 72px;
+}
+
+.analysis-eyebrow {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.analysis-section__title {
+  margin: -8px 0 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.analysis-subtitle {
+  margin: 6px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.analysis-subsection h4,
+.hero-card__details h4,
+.funnel-card__title,
+.hero-card__title {
+  font-weight: 700;
+}
+
+.analysis-subsection {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.analysis-subsection h4,
+.hero-card__details h4 {
+  margin: 8px 0 0;
+  font-size: 14px;
+}
+
+.analysis-lede {
+  max-width: 85ch;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.analysis-note {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.analysis-warn {
+  margin: 0;
+  border-radius: 10px;
+  background: var(--warning-tint);
+  padding: 8px 12px;
+  color: var(--warning-text);
+  font-weight: 600;
+}
+
+.analysis-list,
+.analysis-notes {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.analysis-footer {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.analysis-empty {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding: 16px;
+  font-size: 14px;
+}
+
+.analysis-empty p {
+  margin: 0;
+}
+
+.analysis-table-wrap {
+  overflow-x: auto;
+  border-radius: 8px;
+}
+
+.analysis-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.analysis-table th,
+.analysis-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.analysis-table thead th {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: normal;
+  min-width: 6rem;
+}
+
+.analysis-table th:first-child,
+.analysis-table .analysis-table__text {
+  text-align: left;
+}
+
+:where(.analysis-section, .hero-card) p {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.analysis-table tbody th {
+  font-weight: 500;
+}
+
+.analysis-table .analysis-table__text {
+  white-space: normal;
+  min-width: 10rem;
+}
+
+.analysis-table__group th,
+.analysis-table__group td {
+  background: var(--secondary);
+  font-weight: 700;
+}
+
+.analysis-table__sub th {
+  padding-left: 26px;
+  color: var(--muted-foreground);
+}
+
+.analysis-table__total th,
+.analysis-table__total td {
+  border-top: 2px solid var(--foreground);
+  font-weight: 800;
+}
+
+.analysis-contrib {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.analysis-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.analysis-verdict {
+  display: grid;
+  gap: 4px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--info) 24%, var(--border));
+  background: color-mix(in srgb, var(--info) 6%, transparent);
+  padding: 12px;
+  font-size: 13px;
+}
+
+.analysis-verdict p {
+  margin: 0;
+}
+
+.analysis-verdict__headline {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.analysis-two-col {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.analysis-segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.analysis-segmented button {
+  min-height: var(--touch-target-min);
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  padding: 0 12px;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.analysis-segmented button[aria-pressed="true"] {
+  background: var(--secondary);
+  color: var(--foreground);
+  font-weight: 700;
+}
+
+/* Stacked GMV bars — non-directional channel series, never brand pink. */
+.stacked-bars {
+  display: grid;
+  gap: 8px;
+}
+
+.stacked-bars__row {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.stacked-bars__label {
+  color: var(--muted-foreground);
+}
+
+.stacked-bars__track {
+  display: flex;
+  height: 26px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--secondary);
+}
+
+.stacked-bars__seg {
+  height: 100%;
+}
+
+.stack-0 {
+  background: var(--chart-neutral);
+}
+
+.stack-1 {
+  background: var(--info);
+}
+
+.stack-2 {
+  background: var(--warning);
+}
+
+.stack-3 {
+  background: var(--success);
+}
+
+.stack-4 {
+  background: color-mix(in srgb, var(--chart-neutral) 45%, var(--card));
+}
+
+/* Funnel cards: nine boxes from Lượt hiển thị sản phẩm to GMV. */
+.funnel-list {
+  display: grid;
+  gap: 10px;
+}
+
+.funnel-card {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.funnel-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.funnel-card__title {
+  margin: 0;
+  font-size: 14px;
+}
+
+.funnel-card__subtitle,
+.funnel-card__missing {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.funnel-card__missing {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.funnel-flow {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(6.25rem, 1fr);
+  gap: 4px;
+  margin: 0;
+  overflow-x: auto;
+  padding: 0 0 4px;
+  list-style: none;
+}
+
+.funnel-box {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.funnel-box--na {
+  opacity: 0.6;
+}
+
+.funnel-box__label,
+.funnel-box__prior,
+.funnel-box__note {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.funnel-box__value {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* Hero product cards. */
+.hero-list {
+  display: grid;
+  gap: 12px;
+}
+
+.hero-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.hero-card__title {
+  margin: -6px 0 0;
+  font-size: 16px;
+}
+
+.hero-card__toggle {
+  justify-self: start;
+}
+
+.hero-card__details {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.hero-card__details[hidden] {
+  display: none;
+}
+
+/* Timeline: promotion lanes and the four rolling-average charts. */
+.band-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.band-legend__swatch {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  margin-right: 5px;
+  border-radius: 3px;
+  vertical-align: -1px;
+}
+
+.band-strip {
+  display: grid;
+  gap: 6px;
+}
+
+.band-lane {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.band-lane__label {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.band-lane__track {
+  position: relative;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--secondary);
+}
+
+.band-lane__track--axis {
+  height: 14px;
+  background: transparent;
+}
+
+.band-lane__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.band-lane__fill--flash {
+  background: var(--warning);
+}
+
+.band-lane__fill--discount {
+  background: var(--info);
+}
+
+.band-lane__fill--voucher {
+  background: var(--chart-neutral);
+}
+
+.band-lane__tick {
+  position: absolute;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.timeline-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.timeline-chart {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.timeline-chart__title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.timeline-chart__plot svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.timeline-chart__range {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+@media (max-width: 35rem) {
+  .analysis-section {
+    padding: 14px;
+  }
+
+  .band-lane,
+  .stacked-bars__row {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+  }
+}
+
+/* Recharts pins its wrapper to the pixel size it drew at; let the SVG
+   (which carries a viewBox) scale to the card instead. */
+.timeline-chart__plot .recharts-wrapper {
+  width: 100% !important;
+  height: auto !important;
+}
+
+/* Kit type scale for the remaining page-level headings: page titles stay at
+   the mock's 18–20px, card headings at 16–18px. */
+.demo-placeholder h1 {
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.demo-decisions__empty h2,
+.demo-decisions__detail-title {
+  font-size: 1.125rem;
+  letter-spacing: -0.02em;
+}
