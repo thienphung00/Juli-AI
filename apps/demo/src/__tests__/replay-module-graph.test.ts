@@ -81,6 +81,8 @@ const ENTRY_POINTS = [
   "components/home-launcher.tsx",
   "app/decisions/recommendations/[recommendationId]/page.tsx",
   "components/replay-run-detail.tsx",
+  // D21 / AC-7.7: the anonymous Phân tích sample is bundled, never fetched.
+  "components/shop-analysis/sample-shop-analysis.tsx",
 ];
 
 const RESOLVABLE_EXTENSIONS = [".tsx", ".ts", "/index.tsx", "/index.ts"];
