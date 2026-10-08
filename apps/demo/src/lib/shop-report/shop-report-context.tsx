@@ -28,7 +28,7 @@ import { readAuthSession } from "../supabase-auth";
  *   one authenticated client; 404 → `empty`, failure → `error` (never the
  *   sample standing in for the seller's shop).
  *
- * Phân tích keeps its own fetch because it switches the hero ranking.
+ * Phân tích (AC-8.6) reads it too; only its rankings are fetched per cell.
  */
 
 export interface ActingShop {

@@ -323,3 +323,36 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   (nav in `lib/app-navigation.ts`, Home = overview), e2e helpers/specs.
 - Gates: see AC-8.5 evidence. Next: P8-E/P8-F build inside the shell; DEBT
   P8-D lists ngành/SKU data, double analysis fetch, dead CSS/state cleanup.
+
+## 2026-10-08 — P8-E agent (Claude Opus) — Phân tích UI (AC-8.6)
+
+- Branch fasttrack/p8e-analysis: aca17597 (generator + sample rankings),
+  fdd8410f (UI), 8c2fdfb2 (vitest), 0cd3598b (e2e + layout/contrast fixes),
+  docs commit.
+- `/analytics` = ADR-109 Phân tích inside DemoShell (`components/phan-tich/`,
+  pure model in `lib/phan-tich/model.ts`): Sản phẩm / Nội dung sub-tabs, one
+  funnel row per stream, clickable cells per d.4 (Thẻ sản phẩm's CTOR tile
+  carries Thêm giỏ/bấm and Đơn/thêm giỏ, both ranked), URL `tab/stream/metric`
+  (Home links land). Bottleneck = across the sub-tab's two streams, the
+  clickable factor with the most negative report contribution labelled "Rõ";
+  outlined + "✦ Juli gợi ý" from the report's numbers, no "Mục tiêu" (backend
+  has none); h1 from it ("Thẻ sản phẩm: CTOR giảm 15,2 %"). Ranking table from
+  `GET /v1/demo/analysis/rankings` (memoised per cell), Kéo xuống/lên, closing
+  rows + the other direction folded so the shown rows sum to "Tổng =
+  stream_factor_gmv"; 404 → "Chưa có bảng xếp hạng cho chỉ số này". Ví dụ panel
+  (hero 5-channel profile when present), hero list expanding in place,
+  Khuyến mãi / Dòng thời gian / Cách tính collapsed ("Xem thêm").
+- Report read through `useShopReport()` — P8-D's double fetch repaid. Retired
+  `ShopAnalysisView`, its signed-in/sample wrappers and their test; hero
+  ranking 60d/30d toggle dropped (DEBT).
+- `scripts/demo_analysis_sample.py`: real `build_report` + `build_rankings`
+  over `tests/support/shop_diagnosis.py` helpers + synthetic LIVE sessions and
+  video windows; regenerates sample-report.json byte-identical, writes
+  sample-rankings.json; `--check`.
+- Gates: type-check, lint (0 errors), vitest 1657/1658 (pre-existing
+  replay-scenario byte check, fails on the merge base too), e2e 102/102,
+  build:demo OK. Screenshots in the session scratchpad `shots-p8e/`.
+- Next: integration — re-copy the golden scenario fixture; P8-F reuses the
+  page header pattern; DEBT P8-E lists target/diagnosis data, step default,
+  label duplication with Home.
+
