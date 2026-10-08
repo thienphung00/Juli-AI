@@ -10,6 +10,7 @@ import {
   REPLAY_SCENARIO_WORKFLOW_SUBJECT,
   REPLAY_SCENARIO_WORKFLOW_TITLE,
 } from "../fixtures/replay-scenario";
+import { HOME_MATRIX_REGION, navigatePrimaryDestination } from "../helpers/demo-navigation";
 
 /**
  * Issue #1321 (ADR-076 decision 7, PUI-DESIGN.md §9) — the deterministic
@@ -132,15 +133,12 @@ test.describe("Replay journey — issue #1321 (ADR-076 decision 7)", () => {
         .getByRole("button", { name: "Dùng thử Demo" })
         .click();
       await expect(
-        page.getByRole("region", { name: "Điểm đến chính" }),
+        page.getByRole("region", { name: HOME_MATRIX_REGION }),
       ).toBeVisible();
     });
 
     await test.step("Home → Decisions", async () => {
-      await page
-        .getByRole("region", { name: "Điểm đến chính" })
-        .getByRole("link", { name: /Quyết định/ })
-        .click();
+      await navigatePrimaryDestination(page, "Quyết định");
       await expect(page).toHaveURL(/\/decisions$/);
     });
 

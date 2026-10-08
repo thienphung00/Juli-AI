@@ -5,28 +5,39 @@ import {
   navigatePrimaryDestination,
 } from "../helpers/demo-navigation";
 
-/** Branded CSS must override UA defaults — static bundles failed to load otherwise. */
+/**
+ * Branded CSS must override UA defaults — static bundles failed to load
+ * otherwise. AC-8.5: the brand now shows in the shell the sales demo video
+ * draws — the active rail/bottom-bar item's pink tint and pink text, and the
+ * avatar's brand gradient — at both viewports (the Juli. wordmark sits in the
+ * desktop rail only).
+ */
 async function expectBrandedComputedStyles(page: Page) {
+  await expect(page.locator(".app-nav__item[aria-current='page']")).toBeVisible();
+  await expect(page.locator(".shop-avatar")).toBeVisible();
   const styles = await page.evaluate(() => {
     const body = getComputedStyle(document.body);
-    const wordmark = document.querySelector(".demo-wordmark");
-    const wordmarkStyles = wordmark ? getComputedStyle(wordmark) : null;
+    const active = document.querySelector(".app-nav__item[aria-current='page']");
+    const activeStyles = active ? getComputedStyle(active) : null;
+    const avatar = document.querySelector(".shop-avatar");
+    const avatarStyles = avatar ? getComputedStyle(avatar) : null;
     return {
       bodyFontFamily: body.fontFamily,
       bodyBackgroundColor: body.backgroundColor,
-      wordmarkBackgroundImage: wordmarkStyles?.backgroundImage ?? "",
-      wordmarkFontWeight: wordmarkStyles?.fontWeight ?? "",
-      wordmarkFontSize: wordmarkStyles?.fontSize ?? "",
+      activeColor: activeStyles?.color ?? "",
+      activeBackground: activeStyles?.backgroundColor ?? "",
+      avatarBackgroundImage: avatarStyles?.backgroundImage ?? "",
+      avatarFontWeight: avatarStyles?.fontWeight ?? "",
     };
   });
 
   expect(styles.bodyFontFamily.toLowerCase()).toMatch(/inter/);
-  // D21 restyle: flat app-kit background instead of the brand gradient image.
   expect(styles.bodyBackgroundColor).not.toBe("rgba(0, 0, 0, 0)");
-  expect(styles.wordmarkFontWeight).toBe("800");
-  expect(parseFloat(styles.wordmarkFontSize)).toBeGreaterThan(16);
-  // D21 app kit: the wordmark is gradient text (.brand-wordmark), not a flat pink.
-  expect(styles.wordmarkBackgroundImage).toMatch(/gradient/);
+  // --pink-text (#b0386a) on --pink-background (#fef5f6).
+  expect(styles.activeColor).toBe("rgb(176, 56, 106)");
+  expect(styles.activeBackground).toBe("rgb(254, 245, 246)");
+  expect(styles.avatarBackgroundImage).toMatch(/gradient/);
+  expect(styles.avatarFontWeight).toBe("800");
 }
 
 test.describe("Phase 2.6 exit gate — static asset render (ADR-035)", () => {
@@ -39,7 +50,7 @@ test.describe("Phase 2.6 exit gate — static asset render (ADR-035)", () => {
   test("Home loads branded computed styles from production CSS bundles", async ({
     page,
   }) => {
-    await expect(page.getByRole("link", { name: "Juli" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Điều hướng chính" })).toBeVisible();
     await expectBrandedComputedStyles(page);
   });
 

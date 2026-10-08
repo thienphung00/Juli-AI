@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { HOME_MATRIX_REGION, openShopMenu } from "../helpers/demo-navigation";
+
 /**
  * Issue #1905's decisive acceptance criterion -- the one #1319 lacked, and
  * lacking it is exactly how a dead door shipped and stayed shipped: assert
@@ -81,7 +83,7 @@ test.describe("Landing doors — the Google door is a real link in the artifact,
 /**
  * Issue #1907 -- once a visitor clicked "Dùng thử Demo", the header's only
  * sign-in affordance (`<Link href="/">`) landed back on `/`, which
- * immediately short-circuited to HomeLauncher: the door became unreachable
+ * immediately short-circuited to the replay Home: the door became unreachable
  * for the rest of the tab session, by any navigation. Same artifact-level
  * caveat as the suite above -- these assertions are the ones a jsdom
  * component test cannot make: what a real browser sees against the actual
@@ -101,8 +103,10 @@ test.describe("The header's sign-in door stays reachable after entering the repl
     page,
   }) => {
     await page.getByRole("button", { name: "Dùng thử Demo" }).click();
+    // AC-8.5: the header's Đăng nhập lives in the shop-avatar menu.
+    await openShopMenu(page);
 
-    const headerLink = page.getByRole("link", { name: "Đăng nhập" });
+    const headerLink = page.getByRole("link", { name: "Đăng nhập", exact: true });
     await expect(headerLink).toBeVisible();
 
     const tagName = await headerLink.evaluate((el) => el.tagName);
@@ -124,7 +128,7 @@ test.describe("The header's sign-in door stays reachable after entering the repl
   }) => {
     await page.getByRole("button", { name: "Dùng thử Demo" }).click();
     await expect(
-      page.getByRole("region", { name: "Điểm đến chính" }),
+      page.getByRole("region", { name: HOME_MATRIX_REGION }),
     ).toBeVisible();
 
     await page.goto("/?entry=door");
@@ -136,22 +140,22 @@ test.describe("The header's sign-in door stays reachable after entering the repl
       page.getByRole("link", { name: "Đăng nhập với Google" }),
     ).toBeVisible();
     await expect(
-      page.getByRole("region", { name: "Điểm đến chính" }),
+      page.getByRole("region", { name: HOME_MATRIX_REGION }),
     ).not.toBeVisible();
   });
 
-  test("a bare / with the replay entry stored still renders HomeLauncher — existing behaviour preserved", async ({
+  test("a bare / with the replay entry stored still renders the sample Home — existing behaviour preserved", async ({
     page,
   }) => {
     await page.getByRole("button", { name: "Dùng thử Demo" }).click();
     await expect(
-      page.getByRole("region", { name: "Điểm đến chính" }),
+      page.getByRole("region", { name: HOME_MATRIX_REGION }),
     ).toBeVisible();
 
     await page.goto("/");
 
     await expect(
-      page.getByRole("region", { name: "Điểm đến chính" }),
+      page.getByRole("region", { name: HOME_MATRIX_REGION }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Dùng thử Demo" }),

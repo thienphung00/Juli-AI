@@ -1,31 +1,33 @@
 import { expect, test } from "@playwright/test";
 
 import { DEMO_MODE_REPLAY_LABEL } from "../../src/lib/demo-mode-copy";
+import { JULI_LOCKED_HINT } from "../../src/lib/app-navigation";
 import {
+  HOME_MATRIX_REGION,
   enterReplayDemo,
-  expectContextualAssistance,
   expectFourDestinationShell,
+  expectShopHeader,
   navigatePrimaryDestination,
+  openShopMenu,
 } from "../helpers/demo-navigation";
 
+// AC-8.5 retired the contextual-assistance aside (ADR-109 d.1: the shell
+// follows the sales demo video, which has none). What this suite still
+// guards on every destination is the shell itself: the four-item nav with
+// Juli locked, and the shop header without a global stepper.
 const DESTINATION_PATHS = [
-  { path: "/", assistanceEyebrow: "Trang chủ" },
-  { path: "/decisions", assistanceEyebrow: "Quyết định" },
-  { path: "/analytics", assistanceEyebrow: "Phân tích" },
-  { path: "/settings", assistanceEyebrow: "Cài đặt" },
+  { path: "/", label: "Trang chủ" },
+  { path: "/decisions", label: "Quyết định" },
+  { path: "/analytics", label: "Phân tích" },
 ] as const;
 
 test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
   test("Vietnamese diacritics appear on Home and Decisions", async ({ page }) => {
     await enterReplayDemo(page);
-    const launchers = page.getByRole("region", { name: "Điểm đến chính" });
-    await expect(
-      launchers.getByRole("link", { name: /Quyết định/ }),
-    ).toBeVisible();
-    await expect(
-      launchers.getByRole("link", { name: /Phân tích/ }),
-    ).toBeVisible();
-    await expect(page.getByText("Juli Demo Shop")).toBeVisible();
+    const matrix = page.getByRole("region", { name: HOME_MATRIX_REGION });
+    await expect(matrix.getByText("Tăng trưởng từ sản phẩm")).toBeVisible();
+    await expect(matrix.getByText("Tăng trưởng từ nội dung")).toBeVisible();
+    await expect(page.getByTestId("shop-header")).toContainText("Cửa hàng Mẫu Hoa Mai");
 
     await page.goto("/decisions");
     await expect(page.getByRole("button", { name: "Đề xuất" })).toBeVisible();
@@ -44,7 +46,7 @@ test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
   // `mock-data-notice` testid asserted below — the phase-2.6 exit gate
   // (tests/unit/test_phase_2_6_demo_exit_gate.py) greps this file's source
   // for it to prove the concern stays covered. Sellers never see the word:
-  // the header renders DEMO_MODE_REPLAY_LABEL ("Bản minh họa", #1907).
+  // the header badge renders DEMO_MODE_REPLAY_LABEL ("Bản minh họa", #1907).
   test("Mock mode notice stays truthful, and sign-in is a real door out rather than a dead link back to /", async ({
     page,
   }) => {
@@ -72,11 +74,11 @@ test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
     // The label is the same constant DemoShell renders (dictionary.md
     // `demo.mode.replay`), so this spec cannot drift from the component;
     // demo-shell.test.tsx pins the literal Vietnamese against the dictionary.
-    await expect(
-      page.getByRole("button", { name: DEMO_MODE_REPLAY_LABEL }),
-    ).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("shop-header")).toContainText(DEMO_MODE_REPLAY_LABEL);
 
-    const signIn = page.getByRole("link", { name: "Đăng nhập" });
+    // AC-8.5: Đăng nhập lives in the shop-avatar menu.
+    await openShopMenu(page);
+    const signIn = page.getByRole("link", { name: "Đăng nhập", exact: true });
     await expect(signIn).not.toHaveAttribute("href", "/");
     await expect(signIn).toHaveAttribute("href", /\.supabase\.co/);
 
@@ -105,30 +107,33 @@ test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
   });
 });
 
-test.describe("Phase 2.6 exit gate — contextual assistance regression", () => {
+test.describe("App shell regression (AC-8.5) — every destination", () => {
   for (const destination of DESTINATION_PATHS) {
-    test(`${destination.assistanceEyebrow} provides grounded assistance`, async ({
-      page,
-    }) => {
+    test(`${destination.label} keeps the rail and the shop header`, async ({ page }) => {
       await page.goto(destination.path);
       await expectFourDestinationShell(page);
-      await expectContextualAssistance(page);
-      await expect(page.getByText(destination.assistanceEyebrow).first()).toBeVisible();
-      await expect(
-        page.getByRole("navigation", { name: "Điều hướng chính" }),
-      ).not.toContainText("Juli");
+      await expectShopHeader(page);
     });
   }
 
-  test("assistance cannot approve, reject, or execute", async ({ page }) => {
+  test("Juli is shown, locked, and says what is coming", async ({ page }) => {
     await page.goto("/decisions");
-    const assistance = page.locator(".demo-assistance");
-    await expect(assistance.getByRole("button", { name: "Phê duyệt" })).toHaveCount(
-      0,
-    );
-    await expect(assistance.getByRole("button", { name: "Từ chối" })).toHaveCount(
-      0,
-    );
+    const juli = page
+      .getByRole("navigation", { name: "Điều hướng chính" })
+      .getByRole("link", { name: "Juli", exact: true });
+    await expect(juli).toBeVisible();
+    await expect(juli).toHaveAttribute("aria-disabled", "true");
+    await expect(juli).toHaveAttribute("title", JULI_LOCKED_HINT);
+    await juli.click({ force: true });
+    await expect(page).toHaveURL(/\/decisions$/);
+  });
+
+  test("Cài đặt opens from the shop-avatar menu", async ({ page }) => {
+    await page.goto("/decisions");
+    await openShopMenu(page);
+    await page.getByRole("link", { name: "Cài đặt" }).click();
+    await expect(page).toHaveURL(/\/settings$/);
+    await expectFourDestinationShell(page);
   });
 
   test("primary navigation has exactly four destinations (no fifth tab)", async ({

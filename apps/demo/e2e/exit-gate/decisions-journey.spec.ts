@@ -5,9 +5,11 @@ import {
   RECOMMENDATION_WORKFLOWS,
 } from "../fixtures/workflow-keys";
 import {
+  HOME_MATRIX_REGION,
   enterReplayDemo,
-  expectContextualAssistance,
   expectFourDestinationShell,
+  expectShopHeader,
+  navigatePrimaryDestination,
 } from "../helpers/demo-navigation";
 import {
   advanceReviewToApproveStage,
@@ -28,36 +30,31 @@ test.describe("Phase 2.6 exit gate — Decisions journey", () => {
     await enterReplayDemo(page);
   });
 
-  test("Home exposes exactly two destination launchers", async ({ page }) => {
-    await expect(
-      page.getByRole("region", { name: "Điểm đến chính" }),
-    ).toBeVisible();
-    const launchers = page
-      .getByRole("region", { name: "Điểm đến chính" })
-      .getByRole("link");
-    await expect(launchers).toHaveCount(2);
-    const launcherRegion = page.getByRole("region", { name: "Điểm đến chính" });
-    await expect(
-      launcherRegion.getByRole("link", { name: /Quyết định/ }),
-    ).toHaveAttribute("href", "/decisions");
-    await expect(
-      launcherRegion.getByRole("link", { name: /Phân tích/ }),
-    ).toHaveAttribute("href", "/analytics");
-    await expect(page.getByTestId("mock-data-notice")).toContainText(
-      "Juli Demo Shop",
-    );
+  // AC-8.5 (ADR-109 d.3): Home is the report overview — GMV / Đơn / AOV and
+  // the 5-stream matrix — not two launcher cards any more.
+  test("Home shows the 5-stream matrix and its cells open Phân tích", async ({ page }) => {
+    const matrix = page.getByRole("region", { name: HOME_MATRIX_REGION });
+    await expect(matrix).toBeVisible();
+    await expect(page.getByTestId("mock-data-notice")).toContainText("Dữ liệu mẫu");
+    await expect(page.getByTestId("home-stat-gmv")).toContainText("GMV 30 ngày");
+    await expect(matrix.locator("tr[data-channel] > th")).toHaveText([
+      /^Thẻ sản phẩm/,
+      /^Tab cửa hàng/,
+      /^Video của shop/,
+      /^LIVE của shop/,
+      /^Liên kết/,
+    ]);
+    await matrix.getByRole("link", { name: /^CTOR Thẻ sản phẩm:/ }).click();
+    await expect(page).toHaveURL(/\/analytics\?tab=san-pham&stream=the-san-pham&metric=ctor$/);
   });
 
-  test("Home → Decisions preserves four-destination shell and assistance", async ({
+  test("Home → Decisions via the rail preserves the four-destination shell", async ({
     page,
   }) => {
-    await page
-      .getByRole("region", { name: "Điểm đến chính" })
-      .getByRole("link", { name: /Quyết định/ })
-      .click();
+    await navigatePrimaryDestination(page, "Quyết định");
     await expect(page).toHaveURL(/\/decisions$/);
     await expectFourDestinationShell(page);
-    await expectContextualAssistance(page);
+    await expectShopHeader(page);
     await expect(
       page.getByRole("button", { name: "Đề xuất", pressed: true }),
     ).toBeVisible();
@@ -114,10 +111,7 @@ test.describe("Phase 2.6 exit gate — Decisions journey", () => {
     // beforeEach already entered through the replay door; navigate within the
     // shell rather than re-loading `/decisions` cold, which would land on the
     // landing gate with no entry choice recorded.
-    await page
-      .getByRole("region", { name: "Điểm đến chính" })
-      .getByRole("link", { name: /Quyết định/ })
-      .click();
+    await navigatePrimaryDestination(page, "Quyết định");
     await expect(page).toHaveURL(/\/decisions$/);
 
     for (const fixture of RECOMMENDATION_WORKFLOWS) {
