@@ -17,6 +17,12 @@ SHARED RATE LIMIT. The production task hands the fetch the poll path's Redis
 ``RateLimiter`` (same client as the lock), so the report's reads draw from the
 same per-endpoint window as the poll (``services/shop_diagnosis_daily/pacing.py``).
 
+VIDEO RANKINGS. The body passes ``fetch_ranking_videos`` as ``video_metrics``
+(unless the caller supplies one), so the per-video last-30 / prior-30 windows
+(P8-B) are read in the fetch thread with the snapshot's own rate-limited
+resources and pacing -- no second credential -- and the two Video rankings are
+stored with the other 13. A video failure only drops those two.
+
 FAILURE ISOLATION. This is its own task, so nothing here can fail a poll
 cycle: the enqueue helper swallows broker errors, and the task logs a failure
 (``shop_diagnosis_failed``) and returns instead of raising -- tomorrow's
@@ -28,7 +34,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 import uuid
+from functools import partial
 from typing import Any
 
 from juli_backend.workers.celery_app import celery_app
@@ -106,8 +114,18 @@ async def _build(
     app_secret: str,
     **kwargs: Any,
 ) -> Any:
-    from juli_backend.services.shop_diagnosis_daily import build_and_store_shop_diagnosis
+    from juli_backend.services.shop_diagnosis_daily import (
+        build_and_store_shop_diagnosis,
+        fetch_ranking_videos,
+    )
 
+    if "video_metrics" not in kwargs:
+        # Same pacing as the snapshot fetch the job runs with these kwargs.
+        kwargs["video_metrics"] = partial(
+            fetch_ranking_videos,
+            sleep_s=kwargs.get("sleep_s", 0.4),
+            backoff_sleep=kwargs.get("backoff_sleep", time.sleep),
+        )
     try:
         return await build_and_store_shop_diagnosis(
             session_factory=session_factory,

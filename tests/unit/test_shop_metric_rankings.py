@@ -19,7 +19,7 @@ from juli_backend.services.shop_diagnosis.decomposition import log_share, sequen
 from juli_backend.services.shop_diagnosis.rankings import (
     STREAM_METRICS,
     Metric,
-    VideoWindowMetrics,
+    VideoWindowCounts,
     build_rankings,
     metric_values,
     reconciles,
@@ -317,8 +317,8 @@ def test_live_sessions_are_measured_against_the_streams_prior_rates() -> None:
 def test_videos_are_ranked_only_when_their_window_metrics_are_given() -> None:
     assert not any(r.stream is Channel.SELLER_VIDEO for r in build_rankings(_snapshot()))
     videos = [
-        VideoWindowMetrics("v1", "Mở hộp", LAST[2], Counts(5_000, 250, None, 20, 2_000_000)),
-        VideoWindowMetrics(
+        VideoWindowCounts("v1", "Mở hộp", LAST[2], Counts(5_000, 250, None, 20, 2_000_000)),
+        VideoWindowCounts(
             "v2",
             "Cũ",
             PRIOR[1],

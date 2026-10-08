@@ -287,3 +287,37 @@ def test_every_tiktok_method_the_module_calls_is_gated():
         ("analytics", "get_video_performance"),
     }
     assert called <= set(ENDPOINTS)
+
+
+def test_ranking_videos_turns_each_window_into_ranking_counts():
+    resources = FakeVideoResources(last=[_listed("v1", 9, 4)], prior=[_listed("v1", 5, 2)])
+
+    (video,) = video_windows.ranking_videos(_fetch(resources))
+
+    assert video.video_id == "v1" and video.posted_on == date(2025, 1, 1)
+    assert video.last is not None and video.prior is not None
+    assert (video.last.impressions, video.last.clicks, video.last.gmv) == (600, 90, 60_000)
+    assert video.last.sku_orders == 4 and video.last.add_to_cart is None
+    assert (video.prior.impressions, video.prior.sku_orders) == (300, 2)
+
+
+def test_ranking_videos_drops_sides_without_activity_or_impressions():
+    last_first, prior_first = LAST_FIRST.isoformat(), PRIOR_FIRST.isoformat()
+    videos = [
+        _listed("new", 50, 1, posted=f"{last_first} 09:00:00"),
+        _listed("old", 40, 1, posted=f"{prior_first} 09:00:00"),
+    ]
+    resources = FakeVideoResources(last=[], prior=[], list_error=RuntimeError("scope"))
+
+    fallback = _fetch(resources, _snapshot(videos=videos))
+    assert fallback.basis == POSTED_IN_WINDOW
+    # No per-video product file in the snapshot -> impressions unknown -> not rankable.
+    assert video_windows.ranking_videos(fallback) == []
+
+    with_file = {"new": {"products": [{"product_impressions": 70, "product_clicks": 7}]}}
+    rows = video_windows.ranking_videos(
+        _fetch(resources, _snapshot(videos=videos, video_products=with_file))
+    )
+    assert [(r.video_id, r.last is not None, r.prior is None) for r in rows] == [
+        ("new", True, True)
+    ]

@@ -1,8 +1,9 @@
 """Metric rankings in the daily job and on the read route (fast track P8-A, AC-8.1).
 
 The daily job builds the ADR-109 d.5 rankings from the same fetched snapshot
-as the ADR-108 report (no extra TikTok call) and stores one row per stream ×
-metric; ``GET /v1/demo/analysis/rankings`` serves the caller's own shop only.
+as the ADR-108 report and stores one row per stream × metric; the two Video
+tables come from P8-B's per-video windows, read with the same resources.
+``GET /v1/demo/analysis/rankings`` serves the caller's own shop only.
 SQLite here; the Postgres RLS proof is
 ``tests/integration/test_shop_metric_rankings_two_tenant.py``.
 """
@@ -11,6 +12,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime, timedelta
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -33,10 +35,14 @@ from juli_backend.services.shop_diagnosis.channels import Counts
 from juli_backend.services.shop_diagnosis.rankings import (
     STREAM_METRICS,
     Metric,
-    VideoWindowMetrics,
+    VideoWindowCounts,
     reconciles,
 )
-from juli_backend.services.shop_diagnosis_daily import build_and_store_shop_diagnosis
+from juli_backend.services.shop_diagnosis_daily import (
+    build_and_store_shop_diagnosis,
+    fetch_ranking_videos,
+)
+from juli_backend.services.shop_diagnosis_daily import job as job_module
 from tests.support.shop_diagnosis import END, FakeTikTokReadResources
 
 NOW = datetime(2026, 10, 7, 10, 0, tzinfo=UTC)
@@ -74,8 +80,8 @@ async def _make_shop(session, *, label: str) -> Shop:
     return shop
 
 
-async def _build(engine, shop_id, tmp_path: Path, **kwargs):
-    resources = FakeTikTokReadResources()
+async def _build(engine, shop_id, tmp_path: Path, *, resources=None, **kwargs):
+    resources = resources or FakeTikTokReadResources()
     result = await build_and_store_shop_diagnosis(
         session_factory=async_sessionmaker(engine, expire_on_commit=False),
         shop_id=shop_id,
@@ -130,15 +136,15 @@ async def test_video_rankings_are_built_when_window_metrics_are_supplied(engine,
     shop = await _make_shop(session, label="rk-video")
     seen: list = []
 
-    def video_metrics(folder: Path, snapshot):
-        seen.append((folder.exists(), snapshot.end))
+    def video_metrics(resources, snapshot):
+        seen.append((resources, snapshot.end))
         return [
-            VideoWindowMetrics("v1", "Mở hộp", END, Counts(5_000, 200, None, 10, 1_000_000)),
+            VideoWindowCounts("v1", "Mở hộp", END, Counts(5_000, 200, None, 10, 1_000_000)),
         ]
 
-    result, _ = await _build(engine, shop.id, tmp_path, video_metrics=video_metrics)
+    result, resources = await _build(engine, shop.id, tmp_path, video_metrics=video_metrics)
 
-    assert seen == [(True, END)]  # read inside the temporary snapshot, before deletion
+    assert seen == [(resources, END)]  # the snapshot fetch's own resources, same build
     assert len(result.metric_rankings) == WITHOUT_VIDEOS + 2
     rows = await _stored(session, ShopMetricRanking, shop.id)
     video = {r.metric: r.ranking for r in rows if r.stream == "seller_video"}
@@ -147,17 +153,184 @@ async def test_video_rankings_are_built_when_window_metrics_are_supplied(engine,
 
 
 @pytest.mark.asyncio
-async def test_a_ranking_failure_never_blocks_the_report(engine, session, tmp_path):
+async def test_a_ranking_failure_never_blocks_the_report(engine, session, tmp_path, monkeypatch):
     shop = await _make_shop(session, label="rk-fail")
 
-    def broken(_folder, _snapshot):
-        raise RuntimeError("video input broke")
+    def broken(*_args, **_kwargs):
+        raise RuntimeError("rankings broke")
 
-    result, _ = await _build(engine, shop.id, tmp_path, video_metrics=broken)
+    monkeypatch.setattr(job_module, "build_rankings", broken)
+    result, _ = await _build(engine, shop.id, tmp_path)
 
     assert result.built and result.metric_rankings == []
     assert len(await _stored(session, ShopDiagnosisReport, shop.id)) == 2
     assert await _stored(session, ShopMetricRanking, shop.id) == []
+
+
+@pytest.mark.asyncio
+async def test_a_broken_video_input_keeps_the_other_13_rankings(engine, session, tmp_path):
+    shop = await _make_shop(session, label="rk-vfail")
+
+    def broken(_resources, _snapshot):
+        raise RuntimeError("video input broke")
+
+    result, _ = await _build(engine, shop.id, tmp_path, video_metrics=broken)
+
+    assert result.built and len(result.metric_rankings) == WITHOUT_VIDEOS
+    assert len(await _stored(session, ShopDiagnosisReport, shop.id)) == 2
+    rows = await _stored(session, ShopMetricRanking, shop.id)
+    assert len(rows) == WITHOUT_VIDEOS
+    assert all(r.stream != "seller_video" for r in rows)
+
+
+@pytest.mark.asyncio
+async def test_a_video_ranking_failure_drops_only_the_video_tables(engine, session, tmp_path):
+    shop = await _make_shop(session, label="rk-vbad")
+
+    def bad_rows(_resources, _snapshot):
+        return [object()]  # not a VideoWindowCounts: build_rankings fails with videos
+
+    result, _ = await _build(engine, shop.id, tmp_path, video_metrics=bad_rows)
+
+    assert result.built and len(result.metric_rankings) == WITHOUT_VIDEOS
+    assert len(await _stored(session, ShopMetricRanking, shop.id)) == WITHOUT_VIDEOS
+
+
+# ---------------------------------------------------------------------------
+# Production wiring: P8-B's per-video windows from the same resources
+# ---------------------------------------------------------------------------
+
+
+def _video_fetch(**overrides):
+    kwargs = {"sleep_s": 0, "backoff_sleep": lambda _s: None, **overrides}
+    return partial(fetch_ranking_videos, **kwargs)
+
+
+@pytest.mark.asyncio
+async def test_the_job_stores_the_two_video_rankings_from_the_fetched_windows(
+    engine, session, tmp_path
+):
+    shop = await _make_shop(session, label="rk-vwin")
+    resources = FakeTikTokReadResources(videos=3)
+
+    result, _ = await _build(
+        engine, shop.id, tmp_path, resources=resources, video_metrics=_video_fetch()
+    )
+
+    assert result.built and len(result.metric_rankings) == WITHOUT_VIDEOS + 2
+    rows = await _stored(session, ShopMetricRanking, shop.id)
+    video = {r.metric: r.ranking for r in rows if r.stream == "seller_video"}
+    assert set(video) == {"impressions", "ctr"}
+    for payload in video.values():
+        assert payload["row_kind"] == "video"
+        assert reconciles(payload)
+    listed = {r["id"] for p in video.values() for r in (*p["down"], *p["up"])}
+    assert listed <= {"v0", "v1", "v2"} and listed
+    # One details call per video over both windows, after the two window lists.
+    details = [c[1] for c in resources.calls if c[0] == "video_details"]
+    assert details == ["v0", "v1", "v2"]
+    window_lists = [c for c in resources.calls if c[0] == "videos"][1:]
+    assert len(window_lists) == 2
+    assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.asyncio
+async def test_the_video_fetch_keeps_p8bs_budget(engine, session, tmp_path):
+    shop = await _make_shop(session, label="rk-vbudget")
+    resources = FakeTikTokReadResources(videos=100)
+
+    result, _ = await _build(
+        engine, shop.id, tmp_path, resources=resources, video_metrics=_video_fetch()
+    )
+
+    assert result.built and len(result.metric_rankings) == WITHOUT_VIDEOS + 2
+    # The snapshot's own 60-day list, then at most 2 window lists + 40 details calls.
+    assert sum(1 for c in resources.calls if c[0] == "videos") == 1 + 2
+    assert sum(1 for c in resources.calls if c[0] == "video_details") <= 40
+
+
+@pytest.mark.asyncio
+async def test_a_failed_video_fetch_stores_the_report_and_the_other_13(
+    engine, session, tmp_path, monkeypatch
+):
+    shop = await _make_shop(session, label="rk-verr")
+    resources = FakeTikTokReadResources(videos=2)
+
+    def refused(*_args, **_kwargs):
+        raise RuntimeError("video endpoint refused")
+
+    monkeypatch.setattr(job_module, "fetch_video_windows", refused)
+    result, _ = await _build(
+        engine, shop.id, tmp_path, resources=resources, video_metrics=_video_fetch()
+    )
+
+    assert result.built and len(result.metric_rankings) == WITHOUT_VIDEOS
+    assert len(await _stored(session, ShopDiagnosisReport, shop.id)) == 2
+    rows = await _stored(session, ShopMetricRanking, shop.id)
+    assert {r.stream for r in rows} == {"product_card", "shop_tab", "seller_live"}
+
+
+@pytest.mark.asyncio
+async def test_the_worker_body_fetches_video_windows_with_the_snapshots_resources(
+    engine, session, tmp_path
+):
+    from juli_backend.workers.tasks.shop_diagnosis import run_build_shop_diagnosis
+
+    shop = await _make_shop(session, label="rk-worker")
+    resources = FakeTikTokReadResources(videos=2)
+    built: list = []
+
+    def create(config):
+        built.append(config)
+        return resources
+
+    result = await run_build_shop_diagnosis(
+        str(shop.id),
+        session_factory=async_sessionmaker(engine, expire_on_commit=False),
+        app_key="app-key",
+        app_secret="app-secret",
+        create_resources=create,
+        now=NOW,
+        tmp_root=tmp_path,
+        sleep_s=0,
+        backoff_sleep=lambda _s: None,
+    )
+
+    assert result is not None and result.built
+    assert len(built) == 1  # one credential, one set of resources for both fetches
+    assert len(result.metric_rankings) == WITHOUT_VIDEOS + 2
+    assert [c[1] for c in resources.calls if c[0] == "video_details"] == ["v0", "v1"]
+    rows = await _stored(session, ShopMetricRanking, shop.id)
+    assert {r.metric for r in rows if r.stream == "seller_video"} == {"impressions", "ctr"}
+
+
+@pytest.mark.asyncio
+async def test_the_worker_body_stores_the_other_13_when_the_video_lists_fail(
+    engine, session, tmp_path
+):
+    from juli_backend.workers.tasks.shop_diagnosis import run_build_shop_diagnosis
+
+    shop = await _make_shop(session, label="rk-worker-err")
+    resources = FakeTikTokReadResources(video_error=RuntimeError("scope missing"))
+
+    result = await run_build_shop_diagnosis(
+        str(shop.id),
+        session_factory=async_sessionmaker(engine, expire_on_commit=False),
+        app_key="app-key",
+        app_secret="app-secret",
+        create_resources=lambda _config: resources,
+        now=NOW,
+        tmp_root=tmp_path,
+        sleep_s=0,
+        backoff_sleep=lambda _s: None,
+    )
+
+    assert result is not None and result.built
+    # Lists refused -> P8-B's posted_in_window fallback, which finds no video in
+    # the snapshot: no details call, and the video tables hold only closing rows.
+    assert not any(c[0] == "video_details" for c in resources.calls)
+    assert len(result.metric_rankings) == WITHOUT_VIDEOS + 2
+    assert len(await _stored(session, ShopDiagnosisReport, shop.id)) == 2
 
 
 @pytest.mark.asyncio

@@ -13,7 +13,9 @@ The I/O half of the ADR-108 report; the analysis itself stays in the pure
 - :mod:`.read` -- the latest stored report for ``GET /v1/demo/analysis`` and
   the latest ADR-109 metric ranking for ``GET /v1/demo/analysis/rankings``.
 - :mod:`.video_windows` -- per-video last-30 / prior-30 metrics
-  (``VideoWindowMetrics``) for the ADR-109 d.5 video ranking (P8-B).
+  (``VideoWindowMetrics``, one ``VideoWindowRow`` per video) for the ADR-109
+  d.5 video ranking (P8-B); the job turns them into the ranking's
+  ``VideoWindowCounts`` (``ranking_videos``) via ``job.fetch_ranking_videos``.
 """
 
 from juli_backend.services.shop_diagnosis_daily.fetch import fetch_snapshot, yesterday_local
@@ -24,6 +26,7 @@ from juli_backend.services.shop_diagnosis_daily.job import (
     VideoMetricsFn,
     assert_read_credential_for,
     build_and_store_shop_diagnosis,
+    fetch_ranking_videos,
     json_safe,
     report_end_date,
 )
@@ -36,7 +39,9 @@ from juli_backend.services.shop_diagnosis_daily.read import (
 )
 from juli_backend.services.shop_diagnosis_daily.video_windows import (
     VideoWindowMetrics,
+    VideoWindowRow,
     fetch_video_windows,
+    ranking_videos,
 )
 
 __all__ = [
@@ -47,13 +52,16 @@ __all__ = [
     "StoredMetricRanking",
     "VideoMetricsFn",
     "VideoWindowMetrics",
+    "VideoWindowRow",
     "assert_read_credential_for",
     "build_and_store_shop_diagnosis",
+    "fetch_ranking_videos",
     "fetch_snapshot",
     "fetch_video_windows",
     "json_safe",
     "latest_metric_ranking",
     "latest_shop_diagnosis",
+    "ranking_videos",
     "report_end_date",
     "shared_rate_limiter",
     "yesterday_local",

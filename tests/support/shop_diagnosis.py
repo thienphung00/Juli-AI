@@ -205,14 +205,36 @@ class FakeTikTokReadResources:
     """Production-read resources shaped like the guarded client, for the daily job.
 
     Records every call in ``calls``; only read methods exist. ``fail_a34`` makes
-    the A-34 list raise, to prove a failed build stores nothing.
+    the A-34 list raise, to prove a failed build stores nothing. ``videos`` lists
+    that many seller videos (posted long before both windows, GMV descending)
+    in every video list, with per-day details over any range (P8-B's windows);
+    ``video_error`` makes every video list and details call raise.
     """
 
-    def __init__(self, *, end: date = END, fail_a34: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        end: date = END,
+        fail_a34: bool = False,
+        videos: int = 0,
+        video_error: Exception | None = None,
+    ) -> None:
         self.calls: list[tuple] = []
         self.end = end
         self.fail_a34 = fail_a34
         outer = self
+        listed = [
+            {
+                "id": f"v{n}",
+                "title": f"Video {n}",
+                "video_post_time": "2025-01-01 10:00:00",
+                "gmv": _money(1_000_000 - n),
+                "sku_orders": 5,
+                "views": 1_000,
+                "items_sold": 5,
+            }
+            for n in range(videos)
+        ]
 
         class Analytics:
             def list_product_performance_all(self, *, start_date_ge: str, end_date_lt: str):
@@ -228,12 +250,42 @@ class FakeTikTokReadResources:
             def get_live_products_performance(self, **_kwargs: str):
                 raise AssertionError("no LIVE was listed")
 
-            def list_video_performance_all(self, **_kwargs: str):
-                outer.calls.append(("videos",))
-                return []
+            def list_video_performance_all(self, **kwargs: str):
+                outer.calls.append(("videos", kwargs.get("start_date_ge")))
+                if video_error is not None:
+                    raise video_error
+                return listed
 
-            def get_video_products_performance(self, **_kwargs: str):
-                raise AssertionError("no video was listed")
+            def get_video_products_performance(self, **kwargs: str):
+                if not listed:
+                    raise AssertionError("no video was listed")
+                outer.calls.append(("video_products", kwargs["video_id"]))
+                return {"data": {"products": []}}
+
+            def get_video_performance(self, **kwargs: str):
+                outer.calls.append(("video_details", kwargs["video_id"]))
+                if video_error is not None:
+                    raise video_error
+                first = date.fromisoformat(kwargs["start_date_ge"])
+                stop = date.fromisoformat(kwargs["end_date_lt"])
+                n = int(kwargs["video_id"].removeprefix("v"))
+                intervals = [
+                    {
+                        "start_date": (first + timedelta(days=i)).isoformat(),
+                        "end_date": (first + timedelta(days=i + 1)).isoformat(),
+                        "sales": {
+                            "overall": {
+                                "product_impressions": 2_000 + 100 * n + 10 * i,
+                                "product_clicks": 40 + n + i % 7,
+                                "gmv": _money(30_000 + 1_000 * i),
+                                "items_sold": 1,
+                            }
+                        },
+                        "traffic": {"views": 500},
+                    }
+                    for i in range((stop - first).days)
+                ]
+                return {"data": {"performance": {"intervals": intervals}}}
 
         class Orders:
             def search_all(self, *, create_time_from: int, create_time_to: int):

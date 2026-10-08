@@ -139,19 +139,21 @@ _FEW: dict[Metric, str] = {
 
 
 @dataclass(frozen=True)
-class VideoWindowMetrics:
+class VideoWindowCounts:
     """One seller video's totals in the two 30-day windows — the optional video input.
 
-    Filled by the per-video fetch (fast track P8-B). ``last`` / ``prior`` are
-    window **totals** (not daily averages) of product impressions, product
-    clicks, SKU orders and GMV; ``prior`` is ``None`` when the video was not
-    posted yet. Without this input no video ranking is built.
+    Built from the per-video fetch (fast track P8-B,
+    ``shop_diagnosis_daily.video_windows.ranking_videos``). ``last`` / ``prior``
+    are window **totals** (not daily averages) of product impressions, product
+    clicks, SKU orders and GMV; ``None`` when the video had no activity in that
+    window (``prior``: not posted yet; ``last``: only counts toward the prior
+    baseline). Without this input no video ranking is built.
     """
 
     video_id: str
     title: str
     posted_on: date | None
-    last: Counts
+    last: Counts | None
     prior: Counts | None = None
 
 
@@ -589,7 +591,7 @@ def live_items(sessions: list[dict], windows: Windows) -> list[_ContentItem]:
     return items
 
 
-def video_items(videos: Sequence[VideoWindowMetrics]) -> list[_ContentItem]:
+def video_items(videos: Sequence[VideoWindowCounts]) -> list[_ContentItem]:
     return [
         _ContentItem(
             id=v.video_id,
@@ -709,7 +711,7 @@ def _content_rankings(
 
 def build_rankings(
     snapshot: Snapshot,
-    videos: Sequence[VideoWindowMetrics] | None = None,
+    videos: Sequence[VideoWindowCounts] | None = None,
     config: ShopDiagnosisConfig | None = None,
 ) -> list[MetricRanking]:
     """Every stream × clickable metric table for the snapshot; videos only when given."""
@@ -763,7 +765,7 @@ __all__ = [
     "Metric",
     "MetricRanking",
     "RowKind",
-    "VideoWindowMetrics",
+    "VideoWindowCounts",
     "build_rankings",
     "live_items",
     "metric_values",

@@ -19,8 +19,12 @@ The daily worker job behind ``juli_backend.build_shop_diagnosis``:
    From the same snapshot it builds the ADR-109 d.5 metric rankings
    (``shop_diagnosis.rankings``; P8-A, AC-8.1): one table per stream ×
    clickable metric, videos only when a ``video_metrics`` callable supplies
-   per-video window metrics. A ranking failure is logged and never blocks the
-   report.
+   per-video window counts. Production passes :func:`fetch_ranking_videos`
+   (the worker task), which reads the per-video last-30 / prior-30 windows
+   (``video_windows``, P8-B; ≤ 2 list walks + 40 details calls) with the SAME
+   rate-limited resources, in the same thread, right after the snapshot. A
+   video failure is logged and only drops the two video tables; a ranking
+   failure is logged and never blocks the report.
 4. **Store** each report's ``to_dict()`` (aggregates only) under the shop's
    scope, replacing a row for the same (shop, end date, ranking), and each
    metric ranking the same way per (shop, end date, stream, metric).
@@ -63,7 +67,7 @@ from juli_backend.repositories import (
 from juli_backend.services.shop_diagnosis import Ranking, Snapshot, build_report, load_snapshot
 from juli_backend.services.shop_diagnosis.rankings import (
     MetricRanking,
-    VideoWindowMetrics,
+    VideoWindowCounts,
     build_rankings,
 )
 from juli_backend.services.shop_diagnosis_daily.fetch import fetch_snapshot, yesterday_local
@@ -71,15 +75,20 @@ from juli_backend.services.shop_diagnosis_daily.pacing import (
     RateLimitedResources,
     SharedWindowGate,
 )
+from juli_backend.services.shop_diagnosis_daily.video_windows import (
+    fetch_video_windows,
+    ranking_videos,
+)
 
 logger = logging.getLogger(__name__)
 
 ResolveCredentialFn = Callable[[AsyncSession, uuid.UUID], Awaitable[TikTokCredential]]
 CreateResourcesFn = Callable[[ClientFactoryConfig], Any]
 SessionFactory = Callable[[], Any]
-#: Per-video last-30 / prior-30 metrics for the video rankings, read from the
-#: fetched snapshot folder (P8-B); ``None`` (or no callable) skips video rankings.
-VideoMetricsFn = Callable[[Path, Snapshot], Sequence[VideoWindowMetrics] | None]
+#: Per-video last-30 / prior-30 counts for the video rankings, called in the
+#: fetch thread with the snapshot's own (rate-limited) resources and the loaded
+#: snapshot; ``None`` (or no callable) skips the video rankings.
+VideoMetricsFn = Callable[[Any, Snapshot], Sequence[VideoWindowCounts] | None]
 
 #: Both rankings are stored; the default one decides idempotency.
 RANKINGS: tuple[Ranking, ...] = (Ranking.COMBINED_60D, Ranking.LAST_30D)
@@ -180,19 +189,61 @@ async def _plan(
     return _Plan(shop_name=shop_name, end=end, config=config, shop_key=shop_key)
 
 
+def fetch_ranking_videos(
+    resources: Any,
+    snapshot: Snapshot,
+    *,
+    sleep_s: float = 0.4,
+    backoff_sleep: Callable[[float], Any] = time.sleep,
+) -> list[VideoWindowCounts]:
+    """Production ``video_metrics``: P8-B's per-video windows as the ranking's input.
+
+    ``resources`` are the snapshot fetch's own (rate-limited, read-only) ones, so
+    no credential is resolved again; the call budget is ``fetch_video_windows``'
+    (2 list walks + at most 20 details calls per window).
+    """
+    windows = fetch_video_windows(resources, snapshot, sleep_s=sleep_s, backoff_sleep=backoff_sleep)
+    videos = ranking_videos(windows)
+    logger.info(
+        "shop_video_windows_fetched",
+        extra={
+            "end_date": snapshot.end.isoformat(),
+            "basis": windows.basis,
+            "calls": windows.calls,
+            "videos": len(videos),
+            "failed_videos": len(windows.failed_video_ids),
+        },
+    )
+    return videos
+
+
 def _metric_rankings(
-    folder: Path, snapshot: Snapshot, video_metrics: VideoMetricsFn | None, shop_id: str
+    resources: Any, snapshot: Snapshot, video_metrics: VideoMetricsFn | None, shop_id: str
 ) -> list[MetricRanking]:
-    """ADR-109 d.5 rankings from the same snapshot; a failure is logged, not raised."""
-    try:
-        videos = video_metrics(folder, snapshot) if video_metrics is not None else None
-        return [
-            MetricRanking(r.stream, r.metric, json_safe(r.payload))
-            for r in build_rankings(snapshot, videos)
-        ]
-    except Exception:
-        logger.exception("shop_metric_rankings_failed", extra={"shop_id": shop_id})
-        return []
+    """ADR-109 d.5 rankings from the same snapshot; a failure is logged, not raised.
+
+    A failing video fetch (or a ranking that fails only with videos) drops the
+    two video tables and keeps every other stream's.
+    """
+    videos: Sequence[VideoWindowCounts] | None = None
+    if video_metrics is not None:
+        try:
+            videos = video_metrics(resources, snapshot)
+        except Exception:
+            logger.exception("shop_video_windows_failed", extra={"shop_id": shop_id})
+    attempts = [videos, None] if videos is not None else [None]
+    for attempt in attempts:
+        try:
+            return [
+                MetricRanking(r.stream, r.metric, json_safe(r.payload))
+                for r in build_rankings(snapshot, attempt)
+            ]
+        except Exception:
+            event = "shop_metric_rankings_failed"
+            if attempt is not None:
+                event = "shop_video_rankings_failed"
+            logger.exception(event, extra={"shop_id": shop_id})
+    return []
 
 
 def _fetch_and_build(
@@ -213,7 +264,7 @@ def _fetch_and_build(
             ranking.value: json_safe(build_report(snapshot, ranking).to_dict())
             for ranking in RANKINGS
         }
-        metric_rankings = _metric_rankings(folder, snapshot, video_metrics, shop_id)
+        metric_rankings = _metric_rankings(resources, snapshot, video_metrics, shop_id)
     return meta, reports, metric_rankings
 
 
@@ -319,6 +370,7 @@ __all__ = [
     "VideoMetricsFn",
     "assert_read_credential_for",
     "build_and_store_shop_diagnosis",
+    "fetch_ranking_videos",
     "json_safe",
     "report_end_date",
 ]

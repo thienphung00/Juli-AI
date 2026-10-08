@@ -41,6 +41,12 @@ calls. ADR-109 lists at most 10 rows; videos below the cap fall into the stream'
 closing rows, so the top 20 by window GMV (ties: views) per window are enough.
 Every call goes through the resources the caller hands in (the job wraps them in
 ``pacing.RateLimitedResources``) and ``fetch.with_backoff`` (429: 2 s, 4 s, 8 s).
+
+**Into the ranking.** :func:`ranking_videos` turns the result into the ranking's
+input (``shop_diagnosis.rankings.VideoWindowCounts``): one row per video, a
+window side ``None`` when the video had no activity in it or its product
+impressions are unknown (fallback without the snapshot's per-video file) -- such
+a side can rank neither Lượt hiển thị nor CTR, so it lands in the closing rows.
 """
 
 from __future__ import annotations
@@ -53,6 +59,8 @@ from datetime import date, datetime, timedelta
 from functools import partial
 from typing import Any, Literal
 
+from juli_backend.services.shop_diagnosis.channels import Counts
+from juli_backend.services.shop_diagnosis.rankings import VideoWindowCounts
 from juli_backend.services.shop_diagnosis.snapshot import Snapshot, Windows, to_float
 from juli_backend.services.shop_diagnosis_daily.fetch import Sleep, error_payload, with_backoff
 
@@ -367,6 +375,42 @@ def fetch_video_windows(
     return result(basis=DATE_RANGE, videos=tuple(out), failed_video_ids=tuple(failed))
 
 
+def _ranking_counts(metrics: WindowMetrics | None) -> Counts | None:
+    """One window side as ranking ``Counts``; ``None`` when unknown or without activity."""
+    if metrics is None or metrics.product_impressions is None:
+        return None
+    clicks = metrics.product_clicks or 0
+    if not (metrics.product_impressions or clicks or metrics.sku_orders or metrics.gmv):
+        return None
+    return Counts(
+        impressions=float(metrics.product_impressions),
+        clicks=float(clicks),
+        add_to_cart=None,
+        sku_orders=None if metrics.sku_orders is None else float(metrics.sku_orders),
+        gmv=metrics.gmv,
+    )
+
+
+def ranking_videos(metrics: VideoWindowMetrics) -> list[VideoWindowCounts]:
+    """The fetch result as the ranking's per-video input (see module doc)."""
+    out: list[VideoWindowCounts] = []
+    for row in metrics.videos:
+        last = _ranking_counts(row.last)
+        prior = _ranking_counts(row.prior)
+        if last is None and prior is None:
+            continue
+        out.append(
+            VideoWindowCounts(
+                video_id=row.video_id,
+                title=row.title,
+                posted_on=row.posted_at.date() if row.posted_at else None,
+                last=last,
+                prior=prior,
+            )
+        )
+    return out
+
+
 __all__ = [
     "DATE_RANGE",
     "MAX_VIDEOS_PER_WINDOW",
@@ -378,4 +422,5 @@ __all__ = [
     "WindowMetrics",
     "fetch_video_windows",
     "posted_in_window",
+    "ranking_videos",
 ]
