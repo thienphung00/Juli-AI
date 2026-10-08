@@ -192,10 +192,12 @@ TikTok's diagnosis per row. Customers who saw the video should find the same pro
     30 vs 30 is computable for the whole catalogue.
   - **LIVE:** each session has product impressions, product clicks, CTR, CTOR (SKU),
     SKU orders and GMV, with start time → complete.
-  - **Video:** the list carries views, CTR, SKU orders and GMV **since posting**; per
-    video × product detail has product impressions and clicks, but not split by the two
-    30-day windows. Needs a date-ranged per-video fetch (to verify against the API), or
-    videos posted inside each window only.
+  - **Video:** all three video endpoints (list, details, per-video products; version
+    202509) take `start_date_ge` / `end_date_lt`. The snapshot's list holds the 60-day
+    fetch range, not since-posting totals (corrected by P8-B). Details with
+    `granularity=1D` give per-day product impressions, clicks, CTR, GMV and views → per
+    video 30 vs 30 is computable (SKU orders from the date-ranged list). Fallback when a
+    call fails: videos posted inside each window.
 - The ranking and the card ranking share one unit (₫/day), so a row in Phân tích and a card in
   Quyết định can be compared directly.
 - e2e specs that pin the bottom bar on desktop and the Cài đặt destination change again.
