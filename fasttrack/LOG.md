@@ -247,3 +247,10 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
 - Known env failures unchanged: agent_events_contract (node_modules missing),
   agent_workflow_task_wiring x7 (pre-existing).
 - Next: owner reads one live product's codes to confirm labels (DEBT).
+
+## 2026-10-08 — P8-G agent (Claude Opus) — diagnoses soft-fail
+
+- `get_product_diagnoses` now catches TikTokAPIError/TransportGuardError only: returns
+  `codes=[]`, `unavailable=true`, logs WARNING `get_product_diagnoses_unavailable`;
+  summary "Không đọc được chẩn đoán TikTok — tiếp tục với thông tin sản phẩm". Test: run
+  continues to get_product_information. DEBT item struck.

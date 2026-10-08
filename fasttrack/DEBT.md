@@ -127,10 +127,7 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 
 ## P8-G get_product_diagnoses (2026-10-08)
 
-- [ ] A TikTok API error in `get_product_diagnoses` fails the run like every other
-  READ tool (propagates; no "diagnoses unavailable" fallback) — spec said follow
-  the existing pattern — consider degrading to a model-visible "unavailable" result
-  since diagnoses are advisory.
+- [x] ~~A TikTok API error in `get_product_diagnoses` fails the run~~ — repaid: vendor/guard errors soft-fail to `unavailable=True` + WARNING log; programming errors still propagate.
 - [ ] Label table covers only the codes in `listing_signals.py` plus prefix fallbacks
   (TITLE_/DESC_/MAIN_IMG_/PRICE); no price-diagnosis code is confirmed in the corpus,
   so "Giá kém cạnh tranh" is only the example wording — add exact labels once a

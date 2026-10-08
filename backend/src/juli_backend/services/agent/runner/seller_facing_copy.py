@@ -57,6 +57,7 @@ class SellerFacingDeclinedReason(StrEnum):
 _DIAGNOSES_TOOL = "get_product_diagnoses"
 _DIAGNOSES_NONE_SUMMARY = "Không có mã chẩn đoán"
 _DIAGNOSES_SHOWN_LABELS = 3
+_DIAGNOSES_UNAVAILABLE_SUMMARY = "Không đọc được chẩn đoán TikTok — tiếp tục với thông tin sản phẩm"
 
 
 def tool_completed_summary(tool_name: str, result: Mapping[str, Any]) -> str:
@@ -70,6 +71,8 @@ def tool_completed_summary(tool_name: str, result: Mapping[str, Any]) -> str:
     """
     if tool_name != _DIAGNOSES_TOOL:
         return SellerFacingCompletionReason.COMPLETED.value
+    if result.get("unavailable") is True:
+        return _DIAGNOSES_UNAVAILABLE_SUMMARY
     entries = result.get("codes")
     if not isinstance(entries, list):
         return SellerFacingCompletionReason.COMPLETED.value

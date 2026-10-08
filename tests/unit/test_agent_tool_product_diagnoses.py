@@ -14,6 +14,11 @@ from typing import Any, cast
 import pytest
 from pydantic import BaseModel
 
+from juli_backend.integrations.tiktok.exceptions import (
+    PermissionDeniedError,
+    TikTokAPIError,
+    TransportGuardError,
+)
 from juli_backend.integrations.tiktok.factories import ProductionReadResources
 from juli_backend.services.agent.events import InMemoryEventSink
 from juli_backend.services.agent.llm import FinalResponse, ToolCallBlock, Usage
@@ -158,9 +163,24 @@ class TestHandler:
         )
         assert _run(_FakeProducts(payload=payload)).count == 1
 
-    def test_api_error_propagates_unswallowed(self):
-        # Same as every other READ tool: the runner records the failure and
-        # re-raises; the handler never invents an empty "no issues" answer.
+    @pytest.mark.parametrize(
+        "error",
+        [
+            TikTokAPIError(1, "nope"),
+            PermissionDeniedError(2, "no scope"),
+            TransportGuardError(capability="c", method="GET", path="/p", message="x"),
+        ],
+    )
+    def test_vendor_error_soft_fails_to_unavailable_and_logs_a_warning(self, error, caplog):
+        with caplog.at_level("WARNING"):
+            result = _run(_FakeProducts(error=error))
+
+        assert result.unavailable is True
+        assert result.codes == []
+        assert result.count == 0
+        assert any(r.message == "get_product_diagnoses_unavailable" for r in caplog.records)
+
+    def test_programming_errors_still_propagate(self):
         with pytest.raises(RuntimeError, match="boom"):
             _run(_FakeProducts(error=RuntimeError("boom")))
 
@@ -212,6 +232,11 @@ class TestCompletedSummary:
             tool_completed_summary("get_product_diagnoses", {"codes": [], "count": 0})
             == "Không có mã chẩn đoán"
         )
+
+    def test_unavailable_summary(self):
+        assert tool_completed_summary(
+            "get_product_diagnoses", {"codes": [], "unavailable": True}
+        ) == ("Không đọc được chẩn đoán TikTok — tiếp tục với thông tin sản phẩm")
 
     def test_other_tools_keep_the_generic_summary(self):
         assert (
@@ -384,3 +409,49 @@ async def test_runner_emits_started_then_completed_with_the_vietnamese_summary(r
     assert completed.tool_name == "get_product_diagnoses"
     assert completed.ok is True
     assert completed.summary == expected
+
+
+@pytest.mark.asyncio
+async def test_unavailable_diagnoses_do_not_stop_the_run_before_get_product_information():
+    run_id = uuid.uuid4()
+    store = _InMemoryConversationStore()
+    store.seed(run_id)
+    sink = InMemoryEventSink()
+
+    class _Executor:
+        def __init__(self) -> None:
+            self.names: list[str] = []
+
+        def execute(self, *, tool_name, params, tool_call_id=None):
+            self.names.append(tool_name)
+            if tool_name == "get_product_diagnoses":
+                return {"codes": [], "count": 0, "unavailable": True}
+            return {"status": "LIVE"}
+
+    executor = _Executor()
+    runner = _runner(
+        script=[
+            _turn(ToolCallBlock(call_id="c1", tool_name="get_product_diagnoses", arguments={})),
+            _turn(ToolCallBlock(call_id="c2", tool_name="get_product_information", arguments={})),
+            _turn(FinalResponse(content="Done.")),
+        ],
+        tool_executor=executor,
+        event_sink=sink,
+        conversation_store=store,
+        playbook=_minimal_playbook(
+            (_step("get_product_diagnoses"), _step("get_product_information"))
+        ),
+        registry=_full_registry(),
+    )
+
+    await runner.run(run_id, product_ref="prod-1")
+
+    assert executor.names == ["get_product_diagnoses", "get_product_information"]
+    completed = {
+        e.payload.tool_name: e.payload for e in sink.events if e.event_type == "tool.completed"
+    }
+    assert completed["get_product_diagnoses"].ok is True
+    assert completed["get_product_diagnoses"].summary == (
+        "Không đọc được chẩn đoán TikTok — tiếp tục với thông tin sản phẩm"
+    )
+    assert completed["get_product_information"].ok is True

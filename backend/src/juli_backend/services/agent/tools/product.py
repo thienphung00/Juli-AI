@@ -60,6 +60,7 @@ that boundary guard.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -70,6 +71,8 @@ from pydantic import BaseModel, Field
 from juli_backend.integrations.tiktok import (
     ProductionReadResources,
     SandboxWriteResources,
+    TikTokAPIError,
+    TransportGuardError,
 )
 from juli_backend.services.agent.sanitize import (
     Money,
@@ -91,6 +94,8 @@ from juli_backend.services.agent.tools.registry import (
     ToolRegistry,
     ToolSpec,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -438,6 +443,9 @@ class GetProductDiagnosesOutput(BaseModel):
 
     codes: list[dict[str, Any]] = Field(default_factory=list)
     count: int = 0
+    # True when TikTok could not be read (error / not authorised): `codes` is
+    # empty because nothing was read, NOT because TikTok flagged nothing.
+    unavailable: bool = False
 
 
 def _diagnosis_entries(raw: dict[str, Any], *, product_id: str) -> list[dict[str, Any]]:
@@ -456,7 +464,17 @@ def handle_get_product_diagnoses(
     params: GetProductDiagnosesInput,
 ) -> GetProductDiagnosesOutput:
     del params  # No fields: nothing to consume.
-    raw = resources.products.get_diagnoses([context.product_id])
+    try:
+        raw = resources.products.get_diagnoses([context.product_id])
+    except (TikTokAPIError, TransportGuardError) as exc:
+        # Advisory first step: a shop whose diagnoses endpoint is unavailable
+        # or unauthorised must still get a run. Vendor/guard errors only --
+        # programming errors still propagate.
+        logger.warning(
+            "get_product_diagnoses_unavailable",
+            extra={"exception_type": type(exc).__name__, "detail": str(exc)[:300]},
+        )
+        return GetProductDiagnosesOutput(unavailable=True)
 
     codes: list[dict[str, Any]] = []
     seen: set[str] = set()
