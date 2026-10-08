@@ -288,7 +288,7 @@ def test_the_real_registry_and_the_one_real_playbook_agree_on_six_tools():
     assert registered_tool_names - playbook_tool_names == _SHARED_TOOL_NAMES
     assert playbook_tool_names - registered_tool_names == frozenset()
     assert _SHARED_TOOL_NAMES == frozenset({"upload_product_image"})
-    assert len(registered_tool_names) == 7
+    assert len(registered_tool_names) == 8
 
 
 class TestReverseDirectionDrift:

@@ -183,3 +183,18 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] ADR-109 Consequences says the video list carries totals "since posting";
   the spec says the list is date-ranged — doc — correct the ADR line when the
   live check confirms.
+
+## P8-G get_product_diagnoses (2026-10-08)
+
+- [x] ~~A TikTok API error in `get_product_diagnoses` fails the run~~ — repaid: vendor/guard errors soft-fail to `unavailable=True` + WARNING log; programming errors still propagate.
+- [ ] Label table covers only the codes in `listing_signals.py` plus prefix fallbacks
+  (TITLE_/DESC_/MAIN_IMG_/PRICE); no price-diagnosis code is confirmed in the corpus,
+  so "Giá kém cạnh tranh" is only the example wording — add exact labels once a
+  live read shows the codes.
+- [ ] Prompt budget headroom is 8 tokens (v3 composed = 2992 of 3000); frozen v1/v2
+  composed prompts now exceed 3000 (not gated, production pins v3) — any further
+  playbook text needs a v4 prompt or a trimmed table.
+- [ ] Guidance lives in the step intent (the playbook table), not in v3.md, because
+  released prompt prose is immutable (ADR-072 d.4).
+- [ ] Not run live against TikTok (no credentials in this task); response shape
+  (`products[].diagnoses[].diagnosis_results[]`) taken from `parse_tiktok_diagnoses`.

@@ -807,6 +807,12 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - _Avoid_: Get Product Information, Lấy thông tin sản phẩm
 - Definition: `ToolSpec.seller_rationale_vi` for the `get_product_information` tool (issue #1904, W6-FIX) -- the Đề xuất option picker's per-option rationale, distinct from the tool's English, model-facing `description`.
 
+**`run.option_rationale.get_product_diagnoses`**
+- EN: See which issues TikTok has flagged on this product.
+- VI: Xem TikTok đã chỉ ra vấn đề nào ở sản phẩm này.
+- _Avoid_: Get Product Diagnoses, Lấy chẩn đoán sản phẩm
+- Definition: `ToolSpec.seller_rationale_vi` for the `get_product_diagnoses` tool (AC-8.4, P8-G).
+
 **`run.option_rationale.get_seo_keywords`**
 - EN: Look up suggested SEO keywords for this product.
 - VI: Tra cứu từ khoá SEO gợi ý cho sản phẩm này.

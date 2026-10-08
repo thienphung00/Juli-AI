@@ -69,6 +69,7 @@ from juli_backend.services.execution.tool_routing import WORKFLOW_TOOL_CATALOG
 EXPECTED_OPTIMIZE_PRODUCT_CAPABILITIES = frozenset(
     {
         "inspect_product_image",
+        "get_product_diagnoses",
         "get_product_information",
         "get_seo_keywords",
         "check_product_status",
@@ -89,6 +90,7 @@ EXPECTED_OPTIMIZE_PRODUCT_CAPABILITIES = frozenset(
 # actual pin).
 
 AGENT_CAPABILITY_TO_CATALOG_WORKFLOW_KEY: dict[str, str] = {
+    "get_product_diagnoses": "optimize_product_2",
     "get_product_information": "optimize_product_2",
     "get_seo_keywords": "optimize_product_2",
     "check_product_status": "optimize_product_2",

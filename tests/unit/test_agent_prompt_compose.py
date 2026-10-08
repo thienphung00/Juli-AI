@@ -352,7 +352,10 @@ class TestNoMarketplaceOrNetworkImports:
 def test_composed_prompt_token_estimate_is_reported_and_under_the_adr_ceiling():
     from juli_backend.services.agent.sanitize import estimate_tokens
 
-    composed = compose(WORKFLOW_KEY, 1)
+    # The production pin, not the frozen v1: v1.md is immutable (ADR-072 d.4)
+    # and the playbook table is shared by every version, so P8-G's diagnoses
+    # step (AC-8.4) pushed v1 over; the budget gate asserts the same for v3.
+    composed = compose(WORKFLOW_KEY, production_version(WORKFLOW_KEY))
     estimate = estimate_tokens(composed)
     # ADR-072 decision 6's 3,000-token ceiling. Not a budget gate (#1039's
     # job) -- this only proves the measured number is available and, today,
