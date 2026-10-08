@@ -10,6 +10,7 @@ the four contributions sum to ΔGMV exactly. Every value is a daily average.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -82,17 +83,42 @@ def _factor_values(counts: Counts) -> dict[Factor, float | None]:
     }
 
 
+def log_share(before: Sequence[float], after: Sequence[float]) -> list[float] | None:
+    """ADR-108 log shares of ``∏after − ∏before`` over an ordered factor chain.
+
+    Factor *i* carries ``L(G₁, G₀) × ln(after[i] / before[i])`` where ``G`` is the
+    chain's product and ``L`` the logarithmic mean; the shares sum to ``G₁ − G₀``
+    exactly. ``None`` when a factor is not > 0 on either side.
+    """
+    if any(v <= 0 for v in (*before, *after)):
+        return None
+    g0, g1 = math.prod(before), math.prod(after)
+    log_mean = g0 if math.isclose(g0, g1) else (g1 - g0) / math.log(g1 / g0)
+    return [log_mean * math.log(a / b) for b, a in zip(before, after, strict=True)]
+
+
+def sequential_share(before: Sequence[float], after: Sequence[float]) -> list[float]:
+    """Sequential substitution in chain order (ADR-109 d.5), exact and defined at zero.
+
+    Factor *i* carries ``∏after[:i] × (after[i] − before[i]) × ∏before[i+1:]``:
+    earlier factors at their new values, later ones at their prior values. The
+    shares telescope to ``∏after − ∏before``.
+    """
+    return [
+        math.prod(after[:i]) * (after[i] - before[i]) * math.prod(before[i + 1 :])
+        for i in range(len(before))
+    ]
+
+
 def contributions(prior: Counts, last: Counts) -> dict[Factor, float] | None:
     """Per factor, its share of ``last.gmv − prior.gmv``; ``None`` when a factor is not > 0."""
     before, after = _factor_values(prior), _factor_values(last)
-    if any(v is None or v <= 0 for v in (*before.values(), *after.values())):
+    if any(v is None for v in (*before.values(), *after.values())):
         return None
-    g0, g1 = prior.gmv, last.gmv
-    log_mean = g0 if math.isclose(g0, g1) else (g1 - g0) / math.log(g1 / g0)
-    return {
-        factor: log_mean * math.log(float(after[factor] or 0) / float(before[factor] or 0))
-        for factor in Factor
-    }
+    shares = log_share(
+        [float(before[f] or 0) for f in Factor], [float(after[f] or 0) for f in Factor]
+    )
+    return None if shares is None else dict(zip(Factor, shares, strict=True))
 
 
 def _sum(days: list[Counts]) -> Counts:

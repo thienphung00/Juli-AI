@@ -84,3 +84,11 @@ class ShopDiagnosisConfig:
     watch_gmv_change: float = 0.30
     watch_min_orders: int = 10
     watch_max_products: int = 5
+
+    #: ADR-109 d.5 metric rankings: Lượt hiển thị sản phẩm is labelled on
+    #: impressions with this floor per window (instead of the 10 / 30 order floors);
+    #: at most ``ranking_max_rows`` rows per direction; rows under
+    #: ``ranking_fold_share`` of the stream's GMV change fold into "Các … khác".
+    ranking_impressions_floor: int = 1_000
+    ranking_max_rows: int = 10
+    ranking_fold_share: float = 0.01
