@@ -62,6 +62,7 @@ EXPECTED_PUBLIC_EXPORTS = frozenset(
         "PROMOTION_ACTIVITIES_SEARCH_PATH",
         "PROMOTION_COUPONS_SEARCH_PATH",
         "analytics_shop_live_products_performance_path",
+        "analytics_shop_video_performance_path",
         "analytics_shop_video_products_performance_path",
         "product_detail_path",
         # Client factories

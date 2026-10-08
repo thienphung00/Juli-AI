@@ -1268,7 +1268,14 @@ RECONCILIATION_LAYERS: dict[str, int] = {
     # that matters and the signature that nothing about this slice moved: the
     # second layer credits `pytest.raises`, so all eight drop out of it and the
     # headline is untouched at 49.
-    "no_assert_statement": 449,
+    # 449 -> 452 on fasttrack P8 (re-derived by `reconciliation_identities`):
+    # three tests whose only verification is `pytest.raises` --
+    # `test_shop_metric_rankings.py::test_a_snapshot_missing_a_window_is_refused`,
+    # `integration/test_shop_metric_rankings_two_tenant.py::test_unknown_streams_
+    # and_metrics_are_refused_by_the_table` (P8-A) and
+    # `test_agent_tool_product_diagnoses.py::TestHandler::test_programming_errors_
+    # still_propagate` (P8-G). Every lower layer is unchanged.
+    "no_assert_statement": 452,
     "and_no_pytest_raises": 121,
     "and_no_mock_assert_called": 106,
     "and_no_unittest_self_assert": 106,
