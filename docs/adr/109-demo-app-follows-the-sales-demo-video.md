@@ -206,3 +206,55 @@ TikTok's diagnosis per row. Customers who saw the video should find the same pro
 - **New backend work for decisions 9–12:** before/after values on every write, a revert
   run, a per-shop rule store with set-by/set-at (team vs seller), a guardrail check at the
   day-7 reading that raises an "undo?" question, and a rules screen usable by the team.
+
+## Amendment 1 — the recommendation card and its flows (2026-10-09)
+
+Grill with the owner on the canvas "Thẻ đề xuất — Quyết định"
+(https://claude.ai/artifact/14dAfWFM16ZznYTeQRsGj8). Supersedes decision 6's card body.
+
+1. **Card (layout A).** SKU (seller SKU, first one + "+N"), product name, workflow name,
+   updated date, status chip; a pink block with the **main KPI** "current → target"
+   (target = `recoverable_gmv_basis.reference_rate`, so it matches the GMV figure) and
+   **GMV dự kiến** per month; **Lý do** in a few words; **Thay đổi đề xuất** as field
+   names only (Tiêu đề, Mô tả…). Buttons: Phê duyệt, Từ chối, Xem thêm. **Xem thêm**
+   expands in place: full reason with TikTok's diagnosis code, before → after per field,
+   how GMV dự kiến is computed.
+2. **Statuses:** Chờ duyệt · Đang thực hiện · Đã áp dụng · Đã từ chối · Hết hạn (plus the
+   run-level "Không thay đổi" and "Đã hoàn tác").
+3. **Seven change types**, by funnel stage: Ảnh bìa, Tiêu đề (CTR); Mô tả, Giảm giá sản
+   phẩm, Flash sale, Giảm phí vận chuyển (CTOR); Mua nhiều giảm nhiều (AOV).
+   - Tiêu đề / Mô tả: Juli writes after the one-time consent.
+   - Ảnh bìa: Juli asks for the seller's photo (never picks or generates one), checks it
+     (1:1, ≥ 800 px, plain background, product ≥ 70 % of frame), then the consent step and
+     upload. Photo request expires after 3 days.
+   - The four promotions: **Phê duyệt** opens step-by-step Seller Center instructions;
+     "Tôi đã áp dụng" (enabled once every step is ticked) → Juli verifies the promotion on
+     TikTok and only then starts the day-7/day-14 clock. No Hoàn tác; to stop, the seller
+     turns the promotion off.
+4. **Consent step can be edited.** "Sửa nội dung trước khi áp dụng" makes the proposed
+   title/description editable; Juli validates against the seller's rules (length,
+   protected terms) and writes exactly the seller's version. (Backend: the confirmation
+   accepts an edited value.)
+5. **Every card and run panel has Thu gọn / Mở rộng**; collapsed shows name + status.
+6. **Đo lường** shows the target and the allowed band explicitly ("CTOR 5,4 % → 5,9 %;
+   Lượt hiển thị 9.613 – 10.207 …"), tabs Ngày 0 / Ngày 7 / Ngày 14.
+   - Day 7: within band → preliminary note, nothing to do; outside → "Hoàn tác?"
+     (Hoàn tác / Giữ thay đổi). Next proposal for the product may appear but runs only
+     after day 14.
+   - Day 14: Đạt (≥ target and ≥ 100 % of expected GMV) · Gần đạt (70–99 %) · Không đạt
+     (< 70 %, Hoàn tác offered) · Chưa kết luận (too little data or another change on
+     the product); per-lever calibration updated except for "Chưa kết luận".
+7. **Hoàn tác, Từ chối, Không thực hiện** each open a dialog first that asks **one
+   required reason** (radio) + optional note; the action starts only after it.
+   - Hoàn tác reasons: Doanh số hoặc chỉ số giảm · Khách phản hồi không tốt · Nội dung
+     sai thông tin sản phẩm · Không hợp giọng thương hiệu · TikTok cảnh báo sản phẩm ·
+     Khác. Flow: read live value → refuse if changed outside Juli → consent (new → old) →
+     write → TikTok review → measurement stops, recorded "Đã hoàn tác" + reason.
+   - Từ chối reasons: Không hợp thương hiệu hoặc giọng văn · Lý do hoặc số liệu chưa
+     thuyết phục · Tôi đang tự sửa sản phẩm này · Sắp ngừng bán hoặc hết hàng · Đang chạy
+     chiến dịch khác · Khác.
+   - Không thực hiện reasons: Nội dung sai thông tin sản phẩm · Văn phong chưa phù hợp ·
+     Thay đổi quá nhiều · Đổi ý · Khác.
+   - After Từ chối / Không thực hiện / Hoàn tác, Juli does not propose the same change for
+     that product for **7 days** unless its data changes clearly. No "Để sau" option.
+   - Reasons are stored with the card/run and used to tune later proposals.
