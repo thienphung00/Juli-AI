@@ -97,4 +97,46 @@ describe("Auth callback route", () => {
     expect(alert).toBeInTheDocument();
     expect(replace).not.toHaveBeenCalled();
   });
+
+  describe("email magic link (AC-9.1)", () => {
+    afterEach(() => {
+      window.history.replaceState(null, "", "/");
+    });
+
+    it("a magic-link redirect stores the same session shape and moves on to connect-shop", async () => {
+      setHash("#access_token=eyJ.magic.sig&expires_at=1791600000&expires_in=3600&refresh_token=r-magic&token_type=bearer&type=magiclink");
+
+      render(<AuthCallbackPage />);
+
+      await waitFor(() => {
+        expect(replace).toHaveBeenCalledWith("/auth/connect-shop");
+      });
+      expect(readAuthSession()).toEqual({
+        accessToken: "eyJ.magic.sig",
+        refreshToken: "r-magic",
+        expiresIn: 3600,
+        tokenType: "bearer",
+      });
+      expect(reportTikTokRegistration).toHaveBeenCalledWith("eyJ.magic.sig");
+    });
+
+    it("an expired or reused link says so in Vietnamese", async () => {
+      setHash("#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired");
+
+      render(<AuthCallbackPage />);
+
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent("Liên kết đăng nhập đã hết hạn hoặc đã được dùng");
+      expect(replace).not.toHaveBeenCalled();
+      expect(readAuthSession()).toBeNull();
+    });
+
+    it("reads an error GoTrue put in the query string instead of the hash", async () => {
+      window.history.replaceState(null, "", "/auth/callback?error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired");
+
+      render(<AuthCallbackPage />);
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("Liên kết đăng nhập đã hết hạn");
+    });
+  });
 });
