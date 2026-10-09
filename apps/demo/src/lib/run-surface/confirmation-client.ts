@@ -63,7 +63,7 @@ export function buildConfirmationDecisionUrl(
 }
 
 interface RejectedBody {
-  detail?: { message?: unknown; error_code?: unknown } | string;
+  detail?: { message?: unknown; error_code?: unknown; code?: unknown; field?: unknown } | string;
 }
 
 async function rejectionFromResponse(response: Response): Promise<ConfirmationRejectedError> {
@@ -77,8 +77,10 @@ async function rejectionFromResponse(response: Response): Promise<ConfirmationRe
   const detail = body?.detail;
   if (detail && typeof detail === "object") {
     const message = typeof detail.message === "string" ? detail.message : response.statusText;
-    const errorCode = typeof detail.error_code === "string" ? detail.error_code : null;
-    return new ConfirmationRejectedError(response.status, errorCode, message);
+    const errorCode =
+      typeof detail.error_code === "string" ? detail.error_code : typeof detail.code === "string" ? detail.code : null;
+    const field = typeof detail.field === "string" ? detail.field : null;
+    return new ConfirmationRejectedError(response.status, errorCode, message, field);
   }
   if (typeof detail === "string") {
     return new ConfirmationRejectedError(response.status, null, detail);
@@ -106,7 +108,7 @@ export async function submitConfirmationDecision(
   optionId: string | null,
   options: SubmitConfirmationDecisionOptions = {},
 ): Promise<ConfirmationDecisionResult> {
-  const { token, shopId, baseUrl, fetchImpl = fetch } = options;
+  const { token, shopId, baseUrl, fetchImpl = fetch, editedValues } = options;
 
   if (decision === "approve" && !optionId) {
     throw new ConfirmationRejectedError(
@@ -126,6 +128,9 @@ export async function submitConfirmationDecision(
     body: JSON.stringify({
       decision,
       option_id: decision === "approve" ? optionId : null,
+      ...(decision === "approve" && editedValues && Object.keys(editedValues).length > 0
+        ? { edited_values: editedValues }
+        : {}),
     }),
   });
 
