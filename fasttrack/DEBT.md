@@ -348,3 +348,23 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   `reverts_run_id` — add it to the list item.
 - [ ] `/settings` signed in now shows only the rules editor; the old
   workflow-template/threshold tabs remain for anonymous only.
+
+## P9-A — email sign-in (AC-9.1)
+
+- [ ] Session lifetime unchanged from Google: the access token is stored with
+  its refresh token but nothing refreshes it (same as the Google door) — after
+  ~1 h API calls 401 and the seller signs in again. A shared refresh step
+  (`POST /auth/v1/token?grant_type=refresh_token`) would fix both doors.
+- [ ] Not exercised against a real Supabase project (no email provider enabled
+  yet, no inbox): GoTrue shapes are from its docs/source and stubbed in tests.
+  First owner-run sign-in is the live check (OTP, magic link, template code).
+- [ ] `users.email` for an email-OTP seller is filled only if the token carries
+  `email_verified: true` (top level or `user_metadata`); current hosted GoTrue
+  sets it for email identities, older versions did not — then the column stays
+  NULL (`claims.py` is strict on purpose). Check one row after the first sign-in.
+- [ ] Code length: the UI says "6 chữ số" and accepts ≥ 6 digits; if the owner
+  sets Email OTP Length ≠ 6 in Supabase the label is wrong.
+- [ ] The magic link opens wherever the mail client opens it (often a new
+  tab); sessionStorage is per tab, so the original tab stays signed out —
+  same storage model as Google, accepted.
+

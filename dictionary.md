@@ -336,6 +336,56 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - _Avoid_: Google chưa được cấu hình (dev-facing "cấu hình" tells the seller nothing they can act on)
 - Definition: Visible copy rendered beneath the disabled `auth.google` door when `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` are absent at build time (issue #1905) — the honest-disabled state stays real and lives in visible text, not only in `aria-label`.
 
+**`auth.email`**
+- EN: Sign in with email
+- VI: Đăng nhập bằng email
+- Definition: The sign-in door's second option beside `auth.google` (AC-9.1): Supabase Auth email OTP. The seller enters an email, presses "Gửi mã", types the 6-digit code ("Mã đăng nhập (6 chữ số)", "Xác nhận"); the same email's magic link lands on `/auth/callback`. Same session and connect-shop screen as Google. Also the shop-avatar menu item (→ `/auth/email`).
+
+**`auth.email.sent`**
+- EN: Sent a 6-digit code to {email}. Enter it below, or press the sign-in button in the email.
+- VI: Đã gửi mã 6 chữ số tới {email}. Nhập mã bên dưới, hoặc bấm nút đăng nhập trong email.
+- Definition: Shown after `POST /auth/v1/otp` succeeds. Names the address (never the code).
+
+**`auth.email.resend`**
+- EN: Resend code / Resend code in {n} seconds
+- VI: Gửi lại mã / Gửi lại mã sau {n} giây
+- Definition: Locked for 60 s after each send (Supabase's own per-address floor), or for the wait GoTrue names on a rate limit; "Gửi mã sau {n} giây" on the email step.
+
+**`auth.email.invalid_email`**
+- EN: That email address is not in a valid format. Example: ten@shopcuaban.vn
+- VI: Email chưa đúng định dạng. Ví dụ: ten@shopcuaban.vn
+- Definition: Client-side shape check, or GoTrue `email_address_invalid` / `validation_failed`. No request is sent for a malformed address.
+
+**`auth.email.invalid_code`**
+- EN: The code is wrong or has expired. Check it, or send a new code.
+- VI: Mã không đúng hoặc đã hết hạn. Kiểm tra lại, hoặc gửi mã mới.
+- _Avoid_: echoing the typed code, or GoTrue's English "Token has expired or is invalid"
+- Definition: GoTrue `otp_expired` (403) on `/auth/v1/verify`. The code field is cleared.
+
+**`auth.email.rate_limited`**
+- EN: You have requested this too many times. Please wait a moment and try again.
+- VI: Bạn đã yêu cầu quá nhiều lần. Vui lòng đợi một lát rồi thử lại.
+- Definition: Any 429 / `over_email_send_rate_limit` / `over_request_rate_limit`. Supabase's built-in SMTP allows only a few emails per hour per project, so this is a real seller-facing state until custom SMTP is set.
+
+**`auth.email.network`**
+- EN: Could not reach the sign-in server. Check your connection and try again.
+- VI: Không kết nối được tới máy chủ đăng nhập. Kiểm tra mạng rồi thử lại.
+
+**`auth.email.failed`**
+- EN: Email sign-in did not succeed. Please try again.
+- VI: Đăng nhập bằng email không thành công. Vui lòng thử lại.
+- Definition: Any other GoTrue failure.
+
+**`auth.email.unavailable`**
+- EN: Sign in with email is not available in this environment.
+- VI: Đăng nhập bằng email chưa sẵn sàng trong môi trường này.
+- Definition: The email door's twin of `auth.google.unavailable` (Supabase env absent at build), also used for GoTrue `otp_disabled` / `email_provider_disabled` / `signup_disabled`.
+
+**`auth.email.link_expired`**
+- EN: The sign-in link has expired or was already used. Please request a new email sign-in code.
+- VI: Liên kết đăng nhập đã hết hạn hoặc đã được dùng. Vui lòng gửi lại mã đăng nhập bằng email.
+- Definition: `/auth/callback` reached with `error_code=otp_expired` (hash or query) from a magic link.
+
 ## Phrases
 
 **`home.tagline`**
