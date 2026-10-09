@@ -39,10 +39,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop
 from juli_backend.api.routes.agent_runs import _enqueue_run_agent_workflow
+from juli_backend.api.routes.demo_run_changes import SellerReasonRequest, invalid_reason
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
+from juli_backend.models.decision_reasons import ACTION_REJECT
+from juli_backend.services import decision_reasons
 from juli_backend.services.agent import abuse_limits as agent_abuse_limits
 from juli_backend.services.agent import approval as approval_module
+from juli_backend.services.demo_decisions import DecisionNotFound, get_surfaced_decision
 
 logger = logging.getLogger(__name__)
 
@@ -190,4 +194,63 @@ async def approve_demo_decision(
             status=result.status,
             celery_task_id=celery_task_id,
         )
+    )
+
+
+# -- "Từ chối" (fast track P10-A, contract p10-quyet-dinh.md §2) ----------------
+
+
+class DecisionRejectResponse(BaseModel):
+    status: str
+    cooldown_until: str
+
+
+@router.post("/{action_card_id}/reject", response_model=DecisionRejectResponse)
+async def reject_demo_decision(
+    action_card_id: uuid.UUID,
+    body: SellerReasonRequest,
+    shop: Shop = Depends(get_active_shop),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> DecisionRejectResponse:
+    """ "Từ chối" a surfaced card: store the reason, take the card off the desk.
+
+    422 for a missing/unknown ``reason_code`` or a note over 300 characters;
+    404 for another shop's card, a card not on the desk, or no such card. The
+    same lever is not proposed again for that product for 7 days unless its
+    data changes clearly (``services.decision_reasons``).
+    """
+    try:
+        decision_reasons.validate_reason(ACTION_REJECT, body.reason_code, body.note)
+    except decision_reasons.InvalidReason as exc:
+        raise invalid_reason(exc) from None
+    try:
+        card = await get_surfaced_decision(session, shop.id, action_card_id)
+    except DecisionNotFound:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Decision not found"
+        ) from None
+    reason = await decision_reasons.record_reason(
+        session,
+        shop_id=shop.id,
+        action=ACTION_REJECT,
+        reason_code=body.reason_code,
+        note=body.note,
+        decided_by_user_id=user.id,
+        card=card,
+        product_id=decision_reasons.product_id_of(card),
+    )
+    decision_reasons.close_card(card)
+    await session.commit()
+    logger.info(
+        "demo_decision_rejected",
+        extra={
+            "shop_id": str(shop.id),
+            "action_card_id": str(action_card_id),
+            "reason_code": body.reason_code,
+            "lever_code": reason.lever_code,
+        },
+    )
+    return DecisionRejectResponse(
+        status="rejected", cooldown_until=decision_reasons.cooldown_until_iso(reason)
     )

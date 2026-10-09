@@ -3,12 +3,16 @@
 - ``GET  /v1/demo/runs/{run_id}/changes`` -- per field, the value before and
   after the run's writes; whether a revert is available (and the Vietnamese
   reason when it is not); the run's revert runs; its day-7 question.
-- ``POST /v1/demo/runs/{run_id}/revert`` -- start a revert run. 202 with the new
+- ``POST /v1/demo/runs/{run_id}/revert`` ``{reason_code, note?}`` (reason required
+  since fast track P10-A) -- start a revert run. 202 with the new
   run's id; its progress is the ordinary SSE stream
   (``GET /v1/demo/runs/{new_run_id}/events``) and it pauses for the ordinary
   confirmation (``POST /v1/demo/runs/{new_run_id}/confirmation``) before
   writing anything. 409 ``{"detail": {"code", "message", "fields"}}`` when the
   run cannot be reverted -- ``message`` is Vietnamese, for the seller.
+- ``POST /v1/demo/runs/{run_id}/decline`` ``{reason_code, note?}`` -- "Không thực
+  hiện" at the consent step (fast track P10-A): the ordinary decline, plus the
+  seller's reason.
 - ``GET  /v1/demo/revert-questions`` -- open "Hoàn tác?" questions for the shop.
 - ``POST /v1/demo/revert-questions/{id}/dismiss`` -- the seller keeps the change.
 
@@ -25,15 +29,23 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop
-from juli_backend.api.routes.agent_runs import _enqueue_run_agent_workflow
+from juli_backend.api.routes.agent_runs import (
+    _enqueue_resume_agent_workflow,
+    _enqueue_run_agent_workflow,
+    _resolve_owned_run,
+    _too_many_requests,
+)
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
-from juli_backend.services import run_changes
+from juli_backend.models.decision_reasons import ACTION_DECLINE, ACTION_REVERT
+from juli_backend.models.models import ActionCard
+from juli_backend.models.models import WorkflowRun as WorkflowRunRow
+from juli_backend.services import agent_runs, decision_reasons, run_changes
 from juli_backend.services.agent import abuse_limits as agent_abuse_limits
 
 logger = logging.getLogger(__name__)
@@ -48,6 +60,25 @@ _ACTIVE_RUN_MESSAGE_VI = (
 def get_live_product_reader() -> run_changes.LiveProductReader:
     """The TikTok read behind the S-FR-8 check; overridden in tests."""
     return run_changes.read_live_product
+
+
+# -- seller reasons (fast track P10-A, contract p10-quyet-dinh.md §2) ----------
+
+
+class SellerReasonRequest(BaseModel):
+    """One required reason code from the action's list, plus an optional note."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason_code: str
+    note: str | None = None
+
+
+def invalid_reason(exc: decision_reasons.InvalidReason) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail={"code": "invalid_reason", "message": str(exc)},
+    )
 
 
 # -- response models -------------------------------------------------------------
@@ -204,12 +235,23 @@ async def get_run_changes(
 )
 async def start_run_revert(
     run_id: uuid.UUID,
+    body: SellerReasonRequest,
     shop: Shop = Depends(get_active_shop),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     read_live_product: run_changes.LiveProductReader = Depends(get_live_product_reader),
 ) -> RevertStartedResponse:
-    """Start a "Hoàn tác" run (see module docstring). Throttled like approve."""
+    """Start a "Hoàn tác" run (see module docstring). Throttled like approve.
+
+    Requires ``{reason_code, note?}`` (fast track P10-A, contract §2): 422 for a
+    missing/unknown reason. The reason is stored with the reverted run, and the
+    same lever is not proposed again for the product for 7 days unless its data
+    changes clearly.
+    """
+    try:
+        decision_reasons.validate_reason(ACTION_REVERT, body.reason_code, body.note)
+    except decision_reasons.InvalidReason as exc:
+        raise invalid_reason(exc) from None
     limit = await agent_abuse_limits.get_agent_abuse_limit_gate().try_acquire_approve(str(shop.id))
     if not limit.allowed:
         agent_abuse_limits.log_abuse_limit_exceeded(
@@ -231,6 +273,24 @@ async def start_run_revert(
             started_by_user_id=user.id,
             read_live_product=read_live_product,
         )
+        original = await session.get(WorkflowRunRow, started.reverts_run_id)
+        card = (
+            await session.get(ActionCard, original.action_card_id)
+            if original is not None and original.action_card_id
+            else None
+        )
+        await decision_reasons.record_reason(
+            session,
+            shop_id=shop.id,
+            action=ACTION_REVERT,
+            reason_code=body.reason_code,
+            note=body.note,
+            decided_by_user_id=user.id,
+            card=card,
+            workflow_run_id=started.reverts_run_id,
+            product_id=started.product_id,
+        )
+        decision_reasons.close_card(card)
         await session.commit()
     except run_changes.RevertRunNotFound:
         await session.rollback()
@@ -297,3 +357,83 @@ async def dismiss_revert_question(
             status_code=status.HTTP_404_NOT_FOUND, detail="Question not found"
         ) from None
     return _question_item(question)
+
+
+# -- "Không thực hiện" (fast track P10-A, contract p10-quyet-dinh.md §2) -------
+
+
+class RunDeclineResponse(BaseModel):
+    status: str
+    cooldown_until: str
+
+
+@router.post("/runs/{run_id}/decline", response_model=RunDeclineResponse)
+async def decline_run(
+    run_id: uuid.UUID,
+    body: SellerReasonRequest,
+    shop: Shop = Depends(get_active_shop),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> RunDeclineResponse:
+    """ "Không thực hiện" at the consent step (fast track P10-A, contract §2).
+
+    Declines the run's pending confirmation exactly as ``decision="decline"``
+    on the confirmations endpoint does -- nothing is written; the resume task
+    ends the run and emits the ordinary terminal events -- and stores the
+    seller's reason. 422 for a missing/unknown ``reason_code``; 404 for
+    another shop's run; 409 when the run is not waiting at a consent step.
+    """
+    try:
+        decision_reasons.validate_reason(ACTION_DECLINE, body.reason_code, body.note)
+    except decision_reasons.InvalidReason as exc:
+        raise invalid_reason(exc) from None
+    limit = await agent_abuse_limits.get_agent_abuse_limit_gate().try_acquire_confirmation(
+        str(shop.id)
+    )
+    if not limit.allowed:
+        agent_abuse_limits.log_abuse_limit_exceeded(
+            logger,
+            shop_id=str(shop.id),
+            operation=agent_abuse_limits.OPERATION_CONFIRMATION,
+            retry_after_seconds=limit.retry_after_seconds,
+        )
+        raise _too_many_requests(
+            "Too many confirmation decisions for this shop", limit.retry_after_seconds
+        )
+
+    run = await _resolve_owned_run(run_id, shop, session)
+    try:
+        await agent_runs.decline_pending_confirmation(session, run)
+    except agent_runs.ConfirmationRejected as rejected:
+        raise HTTPException(
+            status_code=rejected.http_status,
+            detail={"message": rejected.message, "error_code": rejected.error_code},
+        ) from None
+    card = await session.get(ActionCard, run.action_card_id) if run.action_card_id else None
+    reason = await decision_reasons.record_reason(
+        session,
+        shop_id=shop.id,
+        action=ACTION_DECLINE,
+        reason_code=body.reason_code,
+        note=body.note,
+        decided_by_user_id=user.id,
+        card=card,
+        workflow_run_id=run.id,
+        product_id=run.product_id,
+    )
+    decision_reasons.close_card(card)
+    # Commit before enqueue: a worker must never see the row still pending (#1221).
+    await session.commit()
+    celery_task_id = _enqueue_resume_agent_workflow(run_id, approved=False)
+    logger.info(
+        "agent_run_declined",
+        extra={
+            "shop_id": str(shop.id),
+            "run_id": str(run_id),
+            "reason_code": body.reason_code,
+            "celery_task_id": celery_task_id,
+        },
+    )
+    return RunDeclineResponse(
+        status="declined", cooldown_until=decision_reasons.cooldown_until_iso(reason)
+    )
