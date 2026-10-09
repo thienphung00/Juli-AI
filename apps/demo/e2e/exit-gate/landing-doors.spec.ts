@@ -106,7 +106,7 @@ test.describe("The header's sign-in door stays reachable after entering the repl
     // AC-8.5: the header's Đăng nhập lives in the shop-avatar menu.
     await openShopMenu(page);
 
-    const headerLink = page.getByRole("link", { name: "Đăng nhập", exact: true });
+    const headerLink = page.getByRole("link", { name: "Đăng nhập với Google", exact: true });
     await expect(headerLink).toBeVisible();
 
     const tagName = await headerLink.evaluate((el) => el.tagName);

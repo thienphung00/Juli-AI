@@ -78,7 +78,7 @@ test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
 
     // AC-8.5: Đăng nhập lives in the shop-avatar menu.
     await openShopMenu(page);
-    const signIn = page.getByRole("link", { name: "Đăng nhập", exact: true });
+    const signIn = page.getByRole("link", { name: "Đăng nhập với Google", exact: true });
     await expect(signIn).not.toHaveAttribute("href", "/");
     await expect(signIn).toHaveAttribute("href", /\.supabase\.co/);
 

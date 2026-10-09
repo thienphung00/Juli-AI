@@ -6,14 +6,19 @@ import { Button } from "@juli/ui";
 
 import { readEntryMode, writeEntryMode } from "../lib/entry-mode";
 import {
+  EMAIL_SIGN_IN_LABEL,
+  EMAIL_SIGN_IN_UNAVAILABLE_COPY,
   GOOGLE_SIGN_IN_UNAVAILABLE_COPY,
   buildGoogleAuthorizeUrl,
 } from "../lib/supabase-auth";
+import { EmailSignIn } from "./email-sign-in";
 import { SampleHome } from "./home/sample-home";
 
 /**
  * The landing's two deliberately asymmetric doors (ADR-094, PUI-DESIGN §1).
  * "Dùng thử Demo" flips local, session-scoped state only — it calls nothing.
+ * The sign-in door holds Google and, since AC-9.1, "Đăng nhập bằng email"
+ * (a disclosure revealing `EmailSignIn`; email OTP code or magic link).
  * "Đăng nhập với Google" is a real, full-page link to Supabase Auth; its href
  * is resolved on mount (never during SSR, so client and server agree on the
  * first paint) and is `null` — an honest disabled state, not a broken link —
@@ -41,6 +46,7 @@ export function DemoLanding() {
   const [googleHref, setGoogleHref] = useState<string | null | undefined>(
     undefined,
   );
+  const [emailOpen, setEmailOpen] = useState(false);
 
   // Deferred via setTimeout(0) rather than calling the setter synchronously
   // in the effect body — the same pattern `demo-state.tsx` already uses for
@@ -110,10 +116,10 @@ export function DemoLanding() {
 
         <article className="demo-landing__door demo-landing__door--google">
           <p className="demo-landing__door-eyebrow">Tài khoản thật của bạn</p>
-          <h2>Đăng nhập với Google</h2>
+          <h2>Đăng nhập</h2>
           <p>
-            Tạo tài khoản Juli thật bằng Google, sau đó đến màn hình Kết nối
-            TikTok Shop.
+            Tạo tài khoản Juli thật bằng Google hoặc email, sau đó đến màn
+            hình Kết nối TikTok Shop.
           </p>
           {googleConfigured ? (
             <a className="demo-landing__google-link juli-btn juli-btn--secondary juli-btn--default" href={googleHref}>
@@ -136,6 +142,35 @@ export function DemoLanding() {
                 <p className="demo-landing__google-unavailable" role="status">
                   {GOOGLE_SIGN_IN_UNAVAILABLE_COPY}
                 </p>
+              ) : null}
+            </>
+          )}
+          {/* AC-9.1: the email door sits beside Google and shares its
+              configured/unconfigured fate (same two NEXT_PUBLIC_SUPABASE_*
+              values), so "chưa sẵn sàng" is said once, above. */}
+          <p aria-hidden="true" className="demo-landing__or">hoặc</p>
+          {googleConfigured ? (
+            <>
+              <Button
+                aria-controls="landing-email-sign-in"
+                aria-expanded={emailOpen}
+                onClick={() => setEmailOpen((open) => !open)}
+                type="button"
+                variant="secondary"
+              >
+                {EMAIL_SIGN_IN_LABEL}
+              </Button>
+              <div hidden={!emailOpen} id="landing-email-sign-in">
+                {emailOpen ? <EmailSignIn autoFocus /> : null}
+              </div>
+            </>
+          ) : (
+            <>
+              <Button disabled type="button" variant="secondary">
+                {EMAIL_SIGN_IN_LABEL}
+              </Button>
+              {googleUnavailable ? (
+                <p className="demo-landing__google-unavailable">{EMAIL_SIGN_IN_UNAVAILABLE_COPY}</p>
               ) : null}
             </>
           )}

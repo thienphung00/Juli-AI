@@ -48,3 +48,6 @@ export function isDestinationActive(pathname: string, href: string | null): bool
 export const SETTINGS_HREF = "/settings";
 export const SETTINGS_LABEL = "Cài đặt";
 export const CONNECT_SHOP_HREF = "/auth/connect-shop";
+
+/** "Đăng nhập bằng email" (AC-9.1) — the shop-avatar menu's email item. */
+export const EMAIL_SIGN_IN_HREF = "/auth/email";

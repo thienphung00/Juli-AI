@@ -26,7 +26,8 @@ import { buildGoogleAuthorizeUrl } from "../lib/supabase-auth";
 const SUPABASE_ORIGIN_AUTHORIZE_URL =
   "https://placeholder-project-ref.supabase.co/auth/v1/authorize?provider=google&redirect_to=http%3A%2F%2Flocalhost%2Fauth%2Fcallback&apikey=anon-key-for-tests";
 
-vi.mock("../lib/supabase-auth", () => ({
+vi.mock("../lib/supabase-auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/supabase-auth")>()),
   buildGoogleAuthorizeUrl: vi.fn(),
   GOOGLE_SIGN_IN_UNAVAILABLE_COPY:
     "Đăng nhập với Google chưa sẵn sàng trong môi trường này.",

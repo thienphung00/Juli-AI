@@ -3,10 +3,19 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 
-import { CONNECT_SHOP_HREF, SETTINGS_HREF, SETTINGS_LABEL } from "../../lib/app-navigation";
+import {
+  CONNECT_SHOP_HREF,
+  EMAIL_SIGN_IN_HREF,
+  SETTINGS_HREF,
+  SETTINGS_LABEL,
+} from "../../lib/app-navigation";
 import { DEMO_MODE_REPLAY_LABEL } from "../../lib/demo-mode-copy";
 import { envelopeOf, type ShopReportState } from "../../lib/shop-report/shop-report-context";
-import { GOOGLE_SIGN_IN_UNAVAILABLE_COPY } from "../../lib/supabase-auth";
+import {
+  EMAIL_SIGN_IN_LABEL,
+  EMAIL_SIGN_IN_UNAVAILABLE_COPY,
+  GOOGLE_SIGN_IN_UNAVAILABLE_COPY,
+} from "../../lib/supabase-auth";
 import { vnClock } from "../../lib/vn-format";
 
 /**
@@ -18,7 +27,8 @@ import { vnClock } from "../../lib/vn-format";
  *
  * The avatar opens the shop menu, which now holds what used to be header
  * controls and the fourth nav tab: Cài đặt, connect/switch shop, sign out —
- * and, for an anonymous visitor, Đăng nhập and Làm mới Demo.
+ * and, for an anonymous visitor, Đăng nhập với Google, Đăng nhập bằng email
+ * (AC-9.1, → `/auth/email`) and Làm mới Demo.
  */
 
 export function shopInitials(name: string): string {
@@ -40,7 +50,10 @@ export function shopSubline(details: { industry?: string | null; skuCount?: numb
 
 export interface ShopHeaderProps {
   readonly state: ShopReportState;
-  /** Supabase authorize URL; `null` = not configured, `undefined` = not resolved yet. */
+  /**
+   * Supabase authorize URL; `null` = not configured, `undefined` = not resolved
+   * yet. The email item shares its fate (same two NEXT_PUBLIC_SUPABASE_* values).
+   */
   readonly googleHref: string | null | undefined;
   readonly onRefreshDemo: () => void;
   readonly onSignOut: () => void;
@@ -148,7 +161,7 @@ export function ShopHeader({ state, googleHref, onRefreshDemo, onSignOut }: Shop
                 <li>
                   {googleHref ? (
                     <a className="shop-menu__item" href={googleHref}>
-                      Đăng nhập
+                      Đăng nhập với Google
                     </a>
                   ) : (
                     <span
@@ -157,7 +170,23 @@ export function ShopHeader({ state, googleHref, onRefreshDemo, onSignOut }: Shop
                       role="link"
                       title={GOOGLE_SIGN_IN_UNAVAILABLE_COPY}
                     >
-                      Đăng nhập
+                      Đăng nhập với Google
+                    </span>
+                  )}
+                </li>
+                <li>
+                  {googleHref ? (
+                    <Link className="shop-menu__item" href={EMAIL_SIGN_IN_HREF} onClick={close}>
+                      {EMAIL_SIGN_IN_LABEL}
+                    </Link>
+                  ) : (
+                    <span
+                      aria-disabled="true"
+                      className="shop-menu__item shop-menu__item--disabled"
+                      role="link"
+                      title={EMAIL_SIGN_IN_UNAVAILABLE_COPY}
+                    >
+                      {EMAIL_SIGN_IN_LABEL}
                     </span>
                   )}
                 </li>

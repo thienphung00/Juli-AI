@@ -6529,3 +6529,37 @@ h4 {
     text-align: left;
   }
 }
+
+/* Đăng nhập bằng email (AC-9.1) — beside the Google door and on /auth/email */
+.demo-landing__door .demo-landing__or {
+  margin: var(--juli-space-3) 0;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.email-sign-in {
+  display: grid;
+  gap: var(--juli-space-3);
+  margin-top: var(--juli-space-4);
+  max-width: 28rem;
+}
+
+.demo-landing__door .email-sign-in__notice,
+.email-sign-in__notice {
+  margin: 0;
+  border: 1px solid var(--juli-border);
+  border-radius: var(--juli-radius);
+  padding: var(--juli-space-3);
+  color: var(--juli-foreground);
+  overflow-wrap: anywhere;
+}
+
+.email-sign-in__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--juli-space-3);
+}
+
+.email-sign-in__actions button {
+  min-height: var(--juli-touch-target);
+}

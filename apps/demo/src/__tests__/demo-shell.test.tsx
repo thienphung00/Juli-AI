@@ -218,7 +218,7 @@ describe("Shop-avatar menu", () => {
     render(<DemoShell>Nội dung</DemoShell>);
     await openShopMenu(user);
 
-    const signInLink = await screen.findByRole("link", { name: "Đăng nhập" });
+    const signInLink = await screen.findByRole("link", { name: "Đăng nhập với Google" });
     expect(new URL(signInLink.getAttribute("href") as string).origin).toBe(
       "https://placeholder-project-ref.supabase.co",
     );
@@ -234,7 +234,7 @@ describe("Shop-avatar menu", () => {
     await openShopMenu(user);
 
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: "Đăng nhập" })).toHaveAttribute("aria-disabled", "true");
+      expect(screen.getByRole("link", { name: "Đăng nhập với Google" })).toHaveAttribute("aria-disabled", "true");
     });
     expect(
       screen.getByTitle("Đăng nhập với Google chưa sẵn sàng trong môi trường này."),
