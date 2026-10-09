@@ -522,3 +522,29 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
 - Tests: dropped the e2e "Analytics chart…" a11y test and two Python exit-gate asserts that pinned it; navigation test now uses `/analytics`. TikTok pixel spec untouched (targets `/`).
 - Gates: lint, type-check, vitest 1593, Playwright 104, build:demo pass; pytest -k "demo or issue_397" passes except pre-existing `test_cross_tenant_probe` (SQLAlchemy URL parse, no DATABASE_URL).
 - Debt: backend `GET /v1/demo/analytics` retire at merge (DEBT.md). Dead `.analytics-*` CSS left.
+
+## 2026-10-09 — P10-A agent (Claude Opus) — card payload, reasons + cooldown, consent edits (AC-10.1)
+
+- Branch fasttrack/p10a-card: 0b3a6381 (migration `079_decision_reasons` onto 078:
+  `decision_reasons` RLS + juli_app SELECT/INSERT, tenant_direct; `inventory_items.seller_sku`;
+  phone cleanup re-parented to 079 — pins, tests, runbook), c40052f2 (consent edits),
+  9a370552 (reasons + cooldown), 4e2f496e (`recommendation.card`), cb1a3a47 (tests,
+  surface inventory, test-quality reconcile), cfc95fd3 (MODULE.md drift allowlist).
+- Endpoints: `POST /v1/demo/decisions/{id}/reject` and `POST /v1/demo/runs/{id}/decline`
+  → 200 `{status, cooldown_until}`; revert now requires `{reason_code, note?}`; 422 on
+  missing/unknown code or note > 300. Decline = the ordinary confirmation decline +
+  resume(approved=False). All three dismiss the card. Confirmations accept
+  `edited_values`; 422 `{code: rule_violation, message (VI), field}`.
+- Cooldown: (product, lever) skipped 7 days (`decision_cooldown`); lifts early only when
+  the weak stage's rate (CTR/CTOR/AOV the card was proposed on) moved > 20 % relative.
+  A dismissed latest card is governed by this cooldown alone.
+- Rules for edits: title 25–255, description non-empty ≤ 10,000 (TikTok edit-product
+  spec, VN = "other regions"), protected terms present in the current field must stay.
+- Gates: check.sh --since effa4d4a --skip-gitleaks on a throwaway PG16 (initdb, random
+  port, deleted after): migrations PASS (head 079, up/down/up), isolation 12, ruff,
+  pytest 168. tests/unit + harness (no DATABASE_URL): 6410 passed, 36 failed = 27
+  agent_events_contract (no packages/contracts/node_modules in this worktree) + the 9
+  known pre-existing. mypy juli_backend clean (550 files); import boundaries: no new
+  violations (56 before/after).
+- Next: P10-C must send a reason body to revert (it 422s without one); orchestrator
+  re-chains 079/080 with P10-B. Debt in DEBT.md "P10-A".

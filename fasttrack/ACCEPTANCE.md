@@ -194,6 +194,7 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
 
 ## P10 — Quyết định card and flows (contract: fasttrack/contracts/p10-quyet-dinh.md)
 
-- [ ] **AC-10.1 (P10-A)** Contract §1–§3 implemented with tests (incl. two-tenant, 422s, cooldown suppresses re-proposal for 7 days, edited consent writes the edited value and is recorded).
+- [x] **AC-10.1 (P10-A)** Contract §1–§3 implemented with tests (incl. two-tenant, 422s, cooldown suppresses re-proposal for 7 days, edited consent writes the edited value and is recorded).
+  Evidence: branch fasttrack/p10a-card 0b3a6381 (migration 079_decision_reasons), c40052f2 (edits), 9a370552 (reasons + cooldown), 4e2f496e (card), cb1a3a47 (tests), cfc95fd3 (guards); `tests/unit/test_p10a_card_reasons_edits.py` 30 passed (card fields + status mapping, reject/decline/revert 422 + stored + two-tenant 404, cooldown suppress / lift after 7 days / lift on > 20 % change, edited consent rebinds + fake-TikTok write of the edited title + "Hoàn tất theo bản bạn sửa", rule_violation 422s); `fasttrack/check.sh --since effa4d4a --skip-gitleaks` on a throwaway PG16: migrations PASS (up/down/up, head 079), isolation 12 passed, ruff PASS, pytest 168 passed.
 - [ ] **AC-10.2 (P10-B)** Contract §4–§6 implemented with tests (photo checks, awaiting states, instructions/applied/verify, measurement stages and final labels; no TikTok promotion writes).
 - [ ] **AC-10.3 (P10-C)** Quyết định matches the artboards exactly at 1440 and 390 (side-by-side screenshots of every artboard state vs the app), wired to the contract with fixtures where the backend is not merged yet; lint/type-check/vitest/e2e/build green.
