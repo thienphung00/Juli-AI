@@ -504,7 +504,8 @@ describe("cover image (RunPhoto.dc.html)", () => {
     signedIn({ tab: "dang-thuc-hien", run: RUN_ID }, c);
     const request = await screen.findByTestId("photo-request");
     expect(request).toHaveTextContent("Tỉ lệ 1:1, tối thiểu 800 × 800 px");
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Juli tải ảnh của bạn lên TikTok Shop");
+    // The page heading follows the selected run's kind, reported after its first render.
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Juli tải ảnh của bạn lên TikTok Shop"));
     const input = screen.getByTestId("photo-input") as HTMLInputElement;
     await userEvent.upload(input, new File(["gif"], "a.gif", { type: "image/gif" }), { applyAccept: false });
     expect(within(request).getByRole("alert")).toHaveTextContent("Ảnh cần là JPG hoặc PNG.");
