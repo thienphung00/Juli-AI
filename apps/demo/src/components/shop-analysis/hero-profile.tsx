@@ -1,7 +1,3 @@
-"use client";
-
-import { useState } from "react";
-
 import {
   addToCartRate,
   aov,
@@ -19,7 +15,7 @@ import {
 import type { Appearance, ChannelRow, HeroProfile, ShopDiagnosisReport } from "../../lib/shop-analysis/types";
 import { money, num, pct, slashDate } from "../../lib/vn-format";
 import { FlashSection, BandsTable } from "./promotions";
-import { ContributionLine, KpiTable, Note, TableWrap, Verdict } from "./shared";
+import { ContributionLine, KpiTable, Note, TableWrap } from "./shared";
 import { allDays, BandStrip } from "./timeline";
 
 function cell(
@@ -197,36 +193,22 @@ function AppearanceList({
   );
 }
 
-export function HeroProfileCard({
+/**
+ * A hero product's full 5-channel profile (ADR-108 Step 2), rendered in place
+ * when its row in Phân tích's hero list is expanded (ADR-109 d.3).
+ */
+export function HeroProfileDetails({
   profile,
   report,
 }: {
   readonly profile: HeroProfile;
   readonly report: ShopDiagnosisReport;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const title = profile.title || `Sản phẩm ${profile.rank}`;
-  const detailsId = `hero-${profile.rank}-details`;
   const appearances = profile.appearances;
 
   return (
-    <article className="card hero-card" aria-labelledby={`hero-${profile.rank}-title`}>
-      <p className="analysis-eyebrow">Sản phẩm chủ lực {profile.rank}</p>
-      <h3 className="hero-card__title" id={`hero-${profile.rank}-title`}>
-        {title}
-      </h3>
-      <Verdict headline={profile.conclusion.headline} lookNext={profile.conclusion.look_next} />
-      <Note>{profile.content_note}</Note>
-      <button
-        type="button"
-        className="btn-secondary hero-card__toggle"
-        aria-expanded={expanded}
-        aria-controls={detailsId}
-        onClick={() => setExpanded((value) => !value)}
-      >
-        {expanded ? "Thu gọn" : "Mở rộng"}
-      </button>
-      <div id={detailsId} hidden={!expanded} className="hero-card__details">
+    <div className="hero-card__details">
         <h4>Chỉ số 30 ngày gần đây so với 30 ngày trước (mọi kênh)</h4>
         <KpiTable comparison={profile.total} label={`Chỉ số của ${title}`} />
         <ShareTable profile={profile} />
@@ -294,7 +276,6 @@ export function HeroProfileCard({
             />
           </>
         )}
-      </div>
-    </article>
+    </div>
   );
 }

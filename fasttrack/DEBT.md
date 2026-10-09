@@ -111,10 +111,10 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] "Từ chối" on a signed-in card only hides it for the session (no reject
   route) — no backend endpoint — add `POST /v1/demo/decisions/{id}/reject` and
   call it; the on-screen copy says the choice is not saved.
-- [ ] Anonymous Phân tích sample is a 100 KB bundled JSON
-  (`lib/shop-analysis/sample-report.json`, generated from a synthetic snapshot
-  via `tests/support/shop_diagnosis.py` + `build_report`; generator kept out of
-  the repo) — speed — commit the generator script or shrink the sample.
+- [x] ~~Anonymous Phân tích sample is a 100 KB bundled JSON, generator kept
+  out of the repo~~ — repaid by P8-E: `scripts/demo_analysis_sample.py`
+  regenerates it byte-for-byte (plus `sample-rankings.json`); `--check` fails
+  when stale. Still ~100 KB + 32 KB, lazy-loaded by the shell.
 - [ ] Inter font is named in the stack but not loaded (mock imports Google
   Fonts) — no network at build — add `next/font` if the owner wants Inter
   everywhere.
@@ -223,9 +223,11 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Header subline shows only "TikTok Shop": no API exposes the shop's ngành
   or SKU count — no data — add both to `GET /v1/demo/analysis` (or `/v1/shops`)
   and pass them to `shopSubline`.
-- [ ] Signed-in Trang chủ + header read `/v1/demo/analysis` once in the shell;
+- [x] ~~Signed-in Trang chủ + header read `/v1/demo/analysis` once in the shell;
   Phân tích still fetches its own copy (ranking toggle) — two requests on a
-  visit to /analytics — P8-E can read `useShopReport()` for the default ranking.
+  visit to /analytics~~ — repaid by P8-E (AC-8.6): Phân tích reads
+  `useShopReport()`; pinned by vitest "/analytics reads the report once" and the
+  signed-in e2e (`analysisCalls` length 1).
 - [ ] Dead code after the shell swap: `recommendationContext` in `demo-state`
   (fed only the retired assistance aside), the persisted `juli_demo_mode`, and
   the old `.demo-header/.demo-assistance/.demo-mode-switcher/.juli-primary-nav/
@@ -275,3 +277,36 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] `tests/unit/test_agent_workflow_task_wiring.py` (7 tests) fails without a
   `DATABASE_URL` in the environment (pre-existing; 29/29 pass with
   `DATABASE_URL=sqlite+aiosqlite:///:memory:`), so check.sh-style runs report it red.
+
+## P8-E Phân tích UI (2026-10-08)
+
+- [ ] The hero ranking toggle (GMV 60 ngày gộp / 30 ngày gần nhất) is gone from
+  Phân tích: it needed a second `?ranking=30d` report fetch and ADR-109 does
+  not show it — scope — re-add as an on-demand fetch in `HeroList` if the
+  owner wants it.
+- [ ] "✦ Juli gợi ý" says "Tối ưu <metric>: <reason from the report's numbers>
+  · kéo GMV/ngày …" with no "Mục tiêu": the backend gives no per-stream target
+  and no TikTok diagnosis per ranking row (the video's "TikTok chẩn đoán"
+  column) — no data — add both to the ranking payload (P8-G's
+  `get_product_diagnoses` codes, D22 recoverable GMV) and render them.
+- [ ] The bottleneck uses the report's four factors only; when it is CTOR on
+  Thẻ sản phẩm the default ranking is CTOR, not the weaker of its two steps
+  (step contributions are only in the rankings payload, not the report) —
+  simpler — pick the step from `product_card/add_to_cart_rate|orders_per_cart`
+  `stream_factor_gmv` if the owner wants the video's "Đơn/thêm giỏ" default.
+- [ ] Ranking direction defaults to "Kéo xuống" even when only "Kéo lên" has
+  rows (e.g. sample LIVE × CTOR shows "Không có phiên LIVE nào…" + closing
+  rows) — honest but one click more — auto-pick the non-empty side.
+- [ ] Stream labels/subtitles and the slug map exist twice (Home's
+  `home-metrics.ts` STREAMS and `lib/phan-tich/model.ts` STREAM_SPECS) —
+  parallel work with P8-D — fold into one module.
+- [ ] Contrast fixes for `.badge-success`, `.change-chip--*` and flat
+  `.change-pill` are scoped to `.pt-page`; the kit rules themselves (used on
+  Home, Quyết định) still use the raw status hue — scope — darken them in the
+  kit block and re-run axe app-wide.
+- [ ] Pre-existing, not P8-E: vitest `replay-scenario.test.ts` "is
+  byte-identical to the fixture the capture tool produced" fails on the merge
+  base (41584c55) too — the client copy of the golden scenario drifted from
+  `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` (likely
+  P8-G's playbook change) — re-copy the fixture in the integration.
+
