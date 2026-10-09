@@ -101,3 +101,35 @@ before/after record stores the edited value; `tool.completed.summary` mentions
 Final labels: `dat` (≥ target and ≥ 100 % expected GMV) · `gan_dat` (70–99 %) ·
 `khong_dat` (< 70 %) · `chua_ket_luan` (too little data or another change on the
 product; no calibration update). `tone`: ok | warn | muted. Before day 7: `rows=[]`.
+
+## 7. Accepted deviations (P10 integration, 2026-10-09)
+
+Recorded by the integration agent after wiring P10-C to the merged P10-A/P10-B;
+pinned by `tests/unit/test_p10_integration_wiring.py` (Python ↔ TS field names
+and reason codes).
+
+- **Runs carry their card**: `GET /v1/demo/runs` items and `GET /v1/demo/runs/{id}`
+  add `decision_id` (= the decisions item `id`, `action_cards.id`). The UI joins a
+  run to its card by it; the product-name match is only a fallback.
+- **Run detail** (`GET /v1/demo/runs/{id}` → `data`) adds `awaiting_expires_at`,
+  `lever {code, kind}`, `photo {before_url, after_url, before, after, checks}` and
+  `promotion {lever, proposal, applied_at, verify_attempts, found,
+  measurement_start}`. The cover-photo consent's before/after images come from
+  `photo.*_url` (relative `/v1/demo/photos/{shop}/{token}`), not from the
+  consent payload (`{attach_staged_image: true}`).
+- **Cover-image order** (ADR-069): `upload_product_image` stages the photo
+  BEFORE the consent; the CONFIRM is on `update_product_listing`.
+- **Photo checks** carry `heuristic` (bool) and `detail` per item.
+- **Promotion tools**: before the pause `get_product_information` +
+  `find_product_promotions`, the rules check is an `assistant.text`; the pause
+  narration is "Đang chờ bạn áp dụng trên Seller Center"; verification is
+  `find_product_promotions` again; not found → "Chưa tìm thấy trên TikTok".
+- **Decline at the seller wait**: `POST /v1/demo/runs/{id}/decline` also accepts a
+  run with `awaiting = photo | seller_action` (no consent yet): the run ends
+  `cancelled` / `cancelled_by_seller`, same reason codes and cooldown. A second
+  decline is 404 (consent) / 409 (wait), never a second reason.
+- **Measurement**: the GMV row `key` is `gmv_per_day`; `target.current/target/
+  progress_from`, band `before/low/high` and row values may be `null`;
+  `day7.within_band` is `null` when the seller set no bands (not "outside").
+  Not measurable (revert run, no product, …) → 409 `{code, message}`; the UI
+  treats any error as "no measurement yet".
