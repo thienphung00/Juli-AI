@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { parseAuthCallbackHash, storeAuthSession } from "../../../lib/supabase-auth";
+import {
+  describeAuthCallbackError,
+  parseAuthCallbackHash,
+  storeAuthSession,
+} from "../../../lib/supabase-auth";
 import { reportTikTokRegistration } from "../../../lib/tiktok-registration";
 
 type Phase =
@@ -13,7 +17,8 @@ type Phase =
 
 /**
  * Where Supabase's implicit-grant redirect lands after "Đăng nhập với
- * Google". Reads the `#access_token=...` (or `#error=...`) hash fragment
+ * Google" — and after an email magic link (AC-9.1), which arrives in the
+ * same shape. Reads the `#access_token=...` (or `#error=...`) hash fragment
  * GoTrue appends to `redirect_to`, stores the real session, and moves on to
  * the connect-shop screen. A provider failure or an unexpectedly empty
  * callback renders a real, announced error — never a silent fall-through.
@@ -27,7 +32,11 @@ export default function AuthCallbackPage() {
     // pattern — `react-hooks/set-state-in-effect` forbids calling a setter
     // synchronously in the effect body.
     const timer = window.setTimeout(() => {
-      const result = parseAuthCallbackHash(window.location.hash);
+      const fromHash = parseAuthCallbackHash(window.location.hash);
+      // GoTrue reports some magic-link failures (e.g. an expired link) in
+      // the query string rather than the hash.
+      const result =
+        fromHash.status === "empty" ? parseAuthCallbackHash(window.location.search.replace(/^\?/, "")) : fromHash;
 
       if (result.status === "success") {
         storeAuthSession(result.session);
@@ -43,7 +52,7 @@ export default function AuthCallbackPage() {
       if (result.status === "error") {
         setPhase({
           kind: "error",
-          message: `Đăng nhập không thành công: ${result.message}`,
+          message: describeAuthCallbackError(result.message, result.errorCode),
         });
         return;
       }
@@ -51,7 +60,7 @@ export default function AuthCallbackPage() {
       setPhase({
         kind: "error",
         message:
-          "Không nhận được thông tin đăng nhập từ Google. Vui lòng thử lại.",
+          "Không nhận được thông tin đăng nhập. Vui lòng thử lại.",
       });
     }, 0);
 
@@ -63,7 +72,7 @@ export default function AuthCallbackPage() {
   if (phase.kind === "error") {
     return (
       <section aria-labelledby="auth-callback-error-title" className="demo-placeholder">
-        <p className="demo-kicker">Đăng nhập với Google</p>
+        <p className="demo-kicker">Đăng nhập</p>
         <h1 id="auth-callback-error-title">Không thể hoàn tất đăng nhập</h1>
         <p role="alert" aria-live="assertive">
           {phase.message}
@@ -77,7 +86,7 @@ export default function AuthCallbackPage() {
 
   return (
     <section aria-labelledby="auth-callback-title" className="demo-placeholder">
-      <p className="demo-kicker">Đăng nhập với Google</p>
+      <p className="demo-kicker">Đăng nhập</p>
       <h1 id="auth-callback-title">Đang xử lý đăng nhập…</h1>
       <p role="status" aria-live="polite">
         Đang xử lý đăng nhập…
