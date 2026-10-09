@@ -61,6 +61,8 @@ export interface DemoDecisionDiagnosis {
     action: string;
     detail?: string | null;
     confirmed?: boolean;
+    /** Diagnosis codes behind the lever; `source` is "tiktok" or "local". */
+    evidence?: { code: string; source: string; detail?: string | null }[];
   };
   main_kpi: { key: string; label: string; value: string; raw?: number | null };
   trigger: { code: string; gap: number; sentence: string };
@@ -69,6 +71,7 @@ export interface DemoDecisionDiagnosis {
   recoverable_gmv_per_day?: number | null;
   recoverable_gmv_basis?: { label: string; window_days: number } | null;
   product_title?: string | null;
+  tiktok_product_id?: string | null;
 }
 
 export interface DemoDecisionWindow {

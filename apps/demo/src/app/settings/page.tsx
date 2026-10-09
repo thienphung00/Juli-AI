@@ -1,5 +1,5 @@
-import { SettingsView } from "../../components/settings-view";
+import { SettingsPageClient } from "../../components/quyet-dinh/settings-rules";
 
 export default function SettingsPage() {
-  return <SettingsView />;
+  return <SettingsPageClient />;
 }

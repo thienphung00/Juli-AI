@@ -5638,3 +5638,854 @@ h4 {
     transition: none;
   }
 }
+
+/* ──────────────────────────────────────────────────────────────────────
+   Quyết định (AC-8.7, ADR-109 d.6, 8–13) — grouped cards + "Giữ ổn định" /
+   "Quy tắc do bạn đặt", the five-stage stepper on a group or a run, the
+   rules editor, the run timeline + "Hàng chờ thẻ tối ưu", Đo lường.
+   Kit tokens only (colors_and_type.css).
+   ────────────────────────────────────────────────────────────────────── */
+
+.qd-page {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.qd-page .page-header {
+  margin-bottom: 0;
+}
+
+.qd-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.qd-muted {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
+
+.qd-error {
+  margin: 0;
+  color: color-mix(in srgb, var(--destructive) 72%, #000000);
+  font-size: 14px;
+}
+
+.qd-error-box {
+  border: 1px solid var(--destructive);
+  border-radius: var(--radius);
+  background: var(--destructive-tint);
+  padding: 12px 16px;
+  color: color-mix(in srgb, var(--destructive) 72%, #000000);
+}
+
+.qd-error-box p,
+.qd-error-box ul {
+  margin: 0;
+}
+
+.qd-empty {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  padding: 20px;
+}
+
+.qd-empty p {
+  margin: 0;
+}
+
+/* five-stage stepper */
+.qd-stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.qd-stepper__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px 4px 4px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.qd-stepper__dot {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--secondary);
+  font-size: 12px;
+}
+
+.qd-stepper__item--done {
+  color: var(--foreground);
+}
+
+.qd-stepper__item--done .qd-stepper__dot {
+  background: var(--success);
+  color: #ffffff;
+}
+
+.qd-stepper__item--current {
+  border-color: var(--pink-text);
+  box-shadow: 0 0 0 3px var(--secondary);
+  color: var(--pink-text);
+}
+
+.qd-stepper__item--current .qd-stepper__dot {
+  background: var(--pink-text);
+  color: #ffffff;
+}
+
+.qd-stepper__item--failed .qd-stepper__dot {
+  background: var(--destructive);
+  color: #ffffff;
+}
+
+/* Đề xuất */
+.qd-dx,
+.qd-dt {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .qd-dx,
+  .qd-dt {
+    grid-template-columns: minmax(0, 1.9fr) minmax(280px, 1fr);
+  }
+}
+
+.qd-dx__groups,
+.qd-dx__side,
+.qd-dt__main,
+.qd-dl {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.qd-group {
+  display: grid;
+  gap: 12px;
+}
+
+.qd-group__head {
+  display: grid;
+  gap: 14px;
+  border: 2px solid var(--pink-light);
+  background: linear-gradient(135deg, var(--card) 60%, var(--secondary) 100%);
+  padding: 18px;
+}
+
+.qd-group__target {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.qd-group__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.qd-group__goal {
+  margin: 4px 0 0;
+  color: var(--pink-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.qd-group__gmv {
+  display: grid;
+  justify-items: end;
+  text-align: right;
+}
+
+.qd-group__gmv-label {
+  color: var(--pink-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.qd-group__gmv strong {
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.qd-group__gmv-note {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.qd-group__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.qd-group__block {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--warning-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.qd-cards {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 768px) {
+  .qd-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.qd-card {
+  display: grid;
+  gap: 10px;
+  height: 100%;
+  padding: 16px;
+  align-content: start;
+}
+
+.qd-card--manual {
+  background: var(--secondary);
+}
+
+.qd-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.qd-card__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.qd-card__code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.qd-card__kpi {
+  border-radius: 999px;
+  background: var(--secondary);
+  padding: 2px 8px;
+  color: var(--pink-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.qd-card__facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.qd-card__facts dt {
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.qd-card__facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.qd-card__lever {
+  color: var(--pink-text);
+  font-weight: 700;
+}
+
+.qd-card__change {
+  margin: 0;
+  border-radius: 10px;
+  background: #f4f4f5;
+  padding: 8px 10px;
+  color: #3f3f46;
+  font-size: 13px;
+}
+
+.qd-card__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.qd-card__manual {
+  color: var(--warning-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.qd-card__drop,
+.qd-rule__clear {
+  min-height: var(--touch-target-min);
+  border: 0;
+  background: transparent;
+  padding: 0 8px;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 14px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.qd-progress {
+  margin: 0;
+  color: var(--pink-text);
+  font-weight: 600;
+}
+
+.qd-side-card {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  justify-items: start;
+}
+
+.qd-side-card__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.qd-bands-missing {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  border-left: 4px solid var(--warning);
+  padding-left: 12px;
+}
+
+.qd-bands-missing__title {
+  margin: 0;
+  color: var(--warning-text);
+  font-weight: 700;
+}
+
+.qd-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.qd-chip {
+  border-radius: 999px;
+  background: var(--secondary);
+  padding: 6px 12px;
+  color: var(--pink-text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.qd-chip--lock {
+  background: #f4f4f5;
+  color: var(--foreground);
+}
+
+.qd-chip__by {
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+
+.qd-page button:focus-visible,
+.qd-page input:focus-visible,
+.qd-page textarea:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
+/* rules editor */
+.qd-rules-editor {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.qd-rules-editor__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.qd-rules-editor__group {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  min-width: 0;
+}
+
+.qd-rules-editor__group legend {
+  padding: 0 6px;
+  font-weight: 800;
+}
+
+.qd-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--touch-target-min);
+  font-weight: 700;
+}
+
+.qd-toggle input,
+.qd-rule__checks input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--pink-text);
+}
+
+.qd-rule {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.qd-rule__label {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font-weight: 600;
+}
+
+.qd-rule__by {
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.qd-rule__control,
+.qd-rule__add,
+.qd-rule__checks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.qd-rule__checks label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--touch-target-min);
+}
+
+.qd-rule__entries {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex-basis: 100%;
+  font-size: 14px;
+}
+
+.qd-rule__suffix {
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
+
+.qd-rule__error {
+  margin: 0;
+  color: color-mix(in srgb, var(--destructive) 72%, #000000);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.qd-input {
+  min-height: var(--touch-target-min);
+  width: 7rem;
+  max-width: 100%;
+  border: 1px solid #a1a1aa;
+  border-radius: 10px;
+  background: var(--card);
+  padding: 0 10px;
+  font: inherit;
+}
+
+.qd-textarea {
+  width: min(28rem, 100%);
+  padding: 8px 10px;
+}
+
+/* Đang thực hiện */
+.qd-run {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  min-width: 0;
+}
+
+.qd-run__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.qd-run__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.qd-timeline {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.qd-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 12px;
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  padding: 8px;
+}
+
+.qd-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 46px;
+  bottom: -6px;
+  left: 25px;
+  width: 2px;
+  background: var(--border);
+}
+
+.qd-step--done:not(:last-child)::after {
+  background: var(--success);
+}
+
+.qd-step__marker {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: #f4f4f5;
+  color: var(--muted-foreground);
+  font-weight: 800;
+}
+
+.qd-step--done .qd-step__marker {
+  background: var(--success);
+  color: #ffffff;
+}
+
+.qd-step--failed .qd-step__marker {
+  background: var(--destructive);
+  color: #ffffff;
+}
+
+.qd-step--current {
+  border-color: var(--pink-light);
+}
+
+.qd-step--current .qd-step__marker {
+  background: var(--card);
+}
+
+.qd-step--current .qd-step__label {
+  color: var(--pink-text);
+}
+
+.qd-step--upcoming .qd-step__label {
+  color: #71717a;
+}
+
+.qd-step__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.qd-step__row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.qd-step__label {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.qd-step__time {
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.qd-step__detail {
+  margin: 0;
+  color: #52525b;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.qd-step__consent {
+  margin-top: 10px;
+  min-width: 0;
+}
+
+.qd-spinner {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--secondary);
+  border-top-color: var(--pink-text);
+  border-radius: 999px;
+  animation: qd-spin 0.9s linear infinite;
+}
+
+@keyframes qd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qd-spinner {
+    animation: none;
+  }
+}
+
+.qd-queue {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  min-width: 0;
+}
+
+.qd-queue__section {
+  display: grid;
+  gap: 6px;
+}
+
+.qd-queue__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.qd-queue__list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.qd-queue__item {
+  display: flex;
+  width: 100%;
+  min-height: var(--touch-target-min);
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  padding: 6px 8px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.qd-queue__item[aria-pressed="true"] {
+  border-color: var(--pink-light);
+  background: var(--secondary);
+}
+
+.qd-queue__name {
+  min-width: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.qd-changes {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.qd-changes__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.qd-changes__list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.qd-change {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  font-size: 14px;
+}
+
+@media (min-width: 768px) {
+  .qd-change {
+    grid-template-columns: 8rem minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 8px;
+  }
+}
+
+.qd-change__label {
+  font-weight: 700;
+}
+
+.qd-change__before {
+  color: var(--muted-foreground);
+  text-decoration: line-through;
+  overflow-wrap: anywhere;
+}
+
+.qd-change__after {
+  overflow-wrap: anywhere;
+}
+
+.qd-changes__actions {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+/* Đo lường */
+.qd-questions,
+.qd-measure {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+}
+
+.qd-questions {
+  border: 2px solid var(--warning);
+}
+
+.qd-questions__list,
+.qd-measure__list,
+.qd-question__breaches {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.qd-question {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.qd-question__product {
+  margin: 0;
+  font-weight: 800;
+}
+
+.qd-question__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.qd-measure__row {
+  display: grid;
+  gap: 2px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.qd-measure__product {
+  justify-self: start;
+  min-height: var(--touch-target-min);
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--pink-text);
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.qd-measure__fields {
+  font-size: 14px;
+}
+
+.qd-measure__when {
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
