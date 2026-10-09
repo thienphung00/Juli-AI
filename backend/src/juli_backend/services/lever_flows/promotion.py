@@ -64,7 +64,7 @@ MAX_SHIPPING_DISCOUNT_VND = Decimal(30000)
 _THOUSAND = Decimal(1000)
 
 
-class PromotionRulesMissing(RuntimeError):  # noqa: N818 - an invariant breach, named for it
+class PromotionRulesMissing(RuntimeError):
     """A promotion run for a product with no cost: the card should not exist."""
 
 

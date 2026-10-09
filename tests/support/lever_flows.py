@@ -11,10 +11,11 @@ import json
 import uuid
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 from PIL import Image, ImageDraw
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from juli_backend.models.lever_flows import RunLeverFlow
 from juli_backend.models.models import ActionCard, Product, Shop, User
@@ -22,6 +23,10 @@ from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.services.agent.runner.state import RunState
 
 PRODUCT_ID = "1736363193934775940"
+
+#: ``wiring_for_run``'s sync session is only used by the photo flow's staged-URI
+#: recorder, which these tests never trigger through it.
+NO_SYNC_SESSION = cast(Session, None)
 CDN_URL = "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/old-cover~tplv.jpeg"
 
 DETAIL: dict[str, Any] = {

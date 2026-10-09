@@ -42,6 +42,7 @@ from juli_backend.services.lever_flows import promotion
 from juli_backend.services.lever_flows.driver import FlowWiring, LeverFlowRunner
 from tests.support.lever_flows import (
     DETAIL,
+    NO_SYNC_SESSION,
     PRODUCT_ID,
     FakeProducts,
     FakePromotion,
@@ -129,7 +130,7 @@ async def test_a_promotion_run_without_a_cost_fails_loudly(session):
     with pytest.raises(promotion.PromotionRulesMissing):
         await lever_flows.wiring_for_run(
             session,
-            None,  # type: ignore[arg-type]
+            NO_SYNC_SESSION,
             run,
             product,
             product_detail=lambda: None,
@@ -209,7 +210,7 @@ class Leg:
         product = await session.get(Product, run.product_id)
         wiring = await lever_flows.wiring_for_run(
             session,
-            None,  # type: ignore[arg-type]
+            NO_SYNC_SESSION,
             run,
             product,
             product_detail=lambda: None,
@@ -481,3 +482,57 @@ async def test_a_promotion_run_cannot_be_reverted_reason_seller_center(
     assert "Seller Center" in availability["message"]
     assert revert.status_code == 409
     assert revert.json()["detail"]["code"] == "seller_center"
+
+
+# --- the read-only tool --------------------------------------------------------------------
+
+
+def _find(promo, promotion_type="product_discount"):
+    from juli_backend.services.agent.tools.product import (
+        FindProductPromotionsInput,
+        ProductToolContext,
+        handle_find_product_promotions,
+    )
+
+    return handle_find_product_promotions(
+        resources(FakeProducts(), promo),
+        ProductToolContext(product_id=PRODUCT_ID),
+        FindProductPromotionsInput(promotion_type=promotion_type),
+    )
+
+
+def test_the_tool_finds_only_live_promotions_of_the_type_that_include_the_product():
+    promo = FakePromotion()
+    promo.add("mine", activity_type="DIRECT_DISCOUNT")
+    promo.add("expired", activity_type="FIXED_PRICE", status="EXPIRED")
+    promo.add("someone-else", activity_type="FIXED_PRICE", product_ids=("other",))
+    promo.add("flash", activity_type="FLASHSALE")
+    result = _find(promo)
+    assert [p.begin_date for p in result.promotions] == ["2026-10-09"]
+    assert result.promotions[0].end_date == "2026-11-08"
+    assert result.promotions[0].type_label == "Giảm giá sản phẩm"
+    assert "mine" not in result.promotions[0].ref, "an opaque ref, never TikTok's id"
+    assert promo.writes == []
+
+
+def test_a_shop_wide_shipping_discount_counts_for_the_product():
+    promo = FakePromotion()
+    promo.add("ship", activity_type="SHIPPING_DISCOUNT", product_ids=())
+    promo.details["ship"]["product_level"] = "SHOP"
+    assert len(_find(promo, "shipping_discount").promotions) == 1
+
+
+def test_a_tiktok_error_is_unavailable_not_a_crash():
+    from juli_backend.integrations.tiktok import TikTokAPIError
+    from juli_backend.services.agent.runner.seller_facing_copy import tool_completed_summary
+
+    promo = FakePromotion()
+
+    def _boom(**_):
+        raise TikTokAPIError(36009004, "not authorised")
+
+    promo.search_activities = _boom
+    result = _find(promo)
+    assert result.unavailable is True and result.promotions == []
+    summary = tool_completed_summary("find_product_promotions", result.model_dump())
+    assert summary == "Chưa đọc được khuyến mãi từ TikTok"

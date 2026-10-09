@@ -104,6 +104,14 @@ ALLOWLISTED_PRODUCT_ROUTES: dict[tuple[str, str], str] = {
     # having never once looked at the route. Removed entirely (not just re-justified);
     # test_allowlisted_routes_are_genuinely_unauthenticated below now fails loudly if
     # any allowlisted route is ever found to resolve a session dependency again.
+    ("GET", "/v1/demo/photos/{shop_id}/{token}"): (
+        "Fast track P10-B (contract §4): the stored before/after cover photo of a "
+        "cover-image run, shown in the consent step by an <img>, which cannot send the "
+        "auth header. The 32-byte random per-photo token in the path is the capability "
+        "(secrets.token_urlsafe, never derived); the shop id only selects the RLS scope "
+        "for the lookup, and a token is matched only within that shop. No TikTok URL or "
+        "credential is involved."
+    ),
     ("GET", "/v1/auth/tiktok/callback"): (
         "TikTok Shop OAuth redirect callback — authenticated by a signed OAuth `state` "
         "token (TikTokOAuthInfrastructureService.verify_state), which binds the callback "

@@ -341,6 +341,16 @@ celeryTasks:
       ADR-073 decisions 1/5 (#1129, reconciled against the real WorkflowRunner.resume
       by #1145). Carries an already-authorized `approved` decision through to the
       runner; does not itself validate or authorize it (W4-A's job).
+  juli_backend.resume_lever_flow:
+    owner: Agent Execution
+    wrapper: backend/src/juli_backend/workers/tasks/agent_workflow.py
+    delegatesTo: services.lever_flows.LeverFlowRunner.resume_after_external_wait
+    notes: >
+      Fast track P10-B (contract §4-§5). Continues a cover-image / Seller Center
+      promotion run waiting on the seller: enqueued by POST /v1/demo/runs/{id}/photo
+      and /applied, and by the run itself 30 minutes after a promotion was not
+      found. Same thin shell as resume_agent_workflow; a run no longer waiting is
+      left alone.
   juli_backend.reap_abandoned_workflow_runs:
     owner: Agent Execution
     wrapper: backend/src/juli_backend/workers/tasks/reaper.py

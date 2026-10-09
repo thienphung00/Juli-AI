@@ -96,7 +96,7 @@ def wait_timeout_hours(awaiting: str | None) -> int | None:
 
 
 @dataclass
-class AwaitSeller(Exception):  # noqa: N818 - a signal, not an error
+class AwaitSeller(Exception):
     """Raised by a flow planner when the run must wait for the seller.
 
     The runner never catches it; ``LeverFlowRunner`` does, records what the

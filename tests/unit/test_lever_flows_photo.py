@@ -40,6 +40,7 @@ from juli_backend.services.lever_flows.driver import FlowWiring, LeverFlowRunner
 from juli_backend.workers.tasks import reaper
 from tests.support.lever_flows import (
     CDN_URL,
+    NO_SYNC_SESSION,
     PRODUCT_ID,
     FakeProducts,
     api_client,
@@ -384,10 +385,10 @@ async def test_wiring_hands_the_worker_the_photo_and_its_staged_uri(session):
 
     wiring = await lever_flows.wiring_for_run(
         session,
-        None,
+        NO_SYNC_SESSION,
         run,
         product,
-        product_detail=lambda: None,  # type: ignore[arg-type]
+        product_detail=lambda: None,
     )
     assert wiring is not None
     assert wiring.playbook is lever_flows.PHOTO_PLAYBOOK
@@ -395,8 +396,8 @@ async def test_wiring_hands_the_worker_the_photo_and_its_staged_uri(session):
     assert (wiring.pending_image_bytes, wiring.staged_image_uri) == (data, "tos-staged")
     assert (
         await lever_flows.wiring_for_run(
-            session, None, plain, other_product, product_detail=lambda: None
-        )  # type: ignore[arg-type]
+            session, NO_SYNC_SESSION, plain, other_product, product_detail=lambda: None
+        )
         is None
     ), "an ordinary run is untouched"
 

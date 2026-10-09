@@ -174,6 +174,9 @@ UNAUTHENTICATED_ALLOWLIST = {
     "/v1/auth/tiktok/business/callback",
     "/v1/auth/tiktok/business/account-holder/callback",
     "/v1/demo/analytics",
+    # Fast track P10-B: a cover-image run's stored photo, behind a random
+    # per-photo capability token (an <img> cannot send the auth header).
+    "/v1/demo/photos/{shop_id}/{token}",
 }
 
 REGENERATION_COMMAND = (
