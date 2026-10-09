@@ -10,9 +10,8 @@ import { approveSequentially, groupStages, runStages } from "../../lib/quyet-din
 import { batchCards, groupDecisions } from "../../lib/quyet-dinh/grouping";
 import { buildRunTimeline, vnDate } from "../../lib/quyet-dinh/timeline";
 import type { RevertQuestion, RunChanges, ShopRules } from "../../lib/quyet-dinh/types";
-import { RunDetailPane, RunQueue } from "../quyet-dinh/dang-thuc-hien-panel";
-import { DeXuatPanel } from "../quyet-dinh/de-xuat-panel";
-import { DoLuongPanel, measurementLine } from "../quyet-dinh/do-luong-panel";
+import { RunQueue } from "../quyet-dinh/dang-thuc-hien-panel";
+import { measurementLine } from "../quyet-dinh/do-luong-panel";
 import { RulesEditor } from "../quyet-dinh/rules-editor";
 import { REAL_QD_CLIENTS, SignedInQuyetDinh, type QdClients, type QdQuery } from "../quyet-dinh/signed-in-quyet-dinh";
 
@@ -220,63 +219,6 @@ describe("Đề xuất grouping", () => {
   });
 });
 
-function renderDeXuat(overrides: Partial<React.ComponentProps<typeof DeXuatPanel>> = {}) {
-  const props: React.ComponentProps<typeof DeXuatPanel> = {
-    groups: groupDecisions([item({ id: "a" }), item({ id: "b" }), item({ id: "c", lever: "product_discount", executable: false })]),
-    rules: rules({ ctr: 3 }),
-    rulesStatus: "ready",
-    approvedIds: new Set(),
-    droppedIds: new Set(),
-    busy: false,
-    progress: null,
-    onApprove: vi.fn(),
-    onDrop: vi.fn(),
-    onOpenRules: vi.fn(),
-    ...overrides,
-  };
-  render(<DeXuatPanel {...props} />);
-  return props;
-}
-
-describe("Đề xuất panel", () => {
-  it("renders compact cards; the price card says 'Bạn áp dụng trên Seller Center' and is not counted", async () => {
-    const props = renderDeXuat();
-    const group = screen.getByTestId("decision-group");
-    expect(within(group).getByRole("heading", { level: 2 })).toHaveTextContent("3 thẻ tối ưu để nâng CTOR Thẻ sản phẩm");
-    expect(within(group).getByTestId("group-gmv")).toHaveTextContent("GMV dự kiến");
-    expect(within(group).getByTestId("group-gmv")).toHaveTextContent("ước tính theo quy tắc");
-    const price = screen.getByRole("article", { name: "Sản phẩm c" });
-    expect(price).toHaveTextContent("Bạn áp dụng trên Seller Center");
-    expect(within(price).queryByRole("button", { name: "Duyệt thẻ này" })).toBeNull();
-    const card = screen.getByRole("article", { name: "Sản phẩm a" });
-    expect(card).toHaveTextContent("KPI chính · CTOR");
-    expect(card).toHaveTextContent("Mô tả quá ngắn");
-    expect(card).toHaveTextContent("Viết lại mô tả");
-    // Stepper on the group: Đề xuất is the current stage.
-    expect(within(group).getByRole("list", { name: /^Tiến trình/ }).querySelector('[aria-current="step"]')).toHaveTextContent("Đề xuất");
-
-    await userEvent.click(within(group).getByRole("button", { name: "Duyệt 2 thẻ" }));
-    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Duyệt" }));
-    expect(props.onApprove).toHaveBeenCalledWith(["a", "b"]);
-  });
-
-  it("blocks Duyệt N thẻ until a stability band is set, and asks for one", async () => {
-    const props = renderDeXuat({ rules: rules() });
-    expect(screen.getByRole("button", { name: "Duyệt 2 thẻ" })).toBeDisabled();
-    expect(screen.getAllByText("Đặt ngưỡng giữ ổn định trước khi chạy").length).toBeGreaterThan(0);
-    await userEvent.click(screen.getByRole("button", { name: "Đặt ngưỡng" }));
-    expect(props.onOpenRules).toHaveBeenCalled();
-  });
-
-  it("shows the seller's bands and rule chips with who set them", () => {
-    const r = rules({ ctr: 3, impressions: 5 });
-    renderDeXuat({ rules: { ...r, max_open_cards: { value: 3, set_by: "seller", set_by_user_id: "u", set_at: "2026-10-08T00:00:00Z" } } });
-    expect(screen.getByTestId("stability-card")).toHaveTextContent("CTR · ±3 %");
-    expect(screen.getByTestId("stability-card")).toHaveTextContent("Lượt hiển thị sản phẩm · ±5 %");
-    expect(screen.getByTestId("rules-chips")).toHaveTextContent("≤ 3 thẻ mở cùng lúc · Bạn đặt");
-  });
-});
-
 // -- batch sequencing ---------------------------------------------------------------------
 
 describe("batch approve", () => {
@@ -335,10 +277,11 @@ describe("rules editor", () => {
   });
 });
 
-// -- timeline ------------------------------------------------------------------------------
+
+// -- timeline (AC-10.3: artboard copy — intentional update of the P8-F strings) ---------------------
 
 describe("run timeline from the SSE events", () => {
-  it("maps tools to steps, keeps the diagnoses soft-fail line, pauses at the consent step", () => {
+  it("maps tools to the plan rows, keeps the diagnoses soft-fail line, pauses at the consent step", () => {
     const timeline = buildRunTimeline(PAUSED_RUN);
     expect(timeline.steps.map((step) => [step.label, step.status])).toEqual([
       ["Đọc chẩn đoán TikTok", "done"],
@@ -350,7 +293,7 @@ describe("run timeline from the SSE events", () => {
     ]);
     expect(timeline.steps[0].detail).toBe("Không đọc được chẩn đoán TikTok — tiếp tục với thông tin sản phẩm");
     expect(timeline.steps[0].at).toBe("2026-10-08T03:01:03Z");
-    expect(timeline.steps[2].detail).toBe("Thay đổi: Mô tả");
+    expect(timeline.steps[2].detail).toBe("Đang chờ bạn");
     expect(timeline.pendingConsent?.toolCallId).toBe("c2");
     expect(timeline.steps.filter((step) => step.status === "upcoming").every((step) => step.at === null)).toBe(true);
   });
@@ -361,71 +304,64 @@ describe("run timeline from the SSE events", () => {
     expect(timeline.pendingConsent).toBeNull();
     expect(timeline.steps.every((step) => step.status === "done")).toBe(true);
     expect(timeline.steps.at(-1)?.label).toBe("Kết thúc · đặt lịch đo");
-    expect(timeline.steps.at(-1)?.detail).toBe("Đo sơ bộ ngày 15/10/2026 (ngày 7), chốt ngày 22/10/2026 (ngày 14).");
-    expect(timeline.steps.find((step) => step.kind === "consent")?.detail).toBe("Thay đổi: Mô tả");
+    expect(timeline.steps.at(-1)?.detail).toBe("Đo sơ bộ 15/10 (ngày 7) · chốt 22/10 (ngày 14)");
+    expect(timeline.steps.find((step) => step.kind === "consent")?.detail).toBe("Bạn đã xác nhận");
   });
 
-  it("a revert refused for an external change ends failed and says Juli does not overwrite", () => {
-    const timeline = buildRunTimeline(REVERT_CONFLICT, { isRevert: true });
-    const last = timeline.steps.at(-1)!;
-    expect(last.status).toBe("failed");
-    expect(last.label).toBe("Kết thúc lượt chạy");
-    expect(last.detail).toContain("Juli không ghi đè");
+  it("Không thực hiện: the steps after the consent read Bỏ qua", () => {
+    const timeline = buildRunTimeline([...PAUSED_RUN, ev(7, "workflow.completed", { stop_reason: "confirmation_declined" })]);
+    expect(timeline.steps.find((step) => step.kind === "consent")?.detail).toBe("Bạn chọn không thực hiện");
+    const after = timeline.steps.slice(timeline.steps.findIndex((step) => step.kind === "consent") + 1);
+    expect(after.map((step) => [step.status, step.detail])).toEqual([
+      ["skipped", "Bỏ qua"],
+      ["skipped", "Bỏ qua"],
+      ["skipped", "Bỏ qua"],
+    ]);
+  });
+
+  it("a revert refused for an external change stops at 'Kiểm tra có ai sửa ngoài Juli'", () => {
+    const timeline = buildRunTimeline(REVERT_CONFLICT, { isRevert: true, revertFieldLabels: ["Tiêu đề"] });
+    const check = timeline.steps.find((step) => step.label === "Kiểm tra có ai sửa ngoài Juli")!;
+    expect(check.status).toBe("failed");
+    expect(check.detail).toBe("Tiêu đề đã bị sửa ngoài Juli — dừng");
+    expect(timeline.steps.at(-1)).toMatchObject({ label: "Kết thúc · dừng đo", status: "skipped", detail: "Bỏ qua" });
     expect(timeline.terminal?.day7).toBeNull();
-  });
-
-  it("renders the consent picker inline and the step times in Vietnam time", () => {
-    render(
-      <RunDetailPane
-        changes={null}
-        confirm={vi.fn()}
-        events={PAUSED_RUN}
-        isRevert={false}
-        nowMs={Date.parse("2026-10-08T03:02:00Z")}
-        onRevert={vi.fn()}
-        reconnecting={false}
-        revertState={{ status: "idle" }}
-        run={run({ id: RUN_ID, status: "waiting_approval", stop_reason: null, completed_at: null })}
-      />,
-    );
-    const timeline = screen.getByTestId("run-timeline");
-    const current = timeline.querySelector('[aria-current="step"]') as HTMLElement;
-    expect(current).toHaveTextContent("Xác nhận một lần");
-    expect(within(current).getByRole("button", { name: "Xác nhận phương án này" })).toBeInTheDocument();
-    expect(within(timeline).getAllByText("10:01:03").length).toBe(1);
   });
 });
 
-// -- ledger + Hoàn tác -------------------------------------------------------------------------
+// -- queue --------------------------------------------------------------------------------------
 
 describe("Hàng chờ thẻ tối ưu", () => {
-  it("keeps the ledger sections and honest terminal labels", () => {
+  it("lists every run with its honest chip, the one waiting on the seller first", () => {
     render(
       <RunQueue
+        cardFor={() => null}
         onSelect={vi.fn()}
         runs={[
           run({ id: "r1", status: "running", stop_reason: null }),
           run({ id: "r2", status: "waiting_approval", stop_reason: null }),
           run({ id: "r3" }),
           run({ id: "r4", status: "completed", stop_reason: "confirmation_declined" }),
-          run({ id: "r5", status: "failed", stop_reason: "worker_lost" }),
+          run({ id: "r5", status: "queued", stop_reason: null }),
         ]}
+        selectedChip={null}
         selectedId="r3"
       />,
     );
-    const sections = screen.getAllByRole("region").map((section) => section.getAttribute("aria-label"));
-    expect(sections).toEqual(["Đang chờ bạn", "Đang chạy", "Hoàn tất"]);
-    const finished = screen.getByRole("region", { name: "Hoàn tất" });
-    expect(finished).toHaveTextContent("Hoàn tất — không đổi");
-    expect(finished).toHaveTextContent("Sự cố");
+    const rows = screen.getAllByRole("button").map((button) => button.textContent);
+    expect(rows[0]).toBe("Sản phẩm r2Đang chờ bạn");
+    expect(rows[1]).toBe("Sản phẩm r1Đang chạy");
+    expect(rows[2]).toBe("Sản phẩm r5Trong hàng đợi");
+    expect(rows).toContain("Sản phẩm r3Đã áp dụng");
+    expect(rows).toContain("Sản phẩm r4Không thay đổi");
     expect(screen.getByRole("button", { name: /Sản phẩm r3/ })).toHaveAttribute("aria-pressed", "true");
   });
 });
 
+// -- signed in --------------------------------------------------------------------------------------
+
 function sseResponse(events: readonly AgentEvent[]): Response {
-  const text = events
-    .map((e) => `id: ${e.sequence_number}\nevent: ${e.event_type}\ndata: ${JSON.stringify(e)}\n\n`)
-    .join("");
+  const text = events.map((e) => `id: ${e.sequence_number}\nevent: ${e.event_type}\ndata: ${JSON.stringify(e)}\n\n`).join("");
   return new Response(text, { status: 200, headers: { "Content-Type": "text/event-stream" } });
 }
 
@@ -434,6 +370,7 @@ function stubClients(overrides: Partial<QdClients> = {}): QdClients {
     ...REAL_QD_CLIENTS,
     fetchDecisions: vi.fn().mockResolvedValue([item({ id: "a" }), item({ id: "b" })]),
     approve: vi.fn(async (id: string) => ({ runId: `run-${id}` })),
+    reject: vi.fn().mockResolvedValue({ status: "rejected", cooldown_until: null }),
     fetchRuns: vi.fn().mockResolvedValue([run({ id: RUN_ID })]),
     fetchRules: vi.fn().mockResolvedValue(rules({ ctr: 3 })),
     putRule: vi.fn().mockResolvedValue(undefined),
@@ -443,6 +380,11 @@ function stubClients(overrides: Partial<QdClients> = {}): QdClients {
     fetchQuestions: vi.fn().mockResolvedValue([]),
     dismissQuestion: vi.fn().mockResolvedValue(undefined),
     confirm: vi.fn(),
+    decline: vi.fn().mockResolvedValue({ status: "declined", cooldown_until: null }),
+    uploadPhoto: vi.fn().mockResolvedValue([]),
+    fetchInstructions: vi.fn().mockResolvedValue({ steps: [], deep_link: null, summary: "" }),
+    markApplied: vi.fn().mockResolvedValue(undefined),
+    fetchMeasurement: vi.fn().mockResolvedValue(null),
     streamFetch: vi.fn(async () => sseResponse(FINISHED_RUN)) as unknown as typeof fetch,
     ...overrides,
   };
@@ -473,40 +415,53 @@ describe("signed-in Quyết định", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("2 thẻ tối ưu để nâng CTOR Thẻ sản phẩm");
   });
 
-  it("a finished run shows its replayed timeline, before → after and Hoàn tác (202 → the new run)", async () => {
-    const clients = stubClients();
-    const onNavigate = renderSignedIn({ tab: "dang-thuc-hien", run: RUN_ID }, clients);
-    const changesBlock = await screen.findByTestId("run-changes");
-    expect(changesBlock).toHaveTextContent("Mô tả cũ");
-    expect(changesBlock).toHaveTextContent("Mô tả mới");
-    expect(screen.getByTestId("run-timeline")).toHaveTextContent("Đo sơ bộ ngày 15/10/2026 (ngày 7)");
-    await userEvent.click(within(changesBlock).getByRole("button", { name: "Hoàn tác" }));
-    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith("/decisions?tab=dang-thuc-hien&run=new-revert-run"));
+  it("blocks Phê duyệt and Duyệt N thẻ until a stability band is set", async () => {
+    renderSignedIn({}, stubClients({ fetchRules: vi.fn().mockResolvedValue(rules()) }));
+    expect(await screen.findByRole("button", { name: "Duyệt 2 thẻ" })).toBeDisabled();
+    for (const button of screen.getAllByRole("button", { name: "Phê duyệt" })) expect(button).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Đặt ngưỡng" })).toBeInTheDocument();
   });
 
-  it("Hoàn tác 409 shows the backend's Vietnamese message verbatim", async () => {
+  it("a finished run shows the done panel and Hoàn tác asks one reason (202 → the new run)", async () => {
+    const clients = stubClients();
+    const onNavigate = renderSignedIn({ tab: "dang-thuc-hien", run: RUN_ID }, clients);
+    const done = await screen.findByTestId("run-done");
+    expect(done).toHaveTextContent("Đã áp dụng · thẻ chuyển sang Đo lường");
+    expect(done).toHaveTextContent("Đã đổi: Mô tả. Giá trị cũ đã được lưu. Đo sơ bộ 15/10/2026 (ngày 7), chốt 22/10/2026 (ngày 14).");
+    expect(screen.getByTestId("run-timeline")).toHaveTextContent("Đo sơ bộ 15/10 (ngày 7) · chốt 22/10 (ngày 14)");
+    await userEvent.click(within(done).getByRole("button", { name: "Hoàn tác" }));
+    const dialog = screen.getByRole("dialog", { name: "Hoàn tác thay đổi này?" });
+    expect(within(dialog).getByRole("button", { name: "Bắt đầu hoàn tác" })).toBeDisabled();
+    await userEvent.click(within(dialog).getByRole("radio", { name: "Khách phản hồi không tốt" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Bắt đầu hoàn tác" }));
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith("/decisions?tab=dang-thuc-hien&run=new-revert-run"));
+    expect(clients.startRevert).toHaveBeenCalledWith({ token: "tok", shopId: "shop-1" }, RUN_ID, { reason_code: "bad_feedback" });
+  });
+
+  it("Hoàn tác 409 external_change: Juli stops, the backend's sentence verbatim", async () => {
     const message = "Mô tả đã được sửa bên ngoài sau khi Juli ghi. Juli không ghi đè thay đổi đó.";
     const clients = stubClients({ startRevert: vi.fn().mockRejectedValue(new QdApiError(409, "external_change", message)) });
     renderSignedIn({ tab: "dang-thuc-hien", run: RUN_ID }, clients);
-    const block = await screen.findByTestId("run-changes");
-    await userEvent.click(within(block).getByRole("button", { name: "Hoàn tác" }));
-    expect(await within(block).findByRole("alert")).toHaveTextContent(message);
+    await userEvent.click(within(await screen.findByTestId("run-done")).getByRole("button", { name: "Hoàn tác" }));
+    await userEvent.click(screen.getByRole("radio", { name: "TikTok cảnh báo sản phẩm" }));
+    await userEvent.click(screen.getByRole("button", { name: "Bắt đầu hoàn tác" }));
+    const conflict = await screen.findByTestId("revert-conflict");
+    expect(conflict).toHaveTextContent("Juli dừng, không ghi đè");
+    expect(conflict).toHaveTextContent(message);
   });
 
   it("Hoàn tác is disabled with the reason when the backend says it is not available", async () => {
     const reason = "Lượt chạy này đã được hoàn tác.";
     const clients = stubClients({
-      fetchChanges: vi.fn().mockResolvedValue(
-        changes({ revert: { available: false, reason_code: "already_reverted", message: reason, runs: [] } }),
-      ),
+      fetchChanges: vi.fn().mockResolvedValue(changes({ revert: { available: false, reason_code: "already_reverted", message: reason, runs: [] } })),
     });
     renderSignedIn({ tab: "dang-thuc-hien", run: RUN_ID }, clients);
-    const block = await screen.findByTestId("run-changes");
-    expect(within(block).getByRole("button", { name: "Hoàn tác" })).toBeDisabled();
-    expect(block).toHaveTextContent(reason);
+    const done = await screen.findByTestId("run-done");
+    await waitFor(() => expect(within(done).getByRole("button", { name: "Hoàn tác" })).toBeDisabled());
+    expect(done).toHaveTextContent(reason);
   });
 
-  it("Đo lường: placeholder before day 7, Hoàn tác? questions, Giữ thay đổi dismisses", async () => {
+  it("Đo lường without a measurement endpoint: the waiting line, a P8 question, Giữ thay đổi dismisses", async () => {
     const question: RevertQuestion = {
       id: "q1",
       run_id: RUN_ID,
@@ -517,13 +472,11 @@ describe("signed-in Quyết định", () => {
     };
     const clients = stubClients({ fetchQuestions: vi.fn().mockResolvedValue([question]) });
     renderSignedIn({ tab: "do-luong" }, clients);
-    const questions = await screen.findByTestId("revert-questions");
-    expect(questions).toHaveTextContent("CTR lệch −5,2 % (ngưỡng ±3 %)");
-    const measure = screen.getByTestId("measure-list");
-    await waitFor(() => expect(measure).toHaveTextContent("Mô tả"));
-    expect(measure).not.toHaveTextContent("giờ nhân sự");
-    await userEvent.click(within(questions).getByRole("button", { name: "Giữ thay đổi" }));
-    await waitFor(() => expect(screen.queryByTestId("revert-questions")).toBeNull());
+    const ask = await screen.findByTestId("day7-ask");
+    expect(ask).toHaveTextContent("CTR lệch −5,2 % (ngưỡng ±3 %)");
+    await waitFor(() => expect(screen.getByTestId("measure-panel")).toHaveTextContent("Đã đổi Mô tả"));
+    await userEvent.click(within(ask).getByRole("button", { name: "Giữ thay đổi" }));
+    await waitFor(() => expect(screen.queryByTestId("day7-ask")).toBeNull());
     expect(clients.dismissQuestion).toHaveBeenCalledWith({ token: "tok", shopId: "shop-1" }, "q1");
   });
 
@@ -547,20 +500,5 @@ describe("Đo lường placeholder", () => {
       "Đang chờ đủ 7 ngày dữ liệu · đo lúc 15/10/2026",
     );
     expect(vnDate("2026-10-08T20:00:00Z")).toBe("09/10/2026");
-    render(
-      <DoLuongPanel
-        changesByRun={{}}
-        nowMs={Date.parse("2026-10-10T00:00:00Z")}
-        onDismissQuestion={vi.fn()}
-        onOpenRun={vi.fn()}
-        onRevertQuestion={vi.fn()}
-        questionStates={{}}
-        questions={[]}
-        runs={[run({ id: "r1" }), run({ id: "r2", stop_reason: "confirmation_declined" })]}
-      />,
-    );
-    const rows = screen.getAllByRole("listitem");
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toHaveTextContent("Đang chờ đủ 7 ngày dữ liệu · đo lúc 15/10/2026");
   });
 });

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { resolveTab } from "../lib/quyet-dinh/copy";
 import { readActiveShop, type ActiveShop } from "../lib/shop-session";
 import { readAuthSession, type AuthSession } from "../lib/supabase-auth";
-import { SignedInQuyetDinh } from "./quyet-dinh/signed-in-quyet-dinh";
+import { SignedInQuyetDinh, resolveMeasureTab } from "./quyet-dinh/signed-in-quyet-dinh";
 import { RecommendationsView } from "./recommendations-view";
 
 /**
@@ -29,7 +29,21 @@ export function DecisionsPageClient() {
   const initialLoadState = load === "error" ? "error" : "ready";
 
   const router = useRouter();
-  const onNavigate = useCallback((href: string) => router.replace(href, { scroll: false }), [router]);
+  // Quyết định's state lives in /decisions' query string. The UI follows the
+  // href it asked for straight away; `router.replace` then moves the URL. With
+  // the production build a page first loaded WITH a query (a deep link such as
+  // ?tab=do-luong) never committed `router.replace` (AC-10.3 e2e) — the UI
+  // must not wait on it (DEBT P10-C).
+  const [pending, setPending] = useState<{ href: string; base: string } | null>(null);
+  const base = searchParams.toString();
+  const onNavigate = useCallback(
+    (href: string) => {
+      setPending({ href, base });
+      router.replace(href, { scroll: false });
+    },
+    [router, base],
+  );
+  const params = pending && pending.base === base ? new URLSearchParams(pending.href.split("?")[1] ?? "") : searchParams;
   const [session, setSession] = useState<AuthSession | null | undefined>(
     undefined,
   );
@@ -53,9 +67,10 @@ export function DecisionsPageClient() {
       <SignedInQuyetDinh
         onNavigate={onNavigate}
         query={{
-          tab: resolveTab(searchParams.get("tab")),
-          run: searchParams.get("run"),
-          rulesOpen: searchParams.get("quy-tac") === "1",
+          tab: resolveTab(params.get("tab")),
+          run: params.get("run"),
+          rulesOpen: params.get("quy-tac") === "1",
+          measureTab: resolveMeasureTab(params.get("moc")),
         }}
         shop={shop}
         token={session.accessToken}

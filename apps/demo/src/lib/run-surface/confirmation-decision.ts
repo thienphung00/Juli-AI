@@ -54,6 +54,8 @@ export class ConfirmationRejectedError extends Error {
     public readonly status: number,
     public readonly errorCode: ConfirmationErrorCode | null,
     message: string,
+    /** P10 contract §3: the field a `rule_violation` names, when it names one. */
+    public readonly field: string | null = null,
   ) {
     super(message);
     this.name = "ConfirmationRejectedError";
@@ -67,6 +69,8 @@ export interface SubmitConfirmationDecisionOptions {
   readonly shopId?: string;
   readonly baseUrl?: string;
   readonly fetchImpl?: typeof fetch;
+  /** P10 contract §3: the seller's own title / description, written verbatim. */
+  readonly editedValues?: Readonly<{ title?: string; description?: string }>;
 }
 
 /**

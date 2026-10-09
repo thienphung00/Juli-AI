@@ -1088,3 +1088,30 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - EN: Waiting for 7 full days of data · measured on [date]
 - VI: Đang chờ đủ 7 ngày dữ liệu · đo lúc [dd/mm/yyyy]
 - Definition: Đo lường row before day 7; no invented numbers.
+
+### Quyết định — P10-C (AC-10.3)
+
+**`qd.card.status`**
+- EN: Pending · In progress · Applied · Rejected · Expired
+- VI: Chờ duyệt · Đang thực hiện · Đã áp dụng · Đã từ chối · Hết hạn
+- Definition: Recommendation card status chip (ADR-109 Amendment 1 d.2).
+
+**`qd.card.executor`**
+- EN: Juli updates after you confirm · Juli uploads — needs your photo · You do it on Seller Center
+- VI: Juli tự cập nhật sau khi bạn xác nhận · Juli tải lên — cần ảnh từ bạn · Bạn thực hiện trên Seller Center
+- Definition: Who executes a lever (Levers.dc.html).
+
+**`qd.reason.required`**
+- EN: (pick one · required)
+- VI: (chọn một · bắt buộc)
+- Definition: Legend suffix of the Từ chối / Không thực hiện / Hoàn tác reason dialogs; reason labels in `lib/quyet-dinh/reasons.ts`.
+
+**`qd.consent.edit`**
+- EN: Edit the content before applying
+- VI: ✎ Sửa nội dung trước khi áp dụng
+- Definition: Opens the consent edit; Juli writes exactly the edited value (`edited_values`).
+
+**`qd.manual.applied`**
+- EN: I have applied it
+- VI: Tôi đã áp dụng
+- Definition: Seller Center checklist button; enabled once every step is ticked.
