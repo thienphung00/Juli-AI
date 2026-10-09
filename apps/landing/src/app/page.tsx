@@ -1,10 +1,10 @@
 import { ComparisonSection } from "../components/comparison-section";
-import { CuriositySection } from "../components/curiosity-section";
 import { FeaturesSection } from "../components/features-section";
 import { HeroSection } from "../components/hero-section";
 import { LandingHeader } from "../components/landing-header";
 import { SiteFooter } from "../components/site-footer";
 import { StepsSection } from "../components/steps-section";
+import { TrialCtaSection } from "../components/trial-cta-section";
 
 export default function LandingPage() {
   return (
@@ -15,7 +15,7 @@ export default function LandingPage() {
         <StepsSection />
         <ComparisonSection />
         <FeaturesSection />
-        <CuriositySection />
+        <TrialCtaSection />
       </main>
       <SiteFooter />
     </>

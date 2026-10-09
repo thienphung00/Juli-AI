@@ -23,7 +23,7 @@ const FEATURES: Feature[] = [
     icon: "🔍",
     title: "Phân tích",
     description:
-      "Dữ liệu TMĐT như doanh thu, lợi nhuận, tồn kho, hiệu suất sản phẩm được phân tích trực tiếp trên điện thoại hoặc máy tính.",
+      "GMV, đơn hàng, AOV và chỉ số từng luồng truy cập, xem ngay trên điện thoại hoặc máy tính.",
     mockup: <AnalyticsMockup />,
   },
   {
@@ -43,11 +43,11 @@ const FEATURES: Feature[] = [
     mockup: <ExecutionMockup />,
   },
   {
-    key: "ket-qua",
+    key: "theo-doi",
     icon: "📈",
-    title: "Kết quả",
+    title: "Theo dõi",
     description:
-      "Tăng hiệu suất cửa hàng, tiết kiệm thời gian, và vận hành chuyên nghiệp hơn.",
+      "Theo dõi tác động lên GMV mỗi tháng, tiết kiệm ~1,7 giờ/ngày cho mỗi nhân sự.",
     mockup: <ResultsMockup />,
   },
 ];
@@ -60,11 +60,11 @@ export function FeaturesSection() {
       id={SECTION_IDS.features}
     >
       <h2 className="lp-features__heading" id="features-heading">
-        Vận hành TMĐT mọi lúc, mọi nơi, chỉ cần một cú chạm
+        Tối ưu từng luồng truy cập, từ Thẻ sản phẩm đến Live
       </h2>
       <p className="lp-features__subheading">
-        Quản lý cửa hàng, theo dõi hiệu suất và tối ưu chiến dịch chỉ với vài
-        thao tác trên điện thoại cùng trợ lý Juli.
+        Mỗi luồng truy cập có chỉ số riêng: Hiển thị, CTR, CTOR, AOV. Juli tìm
+        đúng chỉ số đang kéo GMV xuống và đề xuất cách sửa.
       </p>
       <div className="lp-features__grid">
         {FEATURES.map((feature) => (
