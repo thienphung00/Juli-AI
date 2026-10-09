@@ -6,7 +6,7 @@
  * (`replay-module-graph.test.ts`).
  */
 
-import type { Measurement, PhotoCheck, SellerInstructions } from "./p10-types";
+import type { Measurement, PhotoCheck, RunDetail, SellerInstructions } from "./p10-types";
 import type { ReasonChoice } from "./reasons";
 import type { RevertQuestion, RuleKey, RunChanges, SetBy, ShopRules } from "./types";
 
@@ -194,7 +194,13 @@ export function photoChecksOf(body: unknown): PhotoCheck[] | null {
     if (Array.isArray(checks)) {
       return checks
         .filter((c): c is PhotoCheck => !!c && typeof c === "object" && typeof (c as PhotoCheck).label === "string")
-        .map((c) => ({ key: String(c.key), label: c.label, ok: Boolean(c.ok) }));
+        .map((c) => ({
+          key: String(c.key),
+          label: c.label,
+          ok: Boolean(c.ok),
+          ...(typeof c.heuristic === "boolean" ? { heuristic: c.heuristic } : {}),
+          ...(typeof c.detail === "string" && c.detail ? { detail: c.detail } : {}),
+        }));
     }
   }
   return null;
@@ -213,6 +219,11 @@ export async function uploadRunPhoto(options: AuthedOptions, runId: string, file
   });
   const body = await parse<unknown>(response);
   return photoChecksOf(body) ?? [];
+}
+
+/** `GET /v1/demo/runs/{id}` (P10-B): `awaiting`, the cover-photo URLs/checks, the promotion. */
+export async function fetchRunDetail(options: AuthedOptions, runId: string): Promise<RunDetail> {
+  return unwrap(await call<unknown>(`/runs/${encodeURIComponent(runId)}`, options));
 }
 
 /** Contract §5. */

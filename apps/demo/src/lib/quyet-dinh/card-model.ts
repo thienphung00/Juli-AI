@@ -138,17 +138,21 @@ export function gmvMonthText(perMonth: number | null | undefined): string | null
 }
 
 function fromCard(item: P10DecisionItem, card: RecommendationCardPayload): CardView {
-  const kpi = card.main_kpi;
+  // The backend may send a KPI without a current/target value (no readings yet).
+  const kpi =
+    card.main_kpi && typeof card.main_kpi.current === "number" && typeof card.main_kpi.target === "number"
+      ? { ...card.main_kpi, current: card.main_kpi.current, target: card.main_kpi.target }
+      : null;
   const sku = card.seller_sku ? `${card.seller_sku}${card.seller_sku_more > 0 ? ` +${card.seller_sku_more}` : ""}` : null;
   const reasonFull = reasonFullText(card);
   const updated = fullDate(card.updated_at);
   return {
     id: item.id,
     sku,
-    title: card.product_title,
+    title: card.product_title ?? text(item.recommendation.diagnosis?.product_title) ?? item.title,
     meta: updated === "—" ? card.workflow_label : `${card.workflow_label} · Cập nhật ${updated}`,
     status: card.status,
-    kpiLabel: kpi?.label ?? null,
+    kpiLabel: kpi?.label ?? card.main_kpi?.label ?? null,
     kpiCurrent: kpi ? kpiPair(kpi.current, kpi.target, kpi.unit).split(" → ")[0] : null,
     kpiTarget: kpi ? kpiPair(kpi.current, kpi.target, kpi.unit).split(" → ")[1] : null,
     kpiUplift: kpi ? upliftChip(kpi.current, kpi.target) : null,

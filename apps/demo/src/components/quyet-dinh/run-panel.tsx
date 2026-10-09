@@ -48,6 +48,8 @@ export interface RunPanelProps {
   readonly eventsLoaded: boolean;
   readonly photoChecks: readonly PhotoCheck[] | null;
   readonly photoState: PhotoState;
+  /** The cover-photo run's stored before/after (`GET /v1/demo/runs/{id}` → `photo`). */
+  readonly photoUrls?: { readonly before: string | null; readonly after: string | null } | null;
   readonly instructions: LoadState<SellerInstructions> | null;
   readonly appliedState: { readonly busy: boolean; readonly error: string | null };
   readonly revertReasonLabel?: string | null;
@@ -157,6 +159,7 @@ export function RunPanel(props: RunPanelProps) {
               onCancelRevert={props.onCancelRevert}
               onConfirm={props.onConfirm}
               onSkip={openSkip}
+              photoUrls={props.photoUrls ?? null}
               productName={run.product_name}
             />
           ) : null}
@@ -278,6 +281,7 @@ function ConsentBlock({
   onConfirm,
   onSkip,
   onCancelRevert,
+  photoUrls: runPhotos,
 }: {
   readonly consent: NonNullable<RunTimeline["pendingConsent"]>;
   readonly kind: RunKind;
@@ -287,6 +291,7 @@ function ConsentBlock({
   readonly onConfirm: RunPanelProps["onConfirm"];
   readonly onSkip: () => void;
   readonly onCancelRevert: () => Promise<void>;
+  readonly photoUrls: RunPanelProps["photoUrls"];
 }) {
   const options =
     consent.options.length > 0
@@ -411,7 +416,8 @@ function ConsentBlock({
           {options.map((option) => {
             const pressed = selected === option.option_id;
             if (isPhoto) {
-              const urls = photoUrls(option.proposed_change);
+              const fromChange = photoUrls(option.proposed_change);
+              const urls = { before: runPhotos?.before ?? fromChange.before, after: runPhotos?.after ?? fromChange.after };
               return (
                 <button
                   aria-pressed={pressed}

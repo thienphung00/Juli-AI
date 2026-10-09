@@ -111,6 +111,7 @@ export const STEP_COPY = {
   revertTerminal: 'Thay đổi ghi nhận "Đã hoàn tác"',
 } as const;
 
+const PHOTO_STAGE_TOOL = "upload_product_image";
 const WRITE_TOOLS = new Set(["update_product_listing", "upload_product_image", "update_product_price"]);
 const DAY_MS = 86_400_000;
 
@@ -147,7 +148,9 @@ export const PLANS: Readonly<Record<RunKind, readonly RowSpec[]>> = {
     { type: "awaitPhoto", key: "await-photo", label: "Chờ ảnh từ bạn" },
     { type: "photoCheck", key: "photo-check", label: "Kiểm tra ảnh mới" },
     CONSENT_ROW,
-    { type: "tool", key: "write", label: "Tải ảnh lên TikTok Shop", tools: ["upload_product_image"] },
+    // P10-B stages the photo (`upload_product_image`) BEFORE the consent and the
+    // consent is on `update_product_listing`, which is what changes the cover.
+    { type: "tool", key: "write", label: "Tải ảnh lên TikTok Shop", tools: ["update_product_listing"] },
     REVIEW_ROW,
     MEASURE_END,
   ],
@@ -253,6 +256,7 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
   let consentEvent: { seq: number; at: string; request: ConsentRequest } | null = null;
   let consentDecidedAt: string | null = null;
   let narration: string | null = null;
+  let textBeforePause = false;
   const box: { terminal: RunTimeline["terminal"] } = { terminal: null };
   let wrote = false;
 
@@ -313,6 +317,7 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
       }
       case "assistant.text":
         narration = event.payload.text || narration;
+        if (!pauseSeen && event.payload.text) textBeforePause = true;
         break;
       case "workflow.completed":
       case "workflow.failed": {
@@ -341,18 +346,18 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
   // Assign tool calls to plan rows.
   const assigned = new Map<string, ToolCall[]>();
   const extras: { call: ToolCall; afterKey: string | null }[] = [];
-  const beforePause = calls.filter((call) => !call.afterPause);
   let lastKey: string | null = null;
   for (const call of calls) {
     let rowKey: string | null = null;
+    if (kind === "photo" && call.name === PHOTO_STAGE_TOOL && !consentEvent) {
+      // Staging the seller's photo on TikTok is part of "Kiểm tra ảnh mới".
+      continue;
+    }
     if (kind === "manual") {
-      const index = beforePause.indexOf(call);
-      if (call.afterPause || (!pauseSeen && awaiting === null && index >= 3)) {
-        rowKey = "verify";
-      } else {
-        const slot = Math.min(index, 2);
-        rowKey = plan.find((row) => row.type === "slot" && row.slot === slot)?.key ?? null;
-      }
+      // P10-B's promotion run: price + existing promotions are read before the
+      // pause (`get_product_information`, `find_product_promotions`), the rules
+      // check is narrated, and every tool after the pause verifies on TikTok.
+      rowKey = call.afterPause ? "verify" : "read";
     } else {
       rowKey = plan.find((spec) => spec.type === "tool" && spec.tools.includes(call.name))?.key ?? null;
     }
@@ -412,8 +417,14 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
       case "slot":
       case "verify": {
         const list = assigned.get(spec.key);
+        const manualDone =
+          kind === "manual" &&
+          spec.type === "slot" &&
+          (pauseSeen || awaiting === "seller_action" || (spec.slot === 1 && textBeforePause));
         if (list && list.length > 0) {
           rows.push(toolRow(spec, list));
+        } else if (manualDone) {
+          rows.push(pseudo(spec, "tool", "done", null, null));
         } else if (endedNormally) {
           // A finished run that never called this tool: manual rows still
           // happened (the backend may batch them), listing tools were skipped.

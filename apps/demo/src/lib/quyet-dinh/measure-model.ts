@@ -11,7 +11,6 @@ import {
   kpiPair,
   rangeText,
   ratioDecimals,
-  ratioText,
   signedPct,
   signedVnd,
   valueText,
@@ -49,7 +48,7 @@ export function measureHead(m: Measurement): MeasureHead {
     return { headline: "Đang chờ dữ liệu sau khi áp dụng", chip: { label: "Chờ đo · ngày 0", tone: "muted" } };
   }
   if (m.stage === "day7") {
-    if (m.day7 && !m.day7.within_band) {
+    if (m.day7 && m.day7.within_band === false) {
       return {
         headline: "Ngày 7: một chỉ số ra ngoài khoảng bạn cho phép",
         chip: { label: "Ngày 7 · cần bạn quyết", tone: "warn" },
@@ -86,7 +85,7 @@ export interface TargetBlock {
 
 export function targetBlock(m: Measurement): TargetBlock {
   const t = m.target;
-  const fmt = (value: number) => (t.unit === "vnd" ? vndText(value) : ratioText(value));
+  const fmt = (value: number | null) => valueText(value, t.unit);
   const perDay = m.expected_gmv_per_day;
   return {
     label: `Chỉ số mục tiêu · ${t.label}`,
@@ -180,7 +179,7 @@ export function day7Steps(m: Measurement, answer: "revert" | "keep" | null): Mea
   const main = m.rows[0];
   const metric = shortMetric(m.target.label);
   const within = m.day7?.within_band ?? true;
-  const fmt = (value: number) => (m.target.unit === "vnd" ? vndText(value) : ratioText(value));
+  const fmt = (value: number | null) => valueText(value, m.target.unit);
   const outBands = m.rows.filter((row) => row.tone === "warn" && m.bands.some((band) => band.key === row.key));
   const inBands = m.bands.filter((band) => !outBands.some((row) => row.key === band.key)).map((band) => band.label);
   const day = dayMonth(m.dates.day7);
@@ -246,7 +245,7 @@ export function finalBox(m: Measurement, leverLabel: string | null): FinalBox | 
   const f = m.final;
   if (!f) return null;
   const metric = shortMetric(m.target.label);
-  const fmt = (value: number) => (m.target.unit === "vnd" ? vndText(value) : ratioText(value));
+  const fmt = (value: number | null) => valueText(value, m.target.unit);
   const main = m.rows[0];
   const actualMetric = main?.actual ?? null;
   const expectedMonth = m.expected_gmv_per_day === null ? null : signedVnd(m.expected_gmv_per_day * 30);
@@ -273,7 +272,7 @@ export function finalBox(m: Measurement, leverLabel: string | null): FinalBox | 
         offerRevert: false,
       };
     case "khong_dat": {
-      const lower = actualMetric !== null && actualMetric < m.target.current ? ", thấp hơn trước khi đổi" : "";
+      const lower = actualMetric !== null && m.target.current !== null && actualMetric < m.target.current ? ", thấp hơn trước khi đổi" : "";
       return {
         tone: "warn",
         title: `Không đạt: ${metric} ${actualMetric === null ? "—" : fmt(actualMetric)}${lower}`,
@@ -299,7 +298,7 @@ const COEF = (value: number) => value.toFixed(2).replace(".", ",");
 export function day14Steps(m: Measurement, leverLabel: string | null): MeasureStep[] {
   const f = m.final;
   const metric = shortMetric(m.target.label);
-  const fmt = (value: number) => (m.target.unit === "vnd" ? vndText(value) : ratioText(value));
+  const fmt = (value: number | null) => valueText(value, m.target.unit);
   const main = m.rows[0];
   const day = dayMonth(m.dates.day14);
   const gmv =

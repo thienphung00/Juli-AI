@@ -385,6 +385,7 @@ function stubClients(overrides: Partial<QdClients> = {}): QdClients {
     fetchInstructions: vi.fn().mockResolvedValue({ steps: [], deep_link: null, summary: "" }),
     markApplied: vi.fn().mockResolvedValue(undefined),
     fetchMeasurement: vi.fn().mockResolvedValue(null),
+    fetchRunDetail: vi.fn().mockResolvedValue(null),
     streamFetch: vi.fn(async () => sseResponse(FINISHED_RUN)) as unknown as typeof fetch,
     ...overrides,
   };

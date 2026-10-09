@@ -148,11 +148,30 @@ const PHOTO_RUN: AgentEvent[] = [
   ev(4, "workflow.status", { phase_narration: "Đang chờ ảnh từ bạn" }),
 ];
 
+// P10-B's promotion run, as the backend emits it (planner.py PromotionPlanner).
 const MANUAL_RUN: AgentEvent[] = [
   ev(1, "workflow.started", { workflow_key: "optimize_product_2", product_ref: "p", prompt_version: "v3" }),
-  ev(2, "tool.started", { tool_call_id: "m0", tool_name: "read_price" }),
-  ev(3, "tool.completed", { tool_call_id: "m0", tool_name: "read_price", ok: true, summary: "Giá 279k" }),
-  ev(4, "workflow.status", { phase_narration: "Đang chờ bạn áp dụng trên Seller Center" }),
+  ev(2, "tool.started", { tool_call_id: "m0", tool_name: "get_product_information" }),
+  ev(3, "tool.completed", { tool_call_id: "m0", tool_name: "get_product_information", ok: true, summary: "Giá 279k" }),
+  ev(4, "tool.started", { tool_call_id: "m1", tool_name: "find_product_promotions" }),
+  ev(5, "tool.completed", { tool_call_id: "m1", tool_name: "find_product_promotions", ok: true, summary: "Chưa có khuyến mãi" }),
+  ev(6, "assistant.text", { text: "Giảm 7 % vẫn trên biên lợi nhuận tối thiểu bạn đặt." }),
+  ev(7, "workflow.status", { phase_narration: "Đang chờ bạn áp dụng trên Seller Center" }),
+];
+
+// P10-B's cover-photo run after the seller's photo: staged before the consent,
+// the consent on `update_product_listing` (ADR-069 order).
+const PHOTO_RUN_AT_CONSENT: AgentEvent[] = [
+  ...PHOTO_RUN,
+  ev(5, "tool.started", { tool_call_id: "p1", tool_name: "upload_product_image" }),
+  ev(6, "tool.completed", { tool_call_id: "p1", tool_name: "upload_product_image", ok: true, summary: "Đã tải ảnh" }),
+  ev(7, "workflow.approval_required", {
+    tool_call_id: "p2",
+    tool_name: "update_product_listing",
+    expires_at: "2026-10-12T03:00:00Z",
+    proposed_change: { attach_staged_image: true },
+    options: [{ option_id: "opt-1", proposed_change: { attach_staged_image: true }, rationale: "", params_sha: "x" }],
+  }),
 ];
 
 function run(over: Partial<WorkflowRunListItem> & { awaiting?: string | null } = {}): WorkflowRunListItem {
@@ -199,6 +218,7 @@ function clients(over: Partial<QdClients> = {}): QdClients {
     fetchInstructions: vi.fn().mockResolvedValue({ steps: ["Bước một", "Bước hai"], deep_link: "https://seller-vn.tiktok.com", summary: "Giá 279k → 259k" }),
     markApplied: vi.fn().mockResolvedValue(undefined),
     fetchMeasurement: vi.fn().mockResolvedValue(null),
+    fetchRunDetail: vi.fn().mockResolvedValue(null),
     startRevert: vi.fn().mockResolvedValue({ runId: "rev" }),
     dismissQuestion: vi.fn().mockResolvedValue(undefined),
     streamFetch: sse(CONSENT_RUN),
@@ -495,6 +515,32 @@ describe("cover image (RunPhoto.dc.html)", () => {
     expect(await screen.findByTestId("photo-checks")).toHaveTextContent("✓ 1:1");
   });
 
+  it("the consent shows the before/after photos from the run detail (P10-B stores them, not the payload)", async () => {
+    const c = clients({
+      fetchRuns: vi.fn().mockResolvedValue([run({ status: "waiting_approval", awaiting: null })]),
+      streamFetch: sse(PHOTO_RUN_AT_CONSENT),
+      fetchDecisions: vi.fn().mockResolvedValue([item("1", { lever: { code: "cover_image", label: "Ảnh bìa", executor: "juli_with_photo" } })]),
+      fetchRunDetail: vi.fn().mockResolvedValue({
+        id: RUN_ID,
+        status: "waiting_approval",
+        awaiting: null,
+        awaiting_expires_at: null,
+        decision_id: "1",
+        lever: { code: "cover_image", kind: "photo" },
+        photo: {
+          before_url: "/v1/demo/photos/shop-1/before-token",
+          after_url: "/v1/demo/photos/shop-1/after-token",
+          checks: [{ key: "square", label: "Tỉ lệ 1:1", ok: true }],
+        },
+        promotion: null,
+      }),
+    });
+    signedIn({ tab: "dang-thuc-hien", run: RUN_ID }, c);
+    expect(await screen.findByRole("img", { name: "Ảnh bìa hiện tại" })).toHaveAttribute("src", "/v1/demo/photos/shop-1/before-token");
+    expect(screen.getByRole("img", { name: "Ảnh bạn gửi" })).toHaveAttribute("src", "/v1/demo/photos/shop-1/after-token");
+    expect(c.fetchRunDetail).toHaveBeenCalledWith({ token: "tok", shopId: "shop-1" }, RUN_ID);
+  });
+
   it("422 failing checks are listed", async () => {
     const c = clients({
       fetchRuns: vi.fn().mockResolvedValue([run({ status: "waiting_external", awaiting: "photo" })]),
@@ -531,16 +577,65 @@ describe("promotion on Seller Center (RunManual.dc.html)", () => {
     expect(screen.queryByRole("button", { name: /Hoàn tác/ })).toBeNull();
   });
 
+  it("Không áp dụng at the seller step posts a decline and joins the card by decision_id", async () => {
+    const c = clients({
+      fetchRuns: vi.fn().mockResolvedValue([
+        run({ status: "waiting_external", awaiting: "seller_action", product_name: "Tên khác trên TikTok", decision_id: "1" }),
+      ]),
+      streamFetch: sse(MANUAL_RUN),
+      fetchDecisions: vi.fn().mockResolvedValue([
+        item("1", { seller_sku: "SM-012", lever: { code: "product_discount", label: "Giảm giá sản phẩm", executor: "seller_center" } }),
+      ]),
+    });
+    signedIn({ tab: "dang-thuc-hien", run: RUN_ID }, c);
+    const panel = await screen.findByTestId("run-detail");
+    // Joined by id although the run's product name differs from the card's title.
+    await waitFor(() => expect(within(panel).getByRole("heading", { level: 2 })).toHaveTextContent("SM-012"));
+    const guide = await screen.findByTestId("seller-guide");
+    const skip = within(guide).queryAllByRole("button").find((button) => /Không/.test(button.textContent ?? ""));
+    expect(skip).toBeDefined();
+    await userEvent.click(skip!);
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getAllByRole("radio")[0]);
+    const submit = within(dialog).getAllByRole("button").find((button) => button.textContent !== "Huỷ" && !/Quay lại|Huỷ/.test(button.textContent ?? ""));
+    await userEvent.click(submit!);
+    await waitFor(() => expect(c.decline).toHaveBeenCalledWith({ token: "tok", shopId: "shop-1" }, RUN_ID, expect.objectContaining({ reason_code: expect.any(String) })));
+  });
+
   it("the manual timeline puts the seller's step between Juli's, with Juli / Bạn tags", () => {
     const timeline = buildRunTimeline(MANUAL_RUN, { kind: "manual", awaiting: "seller_action" });
     expect(timeline.steps.map((step) => [step.label, step.status, step.who])).toEqual([
       ["Đọc giá và khuyến mãi hiện có", "done", "juli"],
-      ["Kiểm tra quy tắc bạn đặt", "upcoming", "juli"],
-      ["Soạn hướng dẫn", "upcoming", "juli"],
+      ["Kiểm tra quy tắc bạn đặt", "done", "juli"],
+      ["Soạn hướng dẫn", "done", "juli"],
       ["Áp dụng trên Seller Center", "current", "you"],
       ["Kiểm tra trên TikTok", "upcoming", "juli"],
       ["Kết thúc · đặt lịch đo", "upcoming", "juli"],
     ]);
+  });
+
+  it("verification reads after the pause land on Kiểm tra trên TikTok", () => {
+    const after: AgentEvent[] = [
+      ...MANUAL_RUN,
+      ev(8, "tool.started", { tool_call_id: "m2", tool_name: "find_product_promotions" }),
+      ev(9, "tool.completed", { tool_call_id: "m2", tool_name: "find_product_promotions", ok: true, summary: "Đã thấy" }),
+    ];
+    const timeline = buildRunTimeline(after, { kind: "manual", awaiting: null });
+    const rows = Object.fromEntries(timeline.steps.map((step) => [step.label, step.status]));
+    expect(rows["Đọc giá và khuyến mãi hiện có"]).toBe("done");
+    expect(rows["Kiểm tra trên TikTok"]).toBe("done");
+    expect(timeline.steps.filter((step) => step.label === "Bước xử lý")).toEqual([]);
+  });
+});
+
+describe("cover photo timeline against P10-B's tool order", () => {
+  it("the staged upload before the consent is not the write", () => {
+    const timeline = buildRunTimeline(PHOTO_RUN_AT_CONSENT, { kind: "photo", awaiting: null });
+    const rows = Object.fromEntries(timeline.steps.map((step) => [step.label, step.status]));
+    expect(rows["Xác nhận một lần"]).toBe("current");
+    expect(rows["Tải ảnh lên TikTok Shop"]).toBe("upcoming");
+    expect(timeline.steps.filter((step) => step.label === "Bước xử lý")).toEqual([]);
+    expect(timeline.pendingConsent?.toolName).toBe("update_product_listing");
   });
 });
 

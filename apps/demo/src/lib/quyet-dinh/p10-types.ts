@@ -27,8 +27,8 @@ export type LeverCode =
 export interface CardKpi {
   readonly key: string;
   readonly label: string;
-  readonly current: number;
-  readonly target: number;
+  readonly current: number | null;
+  readonly target: number | null;
   readonly unit: "ratio" | "vnd";
 }
 
@@ -43,9 +43,9 @@ export interface CardBeforeAfter {
 export interface RecommendationCardPayload {
   readonly seller_sku: string | null;
   readonly seller_sku_more: number;
-  readonly product_title: string;
+  readonly product_title: string | null;
   readonly workflow_label: string;
-  readonly updated_at: string;
+  readonly updated_at: string | null;
   readonly status: CardStatus;
   readonly main_kpi: CardKpi | null;
   readonly expected_gmv_per_month: number | null;
@@ -55,7 +55,7 @@ export interface RecommendationCardPayload {
   readonly lever: { readonly code: string; readonly label: string; readonly executor: LeverExecutor };
   readonly change_fields: readonly { readonly field: string; readonly label: string }[];
   readonly before_after: readonly CardBeforeAfter[];
-  readonly gmv_method: string;
+  readonly gmv_method: string | null;
 }
 
 /** A decisions item as P10-A sends it (the `card` is additive). */
@@ -68,16 +68,42 @@ export type P10DecisionItem = DemoDecisionItem & {
 /** §4/§5 `run.awaiting`. */
 export type RunAwaiting = "photo" | "seller_action";
 
-/** A runs-list item as P10-B sends it (`awaiting` is additive). */
+/**
+ * A runs-list item as the backend sends it: `awaiting` (P10-B) and
+ * `decision_id` (P10 integration — the card the run came from) are additive.
+ */
 export type QdRun = WorkflowRunListItem & {
   readonly awaiting?: RunAwaiting | null;
 };
 
-/** §4 photo checks. */
+/** §4 photo checks. P10-B adds `heuristic` / `detail` per check (accepted deviation). */
 export interface PhotoCheck {
   readonly key: string;
   readonly label: string;
   readonly ok: boolean;
+  readonly heuristic?: boolean;
+  readonly detail?: string;
+}
+
+/** `GET /v1/demo/runs/{id}` → `data` (P10-B; the fields Quyết định reads). */
+export interface RunDetail {
+  readonly id: string;
+  readonly status: string;
+  readonly awaiting: RunAwaiting | null;
+  readonly awaiting_expires_at: string | null;
+  readonly decision_id: string | null;
+  readonly lever: { readonly code: string; readonly kind: string } | null;
+  readonly photo: {
+    readonly before_url: string | null;
+    readonly after_url: string | null;
+    readonly checks: readonly PhotoCheck[];
+  } | null;
+  readonly promotion: {
+    readonly lever: string;
+    readonly applied_at: string | null;
+    readonly verify_attempts: number;
+    readonly measurement_start: string | null;
+  } | null;
 }
 
 /** §5 `GET /v1/demo/runs/{id}/instructions`. */
@@ -96,10 +122,10 @@ export type MeasureUnit = "ratio" | "vnd" | "count";
 export interface MeasurementBand {
   readonly key: string;
   readonly label: string;
-  readonly before: number;
+  readonly before: number | null;
   readonly band_pct: number;
-  readonly low: number;
-  readonly high: number;
+  readonly low: number | null;
+  readonly high: number | null;
   readonly unit: MeasureUnit;
 }
 
@@ -118,15 +144,15 @@ export interface Measurement {
   readonly dates: { readonly day7: string; readonly day14: string };
   readonly target: {
     readonly label: string;
-    readonly current: number;
-    readonly target: number;
-    readonly progress_from: number;
-    readonly unit: "ratio" | "vnd";
+    readonly current: number | null;
+    readonly target: number | null;
+    readonly progress_from: number | null;
+    readonly unit: MeasureUnit;
   };
   readonly expected_gmv_per_day: number | null;
   readonly bands: readonly MeasurementBand[];
   readonly rows: readonly MeasurementRow[];
-  readonly day7: { readonly within_band: boolean; readonly question_id: string | null } | null;
+  readonly day7: { readonly within_band: boolean | null; readonly question_id: string | null } | null;
   readonly final: {
     readonly label: FinalLabel;
     readonly gmv_actual_per_day: number | null;

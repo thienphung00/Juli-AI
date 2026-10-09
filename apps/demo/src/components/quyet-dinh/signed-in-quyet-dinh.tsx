@@ -26,6 +26,7 @@ import {
   dismissRevertQuestion,
   fetchRevertQuestions,
   fetchRunChanges,
+  fetchRunDetail,
   fetchRunInstructions,
   fetchRunMeasurement,
   fetchShopRules,
@@ -44,7 +45,7 @@ import { cardView, type CardView } from "../../lib/quyet-dinh/card-model";
 import { QD_TABS, type QdTabSlug } from "../../lib/quyet-dinh/copy";
 import { groupDecisions } from "../../lib/quyet-dinh/grouping";
 import { MEASURE_TABS, type MeasureTab } from "../../lib/quyet-dinh/measure-model";
-import type { CardStatus, P10DecisionItem, PhotoCheck, QdRun, SellerInstructions } from "../../lib/quyet-dinh/p10-types";
+import type { CardStatus, P10DecisionItem, PhotoCheck, QdRun, RunDetail, SellerInstructions } from "../../lib/quyet-dinh/p10-types";
 import { REVERT_REASONS, type ReasonChoice } from "../../lib/quyet-dinh/reasons";
 import { runChip, runKind, runPhase, type Chip } from "../../lib/quyet-dinh/run-model";
 import { buildRunTimeline, type RunKind } from "../../lib/quyet-dinh/timeline";
@@ -90,6 +91,7 @@ export interface QdClients {
   readonly fetchInstructions: typeof fetchRunInstructions;
   readonly markApplied: typeof markRunApplied;
   readonly fetchMeasurement: typeof fetchRunMeasurement;
+  readonly fetchRunDetail: typeof fetchRunDetail;
   /** SSE transport override (tests); the real one is same-origin `fetch`. */
   readonly streamFetch?: typeof fetch;
 }
@@ -112,6 +114,7 @@ export const REAL_QD_CLIENTS: QdClients = {
   fetchInstructions: fetchRunInstructions,
   markApplied: markRunApplied,
   fetchMeasurement: fetchRunMeasurement,
+  fetchRunDetail,
 };
 
 type Load<T> = { status: "loading" } | { status: "error" } | { status: "ready"; data: T };
@@ -305,7 +308,8 @@ function QuyetDinhForShop({
   const [runByCard, setRunByCard] = useState<Record<string, string>>({});
   const [cardErrors, setCardErrors] = useState<Record<string, string>>({});
   const cardFor = useCallback(
-    (run: Pick<QdRun, "id" | "product_name">): CardView | null => {
+    (run: Pick<QdRun, "id" | "product_name" | "decision_id">): CardView | null => {
+      if (run.decision_id && views.has(run.decision_id)) return views.get(run.decision_id)!;
       const byRun = Object.entries(runByCard).find(([, runId]) => runId === run.id)?.[0];
       if (byRun && views.has(byRun)) return views.get(byRun)!;
       for (const view of views.values()) if (view.title === run.product_name) return view;
@@ -677,6 +681,9 @@ function SelectedRun({
   const isRevert = Boolean(changes?.reverts_run_id) || revertMeta !== null;
   const kind = runKind(run, card, events, isRevert);
   const [photoChecks, setPhotoChecks] = useState<readonly PhotoCheck[] | null>(null);
+  const [detail, setDetail] = useState<RunDetail | null>(null);
+  const runPhotos = detail?.photo ?? null;
+  const shownChecks = photoChecks ?? (runPhotos && runPhotos.checks.length > 0 ? runPhotos.checks : null);
   const [photoState, setPhotoState] = useState<PhotoState>({ status: "idle" });
   const [appliedPosted, setAppliedPosted] = useState(false);
   const [appliedState, setAppliedState] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
@@ -687,12 +694,12 @@ function SelectedRun({
         kind,
         isRevert: kind === "revert",
         awaiting: run.awaiting ?? null,
-        photoChecks,
+        photoChecks: shownChecks,
         revertStartedAt: revertMeta?.startedAt ?? (kind === "revert" ? run.created_at : null),
         revertReason: revertMeta?.reason ?? null,
         revertFieldLabels: changes?.changes.map((change) => change.label) ?? card?.changeLabels ?? [],
       }),
-    [events, kind, run.awaiting, run.created_at, photoChecks, revertMeta, changes, card],
+    [events, kind, run.awaiting, run.created_at, shownChecks, revertMeta, changes, card],
   );
   const phase = runPhase(run, kind, timeline, { appliedPosted, declined });
   const chip = runChip(run, kind, phase);
@@ -702,6 +709,22 @@ function SelectedRun({
     // chip is derived from kind/phase; compare by value to avoid loops
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run.id, kind, chip.label, chip.tone]);
+
+  // Cover-photo runs: the before/after URLs and the stored checks live on the
+  // run detail (P10-B), not in the consent payload (`attach_staged_image`).
+  const wantsDetail = kind === "photo";
+  const consentSeen = timeline.pendingConsent !== null;
+  useEffect(() => {
+    if (!wantsDetail) return;
+    let cancelled = false;
+    clients
+      .fetchRunDetail(auth, run.id)
+      .then((data) => !cancelled && setDetail(data ?? null))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [clients, auth, run.id, wantsDetail, run.awaiting, consentSeen, terminalSeen]);
 
   // Seller Center instructions, once the run waits on the seller.
   const [instructions, setInstructions] = useState<LoadState<SellerInstructions> | null>(null);
@@ -763,12 +786,13 @@ function SelectedRun({
         try {
           await clients.decline(auth, run.id, choice);
         } catch (error) {
-          // Contract §2's decline route not deployed yet: decline the consent itself.
-          if (error instanceof QdApiError && (error.status === 404 || error.status === 405) && toolCallId) {
-            await clients.confirm(run.id, toolCallId, "decline", null, { token: auth.token, shopId: auth.shopId });
-          } else {
-            throw new Error(errorSentence(error, "Chưa gửi được lựa chọn. Vui lòng thử lại."));
+          // 404/409: nothing is waiting for the seller any more (decided elsewhere,
+          // already resumed or ended) — the backend's own words are English codes.
+          if (error instanceof QdApiError && (error.status === 404 || error.status === 409)) {
+            onRefresh();
+            throw new Error("Lượt chạy này không còn chờ bạn quyết định. Vui lòng tải lại trang.");
           }
+          throw new Error(errorSentence(error, "Chưa gửi được lựa chọn. Vui lòng thử lại."));
         }
         setDeclined(true);
         onRefresh();
@@ -807,8 +831,9 @@ function SelectedRun({
         }
       }}
       phase={phase}
-      photoChecks={photoChecks}
+      photoChecks={shownChecks}
       photoState={photoState}
+      photoUrls={runPhotos ? { before: runPhotos.before_url, after: runPhotos.after_url } : null}
       reconnecting={streamStatus === "reconnecting"}
       revertBusy={revertBusy}
       revertConflict={revertConflict}

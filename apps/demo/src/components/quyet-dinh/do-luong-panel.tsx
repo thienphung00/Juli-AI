@@ -220,7 +220,7 @@ function MeasurePanel({
   const canRevert =
     card?.executor !== "seller_center" && (changes ? changes.revert.available && !changes.reverts_run_id : true);
   const headingId = `measure-${run.id}`;
-  const outside = m?.stage === "day7" && m.day7 !== null && !m.day7.within_band;
+  const outside = m?.stage === "day7" && m.day7 !== null && m.day7.within_band === false;
   const answered: "revert" | "keep" | null = action.revertRunId ? "revert" : action.kept ? "keep" : null;
   const box = m ? finalBox(m, card?.leverLabel ?? null) : null;
   const waiting = !m || m.stage === "waiting";

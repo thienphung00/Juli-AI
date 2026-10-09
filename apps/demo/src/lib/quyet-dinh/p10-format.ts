@@ -65,20 +65,24 @@ export function ratioDecimals(ratio: number): number {
   return pctNumber(ratio).split(",")[1]?.length ?? 1;
 }
 
-export function valueText(value: number, unit: ValueUnit, minDecimals = 1): string {
+export function valueText(value: number | null, unit: ValueUnit, minDecimals = 1): string {
+  if (value === null || !Number.isFinite(value)) return "—";
   if (unit === "ratio") return ratioText(value, minDecimals);
   if (unit === "vnd") return vndText(value);
   return countText(value);
 }
 
 /** "5,4 % → 5,9 %" / "182k → 205k ₫" (the artboards drop the first ₫). */
-export function kpiPair(current: number, target: number, unit: "ratio" | "vnd"): string {
+export function kpiPair(current: number | null, target: number | null, unit: ValueUnit): string {
+  if (current === null || target === null) return `${valueText(current, unit)} → ${valueText(target, unit)}`;
+  if (unit === "count") return `${countText(current)} → ${countText(target)}`;
   if (unit === "vnd") return `${compactVndNumber(current)} → ${compactVndNumber(target)} ₫`;
   return `${ratioText(current)} → ${ratioText(target)}`;
 }
 
 /** Band range: "9.613 – 10.207", "4,31 % – 4,57 %", "155k – 165k ₫". */
-export function rangeText(low: number, high: number, unit: ValueUnit): string {
+export function rangeText(low: number | null, high: number | null, unit: ValueUnit): string {
+  if (low === null || high === null) return "—";
   if (unit === "vnd") return `${compactVndNumber(low)} – ${compactVndNumber(high)} ₫`;
   if (unit === "ratio") return `${ratioText(low)} – ${ratioText(high)}`;
   return `${countText(low)} – ${countText(high)}`;
