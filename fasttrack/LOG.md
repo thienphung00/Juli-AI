@@ -570,7 +570,7 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   `awaiting_expires_at`, `lever`, `photo`, `promotion`); photo checks carry an
   extra `heuristic`/`detail` per item; measurement row `key` for GMV is
   `gmv_per_day`.
-- Gates: new tests 79 passed (unit) + 2 (PG16 two-tenant). check.sh `--since
+- Gates: new tests 63 passed (unit) + 2 (PG16 two-tenant). check.sh `--since
   effa4d4a --skip-gitleaks` on a fresh PG16: migrations PASS (080 head,
   up/down/up), isolation 12, ruff PASS, pytest 400 passed / 1 failed —
   `test_reaper_two_tenant.py::test_each_run_is_reaped_by_its_own_workflows_policy_as_juli_app`,
