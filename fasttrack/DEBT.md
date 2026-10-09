@@ -304,9 +304,47 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   `.change-pill` are scoped to `.pt-page`; the kit rules themselves (used on
   Home, Quyết định) still use the raw status hue — scope — darken them in the
   kit block and re-run axe app-wide.
-- [ ] Pre-existing, not P8-E: vitest `replay-scenario.test.ts` "is
+- [x] ~~Pre-existing, not P8-E: vitest `replay-scenario.test.ts` "is
   byte-identical to the fixture the capture tool produced" fails on the merge
   base (41584c55) too — the client copy of the golden scenario drifted from
   `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` (likely
-  P8-G's playbook change) — re-copy the fixture in the integration.
+  P8-G's playbook change) — re-copy the fixture in the integration.~~ —
+  repaid by P8-F (d1695f17): fixture re-copied (only `prompt_sha256` moved);
+  `expires_at` is rebased at runtime by `replay-scenario.ts` already.
 
+
+## P8-F Quyết định UI (2026-10-09)
+
+- [ ] Anonymous Quyết định is still the legacy fixture layout
+  (`RecommendationsView` + mock In-Progress + the staged run route); only the
+  signed-in branch has ADR-109's three sub-tabs, grouped cards, timeline and
+  Đo lường — no sample decisions/run data exist for the anonymous door —
+  generate a sample decisions + recorded run fixture (as P8-E did for
+  rankings) and render `SignedInQuyetDinh`'s panels from it.
+- [ ] Đo lường shows no numbers: there is no measurement read for a run
+  (impact readings are not exposed under `/v1/demo`) — no API — after day 7
+  each row says "Juli chưa có số đo"; add a per-run readings route (P6) and
+  render before → after vs expected.
+- [ ] Group header shows no "current → target rate": the backend gives per-card
+  `current_rate`/`reference_rate` only, no group target — no data — only
+  "GMV dự kiến = Σ recoverable GMV/ngày × 30 (ước tính theo quy tắc)".
+- [ ] Card code is the TikTok product id (last 6 digits); the seller SKU code
+  of the video ("SV-012") is not in the decisions payload — no data.
+- [ ] "Mã TikTok" shows the lever evidence `detail` (source tiktok, else Juli's
+  local check); raw codes are never shown and no label map exists client-side
+  for codes without a detail — fine for now.
+- [ ] Rules 422 messages are English from the backend; the editor shows a
+  per-rule Vietnamese range sentence instead of the server text — backend
+  should send `detail.message` in Vietnamese like `/revert`.
+- [ ] "Bỏ" (drop a card) is session-only, as before (no reject route) — scope.
+- [ ] Batch approve navigates to the first new run; a card whose approve
+  failed is listed in an alert, not retried — honest, one click more.
+- [ ] Upcoming timeline steps come from a client-side copy of the playbook
+  order (`OPTIMIZE_PLAN` / `REVERT_PLAN` in `lib/quyet-dinh/timeline.ts`) —
+  shown greyed without time/result — drifts if the playbook changes; a
+  `workflow.started` payload listing the plan would remove it.
+- [ ] A revert run is recognised by `GET …/changes` `reverts_run_id` (one read
+  per selected run) because `GET /v1/demo/runs` items carry no
+  `reverts_run_id` — add it to the list item.
+- [ ] `/settings` signed in now shows only the rules editor; the old
+  workflow-template/threshold tabs remain for anonymous only.

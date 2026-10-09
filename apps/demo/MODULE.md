@@ -119,6 +119,37 @@ Invariants below.
   `scripts/demo_analysis_sample.py` (real `build_report` / `build_rankings`
   over the synthetic helpers in `tests/support/shop_diagnosis.py`; `--check`
   fails when stale). The KPI dashboard stays at `/analytics/[metricKey]`.
+- **Quyết định (AC-8.7, ADR-109 d.6, 8–13) — signed in.** `DecisionsPageClient`
+  renders `SignedInQuyetDinh` (`components/quyet-dinh/signed-in-quyet-dinh.tsx`,
+  replaces `SignedInDecisions`) — the one module wiring the real clients
+  (injectable `clients`). URL: `tab=de-xuat|dang-thuc-hien|do-luong`,
+  `run=<id>`, `quy-tac=1` (rules editor open). **Đề xuất** (`DeXuatPanel`):
+  `lib/quyet-dinh/grouping.ts` groups `GET /v1/demo/decisions` items by
+  `channel_scope` × `stage.code` ("N thẻ tối ưu để nâng CTOR Thẻ sản phẩm",
+  "GMV dự kiến" = Σ recoverable GMV/day × 30, ước tính theo quy tắc — no
+  target rate, the backend gives none); price/promotion/non-executable cards
+  say "Bạn áp dụng trên Seller Center" and never enter "Duyệt N thẻ"; batch
+  approve = `approveSequentially` (one approve call at a time → N runs);
+  blocked until a stability band is set (d.11) — "Giữ ổn định" and "Quy tắc
+  do bạn đặt" read `GET /v1/demo/rules`. `FiveStageStepper` sits on a group or
+  a run only (d.8). **Rules editor** (`RulesEditor`, d.12) opens from "Sửa"
+  and is the signed-in `/settings` page (avatar menu Cài đặt,
+  `settings-rules.tsx`); "Điền thay Seller (đội ngũ Juli)" → `set_by:
+  "team"`; a 422 shows the rule's Vietnamese range inline. **Đang thực
+  hiện**: `buildRunTimeline` (`lib/quyet-dinh/timeline.ts`, pure, idempotent
+  by sequence) turns the run's SSE events (`useRunStream`; a finished run's
+  stream replays its history) into steps — tool → Vietnamese label, event
+  time, `tool.completed.summary` / narration, consent inline with the existing
+  `OptionPicker` + confirmation client, terminal with day 7 / day 14 from the
+  completion timestamp (D14); playbook steps not reached yet are greyed
+  without time. Right: `RunQueue` ("Hàng chờ thẻ tối ưu", ledger sections
+  and honest terminal labels from `lib/run-ledger`). Finished runs show
+  `GET …/changes` before → after and "Hoàn tác" (`POST …/revert` → the new
+  run; 409/503 messages verbatim; disabled with `revert.message`). **Đo
+  lường** (`DoLuongPanel`): executed runs with changed fields and "Đang chờ
+  đủ 7 ngày dữ liệu · đo lúc dd/mm/yyyy" (no measurement API yet — DEBT
+  P8-F), `GET /v1/demo/revert-questions` with Hoàn tác / Giữ thay đổi
+  (dismiss). Anonymous `/decisions` is unchanged (fixtures, DEBT P8-F).
 - **Quyết định evidence (AC-7.6).** `lib/decision-evidence.ts` is the one
   mapper for an Optimize Product item's `recommendation.diagnosis` /
   `recommendation.evidence` (P7-B, typed in `@juli/contracts`);
@@ -241,8 +272,8 @@ Invariants below.
   confirm that resolves from the captured scenario's own
   `continuations.approve`/`continuations.decline` without a network call
   does not exist yet.
-- **A second known gap, same investigation:** the captured golden scenario's
-  `workflow.approval_required.expires_at` (`2026-08-28T12:32:13.308159Z`) is
+- **(Fixed since — #1764 / `rebaseTemporalFields`; kept for history)** the captured golden scenario's
+  `workflow.approval_required.expires_at` (`2026-08-28T12:32:13.308159Z`) was
   never rebased — only the envelope's own `timestamp` is shifted to "now"
   (`lib/run-surface/replay-scenario.ts`'s `rebaseEvent`). Once real
   wall-clock time passes that fixed date, the option picker renders

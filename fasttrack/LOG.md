@@ -433,3 +433,27 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   (prompt_sha256 changed) but apps/demo/src/lib/run-surface/golden-scenarios/
   copy was not refreshed. Needs a frontend copy (cp fixture over it); not done
   here (apps/ off limits).
+
+## 2026-10-09 — P8-F agent (Claude Opus) — Quyết định UI (AC-8.7)
+
+- Branch fasttrack/p8f-decisions: d1695f17 (golden scenario re-copied from
+  `tests/fixtures` — orchestrator note; only `prompt_sha256` changed,
+  `expires_at` already rebased at runtime; DEBT P8-E item repaid), 44a5c340
+  (UI), 725d9136 (vitest), 800e7b80 (e2e + mobile layout), docs commit.
+- Signed-in /decisions = `SignedInQuyetDinh` with Đề xuất / Đang thực hiện /
+  Đo lường (URL `tab`, `run`, `quy-tac`). Grouped compact cards (stream ×
+  weak stage, GMV dự kiến = Σ recoverable/day × 30), price cards excluded,
+  sequential batch approve, blocked until a stability band is set; rules
+  editor (Sửa + signed-in /settings) with team/seller set_by; SSE-only step
+  timeline (`buildRunTimeline`) with inline consent; queue in ledger
+  sections; before → after + Hoàn tác; Đo lường placeholder + Hoàn tác?
+  questions. `SignedInDecisions` + its test retired; contracts gained
+  `lever.evidence`, `tiktok_product_id`.
+- Anonymous /decisions unchanged (fixtures; e2e asserts zero /v1).
+- Gates: type-check, lint 0 errors, vitest 1667/1667, e2e 106/106,
+  build:demo OK. Use Node 20 explicitly: `~/.local/bin/node` (v26) shadows
+  nvm and breaks jsdom localStorage (269 false failures).
+- Screenshots 1440/390 in the session scratchpad `shots-p8f/`.
+- Next: integration; DEBT P8-F (anonymous sample, measurement API, revert flag
+  on the runs list).
+

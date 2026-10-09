@@ -736,30 +736,33 @@ describe("DecisionsPageClient — the session split (#1909, ADR-094)", () => {
     });
     storeActiveShop({ id: "shop-1", name: "Shop Minh Anh" });
 
-    const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        success: true,
-        data: [GOLDEN_DEMO_DECISION_EXECUTABLE],
-        error: null,
-      }),
-    } as Response);
+    // AC-8.7: the signed-in Quyết định also reads the shop's rules and runs.
+    const fetchSpy = vi.spyOn(global, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      const data = url.startsWith("/v1/demo/decisions")
+        ? [GOLDEN_DEMO_DECISION_EXECUTABLE]
+        : url.startsWith("/v1/demo/runs")
+          ? []
+          : null;
+      return { ok: url !== "/v1/demo/rules", status: url === "/v1/demo/rules" ? 404 : 200, json: async () => ({ success: true, data, error: null }) } as Response;
+    });
 
     renderPage();
 
     await waitFor(() => {
       expect(
-        screen.getByText(GOLDEN_DEMO_DECISION_EXECUTABLE.title),
+        screen.getByRole("article", { name: GOLDEN_DEMO_DECISION_EXECUTABLE.title }),
       ).toBeInTheDocument();
     });
 
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const [calledUrl, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    const decisionCalls = fetchSpy.mock.calls.filter(([url]) => String(url) === "/v1/demo/decisions");
+    expect(decisionCalls).toHaveLength(1);
+    const [calledUrl, init] = decisionCalls[0] as [string, RequestInit];
     expect(calledUrl).toBe("/v1/demo/decisions");
     const headers = new Headers(init.headers);
     expect(headers.get("Authorization")).toBe("Bearer real-bearer-token");
     expect(headers.get("X-Shop-Id")).toBe("shop-1");
+    expect(fetchSpy.mock.calls.every(([url]) => String(url).startsWith("/v1/demo/"))).toBe(true);
 
     // The anonymous branch's fixture content must not be standing in.
     expect(screen.queryByText("Tạo sản phẩm nổi bật")).not.toBeInTheDocument();
