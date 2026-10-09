@@ -79,6 +79,12 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "run_write_values"): "tenant_direct",
     ("public", "shop_rules"): "tenant_direct",
     ("public", "run_revert_questions"): "tenant_direct",
+    # Fast track P10-B, migration 080: cover-image / promotion lever flows, the
+    # photos they show, per-lever calibration and day-14 verdicts.
+    ("public", "run_lever_flows"): "tenant_direct",
+    ("public", "run_lever_photos"): "tenant_direct",
+    ("public", "lever_calibrations"): "tenant_direct",
+    ("public", "run_measurement_finals"): "tenant_direct",
     # Via-parent tenant-scoped tables
     ("public", "workflow_run_events"): "tenant_via_parent",
     ("public", "run_confirmations"): "tenant_via_parent",
