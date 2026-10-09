@@ -44,6 +44,13 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 | P8-F Quyết định UI | 8.7 | done (merged 8e873ffc) | P8-F agent (Opus) |
 | P8 integration + deploy | — | doing (verified; awaiting deploy tag) | orchestrator |
 
+## P9 — seller access
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P9-A Email sign-in (OTP code / magic link) beside Google | 9.1 | doing | P9-A agent (Opus) |
+| P9-B Hand a shop connected by the Juli team over to the seller's own Juli account (invite / transfer) | 9.2 | todo — needs a grill | — |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
